@@ -1,0 +1,39 @@
+id: uw-matematyka-am2-analiza-matematyczna-ii-cwiczenia
+title: Analiza Matematyczna II – ćwiczenia
+type: zbior-zadan
+description: Zbiór zadań z rozwiązaniami z Analizy Matematycznej II.
+author: Marysia Nazarczuk
+file: Analiza_Matematyczna_II.pdf
+topics:
+- normy-iloczyn-skalarny
+- granice-ciaglosc-wielu-zmiennych
+- pochodna-funkcji-wielu-zmiennych
+- rozniczkowanie-zlozenia
+- stozki-styczne-gradient
+- ekstrema
+- wzor-taylora
+- funkcja-uwiklana
+- funkcja-odwrotna
+- teoria-miary
+- twierdzenia-lebesguea-o-zbieznosci
+- rozniczkowanie-pod-znakiem-calki
+- twierdzenie-fubiniego
+- calkowanie-przez-podstawienie
+- srodek-ciezkosci
+- calkowalnosc-funkcji
+- sploty
+- przestrzenie-lp
+- aproksymacja-funkcjami-gladkimi
+- transformata-fouriera
+- podrozmaitosci
+- wyznacznik-grama
+- miara-powierzchniowa
+- powierzchnie-obrotowe
+- formy-rozniczkowe-1
+- calki-z-form-po-krzywych
+- rozniczka-zewnetrzna
+- formy-rozniczkowe-k
+- cofniecie-formy
+- twierdzenie-stokesa
+published: true
+featured: true

@@ -115,76 +115,29 @@ edmat/
 │       ├── lib/services/        one file per domain — the only layer routes/components call
 │       ├── lib/state/            auth/token/theme/guestSet/browsingHistory (Svelte 5 runes)
 │       └── routes/                SvelteKit pages
-├── Database-of-Student-Exercise/   the original, untouched source corpus (740+ exercises)
+├── Database-of-Student-Exercise/   the original source corpus — see note below
+│   └── content/                       ✅ vendored/tracked in this repo (fields/courses/exercises/
+│                                       materials, 742 exercises); everything else in that project
+│                                       (its own static-site generator, build output, docs, tests)
+│                                       is gitignored here since EdMat's `import_legacy_corpus`
+│                                       command only ever reads `content/` — see below
 └── scripts/                          a Phase-1-only mock-fixture extraction tool (historical)
 ```
 
----
+**The exercise corpus ships with this repo — nothing extra to clone or download.**
+`Database-of-Student-Exercise/content/` (742 exercises, their PDFs, and the field/course/topic
+metadata) is tracked directly in this repository, not fetched separately — it's what `manage.py
+import_legacy_corpus` (step 1 above) reads to populate the database, so the setup steps above work
+as written on a completely fresh clone. It originated as its own project
+([`github.com/mar2000/Database-of-Student-Exercise`](https://github.com/mar2000/Database-of-Student-Exercise));
+only its content data is vendored here, not its static-site-generator tooling (`build.py`,
+`generator/`, `site/`), which EdMat has no use for.
 
-## For your eyes only
+> ⚠️ The corpus is transcribed from real university course material (exam/midterm/exercise-sheet
+> problems). Whether redistributing it publicly needs instructor permission is an open question —
+> see `CLAUDE.md` Section 18, item 2 — worth a real answer before this goes beyond a
+> personal/prototype deployment.
 
-*(This section documents the exact environment already set up in this sandbox, so you can run the
-same thing without redoing any setup — skip the two setup sections above entirely.)*
-
-Everything above describes a **fresh** setup. You don't need one — a working `.venv` and a fully
-`npm install`'d `frontend/node_modules` already exist on disk here, and the database already has the
-full corpus imported and both demo/test data in it. Just start both servers directly:
-
-```sh
-# Terminal 1 — backend, using the existing venv (already has Django/DRF/etc. installed)
-cd /home/alojzy/Zrzut_Na_Hosta/edmat/backend
-../.venv/bin/python3 manage.py runserver 127.0.0.1:8000
-
-# Terminal 2 — frontend, using the existing node_modules
-cd /home/alojzy/Zrzut_Na_Hosta/edmat/frontend
-npm run dev
-```
-
-Then open `http://localhost:5173/`.
-
-**Why `../.venv/bin/python3 manage.py ...` and not `source .venv/bin/activate` first** — the venv's
-own `activate` script works fine too if you prefer it (`source ../.venv/bin/activate` from
-`backend/`, then plain `python3 manage.py ...`); I've been invoking the interpreter by its full path
-directly instead, purely because that's what worked without needing an interactive shell in this
-harness. Either approach uses the identical venv and produces identical results.
-
-**Why this venv isn't just `pip install -r requirements.txt` in a normal venv** — worth knowing in
-case you ever need to rebuild it: this sandbox has no `sudo`/root access and no interactive TTY, so
-the usual `python3 -m venv .venv` failed here (`ensurepip` isn't available on the system Python, and
-there's no `apt install python3-venv` path without a password prompt). It was built instead with
-`python3 -m venv --without-pip .venv`, then bootstrapped by downloading and running
-`get-pip.py` by hand. You almost certainly don't have this problem on your own machine — a plain
-`python3 -m venv .venv` should just work there. Only reach for the `--without-pip` +
-`get-pip.py` workaround if you hit the same `ensurepip is not available` error I did.
-
-### What's actually in the database right now
-
-The real 742-exercise corpus is fully imported. But the database also has **test data left over
-from my own end-to-end verification** of the moderation/review/comment/registration flows — not
-something you asked for, just the byproduct of me actually clicking through the app to prove it
-works rather than assuming it does:
-
-- **3 extra exercises** (ids `743`, `744`, `745`) — fake submissions I created and then approved
-  through the real moderator flow, to prove that pipeline works. Titled things like "Test submitted
-  exercise" / "Phase 3 e2e submitted exercise" — you'll notice them if you browse those courses.
-- **2 reviews, 5 comments, 2 edit suggestions, 2 community translations** (a test English and a test
-  German translation on real exercise `#1`/`#51`) — same reason.
-- **5 throwaway user accounts** beyond the 5 real demo ones and the `admin` superuser I created for
-  testing: `student1`, `realuser-abc123`, and three `verify-<timestamp>@example.com` registrations.
-
-None of this corrupts the real corpus — it's all additive, clearly separable rows (every one of the
-3 test exercises has a real `submitted_by`, unlike the 742 genuinely migrated ones, which are all
-`submitted_by = NULL`). But if you want a database that's *just* the corpus with no test noise
-before you start using this for real, ask me and I'll write the cleanup — I didn't run it
-unprompted since deleting rows isn't something to do without confirmation first.
-
-One account IS worth keeping, not cleanup fodder: `admin` / `admin12345`, a real Django superuser
-I created so I could poke at `/admin/` while verifying things — use it instead of running
-`createsuperuser` yourself if you just want admin access without making a new one.
-
-### Ports already in use
-
-If you're picking this up in the same session I was using it in, nothing should still be running —
-I stop both dev servers at the end of each work session. If you find `127.0.0.1:8000` or
-`localhost:5173` already occupied, check `ps aux | grep -E "runserver|vite"` before assuming
-something's wrong.
+`backend/db.sqlite3` and `backend/media/` are **not** committed (see `.gitignore`) — both are fully
+regenerated by the setup steps above (`migrate` + `import_legacy_corpus`, which re-copies the PDFs
+from the vendored corpus into `media/` on every run).

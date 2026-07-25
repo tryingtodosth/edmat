@@ -1,0 +1,19 @@
+# Kanoniczna lista identyfikatorów `topics` dla Rachunku Prawdopodobieństwa I.
+# W plikach .md wolno używać wyłącznie identyfikatorów z tej listy.
+topics:
+  - model-klasyczny-kombinatoryka
+  - prawdopodobienstwo-geometryczne
+  - niezaleznosc-zdarzen-schemat-bernoulliego
+  - prawdopodobienstwo-warunkowe-bayes
+  - borel-cantelli
+  - pi-lambda
+  - zmienne-losowe-dystrybuanty
+  - gestosci-i-transformacje-zmiennych
+  - rozklady-dyskretne-i-ciagle
+  - niezaleznosc-zmiennych-losowych
+  - wartosc-oczekiwana-wariancja-kowariancja
+  - warunkowa-wartosc-oczekiwana
+  - zbieznosc-zmiennych-losowych
+  - prawa-wielkich-liczb
+  - szeregi-zmiennych-losowych
+  - przyblizone-prawdopodobienstwo

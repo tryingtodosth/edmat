@@ -1,0 +1,11 @@
+id: uw-informatyka-am1
+name: Analiza Matematyczna I
+field: informatyka
+university: Uniwersytet Warszawski
+description: Wersja analizy prowadzona dla studentów informatyki.
+published: true
+topics:
+  - id: granice
+    name: Granice i ciągłość
+  - id: pochodne
+    name: Pochodne

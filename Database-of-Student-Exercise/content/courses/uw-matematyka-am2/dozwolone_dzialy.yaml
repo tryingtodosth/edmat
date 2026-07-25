@@ -1,0 +1,62 @@
+course: uw-matematyka-am2
+allowed_topics:
+- id: normy-iloczyn-skalarny
+  name: Normy w Rⁿ, iloczyn skalarny
+- id: granice-ciaglosc-wielu-zmiennych
+  name: Granice i ciągłość funkcji wielu zmiennych
+- id: pochodna-funkcji-wielu-zmiennych
+  name: Pochodna funkcji wielu zmiennych
+- id: rozniczkowanie-zlozenia
+  name: Różniczkowanie złożenia funkcji
+- id: stozki-styczne-gradient
+  name: Stożki styczne i geometryczne własności gradientu
+- id: ekstrema
+  name: Badanie ekstremów funkcji
+- id: wzor-taylora
+  name: Wzór Taylora i ekstrema lokalne
+- id: funkcja-uwiklana
+  name: Twierdzenie o funkcji uwikłanej, rozmaitości i ekstrema warunkowe
+- id: funkcja-odwrotna
+  name: Twierdzenie o funkcji odwrotnej i dyfeomorfizmy
+- id: teoria-miary
+  name: Elementy teorii miary
+- id: twierdzenia-lebesguea-o-zbieznosci
+  name: Twierdzenia Lebesgue’a o zbieżności
+- id: rozniczkowanie-pod-znakiem-calki
+  name: Różniczkowanie pod znakiem całki
+- id: twierdzenie-fubiniego
+  name: Twierdzenie Fubiniego
+- id: calkowanie-przez-podstawienie
+  name: Całkowanie przez podstawienie
+- id: srodek-ciezkosci
+  name: Środek ciężkości
+- id: calkowalnosc-funkcji
+  name: Całkowalność funkcji
+- id: sploty
+  name: Sploty
+- id: przestrzenie-lp
+  name: Przestrzeń L¹ funkcji całkowalnych, przestrzenie Lᵖ
+- id: aproksymacja-funkcjami-gladkimi
+  name: Aproksymacja funkcji całkowalnych funkcjami gładkimi
+- id: transformata-fouriera
+  name: Transformata Fouriera
+- id: podrozmaitosci
+  name: Podrozmaitości Rⁿ
+- id: wyznacznik-grama
+  name: Wyznacznik Grama
+- id: miara-powierzchniowa
+  name: Miara powierzchniowa
+- id: powierzchnie-obrotowe
+  name: Powierzchnie obrotowe
+- id: formy-rozniczkowe-1
+  name: Definicja 1-formy, dokładność, zamkniętość
+- id: calki-z-form-po-krzywych
+  name: Całka z 1-formy po krzywej, niezależność całki od drogi
+- id: rozniczka-zewnetrzna
+  name: Wprowadzenie do różniczki zewnętrznej
+- id: formy-rozniczkowe-k
+  name: Przestrzeń k-form różniczkowych
+- id: cofniecie-formy
+  name: Cofnięcie formy różniczkowej
+- id: twierdzenie-stokesa
+  name: Twierdzenie Stokesa

@@ -1,0 +1,19 @@
+id: uw-matematyka-rp1-skrypt-osekowskiego
+title: RP1 – skrypt z rachunku prawdopodobieństwa
+type: skrypt
+description: Skrypt z Rachunku Prawdopodobieństwa napisany przez Profesora Adama Osękowskiego - profesora wydziału MIMUW.
+author: Adam Osękowski
+file: rachunek-prawdopodobienstwa-1_1.pdf
+topics:
+  - wartosc-oczekiwana-wariancja-kowariancja
+  - warunkowa-wartosc-oczekiwana
+  - zbieznosc-zmiennych-losowych
+  - prawa-wielkich-liczb
+  - szeregi-zmiennych-losowych
+  - przyblizone-prawdopodobienstwo
+  - prawdopodobienstwo-warunkowe-bayes
+  - zmienne-losowe-dystrybuanty
+  - gestosci-i-transformacje-zmiennych
+  - niezaleznosc-zmiennych-losowych
+published: true
+featured: false

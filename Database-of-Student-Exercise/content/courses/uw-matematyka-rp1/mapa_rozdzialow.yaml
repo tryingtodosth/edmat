@@ -1,0 +1,54 @@
+source: Rachunek Prawdopodobieństwa I - Ćwiczenia
+chapters:
+  - number: 1
+    title: Model klasyczny, kombinatoryka
+    start_page: 3
+    topics: [model-klasyczny-kombinatoryka]
+  - number: 2
+    title: Prawdopodobieństwo geometryczne, proste własności
+    start_page: 15
+    topics: [prawdopodobienstwo-geometryczne]
+  - number: 3
+    title: Niezależność zdarzeń, Schemat Bernoulliego
+    start_page: 25
+    topics: [niezaleznosc-zdarzen-schemat-bernoulliego]
+  - number: 4
+    title: Prawdopodobieństwo warunkowe
+    start_page: 33
+    topics: [prawdopodobienstwo-warunkowe-bayes]
+  - number: 5
+    title: Lemat Borela-Cantellego
+    start_page: 45
+    topics: [borel-cantelli]
+  - number: 6
+    title: π-λ układy
+    start_page: 49
+    topics: [pi-lambda]
+  - number: 7
+    title: Zmienne losowe, Dystrybuanty
+    start_page: 51
+    topics: [zmienne-losowe-dystrybuanty, rozklady-dyskretne-i-ciagle]
+  - number: 8
+    title: Zmienne losowe, rozkład, gęstość
+    start_page: 67
+    topics: [gestosci-i-transformacje-zmiennych, rozklady-dyskretne-i-ciagle]
+  - number: 9
+    title: Niezależność zmiennych losowych
+    start_page: 81
+    topics: [niezaleznosc-zmiennych-losowych]
+  - number: 10
+    title: Wartość oczekiwana, Wariancja, Kowariancja
+    start_page: 91
+    topics: [wartosc-oczekiwana-wariancja-kowariancja]
+  - number: 11
+    title: Warunkowa wartość oczekiwana
+    start_page: 105
+    topics: [warunkowa-wartosc-oczekiwana]
+  - number: 12
+    title: Zbieżność zmiennych losowych
+    start_page: 107
+    topics: [zbieznosc-zmiennych-losowych]
+  - number: 13
+    title: Prawa wielkich liczb - szeregi liczbowe
+    start_page: 110
+    topics: [prawa-wielkich-liczb, szeregi-zmiennych-losowych]

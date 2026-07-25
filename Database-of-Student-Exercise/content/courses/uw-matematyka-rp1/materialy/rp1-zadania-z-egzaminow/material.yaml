@@ -1,0 +1,18 @@
+id: uw-matematyka-rp1-zadania-z-egzaminow
+title: RP1 – zadania z egzaminów
+type: egzaminy
+description: Zbiór archiwalnych zadań egzaminacyjnych z Rachunku Prawdopodobieństwa I, przeznaczony do uzupełniania bazy po opracowaniu głównego zbioru ćwiczeń i kolokwiów.
+file: zad(178)_RP1 -- zadania z egzaminów.pdf
+topics:
+  - wartosc-oczekiwana-wariancja-kowariancja
+  - warunkowa-wartosc-oczekiwana
+  - zbieznosc-zmiennych-losowych
+  - prawa-wielkich-liczb
+  - szeregi-zmiennych-losowych
+  - przyblizone-prawdopodobienstwo
+  - prawdopodobienstwo-warunkowe-bayes
+  - zmienne-losowe-dystrybuanty
+  - gestosci-i-transformacje-zmiennych
+  - niezaleznosc-zmiennych-losowych
+published: true
+featured: false

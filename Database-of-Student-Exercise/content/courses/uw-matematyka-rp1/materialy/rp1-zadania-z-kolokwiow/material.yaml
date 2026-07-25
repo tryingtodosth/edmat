@@ -1,0 +1,15 @@
+id: uw-matematyka-rp1-zadania-z-kolokwiow
+title: RP1 – zadania z kolokwiów
+type: kolokwia
+description: Zbiór archiwalnych zadań kolokwialnych z Rachunku Prawdopodobieństwa I, przeznaczony do uzupełniania bazy po opracowaniu głównego zbioru ćwiczeń.
+file: zad(159)_RP1 - zadania z kolokwiów.pdf
+topics:
+  - prawdopodobienstwo-warunkowe-bayes
+  - prawdopodobienstwo-geometryczne
+  - zmienne-losowe-dystrybuanty
+  - gestosci-i-transformacje-zmiennych
+  - rozklady-dyskretne-i-ciagle
+  - wartosc-oczekiwana-wariancja-kowariancja
+  - borel-cantelli
+published: true
+featured: false

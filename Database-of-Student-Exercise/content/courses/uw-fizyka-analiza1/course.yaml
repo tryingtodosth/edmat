@@ -1,0 +1,11 @@
+id: uw-fizyka-analiza1
+name: Analiza I
+field: fizyka
+university: Uniwersytet Warszawski
+description: Analiza matematyczna wykorzystywana na kierunku fizyka.
+published: true
+topics:
+  - id: szeregi
+    name: Szeregi
+  - id: calki
+    name: Całki

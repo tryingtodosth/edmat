@@ -1,0 +1,39 @@
+id: uw-matematyka-rp1
+name: Rachunek Prawdopodobieństwa I
+field: matematyka
+university: Uniwersytet Warszawski
+description: 'Zadania z Rachunku Prawdopodobieństwa I: kombinatoryka i modele probabilistyczne, prawdopodobieństwo warunkowe, zmienne losowe, rozkłady, wartości oczekiwane, zbieżność oraz twierdzenia graniczne.'
+published: true
+topics:
+  - id: model-klasyczny-kombinatoryka
+    name: Model klasyczny i kombinatoryka
+  - id: prawdopodobienstwo-geometryczne
+    name: Prawdopodobieństwo geometryczne i proste własności prawdopodobieństwa
+  - id: niezaleznosc-zdarzen-schemat-bernoulliego
+    name: Niezależność zdarzeń i schemat Bernoulliego
+  - id: prawdopodobienstwo-warunkowe-bayes
+    name: Prawdopodobieństwo warunkowe, prawdopodobieństwo całkowite i wzór Bayesa
+  - id: borel-cantelli
+    name: Lemat Borela–Cantellego
+  - id: pi-lambda
+    name: Układy π–λ i jednoznaczność miar
+  - id: zmienne-losowe-dystrybuanty
+    name: Zmienne losowe, rozkłady i dystrybuanty
+  - id: gestosci-i-transformacje-zmiennych
+    name: Gęstości i transformacje zmiennych losowych
+  - id: rozklady-dyskretne-i-ciagle
+    name: Rozkłady dyskretne i ciągłe
+  - id: niezaleznosc-zmiennych-losowych
+    name: Niezależność zmiennych losowych
+  - id: wartosc-oczekiwana-wariancja-kowariancja
+    name: Wartość oczekiwana, wariancja, kowariancja i korelacja
+  - id: warunkowa-wartosc-oczekiwana
+    name: Warunkowa wartość oczekiwana i rozkłady warunkowe
+  - id: zbieznosc-zmiennych-losowych
+    name: Zbieżność zmiennych losowych
+  - id: prawa-wielkich-liczb
+    name: Prawa wielkich liczb
+  - id: szeregi-zmiennych-losowych
+    name: Szeregi zmiennych losowych
+  - id: przyblizone-prawdopodobienstwo
+    name: Przybliżone prawdopodobieństwo i twierdzenia graniczne

@@ -1,0 +1,19 @@
+id: uw-matematyka-rp1-skrypt-dla-debila
+title: Rachunek Prawdopodobieństwa I – skrypt
+type: skrypt
+description: Skrypt z Rachunku Prawdopodobieństwa 1 napisany w przystępny sposób. Zawiera sporo intuicji oraz przykładów. 
+author: Marysia Nazarczuk
+file: Rachunek-Prawdopodobienstwa1.pdf
+topics:
+  - wartosc-oczekiwana-wariancja-kowariancja
+  - warunkowa-wartosc-oczekiwana
+  - zbieznosc-zmiennych-losowych
+  - prawa-wielkich-liczb
+  - szeregi-zmiennych-losowych
+  - przyblizone-prawdopodobienstwo
+  - prawdopodobienstwo-warunkowe-bayes
+  - zmienne-losowe-dystrybuanty
+  - gestosci-i-transformacje-zmiennych
+  - niezaleznosc-zmiennych-losowych
+published: true
+featured: false

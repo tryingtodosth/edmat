@@ -29,6 +29,17 @@ Thumbs.db
 /Archive.zip
 /Database-of-Student-Exercise.zip
 
-# Vendored external corpus — its own repo (github.com/mar2000/Database-of-Student-Exercise),
-# not tracked as part of this project's history. See README's Project layout section.
-/Database-of-Student-Exercise/
+# Database-of-Student-Exercise/content/ IS tracked (vendored below) — it's the source data
+# backend/exercises/management/commands/import_legacy_corpus.py reads to populate the DB, and
+# scripts/extract_mock_exercises.py reads the same path; without it, README's own setup steps
+# don't work on a fresh clone. Only that repo's own static-site generator/build tooling (unused by
+# EdMat) is excluded — see its own README.md for what each of these does.
+/Database-of-Student-Exercise/build/
+/Database-of-Student-Exercise/site/
+/Database-of-Student-Exercise/docs/
+/Database-of-Student-Exercise/generator/
+/Database-of-Student-Exercise/tests/
+/Database-of-Student-Exercise/build.py
+/Database-of-Student-Exercise/pytest.ini
+/Database-of-Student-Exercise/README.md
+/Database-of-Student-Exercise/requirements.txt

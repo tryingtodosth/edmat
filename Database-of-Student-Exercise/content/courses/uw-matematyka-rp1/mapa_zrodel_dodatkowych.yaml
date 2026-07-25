@@ -1,0 +1,30 @@
+kolokwia:
+  title: RP1 - zadania z kolokwiów
+  sections:
+    - title: Prawdopodobieństwo warunkowe i wzór Bayesa
+      topics: [prawdopodobienstwo-warunkowe-bayes]
+    - title: Prawdopodobieństwo geometryczne
+      topics: [prawdopodobienstwo-geometryczne]
+    - title: Gęstość, dystrybuanta, rozkład
+      topics: [zmienne-losowe-dystrybuanty, gestosci-i-transformacje-zmiennych, rozklady-dyskretne-i-ciagle]
+    - title: Wartość oczekiwana, wariancja, kowariancja
+      topics: [wartosc-oczekiwana-wariancja-kowariancja]
+    - title: Lemat Borela-Cantellego i podobne
+      topics: [borel-cantelli]
+    - title: Różne
+      note: Przypisuj topic na podstawie treści konkretnego zadania, nie używaj ogólnego działu „Różne”.
+egzaminy:
+  title: RP1 - zadania z egzaminów
+  sections:
+    - title: Wartość oczekiwana, wariancja, kowariancja
+      topics: [wartosc-oczekiwana-wariancja-kowariancja]
+    - title: Warunkowa wartość oczekiwana
+      topics: [warunkowa-wartosc-oczekiwana]
+    - title: Zbieżność ciągów
+      topics: [zbieznosc-zmiennych-losowych, prawa-wielkich-liczb]
+    - title: Zbieżność szeregów
+      topics: [szeregi-zmiennych-losowych]
+    - title: Przybliżone prawdopodobieństwo
+      topics: [przyblizone-prawdopodobienstwo]
+    - title: Różne
+      note: Przypisuj topic na podstawie treści konkretnego zadania, nie używaj ogólnego działu „Różne”.

@@ -1,0 +1,149 @@
+course: uw-matematyka-am2
+source: Analiza Matematyczna II
+chapters:
+- number: 1
+  title: Normy w Rⁿ, iloczyn skalarny
+  topics:
+  - normy-iloczyn-skalarny
+  start_page: 5
+- number: 2
+  title: Granice i ciągłość funkcji wielu zmiennych
+  topics:
+  - granice-ciaglosc-wielu-zmiennych
+  start_page: 25
+- number: 3
+  title: Pochodna funkcji wielu zmiennych
+  topics:
+  - pochodna-funkcji-wielu-zmiennych
+  - rozniczkowanie-zlozenia
+  start_page: 39
+- number: 4
+  title: Stożki styczne i geometryczne własności gradientu
+  topics:
+  - stozki-styczne-gradient
+  start_page: 59
+- number: 5
+  title: Badanie ekstremów funkcji
+  topics:
+  - ekstrema
+  start_page: 63
+- number: 6
+  title: Wzór Taylora i ekstrema lokalne
+  topics:
+  - wzor-taylora
+  start_page: 69
+- number: 7
+  title: Twierdzenie o funkcji uwikłanej, rozmaitości, ekstrema warunkowe
+  topics:
+  - funkcja-uwiklana
+  start_page: 83
+- number: 8
+  title: Twierdzenie o funkcji odwrotnej, dyfeomorfizmy
+  topics:
+  - funkcja-odwrotna
+  start_page: 95
+- number: 9
+  title: Elementy teorii miary
+  topics:
+  - teoria-miary
+  start_page: 103
+- number: 10
+  title: Twierdzenia Lebesgue’a o zbieżności
+  topics:
+  - twierdzenia-lebesguea-o-zbieznosci
+  start_page: 113
+- number: 11
+  title: Różniczkowanie pod znakiem całki
+  topics:
+  - rozniczkowanie-pod-znakiem-calki
+  start_page: 125
+- number: 12
+  title: Twierdzenie Fubiniego
+  topics:
+  - twierdzenie-fubiniego
+  start_page: 133
+- number: 13
+  title: Całkowanie przez podstawienie
+  topics:
+  - calkowanie-przez-podstawienie
+  start_page: 155
+- number: 14
+  title: Środek ciężkości
+  topics:
+  - srodek-ciezkosci
+  start_page: 175
+- number: 15
+  title: Całkowalność funkcji
+  topics:
+  - calkowalnosc-funkcji
+  start_page: 179
+- number: 16
+  title: Sploty
+  topics:
+  - sploty
+  start_page: 184
+- number: 17
+  title: Przestrzeń L¹ funkcji całkowalnych, przestrzenie Lᵖ
+  topics:
+  - przestrzenie-lp
+  start_page: 191
+- number: 18
+  title: Aproksymacja funkcji całkowalnych funkcjami gładkimi
+  topics:
+  - aproksymacja-funkcjami-gladkimi
+  start_page: 195
+- number: 19
+  title: Transformata Fouriera
+  topics:
+  - transformata-fouriera
+  start_page: 197
+- number: 20
+  title: Podrozmaitości Rⁿ
+  topics:
+  - podrozmaitosci
+  start_page: 199
+- number: 21
+  title: Wyznacznik Grama
+  topics:
+  - wyznacznik-grama
+  start_page: 203
+- number: 22
+  title: Miara powierzchniowa
+  topics:
+  - miara-powierzchniowa
+  start_page: 205
+- number: 23
+  title: Powierzchnie obrotowe
+  topics:
+  - powierzchnie-obrotowe
+  start_page: 217
+- number: 24
+  title: Definicja 1-formy, dokładność, zamkniętość
+  topics:
+  - formy-rozniczkowe-1
+  start_page: 219
+- number: 25
+  title: Całka z 1-formy po krzywej, niezależność całki od drogi
+  topics:
+  - calki-z-form-po-krzywych
+  start_page: 225
+- number: 26
+  title: Wprowadzenie do różniczki zewnętrznej
+  topics:
+  - rozniczka-zewnetrzna
+  start_page: 235
+- number: 27
+  title: Przestrzeń k-form różniczkowych
+  topics:
+  - formy-rozniczkowe-k
+  start_page: 245
+- number: 28
+  title: Cofnięcie formy różniczkowej
+  topics:
+  - cofniecie-formy
+  start_page: 249
+- number: 29
+  title: Twierdzenie Stokesa
+  topics:
+  - twierdzenie-stokesa
+  start_page: 253

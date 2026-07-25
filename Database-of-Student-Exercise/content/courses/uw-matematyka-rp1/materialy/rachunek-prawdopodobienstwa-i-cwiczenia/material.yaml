@@ -1,0 +1,24 @@
+id: uw-matematyka-rp1-cwiczenia
+title: Rachunek Prawdopodobieństwa I – Ćwiczenia
+type: zbior-zadan
+description: Główny zbiór zadań z rozwiązaniami wykorzystywany jako pierwsze źródło do budowy bazy Rachunku Prawdopodobieństwa I.
+author: Marysia Nazarczuk
+file: Rachunek_Prawdopodobienstwa_I_cwiczenia.pdf
+topics:
+  - model-klasyczny-kombinatoryka
+  - prawdopodobienstwo-geometryczne
+  - niezaleznosc-zdarzen-schemat-bernoulliego
+  - prawdopodobienstwo-warunkowe-bayes
+  - borel-cantelli
+  - pi-lambda
+  - zmienne-losowe-dystrybuanty
+  - gestosci-i-transformacje-zmiennych
+  - rozklady-dyskretne-i-ciagle
+  - niezaleznosc-zmiennych-losowych
+  - wartosc-oczekiwana-wariancja-kowariancja
+  - warunkowa-wartosc-oczekiwana
+  - zbieznosc-zmiennych-losowych
+  - prawa-wielkich-liczb
+  - szeregi-zmiennych-losowych
+published: true
+featured: true
