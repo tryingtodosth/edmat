@@ -64,5 +64,8 @@ export const apiClient = {
 	},
 	patch<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'PATCH', body: toBody(data) });
+	},
+	delete<T>(path: string): Promise<T> {
+		return request<T>(path, { method: 'DELETE' });
 	}
 };

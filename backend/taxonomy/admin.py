@@ -7,6 +7,8 @@ from .models import (
     CourseTranslation,
     Field,
     FieldTranslation,
+    Subtopic,
+    SubtopicTranslation,
     Topic,
     TopicTranslation,
 )
@@ -40,11 +42,28 @@ class TopicTranslationInline(admin.TabularInline):
     extra = 0
 
 
+class SubtopicInline(admin.TabularInline):
+    model = Subtopic
+    extra = 0
+
+
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
     list_display = ['slug', 'course', 'order']
     list_filter = ['course']
-    inlines = [TopicTranslationInline]
+    inlines = [TopicTranslationInline, SubtopicInline]
+
+
+class SubtopicTranslationInline(admin.TabularInline):
+    model = SubtopicTranslation
+    extra = 0
+
+
+@admin.register(Subtopic)
+class SubtopicAdmin(admin.ModelAdmin):
+    list_display = ['slug', 'topic', 'order']
+    list_filter = ['topic__course']
+    inlines = [SubtopicTranslationInline]
 
 
 class ChapterTranslationInline(admin.TabularInline):

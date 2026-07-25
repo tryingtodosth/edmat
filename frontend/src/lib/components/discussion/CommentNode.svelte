@@ -6,6 +6,7 @@
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { authStore } from '$lib/state/auth.svelte';
+	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 	import CommentForm from './CommentForm.svelte';
 	import CommentNode from './CommentNode.svelte';
 
@@ -20,6 +21,12 @@
 	} = $props();
 
 	let replying = $state(false);
+	// Both are "content genuinely isn't here anymore," just with different finality — isRemoved is
+	// a moderator's own permanent decision, isAutoHidden is the community-report threshold firing
+	// automatically, reversible via a moderator's later "restore" (CLAUDE.md's own reporting-system
+	// note). Neither used to render as anything beyond a silently-empty body/author before this —
+	// a real, found gap, not something being changed for its own sake.
+	let hidden = $derived(node.comment.isRemoved || node.comment.isAutoHidden);
 </script>
 
 <li class="comment">
@@ -27,11 +34,22 @@
 		<span class="comment__author">{usersById[node.comment.authorId]?.displayName ?? '—'}</span>
 		<span class="comment__date">{formatRelativeDate(node.comment.createdAt, getLocale())}</span>
 	</div>
-	<p class="comment__body">{node.comment.body}</p>
-	{#if authStore.isAuthenticated}
-		<button type="button" class="reply-toggle" onclick={() => (replying = !replying)}
-			>{m.discussion_reply()}</button
-		>
+	{#if node.comment.isRemoved}
+		<p class="comment__body comment__body--hidden">{m.comment_removedPlaceholder()}</p>
+	{:else if node.comment.isAutoHidden}
+		<p class="comment__body comment__body--hidden">{m.comment_autoHiddenPlaceholder()}</p>
+	{:else}
+		<p class="comment__body">{node.comment.body}</p>
+	{/if}
+	{#if !hidden}
+		<div class="comment__actions">
+			{#if authStore.isAuthenticated}
+				<button type="button" class="reply-toggle" onclick={() => (replying = !replying)}
+					>{m.discussion_reply()}</button
+				>
+				<ReportButton kind="comment" objectId={node.comment.id} />
+			{/if}
+		</div>
 	{/if}
 
 	{#if replying}
@@ -79,6 +97,15 @@
 	.comment__body {
 		font-size: var(--font-size-sm);
 		white-space: pre-wrap;
+	}
+	.comment__body--hidden {
+		color: var(--text-secondary);
+		font-style: italic;
+	}
+	.comment__actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
 	}
 	.reply-toggle {
 		align-self: flex-start;

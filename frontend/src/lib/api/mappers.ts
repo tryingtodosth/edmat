@@ -14,6 +14,7 @@ import type {
 	Comment,
 	CommentTargetType,
 	Course,
+	CoverageVoteSummary,
 	EditSuggestion,
 	Exercise,
 	ExerciseSet,
@@ -22,10 +23,14 @@ import type {
 	ExerciseTranslation,
 	Field,
 	Material,
+	MaterialCoverage,
 	MaterialType,
 	ModerationStatus,
+	ReportGroup,
+	ReportKind,
 	ResolvedExercise,
 	Review,
+	Subtopic,
 	Topic,
 	User
 } from '$lib/types';
@@ -70,6 +75,23 @@ export interface RawTopic {
  * the caller passes that course's own id straight through rather than needing a second lookup. */
 export function mapTopic(json: RawTopic, courseId: string): Topic {
 	return { id: String(json.id), slug: json.slug, courseId, name: json.name, order: json.order };
+}
+
+export interface RawSubtopic {
+	id: number;
+	slug: string;
+	topic: number;
+	order: number;
+	name: string;
+}
+
+/** Nested inside RawMaterialCoverage (below), same "no standalone list endpoint" treatment
+ * mapTopic's own `courseId` parameter gets — `topicId` is passed straight through from the
+ * enclosing coverage row rather than re-derived from `json.topic` (a bare PK with no course
+ * context of its own to compose an id from, unlike mapTopic's `courseId` which the caller already
+ * has in hand). */
+export function mapSubtopic(json: RawSubtopic, topicId: string): Subtopic {
+	return { id: String(json.id), slug: json.slug, topicId, name: json.name, order: json.order };
 }
 
 export interface RawCourse {
@@ -249,13 +271,64 @@ const BACKEND_TO_FRONTEND_MATERIAL_TYPE: Record<string, MaterialType> = {
 	other: 'other'
 };
 
+export interface RawCoverageVoteSummary {
+	agree_count: number;
+	disagree_count: number;
+	agree_weight: number;
+	disagree_weight: number;
+	net_weight: number;
+	percent_agree: number | null;
+	current_user_vote: number | null;
+}
+
+function mapVoteSummary(json: RawCoverageVoteSummary): CoverageVoteSummary {
+	return {
+		agreeCount: json.agree_count,
+		disagreeCount: json.disagree_count,
+		agreeWeight: json.agree_weight,
+		disagreeWeight: json.disagree_weight,
+		netWeight: json.net_weight,
+		percentAgree: json.percent_agree ?? undefined,
+		currentUserVote: (json.current_user_vote ?? undefined) as CoverageVoteSummary['currentUserVote']
+	};
+}
+
+export interface RawMaterialCoverage {
+	id: number;
+	material: number;
+	topic: RawTopic;
+	subtopic: RawSubtopic | null;
+	level: number;
+	proposed_by: number | null;
+	created_at: string;
+	vote_summary: RawCoverageVoteSummary;
+	comment_count: number;
+}
+
+export function mapMaterialCoverage(json: RawMaterialCoverage): MaterialCoverage {
+	const topicId = String(json.topic.id);
+	return {
+		id: String(json.id),
+		materialId: String(json.material),
+		topicId,
+		topicName: json.topic.name,
+		subtopicId: json.subtopic ? String(json.subtopic.id) : undefined,
+		subtopicName: json.subtopic?.name,
+		level: json.level,
+		proposedByUserId: idOrUndefined(json.proposed_by),
+		createdAt: json.created_at,
+		voteSummary: mapVoteSummary(json.vote_summary),
+		commentCount: json.comment_count
+	};
+}
+
 export interface RawMaterial {
 	id: number;
 	course: number;
 	course_slug: string;
 	slug: string;
 	type: string;
-	topics: number[];
+	coverage: RawMaterialCoverage[];
 	file: string | null;
 	author: string;
 	published: boolean;
@@ -274,7 +347,7 @@ export function mapMaterial(json: RawMaterial): Material {
 		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? 'other',
 		title: json.title,
 		description: json.description,
-		topicIds: json.topics.map(String),
+		coverage: json.coverage.map(mapMaterialCoverage),
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
 		author: json.author,
@@ -315,6 +388,7 @@ export interface RawComment {
 	body: string;
 	created_at: string;
 	is_removed: boolean;
+	is_auto_hidden: boolean;
 }
 
 /** `targetType`/`targetId` come from the calling context (every comment fetch/post in this app is
@@ -334,7 +408,8 @@ export function mapComment(
 		authorId: String(json.author),
 		body: json.body,
 		createdAt: json.created_at,
-		isRemoved: json.is_removed
+		isRemoved: json.is_removed,
+		isAutoHidden: json.is_auto_hidden
 	};
 }
 
@@ -393,6 +468,36 @@ export function mapEditSuggestion(json: RawEditSuggestion): EditSuggestion {
 		reviewedByUserId: idOrUndefined(json.reviewed_by),
 		reviewNote: undefinedIfEmpty(json.review_note),
 		createdAt: json.created_at
+	};
+}
+
+export interface RawReportGroup {
+	kind: ReportKind;
+	object_id: number;
+	report_count: number;
+	view_count: number | null;
+	percent_reported: number | null;
+	is_auto_hidden: boolean;
+	reasons: string[];
+	preview: string;
+	exercise_id: number | null;
+	exercise_title: string | null;
+	last_reported_at: string;
+}
+
+export function mapReportGroup(json: RawReportGroup): ReportGroup {
+	return {
+		kind: json.kind,
+		objectId: String(json.object_id),
+		reportCount: json.report_count,
+		viewCount: json.view_count ?? undefined,
+		percentReported: json.percent_reported ?? undefined,
+		isAutoHidden: json.is_auto_hidden,
+		reasons: json.reasons,
+		preview: json.preview,
+		exerciseId: idOrUndefined(json.exercise_id),
+		exerciseTitle: json.exercise_title ?? undefined,
+		lastReportedAt: json.last_reported_at
 	};
 }
 

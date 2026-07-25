@@ -3,6 +3,7 @@
 simplest real gate available today, not a final answer to that question.
 """
 
+from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
@@ -11,8 +12,9 @@ from rest_framework.views import APIView
 from exercises.models import Exercise, ExerciseTranslation
 from exercises.serializers import ExerciseTranslationSerializer
 
-from .models import EditSuggestion, ExerciseSubmission
-from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer
+from .models import EditSuggestion, ExerciseSubmission, Report
+from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer, ReportCreateSerializer
+from .services import REPORT_KIND_MODELS, build_report_queue, check_auto_hide
 
 
 class IsModerator(permissions.BasePermission):
@@ -59,8 +61,26 @@ class EditSuggestionViewSet(viewsets.ModelViewSet):
         serializer.save(submitted_by=self.request.user)
 
 
+class ReportViewSet(viewsets.ModelViewSet):
+    """POST /api/reports/ (auth required) — the user-facing side of the reporting system (see
+    moderation/services.py's own module doc comment for the full feature). Create-only from this
+    surface: a moderator's own view of reports goes through ModerationQueueView's grouped `reports`
+    key (build_report_queue) and acts through ReportActionView below, never through this ViewSet's
+    own list/retrieve/update — a plain per-row Report is never itself the unit a moderator reviews.
+    """
+
+    http_method_names = ['post']
+    serializer_class = ReportCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        report = serializer.save(reported_by=self.request.user)
+        check_auto_hide(report.target)
+
+
 class ModerationQueueView(APIView):
-    """GET /api/moderation/queue/ — pending submissions + edits + translations (moderator only)."""
+    """GET /api/moderation/queue/ — pending submissions + edits + translations + reports (grouped,
+    priority-sorted — see build_report_queue's own doc comment), moderator only."""
 
     permission_classes = [IsModerator]
 
@@ -73,6 +93,7 @@ class ModerationQueueView(APIView):
                 'submissions': ExerciseSubmissionSerializer(submissions, many=True).data,
                 'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
                 'translations': ExerciseTranslationSerializer(translations, many=True).data,
+                'reports': build_report_queue(),
             }
         )
 
@@ -210,3 +231,53 @@ class ModerationActionView(APIView):
             _publish_translation(obj, request.user)
 
         return Response(serializer_class(obj).data)
+
+
+class ReportActionView(APIView):
+    """POST /api/moderation/reports/{kind}/{id}/restore/ or .../remove/ — a moderator resolving
+    every PENDING report against one target at once (the group build_report_queue rendered as a
+    single row), moderator only.
+
+    - `restore`: the reports were unfounded (or a false-positive auto-hide) — content becomes
+      visible again exactly as before. `is_removed` is deliberately left untouched here: restoring
+      never un-removes something a moderator had ALREADY permanently removed in an earlier, separate
+      decision — this action only ever reverses the community-driven auto-hide, not a moderator's
+      own prior call.
+    - `remove`: the reports were founded — a real, permanent moderator decision (Comment/Review's
+      own `is_removed`, or `published = False` for an Exercise), the same terminal state the
+      pre-existing `ModerationActionView` already produces for other content, just reached via a
+      different path.
+
+    Either way, `auto_hidden_at` is cleared — once a moderator has actually decided, the content is
+    no longer merely "auto-hidden pending review," it's in whatever state that decision produced.
+    """
+
+    permission_classes = [IsModerator]
+
+    def post(self, request, kind, pk, decision):
+        if kind not in REPORT_KIND_MODELS or decision not in ('restore', 'remove'):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        model = REPORT_KIND_MODELS[kind]
+        target = get_object_or_404(model, pk=pk)
+        note = request.data.get('resolved_note', '')
+
+        update_fields = ['auto_hidden_at']
+        target.auto_hidden_at = None
+        if decision == 'restore':
+            if isinstance(target, Exercise):
+                target.published = True
+                update_fields.append('published')
+        else:  # remove
+            if hasattr(target, 'is_removed'):
+                target.is_removed = True
+                update_fields.append('is_removed')
+            if isinstance(target, Exercise):
+                target.published = False
+                update_fields.append('published')
+        target.save(update_fields=update_fields)
+
+        content_type = ContentType.objects.get_for_model(model)
+        Report.objects.filter(content_type=content_type, object_id=pk, status='pending').update(
+            status='resolved', resolved_by=request.user, resolved_note=note
+        )
+        return Response(build_report_queue())

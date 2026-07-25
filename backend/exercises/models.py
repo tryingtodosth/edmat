@@ -53,6 +53,17 @@ class Exercise(models.Model):
     submitted_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL
     )
+    # Set the instant community reports cross moderation/services.py's own auto-hide threshold —
+    # BEFORE any moderator decision, per that feature's own requirement. Reuses the existing
+    # `published` field as the actual visibility switch (an auto-hidden exercise gets
+    # `published = False`, which ExerciseViewSet's queryset already excludes everywhere) rather than
+    # adding a second, competing visibility flag; this timestamp exists purely so the moderation
+    # queue can tell "auto-hidden, pending review" apart from any other reason an exercise might be
+    # unpublished, and to give that queue a real "since when" to sort/display. Cleared once a
+    # moderator resolves the report (restore sets `published = True` + clears this; a deliberate
+    # removal decision leaves `published = False` but clears this too, since it's no longer a
+    # pending auto-flag at that point — see moderation/views.py's ReportActionView).
+    auto_hidden_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -8,7 +8,7 @@ from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
 
-from .models import Chapter, Course, Field, Topic
+from .models import Chapter, Course, Field, Subtopic, Topic
 
 
 class FieldSerializer(serializers.ModelSerializer):
@@ -52,6 +52,23 @@ class TopicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Topic
         fields = ['id', 'slug', 'course', 'order', 'name']
+
+    def get_name(self, obj):
+        t = resolve_translation(obj.translations, request_locale(self.context))
+        return t.name if t else obj.slug
+
+
+class SubtopicSerializer(serializers.ModelSerializer):
+    """Nested inside MaterialCoverageSerializer (materials app) — not exposed as its own top-level
+    /api/subtopics/ list endpoint, since a subtopic is only ever meaningful in the context of one
+    topic (matching how Topic itself has no standalone list endpoint either, only nested inside a
+    Course's own detail response)."""
+
+    name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Subtopic
+        fields = ['id', 'slug', 'topic', 'order', 'name']
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))

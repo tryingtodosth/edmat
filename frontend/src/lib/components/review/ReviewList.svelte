@@ -4,6 +4,7 @@
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import StarRating from '$lib/components/shared/StarRating.svelte';
+	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 
 	let { reviews, usersById }: { reviews: Review[]; usersById: Record<string, User> } = $props();
 </script>
@@ -22,6 +23,9 @@
 				{#if review.body}
 					<p class="review__body">{review.body}</p>
 				{/if}
+				<div class="review__actions">
+					<ReportButton kind="review" objectId={review.id} />
+				</div>
 			</li>
 		{/each}
 	</ul>
@@ -64,5 +68,8 @@
 		margin-top: var(--space-1);
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);
+	}
+	.review__actions {
+		margin-top: var(--space-1);
 	}
 </style>

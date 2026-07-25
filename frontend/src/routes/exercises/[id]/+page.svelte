@@ -26,6 +26,7 @@
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import EditSuggestionForm from '$lib/components/submission/EditSuggestionForm.svelte';
 	import TranslateForm from '$lib/components/submission/TranslateForm.svelte';
+	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
 	let course = $state<Course | undefined>(undefined);
@@ -303,6 +304,7 @@
 						{m.exercise_suggestTranslation()}
 					</button>
 				{/if}
+				<ReportButton kind="exercise" objectId={exercise.id} />
 			</section>
 
 			{#if submissionNotice === 'edit'}

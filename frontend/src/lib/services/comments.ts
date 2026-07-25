@@ -2,16 +2,16 @@ import type { Comment, CommentTargetType } from '$lib/types';
 import { apiClient } from '$lib/api/client';
 import { mapComment, type RawComment } from '$lib/api/mappers';
 
-// Only 'exercise' has a real backend endpoint today (GET/POST /api/exercises/:id/comments/) — no
-// call site in this app ever submits a Material comment (confirmed: only
-// routes/exercises/[id]/+page.svelte calls either of these two functions, always with 'exercise'),
-// so a Material target throws a clear, honest error instead of silently hitting a route that
-// doesn't exist.
+// 'exercise' and 'materialCoverage' both have real backend endpoints; 'material' (a whole material,
+// not one specific coverage claim on it) never got one — no call site has ever needed to comment on
+// an entire Material, only on one of its coverage rows — so it still throws a clear, honest error
+// instead of silently hitting a route that doesn't exist.
 function targetPath(targetType: CommentTargetType, targetId: string): string {
-	if (targetType !== 'exercise') {
-		throw new Error(`Comments on a '${targetType}' target have no backend endpoint yet.`);
+	if (targetType === 'exercise') return `/exercises/${encodeURIComponent(targetId)}/comments/`;
+	if (targetType === 'materialCoverage') {
+		return `/material-coverage/${encodeURIComponent(targetId)}/comments/`;
 	}
-	return `/exercises/${encodeURIComponent(targetId)}/comments/`;
+	throw new Error(`Comments on a '${targetType}' target have no backend endpoint yet.`);
 }
 
 export async function getCommentsForTarget(

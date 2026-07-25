@@ -17,6 +17,18 @@ export interface Topic {
 	order: number;
 }
 
+// A finer-grained breakdown within one Topic (e.g. within "extrema," a subtopic might be
+// "constrained extrema") — backs Material's own coverage claims (material.ts's MaterialCoverage),
+// not exposed via its own top-level list endpoint, same "only meaningful nested inside its parent"
+// treatment Topic itself gets (no standalone /api/topics/ endpoint either).
+export interface Subtopic {
+	id: string;
+	slug: string;
+	topicId: string;
+	name: string;
+	order: number;
+}
+
 export interface Course {
 	id: string; // slug, e.g. 'uw-matematyka-am2'
 	fieldId: string;

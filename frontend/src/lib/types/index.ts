@@ -6,3 +6,4 @@ export * from './review';
 export * from './comment';
 export * from './submission';
 export * from './exerciseSet';
+export * from './report';

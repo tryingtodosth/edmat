@@ -30,8 +30,16 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 def _annotated_exercises():
+    # A hidden review (removed by a moderator, or auto-hidden pending one — community/models.py's
+    # Review.is_removed/auto_hidden_at) must not pull the exercise's own average up or down, or
+    # inflate its count — a plain queryset .filter() on the related field would instead drop the
+    # whole EXERCISE from this query if none of its reviews matched, which isn't what's wanted here;
+    # a conditional aggregate (filter= on Avg/Count) is what actually excludes just the hidden rows
+    # from the calculation while keeping every exercise.
+    visible_reviews = Q(reviews__is_removed=False, reviews__auto_hidden_at__isnull=True)
     return Exercise.objects.filter(published=True).annotate(
-        average_rating=Avg('reviews__rating'), review_count=Count('reviews', distinct=True)
+        average_rating=Avg('reviews__rating', filter=visible_reviews),
+        review_count=Count('reviews', filter=visible_reviews, distinct=True),
     )
 
 
@@ -82,6 +90,25 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             return ExerciseDetailSerializer
         return ExerciseListSerializer
 
+    def retrieve(self, request, *args, **kwargs):
+        """Records a real "view" the first time a signed-in user loads this exercise's own detail
+        page — moderation/models.py's ContentView, the denominator moderation/services.py's
+        check_auto_hide divides a report count against. get_or_create rather than always creating a
+        fresh row: this is meant to answer "how many distinct people have seen this," not "how many
+        times has this been loaded," so a second visit by the same person doesn't inflate the count.
+        A guest visitor isn't tracked at all — there's no identity to key a unique row on, same
+        honesty ContentView's own doc comment already states. Fetches the instance once (not via
+        `super().retrieve()`, which would call `get_object()` a second time) so this doesn't cost an
+        extra query beyond the one a plain retrieve already makes.
+        """
+        instance = self.get_object()
+        if request.user.is_authenticated:
+            from moderation.models import ContentView
+
+            ContentView.objects.get_or_create(user=request.user, exercise=instance)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
     def list(self, request, *args, **kwargs):
         qs = self.filter_queryset(self.get_queryset())
         sort = request.query_params.get('sort')
@@ -115,7 +142,13 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     def reviews(self, request, pk=None):
         exercise = self.get_object()
         if request.method == 'GET':
-            serializer = ReviewSerializer(exercise.reviews.all(), many=True)
+            # Unlike Comment (which preserves a hidden row as a blanked placeholder to keep reply
+            # threading intact), a Review has no thread structure to preserve — a hidden one is
+            # simply excluded outright, consistent with it also being excluded from
+            # _annotated_exercises's own average_rating/review_count above (so the count shown here
+            # always matches the number of rows actually returned).
+            qs = exercise.reviews.filter(is_removed=False, auto_hidden_at__isnull=True)
+            serializer = ReviewSerializer(qs, many=True)
             return Response(serializer.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)

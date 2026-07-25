@@ -25,7 +25,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from materials.models import Material, MaterialTranslation
+from materials.models import Material, MaterialCoverage, MaterialTranslation
 from taxonomy.models import Chapter, ChapterTranslation, Course, CourseTranslation, Field, FieldTranslation, Topic, TopicTranslation
 
 from ...models import Exercise, ExerciseSource, ExerciseSourceTranslation, ExerciseTranslation, Tag
@@ -38,6 +38,14 @@ MATERIAL_TYPE_MAP = {
     'kolokwia': 'midterm_collection',
     'zbior-zadan': 'exercise_collection',
 }
+
+# The source corpus's own material.yaml `topics:` list has no per-topic depth/subtopic data at
+# all — just a flat slug list (confirmed by direct inspection of every material.yaml in the real
+# corpus). MaterialCoverage needs a `level` (1-100), so migrated legacy materials get this neutral
+# midpoint placeholder rather than a guessed number — flagged honestly, same "flag it, don't fake
+# it" discipline this command already applies elsewhere (e.g. its own material-id collision note
+# below), pending real community-submitted/voted levels replacing it over time.
+DEFAULT_LEGACY_COVERAGE_LEVEL = 50
 
 SECTION_ALIASES = {
     'treść': 'statement',
@@ -284,7 +292,22 @@ class Command(BaseCommand):
                 'featured': bool(data.get('featured', False)),
             },
         )
-        material.topics.set([topic_by_slug[t] for t in data.get('topics', []) if t in topic_by_slug])
+        # A MaterialCoverage row per topic, subtopic=None (the source data has no subtopic
+        # granularity to migrate, see DEFAULT_LEGACY_COVERAGE_LEVEL's own note above),
+        # get_or_create'd (not update_or_create) on the (material, topic, subtopic=None) key —
+        # deliberately so a re-run stays idempotent (no duplicate row) WITHOUT ever clobbering a
+        # `level` the community has since discussed/voted away from the neutral default; `defaults=`
+        # only ever applies on the initial creation.
+        for topic_slug in data.get('topics', []):
+            topic = topic_by_slug.get(topic_slug)
+            if topic is None:
+                continue
+            MaterialCoverage.objects.get_or_create(
+                material=material,
+                topic=topic,
+                subtopic=None,
+                defaults={'level': DEFAULT_LEGACY_COVERAGE_LEVEL},
+            )
 
         # Re-upload the PDF into MEDIA_ROOT/materials/ under a stable, collision-free name — copying
         # the file directly rather than going through Django's FieldFile.save() (which would append

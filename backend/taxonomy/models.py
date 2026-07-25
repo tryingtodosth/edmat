@@ -90,6 +90,38 @@ class TopicTranslation(models.Model):
         return f'{self.topic} ({self.locale})'
 
 
+class Subtopic(models.Model):
+    """A finer-grained breakdown within a Topic — e.g. within `ekstrema` (extrema), a subtopic
+    might be `ekstrema-warunkowe` (constrained extrema). Topic-scoped the same way Topic is
+    course-scoped, one level deeper — added to back Material's own coverage claims (materials
+    app: MaterialCoverage), which pin down not just "this material touches Topic X" but how
+    deeply, at what granularity.
+    """
+
+    slug = models.SlugField()
+    topic = models.ForeignKey(Topic, related_name='subtopics', on_delete=models.CASCADE)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = [('topic', 'slug')]
+        ordering = ['topic', 'order']
+
+    def __str__(self) -> str:
+        return f'{self.topic}/{self.slug}'
+
+
+class SubtopicTranslation(models.Model):
+    subtopic = models.ForeignKey(Subtopic, related_name='translations', on_delete=models.CASCADE)
+    locale = models.CharField(max_length=8)
+    name = models.CharField(max_length=300)
+
+    class Meta:
+        unique_together = [('subtopic', 'locale')]
+
+    def __str__(self) -> str:
+        return f'{self.subtopic} ({self.locale})'
+
+
 class Chapter(models.Model):
     """From mapa_rozdzialow.yaml — optional textbook cross-reference, course-scoped."""
 

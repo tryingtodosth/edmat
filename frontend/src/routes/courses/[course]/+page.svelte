@@ -133,7 +133,7 @@
 			{:else}
 				<div class="grid grid--materials">
 					{#each materials as material (material.id)}
-						<MaterialCard {material} />
+						<MaterialCard {material} {topics} />
 					{/each}
 				</div>
 			{/if}
