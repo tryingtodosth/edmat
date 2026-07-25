@@ -1,0 +1,83 @@
+// Small, shared mixins — introduced only as needed, not front-loaded.
+
+@mixin status-pill($fg, $bg) {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-1);
+	padding: 2px var(--space-2);
+	border-radius: var(--radius-sm);
+	font-size: var(--font-size-xs);
+	font-weight: 500;
+	color: $fg;
+	background: $bg;
+	white-space: nowrap;
+}
+
+@mixin card-surface {
+	background: var(--bg-surface);
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-md);
+}
+
+@mixin focus-ring {
+	&:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
+}
+
+@mixin visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+@mixin button-primary {
+	@include focus-ring;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-4);
+	border: none;
+	border-radius: var(--radius-sm);
+	background: var(--accent);
+	color: var(--accent-contrast);
+	font-weight: 600;
+	font-size: var(--font-size-sm);
+	&:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	&:not(:disabled):hover {
+		filter: brightness(1.08);
+	}
+}
+
+@mixin button-secondary {
+	@include focus-ring;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-2);
+	padding: var(--space-2) var(--space-4);
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-sm);
+	background: var(--bg-surface);
+	color: var(--text-primary);
+	font-weight: 500;
+	font-size: var(--font-size-sm);
+	&:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	&:not(:disabled):hover {
+		background: var(--bg-surface-alt);
+	}
+}

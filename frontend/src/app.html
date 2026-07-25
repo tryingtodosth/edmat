@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="%paraglide.lang%" dir="%paraglide.dir%">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<script>
+			// Applied before any CSS/JS bundle loads, so the very first paint already has the
+			// right theme — without this, a dark-preferring visitor sees a flash of the light
+			// theme (the SSR/no-JS default) on every load. Kept tiny and dependency-free; see
+			// lib/state/theme.svelte.ts for the reactive engine this bootstraps into on hydration.
+			(function () {
+				try {
+					var stored = localStorage.getItem('edmat-theme');
+					var resolved =
+						stored === 'light' || stored === 'dark'
+							? stored
+							: window.matchMedia('(prefers-color-scheme: dark)').matches
+								? 'dark'
+								: 'light';
+					document.documentElement.setAttribute('data-theme', resolved);
+				} catch (e) {
+					// localStorage/matchMedia can throw in a locked-down context — the CSS-only
+					// :root/@media fallback in _theme.scss still applies.
+				}
+			})();
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

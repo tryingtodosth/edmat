@@ -1,0 +1,23 @@
+// Powers "My Set" -> "Export to PDF" (CLAUDE.md Section 16 — a deliberate choice to use the
+// browser's native print-to-PDF via a dedicated print stylesheet rather than adding a client-side
+// PDF-generation dependency at this stage, unlike the original static site's html2pdf.js). Anything
+// NOT marked .print-area is hidden when printing; .print-area itself is reset to a plain,
+// light-background, page-friendly layout regardless of the active theme.
+@media print {
+	body * {
+		visibility: hidden;
+	}
+	.print-area,
+	.print-area * {
+		visibility: visible;
+	}
+	.print-area {
+		position: absolute;
+		inset: 0;
+		background: #fff;
+		color: #000;
+	}
+	.no-print {
+		display: none !important;
+	}
+}

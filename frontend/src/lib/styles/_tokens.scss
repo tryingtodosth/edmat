@@ -1,0 +1,87 @@
+// Design tokens — source of truth for both themes. Components never reference these SCSS variables
+// directly (scoped <style> blocks can't see them at runtime); _theme.scss re-exposes every one as a
+// CSS custom property, swapped per theme. Pattern reused wholesale from the sibling
+// personalizacja_edukacji project, which already proved it working — see CLAUDE.md Section 13.
+
+// ---- Light theme ----
+$light-bg-page: #f7f7fb;
+$light-bg-surface: #ffffff;
+$light-bg-surface-alt: #f0f1f6;
+$light-bg-elevated: #ffffff;
+$light-bg-menu: #ffffff;
+$light-border: #dfe1ea;
+
+$light-text-primary: #1a1c26;
+$light-text-secondary: #565a6e;
+
+$light-accent: #2a6f6f;
+$light-accent-soft: #e7f2f2;
+$light-accent-contrast: #ffffff;
+
+$light-status-success: #1a8a4a;
+$light-status-success-bg: #e5f6ec;
+$light-status-danger: #c22b3b;
+$light-status-danger-bg: #fbe8ea;
+$light-status-warning: #a15c00;
+$light-status-warning-bg: #fdf1de;
+$light-status-info: #2359c9;
+$light-status-info-bg: #e8eefb;
+$light-status-neutral: #565a6e;
+$light-status-neutral-bg: #eceef4;
+
+$light-shadow-popover: 0 8px 24px rgba(20, 22, 40, 0.12);
+$light-shadow-modal: 0 16px 48px rgba(20, 22, 40, 0.18);
+$light-backdrop: rgba(20, 22, 34, 0.4);
+
+// ---- Dark theme ----
+$dark-bg-page: #14181c;
+$dark-bg-surface: #1c2126;
+$dark-bg-surface-alt: #1f252b;
+$dark-bg-elevated: #262d34;
+$dark-bg-menu: #1f252b;
+$dark-border: #333c44;
+
+$dark-text-primary: #f2f4f6;
+$dark-text-secondary: #b4bcc4;
+
+$dark-accent: #5fc9c9;
+$dark-accent-soft: #223838;
+$dark-accent-contrast: #0c1516;
+
+$dark-status-success: #5ce68a;
+$dark-status-success-bg: rgba(92, 230, 138, 0.12);
+$dark-status-danger: #ff6b6b;
+$dark-status-danger-bg: rgba(255, 44, 44, 0.14);
+$dark-status-warning: #e0a63a;
+$dark-status-warning-bg: rgba(219, 146, 0, 0.14);
+$dark-status-info: #6f92ff;
+$dark-status-info-bg: rgba(48, 92, 222, 0.16);
+$dark-status-neutral: #9599ad;
+$dark-status-neutral-bg: rgba(149, 153, 173, 0.12);
+
+$dark-shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45);
+$dark-shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.55);
+$dark-backdrop: rgba(0, 0, 0, 0.55);
+
+// ---- Shared, theme-independent tokens ----
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 16px;
+$space-4: 24px;
+$space-5: 32px;
+$space-6: 48px;
+
+$radius-sm: 6px;
+$radius-md: 10px;
+$radius-lg: 16px;
+
+$font-size-xs: 12px;
+$font-size-sm: 14px;
+$font-size-base: 16px;
+$font-size-lg: 20px;
+$font-size-xl: 28px;
+
+$z-dropdown: 20;
+$z-popover: 30;
+$z-modal-scrim: 100;
+$z-modal: 101;

@@ -1,0 +1,7 @@
+@use 'theme';
+@use 'reset';
+@use 'print';
+
+// KaTeX's own stylesheet is imported as a plain JS-side `import 'katex/dist/katex.min.css'` in the
+// root +layout.svelte instead of here — Sass's `@use` doesn't reliably resolve a bare node_modules
+// CSS path the way a JS/TS import does, and this avoids that ambiguity entirely.

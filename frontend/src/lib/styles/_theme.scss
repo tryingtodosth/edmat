@@ -1,0 +1,116 @@
+@use 'tokens' as t;
+
+// Light/dark bridge. Three layers, in this order, so each can override the last:
+//   1. :root                                            — light values, the default
+//   2. @media (prefers-color-scheme: dark) :root:not([data-theme="light"]) — auto-dark, unless an
+//      explicit in-app choice was made
+//   3. :root[data-theme="light"|"dark"]                 — an explicit ThemeToggle choice always wins
+//
+// Components never touch t.$light-* / t.$dark-* directly — they read var(--bg-page) etc., so one
+// component works unmodified under either theme.
+
+@mixin light-theme-vars {
+	--bg-page: #{t.$light-bg-page};
+	--bg-surface: #{t.$light-bg-surface};
+	--bg-surface-alt: #{t.$light-bg-surface-alt};
+	--bg-elevated: #{t.$light-bg-elevated};
+	--bg-menu: #{t.$light-bg-menu};
+	--border-color: #{t.$light-border};
+
+	--text-primary: #{t.$light-text-primary};
+	--text-secondary: #{t.$light-text-secondary};
+
+	--accent: #{t.$light-accent};
+	--accent-soft: #{t.$light-accent-soft};
+	--accent-contrast: #{t.$light-accent-contrast};
+
+	--status-success: #{t.$light-status-success};
+	--status-success-bg: #{t.$light-status-success-bg};
+	--status-danger: #{t.$light-status-danger};
+	--status-danger-bg: #{t.$light-status-danger-bg};
+	--status-warning: #{t.$light-status-warning};
+	--status-warning-bg: #{t.$light-status-warning-bg};
+	--status-info: #{t.$light-status-info};
+	--status-info-bg: #{t.$light-status-info-bg};
+	--status-neutral: #{t.$light-status-neutral};
+	--status-neutral-bg: #{t.$light-status-neutral-bg};
+
+	--shadow-popover: #{t.$light-shadow-popover};
+	--shadow-modal: #{t.$light-shadow-modal};
+	--backdrop: #{t.$light-backdrop};
+
+	color-scheme: light;
+}
+
+@mixin dark-theme-vars {
+	--bg-page: #{t.$dark-bg-page};
+	--bg-surface: #{t.$dark-bg-surface};
+	--bg-surface-alt: #{t.$dark-bg-surface-alt};
+	--bg-elevated: #{t.$dark-bg-elevated};
+	--bg-menu: #{t.$dark-bg-menu};
+	--border-color: #{t.$dark-border};
+
+	--text-primary: #{t.$dark-text-primary};
+	--text-secondary: #{t.$dark-text-secondary};
+
+	--accent: #{t.$dark-accent};
+	--accent-soft: #{t.$dark-accent-soft};
+	--accent-contrast: #{t.$dark-accent-contrast};
+
+	--status-success: #{t.$dark-status-success};
+	--status-success-bg: #{t.$dark-status-success-bg};
+	--status-danger: #{t.$dark-status-danger};
+	--status-danger-bg: #{t.$dark-status-danger-bg};
+	--status-warning: #{t.$dark-status-warning};
+	--status-warning-bg: #{t.$dark-status-warning-bg};
+	--status-info: #{t.$dark-status-info};
+	--status-info-bg: #{t.$dark-status-info-bg};
+	--status-neutral: #{t.$dark-status-neutral};
+	--status-neutral-bg: #{t.$dark-status-neutral-bg};
+
+	--shadow-popover: #{t.$dark-shadow-popover};
+	--shadow-modal: #{t.$dark-shadow-modal};
+	--backdrop: #{t.$dark-backdrop};
+
+	color-scheme: dark;
+}
+
+:root {
+	@include light-theme-vars;
+
+	--space-1: #{t.$space-1};
+	--space-2: #{t.$space-2};
+	--space-3: #{t.$space-3};
+	--space-4: #{t.$space-4};
+	--space-5: #{t.$space-5};
+	--space-6: #{t.$space-6};
+
+	--radius-sm: #{t.$radius-sm};
+	--radius-md: #{t.$radius-md};
+	--radius-lg: #{t.$radius-lg};
+
+	--font-size-xs: #{t.$font-size-xs};
+	--font-size-sm: #{t.$font-size-sm};
+	--font-size-base: #{t.$font-size-base};
+	--font-size-lg: #{t.$font-size-lg};
+	--font-size-xl: #{t.$font-size-xl};
+
+	--z-dropdown: #{t.$z-dropdown};
+	--z-popover: #{t.$z-popover};
+	--z-modal-scrim: #{t.$z-modal-scrim};
+	--z-modal: #{t.$z-modal};
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		@include dark-theme-vars;
+	}
+}
+
+:root[data-theme='dark'] {
+	@include dark-theme-vars;
+}
+
+:root[data-theme='light'] {
+	@include light-theme-vars;
+}
