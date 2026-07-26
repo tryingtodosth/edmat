@@ -2,13 +2,14 @@
 
 **Status:** ✅ Phase 1 (frontend, fully mocked), Phase 2 (Django REST Framework backend, real
 migrated corpus), and Phase 3 (frontend wired to the real backend, mocks deleted) all built — see
-`frontend/` and `backend/`. Phase 4 (hardening) in progress — the LaTeX/KaTeX compatibility sweep
+`frontend/` and `backend/`. **Phase 4 (hardening) is done.** The LaTeX/KaTeX compatibility sweep
 (Section 11's own ⚠️), a real accessibility audit, the moderation-queue synthetic load test, and a
-real multi-moderator concurrent-access test are done, see Sections 17D/17E/17F/17I; only the
-corpus-retirement decision is not yet done, see Section 16. The material detail page (Section 17G),
-real-time notification delivery via SSE (Section 17H, Section 18 item 9), and server-side "my set"
-sharing (Section 17J, closing the last item Section 16 had flagged as deliberately deferred) are also
-now built. This document is the living spec for
+real multi-moderator concurrent-access test are done, see Sections 17D/17E/17F/17I. The material
+detail page (Section 17G), real-time notification delivery via SSE (Section 17H, Section 18 item 9),
+and server-side "my set" sharing (Section 17J, closing the last item Section 16 had flagged as
+deliberately deferred) are also built. **The corpus-retirement question (Section 12's own ⚠️) is
+resolved: retire `Database-of-Student-Exercise`'s static site now** — see Section 12 and Section 18
+item 3 for the decision and what it changed. This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -598,9 +599,23 @@ it, never writes to it):
    duplicate — since the source repo may keep receiving edits during the migration/parallel-run
    period before it's fully retired as the content authority.
 
-⚠️ **Open question:** does `Database-of-Student-Exercise`'s static site keep running in parallel as a
-mirror/fallback after EdMat launches, or does EdMat become the sole source of truth immediately and
-the static generator gets retired? Affects whether the migration needs to be one-shot or ongoing.
+✅ **Resolved (Phase 4): retire it now, not a parallel mirror/fallback.** EdMat becomes the sole
+source of truth immediately — no dual-maintenance, no ambiguity about which site is authoritative,
+and nothing left to keep in sync. `import_legacy_corpus` (Phase 2) stays exactly as built: it was
+already idempotent regardless of how this question was answered, so this decision required no code
+change to the importer itself, only to the migration's own framing — it's now correctly understood as
+a one-shot historical import, not an ongoing sync against a still-live source. Two real, concrete
+changes made alongside the decision, not just a note in this document: `Database-of-Student-Exercise/`
+(the static generator/site/build tooling — not `content/`, which stays vendored here for migration
+provenance, see Section 17) now carries a real retirement notice — a banner at the top of its own
+`README.md`, in Polish matching the rest of that repo, pointing to EdMat as the successor and telling
+a future reader not to publish a new build; and `generator/builder.py`'s own page `shell()` gained the
+identical notice as a persistent banner rendered into every generated page, so a rebuild-and-manually-
+republish scenario (the only real publish path that project ever had — no CI/CD, Section 18 item 3)
+still carries the notice even if this document itself is never consulted. The `build/` output already
+sitting in that directory was regenerated once, confirmed to carry the new banner. Nothing about
+`Database-of-Student-Exercise/content/` (the vendored source data this migration reads) changed — it
+stays exactly where it is, untouched, as the historical record of what was migrated.
 
 ---
 
@@ -903,13 +918,13 @@ Per explicit instruction: plan → frontend → backend.
   `fetch()` against a separate-origin API (CORS already configured for this in Phase 2), so
   `adapter-static`'s SPA-fallback mode continues to be the right, simpler choice — flagged here as a
   deliberate non-change, not an oversight.
-- **Phase 4 — Hardening.** In progress. LaTeX-compatibility sweep across the full migrated corpus
+- **Phase 4 — Hardening.** ✅ **Done.** LaTeX-compatibility sweep across the full migrated corpus
   (Section 11's own ⚠️) ✅ **done, see Section 17D.** A real accessibility audit ✅ **done, see
   Section 17E.** A moderation-queue synthetic load test ✅ **done, see Section 17F** (found and fixed
   a real N+1 on both the backend and the frontend). A real multi-moderator concurrent-access test
   ✅ **done, see Section 17I** (found and fixed a real race condition in submission approval — a
-  genuine `IntegrityError`/500 under simultaneous requests, not a theoretical concern). Still open:
-  deciding the `Database-of-Student-Exercise` retirement question (Section 12's ⚠️).
+  genuine `IntegrityError`/500 under simultaneous requests, not a theoretical concern). The
+  `Database-of-Student-Exercise` retirement question ✅ **resolved, see Section 12 — retire now.**
 
 **Left for a later phase, not v1, flagged so they aren't silently forgotten (both are real, working
 features in the current static site — Section 3):**
@@ -2134,9 +2149,12 @@ confirmed only the one real, pre-existing "My exam prep" fixture remains. `npm r
    goes beyond a personal/prototype deployment. Distinct from `personalizacja_edukacji`'s old
    `License`/`TraceabilityBadge` problem (that was about *linking to* others' material; this is about
    *hosting content transcribed from* course material) — flagged here rather than assumed clear.
-3. ⚠️ **Does `Database-of-Student-Exercise`'s static site keep running post-launch** (Section 12) —
-   affects whether migration is one-shot or needs to stay idempotent/repeatable indefinitely.
-   `import_legacy_corpus` (built, Phase 2) is already idempotent regardless of how this is answered.
+3. ✅ **Does `Database-of-Student-Exercise`'s static site keep running post-launch — resolved
+   (Phase 4), see Section 12.** No: retire it now, EdMat is the sole source of truth immediately.
+   `import_legacy_corpus` (built, Phase 2) needed no change either way, since it was already
+   idempotent regardless of how this was answered — the migration is now correctly understood as a
+   one-shot historical import rather than an ongoing sync. A real retirement banner was added to the
+   static site's own `README.md` and generated page shell (Section 12).
 4. ✅ **Verified-contributor fast path — resolved and built (Phase 4).** Decided: **auto-publish, but
    narrowly.** A brand-new exercise submitted by a verified contributor
    (`Profile.is_verified_contributor` — already a real tier this app grants and reads elsewhere, for
