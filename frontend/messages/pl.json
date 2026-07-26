@@ -235,6 +235,8 @@
 	"settings_saved": "Zapisano.",
 	"settings_donationsHeading": "Linki wsparcia",
 	"settings_donationsHint": "Dodaj jeden lub więcej sposobów, w jaki inni użytkownicy mogą Cię wesprzeć — widoczne na Twoim publicznym profilu.",
+	"settings_tagsHeading": "Obserwowane tagi",
+	"settings_tagsHint": "Zarządzaj powiadomieniami dla obserwowanych tagów lub przestań je obserwować.",
 
 	"moderation_heading": "Kolejka moderacji",
 	"moderation_subtitle": "Przejrzyj zgłoszenia społeczności, zanim staną się publiczne.",
@@ -364,6 +366,7 @@
 	"tag_noResults": "Brak wyników.",
 	"tag_added": "Dodano",
 	"tag_addAction": "Dodaj",
+	"tagFollows_none": "Nie obserwujesz jeszcze żadnych tagów — zacznij obserwować z menu widocznego po najechaniu na tag.",
 
 	"materialType_script": "Skrypt",
 	"materialType_examCollection": "Zbiór egzaminów",

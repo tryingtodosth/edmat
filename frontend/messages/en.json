@@ -235,6 +235,8 @@
 	"settings_saved": "Saved.",
 	"settings_donationsHeading": "Support links",
 	"settings_donationsHint": "Add one or more ways for other users to support you — shown on your public profile.",
+	"settings_tagsHeading": "Followed tags",
+	"settings_tagsHint": "Manage notifications for tags you follow, or stop following one.",
 
 	"moderation_heading": "Moderation queue",
 	"moderation_subtitle": "Review community submissions before they go live.",
@@ -364,6 +366,7 @@
 	"tag_noResults": "No matches.",
 	"tag_added": "Added",
 	"tag_addAction": "Add",
+	"tagFollows_none": "You're not following any tags yet — follow one from its hover menu wherever you see it.",
 
 	"materialType_script": "Course script",
 	"materialType_examCollection": "Exam collection",

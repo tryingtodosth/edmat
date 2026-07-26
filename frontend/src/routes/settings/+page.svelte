@@ -5,6 +5,7 @@
 	import { formatDate } from '$lib/utils/format';
 	import { authStore } from '$lib/state/auth.svelte';
 	import DonationLinksEditor from '$lib/components/settings/DonationLinksEditor.svelte';
+	import TagFollowsEditor from '$lib/components/settings/TagFollowsEditor.svelte';
 
 	let displayName = $state('');
 	let preferredLocale = $state('en');
@@ -152,6 +153,12 @@
 			<p class="field-hint">{m.settings_donationsHint()}</p>
 			<DonationLinksEditor />
 		</section>
+
+		<section class="tags">
+			<h2>{m.settings_tagsHeading()}</h2>
+			<p class="field-hint">{m.settings_tagsHint()}</p>
+			<TagFollowsEditor />
+		</section>
 	{/if}
 </div>
 
@@ -175,7 +182,8 @@
 	}
 	.profile,
 	.edit-form,
-	.donations {
+	.donations,
+	.tags {
 		@include mix.card-surface;
 		padding: var(--space-4);
 		display: flex;
@@ -184,7 +192,8 @@
 	}
 	.profile h2,
 	.field-group h2,
-	.donations h2 {
+	.donations h2,
+	.tags h2 {
 		font-size: var(--font-size-base);
 	}
 	dl {

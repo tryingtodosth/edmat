@@ -13,6 +13,12 @@ export const tagFollowStore = {
 	get loaded(): boolean {
 		return loaded;
 	},
+	/** Every followed tag, for the "my followed tags" list (TagFollowsEditor.svelte) — the only
+	 * consumer of the FULL set; every other call site only ever needs a per-tag lookup
+	 * (isFollowing/notifyEnabled below), which is why this wasn't exposed until one needed it. */
+	get list(): TagFollowState[] {
+		return Object.values(follows);
+	},
 	isFollowing(tag: string): boolean {
 		return tag in follows;
 	},

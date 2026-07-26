@@ -1272,8 +1272,25 @@ results, and marks a picked result as Added after a real `POST`. `npm run check`
   who's just hovered the trigger open clicks a menu ITEM next, never the trigger again, but flagged
   here since it's a genuine, if narrow, edge case in the pre-existing component, not something this
   pass's own changes touched.
-- **No "my followed tags" dashboard/settings-page list** — following/muting work per-tag from the
-  hover menu; there's no single page listing everything a user currently follows.
+- ~~No "my followed tags" dashboard/settings-page list~~ **✅ Resolved (Phase 4).** A new
+  `TagFollowsEditor.svelte` component, embedded as its own "Followed Tags" section on `/settings` —
+  the same "a dedicated editor embedded as a settings section" shape `DonationLinksEditor` already
+  established (list + per-row actions, no new route or nav link needed), not a separate top-level
+  page. Lists every followed tag with its own notify checkbox and unfollow (×) button, both reusing
+  `tagFollowStore`'s existing mutation methods unchanged (`setNotify`/`unfollow` — the exact same
+  ones `TagChip`'s own hover menu already calls), plus a "Save all for later" quick action reusing
+  the identical bulk-add-to-working-set mechanic the hover menu's own row already offers. The only
+  new surface needed was a `list` getter on `tagFollowStore` (`Object.values(follows)`) — every
+  other consumer only ever needed a per-tag lookup, which is why enumerating the whole set hadn't
+  been exposed until this needed it. Verified end-to-end with real follows created via the live
+  API and a real headless-browser run: the list renders both tags correctly, toggling notify
+  off and unfollowing one both fire real requests and are reflected correctly in the database
+  afterward — not just the local UI. One real, self-inflicted bug caught and fixed during this same
+  verification pass, not shipped broken: two new message keys were added to `en.json`/`pl.json`
+  *after* an intermediate `paraglide-js compile` had already run, so the generated messages were
+  briefly stale and the settings page threw `m.settings_tagsHeading is not a function` — caught by
+  the same page's own body-text sanity check this app's own accessibility script already established
+  (Section 17E), not silently missed; recompiling once more with every key present resolved it.
 - ~~`new_tagged_content` notifications about a Material have no link~~ **✅ Resolved (Section 17G's
   own material detail page).** `NotificationCard.svelte` now resolves `notification.materialId` to
   `/materials/[id]` — this bullet had gone stale (the material page it was waiting on already shipped
