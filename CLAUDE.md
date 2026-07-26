@@ -11,7 +11,7 @@ deliberately deferred) are also built. **The corpus-retirement question (Section
 resolved: retire `Database-of-Student-Exercise`'s static site now** — see Section 12 and Section 18
 item 3 for the decision and what it changed. The translation-publish race (and a more severe,
 non-concurrent bug found while chasing it) is fixed, and this project's first real automated test
-suite exists (24 tests, `manage.py test`) — see Sections 17K/17L. This document is the living spec for
+suite exists (66 tests, `manage.py test`) — see Sections 17K/17L. This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -2243,26 +2243,38 @@ was accurate until now. Built using Django's own `TestCase`/DRF's `APITestCase`,
 dependencies — no new package added, matching this project's own "every runtime dependency is a
 flagged decision" discipline (the frontend's own `d3-force`/`fuse.js`/`tsx` notes).
 
-**Scope, deliberately bounded rather than attempting exhaustive coverage of every endpoint in one
-pass:** moderation gets the largest share, on purpose — it's where this project's own history of
-found-and-fixed real bugs concentrates (the submission number-collision race, Section 17I; the
-translation-publish race and the more severe, non-concurrent bug found alongside it, Section 17K),
-exactly the kind of thing a regression suite exists to lock in place. Core exercise browsing/
-filtering, the "resolve, fall back to original" locale behavior (Section 10), the translation
-submission flow, and register/login round out the suite. **24 tests, all passing, across three
-files:**
+**Scope, built in two passes rather than attempting exhaustive coverage in one.** The first pass
+prioritized moderation (where this project's own history of found-and-fixed real bugs concentrates —
+the submission number-collision race, Section 17I; the translation-publish race and the more severe,
+non-concurrent bug found alongside it, Section 17K) plus the core exercise browsing/locale-resolution/
+auth paths. A second pass — explicitly requested as a follow-up, not silently expanded on its own —
+added the previously-uncovered community (comments/reviews), the reporting/auto-hide system,
+materials (coverage claims + weighted voting), taxonomy, and study (My Set + its server-side sharing
+feature). **66 tests, all passing, across seven files:**
 
-- **`moderation/tests.py` (13 tests)** — the priority target. `TranslationApprovalTests` converts
-  every one of Section 17K's manually-reproduced scenarios into a permanent test: approving a
-  translation that supersedes an existing published one for the same locale (the deterministic bug),
-  two pending translations for the same new locale coexisting, rejecting a resubmission after an
-  earlier rejection, a double-decision on the same row correctly returning `409`, and a non-moderator
-  correctly forbidden. `SubmissionApprovalTests` covers approve-creates-a-real-Exercise,
-  reject-never-creates-one, the double-decision `409`, and a sequential-numbering check (a
-  lighter-weight, single-threaded regression for Section 17I's own retry-loop fix — real concurrent
-  reproduction stays documented there, not duplicated here as a flaky threaded test).
-  `EditSuggestionApprovalTests` covers approve mutating the target field and reject leaving it
-  untouched. `ModerationQueuePermissionTests` covers the `403`/`200` moderator gate.
+- **`moderation/tests.py` (23 tests)** — the priority target, and now the largest file for a second
+  reason too: the reporting/auto-hide system joined it (same app, `moderation/services.py`), not a
+  separate app of its own. `TranslationApprovalTests` converts every one of Section 17K's
+  manually-reproduced scenarios into a permanent test: approving a translation that supersedes an
+  existing published one for the same locale (the deterministic bug), two pending translations for
+  the same new locale coexisting, rejecting a resubmission after an earlier rejection, a
+  double-decision on the same row correctly returning `409`, and a non-moderator correctly forbidden.
+  `SubmissionApprovalTests` covers approve-creates-a-real-Exercise, reject-never-creates-one, the
+  double-decision `409`, and a sequential-numbering check (a lighter-weight, single-threaded
+  regression for Section 17I's own retry-loop fix — real concurrent reproduction stays documented
+  there, not duplicated here as a flaky threaded test). `EditSuggestionApprovalTests` covers approve
+  mutating the target field and reject leaving it untouched. `ModerationQueuePermissionTests` covers
+  the `403`/`200` moderator gate. **New in the second pass:** `AutoHideTests` exercises the real
+  `MIN_REPORTS_FOR_AUTO_HIDE = 3` / `AUTO_HIDE_THRESHOLD = 0.20` rule directly — below the report
+  floor even at a high percentage doesn't hide; below the percentage even past the floor doesn't
+  hide; crossing both does (and flips `Exercise.published` too); a reported Comment is correctly
+  measured against its OWN Exercise's viewer pool (`resolve_view_scope_exercise`); a duplicate report
+  by the same user is rejected; an already-hidden target isn't re-processed by a further report.
+  `ReportActionViewTests` covers a moderator restoring an auto-hidden Exercise (reports resolved,
+  `published` restored), permanently removing one, and a non-moderator correctly forbidden.
+  `ReportQueueTests` exercises `build_report_queue`'s actual OUTPUT shape (Section 17F's own
+  N+1-to-bulk-queries rewrite) — grouped report count, view count, and the computed percentage, not
+  just that the endpoint returns `200`.
 - **`exercises/tests.py` (7 tests)** — course-scoped listing and difficulty filtering;
   `?lang=` resolving to a real translation when one exists and falling back to the original locale
   when it doesn't; an authenticated user submitting a translation (`201`, `status: 'pending'`) vs. an
@@ -2275,12 +2287,46 @@ files:**
 - **`accounts/tests.py` (4 tests)** — registering creates a real user and returns a working token;
   a duplicate email is rejected; logging in by email succeeds with the right password and fails
   cleanly with the wrong one.
+- **`community/tests.py` (8 tests, new)** — Review/Comment have no `views.py` of their own (both are
+  reached through `ExerciseViewSet`'s `reviews`/`comments` actions), so these exercise that real HTTP
+  surface: creating a review; resubmitting one updates the existing row rather than duplicating it
+  (`unique_together` on `(exercise, author)`, the view's own `existing`/`partial` logic); an anonymous
+  reviewer is rejected; a removed review is excluded from the list. Posting a root comment; replying
+  sets `parent` correctly; an anonymous commenter is rejected; a removed comment's `body`/
+  `author_display_name` are correctly blanked in the API response (the tombstone behavior CLAUDE.md
+  Section 9 describes — "preserves thread structure," not a hard delete).
+- **`materials/tests.py` (12 tests, new)** — course-scoped material listing; `?q=` text search
+  matching on title AND description; proposing a coverage claim; a duplicate `(material, topic,
+  subtopic)` pairing correctly `409`s rather than silently overwriting; a topic from a DIFFERENT
+  course is rejected; an anonymous proposer is rejected. Voting: agree/disagree counts computed
+  correctly; a verified contributor's vote correctly counts double (`_vote_weight`); re-voting
+  updates the existing vote rather than creating a second row; deleting a vote removes it. Commenting
+  on a coverage claim (`MaterialCoverageViewSet.comments`, the same generic `Comment` GenericForeignKey
+  mechanism Exercise/Material already share).
+- **`taxonomy/tests.py` (4 tests, new)** — only published Fields are listed; a Field's own `courses`
+  action only lists published Courses within it; a Course's detail response includes its own Topics;
+  an unpublished Course correctly `404`s rather than leaking through.
+- **`study/tests.py` (8 tests, new)** — creating a set with exercises; an anonymous user is rejected;
+  listing only shows the CURRENT user's own sets; updating a set's `exercise_ids` correctly preserves
+  the new order (the `through`-model `ExerciseSetItem.order` field the serializer's own `update()`
+  writes explicitly, not DRF's default M2M handling); a non-owner can't delete someone else's set
+  (`404`, matching the queryset-scoping-not-permission-checking pattern this app uses elsewhere).
+  **The Section 17J sharing feature specifically:** an anonymous visitor CAN retrieve a set by id
+  with no authentication at all, correctly sees the owner's own display name, and a nonexistent id
+  still `404`s rather than leaking a stack trace.
 - **`testing/factories.py`** — a small, shared, plain-function fixture module (`make_user`,
-  `make_course`, `make_topic`, `make_exercise`) every app's own test module imports from, rather than
-  each re-deriving its own Field/Course/Exercise boilerplate. Deliberately plain functions, not a
-  `factory_boy`/`model_bakery` dependency — the fixtures here are simple enough (a handful of model
-  fields, no complex relationships) that a shared module of functions covers it without a new
-  package, the same restraint this project already applies everywhere else.
+  `make_viewer`, `make_course`, `make_topic`, `make_exercise`, `make_material`) every app's own test
+  module imports from, rather than each re-deriving its own Field/Course/Exercise/Material
+  boilerplate. Deliberately plain functions, not a `factory_boy`/`model_bakery` dependency — the
+  fixtures here are simple enough (a handful of model fields, no complex relationships) that a shared
+  module of functions covers it without a new package, the same restraint this project already
+  applies everywhere else. `make_viewer` is a real, measured performance fix, not a premature one:
+  the auto-hide tests need up to 100 distinct "viewers" per test purely to exist as a `ContentView`
+  FK target, and `make_user`'s real `create_user` call hashes a password (deliberately slow, to
+  resist brute force) for every one — routing purely-decorative viewer fixtures through a bare
+  `User.objects.create(username=...)` instead (no password hash at all, since nothing ever logs in as
+  one) cut the moderation suite's own wall-clock time from **51.9s to 12.3s**, confirmed by timing
+  both versions directly, not assumed from the change reading like an obvious improvement.
 
 **Verified these are genuine regression tests, not trivially-passing ones — not assumed.** The five
 translation tests were run a second time against a scratch copy of the PRE-FIX code (the exact
@@ -2290,16 +2336,16 @@ non-moderator) correctly still passed, since they don't touch the code paths tha
 is the same "does this test actually catch the bug it claims to" discipline a real regression suite
 needs to earn its own trust, applied here rather than assumed from the test reading correctly.
 
-`manage.py test` (no args) runs the full suite; `manage.py test <app>` runs one app's own tests. All
-24 pass; `manage.py check` and `makemigrations --check --dry-run` both stay clean.
+`manage.py test` (no args) runs the full suite (66 tests, ~22s); `manage.py test <app>` runs one
+app's own tests. `manage.py check` and `makemigrations --check --dry-run` both stay clean.
 
 ### Left open, not built
 
-- **Coverage is deliberately bounded, not exhaustive.** Materials, community (comments/reviews),
-  taxonomy (fields/courses direct CRUD), study (My Set), notifications, and the reporting/auto-hide
-  system have no dedicated test coverage yet — the highest-value, most bug-prone surface (moderation)
-  and the core read/auth paths came first; the rest is real, worthwhile follow-up work, not something
-  this pass silently pretended to cover.
+- ~~Materials, community (comments/reviews), taxonomy, study (My Set), and the reporting/auto-hide
+  system have no dedicated test coverage~~ **✅ Resolved, see the second pass above** —
+  `notifications` remains the one real gap: no dedicated test coverage exists for the SSE stream
+  (Section 17H) or the ten notification-trigger event types (Section 17B/the per-type muting
+  follow-up) yet. A real, worthwhile next target, not attempted in either pass so far.
 - **No CI wiring** — these tests run locally via `manage.py test`, same as every other verification
   command in this project's own README; there's no GitHub Actions workflow (or equivalent) running
   them automatically on push/PR yet.
@@ -2313,6 +2359,10 @@ needs to earn its own trust, applied here rather than assumed from the test read
   a deliberate, documented, not-chased edge case; a threaded/multiprocessing test to exercise it here
   would add real complexity and flakiness risk for a scenario this project has already decided not to
   harden against further.
+- **`MaterialCoverageProposalTests`/`MaterialCoverageVoteTests` don't cover the `subtopic_slug`
+  get-or-create-on-the-fly path** (`MaterialViewSet.coverage`'s own "matching how a brand-new tag is
+  created the first time someone proposes it" behavior) — only the plain `topic`-only case is tested;
+  a real, small, worthwhile addition, not attempted here.
 
 ## 18. Open questions
 

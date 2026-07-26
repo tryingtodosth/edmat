@@ -25,6 +25,15 @@ def make_user(username, *, is_staff=False, is_verified_contributor=False, passwo
     return user
 
 
+def make_viewer(username):
+    """A bare User with no usable password — for fixtures that only ever need to EXIST as an FK
+    target (e.g. simulating dozens of distinct viewers for moderation/models.py's ContentView) and
+    are never authenticated as. `create_user`'s PBKDF2 password hashing is deliberately slow (it's
+    meant to resist brute force); paying that cost for a user nothing ever logs in as measurably
+    slows the suite down for no real benefit — a real, measured difference, not a guessed one."""
+    return User.objects.create(username=username)
+
+
 def make_course(slug='uw-test-course', field_slug='matematyka'):
     field, _ = Field.objects.get_or_create(slug=field_slug)
     FieldTranslation.objects.get_or_create(field=field, locale='pl', defaults={'name': field_slug})
@@ -55,3 +64,17 @@ def make_exercise(course, number, *, difficulty='medium', locale='pl', title=Non
         status='published',
     )
     return exercise
+
+
+def make_material(course, slug='test-material', *, type='script', locale='pl', title=None, description=''):
+    """`Material.file` just needs SOME stored path for tests — `FileField.url` builds a URL from
+    `MEDIA_URL` + the stored name without ever checking the file exists on disk, and nothing in
+    this suite downloads the actual bytes, so a bare string name (no real upload) is honest and
+    sufficient here."""
+    from materials.models import Material, MaterialTranslation
+
+    material = Material.objects.create(course=course, slug=slug, type=type, file=f'materials/{slug}.pdf')
+    MaterialTranslation.objects.create(
+        material=material, locale=locale, title=title or slug, description=description
+    )
+    return material
