@@ -83,6 +83,7 @@ manage.py check                    # sanity check
 manage.py import_legacy_corpus     # (re-)import the real corpus, idempotent
 manage.py import_legacy_corpus --dry-run   # same, but rolls back — nothing written
 manage.py seed_demo_users          # (re-)seed the 5 demo accounts
+manage.py test                     # the real automated suite — see CLAUDE.md Section 17L
 
 # Frontend — from edmat/frontend/
 npm run check     # svelte-check

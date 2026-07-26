@@ -9,7 +9,9 @@ detail page (Section 17G), real-time notification delivery via SSE (Section 17H,
 and server-side "my set" sharing (Section 17J, closing the last item Section 16 had flagged as
 deliberately deferred) are also built. **The corpus-retirement question (Section 12's own ⚠️) is
 resolved: retire `Database-of-Student-Exercise`'s static site now** — see Section 12 and Section 18
-item 3 for the decision and what it changed. This document is the living spec for
+item 3 for the decision and what it changed. The translation-publish race (and a more severe,
+non-concurrent bug found while chasing it) is fixed, and this project's first real automated test
+suite exists (24 tests, `manage.py test`) — see Sections 17K/17L. This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -2229,9 +2231,88 @@ was updated to the new one-argument form, confirmed via a repo-wide grep — no 
   better. Two different translators racing to get the LAST word on the exact same locale at the exact
   same instant is a genuinely rare event this app's real moderator volume doesn't need to harden
   against further today; revisit if real usage ever shows otherwise.
-- **No formal automated test suite exists yet to lock this fix in place** — verified live against a
-  real running server exactly like every other fix in this document, not captured as a regression
-  test. See the next piece of work, immediately following this one.
+- ~~No formal automated test suite exists yet to lock this fix in place~~ **✅ Resolved, see
+  Section 17L** — the three deterministic bug scenarios above are now real, permanent regression
+  tests, not just a one-time manual verification.
+
+## 17L. This project's first real automated test suite (✅ done)
+
+Every "Left open" note in this document that said "no formal automated test suite exists in this
+project at all" (`manage.py test` used to report `Found 0 test(s)` everywhere, Sections 17F/17I/17K)
+was accurate until now. Built using Django's own `TestCase`/DRF's `APITestCase`, both already
+dependencies — no new package added, matching this project's own "every runtime dependency is a
+flagged decision" discipline (the frontend's own `d3-force`/`fuse.js`/`tsx` notes).
+
+**Scope, deliberately bounded rather than attempting exhaustive coverage of every endpoint in one
+pass:** moderation gets the largest share, on purpose — it's where this project's own history of
+found-and-fixed real bugs concentrates (the submission number-collision race, Section 17I; the
+translation-publish race and the more severe, non-concurrent bug found alongside it, Section 17K),
+exactly the kind of thing a regression suite exists to lock in place. Core exercise browsing/
+filtering, the "resolve, fall back to original" locale behavior (Section 10), the translation
+submission flow, and register/login round out the suite. **24 tests, all passing, across three
+files:**
+
+- **`moderation/tests.py` (13 tests)** — the priority target. `TranslationApprovalTests` converts
+  every one of Section 17K's manually-reproduced scenarios into a permanent test: approving a
+  translation that supersedes an existing published one for the same locale (the deterministic bug),
+  two pending translations for the same new locale coexisting, rejecting a resubmission after an
+  earlier rejection, a double-decision on the same row correctly returning `409`, and a non-moderator
+  correctly forbidden. `SubmissionApprovalTests` covers approve-creates-a-real-Exercise,
+  reject-never-creates-one, the double-decision `409`, and a sequential-numbering check (a
+  lighter-weight, single-threaded regression for Section 17I's own retry-loop fix — real concurrent
+  reproduction stays documented there, not duplicated here as a flaky threaded test).
+  `EditSuggestionApprovalTests` covers approve mutating the target field and reject leaving it
+  untouched. `ModerationQueuePermissionTests` covers the `403`/`200` moderator gate.
+- **`exercises/tests.py` (7 tests)** — course-scoped listing and difficulty filtering;
+  `?lang=` resolving to a real translation when one exists and falling back to the original locale
+  when it doesn't; an authenticated user submitting a translation (`201`, `status: 'pending'`) vs. an
+  anonymous one being rejected (`401`); and a direct regression test for the real, found-before-
+  first-use data-integrity bug Section 17F documents (`ExerciseDetailSerializer` caching its
+  resolved translation on `self`, which `DRF`'s `ListSerializer` shares as ONE instance across every
+  row under `many=True` — every exercise past the first in a bulk response used to show the FIRST
+  one's own content). This is a genuine data-CORRECTNESS bug, not a performance one, so it earns a
+  permanent regression test rather than staying only a documented, one-time finding.
+- **`accounts/tests.py` (4 tests)** — registering creates a real user and returns a working token;
+  a duplicate email is rejected; logging in by email succeeds with the right password and fails
+  cleanly with the wrong one.
+- **`testing/factories.py`** — a small, shared, plain-function fixture module (`make_user`,
+  `make_course`, `make_topic`, `make_exercise`) every app's own test module imports from, rather than
+  each re-deriving its own Field/Course/Exercise boilerplate. Deliberately plain functions, not a
+  `factory_boy`/`model_bakery` dependency — the fixtures here are simple enough (a handful of model
+  fields, no complex relationships) that a shared module of functions covers it without a new
+  package, the same restraint this project already applies everywhere else.
+
+**Verified these are genuine regression tests, not trivially-passing ones — not assumed.** The five
+translation tests were run a second time against a scratch copy of the PRE-FIX code (the exact
+commit before Section 17K's own fix): 3 of 5 failed with the real `django.db.utils.IntegrityError`,
+exactly matching the 3 deterministic bugs that fix found and resolved; the other 2 (double-decision,
+non-moderator) correctly still passed, since they don't touch the code paths that fix changed. This
+is the same "does this test actually catch the bug it claims to" discipline a real regression suite
+needs to earn its own trust, applied here rather than assumed from the test reading correctly.
+
+`manage.py test` (no args) runs the full suite; `manage.py test <app>` runs one app's own tests. All
+24 pass; `manage.py check` and `makemigrations --check --dry-run` both stay clean.
+
+### Left open, not built
+
+- **Coverage is deliberately bounded, not exhaustive.** Materials, community (comments/reviews),
+  taxonomy (fields/courses direct CRUD), study (My Set), notifications, and the reporting/auto-hide
+  system have no dedicated test coverage yet — the highest-value, most bug-prone surface (moderation)
+  and the core read/auth paths came first; the rest is real, worthwhile follow-up work, not something
+  this pass silently pretended to cover.
+- **No CI wiring** — these tests run locally via `manage.py test`, same as every other verification
+  command in this project's own README; there's no GitHub Actions workflow (or equivalent) running
+  them automatically on push/PR yet.
+- **No frontend test suite either** — `npm run check`/`lint`/`build` all stay clean, but this project
+  has never had a Vitest/Playwright-as-CI-gate suite; every frontend verification in this document
+  has been a manual, one-off headless-Chromium pass (Sections 17A–17K's own "Verified end-to-end"
+  writeups), not a committed, re-runnable test file.
+- **The cross-row translation race (Section 17K's own "Left open" note) has no dedicated concurrency
+  test in this suite** — Django's synchronous test client can't fire genuinely simultaneous requests
+  the way the real `curl`-plus-`wait` methodology (17I, 17K) can, and that residual race was already
+  a deliberate, documented, not-chased edge case; a threaded/multiprocessing test to exercise it here
+  would add real complexity and flakiness risk for a scenario this project has already decided not to
+  harden against further.
 
 ## 18. Open questions
 
