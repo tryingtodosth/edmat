@@ -33,6 +33,21 @@ class Profile(models.Model):
     notify_on_moderation_decision = models.BooleanField(default=True)
     notify_on_content_action = models.BooleanField(default=True)
 
+    # Finer-grained than the three coarse booleans above, layered on TOP of them rather than
+    # replacing them: `notify()` only ever reaches this check once the notification's own coarse
+    # category is already on, so muting a category still mutes everything under it regardless of
+    # this list — this is a way to peel off ONE specific type from an otherwise-active category (e.g.
+    # `translation_rejected` specifically, without losing every other `notify_on_moderation_decision`
+    # alert), not a way to un-mute something the coarse toggle already turned off. A plain list of
+    # `Notification.type` strings rather than N more boolean columns — genuinely open-ended (a future
+    # notification type needs no new migration to become individually mutable) and there's no need to
+    # query/filter on this field, only ever a membership check inside Python. `new_tagged_content` is
+    # deliberately NOT gated by any of the three coarse fields (see notifications/services.py's own
+    # note on why — that type's real gate is each TagFollow's own per-tag `notify` flag) but CAN
+    # still appear in this list, as an account-wide "never notify me about new tagged content at
+    # all" override that layers on top of, not instead of, the per-tag choice.
+    muted_notification_types = models.JSONField(default=list, blank=True)
+
     def __str__(self) -> str:
         return self.display_name or self.user.username
 

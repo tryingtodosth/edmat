@@ -53,6 +53,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'notify_on_comment_reply',
             'notify_on_moderation_decision',
             'notify_on_content_action',
+            'muted_notification_types',
             'donation_links',
         ]
 
@@ -73,6 +74,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'notify_on_comment_reply',
             'notify_on_moderation_decision',
             'notify_on_content_action',
+            'muted_notification_types',
         ]
 
 

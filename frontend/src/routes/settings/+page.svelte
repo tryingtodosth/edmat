@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { SvelteSet } from 'svelte/reactivity';
+	import type { NotificationType } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale, locales } from '$lib/paraglide/runtime';
 	import { formatDate } from '$lib/utils/format';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { NOTIFICATION_TYPE_CATEGORY, NOTIFICATION_TYPE_LABELS } from '$lib/utils/labels';
 	import DonationLinksEditor from '$lib/components/settings/DonationLinksEditor.svelte';
 	import TagFollowsEditor from '$lib/components/settings/TagFollowsEditor.svelte';
 
@@ -13,10 +16,36 @@
 	let notifyOnCommentReply = $state(true);
 	let notifyOnModerationDecision = $state(true);
 	let notifyOnContentAction = $state(true);
+	// Finer-grained than the three booleans above, layered on top — see Profile
+	// .muted_notification_types' own doc comment (accounts/models.py) for the full reasoning. A
+	// type in here is muted even while its own coarse category above stays on. `SvelteSet`, not a
+	// plain `Set` in `$state()` — this project's own eslint config (svelte/prefer-svelte-reactivity)
+	// flags calling `.add()`/`.delete()` on a bare Set; `SvelteSet` is reactive to in-place
+	// mutation directly, so `toggleMuted` below never needs to reconstruct/reassign the whole thing.
+	let mutedTypes = new SvelteSet<NotificationType>();
 	let seeded = $state(false);
 	let saving = $state(false);
 	let saveError = $state('');
 	let saved = $state(false);
+
+	// Static (NOTIFICATION_TYPE_CATEGORY never changes at runtime) — every type that belongs to the
+	// "moderation decision"/"content action" coarse categories, the two with more than one member
+	// and therefore something genuine to fine-tune. `commentReply` has no sibling in its own
+	// category, so its coarse checkbox above already says everything a per-type row would.
+	const moderationDecisionTypes = (
+		Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]
+	).filter((t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnModerationDecision');
+	const contentActionTypes = (Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]).filter(
+		(t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnContentAction'
+	);
+
+	function toggleMuted(type: NotificationType) {
+		if (mutedTypes.has(type)) {
+			mutedTypes.delete(type);
+		} else {
+			mutedTypes.add(type);
+		}
+	}
 
 	// Seeds the editable form fields from the loaded user exactly once — the same "one-time read,
 	// not a live `$derived` mirror" discipline this app already applies wherever a form starts from
@@ -31,6 +60,12 @@
 		notifyOnCommentReply = authStore.user.notifyOnCommentReply ?? true;
 		notifyOnModerationDecision = authStore.user.notifyOnModerationDecision ?? true;
 		notifyOnContentAction = authStore.user.notifyOnContentAction ?? true;
+		// Mutate the existing SvelteSet in place, not a reassignment — `mutedTypes` is a plain `let`
+		// (SvelteSet is already reactive to `.add()` on its own, so it was never wrapped in `$state()`
+		// to begin with), and a bare `let` reassignment wouldn't be tracked the way `$state` is.
+		for (const type of authStore.user.mutedNotificationTypes ?? []) {
+			mutedTypes.add(type);
+		}
 	});
 
 	async function handleSave(event: SubmitEvent) {
@@ -44,7 +79,8 @@
 			showProfilePublicly,
 			notifyOnCommentReply,
 			notifyOnModerationDecision,
-			notifyOnContentAction
+			notifyOnContentAction,
+			mutedNotificationTypes: Array.from(mutedTypes)
 		});
 		saving = false;
 		if (result.ok) {
@@ -129,10 +165,51 @@
 					<input type="checkbox" bind:checked={notifyOnModerationDecision} />
 					<span>{m.settings_notifyOnModerationDecision()}</span>
 				</label>
+				{#if notifyOnModerationDecision}
+					<ul class="fine-tune">
+						{#each moderationDecisionTypes as type (type)}
+							<li>
+								<label class="checkbox checkbox--sub">
+									<input
+										type="checkbox"
+										checked={!mutedTypes.has(type)}
+										onchange={() => toggleMuted(type)}
+									/>
+									<span>{NOTIFICATION_TYPE_LABELS[type]?.()}</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 				<label class="checkbox">
 					<input type="checkbox" bind:checked={notifyOnContentAction} />
 					<span>{m.settings_notifyOnContentAction()}</span>
 				</label>
+				{#if notifyOnContentAction}
+					<ul class="fine-tune">
+						{#each contentActionTypes as type (type)}
+							<li>
+								<label class="checkbox checkbox--sub">
+									<input
+										type="checkbox"
+										checked={!mutedTypes.has(type)}
+										onchange={() => toggleMuted(type)}
+									/>
+									<span>{NOTIFICATION_TYPE_LABELS[type]?.()}</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<label class="checkbox">
+					<input
+						type="checkbox"
+						checked={!mutedTypes.has('newTaggedContent')}
+						onchange={() => toggleMuted('newTaggedContent')}
+					/>
+					<span>{NOTIFICATION_TYPE_LABELS.newTaggedContent?.()}</span>
+				</label>
+				<p class="field-hint">{m.settings_notifyNewTaggedContentHint()}</p>
 			</section>
 
 			<div class="save-row">
@@ -259,6 +336,20 @@
 		align-items: center;
 		gap: var(--space-2);
 		font-size: var(--font-size-sm);
+	}
+	.fine-tune {
+		list-style: none;
+		margin: 0 0 0 var(--space-4);
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		border-left: 2px solid var(--border-color);
+		padding-left: var(--space-3);
+	}
+	.checkbox--sub {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 	.field-hint {
 		font-size: var(--font-size-xs);

@@ -29,6 +29,19 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'content_removed': 'notify_on_content_action',
 }
 
+# The full catalog of real notification types, each paired with the coarse category (Profile
+# boolean field name) it falls under — `None` for `new_tagged_content`, which has no coarse
+# category at all (see that type's own note, below and in `notify_tag_followers`). Built FROM
+# `_PREFERENCE_FIELD_FOR_TYPE` above rather than a second, hand-maintained list that could drift
+# out of sync with it — this is the one place a new call site (or a new frontend toggle) should
+# read from to know every real type that exists, not re-derive its own copy. `NotificationPreferenceView`
+# (views.py) is what actually hands this to the frontend, so the per-type mute list in Settings
+# never needs its own hardcoded catalog either.
+NOTIFICATION_TYPES: list[tuple[str, str | None]] = [
+    *_PREFERENCE_FIELD_FOR_TYPE.items(),
+    ('new_tagged_content', None),
+]
+
 
 def label_for_exercise(exercise) -> str:
     """The same per-locale-resolved title moderation/services.py's `_describe` already computes for
@@ -61,22 +74,31 @@ def notify(
     - `actor == recipient` — a moderator should never get a notification for their own decision
       (can't actually happen given who's allowed to submit vs. moderate today, but cheap to guard
       regardless of whether the two roles ever overlap for one account).
-    - the recipient has turned this notification CATEGORY off in their own privacy settings
+    - the recipient has turned this notification's whole CATEGORY off in their own privacy settings
       (accounts/models.py's Profile.notify_on_* fields) — see `_PREFERENCE_FIELD_FOR_TYPE` above.
-      Deliberately NOT consulted for `new_tagged_content` — that type's own gating happens one level
-      up, in `notify_tag_followers`, via each follower's own `TagFollow.notify` flag, a per-TAG
-      choice rather than a blanket account-wide category the way every other type's gating is.
+      Deliberately NOT consulted for `new_tagged_content` — that type's own coarse-category gating
+      happens one level up instead, in `notify_tag_followers`, via each follower's own `TagFollow
+      .notify` flag, a per-TAG choice rather than a blanket account-wide category the way every
+      other type's gating is.
+    - the recipient has muted this SPECIFIC type individually (`Profile.muted_notification_types`),
+      even though its own coarse category is still otherwise on — checked second, after the coarse
+      category, so muting the whole category still mutes everything under it regardless of this
+      list; this only ever peels off ONE type from an otherwise-active category, never the reverse.
     """
     if recipient is None:
         return None
     if actor is not None and actor.pk == recipient.pk:
         return None
 
+    profile = getattr(recipient, 'profile', None)
+
     preference_field = _PREFERENCE_FIELD_FOR_TYPE.get(notif_type)
     if preference_field is not None:
-        profile = getattr(recipient, 'profile', None)
         if profile is not None and not getattr(profile, preference_field, True):
             return None
+
+    if profile is not None and notif_type in (profile.muted_notification_types or []):
+        return None
 
     from .models import Notification
 
@@ -110,6 +132,12 @@ def notify_tag_followers(tag, *, actor, exercise=None, material=None):
     per-tag `notify` flag IS the gate here, checked in this loop, before `notify()` is ever called —
     a follower who muted this one tag never even reaches `notify()`'s own (irrelevant, for this
     type) account-level check.
+
+    A follower's own account-wide `muted_notification_types` (accounts/models.py) is STILL checked
+    here, though, one layer above the per-tag flag — this is the "mute new_tagged_content entirely"
+    override the per-type preference UI (Settings) offers, for someone who wants to keep following
+    tags (Save For Later, Add To Content still work regardless) without ever being notified about
+    any of them, rather than having to mute `notify` on every individual `TagFollow` row by hand.
     """
     label = label_for_exercise(exercise) if exercise is not None else label_for_material(material)
     from .models import Notification
@@ -117,6 +145,9 @@ def notify_tag_followers(tag, *, actor, exercise=None, material=None):
     for follow in tag.follows.filter(notify=True).select_related('user', 'user__profile'):
         if follow.user_id == getattr(actor, 'pk', None):
             continue  # notify()'s own actor==recipient guard would catch this too, checked here to avoid the query overhead of building a Notification just to discard it
+        profile = getattr(follow.user, 'profile', None)
+        if profile is not None and 'new_tagged_content' in (profile.muted_notification_types or []):
+            continue
         Notification.objects.create(
             recipient=follow.user,
             actor=actor,

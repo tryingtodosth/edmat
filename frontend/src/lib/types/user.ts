@@ -1,4 +1,5 @@
 import type { DonationLink } from './donationLink';
+import type { NotificationType } from './notification';
 
 export interface User {
 	id: string;
@@ -23,4 +24,9 @@ export interface User {
 	notifyOnCommentReply?: boolean;
 	notifyOnModerationDecision?: boolean;
 	notifyOnContentAction?: boolean;
+	// Finer-grained than the three notifyOn* booleans above, layered on TOP of them — a type in
+	// here is suppressed even when its own coarse category is otherwise on (see
+	// accounts/models.py's Profile.muted_notification_types for the full reasoning). Same
+	// undefined-for-a-stranger's-profile treatment as the three fields above.
+	mutedNotificationTypes?: NotificationType[];
 }

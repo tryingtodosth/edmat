@@ -3,9 +3,9 @@
 // token.svelte.ts, not here — see that file's own header comment for why (breaks a circular import
 // between this module and lib/api/client.ts, which both need the token).
 
-import type { User } from '$lib/types';
+import type { NotificationType, User } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
-import { mapUser, type RawProfile } from '$lib/api/mappers';
+import { mapUser, NOTIFICATION_TYPE_REVERSE_MAP, type RawProfile } from '$lib/api/mappers';
 import { tokenStore } from './token.svelte';
 
 function deriveUsername(email: string): string {
@@ -118,6 +118,7 @@ export const authStore = {
 			notifyOnCommentReply: boolean;
 			notifyOnModerationDecision: boolean;
 			notifyOnContentAction: boolean;
+			mutedNotificationTypes: NotificationType[];
 		}>
 	): Promise<{ ok: true } | { ok: false; error: string }> {
 		const body: Record<string, unknown> = {};
@@ -132,6 +133,11 @@ export const authStore = {
 		}
 		if (patch.notifyOnContentAction !== undefined)
 			body.notify_on_content_action = patch.notifyOnContentAction;
+		if (patch.mutedNotificationTypes !== undefined) {
+			body.muted_notification_types = patch.mutedNotificationTypes.map(
+				(t) => NOTIFICATION_TYPE_REVERSE_MAP[t]
+			);
+		}
 		try {
 			const raw = await apiClient.patch<RawProfile>('/auth/me/', body);
 			user = mapUser(raw);

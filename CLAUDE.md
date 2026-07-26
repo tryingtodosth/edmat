@@ -1152,6 +1152,62 @@ private notice while the display name still renders, toggling back on, then addi
 real donation link through the UI. `npm run check`/`lint`/`build` and `manage.py check` all clean
 throughout.
 
+### Per-type notification granularity (✅ built, Phase 4)
+
+The three coarse `notify_on_*` booleans above were, until now, the ONLY lever a user had — "mute all
+moderation-decision alerts" meant losing all six of `submission_approved`/`submission_rejected`/
+`edit_suggestion_approved`/`edit_suggestion_rejected`/`translation_approved`/`translation_rejected`
+at once, with no way to peel off just one. `Profile.muted_notification_types` (a `JSONField`, plain
+list of `Notification.type` strings, new migration `0004_profile_muted_notification_types`) is a
+second, finer layer on TOP of the three booleans, not a replacement for them — `notify()`
+(`notifications/services.py`) checks the coarse category FIRST and still short-circuits everything
+under it when that's off, then checks this list SECOND, so muting a specific type only ever peels one
+thing off an otherwise-active category, never the reverse. `notify_tag_followers` gained the
+identical check for `new_tagged_content` specifically — that type has no coarse category at all (its
+real gate is each follower's own per-tag `TagFollow.notify`, unchanged), so this is a genuine, new
+capability: an account-wide "never notify me about ANY newly-tagged content" override, layered on top
+of (not replacing) the per-tag choice the "my followed tags" settings section (above) already offers.
+
+`notifications/services.py` gained one small, deliberate refactor alongside the new field: `_PREFERENCE_FIELD_FOR_TYPE`'s own
+9 entries plus `new_tagged_content` are now also exposed as `NOTIFICATION_TYPES`, a single list built
+FROM the existing dict (not a second, hand-maintained copy) — the one place a future notification
+type should be registered, so nothing has to independently remember to update both the coarse-gating
+dict and the fine-grained catalog. The frontend mirrors this same 10-type catalog by hand in
+`lib/utils/labels.ts`'s new `NOTIFICATION_TYPE_CATEGORY`/`NOTIFICATION_TYPE_LABELS` — flagged
+in-line as the one place drift between backend and frontend could creep in if a type is ever added
+without updating both, the same "mirrored small enum" convention `DONATION_PLATFORMS` already
+established in the same file, not a new pattern invented for this.
+
+Frontend: the settings page's existing Notifications section gained a nested "fine-tune" checkbox
+list under each of the two multi-member coarse categories (moderation-decision: 6, content-action:
+3 — `commentReply` has no sibling in its own category, so its existing coarse checkbox already says
+everything a per-type row would, no redundant single-item list added for it), plus a standalone row
+for `newTaggedContent` since it has no parent category. The fine-tune list for a category collapses
+when that category's own coarse checkbox is off (there's nothing to fine-tune once the whole thing
+is muted already) — re-checking it correctly reveals the sub-list with whatever per-type mutes were
+already set still intact, confirmed live, not assumed. `mutedTypes` is a `SvelteSet`, not a plain
+`Set` in `$state()` — this project's own `eslint-plugin-svelte` config (`svelte/prefer-svelte-
+reactivity`) flags calling `.add()`/`.delete()` on a bare `Set`, caught by a real lint failure during
+this build, not a stylistic choice made up front; `SvelteSet` is reactive to in-place mutation
+directly, so the toggle handler never needs to reconstruct-and-reassign the whole collection the way
+`TagChip.svelte`'s own `addedIds`/`MaterialCard.svelte`'s `removedTags` (both plain-Set-via-spread,
+which never call a mutating method directly and so never tripped this same rule) do elsewhere in
+this app — three genuinely different, all-correct answers to "how do I hold a small reactive set,"
+each fitting how it's actually used.
+
+**Verified end-to-end, not just by inspection.** Backend, direct: muting one specific type inside an
+otherwise-active coarse category correctly suppressed only that type (`notify()` returned `None`)
+while a sibling type in the SAME category still fired normally; turning the whole coarse category off
+correctly suppressed everything under it regardless of the per-type list; the new account-wide
+`new_tagged_content` override correctly suppressed a tag-follow notification even with the relevant
+`TagFollow.notify` still `True`, and correctly stopped suppressing once un-muted. Frontend, a real
+headless-browser run against the live app: both fine-tune sub-lists render with the correct 9 labels
+total; unchecking one specific type, saving, and reloading the page confirmed the mute genuinely
+persisted server-side (not just a local UI state); unchecking the parent category correctly collapsed
+its own sub-list, and re-checking it correctly restored the sub-list with the earlier per-type mute
+still shown, unaffected by the toggle. `npm run check`/`lint` and `manage.py check` all clean
+throughout.
+
 ### Left open, not built
 
 - **Real-time/push delivery and email** — see Section 18 item 9's own detailed writeup (Django
@@ -1162,6 +1218,12 @@ throughout.
   there's no drag-and-drop; a newly-added link just appends after whatever's already there.
 - **No avatar upload UI anywhere** — `Profile.avatar` predates this feature and stays untouched;
   only its URL-resolution correctness (the missing `context={'request': ...}` fix above) changed.
+- **`NOTIFICATION_TYPE_CATEGORY`/`NOTIFICATION_TYPE_LABELS` (frontend) is a hand-maintained mirror
+  of the backend's own `NOTIFICATION_TYPES` catalog, not fetched from an endpoint** — a real, if
+  small, drift risk flagged in both files' own comments rather than silently left unstated; a
+  dedicated read-only endpoint would remove the risk entirely but felt disproportionate for 10 rarely
+  -changing rows, the same "mirror it by hand, flag the risk" call this codebase already made for
+  `DONATION_PLATFORMS`/`SOURCE_TYPES`.
 
 ---
 

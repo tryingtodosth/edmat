@@ -3,7 +3,13 @@
 // exact same lists, per this codebase's own "three strikes" convention for when a duplicated pattern
 // earns a shared utility.
 
-import type { Difficulty, DonationPlatform, MaterialType, SourceType } from '$lib/types';
+import type {
+	Difficulty,
+	DonationPlatform,
+	MaterialType,
+	NotificationType,
+	SourceType
+} from '$lib/types';
 import { m } from '$lib/paraglide/messages.js';
 
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
@@ -92,4 +98,47 @@ export const MATERIAL_TYPE_LABELS: Record<MaterialType, () => string> = {
 	textbookExcerpt: m.materialType_textbookExcerpt,
 	codeDataset: m.materialType_codeDataset,
 	other: m.materialType_other
+};
+
+// The three coarse Profile.notify_on_* fields each real NotificationType falls under — mirrors the
+// backend's own notifications/services.py `NOTIFICATION_TYPES` catalog (that file's own doc comment
+// names this exact frontend list as the one place drift could otherwise creep in, so keep the two
+// in sync by hand if a new notification type is ever added). `null` for `newTaggedContent`, which
+// has no coarse category at all — its own gating happens per-tag (TagFollow.notify), not here; it
+// still gets an entry so the settings UI can offer a SEPARATE, standalone "mute this type
+// account-wide" override layered on top of the per-tag choice (Profile.muted_notification_types).
+export type NotificationPreferenceCategory =
+	'notifyOnCommentReply' | 'notifyOnModerationDecision' | 'notifyOnContentAction' | null;
+
+export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPreferenceCategory> =
+	{
+		commentReply: 'notifyOnCommentReply',
+		submissionApproved: 'notifyOnModerationDecision',
+		submissionRejected: 'notifyOnModerationDecision',
+		editSuggestionApproved: 'notifyOnModerationDecision',
+		editSuggestionRejected: 'notifyOnModerationDecision',
+		translationApproved: 'notifyOnModerationDecision',
+		translationRejected: 'notifyOnModerationDecision',
+		contentAutoHidden: 'notifyOnContentAction',
+		contentRestored: 'notifyOnContentAction',
+		contentRemoved: 'notifyOnContentAction',
+		newTaggedContent: null
+	};
+
+// Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
+// NOT the same message keys NotificationCard.svelte already uses (those are full sentence templates
+// needing an actor/title, e.g. "X approved your submission 'Y'"; a settings toggle just wants a
+// plain noun phrase like "Submission approved"). `commentReply` has no entry — it's the sole member
+// of its own category, so the existing coarse checkbox already says everything a per-type row would.
+export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => string>> = {
+	submissionApproved: m.notifPref_submissionApproved,
+	submissionRejected: m.notifPref_submissionRejected,
+	editSuggestionApproved: m.notifPref_editSuggestionApproved,
+	editSuggestionRejected: m.notifPref_editSuggestionRejected,
+	translationApproved: m.notifPref_translationApproved,
+	translationRejected: m.notifPref_translationRejected,
+	contentAutoHidden: m.notifPref_contentAutoHidden,
+	contentRestored: m.notifPref_contentRestored,
+	contentRemoved: m.notifPref_contentRemoved,
+	newTaggedContent: m.notifPref_newTaggedContent
 };

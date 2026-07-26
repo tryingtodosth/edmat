@@ -575,6 +575,31 @@ export function mapDonationLink(json: RawDonationLink): DonationLink {
 	};
 }
 
+// Backend snake_case <-> frontend camelCase for a Notification's own `type` — exported (moved
+// ahead of its original, single call site in mapNotification below) since `mapUser`'s own
+// `muted_notification_types` needs the SAME conversion table, not a second, independently
+// hand-maintained copy that could drift from this one.
+export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
+	submission_approved: 'submissionApproved',
+	submission_rejected: 'submissionRejected',
+	edit_suggestion_approved: 'editSuggestionApproved',
+	edit_suggestion_rejected: 'editSuggestionRejected',
+	translation_approved: 'translationApproved',
+	translation_rejected: 'translationRejected',
+	comment_reply: 'commentReply',
+	content_auto_hidden: 'contentAutoHidden',
+	content_restored: 'contentRestored',
+	content_removed: 'contentRemoved',
+	new_tagged_content: 'newTaggedContent'
+};
+
+// The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
+// (PATCH /auth/me/), which stores/compares snake_case `Notification.type` strings.
+export const NOTIFICATION_TYPE_REVERSE_MAP: Record<Notification['type'], string> =
+	Object.fromEntries(
+		Object.entries(NOTIFICATION_TYPE_MAP).map(([snake, camel]) => [camel, snake])
+	) as Record<Notification['type'], string>;
+
 export interface RawProfile {
 	id: number; // the USER's own pk (see accounts/serializers.py's own note on why)
 	username: string;
@@ -590,6 +615,7 @@ export interface RawProfile {
 	notify_on_comment_reply?: boolean;
 	notify_on_moderation_decision?: boolean;
 	notify_on_content_action?: boolean;
+	muted_notification_types?: string[]; // snake_case type strings — converted below
 	donation_links?: RawDonationLink[];
 }
 
@@ -608,7 +634,10 @@ export function mapUser(json: RawProfile): User {
 		showProfilePublicly: json.show_profile_publicly,
 		notifyOnCommentReply: json.notify_on_comment_reply,
 		notifyOnModerationDecision: json.notify_on_moderation_decision,
-		notifyOnContentAction: json.notify_on_content_action
+		notifyOnContentAction: json.notify_on_content_action,
+		mutedNotificationTypes: json.muted_notification_types
+			?.map((t) => NOTIFICATION_TYPE_MAP[t])
+			.filter((t): t is Notification['type'] => t !== undefined)
 	};
 }
 
@@ -637,20 +666,6 @@ export interface RawNotification {
 	is_read: boolean;
 	created_at: string;
 }
-
-const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
-	submission_approved: 'submissionApproved',
-	submission_rejected: 'submissionRejected',
-	edit_suggestion_approved: 'editSuggestionApproved',
-	edit_suggestion_rejected: 'editSuggestionRejected',
-	translation_approved: 'translationApproved',
-	translation_rejected: 'translationRejected',
-	comment_reply: 'commentReply',
-	content_auto_hidden: 'contentAutoHidden',
-	content_restored: 'contentRestored',
-	content_removed: 'contentRemoved',
-	new_tagged_content: 'newTaggedContent'
-};
 
 export function mapNotification(json: RawNotification): Notification {
 	return {
