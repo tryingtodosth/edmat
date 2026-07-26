@@ -3,11 +3,11 @@
 **Status:** ✅ Phase 1 (frontend, fully mocked), Phase 2 (Django REST Framework backend, real
 migrated corpus), and Phase 3 (frontend wired to the real backend, mocks deleted) all built — see
 `frontend/` and `backend/`. Phase 4 (hardening) in progress — the LaTeX/KaTeX compatibility sweep
-(Section 11's own ⚠️), a real accessibility audit, and the moderation-queue synthetic load test are
-done, see Sections 17D/17E/17F; only the corpus-retirement decision is not yet done, see Section 16.
-The material detail page (Section 17G) and real-time notification delivery via SSE (Section 17H,
-Section 18 item 9) are also now built, closing two gaps this document had explicitly flagged as
-open. This document is the living spec for
+(Section 11's own ⚠️), a real accessibility audit, the moderation-queue synthetic load test, and a
+real multi-moderator concurrent-access test are done, see Sections 17D/17E/17F/17I; only the
+corpus-retirement decision is not yet done, see Section 16. The material detail page (Section 17G)
+and real-time notification delivery via SSE (Section 17H, Section 18 item 9) are also now built,
+closing two gaps this document had explicitly flagged as open. This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -906,10 +906,10 @@ Per explicit instruction: plan → frontend → backend.
 - **Phase 4 — Hardening.** In progress. LaTeX-compatibility sweep across the full migrated corpus
   (Section 11's own ⚠️) ✅ **done, see Section 17D.** A real accessibility audit ✅ **done, see
   Section 17E.** A moderation-queue synthetic load test ✅ **done, see Section 17F** (found and fixed
-  a real N+1 on both the backend and the frontend). Still open: deciding the
-  `Database-of-Student-Exercise` retirement question (Section 12's ⚠️) — "load testing with real
-  volunteer moderators" (as opposed to a synthetic seeded backlog) also stays open, since this
-  environment has no real moderators to recruit.
+  a real N+1 on both the backend and the frontend). A real multi-moderator concurrent-access test
+  ✅ **done, see Section 17I** (found and fixed a real race condition in submission approval — a
+  genuine `IntegrityError`/500 under simultaneous requests, not a theoretical concern). Still open:
+  deciding the `Database-of-Student-Exercise` retirement question (Section 12's ⚠️).
 
 **Left for a later phase, not v1, flagged so they aren't silently forgotten (both are real, working
 features in the current static site — Section 3):**
@@ -1605,15 +1605,26 @@ sweep's own tooling already established.
 
 ### Left open, not built
 
-- **`build_report_queue()`'s one remaining real query-per-group case (Comment targets resolving
-  their own generic `target`) was deliberately left as-is**, not chased into a full bulk-prefetch of
-  an arbitrarily-recursive `GenericForeignKey` chain — Comments are the minority report-target kind
-  in this app's real data, and the remaining cost scales with comment-report count, not total report
-  count.
-- **No real load-testing with actual volunteer moderators** — this environment has no real
-  moderators to recruit; the synthetic seeded backlog is a real, substantial stand-in, but a genuine
-  multi-user concurrent-access test (several moderators acting on the same queue at once) wasn't and
-  couldn't be performed here.
+- ~~`build_report_queue()`'s one remaining real query-per-group case (Comment targets resolving
+  their own generic `target`) was deliberately left as-is~~ **✅ Resolved, follow-up pass.** Bulk-
+  resolved one hop further down, the same "group by content type, bulk-fetch by kind" pattern
+  already used for the top-level report targets — a Comment's own `content_type_id`/`object_id`
+  are plain columns already on the fetched row, no query needed to read them. Re-measured against a
+  real seeded backlog (197 report groups, 22 of them real Comment-kind targets): `build_report_queue()`
+  alone dropped from 33 queries to **13 queries** (~69ms). Correctness re-verified the same rigorous
+  way as the original rewrite — a live diff against the exact pre-edit implementation on the same DB
+  state, 0 mismatches across all 197 rows, sort order and `last_reported_at` both identical. The one
+  case still genuinely per-object (a Comment whose own target is ANOTHER Comment, a real recursive
+  chain) is deliberately left as a single real query rather than a third bulk-fetch layer — not
+  present in this app's real data today (every real Comment targets an Exercise or a
+  MaterialCoverage directly), resolved correctly via the original `resolve_view_scope_exercise` for
+  the rare case it ever does occur, not silently dropped.
+- ~~No real load-testing with actual volunteer moderators — this environment has no real moderators
+  to recruit; the synthetic seeded backlog is a real, substantial stand-in, but a genuine multi-user
+  concurrent-access test (several moderators acting on the same queue at once) wasn't and couldn't be
+  performed here at the time this note was originally written.~~ **✅ Resolved, see Section 17I** — a
+  real simulated version (genuinely simultaneous requests, not mocked), which found and fixed a real
+  race condition this note's own absence of testing had left undetected.
 - **The Vite dev-server cold-load overhead (~3-5s per fresh browser session, confirmed general, not
   moderation-specific) is unaddressed, deliberately** — it isn't present in the production build,
   and isn't caused by anything this item's own scope (backend queries, frontend request fan-out)
@@ -1825,6 +1836,102 @@ created for verification were cleaned up afterward, confirmed removed. `npm run 
   this environment has, and would be a real, separate concern (worth its own investigation, the same
   spirit as Section 17F's own load test) the moment this needed to support many real concurrent
   users.
+
+## 17I. Real multi-moderator concurrent-access test (✅ built)
+
+Section 17F's own "Left open" list flagged this honestly: a synthetic *volume* load test (many
+pending items sitting in the queue) says nothing about *concurrent* access (several moderators
+acting on the queue at the same instant) — no real moderators exist in this environment to recruit
+for that, so this needed a genuinely simulated version instead: real, simultaneous `curl` processes
+(backgrounded shell jobs + `wait`, not a mocked/serialized test) fired at
+`ModerationActionView`/`_apply_submission` (`moderation/views.py`) against a real running dev server.
+
+**A real bug, found on the first attempt, not assumed:** two genuinely simultaneous
+`POST /api/moderation/submission/{id}/approve/` requests against the same pending submission
+produced one HTTP 200 and one raw HTTP 500. The full server-side traceback (not just the exception
+message) pinpointed it exactly: `_apply_submission`'s `next_number` — computed by reading the
+current max `Exercise.number` for the course and adding one — is a plain read-then-write with no
+locking at all, so both requests can read the identical value before either one's
+`Exercise.objects.create()` commits; the loser hits `django.db.utils.IntegrityError: UNIQUE
+constraint failed: exercises_exercise.course_id, exercises_exercise.number` (`(course, number)` is
+the real uniqueness constraint) straight out of the view. A second, genuinely separate gap sat
+alongside it: nothing stopped the SAME queue row from being approved/rejected twice at once at all
+(a moderator double-click, or two moderators racing the same row) — every branch re-ran its full
+apply logic unconditionally, risking two full `Exercise` rows built from one `submission` even
+without a number collision.
+
+**Two fixes, and one design detour worth recording so it isn't retried blind:**
+
+- **The idempotency guard first went through `transaction.atomic()` + `select_for_update()`** — the
+  textbook fix, and genuinely correct on a real production Postgres deployment. It made things
+  *worse* here: this project's own dev database is SQLite, which has no row-level locking at all
+  (`connection.features.has_select_for_update` is `False`; Django silently no-ops the call rather
+  than raising on a backend that can't honor it), while Django's SQLite backend still holds a real,
+  exclusive write lock for the *full duration* of an `atomic()` block, not just per statement — so
+  wrapping `_apply_submission`'s own multi-statement work in one big transaction meant two genuinely
+  concurrent requests could now both hit `sqlite3.OperationalError: database is locked` waiting on
+  each other, a strictly worse failure than the one this was meant to fix. Confirmed directly, not
+  guessed: re-running the exact same concurrent-request test against that version reproduced the new
+  error in place of the old one.
+- **What shipped instead: a single, small, unconditional `model.objects.filter(pk=pk,
+  status='pending').update(status=target_status, reviewed_by=..., review_note=...)`** — no explicit
+  transaction wrapper at all. A `QuerySet.update()`'s `WHERE`-clause evaluation is atomic at the
+  database engine level on *every* backend, SQLite included, with zero reliance on row locking, and
+  it only holds a write lock for the duration of that one fast statement rather than the whole slow
+  apply sequence that follows. Exactly one concurrent request can ever see its own `UPDATE` affect a
+  row still `'pending'`; every other one gets `0` rows affected and a clean `409 Conflict`
+  (`"This item has already been reviewed by another moderator."`) instead of touching anything. The
+  honest tradeoff, and how it's covered: this claims the *final* status before the apply logic that's
+  supposed to justify it has actually run, so if `_apply_submission`/`_apply_edit_suggestion`/
+  `_publish_translation` then fails for an unrelated reason, the claim is reverted back to
+  `'pending'` in an `except` block, so a moderator can simply retry rather than the item being stuck
+  silently "approved" with nothing behind it.
+- **`_apply_submission`'s own number-allocation race is a *separate* problem the idempotency guard
+  does nothing for** — two *different* pending submissions for the same course, approved by two
+  different moderators at once, are both legitimately claimable; they just collide with each other on
+  the shared `(course, number)` sequence. Fixed with a small, bounded (5-attempt) retry loop:
+  re-reads the current max and retries the instant a collision is detected, each attempt in its own
+  `transaction.atomic()` savepoint so a failed attempt doesn't poison whatever transaction the caller
+  happens to be running in. Two distinct exceptions turned out to need catching here, both found by
+  re-running the real test, not assumed up front — `IntegrityError` for the actual number collision,
+  and (found the same way the `select_for_update()` detour was found) `OperationalError` for SQLite's
+  own lock contention surfacing even for this one small statement under genuine concurrent write
+  pressure.
+- **`config/settings.py`'s `DATABASES['default']['OPTIONS']['timeout']`** was raised from Python's
+  `sqlite3` module's own 5-second default to 20s — a real, standard SQLite+Django recommendation for
+  concurrent-writer contention, not a defensive guess: the lock-contention failures above were
+  measured happening at the 5-second default and stopped at 20s. Doesn't fix SQLite's inherent
+  single-writer limitation (nothing can); makes a genuinely concurrent write wait its turn instead of
+  failing outright, the right tradeoff for this app's real write volume (a moderation queue, not a
+  high-frequency system) — a real production deployment on Postgres wouldn't need this at all.
+
+**Verified with three separate real-concurrency scenarios, not one, against the running dev server:**
+(1) two *different* pending submissions for the same course approved by two simultaneous requests —
+both `200`, exercises created with distinct sequential numbers (385/386), zero errors; (2) three
+simultaneous requests against the *same* single pending submission — exactly one `200` and two clean
+`409`s, exactly one `Exercise` row created, zero duplicates; (3) a six-way simultaneous burst across
+six different pending submissions on the same course — all six `200`, all six exercises created with
+distinct sequential numbers (388-393), zero errors in the server log. All test submissions/exercises
+were created and cleaned up directly via `manage.py shell`, confirmed removed with a real
+zero-remaining check afterward — no scratch data left behind.
+
+### Left open, not built
+
+- **No formal automated test suite exists in this project at all** (`manage.py test` reports `Found
+  0 test(s)`) — this fix, like everything else in this codebase, was verified against a real running
+  server rather than a mocked/simulated one, matching the discipline every other feature in this
+  document has already been held to; it isn't captured as a regression test a future change could
+  accidentally break without anyone noticing.
+- **The `_publish_translation`/`ExerciseTranslation` path has its own separate, unfixed race**,
+  noted but deliberately not chased as part of this item: two *different* translations for the same
+  `(exercise, locale)` approved concurrently could both pass its own delete-then-set sequence and
+  both momentarily claim `status='published'`, which the `unique_together` that function's own
+  docstring describes exists specifically to prevent. Out of scope here — this item's own concrete,
+  reproduced bug was the submission-approval number collision; flagged honestly rather than silently
+  left undocumented.
+- **The retry loop's 5-attempt bound is untested against genuinely higher contention** (more than 6
+  simultaneous writers) — reasonable given this app's real moderator count, not validated at a scale
+  this environment has no way to produce.
 
 ## 18. Open questions
 

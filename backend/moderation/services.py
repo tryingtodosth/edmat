@@ -158,13 +158,21 @@ def build_report_queue() -> list[dict]:
     real scale" claim, which that measurement refuted, not confirmed) into a small, fixed number of
     bulk queries: one to resolve every target row per involved kind (at most 3 queries, not one per
     group), one bulk `ContentView` count aggregate, one bulk `ExerciseTranslation` fetch, and one
-    bulk "reasons" fetch grouped in Python. The one deliberate exception, not chased further: a
-    Comment's own generic `target` (which Exercise's viewer-pool it borrows) still costs one real
-    query PER COMMENT-kind group, via the existing single-object `resolve_view_scope_exercise` —
-    Comments are the minority kind in practice (Exercise/Review targets resolve with zero extra
-    queries via the bulk fetch below), and fully eliminating that last handful would mean bulk-
-    prefetching an arbitrarily-recursive GenericForeignKey chain for a marginal additional gain;
-    the real, measured win here is collapsing O(4·N) into O(few + comment_count), not O(1) at any cost.
+    bulk "reasons" fetch grouped in Python.
+
+    ✅ A second pass closed the one remaining gap the first rewrite deliberately left open: a
+    Comment's own generic `target` (which Exercise's viewer-pool it borrows) used to cost one real
+    query PER COMMENT-kind group, via the single-object `resolve_view_scope_exercise` — Django's
+    GenericForeignKey has no bulk-prefetch of its own, but a Comment's raw `content_type_id`/
+    `object_id` columns are already present on the fetched row (no query to read them), so the same
+    "group by content type, bulk-fetch by kind" pattern already used for the top-level report
+    targets applies one hop further down: every reported Comment's own direct target is now
+    resolved via one more small batch of bulk queries (grouped by kind, same as the top-level
+    fetch), not one query per comment. The one case left genuinely per-object, not bulk-fetched: a
+    Comment whose own target is ANOTHER Comment (a real recursive chain) — not present in this
+    app's real data today (every real Comment targets an Exercise or a MaterialCoverage directly,
+    confirmed by inspection), but still resolved correctly via the original
+    `resolve_view_scope_exercise`, not silently dropped, for the rare case it ever does occur.
     Re-run `measure_moderation_queue` after any further change to this function — that's what it's
     for, not a one-time check.
     """
@@ -200,11 +208,12 @@ def build_report_queue() -> list[dict]:
             targets_by_key[(ct_id, obj.pk)] = obj
 
     # --- Which Exercise's own viewer pool each target is measured against. Exercise/Review resolve
-    # for free from what's already fetched above; only a Comment's own generic `target` needs a
-    # real per-group query (see the docstring's own note on why that one case is left as-is).
+    # for free from what's already fetched above; a Comment's own generic `target` is resolved in a
+    # dedicated bulk pass right below, deferred rather than resolved inline here.
     exercise_ct_id = ContentType.objects.get_for_model(Exercise).id
     scope_exercise_by_key: dict[tuple[int, int], Exercise | None] = {}
     needed_exercise_ids: set[int] = set()
+    comment_keys: list[tuple[int, int]] = []
     for key, obj in targets_by_key.items():
         ct_id, obj_id = key
         if ct_id == exercise_ct_id:
@@ -215,10 +224,52 @@ def build_report_queue() -> list[dict]:
             if obj.exercise_id:
                 needed_exercise_ids.add(obj.exercise_id)
         else:
-            exercise = resolve_view_scope_exercise(obj)
-            scope_exercise_by_key[key] = exercise
-            if exercise is not None:
-                needed_exercise_ids.add(exercise.pk)
+            comment_keys.append(key)  # every remaining target is a reported Comment
+
+    # --- Bulk-resolve every reported Comment's own DIRECT target, one hop down, the exact same
+    # "group by content type, bulk-fetch by kind" pattern already used for the top-level report
+    # targets above — a Comment's own `content_type_id`/`object_id` are plain columns already on
+    # the fetched row, so grouping by them costs nothing extra.
+    if comment_keys:
+        comment_target_ids_by_ct: dict[int, list[int]] = {}
+        for key in comment_keys:
+            comment = targets_by_key[key]
+            comment_target_ids_by_ct.setdefault(comment.content_type_id, []).append(comment.object_id)
+
+        comment_targets_by_key: dict[tuple[int, int], object] = {}
+        for ct_id, obj_ids in comment_target_ids_by_ct.items():
+            content_type = ContentType.objects.get_for_id(ct_id)
+            model = content_type.model_class()
+            qs = model.objects.filter(pk__in=obj_ids)
+            if model is Review:
+                qs = qs.select_related('exercise')
+            for obj in qs:
+                comment_targets_by_key[(ct_id, obj.pk)] = obj
+
+        for key in comment_keys:
+            comment = targets_by_key[key]
+            direct_target = comment_targets_by_key.get((comment.content_type_id, comment.object_id))
+            if isinstance(direct_target, Exercise):
+                scope_exercise_by_key[key] = direct_target
+                needed_exercise_ids.add(direct_target.pk)
+            elif isinstance(direct_target, Review):
+                scope_exercise_by_key[key] = direct_target.exercise
+                if direct_target.exercise_id:
+                    needed_exercise_ids.add(direct_target.exercise_id)
+            elif isinstance(direct_target, Comment):
+                # A real recursive chain — genuinely rare (not present in today's real data), so
+                # this one case still costs a real query rather than a third bulk-fetch layer for
+                # a case that may never occur; resolved correctly via the original single-object
+                # function, not silently dropped.
+                exercise = resolve_view_scope_exercise(direct_target)
+                scope_exercise_by_key[key] = exercise
+                if exercise is not None:
+                    needed_exercise_ids.add(exercise.pk)
+            else:
+                # The Comment's own target is something with no viewer-pool concept at all (e.g. a
+                # Material/MaterialCoverage) or no longer resolves (deleted since being reported) —
+                # correctly None, matching resolve_view_scope_exercise's own final `return None`.
+                scope_exercise_by_key[key] = None
 
     # --- One bulk aggregate instead of an `exercise.views.count()` per group.
     view_counts = dict(

@@ -4,6 +4,7 @@ simplest real gate available today, not a final answer to that question.
 """
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import IntegrityError, OperationalError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
@@ -105,19 +106,60 @@ def _apply_submission(submission, reviewer):
     """Builds a real Exercise + ExerciseTranslation from the submission's own JSON payload — same
     structural/translation-field split as everywhere else (CLAUDE.md Section 9). Auto-assigns the
     next free `number` within the course rather than trusting the payload for it, since (course,
-    number) is the real uniqueness constraint."""
+    number) is the real uniqueness constraint.
+
+    That constraint made this a genuine, found-and-reproduced race, not a theoretical one: two
+    submissions for the SAME course, approved by two genuinely simultaneous requests, can both read
+    the identical `next_number` before either one's `Exercise.objects.create()` commits — confirmed
+    directly by firing two real, concurrent `POST .../approve/` calls against a real dev server and
+    watching one come back a raw `django.db.utils.IntegrityError` / HTTP 500
+    (`UNIQUE constraint failed: exercises_exercise.course_id, exercises_exercise.number`). The
+    textbook fix, `select_for_update()` on the course while computing the next number, doesn't help
+    here: this project's own dev database is SQLite, which has no row-level locking at all
+    (`connection.features.has_select_for_update` is `False`; Django silently no-ops a `select_for_update()`
+    call rather than raising on a backend that can't honor it), so a lock-based fix would work on a
+    real production Postgres deployment but do nothing in the one environment this was actually
+    reproduced in.
+
+    A small, bounded retry loop is what's genuinely correct on both — it doesn't try to prevent the
+    collision, it makes the collision harmless by re-reading the current max and trying again the
+    instant one is detected. Two DIFFERENT exceptions turned out to need catching, both found by
+    directly re-running the same real concurrent-request test, not assumed up front:
+    `IntegrityError` for the actual `(course, number)` collision described above, and — separately —
+    `OperationalError` ("database is locked"), SQLite's own single-writer limitation surfacing under
+    genuine concurrent write pressure even for this one small statement (`config/settings.py`'s own
+    `DATABASES['default']['OPTIONS']['timeout']` was raised from Python's 5-second `sqlite3` default
+    specifically because of this same finding, which helps but doesn't eliminate the chance of hitting
+    it under real load). Each attempt gets its own SAVEPOINT (a nested `atomic()`) so a failed one
+    doesn't poison whatever transaction the caller happens to be running in — without a savepoint,
+    Django refuses any further query on that connection until an explicit rollback, which would turn
+    a handled retry into the exact same unhandled 500 this is fixing."""
     payload = submission.payload
     course = submission.course
-    next_number = (Exercise.objects.filter(course=course).order_by('-number').values_list('number', flat=True).first() or 0) + 1
-    exercise = Exercise.objects.create(
-        course=course,
-        number=next_number,
-        difficulty=payload.get('difficulty', 'medium'),
-        published=True,
-        verified=False,
-        original_locale=payload.get('locale', 'pl'),
-        submitted_by=submission.submitted_by,
-    )
+    for attempt in range(5):
+        next_number = (
+            Exercise.objects.filter(course=course)
+            .order_by('-number')
+            .values_list('number', flat=True)
+            .first()
+            or 0
+        ) + 1
+        try:
+            with transaction.atomic():
+                exercise = Exercise.objects.create(
+                    course=course,
+                    number=next_number,
+                    difficulty=payload.get('difficulty', 'medium'),
+                    published=True,
+                    verified=False,
+                    original_locale=payload.get('locale', 'pl'),
+                    submitted_by=submission.submitted_by,
+                )
+            break
+        except (IntegrityError, OperationalError):
+            if attempt == 4:
+                raise
+            continue
     topic_ids = payload.get('topic_ids') or payload.get('topicIds') or []
     if topic_ids:
         exercise.topics.set(topic_ids)
@@ -196,7 +238,36 @@ _KIND_MODELS = {
 
 
 class ModerationActionView(APIView):
-    """POST /api/moderation/{kind}/{id}/approve/ and /reject/ — moderator only."""
+    """POST /api/moderation/{kind}/{id}/approve/ and /reject/ — moderator only.
+
+    Idempotency guard, added after a real concurrent-access test reproduced a genuine race: nothing
+    used to stop the SAME queue row from being approved/rejected twice at once (a moderator
+    double-clicking, or two moderators racing the same row) — every branch used to re-run its full
+    apply logic unconditionally, which for `submission` specifically meant a real risk of two full
+    Exercise rows built from ONE submission.
+
+    The first version of this fix wrapped the whole request in `transaction.atomic()` with
+    `select_for_update()` on the row — the textbook approach, and genuinely correct on a real
+    production Postgres deployment. It made things WORSE here, on this project's own dev database:
+    SQLite has no row-level locking at all (`connection.features.has_select_for_update` is `False`,
+    so `select_for_update()` silently does nothing on it), while Django's SQLite backend still holds a
+    real, exclusive write lock for the FULL DURATION of an `atomic()` block, not just per statement —
+    so wrapping `_apply_submission`'s own multi-statement work (several creates, tag lookups,
+    notifications) in one big transaction meant two genuinely concurrent requests could now both hit
+    a hard `sqlite3.OperationalError: database is locked` waiting on each other, a strictly worse
+    failure than the one this was meant to fix (confirmed directly — re-running the exact same
+    concurrent-request test against that version reproduced this new error instead of the old one).
+
+    What's here now is a single, small, unconditional `UPDATE ... WHERE status = 'pending'` — a plain
+    `QuerySet.update()`, no explicit transaction wrapper at all. That WHERE-clause evaluation is
+    atomic at the database engine level on every backend, SQLite included, with zero reliance on row
+    locking, and it only ever holds a write lock for the duration of that one fast statement, not for
+    the whole slow apply sequence that follows. Exactly one concurrent request can ever see its own
+    `UPDATE` affect a row still in `'pending'`; every other one gets `0` rows affected and returns a
+    clean 409 instead of touching anything. The honest tradeoff: this claims the FINAL status before
+    the apply logic that's supposed to justify it has actually run, so if `_apply_*` then fails for
+    some unrelated reason, the item would be left claimed but incomplete — handled below by reverting
+    the claim back to `'pending'` in that case, so a moderator can simply retry."""
 
     permission_classes = [IsModerator]
 
@@ -204,39 +275,42 @@ class ModerationActionView(APIView):
         if kind not in _KIND_MODELS or decision not in ('approve', 'reject'):
             return Response(status=status.HTTP_404_NOT_FOUND)
         model, serializer_class = _KIND_MODELS[kind]
-        obj = get_object_or_404(model, pk=pk)
         review_note = request.data.get('review_note', '')
-
         if decision == 'reject':
-            obj.status = 'rejected'
-            update_fields = ['status']
-            if hasattr(obj, 'review_note'):
-                obj.review_note = review_note
-                update_fields.append('review_note')
-            if hasattr(obj, 'reviewed_by'):
-                obj.reviewed_by = request.user
-                update_fields.append('reviewed_by')
-            obj.save(update_fields=update_fields)
-            self._notify_decision(kind, obj, request.user, 'rejected', review_note)
-            return Response(serializer_class(obj).data)
+            target_status = 'rejected'
+        else:
+            # ExerciseTranslation's own status vocabulary calls its approved state 'published', not
+            # 'approved' — REVIEW_STATUS_CHOICES (submission/edit) and TRANSLATION_STATUS_CHOICES
+            # (translation) genuinely disagree on the name for the same idea (moderation/models.py vs
+            # exercises/models.py); this is the one place that difference has to be bridged explicitly.
+            target_status = 'published' if kind == 'translation' else 'approved'
 
-        # approve
-        if kind == 'submission':
-            _apply_submission(obj, request.user)
-            obj.status = 'approved'
-            obj.reviewed_by = request.user
-            obj.review_note = review_note
-            obj.save(update_fields=['status', 'reviewed_by', 'review_note', 'resulting_exercise'])
-        elif kind == 'edit':
-            _apply_edit_suggestion(obj)
-            obj.status = 'approved'
-            obj.reviewed_by = request.user
-            obj.review_note = review_note
-            obj.save(update_fields=['status', 'reviewed_by', 'review_note'])
-        elif kind == 'translation':
-            _publish_translation(obj, request.user)
+        claimed = model.objects.filter(pk=pk, status='pending').update(
+            status=target_status, reviewed_by=request.user, review_note=review_note
+        )
+        if not claimed:
+            get_object_or_404(model, pk=pk)  # a genuinely bad pk still 404s rather than 409ing
+            return Response(
+                {'detail': 'This item has already been reviewed by another moderator.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        obj = model.objects.get(pk=pk)
 
-        self._notify_decision(kind, obj, request.user, 'approved', review_note)
+        if decision == 'approve':
+            try:
+                if kind == 'submission':
+                    _apply_submission(obj, request.user)
+                    obj.save(update_fields=['resulting_exercise'])
+                elif kind == 'edit':
+                    _apply_edit_suggestion(obj)
+                elif kind == 'translation':
+                    _publish_translation(obj, request.user)
+            except Exception:
+                model.objects.filter(pk=pk).update(status='pending', reviewed_by=None, review_note='')
+                raise
+
+        outcome = 'rejected' if decision == 'reject' else 'approved'
+        self._notify_decision(kind, obj, request.user, outcome, review_note)
         return Response(serializer_class(obj).data)
 
     @staticmethod

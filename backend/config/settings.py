@@ -91,6 +91,17 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # Real, found-during-testing need, not a defensive default: SQLite only ever allows ONE
+        # writer at a time, and Python's own sqlite3 module falls back to a 5-SECOND busy timeout
+        # when nothing else is configured — genuinely too short under real concurrent write load.
+        # A real multi-moderator concurrency test (two moderators approving different submissions
+        # for the same course at nearly the same instant) reproduced `sqlite3.OperationalError:
+        # database is locked` even for a single, tiny write statement, confirmed via the real dev
+        # server's own log, not a guess. Raising this to 20s doesn't fix the underlying single-writer
+        # limitation (that's inherent to SQLite, not this setting) — it just makes a genuinely
+        # concurrent write WAIT for its turn instead of failing outright, which is the correct
+        # tradeoff for this app's real write volume (a moderation queue, not a high-frequency system).
+        'OPTIONS': {'timeout': 20},
     }
 }
 
