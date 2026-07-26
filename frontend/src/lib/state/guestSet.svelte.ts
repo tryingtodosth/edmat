@@ -46,6 +46,24 @@ export const guestSetStore = {
 		ids = ids.filter((id) => id !== exerciseId);
 		persist(ids);
 	},
+	/** Bulk-adds every id not already present — the tag-hover menu's "Save for later" action
+	 * (TagChip.svelte): every exercise carrying a given tag, added to the current working set in
+	 * one step, reusing this SAME store any single "add to my set" button already writes to
+	 * (ExerciseCard.svelte's own `guestSetStore.toggle`) rather than a second, parallel mechanism.
+	 * Returns how many were genuinely new, so the caller can show an honest "N added" vs. "all
+	 * already in your set" message. */
+	addMany(exerciseIds: string[]): number {
+		// A plain array `.includes()` check, not `new Set(ids)` — this codebase's own eslint config
+		// flags a bare `Set` inside a `.svelte.ts` module even for a short-lived, non-reactive local
+		// like this one; a working set is small enough that the O(n²) membership check costs nothing
+		// real in practice, so there's no reason to reach for `SvelteSet` (reactive-Set support) for
+		// something that was never reactive state in the first place.
+		const added = exerciseIds.filter((id) => !ids.includes(id));
+		if (added.length === 0) return 0;
+		ids = [...ids, ...added];
+		persist(ids);
+		return added.length;
+	},
 	/** Wholesale-replaces the working set — used when a registered user loads a previously saved named set. */
 	setAll(next: string[]): void {
 		ids = next;

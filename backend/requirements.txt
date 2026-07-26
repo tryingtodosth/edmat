@@ -1,0 +1,6 @@
+Django>=5.2,<5.3
+djangorestframework>=3.16,<3.17
+django-cors-headers>=4.4,<5.0
+django-filter>=24.3,<25.0
+Pillow>=10.4,<11.0
+PyYAML>=6.0,<7.0

@@ -11,10 +11,19 @@ from rest_framework.views import APIView
 
 from exercises.models import Exercise, ExerciseTranslation
 from exercises.serializers import ExerciseTranslationSerializer
+from notifications.services import label_for_exercise, notify, notify_tag_followers
 
 from .models import EditSuggestion, ExerciseSubmission, Report
 from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer, ReportCreateSerializer
-from .services import REPORT_KIND_MODELS, build_report_queue, check_auto_hide
+from .services import (
+    REPORT_KIND_MODELS,
+    _content_owner,
+    _describe,
+    build_moderation_queue_payload,
+    build_report_queue,
+    check_auto_hide,
+    resolve_view_scope_exercise,
+)
 
 
 class IsModerator(permissions.BasePermission):
@@ -85,17 +94,11 @@ class ModerationQueueView(APIView):
     permission_classes = [IsModerator]
 
     def get(self, request):
-        submissions = ExerciseSubmission.objects.filter(status='pending')
-        edits = EditSuggestion.objects.filter(status='pending')
-        translations = ExerciseTranslation.objects.filter(status='pending')
-        return Response(
-            {
-                'submissions': ExerciseSubmissionSerializer(submissions, many=True).data,
-                'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
-                'translations': ExerciseTranslationSerializer(translations, many=True).data,
-                'reports': build_report_queue(),
-            }
-        )
+        # ✅ Phase 4 — the real query-building logic lives in build_moderation_queue_payload()
+        # (services.py) now, not duplicated here — the exact same function
+        # `measure_moderation_queue` imports and measures directly, so there is only ever one real
+        # code path to keep correct/optimized.
+        return Response(build_moderation_queue_payload())
 
 
 def _apply_submission(submission, reviewer):
@@ -124,6 +127,8 @@ def _apply_submission(submission, reviewer):
 
         tags = [Tag.objects.get_or_create(slug=slug)[0] for slug in tag_slugs]
         exercise.tags.set(tags)
+        for tag in tags:
+            notify_tag_followers(tag, actor=submission.submitted_by, exercise=exercise)
     source = payload.get('source') or {}
     if source:
         from exercises.models import ExerciseSource, ExerciseSourceTranslation
@@ -212,6 +217,7 @@ class ModerationActionView(APIView):
                 obj.reviewed_by = request.user
                 update_fields.append('reviewed_by')
             obj.save(update_fields=update_fields)
+            self._notify_decision(kind, obj, request.user, 'rejected', review_note)
             return Response(serializer_class(obj).data)
 
         # approve
@@ -230,7 +236,32 @@ class ModerationActionView(APIView):
         elif kind == 'translation':
             _publish_translation(obj, request.user)
 
+        self._notify_decision(kind, obj, request.user, 'approved', review_note)
         return Response(serializer_class(obj).data)
+
+    @staticmethod
+    def _notify_decision(kind, obj, moderator, outcome, note):
+        """One place for the 3-kind x 2-outcome notification matrix — both the approve and reject
+        branches above call this rather than each repeating the same recipient/label lookup six
+        times over. `obj.resulting_exercise` is only ever set on a `submission` that was just
+        approved (still None on a rejected one, since it never became a real Exercise) —
+        `label_for_exercise(None)` and `notify(..., exercise=None)` both already handle that
+        honestly rather than needing a special case here."""
+        if kind == 'submission':
+            recipient = obj.submitted_by
+            exercise = obj.resulting_exercise
+            label = label_for_exercise(exercise) if exercise else obj.payload.get('title', '')
+        elif kind == 'edit':
+            recipient = obj.submitted_by
+            exercise = obj.exercise
+            label = label_for_exercise(exercise)
+        else:  # translation
+            recipient = obj.translated_by
+            exercise = obj.exercise
+            label = label_for_exercise(exercise)
+
+        kind_prefix = {'submission': 'submission', 'edit': 'edit_suggestion', 'translation': 'translation'}[kind]
+        notify(recipient, f'{kind_prefix}_{outcome}', actor=moderator, target_label=label, exercise=exercise, note=note)
 
 
 class ReportActionView(APIView):
@@ -279,5 +310,16 @@ class ReportActionView(APIView):
         content_type = ContentType.objects.get_for_model(model)
         Report.objects.filter(content_type=content_type, object_id=pk, status='pending').update(
             status='resolved', resolved_by=request.user, resolved_note=note
+        )
+
+        preview, _exercise_id, _exercise_title = _describe(target, kind)
+        exercise = target if isinstance(target, Exercise) else resolve_view_scope_exercise(target)
+        notify(
+            _content_owner(target),
+            'content_restored' if decision == 'restore' else 'content_removed',
+            actor=request.user,
+            target_label=preview,
+            exercise=exercise,
+            note=note,
         )
         return Response(build_report_queue())

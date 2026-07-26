@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Review, User } from '$lib/types';
+	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -16,7 +17,13 @@
 		{#each reviews as review (review.id)}
 			<li class="review">
 				<div class="review__top">
-					<span class="review__author">{usersById[review.userId]?.displayName ?? '—'}</span>
+					{#if usersById[review.userId]}
+						<a class="review__author" href={resolve('/users/[id]', { id: review.userId })}>
+							{usersById[review.userId].displayName}
+						</a>
+					{:else}
+						<span class="review__author">—</span>
+					{/if}
 					<StarRating value={review.rating} />
 					<span class="review__date">{formatRelativeDate(review.createdAt, getLocale())}</span>
 				</div>
@@ -58,6 +65,9 @@
 	.review__author {
 		font-weight: 600;
 		font-size: var(--font-size-sm);
+		&:hover {
+			text-decoration: underline;
+		}
 	}
 	.review__date {
 		font-size: var(--font-size-xs);

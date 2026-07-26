@@ -2,6 +2,7 @@
 	// Self-imports for recursion — one component renders both a comment and its nested replies.
 	import type { CommentNode as CommentNodeT } from '$lib/utils/commentTree';
 	import type { User } from '$lib/types';
+	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -31,7 +32,13 @@
 
 <li class="comment">
 	<div class="comment__top">
-		<span class="comment__author">{usersById[node.comment.authorId]?.displayName ?? '—'}</span>
+		{#if usersById[node.comment.authorId]}
+			<a class="comment__author" href={resolve('/users/[id]', { id: node.comment.authorId })}>
+				{usersById[node.comment.authorId].displayName}
+			</a>
+		{:else}
+			<span class="comment__author">—</span>
+		{/if}
 		<span class="comment__date">{formatRelativeDate(node.comment.createdAt, getLocale())}</span>
 	</div>
 	{#if node.comment.isRemoved}
@@ -89,6 +96,9 @@
 	.comment__author {
 		font-weight: 600;
 		font-size: var(--font-size-sm);
+		&:hover {
+			text-decoration: underline;
+		}
 	}
 	.comment__date {
 		font-size: var(--font-size-xs);

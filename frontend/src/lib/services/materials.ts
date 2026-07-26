@@ -24,6 +24,15 @@ export async function getMaterialById(id: string): Promise<Material | undefined>
 	}
 }
 
+/** The tag-hover menu's own "add to different content" picker (TagChip.svelte/
+ * AddTagToContentModal.svelte) — a title/description text search across every course's materials,
+ * backed by MaterialViewSet's own new `?q=` filter. */
+export async function searchMaterials(query: string): Promise<Material[]> {
+	if (!query.trim()) return [];
+	const raw = await apiClient.get<RawMaterial[]>(`/materials/?q=${encodeURIComponent(query)}`);
+	return raw.map(mapMaterial);
+}
+
 /** What proposing a new coverage row needs — either an existing subtopic (`subtopicId`) or a new
  * one to get-or-create under the chosen topic on the fly (`subtopicSlug`/`subtopicName`), never
  * both. Neither set at all means "topic-level coverage, no subtopic breakdown." */

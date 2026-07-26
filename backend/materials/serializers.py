@@ -86,6 +86,11 @@ class MaterialSerializer(serializers.ModelSerializer):
     description = serializers.SerializerMethodField()
     coverage = MaterialCoverageSerializer(many=True, read_only=True)
     course_slug = serializers.SlugRelatedField(source='course', slug_field='slug', read_only=True)
+    # Read-only here on purpose — Material has no create/update endpoint at all (MaterialViewSet is
+    # a ReadOnlyModelViewSet), so the only way a tag is ever added/removed is the tag-hover menu's
+    # own "add to different content" action (exercises.TagViewSet.apply), never through this
+    # serializer's own write path.
+    tags = serializers.SlugRelatedField(slug_field='slug', many=True, read_only=True)
 
     class Meta:
         model = Material
@@ -98,6 +103,7 @@ class MaterialSerializer(serializers.ModelSerializer):
             'coverage',
             'file',
             'author',
+            'tags',
             'published',
             'featured',
             'order',

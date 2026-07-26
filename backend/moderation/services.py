@@ -15,7 +15,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
 from community.models import Comment, Review
-from exercises.models import Exercise
+from exercises.models import Exercise, ExerciseTranslation
 
 # The one place `kind` <-> model is defined — moderation/serializers.py's ReportCreateSerializer
 # (validating an incoming report) and build_report_queue below (rendering the moderator-facing
@@ -34,6 +34,17 @@ _REVERSE_KIND_MODELS = {model: kind for kind, model in REPORT_KIND_MODELS.items(
 # changing the rule's own spirit; trivially tunable if the real number should be different.
 MIN_REPORTS_FOR_AUTO_HIDE = 3
 AUTO_HIDE_THRESHOLD = 0.20
+
+
+def _content_owner(target):
+    """Whose Notification inbox a decision about `target` belongs in (notifications/services.py's
+    `notify()` is the only caller). `Exercise.submitted_by` is nullable — every one of the 742
+    migrated corpus exercises has no real submitter — and `notify()`'s own `recipient=None` guard is
+    what turns that into a correct, silent no-op rather than something this function needs to
+    special-case itself."""
+    if isinstance(target, Exercise):
+        return target.submitted_by
+    return getattr(target, 'author', None)
 
 
 def resolve_view_scope_exercise(target):
@@ -92,6 +103,16 @@ def check_auto_hide(target) -> bool:
         target.published = False
         update_fields.append('published')
     target.save(update_fields=update_fields)
+
+    kind = _REVERSE_KIND_MODELS.get(type(target))
+    if kind is not None:
+        from notifications.services import notify
+
+        preview, _exercise_id, _exercise_title = _describe(target, kind)
+        # `exercise` already resolved above via resolve_view_scope_exercise — that function returns
+        # `target` itself when target IS the Exercise, so this is correct for all three kinds
+        # without needing to re-derive it.
+        notify(_content_owner(target), 'content_auto_hidden', target_label=preview, exercise=exercise)
     return True
 
 
@@ -129,41 +150,145 @@ def build_report_queue() -> list[dict]:
     """Every target with at least one PENDING report, grouped and sorted by priority — this is the
     literal "gets a priority in the moderation queue" requirement: already auto-hidden items float
     to the very top (most urgent, since they're live-hidden right now and waiting on a decision),
-    everything else follows by raw pending-report count descending. Resolves each target directly
-    (N+1 queries) — fine at this app's real scale, the same "don't optimize prematurely" call this
-    project already makes for MaterialCoverageSerializer's own per-row vote aggregation.
+    everything else follows by raw pending-report count descending.
+
+    ✅ Phase 4 — rewritten from a real, measured N+1 (820 SQL queries / ~1.45s for 198 report
+    groups under `seed_moderation_load_test`'s own synthetic backlog — see
+    `measure_moderation_queue`, and the earlier version of this docstring's own "fine at this app's
+    real scale" claim, which that measurement refuted, not confirmed) into a small, fixed number of
+    bulk queries: one to resolve every target row per involved kind (at most 3 queries, not one per
+    group), one bulk `ContentView` count aggregate, one bulk `ExerciseTranslation` fetch, and one
+    bulk "reasons" fetch grouped in Python. The one deliberate exception, not chased further: a
+    Comment's own generic `target` (which Exercise's viewer-pool it borrows) still costs one real
+    query PER COMMENT-kind group, via the existing single-object `resolve_view_scope_exercise` —
+    Comments are the minority kind in practice (Exercise/Review targets resolve with zero extra
+    queries via the bulk fetch below), and fully eliminating that last handful would mean bulk-
+    prefetching an arbitrarily-recursive GenericForeignKey chain for a marginal additional gain;
+    the real, measured win here is collapsing O(4·N) into O(few + comment_count), not O(1) at any cost.
+    Re-run `measure_moderation_queue` after any further change to this function — that's what it's
+    for, not a one-time check.
     """
     from django.db.models import Count, Max
 
-    from .models import Report
+    from .models import ContentView, Report
 
-    groups = (
+    groups = list(
         Report.objects.filter(status='pending')
         .values('content_type', 'object_id')
         .annotate(report_count=Count('id'), last_reported_at=Max('created_at'))
     )
+    if not groups:
+        return []
+
+    # --- Bulk-resolve every target row: one query per involved kind (Exercise/Comment/Review),
+    # never one per group. Review's own `exercise` is select_related here specifically so resolving
+    # its viewer-pool below costs zero extra queries too.
+    ids_by_content_type: dict[int, list[int]] = {}
+    for g in groups:
+        ids_by_content_type.setdefault(g['content_type'], []).append(g['object_id'])
+
+    targets_by_key: dict[tuple[int, int], object] = {}
+    for ct_id, obj_ids in ids_by_content_type.items():
+        content_type = ContentType.objects.get_for_id(ct_id)
+        model = content_type.model_class()
+        if _REVERSE_KIND_MODELS.get(model) is None:
+            continue  # a report on something outside the moderator-facing kinds (see the model's own note)
+        qs = model.objects.filter(pk__in=obj_ids)
+        if model is Review:
+            qs = qs.select_related('exercise')
+        for obj in qs:
+            targets_by_key[(ct_id, obj.pk)] = obj
+
+    # --- Which Exercise's own viewer pool each target is measured against. Exercise/Review resolve
+    # for free from what's already fetched above; only a Comment's own generic `target` needs a
+    # real per-group query (see the docstring's own note on why that one case is left as-is).
+    exercise_ct_id = ContentType.objects.get_for_model(Exercise).id
+    scope_exercise_by_key: dict[tuple[int, int], Exercise | None] = {}
+    needed_exercise_ids: set[int] = set()
+    for key, obj in targets_by_key.items():
+        ct_id, obj_id = key
+        if ct_id == exercise_ct_id:
+            scope_exercise_by_key[key] = obj
+            needed_exercise_ids.add(obj_id)
+        elif isinstance(obj, Review):
+            scope_exercise_by_key[key] = obj.exercise
+            if obj.exercise_id:
+                needed_exercise_ids.add(obj.exercise_id)
+        else:
+            exercise = resolve_view_scope_exercise(obj)
+            scope_exercise_by_key[key] = exercise
+            if exercise is not None:
+                needed_exercise_ids.add(exercise.pk)
+
+    # --- One bulk aggregate instead of an `exercise.views.count()` per group.
+    view_counts = dict(
+        ContentView.objects.filter(exercise_id__in=needed_exercise_ids)
+        .values('exercise_id')
+        .annotate(n=Count('id'))
+        .values_list('exercise_id', 'n')
+    )
+
+    # --- One bulk fetch instead of `_resolve_exercise_translation`'s own query per group. Same
+    # 3-step fallback order that function already uses (try DEFAULT_FALLBACK_LOCALE, then the
+    # exercise's own original_locale, then whatever's available), just read from a prefetched dict.
+    from config.i18n_utils import DEFAULT_FALLBACK_LOCALE
+
+    translations_by_exercise: dict[int, dict[str, ExerciseTranslation]] = {}
+    for t in ExerciseTranslation.objects.filter(exercise_id__in=needed_exercise_ids, status='published'):
+        translations_by_exercise.setdefault(t.exercise_id, {})[t.locale] = t
+
+    def _title_for(exercise: Exercise) -> str:
+        by_locale = translations_by_exercise.get(exercise.pk, {})
+        t = (
+            by_locale.get(DEFAULT_FALLBACK_LOCALE)
+            or by_locale.get(exercise.original_locale)
+            or next(iter(by_locale.values()), None)
+        )
+        return t.title if t else f'#{exercise.number}'
+
+    # --- One bulk fetch instead of a `[:5]`-sliced query per group; grouped and capped in Python.
+    # Report's own default ordering is `-created_at`, so iterating this query in the same order and
+    # capping each bucket at 5 as we go reproduces the original per-group `[:5]` slice exactly.
+    reasons_by_key: dict[tuple[int, int], list[str]] = {}
+    for row in (
+        Report.objects.filter(status='pending')
+        .exclude(reason='')
+        .order_by('-created_at')
+        .values('content_type_id', 'object_id', 'reason')
+    ):
+        bucket = reasons_by_key.setdefault((row['content_type_id'], row['object_id']), [])
+        if len(bucket) < 5:
+            bucket.append(row['reason'])
 
     results = []
     for g in groups:
-        content_type = ContentType.objects.get_for_id(g['content_type'])
-        model = content_type.model_class()
-        kind = _REVERSE_KIND_MODELS.get(model)
-        if kind is None:
-            continue  # a report on something outside the moderator-facing kinds (see the model's own note)
-        try:
-            target = model.objects.get(pk=g['object_id'])
-        except model.DoesNotExist:
+        key = (g['content_type'], g['object_id'])
+        target = targets_by_key.get(key)
+        if target is None:
             continue  # the reported row itself was deleted since being reported
+        kind = _REVERSE_KIND_MODELS.get(type(target))
+        if kind is None:
+            continue
 
-        reasons = list(
-            Report.objects.filter(content_type=content_type, object_id=g['object_id'], status='pending')
-            .exclude(reason='')
-            .values_list('reason', flat=True)[:5]
-        )
-        exercise = resolve_view_scope_exercise(target)
-        view_count = exercise.views.count() if exercise is not None else None
+        exercise = scope_exercise_by_key.get(key)
+        # `.get(pk, 0)`, not `.get(pk)` — an exercise genuinely resolved but with zero ContentView
+        # rows must read as 0 (a real, meaningful "nobody's viewed this yet"), not None (which means
+        # "there's no exercise to measure a viewer pool against at all" — a different, rarer case,
+        # e.g. a Comment attached to a Material). Conflating the two was a real bug this correctness
+        # diff against the pre-optimization implementation caught before it ever shipped.
+        view_count = view_counts.get(exercise.pk, 0) if exercise is not None else None
         percent = round(100 * g['report_count'] / view_count) if view_count else None
-        preview, exercise_id, exercise_title = _describe(target, kind)
+
+        if kind == 'exercise':
+            title = _title_for(target)
+            preview, exercise_id, exercise_title = title, target.pk, title
+        else:
+            exercise_id = exercise.pk if exercise is not None else None
+            exercise_title = _title_for(exercise) if exercise is not None else None
+            if kind == 'comment':
+                preview = target.body[:150]
+            else:  # review
+                preview = target.body[:150] if target.body else f'{target.rating}★ (no written review)'
 
         results.append(
             {
@@ -173,7 +298,7 @@ def build_report_queue() -> list[dict]:
                 'view_count': view_count,
                 'percent_reported': percent,
                 'is_auto_hidden': getattr(target, 'auto_hidden_at', None) is not None,
-                'reasons': reasons,
+                'reasons': reasons_by_key.get(key, []),
                 'preview': preview,
                 'exercise_id': exercise_id,
                 'exercise_title': exercise_title,
@@ -183,3 +308,31 @@ def build_report_queue() -> list[dict]:
 
     results.sort(key=lambda r: (not r['is_auto_hidden'], -r['report_count']))
     return results
+
+
+def build_moderation_queue_payload() -> dict:
+    """The exact body `GET /api/moderation/queue/` returns (moderation/views.py's
+    `ModerationQueueView.get`) — pulled out here, not left duplicated between the view and
+    `measure_moderation_queue` (Phase 4's own load-test measurement command), so there is only ever
+    ONE real query-building path to keep correct/optimized, not two copies that can silently drift
+    the moment one gets a fix (`select_related('course')` below) the other doesn't. Local imports,
+    same discipline `check_auto_hide`/`build_report_queue` above already use, to avoid a real
+    circular import (moderation/serializers.py itself imports from this module)."""
+    from exercises.serializers import ExerciseTranslationSerializer
+
+    from .models import EditSuggestion, ExerciseSubmission
+    from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer
+
+    # select_related('course') — ExerciseSubmissionSerializer.course is a SlugRelatedField, which
+    # resolves `submission.course.slug` per row; without this it's a real, measured N+1 (one query
+    # per pending submission), the next-largest cost in this response once build_report_queue()'s
+    # own, larger N+1 was fixed.
+    submissions = ExerciseSubmission.objects.filter(status='pending').select_related('course')
+    edits = EditSuggestion.objects.filter(status='pending')
+    translations = ExerciseTranslation.objects.filter(status='pending')
+    return {
+        'submissions': ExerciseSubmissionSerializer(submissions, many=True).data,
+        'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
+        'translations': ExerciseTranslationSerializer(translations, many=True).data,
+        'reports': build_report_queue(),
+    }

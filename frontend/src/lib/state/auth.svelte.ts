@@ -104,5 +104,41 @@ export const authStore = {
 		// and the local session is already cleared above regardless of whether this call succeeds;
 		// invalidating the token server-side is a courtesy, not something the UI needs to wait on.
 		if (hadToken) apiClient.post('/auth/logout/').catch(() => {});
+	},
+
+	/** PATCH /api/auth/me/ — self-service display name / locale / privacy / notification-preference
+	 * editing (the settings page's own profile-and-privacy form). Replaces the whole local `user`
+	 * object from the response rather than merging a partial patch client-side, since the backend
+	 * already returns the complete, authoritative shape (accounts/views.py's MeView.patch). */
+	async updateProfile(
+		patch: Partial<{
+			displayName: string;
+			preferredLocale: string;
+			showProfilePublicly: boolean;
+			notifyOnCommentReply: boolean;
+			notifyOnModerationDecision: boolean;
+			notifyOnContentAction: boolean;
+		}>
+	): Promise<{ ok: true } | { ok: false; error: string }> {
+		const body: Record<string, unknown> = {};
+		if (patch.displayName !== undefined) body.display_name = patch.displayName;
+		if (patch.preferredLocale !== undefined) body.preferred_locale = patch.preferredLocale;
+		if (patch.showProfilePublicly !== undefined)
+			body.show_profile_publicly = patch.showProfilePublicly;
+		if (patch.notifyOnCommentReply !== undefined)
+			body.notify_on_comment_reply = patch.notifyOnCommentReply;
+		if (patch.notifyOnModerationDecision !== undefined) {
+			body.notify_on_moderation_decision = patch.notifyOnModerationDecision;
+		}
+		if (patch.notifyOnContentAction !== undefined)
+			body.notify_on_content_action = patch.notifyOnContentAction;
+		try {
+			const raw = await apiClient.patch<RawProfile>('/auth/me/', body);
+			user = mapUser(raw);
+			return { ok: true };
+		} catch (e) {
+			const message = e instanceof ApiError ? e.message : undefined;
+			return { ok: false, error: message ?? 'updateFailed' };
+		}
 	}
 };

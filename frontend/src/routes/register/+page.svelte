@@ -4,6 +4,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { notificationStore } from '$lib/state/notifications.svelte';
 
 	let displayName = $state('');
 	let email = $state('');
@@ -27,6 +28,10 @@
 		);
 		submitting = false;
 		if (result.ok) {
+			// Same "root layout's onMount only fires once" reasoning as login/+page.svelte's own fix
+			// — a fresh account has nothing to show yet, but this keeps the bell's own state honest
+			// from the very first authenticated render rather than depending on incidental timing.
+			notificationStore.refresh();
 			goto(resolve('/'));
 		} else if (result.error === 'emailTaken') {
 			error = 'emailTaken';

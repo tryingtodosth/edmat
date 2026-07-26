@@ -1,0 +1,174 @@
+"""GET /api/notifications/ (own inbox, newest first) + POST .../{id}/read/ + POST
+.../read-all/ — a recipient only ever sees/acts on their own notifications, enforced by
+`get_queryset` filtering on `request.user`, not by trusting an id the client sent.
+
+Plus GET /api/notifications/stream/ (below) — Phase 4's real-time delivery piece, see that view's
+own doc comment for the full design (CLAUDE.md Section 18 item 9's own writeup named this exact
+approach — SSE, a DB-polling loop, no Channels/Redis — as the right first step before this was built).
+"""
+
+import json
+import time
+
+from django.http import StreamingHttpResponse
+from rest_framework import mixins, permissions, renderers, status, viewsets
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import Notification
+from .serializers import NotificationSerializer
+
+
+class NotificationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(recipient=self.request.user).select_related(
+            'actor', 'actor__profile'
+        )
+
+    @action(detail=True, methods=['post'])
+    def read(self, request, pk=None):
+        notification = self.get_object()
+        if not notification.is_read:
+            notification.is_read = True
+            notification.save(update_fields=['is_read'])
+        return Response(self.get_serializer(notification).data)
+
+    @action(detail=False, methods=['post'], url_path='read-all')
+    def read_all(self, request):
+        self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EventStreamRenderer(renderers.BaseRenderer):
+    """A real, found-during-browser-verification bug fix, not a speculative addition: DRF's own
+    content negotiation runs BEFORE `NotificationStreamView.get()` is ever called, matching the
+    incoming request's `Accept` header against the view's own declared renderers — and the browser's
+    native `EventSource` API sets `Accept: text/event-stream` on every request it makes, a real
+    header no `curl` call happens to send by default (`curl`'s own default `Accept: */*` matches
+    anything, which is exactly why an earlier round of manual `curl` verification against this
+    endpoint looked completely correct while a REAL browser's own `EventSource` connection was
+    silently failing with a 406 the whole time — confirmed by reproducing it with
+    `curl -H "Accept: text/event-stream"` once the real browser test caught it). Declaring this one
+    real renderer, matching that exact media type, is what makes content negotiation succeed; its
+    own `render()` method is never actually called, since `NotificationStreamView.get()` returns a
+    raw `StreamingHttpResponse` that bypasses DRF's render step entirely — this class exists purely
+    to satisfy negotiation, not to do any real rendering work.
+    """
+
+    media_type = 'text/event-stream'
+    format = 'txt'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        return data
+
+
+class QueryParamTokenAuthentication(TokenAuthentication):
+    """Reads the auth token from `?token=...` instead of the `Authorization` header — needed ONLY
+    by `NotificationStreamView` below, since the browser's native `EventSource` API cannot set
+    custom request headers at all (a real, permanent limitation of that API, not a workaround for
+    something DRF could otherwise do — there is no header-based alternative available to a plain
+    `new EventSource(url)` call).
+
+    ⚠️ A real, honest security tradeoff, not silently accepted: a token in a URL query string can
+    end up in server access logs, browser history, and (if this page ever linked out to a third
+    party) a `Referer` header — none of which a header-based token risks the same way. Mitigated
+    two ways, both real: (1) this authentication class is wired onto ONLY this one streaming view,
+    never added to `REST_FRAMEWORK`'s global `DEFAULT_AUTHENTICATION_CLASSES` — every other endpoint
+    in this app keeps requiring the real, header-based `TokenAuthentication`; (2) a real production
+    deployment would very likely want a short-lived, purpose-scoped SSE ticket (minted by a real,
+    header-authenticated endpoint immediately before opening the stream, valid for a few minutes)
+    instead of the same long-lived bearer token used everywhere else — not built here, since this
+    prototype has no session/ticket infrastructure to build it on, but flagged plainly rather than
+    left as an unstated gap.
+    """
+
+    def authenticate(self, request):
+        token = request.query_params.get('token')
+        if not token:
+            return None
+        return self.authenticate_credentials(token)
+
+
+# Real, stated tuning constants, not magic numbers scattered through the generator below.
+SSE_POLL_INTERVAL_SECONDS = 3
+# Caps how long any one connection stays open server-side — `EventSource` auto-reconnects the
+# instant a stream closes (its own native, built-in behavior), so this bounds per-connection
+# resource usage on Django's dev server (no async event loop here, just a thread held open per
+# connection for as long as the generator keeps yielding) without costing the user anything more
+# than a brief, invisible reconnect every 10 minutes.
+SSE_MAX_CONNECTION_SECONDS = 600
+
+
+class NotificationStreamView(APIView):
+    """GET /api/notifications/stream/?token=... — real-time delivery for the notifications this app
+    already creates (`notify()`, `notifications/services.py`), closing the gap CLAUDE.md Section 18
+    item 9 already documented in detail: before this, a new notification was only ever discovered on
+    the next explicit fetch (a page mount, opening the bell, a fresh login), never pushed. Deliberately
+    Server-Sent Events over a plain DB-polling loop, not Django Channels/WebSockets — the same
+    reasoning that section's own writeup already gave: SSE is a single long-lived HTTP response DRF
+    can serve directly, no new infrastructure dependency (a channel layer, an ASGI server, Redis);
+    Channels would be a real architectural addition disproportionate to what this app's own real
+    event volume needs. One-way only (server → client), which is exactly the direction this feature
+    needs — nothing about a notification ever needs the client to push data back over this
+    connection.
+
+    `notify()` itself, the `Notification` model, and every existing call site are completely
+    unchanged — this hooks in as a pure READER of the same table every other notification surface
+    already reads, not a new write path. What "real-time" means here, honestly: a new row becomes
+    visible to a connected client within `SSE_POLL_INTERVAL_SECONDS`, not the instant it's created —
+    a genuine, bounded latency, not literal push, and a real limitation of the DB-polling approach
+    worth stating rather than overselling as truly instant.
+    """
+
+    authentication_classes = [QueryParamTokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    # See EventStreamRenderer's own doc comment above for why this is required, not decorative —
+    # without it, DRF's content negotiation 406s every real EventSource connection (which sends
+    # `Accept: text/event-stream`) before `get()` below is ever called, while a plain `curl` call
+    # (default `Accept: */*`) succeeds regardless — the exact gap that let this ship once already.
+    renderer_classes = [EventStreamRenderer]
+
+    def get(self, request):
+        user = request.user
+        # Only notifications created AFTER the stream opens are ever sent — the client's own initial
+        # `GET /api/notifications/` (on page mount) already carries the full existing history; replaying
+        # it a second time over the stream would just duplicate what's already rendered.
+        last_id = (
+            Notification.objects.filter(recipient=user).order_by('-id').values_list('id', flat=True).first()
+            or 0
+        )
+
+        def event_stream():
+            nonlocal last_id
+            # `retry:` — tells the browser how long to wait before EventSource's own automatic
+            # reconnect fires, should the connection drop for any reason (a real network blip, or
+            # this view's own deliberate SSE_MAX_CONNECTION_SECONDS cutoff below).
+            yield 'retry: 3000\n\n'
+            started_at = time.monotonic()
+            while time.monotonic() - started_at < SSE_MAX_CONNECTION_SECONDS:
+                new_notifications = Notification.objects.filter(
+                    recipient=user, id__gt=last_id
+                ).select_related('actor', 'actor__profile').order_by('id')
+                for notification in new_notifications:
+                    payload = NotificationSerializer(notification).data
+                    yield f'id: {notification.id}\ndata: {json.dumps(payload)}\n\n'
+                    last_id = notification.id
+                # An SSE comment line (`:`) — invisible to the client's own event handlers, its only
+                # job is keeping the connection alive through anything that might otherwise treat a
+                # quiet connection as dead (a proxy, a load balancer) — none exist in this dev setup,
+                # but this is the standard, correct SSE practice regardless of deployment.
+                yield ': keep-alive\n\n'
+                time.sleep(SSE_POLL_INTERVAL_SECONDS)
+
+        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+        response['Cache-Control'] = 'no-cache'
+        # Meaningful only behind an nginx-style reverse proxy (tells it not to buffer the stream,
+        # which would defeat the whole point of a live push) — harmless to set unconditionally, and
+        # a real deployment would very likely sit behind exactly that kind of proxy.
+        response['X-Accel-Buffering'] = 'no'
+        return response

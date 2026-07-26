@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'moderation',
     'study',
     'accounts',
+    'notifications',
 ]
 
 MIDDLEWARE = [

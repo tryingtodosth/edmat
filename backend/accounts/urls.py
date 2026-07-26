@@ -1,8 +1,20 @@
 from django.urls import path
+from rest_framework.routers import DefaultRouter
 
-from .views import LoginView, LogoutView, MeView, PasswordResetView, RegisterView, UserPublicView
+from .views import (
+    DonationLinkViewSet,
+    LoginView,
+    LogoutView,
+    MeView,
+    PasswordResetView,
+    RegisterView,
+    UserPublicView,
+)
 
-urlpatterns = [
+router = DefaultRouter()
+router.register('donation-links', DonationLinkViewSet, basename='donation-link')
+
+urlpatterns = router.urls + [
     path('auth/register/', RegisterView.as_view(), name='auth-register'),
     path('auth/login/', LoginView.as_view(), name='auth-login'),
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),

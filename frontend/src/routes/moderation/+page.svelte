@@ -17,7 +17,7 @@
 	} from '$lib/services/moderation';
 	import { getUserById } from '$lib/services/users';
 	import { getCourseById } from '$lib/services/taxonomy';
-	import { getExerciseById } from '$lib/services/exercises';
+	import { getExercisesByIds } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { resolve } from '$app/paths';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
@@ -66,9 +66,12 @@
 				...translations.map((t) => t.exerciseId)
 			])
 		];
-		const exs = await Promise.all(exerciseIds.map((id) => getExerciseById(id, 'pl')));
+		// ✅ Phase 4 — one bulk request instead of one GET per distinct exercise id. Under a real
+		// seeded backlog (the moderation-queue load test) this used to fire up to 115 individual
+		// requests here alone, ~10s of the page's own real load time — see CLAUDE.md's own writeup.
+		const exs = await getExercisesByIds(exerciseIds, 'pl');
 		const titles: Record<string, string> = {};
-		for (const e of exs) if (e) titles[e.id] = e.title;
+		for (const e of exs) titles[e.id] = e.title;
 		exerciseTitles = titles;
 
 		loading = false;
@@ -146,21 +149,45 @@
 		<p class="loading">{m.common_loading()}</p>
 	{:else}
 		<div class="tabs" role="tablist">
-			<button type="button" class:active={tab === 'reports'} onclick={() => (tab = 'reports')}>
+			<button
+				type="button"
+				role="tab"
+				id="mod-tab-reports"
+				aria-selected={tab === 'reports'}
+				aria-controls="mod-tabpanel"
+				class:active={tab === 'reports'}
+				onclick={() => (tab = 'reports')}
+			>
 				{m.moderation_tab_reports({ count: reports.length })}
 			</button>
 			<button
 				type="button"
+				role="tab"
+				id="mod-tab-submissions"
+				aria-selected={tab === 'submissions'}
+				aria-controls="mod-tabpanel"
 				class:active={tab === 'submissions'}
 				onclick={() => (tab = 'submissions')}
 			>
 				{m.moderation_tab_submissions({ count: submissions.length })}
 			</button>
-			<button type="button" class:active={tab === 'edits'} onclick={() => (tab = 'edits')}>
+			<button
+				type="button"
+				role="tab"
+				id="mod-tab-edits"
+				aria-selected={tab === 'edits'}
+				aria-controls="mod-tabpanel"
+				class:active={tab === 'edits'}
+				onclick={() => (tab = 'edits')}
+			>
 				{m.moderation_tab_edits({ count: editSuggestions.length })}
 			</button>
 			<button
 				type="button"
+				role="tab"
+				id="mod-tab-translations"
+				aria-selected={tab === 'translations'}
+				aria-controls="mod-tabpanel"
 				class:active={tab === 'translations'}
 				onclick={() => (tab = 'translations')}
 			>
@@ -168,84 +195,177 @@
 			</button>
 		</div>
 
-		{#if tab === 'reports'}
-			{#if reports.length === 0}
+		<!--
+			One shared tabpanel wrapping every {#if tab === ...} branch below, rather than four separate
+			panels — only one is ever rendered at a time regardless, and `aria-labelledby` swaps to
+			track whichever tab is actually active. The visually-hidden <h2> restores a real, correct
+			h1 -> h2 -> h3 document outline for screen-reader heading navigation (a real axe-core
+			`heading-order` finding, not a cosmetic one) — the active queue genuinely is a level-2
+			section of "Moderation queue," and each queue-item's own <h3> title genuinely nests under
+			it; the tabs' own visual styling already communicates the same boundary for sighted users,
+			so the heading itself doesn't need to be visible too.
+		-->
+		<div
+			class="tabpanel"
+			role="tabpanel"
+			id="mod-tabpanel"
+			aria-labelledby={`mod-tab-${tab}`}
+			tabindex="-1"
+		>
+			<h2 class="visually-hidden">
+				{#if tab === 'reports'}{m.moderation_tab_reports({ count: reports.length })}
+				{:else if tab === 'submissions'}{m.moderation_tab_submissions({
+						count: submissions.length
+					})}
+				{:else if tab === 'edits'}{m.moderation_tab_edits({ count: editSuggestions.length })}
+				{:else}{m.moderation_tab_translations({ count: translations.length })}
+				{/if}
+			</h2>
+
+			{#if tab === 'reports'}
+				{#if reports.length === 0}
+					<p class="empty">{m.moderation_empty()}</p>
+				{:else}
+					<ul class="queue">
+						{#each reports as r (reportKey(r))}
+							<li class="queue-item" class:queue-item--urgent={r.isAutoHidden}>
+								<div class="report-header">
+									<span class="report-kind">{REPORT_KIND_LABELS[r.kind]()}</span>
+									{#if r.isAutoHidden}
+										<span class="hidden-badge">{m.moderation_alreadyHidden()}</span>
+									{/if}
+								</div>
+								<h3><MathTitle text={r.preview} /></h3>
+								<p class="meta">
+									{m.moderation_reportStats({
+										count: r.reportCount,
+										percent: r.percentReported ?? 0
+									})}
+									{#if r.exerciseTitle && r.kind !== 'exercise'}
+										· {m.moderation_forExercise({ exercise: r.exerciseTitle })}
+									{/if}
+								</p>
+								{#if r.exerciseId}
+									<a
+										class="context-link"
+										href={resolve('/exercises/[id]', { id: r.exerciseId })}
+										target="_blank"
+										rel="noopener noreferrer"
+									>
+										{m.moderation_viewInContext()}
+									</a>
+								{/if}
+								{#if r.reasons.length > 0}
+									<ul class="reasons-list">
+										{#each r.reasons as reason, i (i)}
+											<li class="reason">"{reason}"</li>
+										{/each}
+									</ul>
+								{/if}
+								<textarea
+									rows="1"
+									placeholder={m.moderation_reviewNote()}
+									bind:value={notes[reportKey(r)]}></textarea>
+								<div class="actions">
+									<button type="button" class="approve" onclick={() => restoreReport(r)}>
+										{m.moderation_restore()}
+									</button>
+									<button type="button" class="reject" onclick={() => removeReport(r)}>
+										{m.moderation_remove()}
+									</button>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{:else if tab === 'submissions'}
+				{#if submissions.length === 0}
+					<p class="empty">{m.moderation_empty()}</p>
+				{:else}
+					<ul class="queue">
+						{#each submissions as s (s.id)}
+							<li class="queue-item">
+								<h3><MathTitle text={s.draft.title} /></h3>
+								<p class="meta">
+									{m.moderation_submittedBy({
+										name: usersById[s.submittedByUserId]?.displayName ?? '—'
+									})}
+									{m.moderation_forCourse({ course: coursesById[s.courseId]?.name ?? s.courseId })}
+								</p>
+								<p class="excerpt">{s.draft.statement.replace(/<[^>]+>/g, '').slice(0, 200)}</p>
+								<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[s.id]}
+								></textarea>
+								<div class="actions">
+									<button type="button" class="approve" onclick={() => approveSubmission(s)}
+										>{m.moderation_approve()}</button
+									>
+									<button type="button" class="reject" onclick={() => rejectSubmission(s)}
+										>{m.moderation_reject()}</button
+									>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{:else if tab === 'edits'}
+				{#if editSuggestions.length === 0}
+					<p class="empty">{m.moderation_empty()}</p>
+				{:else}
+					<ul class="queue">
+						{#each editSuggestions as e (e.id)}
+							<li class="queue-item">
+								<h3>
+									{e.field} — <MathTitle text={exerciseTitles[e.exerciseId] ?? e.exerciseId} />
+								</h3>
+								<p class="meta">
+									{m.moderation_submittedBy({
+										name: usersById[e.submittedByUserId]?.displayName ?? '—'
+									})}
+								</p>
+								<p class="excerpt">{e.proposedValue.replace(/<[^>]+>/g, '').slice(0, 200)}</p>
+								{#if e.reason}
+									<p class="reason">“{e.reason}”</p>
+								{/if}
+								<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[e.id]}
+								></textarea>
+								<div class="actions">
+									<button type="button" class="approve" onclick={() => approveEdit(e)}
+										>{m.moderation_approve()}</button
+									>
+									<button type="button" class="reject" onclick={() => rejectEdit(e)}
+										>{m.moderation_reject()}</button
+									>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{:else if translations.length === 0}
 				<p class="empty">{m.moderation_empty()}</p>
 			{:else}
 				<ul class="queue">
-					{#each reports as r (reportKey(r))}
-						<li class="queue-item" class:queue-item--urgent={r.isAutoHidden}>
-							<div class="report-header">
-								<span class="report-kind">{REPORT_KIND_LABELS[r.kind]()}</span>
-								{#if r.isAutoHidden}
-									<span class="hidden-badge">{m.moderation_alreadyHidden()}</span>
-								{/if}
-							</div>
-							<h3><MathTitle text={r.preview} /></h3>
-							<p class="meta">
-								{m.moderation_reportStats({
-									count: r.reportCount,
-									percent: r.percentReported ?? 0
-								})}
-								{#if r.exerciseTitle && r.kind !== 'exercise'}
-									· {m.moderation_forExercise({ exercise: r.exerciseTitle })}
-								{/if}
-							</p>
-							{#if r.exerciseId}
-								<a
-									class="context-link"
-									href={resolve('/exercises/[id]', { id: r.exerciseId })}
-									target="_blank"
-									rel="noopener noreferrer"
-								>
-									{m.moderation_viewInContext()}
-								</a>
-							{/if}
-							{#if r.reasons.length > 0}
-								<ul class="reasons-list">
-									{#each r.reasons as reason, i (i)}
-										<li class="reason">"{reason}"</li>
-									{/each}
-								</ul>
-							{/if}
-							<textarea
-								rows="1"
-								placeholder={m.moderation_reviewNote()}
-								bind:value={notes[reportKey(r)]}></textarea>
-							<div class="actions">
-								<button type="button" class="approve" onclick={() => restoreReport(r)}>
-									{m.moderation_restore()}
-								</button>
-								<button type="button" class="reject" onclick={() => removeReport(r)}>
-									{m.moderation_remove()}
-								</button>
-							</div>
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		{:else if tab === 'submissions'}
-			{#if submissions.length === 0}
-				<p class="empty">{m.moderation_empty()}</p>
-			{:else}
-				<ul class="queue">
-					{#each submissions as s (s.id)}
+					{#each translations as t (t.id)}
 						<li class="queue-item">
-							<h3><MathTitle text={s.draft.title} /></h3>
+							<h3>
+								{t.locale.toUpperCase()} — <MathTitle
+									text={exerciseTitles[t.exerciseId] ?? t.exerciseId}
+								/>
+							</h3>
 							<p class="meta">
 								{m.moderation_submittedBy({
-									name: usersById[s.submittedByUserId]?.displayName ?? '—'
+									name: t.translatedByUserId
+										? (usersById[t.translatedByUserId]?.displayName ?? '—')
+										: '—'
 								})}
-								{m.moderation_forCourse({ course: coursesById[s.courseId]?.name ?? s.courseId })}
 							</p>
-							<p class="excerpt">{s.draft.statement.replace(/<[^>]+>/g, '').slice(0, 200)}</p>
-							<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[s.id]}
+							<p class="excerpt"><MathTitle text={t.title} /></p>
+							<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[t.id]}
 							></textarea>
 							<div class="actions">
-								<button type="button" class="approve" onclick={() => approveSubmission(s)}
+								<button type="button" class="approve" onclick={() => approveTranslation(t)}
 									>{m.moderation_approve()}</button
 								>
-								<button type="button" class="reject" onclick={() => rejectSubmission(s)}
+								<button type="button" class="reject" onclick={() => rejectTranslation(t)}
 									>{m.moderation_reject()}</button
 								>
 							</div>
@@ -253,70 +373,7 @@
 					{/each}
 				</ul>
 			{/if}
-		{:else if tab === 'edits'}
-			{#if editSuggestions.length === 0}
-				<p class="empty">{m.moderation_empty()}</p>
-			{:else}
-				<ul class="queue">
-					{#each editSuggestions as e (e.id)}
-						<li class="queue-item">
-							<h3>{e.field} — <MathTitle text={exerciseTitles[e.exerciseId] ?? e.exerciseId} /></h3>
-							<p class="meta">
-								{m.moderation_submittedBy({
-									name: usersById[e.submittedByUserId]?.displayName ?? '—'
-								})}
-							</p>
-							<p class="excerpt">{e.proposedValue.replace(/<[^>]+>/g, '').slice(0, 200)}</p>
-							{#if e.reason}
-								<p class="reason">“{e.reason}”</p>
-							{/if}
-							<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[e.id]}
-							></textarea>
-							<div class="actions">
-								<button type="button" class="approve" onclick={() => approveEdit(e)}
-									>{m.moderation_approve()}</button
-								>
-								<button type="button" class="reject" onclick={() => rejectEdit(e)}
-									>{m.moderation_reject()}</button
-								>
-							</div>
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		{:else if translations.length === 0}
-			<p class="empty">{m.moderation_empty()}</p>
-		{:else}
-			<ul class="queue">
-				{#each translations as t (t.id)}
-					<li class="queue-item">
-						<h3>
-							{t.locale.toUpperCase()} — <MathTitle
-								text={exerciseTitles[t.exerciseId] ?? t.exerciseId}
-							/>
-						</h3>
-						<p class="meta">
-							{m.moderation_submittedBy({
-								name: t.translatedByUserId
-									? (usersById[t.translatedByUserId]?.displayName ?? '—')
-									: '—'
-							})}
-						</p>
-						<p class="excerpt"><MathTitle text={t.title} /></p>
-						<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[t.id]}
-						></textarea>
-						<div class="actions">
-							<button type="button" class="approve" onclick={() => approveTranslation(t)}
-								>{m.moderation_approve()}</button
-							>
-							<button type="button" class="reject" onclick={() => rejectTranslation(t)}
-								>{m.moderation_reject()}</button
-							>
-						</div>
-					</li>
-				{/each}
-			</ul>
-		{/if}
+		</div>
 	{/if}
 </div>
 
@@ -360,6 +417,15 @@
 	.tabs button.active {
 		color: var(--accent);
 		border-bottom-color: var(--accent);
+	}
+	.tabpanel {
+		// Programmatically focusable (tabindex="-1") so an assistive-tech user tabbing through the
+		// tablist per the standard ARIA authoring pattern can be moved straight into the panel
+		// content — never in the regular Tab order itself, hence -1 rather than 0.
+		outline: none;
+	}
+	.visually-hidden {
+		@include mix.visually-hidden;
 	}
 	.queue {
 		display: flex;

@@ -1,15 +1,26 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type { Material, MaterialCoverage, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { proposeCoverage, DuplicateCoverageError } from '$lib/services/materials';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
+	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import CoverageBadge from './CoverageBadge.svelte';
 	import CoveragePopover from './CoveragePopover.svelte';
 	import AddCoverageForm from './AddCoverageForm.svelte';
 
-	let { material, topics = [] }: { material: Material; topics?: Topic[] } = $props();
+	// linkTitle: true everywhere this card is used as a feed/grid item (the course page's own
+	// Materials tab — its only caller before Phase 4); false on the material's OWN detail page
+	// (materials/[id]/+page.svelte, this card's new second caller), where linking the title back to
+	// the very page it's already on would be a pointless, confusing self-link.
+	let {
+		material,
+		topics = [],
+		linkTitle = true
+	}: { material: Material; topics?: Topic[]; linkTitle?: boolean } = $props();
 
 	// Local, session-only overlay so a freshly-proposed coverage row appears immediately without
 	// re-fetching the whole material — same "optimistic append" shape this app's own
@@ -55,7 +66,16 @@
 </script>
 
 <article class="material-card">
-	<h3><MathTitle text={material.title} /></h3>
+	<div class="material-card__heading">
+		{#if linkTitle}
+			<a class="material-card__title-link" href={resolve('/materials/[id]', { id: material.id })}>
+				<h3><MathTitle text={material.title} /></h3>
+			</a>
+		{:else}
+			<h3><MathTitle text={material.title} /></h3>
+		{/if}
+		<span class="material-type">{MATERIAL_TYPE_LABELS[material.type]()}</span>
+	</div>
 	<p>{material.description}</p>
 
 	{#if allCoverage.length > 0 || authStore.isAuthenticated}
@@ -72,6 +92,14 @@
 					+ {m.coverage_addTrigger()}
 				</button>
 			{/if}
+		</div>
+	{/if}
+
+	{#if material.tags.length > 0}
+		<div class="material-card__tags">
+			{#each material.tags as tag (tag)}
+				<TagChip {tag} />
+			{/each}
 		</div>
 	{/if}
 
@@ -111,6 +139,23 @@
 		flex-direction: column;
 		gap: var(--space-2);
 	}
+	.material-card__heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+	}
+	.material-card__title-link {
+		color: var(--text-primary);
+		min-width: 0;
+		&:hover h3 {
+			color: var(--accent);
+		}
+	}
+	.material-type {
+		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+		flex-shrink: 0;
+	}
 	p {
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
@@ -121,6 +166,11 @@
 		flex-wrap: wrap;
 		gap: var(--space-1);
 		align-items: center;
+	}
+	.material-card__tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
 	}
 	.add-coverage-trigger {
 		@include mix.focus-ring;

@@ -52,7 +52,10 @@
 </svelte:head>
 
 <div class="page">
-	<nav class="breadcrumb"><a href={resolve('/fields')}>{m.common_home()}</a></nav>
+	<!-- "Breadcrumb" -->
+	<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
+		<a href={resolve('/fields')}>{m.common_home()}</a>
+	</nav>
 
 	{#if loading}
 		<p class="loading">{m.common_loading()}</p>

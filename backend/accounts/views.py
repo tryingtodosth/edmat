@@ -3,13 +3,19 @@ resolved for this prototype — see config/settings.py's own note)."""
 
 from django.contrib.auth import authenticate, get_user_model
 from django.shortcuts import get_object_or_404
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Profile
-from .serializers import ProfileSerializer, PublicProfileSerializer, RegisterSerializer
+from .models import DonationLink, Profile
+from .serializers import (
+    DonationLinkSerializer,
+    ProfileSerializer,
+    ProfileUpdateSerializer,
+    PublicProfileSerializer,
+    RegisterSerializer,
+)
 
 User = get_user_model()
 
@@ -23,7 +29,10 @@ class RegisterView(APIView):
         user = serializer.save()
         token, _created = Token.objects.get_or_create(user=user)
         return Response(
-            {'token': token.key, 'profile': ProfileSerializer(user.profile).data},
+            {
+                'token': token.key,
+                'profile': ProfileSerializer(user.profile, context={'request': request}).data,
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -48,7 +57,9 @@ class LoginView(APIView):
         if user is None:
             return Response({'detail': 'Invalid credentials.'}, status=status.HTTP_401_UNAUTHORIZED)
         token, _created = Token.objects.get_or_create(user=user)
-        return Response({'token': token.key, 'profile': ProfileSerializer(user.profile).data})
+        return Response(
+            {'token': token.key, 'profile': ProfileSerializer(user.profile, context={'request': request}).data}
+        )
 
 
 class LogoutView(APIView):
@@ -63,7 +74,19 @@ class MeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        return Response(ProfileSerializer(request.user.profile).data)
+        return Response(ProfileSerializer(request.user.profile, context={'request': request}).data)
+
+    def patch(self, request):
+        """Self-service profile editing — display name, preferred locale, and the privacy/
+        notification-preference toggles (accounts/models.py's Profile fields, see
+        ProfileUpdateSerializer's own doc comment for exactly what is and isn't self-editable).
+        Returns the FULL profile shape afterward (ProfileSerializer, same as GET), not just the
+        narrower update serializer's own fields, so the frontend can replace its whole local `user`
+        object from one response rather than merging two differently-shaped ones."""
+        serializer = ProfileUpdateSerializer(request.user.profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(ProfileSerializer(request.user.profile, context={'request': request}).data)
 
 
 class UserPublicView(generics.RetrieveAPIView):
@@ -78,6 +101,25 @@ class UserPublicView(generics.RetrieveAPIView):
 
     def get_object(self):
         return get_object_or_404(self.get_queryset(), user_id=self.kwargs['pk'])
+
+
+class DonationLinkViewSet(viewsets.ModelViewSet):
+    """Self-service CRUD for the CURRENT user's own donation links — "users can set multiple
+    donation links that [a visitor] can choose from" (accounts/models.py's DonationLink). Always
+    scoped to `request.user.profile` via `get_queryset`/`perform_create`, never a `profile` id
+    accepted from the client — there's no route here that lets one account edit another's links.
+    Reading someone ELSE's donation links happens through `GET /api/users/{id}/`'s own embedded
+    `donation_links` (PublicProfileSerializer), not through this ViewSet.
+    """
+
+    serializer_class = DonationLinkSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return DonationLink.objects.filter(profile=self.request.user.profile)
+
+    def perform_create(self, serializer):
+        serializer.save(profile=self.request.user.profile)
 
 
 class PasswordResetView(APIView):

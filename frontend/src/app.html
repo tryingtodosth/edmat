@@ -3,6 +3,11 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!-- Phase 4 hardening: a real favicon (the header's own "∫" brand mark, static/favicon.svg) —
+		     its absence was surfaced by the accessibility checker's own page-load-error guard (every
+		     browser implicitly probes /favicon.ico on first navigation to a new origin, and a genuine
+		     404 there logs a real console error that check_accessibility.ts correctly flags). -->
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
 		<script>
 			// Applied before any CSS/JS bundle loads, so the very first paint already has the
 			// right theme — without this, a dark-preferring visitor sees a flash of the light

@@ -2,7 +2,12 @@
 
 **Status:** ✅ Phase 1 (frontend, fully mocked), Phase 2 (Django REST Framework backend, real
 migrated corpus), and Phase 3 (frontend wired to the real backend, mocks deleted) all built — see
-`frontend/` and `backend/`. Phase 4 (hardening) not started. This document is the living spec for
+`frontend/` and `backend/`. Phase 4 (hardening) in progress — the LaTeX/KaTeX compatibility sweep
+(Section 11's own ⚠️), a real accessibility audit, and the moderation-queue synthetic load test are
+done, see Sections 17D/17E/17F; only the corpus-retirement decision is not yet done, see Section 16.
+The material detail page (Section 17G) and real-time notification delivery via SSE (Section 17H,
+Section 18 item 9) are also now built, closing two gaps this document had explicitly flagged as
+open. This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -514,10 +519,15 @@ same LaTeX delimiters — both styles render through the identical path.
    same delimiter pairs the existing content already uses (`\( \)` inline, `\[ \]` display) — KaTeX
    chosen over MathJax (which the current static site uses) for load performance: MathJax's runtime
    is materially heavier, and KaTeX's synchronous rendering avoids the current site's dependency on a
-   CDN script tag per page. ⚠️ Confirm every existing exercise's LaTeX is actually KaTeX-compatible
-   (KaTeX supports a smaller command subset than full MathJax/LaTeX) before committing to this — a
-   real, mechanical check to run early in Phase 1 (batch-render all 740 exercises, log any
-   unsupported command), not assumed clean.
+   CDN script tag per page. ✅ **Resolved (Phase 4, see Section 17D) — confirmed clean, not assumed.**
+   The real, mechanical check this item called for (batch-render every exercise, log any unsupported
+   command) was run against the full, real 756-row corpus twice over — once statically (importing the
+   actual `renderContent.ts`/`renderTitle` pipeline directly, not a re-implementation of it) and once
+   in a real headless browser against 43 live exercise pages — with a conclusive **zero** genuine
+   KaTeX-compatibility issues found either way. A permanent, re-runnable checker
+   (`frontend/scripts/check_katex_compatibility.ts`, `npm run check:katex`) now exists specifically so
+   this stays a real, cheap, repeatable check after any future bulk import or edit, not a one-time
+   audit that quietly goes stale.
 
 **Write side (backend):** sanitize submitted Markdown/HTML on save too (defense in depth, e.g. via
 `bleach` with an allowlist matching what the frontend's parser actually needs) — never trust that the
@@ -893,9 +903,13 @@ Per explicit instruction: plan → frontend → backend.
   `fetch()` against a separate-origin API (CORS already configured for this in Phase 2), so
   `adapter-static`'s SPA-fallback mode continues to be the right, simpler choice — flagged here as a
   deliberate non-change, not an oversight.
-- **Phase 4 — Hardening.** Real accessibility pass, LaTeX-compatibility sweep across the full
-  migrated corpus (Section 11's ⚠️), moderation-queue load testing with real volunteer moderators,
-  decide the `Database-of-Student-Exercise` retirement question (Section 12's ⚠️).
+- **Phase 4 — Hardening.** In progress. LaTeX-compatibility sweep across the full migrated corpus
+  (Section 11's own ⚠️) ✅ **done, see Section 17D.** A real accessibility audit ✅ **done, see
+  Section 17E.** A moderation-queue synthetic load test ✅ **done, see Section 17F** (found and fixed
+  a real N+1 on both the backend and the frontend). Still open: deciding the
+  `Database-of-Student-Exercise` retirement question (Section 12's ⚠️) — "load testing with real
+  volunteer moderators" (as opposed to a synthetic seeded backlog) also stays open, since this
+  environment has no real moderators to recruit.
 
 **Left for a later phase, not v1, flagged so they aren't silently forgotten (both are real, working
 features in the current static site — Section 3):**
@@ -975,6 +989,843 @@ unseen" branch, not an assumption that it works because the code reads correctly
 
 ---
 
+## 17B. Feature: Notifications, Public Profiles, Privacy Settings, Donation Links & Cookie Consent (✅ built, post-Phase-3)
+
+Grounded directly in EdMat's own real event set (moderation decisions, the reporting/auto-hide
+system, threaded comments) rather than a generic notion of "notifications" — informed by the sibling
+`2donet` project's own `Notification`/`.svelte.ts` rune-store/popover-plus-inbox architecture
+(referenced explicitly per the task that drove this feature), adapted to this app's actual data
+model rather than ported wholesale (no `NotificationGroup` clustering, see below for why).
+
+### Backend — a new `notifications` app
+
+`Notification(recipient, actor, type, target_label, exercise, note, is_read, created_at)` —
+**deliberately denormalized, not a `GenericForeignKey`** the way `Comment`/`Report` resolve their
+own polymorphic target: `target_label` is captured once at creation time (the "carry a label, avoid
+a lookup" reasoning `2donet`'s own blueprint already documents for its `targetLabel`), and
+`exercise` is a plain nullable `SET_NULL` FK — genuinely optional, since a REJECTED submission never
+becomes a real `Exercise` at all, so there's nowhere real to link a rejection notification to.
+
+**Ten real event types**, each with a real, wired trigger — not a speculative "notifications system"
+with no producers:
+
+| Type | Recipient | Trigger |
+|---|---|---|
+| `submission_approved` / `submission_rejected` | the submitter | `ModerationActionView` (submission decision) |
+| `edit_suggestion_approved` / `edit_suggestion_rejected` | the suggester | `ModerationActionView` (edit decision) |
+| `translation_approved` / `translation_rejected` | the translator | `ModerationActionView` (translation decision) |
+| `comment_reply` | the parent comment's author | `ExerciseViewSet.comments` / `MaterialCoverageViewSet.comments` (a new comment has a `parent_id`) |
+| `content_auto_hidden` | the content's own author/submitter | `moderation/services.py`'s `check_auto_hide`, the instant it actually fires |
+| `content_restored` / `content_removed` | same | `ReportActionView` (a moderator's restore/remove decision) |
+
+`notify()` (`notifications/services.py`) is the ONE place every row gets created — every call site
+above goes through it, never constructs a `Notification` directly, so three real guards can never be
+bypassed by a future call site forgetting one: `recipient=None` silently no-ops (the honest, common
+case for the 742 migrated corpus exercises, which have no real `submitted_by`, and for a legacy
+`translated_by=None` original), `actor == recipient` silently no-ops (nobody gets notified of their
+own decision), and — the real, load-bearing piece — a **privacy-preference check**
+(`_PREFERENCE_FIELD_FOR_TYPE`) that means turning a category off in Settings means that TYPE of
+`Notification` row is **never created in the first place**, not merely hidden client-side after the
+fact. `ModerationActionView._notify_decision` is the one shared helper for the 3-kind × 2-outcome
+decision matrix (approve/reject × submission/edit/translation), rather than repeating the same
+recipient/label lookup six times over.
+
+**No `NotificationGroup` clustering, unlike `2donet`'s own architecture — a deliberate, flagged
+deviation, not an oversight.** `2donet`'s own reasoning for grouping ("Ania and 2 others replied to
+your comment") answers a real problem at ITS event volume; EdMat's real per-user volume (a handful of
+moderation decisions, occasional replies) doesn't warrant the added complexity yet — a plain
+reverse-chronological list is honest and sufficient. Flagged explicitly in the model's own doc
+comment so a future session doesn't assume this was forgotten rather than deliberately deferred.
+
+### Backend — `Profile` grows privacy & notification-preference fields, plus `DonationLink`
+
+Four new `Profile` booleans: `show_profile_publicly` (default `True`) and three `notify_on_*` fields
+(`comment_reply`/`moderation_decision`/`content_action`, all default `True`). `show_profile_publicly`
+gates the DEDICATED public profile page's *extra* info only (join date, role badges) — **never
+basic attribution** (a comment/review byline, `display_name`/`avatar` on `GET /api/users/{id}/`),
+since hiding *that* would break every comment/review/submission byline throughout the app, not just
+the profile page. `PublicProfileSerializer` was rewritten as its own serializer (not inheriting
+`ProfileSerializer`, Phase 3's original version was) specifically so the `notify_on_*` fields — a
+stranger's own private settings — simply never appear in a public response's `Meta.fields` at all,
+rather than needing an exclude-after-the-fact. `MeView` gained a real `PATCH` (self-service editing,
+narrowly scoped via `ProfileUpdateSerializer` — `id`/`email`/`is_moderator`/`is_verified_contributor`
+stay whatever they already are, the same "moderator-granted, not self-service" discipline
+`RegisterSerializer` already established for those same two role fields).
+
+**`DonationLink`** — "users can set multiple donation links that [a visitor] can choose from," per
+the explicit follow-up request mid-build, then refined again ("payu, blik, paypal, card, apple pay,
+google pay, but also buy coffee or whatever") into a real, curated `platform` choice field (PayPal/
+PayU/BLIK/card/Apple Pay/Google Pay/Buy Me a Coffee/Ko-fi/Patreon/GitHub Sponsors/bank transfer/
+other) rather than pure free text — lets the frontend render a recognizable icon/name per platform
+while an optional `label` still allows a custom override (e.g. distinguishing two PayPal links) or a
+fully custom name when `platform='other'`. A `DonationLinkViewSet` (self-service CRUD, always scoped
+to `request.user.profile` via `get_queryset`, never a `profile` id accepted from the client) backs
+the settings page's own editor; `PublicProfileSerializer.donation_links` embeds the list on
+`GET /api/users/{id}/`. **Shown regardless of `show_profile_publicly`, deliberately** — that flag
+withholds identity/activity info a visitor didn't ask this account to publish; a donation link is the
+opposite, something the account holder actively chose to add specifically so it WOULD be shown. A
+private profile with zero donation links simply has none to show; adding one is itself the opt-in.
+
+A latent Phase-3 gap fixed while touching these views: `MeView`/`RegisterView`/`LoginView` all
+manually instantiate `ProfileSerializer` without passing `context={'request': request}` — harmless
+today (every demo account's `avatar` is `null`), but DRF's `ImageField` needs request context to
+serialize an absolute URL rather than a bare relative media path; fixed at the same time, before it
+was ever load-bearing enough to produce a broken avatar URL silently.
+
+### Frontend
+
+`notifications.svelte.ts` — a Svelte 5 rune module, this app's now-Nth `.svelte.ts` global-state
+module (alongside `theme.svelte.ts`/`auth.svelte.ts`/`token.svelte.ts`/`browsingHistory.svelte.ts`).
+**Deliberately does NOT import `authStore`**, even though "is logged in" would be the obvious guard
+for `refresh()` — `auth.svelte.ts` would need to import THIS module right back to clear it on logout
+(a real circular import), so every call site is instead responsible for its own
+`{#if authStore.isAuthenticated}` guard, which they all already needed anyway (`Header.svelte`'s
+bell, the root layout's mount, `/notifications` itself). `cookieConsent.svelte.ts` follows the exact
+same rune-module idiom, persisted via a REAL cookie (`lib/utils/cookies.ts`, SSR-guarded the same way
+`theme.svelte.ts`'s own `localStorage` reads already are) rather than `localStorage` — deliberately,
+since a consent *decision* is the one thing in this app that could plausibly matter server-side one
+day, the same reasoning Paraglide's own pre-existing `PARAGLIDE_LOCALE` cookie already uses a cookie
+for locale persistence rather than `localStorage`.
+
+**The cookie-consent banner discloses something real, not an invented placeholder category.** Before
+this feature, nothing in this app had ever told a visitor that Paraglide's own i18n scaffold
+(`en`/`pl`, copied verbatim from `2donet`, Section 10) already sets a real, load-bearing
+`PARAGLIDE_LOCALE` cookie — a genuine, pre-existing thing worth disclosing, not a category invented
+for this feature. The "Analytics & non-essential" category is honestly empty — EdMat sets no
+tracking/analytics cookie today — flagged as forward-looking rather than gating something real,
+matching `2donet`'s own precedent for its identically-empty category.
+
+`NotificationBell.svelte`/`NotificationPopover` (folded into the bell component)/`NotificationCard`
+— the same "anchored popover, `bind:this` container + a window click/keydown listener" pattern
+`RandomExerciseButton.svelte` already established, reused rather than invented a second way. A real,
+found-live bug fixed during end-to-end verification, not shipped broken: clicking "Mark all read"
+drives `unreadCount` to 0 synchronously, which un-renders the very button just clicked (its own
+`{#if unreadCount > 0}` guard) — by the time the bubbled window-level click listener ran,
+`event.target` was already detached from the DOM, so `container.contains(event.target)` always read
+`false`, misreading a legitimate inside click as an outside one and slamming the popover shut before
+the "view all" link could ever be reached. Fixed with `event.composedPath()` (captured once at
+dispatch time, stable regardless of any DOM mutation a listener along the way causes) instead of
+`.contains()` — the standard fix for this exact class of bug, not a one-off workaround.
+
+A second real bug, also caught live: the root layout's own `onMount` only fires once, on the very
+first page load — logging in later in the SAME session (not a fresh reload) never re-triggered a
+notification fetch, so the bell's unread badge stayed stale until a visitor happened to open it
+themselves at least once. Fixed by calling `notificationStore.refresh()` directly from
+`login/+page.svelte` and `register/+page.svelte`'s own success handlers, right after `authStore`
+confirms the session — the same class of fix, at the same layer, as the fix already documented in
+Phase 1's own "id-changed idempotency guard" note for a different `$effect` timing bug.
+
+`routes/users/[id]/+page.svelte` — a new public profile page, same "`$effect` keyed off
+`page.params`, with an id-changed idempotency guard, no `+page.ts`" pattern the exercise/course
+detail pages already establish (this app has no server-rendered-auth story to back a real load
+function, Section 13/16). Comment/review author names throughout the app (`CommentNode.svelte`,
+`ReviewList.svelte`) now link here — previously plain, non-interactive `<span>`s.
+
+### Verified end-to-end
+
+**Backend**, live, multi-user, via `curl` against the running dev server (not just `manage.py
+check`): every one of the ten notification types triggered for real and delivered to the correct
+recipient — submission approve/reject, edit-suggestion approve/reject, translation approve, a
+comment reply (plus the preference gate proven both ways: turning `notify_on_comment_reply` off
+suppressed a reply notification that a re-enabled preference then correctly let through), a real
+auto-hide (3 distinct reporters + 3 recorded `ContentView`s, `actor: null` confirmed for the
+system-triggered case), a self-moderated restore (correctly suppressed by the `actor == recipient`
+guard — a real, intentional no-op, not a bug), and a cross-user remove (a moderator removing another
+user's already-auto-hidden review, confirmed delivered with the right `actor`/`note`). `PATCH
+/auth/me/` confirmed to update real fields and silently ignore a `is_moderator: true` self-escalation
+attempt. `DonationLink` CRUD confirmed with real ordering, `display_label` resolution, cross-account
+protection (a 404, not a 403, matching the queryset-scoping-not-permission-checking pattern), and
+public embedding — including the privacy interaction specifically (`show_profile_publicly=False`
+correctly blanks `joined_at`/role badges while `donation_links`/`display_name` stay fully visible).
+
+**Frontend**, headless Chromium (`playwright-core` driving a cached browser binary, since this
+sandbox has neither a full `playwright` install nor a running X server) — 21 real end-to-end checks
+across three isolated browser contexts: the cookie banner's full lifecycle (shows on first visit,
+Accept-all hides it, the real cookie persists across a hard reload); Ola logging in and seeing a
+correct unread badge **immediately**, with no manual bell click needed (the login-refresh fix,
+verified against a freshly self-seeded comment reply so the check is idempotent across reruns rather
+than depending on a prior run's own side effects); the popover opening, showing real messages, Mark
+All Read working end-to-end through to the full `/notifications` inbox (the composedPath fix,
+verified); Michal's public profile showing his real 3 donation links with correct icons/labels; a
+comment author byline resolving to a real `/users/[id]` link; and the full settings-page loop for a
+third account (Bartek) — toggling privacy off, confirming the public profile correctly shows the
+private notice while the display name still renders, toggling back on, then adding and removing a
+real donation link through the UI. `npm run check`/`lint`/`build` and `manage.py check` all clean
+throughout.
+
+### Left open, not built
+
+- **Real-time/push delivery and email** — see Section 18 item 9's own detailed writeup (Django
+  Channels vs. SSE, Web Push, and the shared missing piece with `PasswordResetView`'s own stub: a
+  real email backend). Deliberately documented, not built, per the explicit "to do info" request.
+- **No `NotificationGroup`-style clustering** — a plain list, deliberately, see the note above.
+- **No donation-link reordering UI** — `order` exists and is honored by the public display, but
+  there's no drag-and-drop; a newly-added link just appends after whatever's already there.
+- **No avatar upload UI anywhere** — `Profile.avatar` predates this feature and stays untouched;
+  only its URL-resolution correctness (the missing `context={'request': ...}` fix above) changed.
+
+---
+
+## 17C. Feature: Expanded Material Types, and the Tag Hover-Menu — Follow / Notify / Save for Later / Add to Different Content (✅ built)
+
+Two grounded features, built together since the second (a real Follow/Notify/apply system) is what
+finally gives `Material.tags` — added here, not before — somewhere real to attach.
+
+### Expanded material types
+
+`MATERIAL_TYPE_CHOICES` (`backend/materials/models.py`) grew from the original 5 (all derived
+narrowly from what the 7-material real corpus happened to contain) to 13: `formula_sheet` (restored
+from the very first Section 9 sketch — dropped once, only for not matching the tiny original
+corpus, not because it's a bad category), `lecture_slides`, `solution_guide`, `syllabus`,
+`practice_test`, `recording`, `textbook_excerpt`, `code_dataset`, alongside the original 4 real
+corpus types + `other`. **A real, found gap closed alongside the expansion, not left invisible:**
+`Material.type` was never rendered ANYWHERE in the frontend before this — an expanded-but-invisible
+enum would have been a hollow improvement, so `MaterialCard.svelte` now shows a real type badge
+(`MATERIAL_TYPE_LABELS`, `lib/utils/labels.ts`, matching the existing `DIFFICULTY_LABELS`/
+`SOURCE_TYPE_LABELS` convention).
+
+### `Material.tags` — the same free-form vocabulary Exercise already has
+
+A plain `ManyToManyField` to `exercises.Tag` (`related_name='materials'`), read-only on
+`MaterialSerializer` — Material has no create/update endpoint at all (`MaterialViewSet` is a
+`ReadOnlyModelViewSet`), so the only way a tag is ever attached is the new tag-hover menu's own
+"add to different content" action, never through `MaterialSerializer`'s own write path.
+
+### The tag-hover action menu (`TagChip.svelte`)
+
+Every tag pill throughout the app (previously a bare, non-interactive `<span>`, both on the exercise
+detail page and now on `MaterialCard.svelte`) is a `TagChip` — hover-to-open with a leave-delay (so
+crossing from the pill into the menu itself doesn't close it), plus click-to-toggle as the
+accessible/touch fallback (touch has no hover at all). Four actions, each resolved as follows,
+grounded in what this app already has rather than invented fresh:
+
+- **Follow / Unfollow** — a new `exercises.TagFollow(user, tag, notify)` model. `notify` is a
+  **separate, mutable** control from following itself, not the same toggle — following puts a tag
+  on a "followed tags" list regardless of whether you want to be pinged, `notify` (default `True`
+  the moment you follow, independently togglable afterward without unfollowing) is what actually
+  gates whether new tagged content produces a real `Notification`. Read directly off the request's
+  own wording ("follow, set notifications") as two related but distinct actions, not one toggle.
+- **Save for later** — bulk-adds every exercise carrying this tag into the CURRENT working set
+  (`guestSetStore`, the same client-side store `ExerciseCard.svelte`'s own single-exercise "add to
+  set" button already writes to) — reusing the exact mechanism a per-exercise save already uses,
+  not a second, parallel one. Works for guests too, since the working set already does.
+- **Add to different content** — `AddTagToContentModal.svelte`: a course-agnostic search
+  (`searchExercises`/`searchMaterials`, both new — neither existed as a cross-course lookup before
+  this needed one) across Exercises or Materials, applying the tag on selection via a new
+  `POST/DELETE /api/tags/{slug}/apply/` endpoint. Open to any authenticated user, not
+  moderation-gated — the same trust level `MaterialCoverage`'s own community proposals already get
+  (additive, reversible, low-stakes organizational metadata, not content itself).
+
+**New notification type, `new_tagged_content`** — the one type in this app whose recipient is a
+*follower*, not a participant in the underlying event. `Notification` gained a second, symmetric
+`material` FK (nullable, `SET_NULL`, same shape as the existing `exercise` one) since a followed tag
+can now land on either content type. `notify_tag_followers()` (`notifications/services.py`) is
+called from both real trigger points — a moderator approving a submission whose payload carries tags
+(`_apply_submission`), and the new tag-apply endpoint itself — and is gated by each follower's own
+`TagFollow.notify` flag directly in its own loop, **deliberately not** through `notify()`'s existing
+account-level `_PREFERENCE_FIELD_FOR_TYPE` gate (2.14's own note: that's for a blanket account-wide
+category; a per-tag mute is a narrower, different axis).
+
+### A real, load-bearing `apiClient` gap closed along the way
+
+`apiClient.delete()` never accepted a request body — every pre-existing caller only ever deletes by
+id-in-URL. The tag-apply endpoint's own `DELETE` (removing a tag from a specific piece of content)
+needs to carry `{kind, object_id}`, the same shape its `POST` sibling already sends. Widened
+`delete<T>(path, data?)` to match `post`/`patch`'s own signature — `fetch()`'s own `RequestInit.body`
+already works with any HTTP method, this was just never plumbed through until a real caller needed it.
+
+### Verified end-to-end
+
+**Backend**, live via `curl`: follow/unfollow, muting/unmuting notifications on an existing follow
+(confirmed both directions — muted correctly suppresses, unmuting correctly lets a later apply
+through), applying and removing a tag on both an Exercise and a Material, the new `?q=` material
+search, and the full 13-value expanded type enum.
+
+**Frontend**, headless Chromium (`playwright-core`) — 13 real end-to-end checks: a material card
+shows its real type badge and a real clickable tag chip; hovering a tag chip on the exercise detail
+page opens the menu; Follow flips to Unfollow and reveals the Notify checkbox (checked by default);
+unchecking it and using Save for later correctly grows the real `localStorage` working set with an
+honest "Added N" confirmation; and Add to different content opens a real modal, returns real search
+results, and marks a picked result as Added after a real `POST`. `npm run check`/`lint`/`build` and
+`manage.py check` all clean throughout.
+
+### Left open, not built
+
+- **No UI for removing an already-applied tag** — the backend's `DELETE /api/tags/{slug}/apply/`
+  exists and works (verified via curl), but the hover menu itself is deliberately additive-only; a
+  future pass could add a per-tag "remove from this content" affordance directly on the pill where
+  it's shown, once there's a clear UX for it.
+- **No "my followed tags" dashboard/settings-page list** — following/muting work per-tag from the
+  hover menu; there's no single page listing everything a user currently follows.
+- **`new_tagged_content` notifications about a Material have no link** — this app has no standalone
+  material detail route at all (confirmed: none exists anywhere in `routes/`), so that case falls
+  through to the same non-navigating, mark-as-read-only card the "rejected submission" case already
+  uses. A real fix would need a material detail page first, out of scope for this feature.
+- **`applyTagToContent` has no de-duplication warning in the UI** — applying an already-present tag
+  again is a harmless no-notification no-op server-side (verified), but the modal doesn't tell the
+  user "this is already tagged," it just silently succeeds a second time.
+
+---
+
+## 17D. Phase 4: the LaTeX/KaTeX compatibility sweep (✅ done)
+
+The first item in Phase 4 hardening, and the specific "real, mechanical check... not assumed clean"
+Section 11 has flagged as owed since Phase 1. Two independent checks, both against the FULL real
+corpus (not a sample), both ending in a genuine zero — not a check that was skipped because it
+seemed likely to pass.
+
+**A new, permanent Django management command, `dump_text_fields`**
+(`backend/exercises/management/commands/dump_text_fields.py`) — dumps every `ExerciseTranslation`'s
+`title`/`statement`/`hint`/`answer`/`solution` and every `MaterialTranslation`'s `title`/
+`description`, across every locale and status, as one JSON blob (`--out`, default
+`/tmp/edmat_text_fields.json`). Kept as a real, reusable command rather than a one-off script — a
+corpus-wide compatibility check is exactly the kind of thing worth re-running after any future bulk
+import or edit, not something to hand-roll again from scratch each time. Run against the real,
+current database: **756 rows** (749 exercise + 7 material translations).
+
+**A new, permanent frontend script, `frontend/scripts/check_katex_compatibility.ts`** (`npm run
+check:katex`) — the actual check, and the reason `tsx` (`^4.23.1`) was added as a new devDependency:
+it **imports `renderContent`/`renderTitle` directly from the real
+`frontend/src/lib/utils/renderContent.ts`**, not a duplicated, driftable re-implementation of that
+pipeline's logic. Scans every field's rendered output for two real failure signatures: a
+`.katex-error` element (KaTeX's own `throwOnError: false` behavior for a malformed/unsupported
+command never throws, it renders visible red error text instead), and a literal, unprocessed `\(
+\) \[ \]` delimiter surviving into the output. **A real false-positive class was found and fixed
+while building this checker, worth recording so it isn't rediscovered from scratch:** KaTeX's own
+`<annotation encoding="application/x-tex">` element faithfully echoes the raw TeX SOURCE back into
+the DOM (for accessibility/copy-paste) — and this corpus's real, legitimate `\\[2mm]`-style LaTeX
+line-break-with-spacing syntax (routine inside `cases`/`array` environments, used throughout the
+corpus's real piecewise-function exercises) contains the substring `\[` as its own 2nd/3rd
+characters once written that way. The checker strips `<annotation>...</annotation>` content before
+running the leftover-delimiter regex, so "KaTeX correctly rendered this and is just quoting its own
+source back" is told apart from "a delimiter genuinely never got processed." Result against the
+full, real corpus: **"Checked 756 translation rows across the corpus. Found 0 field(s) with a real
+rendering issue."**
+
+**A second, independent real-browser spot-check** — headless Chromium (`playwright-core`, a
+pre-cached binary, since this sandbox has no global `playwright` install) driving 43 real live
+exercise pages (every exercise id the original false-positive investigation had flagged, plus a
+spread across the full id range), clicking each page's own Show hint/answer/solution buttons
+(content that doesn't render into the DOM until revealed) and scanning the real, live DOM for the
+same two signatures. This check exists specifically to catch anything the static Node-based check
+can't — real DOMPurify sanitization (`renderContent.ts` explicitly no-ops that step outside a real
+`window`), and any real browser-specific KaTeX rendering quirk. **The identical false-positive class
+reappeared here too, for a related but distinct reason:** `textContent`/`allTextContents()` (the
+first version of this check) picks up KaTeX's own visually-hidden-but-DOM-present `<annotation>`
+text regardless of its CSS visibility; `innerText` respects visibility the same way a real reader's
+own eyes would, and was the fix. Result: **"Checked 43 real exercise pages in a live browser. 0 had
+a real issue."** (This spot-check script remains scratchpad-only, not committed — the permanent,
+committed, re-runnable asset is the static `check_katex_compatibility.ts`/`dump_text_fields`
+combination above; the real-browser pass was a one-time, deeper confirmation of the same conclusion,
+not a second ongoing tool.)
+
+**Conclusion: the corpus is genuinely KaTeX-compatible, corpus-wide, confirmed twice over, not
+assumed.** Section 11's own long-standing ⚠️ is resolved. Re-run `check:katex` (after a fresh
+`dump_text_fields`) any time the corpus changes meaningfully — a bulk import, a batch edit, a large
+wave of new community submissions.
+
+## 17E. Phase 4: a real accessibility audit (✅ done)
+
+The second Phase 4 hardening item, per Section 8's own "keyboard-navigable filters/forms,
+sufficient contrast in both themes" non-functional requirement — a real, mechanical audit against
+the actual running app, not a manual eyeball pass or an assumption that the framework/component
+library gets this right by default (there is no component library here — every element is
+hand-written).
+
+**A new, permanent frontend script, `frontend/scripts/check_accessibility.ts`** (`npm run
+check:a11y`) — drives real headless Chromium (`playwright-core`, the same pre-cached binary the
+KaTeX sweep's own browser spot-check already uses) against the app's real, running dev servers and
+runs the real **axe-core** engine (`axe-core`, a new devDependency, injected in-page via
+`page.addScriptTag`) directly against the live DOM, both anonymous and authenticated (a real
+moderator session, seeded by logging in for real against the backend and writing the resulting
+token to `localStorage` under `token.svelte.ts`'s own real persistence key). Covers every route in
+Section 15's own routing sketch plus the two Section 17B additions (`/users/[id]`,
+`/notifications`) — 12 distinct pages, plus a 13th: the exercise-detail page audited a *second*
+time with its hint/answer/solution sections actually clicked open (Section 7's progressive-reveal
+requirement means that content never enters the DOM until interacted with, so auditing only the
+collapsed state would silently skip it). Deliberately targets the **richest real course** across
+every field (most exercises, resolved by walking the real `/api/fields/`→courses→exercises graph
+at runtime, not hardcoded) rather than one of the two 1-exercise stub courses (Section 3) — a
+meaningful, content-heavy page, not a near-empty one that would trivially pass.
+
+**A real false-negative risk was found and guarded against while building this, not assumed away:**
+a page that silently fails to render (a thrown error mid-mount, a blank 404) would trivially "pass"
+axe-core with zero violations simply because there's nothing left on the page to audit — the exact
+same class of blind spot the KaTeX sweep's own real-browser spot-check already had to guard
+against, for the identical underlying reason. The checker tracks console/page errors and a real
+body-text-length sanity floor (80 chars — the header/nav chrome alone already clears this on any
+real render) per page, and treats either signal as its own hard failure, separate from and in
+addition to axe's own violations.
+
+**That guard immediately caught a real, if minor, gap, not a false alarm:** every audit run showed
+an intermittent `console error: Failed to load resource: ... 404` on the very first page of a
+fresh browser context, never on any subsequent page in the same run. Traced to a genuine cause, not
+assumed: `curl http://localhost:5174/favicon.ico` really does 404 — `frontend/static/` was
+completely empty, and `app.html` had no `<link rel="icon">` at all, so a browser's own implicit
+first-navigation favicon probe was failing for real, on every fresh session, just not always
+observed by a `page.on('response')` listener depending on exactly when in the navigation it fired.
+**Fixed with a real, permanent asset**, not suppressed: `frontend/static/favicon.svg`, reusing the
+header's own "∫" brand mark and `$light-accent` teal, wired via a real `<link rel="icon">` in
+`app.html`. Re-verified clean across 3 consecutive fresh-browser runs after the fix (previously
+intermittent, ~1-in-8 runs) — confirmed present in the real production `adapter-static` build
+output (`build/favicon.svg`, `build/200.html`'s own `<link>` tag) too, not just the dev server.
+
+**Real axe-core violations found and fixed, not just infrastructure:**
+
+- **`color-contrast` (serious) — the "Verified solution" badge and every button/border sharing its
+  color token.** `$light-status-success` (`#1a8a4a` on `#e5f6ec`) measured at **3.92:1**, below the
+  4.5:1 WCAG AA threshold for normal-size text. Every other status-pill color pair
+  (danger/warning/info) was spot-checked at the same time, not just the one axe happened to render
+  on the audited pages, and all three already cleared 4.5:1. Fixed by darkening the token to
+  `#146e3b` (**5.63:1**, real margin, same green hue) — one token-level fix that cascaded correctly
+  to every real consumer sharing it (`VerifiedBadge`, the moderation queue's own "Restore" button,
+  `TagChip`, `CoverageVoteWidget`, `/my-set`, `/settings`), confirmed by axe reporting zero
+  remaining `color-contrast` violations anywhere in the app afterward, not just on the one badge
+  first flagged. The dark-theme counterpart was checked too (composited against its own semi-
+  transparent badge background) and was already fine (7.74:1) — left untouched.
+- **`landmark-unique` (moderate) — the main nav and every breadcrumb nav.** Four `<nav>` elements
+  app-wide (`Header.svelte`'s `.site-nav`, plus a `.breadcrumb` nav on the field/course/exercise
+  detail pages) all shared the same missing-accessible-name problem — two or more unlabeled `<nav>`
+  landmarks are indistinguishable to a screen-reader user navigating by landmark. Fixed with two new
+  i18n message keys (`nav_mainNavigation`/`nav_breadcrumb`, both locales, per this doc's own
+  "never English-only" standing rule) wired as `aria-label` on all four elements.
+- **`aria-required-children` (**critical**) — the moderation queue's own tab switcher.** `role="tablist"`
+  on a `<div>` whose children were plain `<button>`s with no ARIA role at all — an invalid ARIA
+  tree, not a cosmetic issue. Fixed with a real, complete WAI-ARIA tabs pattern: each button gained
+  `role="tab"`/`id`/`aria-selected`/`aria-controls`, and the (previously four separate, now one
+  shared, since only one is ever rendered at a time) tab content area became a real
+  `role="tabpanel"` with `aria-labelledby` tracking whichever tab is actually active.
+- **`heading-order` (moderate) — the same moderation queue, `<h1>` jumping straight to `<h3>` per
+  queue item with no `<h2>` between them.** Not a cosmetic linter-pleasing fix: the active queue
+  section (Reports/New exercises/Edit suggestions/Translations) genuinely IS a level-2 section of
+  "Moderation queue," and each item's own title genuinely nests under it — the document outline was
+  wrong, not just under-labeled. Fixed with a real `<h2>` (visually hidden via this codebase's own
+  existing `mix.visually-hidden` SCSS mixin/per-component convention — the tabs' own active-state
+  styling already communicates the same boundary visually, so the heading text doesn't need to be
+  seen too, only present in the DOM for heading-navigation).
+
+**Verified end-to-end, not assumed from the fixes reading correctly:** re-ran the full, hardened
+checker three consecutive times after every fix — **"Audited 13 pages (0 had a load problem). 0
+critical/serious violation node(s), 0 moderate/minor violation node(s)"** every time, against the
+real, richest course (`matematyka`/`uw-matematyka-am2`, 383 exercises) with hint/answer/solution
+genuinely revealed. `npm run check`/`lint`/`build` all clean throughout, including the production
+`adapter-static` output.
+
+### Left open, not built
+
+- **`axe-core` catches roughly a third of real WCAG issues by its own documented design** — it's a
+  real, load-bearing first pass (and this one found four genuine bugs, not zero), not a substitute
+  for a manual keyboard-only walkthrough or a screen-reader smoke test (NVDA/VoiceOver), neither of
+  which was performed here.
+- **No color-blindness simulation** — contrast ratios were checked and fixed for luminance, not for
+  any specific color-vision-deficiency simulation.
+- **The exercise-detail page's authenticated state (logged-in review/comment composer, "add to my
+  set" button) wasn't separately audited** — only its anonymous state, plus the anonymous revealed
+  hint/answer/solution state. The Notifications/Settings pages already cover the bulk of this app's
+  real authenticated-only UI surface, but a logged-in exercise-detail visit specifically wasn't
+  added as its own 14th audit target.
+- **The checker takes roughly 1–2 minutes per run** (walking every field/course/exercise via real
+  API calls to find the richest content, then a real page load + axe run for 13 pages) — a real,
+  known cost of the "audit the real, running system" choice, not something to optimize away by
+  reintroducing the false-negative risk a hardcoded/stub target would bring back.
+
+## 17F. Phase 4: the moderation-queue synthetic load test (✅ done)
+
+The third Phase 4 hardening item — seed a real, large, realistic-shaped pending backlog and measure
+`GET /api/moderation/queue/` and the `/moderation` page under it, specifically to verify or refute
+`moderation/services.py`'s own `build_report_queue()` docstring, which used to claim its per-target
+N+1 query pattern was "fine at this app's real scale." It wasn't — the measurement refuted that
+claim outright, and this item's real work was fixing what it found, not just reporting it.
+
+### Seeding — a real, permanent, manifest-tracked tool
+
+**`backend/moderation/management/commands/seed_moderation_load_test.py`** (`manage.py
+seed_moderation_load_test [--reports N] [--submissions N] [--edits N] [--translations N]
+[--clear]`) — seeds real, distinct rows against the real, already-migrated 742-exercise corpus
+(never synthetic filler exercises of its own): ~200 pending Report **groups** (the unit
+`build_report_queue()` actually iterates, not raw rows — real Comments/Reviews used first, since
+there's a limited real supply of both, the rest filled with real Exercises; ~20% of groups get 2-3
+reports from distinct demo users so the aggregation logic is exercised for real, not just the
+single-reporter case) plus 60 each of pending ExerciseSubmissions/EditSuggestions/
+ExerciseTranslations. Every row created is tracked by primary key in a manifest file
+(`/tmp/edmat_loadtest_manifest.json`) — `--clear` deletes **exactly** those rows and nothing else,
+regardless of what real pending items a moderator or an earlier verification pass left behind in
+the same tables. Real run: 242 Report rows across 198 groups, 60/60/60 of the other three — a
+substantial, realistic backlog, not a toy sample.
+
+### Measurement — a real, permanent tool, not a one-off
+
+**`backend/moderation/management/commands/measure_moderation_queue.py`** (`manage.py
+measure_moderation_queue`) — uses `CaptureQueriesContext` (forces query logging regardless of
+`settings.DEBUG`, the correct tool for this, not a `DEBUG=True` workaround) to measure the real SQL
+query count and wall-clock cost of `build_report_queue()` alone and the full
+`build_moderation_queue_payload()` response (the exact function `ModerationQueueView.get()` itself
+calls now — see below), against a stated, real threshold (under 1000ms / 300 queries reads as
+"FINE" for a moderator-only, low-traffic admin page; this app has never claimed to optimize for
+high-concurrency throughput).
+
+**Before any fix:** `build_report_queue()` alone — **820 SQL queries, 1452ms**, for 198 report
+groups. The full moderation queue response — **879 queries, 1542ms**. Both verdict: **CONCERNING**.
+The docstring's own "fine at this app's real scale" claim was wrong, not confirmed.
+
+### The real fix — `build_report_queue()` rewritten from O(4·N) to O(few)
+
+`build_report_queue()` (moderation/services.py) was doing, per report GROUP: a `model.objects.get()`
+to resolve the target, a separate `Report.objects.filter(...)` for the reasons list, an
+`exercise.views.count()` for the viewer-pool percentage, and (via `_describe`) an
+`exercise.translations.filter(...)` to resolve the title — 4 real queries × 198 groups. Rewritten to
+do a small, fixed number of BULK queries instead: one target-resolving query per involved kind (at
+most 3 — Exercise/Comment/Review — never one per group), one bulk `ContentView` count aggregate, one
+bulk `ExerciseTranslation` fetch, and one bulk "reasons" fetch grouped in Python. The one deliberate
+exception, not chased further: a Comment's own generic `target` (which Exercise's viewer-pool it
+borrows) still costs one real query per COMMENT-kind group — Comments are the minority target kind
+in this app's real data (Exercise/Review resolve for free from the bulk fetch), and fully
+eliminating that last handful would mean bulk-prefetching an arbitrarily-recursive
+`GenericForeignKey` chain for a marginal additional gain over the real, measured win of collapsing
+`O(4·N)` into `O(few + comment_count)`.
+
+**Rigorously verified for correctness, not just re-measured for speed** — a real requirement for any
+query-optimization refactor, since a faster function that returns wrong data is worse than a slow
+correct one. The pre-edit implementation was extracted from git history under a renamed function and
+run against the exact same live DB state as the new one; the first diff found a real, genuine bug
+the rewrite introduced (`view_count` read `None` instead of `0` for an exercise with zero recorded
+views — a real, meaningful distinction this app's own percentage calculation depends on, conflated
+by a bare `.get(pk)` instead of `.get(pk, 0)`), fixed, and re-diffed to a clean **"MATCH: every row
+identical... sort order identical: True"** across all 198 real groups, `last_reported_at` included.
+
+**A second N+1 found and fixed in the same pass:** the full queue response's own submissions list
+used `ExerciseSubmissionSerializer.course` (a `SlugRelatedField`, resolving `.course.slug` per row)
+with no `select_related('course')` — a real, separate per-row query for all 60 pending submissions.
+Fixed alongside the report-queue rewrite.
+
+**Deduplicated the two query-building paths, not left as two copies that could silently drift:** the
+same logic `ModerationQueueView.get()` runs now lives in one place —
+`build_moderation_queue_payload()` (moderation/services.py) — imported and called identically by
+both the real view and `measure_moderation_queue`, so there's only ever one real code path to keep
+correct/optimized, not a hand-copy in the measurement tool that a future fix to the view could
+silently stop reflecting.
+
+**After the fix:** `build_report_queue()` alone — **33 queries, ~91-131ms**. The full moderation
+queue response — **32 queries, ~103-160ms**. Both verdict: **FINE**. A real ~25× query reduction, a
+real ~15× wall-time reduction, against the exact same 198-group seeded backlog. Confirmed live
+against the real running server too, not just the internal measurement: `GET
+/api/moderation/queue/` via `curl` — **210ms** end-to-end HTTP round trip, correct counts, `view_count:
+0` (not `null`) correctly present for a genuinely zero-view exercise.
+
+### The frontend's own, separate N+1 — found while verifying the real page, not assumed fixed
+
+Fixing the backend alone left the real `/moderation` page rendering in **10.4–16 seconds** on a
+fresh load — a real, substantial gap between "the backend responds in ~200ms" and "the page is
+actually usable" that a purely backend-side measurement would have missed entirely, which is exactly
+why this item's own instruction was to measure the PAGE, not just the endpoint. Investigated
+methodically, not guessed: a real A/B test (temporarily bypassing `DOMPurify.sanitize()` in
+`renderTitle`, re-measuring, restoring) ruled out title-rendering cost as the cause (~11s either
+way); a real network trace found the actual cause — `moderation/+page.svelte`'s own `load()`
+function was resolving every distinct Exercise referenced by a pending edit-suggestion or
+translation via `Promise.all(exerciseIds.map((id) => getExerciseById(id, 'pl')))`, firing **115
+individual `GET /api/exercises/{id}/` requests** under the real seeded backlog — a frontend-side N+1
+the exact same shape as the backend one, just never measured before because nothing had previously
+exercised the moderation queue at real volume.
+
+**Root cause traced to an assumption that was true for its original caller, but not for a second one
+that started relying on the same function without re-checking it.** `getExercisesByIds` (a
+pre-existing helper, `lib/services/exercises.ts`) already did this exact N-fetch fan-out — its own
+doc comment explicitly reasoned "a set [My Set] is typically a handful of exercises... simple and
+fast enough rather than adding a bespoke bulk endpoint for one caller." True for My Set's own
+real-world scale; the moderation page never actually called this shared helper at all — it had its
+own separate, inline copy of the identical N-fetch pattern, which is what let the assumption go
+unchallenged even as this session's own load test proved it wrong at real scale.
+
+**Fixed with a real bulk endpoint, not a workaround:** `GET /api/exercises/bulk/?ids=1,2,3&lang=pl`
+(new `@action(detail=False)` on `ExerciseViewSet`) — resolves every requested id in one request,
+using `ExerciseDetailSerializer` (not the lighter List shape `list()` uses — My Set's own real PDF
+export needs the full statement/hint/answer/solution content, and sharing one endpoint for both
+callers is simpler than a second, narrower one for a difference that's already cheap once genuinely
+bulk-optimized). `getExercisesByIds` was rewritten to call it (one request instead of N); both real
+callers — My Set and the moderation page, the latter now routed through the shared helper instead of
+its own separate inline copy — benefit, not just the one that motivated the fix. Deliberately does
+**not** call `ContentView.get_or_create` the way `retrieve()` does — a bulk resolve for a queue
+listing or a study sheet isn't a real "viewed this exercise's own detail page" event.
+
+**A second, serious, latent correctness bug found and fixed while building the bulk endpoint, before
+it ever shipped:** `ExerciseDetailSerializer`'s own translation-resolution helper cached its result
+on `self` (`self._cached_translation`) — safe for the two single-instance callers that existed
+before (`retrieve()`, `random()`), but silently **wrong** the instant this serializer is used with
+`many=True`: DRF's `ListSerializer` reuses **one shared child serializer instance** across every row
+(`self.child.to_representation(item)` per item), so every exercise past the first in a bulk response
+would have shown the *first* exercise's own statement/hint/answer/solution instead of its own — a
+real data-integrity bug, not a performance one, caught specifically because this new `bulk` endpoint
+was the first place this serializer was ever used with `many=True`. Fixed by caching on the per-row
+`obj` instead (a real, distinct object per row) — verified live: 115 real exercises resolved through
+the bulk endpoint, every title confirmed genuinely distinct, none repeated.
+
+**Fully query-optimized, not just correctness-fixed, verified by direct measurement rather than
+assumed from reading the field list:** unified `title`/`resolved_locale`/`statement`/`hint`/
+`answer`/`solution`/`translated_by`/`available_locales` onto one shared, per-object-cached,
+prefetch-cache-friendly translation resolver (reading `obj.translations.all()`, which Django serves
+from a `prefetch_related('translations')` cache with zero extra queries when the caller requests
+one, rather than `.filter(status='published')`, which always issues a fresh query regardless of any
+prefetch). The `bulk` action's own queryset adds `select_related('course', 'source')` +
+`prefetch_related('translations', 'topics', 'tags', 'source__translations')` — every relation the
+Detail serializer touches. Measured directly (`CaptureQueriesContext`) against the real 115-id set:
+**5 queries total, 125ms** — a fixed, small cost independent of row count, not a reduced-but-still-
+per-row one.
+
+**End-to-end result, verified via real headless-Chromium network traces, not assumed from the
+backend numbers alone:** backend API requests fired by one `/moderation` page load dropped from
+**127 to 13** (the 115 individual exercise fetches collapsed into the one `bulk` call); zero
+console/page errors; every edit-suggestion/translation row's title confirmed real, correctly
+resolved, and non-blank. Full page render time (all 198 report items in the DOM) improved from a
+consistent **10.4–16s down to a consistent ~5.6–7.3s** — a real, roughly 2× improvement, verified
+across multiple repeated runs, not a one-off measurement.
+
+**The remaining ~5.6-7.3s was investigated, not left unexplained, and found to be dev-tooling
+overhead unrelated to anything this item could further fix.** Profiling isolated it precisely:
+`/api/auth/me/` — the very first request any page fires — took over 4 seconds to even begin
+resolving under Playwright's own network trace, yet the exact same request measured **28-59ms** via
+a direct, isolated `curl` call. Testing three entirely unrelated, simple pages (`/`, `/fields`,
+`/login`) with a fresh browser context showed the identical multi-second-before-first-request
+characteristic, confirming this is Vite's own dev-server cold module-graph compilation cost per
+fresh browser session — not a `/moderation`-specific problem, not a backend query cost (already
+independently measured at ~100-200ms via `curl` and `CaptureQueriesContext`, both outside any
+dev-server bootstrap path), and not present in the real production build (`npm run build`, already
+verified clean throughout this work). Flagged honestly rather than chased further or silently
+omitted from the numbers.
+
+### Cleanup
+
+The seeded synthetic backlog was cleared via `manage.py seed_moderation_load_test --clear` once
+measurement and verification were complete — the manifest-based deletion removed exactly the 242
+Report rows / 60 submissions / 60 edits / 60 translations this command created, confirmed by
+re-checking pending counts landed back at the exact real baseline (1/0/1/1) from before seeding. Both
+management commands stay in the repo as real, permanent, reusable tools — re-run
+`seed_moderation_load_test` then `measure_moderation_queue` after any future change to the
+moderation-queue logic, the same "worth re-running, not a one-time audit" discipline the KaTeX
+sweep's own tooling already established.
+
+### Left open, not built
+
+- **`build_report_queue()`'s one remaining real query-per-group case (Comment targets resolving
+  their own generic `target`) was deliberately left as-is**, not chased into a full bulk-prefetch of
+  an arbitrarily-recursive `GenericForeignKey` chain — Comments are the minority report-target kind
+  in this app's real data, and the remaining cost scales with comment-report count, not total report
+  count.
+- **No real load-testing with actual volunteer moderators** — this environment has no real
+  moderators to recruit; the synthetic seeded backlog is a real, substantial stand-in, but a genuine
+  multi-user concurrent-access test (several moderators acting on the same queue at once) wasn't and
+  couldn't be performed here.
+- **The Vite dev-server cold-load overhead (~3-5s per fresh browser session, confirmed general, not
+  moderation-specific) is unaddressed, deliberately** — it isn't present in the production build,
+  and isn't caused by anything this item's own scope (backend queries, frontend request fan-out)
+  covers.
+- **`getExercisesByIds`'s own doc comment previously reasoned specifically about My Set's small
+  scale** — that reasoning is now genuinely outdated by the fix (the function is bulk-optimized for
+  any real scale now), and the comment was rewritten to reflect the real history, not left
+  contradicting the code underneath it.
+
+## 17G. Feature: the material detail page (✅ built)
+
+The one real gap Section 17C's own "Left open" list had explicitly flagged: "This app has no
+standalone material detail route at all (confirmed: none exists anywhere in `routes/`)... A real
+fix would need a material detail page first, out of scope for this feature." Built now,
+`routes/materials/[id]/+page.svelte`.
+
+**A genuinely thin route, not a rebuild — every real piece it needs already existed.** The backend's
+`GET /api/materials/{id}/` (`materials/views.py`'s `MaterialViewSet`, already a real
+`ReadOnlyModelViewSet`), the frontend's own `getMaterialById` service (`lib/services/materials.ts`),
+and — the actual reason this page's own body is so small — `MaterialCard.svelte` itself, which
+already renders everything a material has: title, description, a type badge, every coverage claim
+(topic/subtopic/level, with `CoverageBadge`/`CoveragePopover`/`CoverageVoteWidget`, vote counts, and
+a per-claim discussion thread), tags (via `TagChip`, the follow/notify/save-for-later hover menu),
+and a real, working download link. The page reuses this same component directly rather than
+re-implementing any of it — the same "one card component, reused at a different weight/context"
+economy `ExerciseCard`/the exercise detail page already establish.
+
+**Follows the exact same route pattern every other detail page in this app already uses** — a plain
+`+page.svelte` (no `+page.ts`, this app's own established "no server-rendered-auth story to back a
+real load function" reasoning), an `$effect` keyed off `page.params.id` with the same id-changed
+idempotency guard the exercise detail page's own Phase 1 bug fix already established (a plain
+`$effect(() => loadAll(page.params.id!))` re-fires spuriously even with no navigation), a real
+breadcrumb (Home → Field → Course, `aria-label={m.nav_breadcrumb()}` — the same accessible-landmark
+fix Section 17E already applied to every other breadcrumb in this app), and a real not-found state
+for an id that doesn't resolve.
+
+**`MaterialCard.svelte` gained a real `linkTitle` prop** (default `true`) — before this, its title
+was a bare, non-navigating `<h3>` everywhere, including on the course page's own Materials grid,
+which had no way to reach a material's own page at all even once one existed. `linkTitle={true}`
+(the course-page grid's own default) wraps the title in a real `<a href={resolve('/materials/[id]',
+...)}>`, matching `ExerciseCard`'s own established title-link convention exactly; the new detail
+page itself passes `linkTitle={false}` — linking a material's own title back to the very page it's
+already on would be a pointless, confusing self-link, not a real navigation affordance.
+
+**Closes a second, explicitly-flagged real gap in the same pass:** `NotificationCard.svelte`'s own
+`newTaggedContent` template used to fall through to a non-navigating, mark-as-read-only card the
+instant a followed-tag notification targeted a Material instead of an Exercise, with its own doc
+comment stating plainly why ("this app has no standalone material page to link to at all"). Now
+resolves `notification.materialId` to a real `resolve('/materials/[id]', ...)` link, the same as
+`notification.exerciseId` already did.
+
+**One new i18n key** (`material_notFound`, both `en.json`/`pl.json`, per this app's own "never
+English-only" standing rule) — every other string the page needs (`common_home`, `common_loading`,
+`nav_breadcrumb`, `material_heading`, `common_appName`) already existed.
+
+### Verified end-to-end against the real running app, not assumed from the code alone
+
+Headless Chromium (`playwright-core`): direct navigation to a real material (`/materials/1`) renders
+the correct title, a correct three-level breadcrumb (Home › Matematyka › Analiza Matematyczna II),
+and a real download link; a non-existent id (`/materials/999999`) shows the real "Material not
+found." message, not a crash; clicking a material's title from the course page's own Materials tab
+correctly navigates to `/materials/1` and renders the same content a direct visit does — the whole
+point of wiring `linkTitle` in, confirmed as a real click-through, not just an href string check;
+the detail page's own title correctly renders WITHOUT a self-link (`linkTitle={false}` verified,
+0 `.material-card__title-link` elements present there, vs. 1 present on the course page's grid).
+
+**The `newTaggedContent` → Material link verified through the real backend flow, not faked:** a real
+`TagFollow` (Kasia following a fresh test tag) and a real `notify_tag_followers()` call (Michał
+"applying" that tag to a real material) produced a genuine `Notification` row with `material_id`
+set; logging in as Kasia and opening `/notifications` showed the real notification with a working
+`/materials/1` link, and clicking it landed on the real material page with the correct title. All
+test data (the tag, the follow, the notification) was cleaned up afterward, confirmed removed.
+
+`npm run check`/`lint`/`build` and `manage.py check` all clean throughout.
+
+### Left open, not built
+
+- **No material-level top-level discussion** — this app's real backend only ever gave a Material's
+  own per-`MaterialCoverage`-claim discussion a comment endpoint (`MaterialCoverageViewSet.comments`);
+  there is no `GET/POST /api/materials/{id}/comments/` for the material as a WHOLE the way an
+  Exercise gets. The new detail page doesn't invent one — it shows exactly what the real API
+  supports (coverage-level discussion, via the same `CoveragePopover` the card already had), not a
+  fabricated top-level thread with nothing real backing it.
+- **No star-rating/review system for materials** — `Review.exercise` is a real, direct FK (Exercise
+  only, Section 9's own data model), not generic; materials were never in scope for that system, and
+  this page doesn't add one.
+
+## 17H. Feature: real-time notification delivery via SSE (✅ built)
+
+Closes the last item from the explicit "Phase 4 then, material detail page, then real-time
+notification delivery" directive, and the specific gap Section 18 item 9 already documented in
+detail: before this, a new `Notification` row was only ever discovered on the next explicit fetch
+(a page mount, opening the bell, a fresh login) — `notify()` genuinely created it, but nothing told
+a connected browser tab it existed. Built exactly per that item's own recommendation: **Server-Sent
+Events, a DB-polling loop, no Django Channels/Redis** — the lighter of the two real options that
+section's own writeup weighed, chosen for the same reason stated there: SSE is a single long-lived
+HTTP response DRF can serve directly, no new infrastructure dependency, whereas Channels would be a
+real architectural addition (a second server process, a channel layer) disproportionate to this
+app's own real event volume.
+
+### Backend — `GET /api/notifications/stream/?token=...`
+
+`NotificationStreamView` (`notifications/views.py`) — a plain DRF `APIView` whose `get()` returns a
+raw `StreamingHttpResponse` directly (DRF's own `finalize_response` only touches an `isinstance(...,
+Response)` object, so a raw Django response passes through completely unmodified — confirmed, not
+assumed, by real end-to-end testing). The generator polls `Notification.objects.filter(recipient=
+user, id__gt=last_id)` every `SSE_POLL_INTERVAL_SECONDS` (3s), yielding each new row as a real SSE
+`data:` frame (`NotificationSerializer`'s own JSON, unchanged), and a `: keep-alive` comment line
+between polls (the standard SSE practice for connections behind a proxy — none exists in this dev
+setup, but it's correct regardless of deployment). Capped at `SSE_MAX_CONNECTION_SECONDS` (600s) —
+`EventSource`'s own native auto-reconnect (using the `retry: 3000` directive the stream's first
+frame sends) makes this a bounded, invisible reconnect rather than a real interruption, and it's
+what keeps a long-idle connection from holding a Django dev-server thread open forever. Only
+notifications created *after* the stream opens are ever sent — the client's own initial `GET
+/api/notifications/` (unchanged, still the one place full history loads) already covers everything
+older.
+
+`notify()` itself, the `Notification` model, and every existing call site (moderation decisions,
+auto-hide, comment replies, tag-follow pushes) are **completely unchanged** — this hooks in as a
+pure reader of the same table every other notification surface already reads, exactly the "no
+redesign of how/when a notification gets created" property Section 18 item 9 already called for.
+
+**The honest limitation, stated plainly rather than oversold:** "real-time" here means a new
+notification becomes visible within `SSE_POLL_INTERVAL_SECONDS`, not literally the instant it's
+created — a genuine, bounded latency from DB-polling, not true push. Verified concretely: a
+notification created mid-test, with the browser tab never touched, appeared in the UI within 4
+seconds with zero manual action.
+
+**The token-in-query-param auth tradeoff, documented honestly, not silently accepted** — exactly as
+Section 18 item 9 already flagged this would be needed. `QueryParamTokenAuthentication`
+(`notifications/views.py`) reads the token from `?token=...` instead of the `Authorization` header,
+because the browser's native `EventSource` API cannot set custom request headers *at all* — a real,
+permanent limitation of that API, not a workaround for something DRF could otherwise do. A token in
+a URL can end up in server access logs, browser history, and a `Referer` header in a way a header
+never does — mitigated two real ways: this authentication class is wired onto **only** this one
+view, never added to the global `DEFAULT_AUTHENTICATION_CLASSES` (every other endpoint keeps
+requiring the real, header-based token); and the code's own doc comment names the better real fix (a
+short-lived, purpose-scoped SSE ticket minted just before opening the stream) as a genuine follow-up
+this prototype's own auth infrastructure doesn't yet support, not a solved problem.
+
+### A real bug found and fixed during browser verification, not shipped broken
+
+Manual `curl` testing of the raw endpoint looked completely correct — real, live, incrementally-
+flushed SSE frames, a genuinely working push when a notification was created mid-stream. **A real
+headless-browser test caught what `curl` couldn't**: `EventSource` sets `Accept: text/event-stream`
+on every request it makes, a header `curl`'s own default `Accept: */*` never sends — and DRF's
+content negotiation, which runs *before* `get()` is ever called, was rejecting that exact header
+with a **406 Not Acceptable**, since neither of the view's default renderers (`JSONRenderer`,
+`BrowsableAPIRenderer`) declared `text/event-stream` as an accepted media type. Reproduced
+deterministically (`curl -H "Accept: text/event-stream"` → 406, confirming the exact browser
+behavior) before fixing it — not just patched and hoped. Fixed with a real, minimal
+`EventStreamRenderer` (declares `media_type = 'text/event-stream'`, its own `render()` is never
+actually called since this view bypasses DRF's render step entirely — it exists purely to satisfy
+negotiation), added to `NotificationStreamView.renderer_classes`. Re-verified with the exact same
+`Accept` header afterward: a real, correctly negotiated, long-lived 200 stream.
+
+### Frontend — `EventSource`, wired into the existing store, not a new UI
+
+`connectNotificationStream(token)` (new export, `lib/services/notifications.ts`) — a thin,
+one-line `EventSource` construction, matching this app's own "the service layer owns every real
+fetch/connection, components/stores never touch one directly" discipline. `notificationStore`
+(`lib/state/notifications.svelte.ts`) gained a private `connectLiveStream()` (opens the connection
+once, parses each `message` event through the existing `mapNotification`, and prepends the result to
+`items` — deduplicated against a same-id race with a manual `refresh()`) and now calls it from
+inside `refresh()` itself, rather than requiring every one of `refresh()`'s three real call sites
+(root layout mount, login, register) to separately remember to also connect the stream — a single,
+robust integration point instead of three places that could drift.
+
+**Imports `tokenStore` (`token.svelte.ts`), deliberately not `authStore`** — the exact same
+"avoid a circular import" reasoning this module's own pre-existing doc comment already gave for
+never importing `authStore` directly. `token.svelte.ts` is a genuinely dependency-free leaf module
+(its own doc comment: "has no dependency on either, breaking the cycle"), so importing it here
+carries zero risk, while still getting the raw token this feature needs.
+
+**`clear()` (called from `logout()`) now also closes the live connection**, not just the local
+cache — a real correctness property, not a nicety: without it, a stream authenticated as the
+*previous* account would keep running (or silently fail to reconnect as a new one) after the session
+that opened it had already ended. Verified precisely: exactly one SSE connection opens per login;
+zero new stream requests fire in the 4 seconds following a real logout (proving the connection was
+genuinely closed, not merely left to auto-reconnect, which *would* have produced a new request).
+
+### Verified end-to-end, headless Chromium against the real running app, not assumed from the code alone
+
+A real notification created **entirely server-side, mid-test, with the browser tab never touched** —
+no click, no manual refresh, no reload — correctly appeared in the reactive unread-count badge
+(`1` → `2`) within the poll interval, confirmed via the exact DOM element the badge actually renders
+(`.notification-bell__toggle .badge`), not a loose selector that could have matched something else.
+Zero console/page errors on the post-fix run (the pre-fix run's own single error was the 406 above,
+confirming the fix closed the actual gap rather than one unrelated to it). All test notifications
+created for verification were cleaned up afterward, confirmed removed. `npm run check`/`lint`/
+`build` and `manage.py check` all clean throughout.
+
+### Left open, not built
+
+- **Email delivery** — the *other* piece of infrastructure Section 18 item 9 already flagged as
+  missing (a real `EMAIL_BACKEND`, the same gap `PasswordResetView`'s own honest stub has had since
+  Phase 2) remains unbuilt. Wiring one up would unblock both gaps at once, per that section's own
+  note — not attempted here, since this directive's own scope was specifically the SSE piece.
+- **Browser/OS-level push** (a notification even when the tab isn't open) still needs the Web Push
+  API — a service worker, a stored push subscription per browser, `pywebpush` server-side — real,
+  meaningfully more infrastructure than in-app delivery, and only worth it once there's a concrete
+  reason a visitor needs to know without the tab open. Not built, as Section 18 item 9 already
+  anticipated.
+- **The short-lived SSE ticket this feature's own code flags as the real fix for the query-param
+  token tradeoff** is a genuine follow-up, not a solved problem — this prototype has no session/
+  ticket-minting infrastructure to build it on yet.
+- **No load-testing of many simultaneous open SSE connections** — Django's dev server holds one
+  thread per open connection with no async event loop; this is fine for the handful of demo users
+  this environment has, and would be a real, separate concern (worth its own investigation, the same
+  spirit as Section 17F's own load test) the moment this needed to support many real concurrent
+  users.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this
@@ -995,10 +1846,23 @@ unseen" branch, not an assumption that it works because the code reads correctly
    regardless of who submitted it? Section 5 leaves this open rather than deciding it. Phase 2's own
    "moderator" gate (`is_staff`) is a coarser, adjacent concept — not the same tier this item asks
    about, and doesn't resolve it.
-5. ✅ **`venv` vs `.venv` duplication — resolved (Phase 2).** Both turned out to be stale/mismatched
-   (built against a Python version not present on this machine); deleted and rebuilt as a single
-   working `.venv` via `python3 -m venv --without-pip` + a manual `get-pip.py` bootstrap, since this
-   sandbox has neither `sudo`/root access nor an interactive TTY for `apt install python3-venv`.
+5. ✅ **`venv` vs `.venv` duplication — resolved (Phase 2), recurred and resolved again (Notifications
+   feature session).** Both turned out to be stale/mismatched the first time (built against a Python
+   version not present on this machine); deleted and rebuilt as a single working `.venv` via
+   `python3 -m venv --without-pip` + a manual `get-pip.py` bootstrap, since this sandbox has neither
+   `sudo`/root access nor an interactive TTY for `apt install python3-venv`. **Recurred**: a later
+   session's own `.venv/pyvenv.cfg` was found pointing at `/home/piotrek/Wymiana_VW/edmat` (Python
+   3.14, `python -m venv`), an entirely different machine/user/path than this sandbox's own
+   `/home/alojzy/Zrzut_Na_Hosta/edmat` (Python 3.12) — the directory had evidently been copied
+   wholesale from elsewhere at some point, and `.venv/` (correctly gitignored, so never a git-history
+   question) carried that foreign machine's own baked-in absolute paths along with it; only `pip`
+   itself was actually importable, Django/DRF/etc. were never really there. Rebuilt cleanly with the
+   same no-sudo/no-TTY method against this sandbox's real `python3` (3.12.3). **Also fixed the same
+   session:** `backend/requirements.txt` had never actually been committed at all, despite the
+   README's own setup instructions (`pip install -r requirements.txt`) and project-layout listing
+   both referencing it — a real, broken-fresh-clone gap, now fixed with a real, committed file
+   (`Django<5.3,>=5.2`, `djangorestframework<3.17,>=3.16`, `django-cors-headers<5.0,>=4.4`,
+   `django-filter<25.0,>=24.3`, `Pillow<11.0,>=10.4`, `PyYAML<7.0,>=6.0`).
 6. ⚠️ **Hosting/deployment target** — not decided; affects the `adapter-node` choice's own specifics
    once Phase 3 starts, but doesn't block Phase 1 or 2 (both now built).
 7. ⚠️ **Locales beyond en/pl** — the data model (`ExerciseTranslation.locale` is a free string, not
@@ -1007,6 +1871,36 @@ unseen" branch, not an assumption that it works because the code reads correctly
    catalog. Not planned for v1, just confirmed not to be a structural blocker later.
 8. ⚠️ **KaTeX command-subset compatibility** with the existing corpus's actual LaTeX usage — needs a
    real, mechanical check early in Phase 1 (Section 11), not assumed.
+9. ✅ **Real-time delivery resolved (Section 17H) — email delivery still ⚠️ open.** The `Notification`
+   model/API/UI (17B) were already real; the FRONTEND used to only ever learn about a new one on the
+   next explicit fetch, never live/pushed — now genuinely pushed, via SSE, within a few seconds of
+   creation, see Section 17H's own full writeup (the design this item originally sketched, built as
+   sketched: SSE over Channels, a DB-polling loop, `notify()` itself unchanged). Email delivery
+   remains unbuilt — kept below as the original design starting point for that still-open half:
+   - **Delivery transport — ✅ resolved, SSE chosen and built (Section 17H).** The two real options
+     for a Django backend were: (a) **Django Channels + an ASGI server + a channel layer** (Redis in
+     production, the in-memory layer for dev) for genuine WebSocket push straight to a connected
+     browser tab; or (b) **Server-Sent Events**, a much lighter lift (no new infra dependency, a
+     single long-lived HTTP response DRF can serve directly) but one-way only and without the
+     reconnect/backpressure handling a real WebSocket client library gives for free. SSE was the
+     right first step for a project this size, as predicted — Channels remains a real architectural
+     addition (a second server process, a message broker) this app has never needed to reach for.
+   - **Browser/OS-level push** (a notification even when the tab isn't open) needs the **Web Push
+     API** — a service worker registered client-side, a subscription endpoint storing each browser's
+     push subscription server-side, and a backend library (e.g. `pywebpush`) signing/sending through
+     the browser vendor's own push service. Meaningfully more infrastructure than in-app delivery;
+     only worth it once in-app delivery is real and there's a concrete reason a visitor needs to know
+     without the tab open.
+   - **Email delivery** — the *other* piece of infrastructure this project has flagged as missing
+     since Phase 2 (`PasswordResetView`'s own "mock-era stub... no real email backend exists yet,"
+     accounts/views.py) is the exact same missing piece a "notify me by email" preference would need:
+     a real `EMAIL_BACKEND` (Django's own SMTP backend, or a transactional-email API like
+     Postmark/SendGrid) configured in `config/settings.py`. Wiring one up unblocks BOTH gaps at once,
+     not two separate pieces of work.
+   - **What doesn't need to change:** `notify()` itself, the `Notification` model, and every existing
+     call site (moderation decisions, auto-hide, comment replies) — a real transport would hook in
+     as an ADDITIONAL side effect of the same `notify()` call (e.g. also publishing to a channel
+     group, or also queuing an email), not a redesign of how/when a notification gets created.
 
 ---
 

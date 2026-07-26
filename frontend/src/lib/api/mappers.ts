@@ -15,6 +15,7 @@ import type {
 	CommentTargetType,
 	Course,
 	CoverageVoteSummary,
+	DonationLink,
 	EditSuggestion,
 	Exercise,
 	ExerciseSet,
@@ -26,11 +27,13 @@ import type {
 	MaterialCoverage,
 	MaterialType,
 	ModerationStatus,
+	Notification,
 	ReportGroup,
 	ReportKind,
 	ResolvedExercise,
 	Review,
 	Subtopic,
+	TagFollowState,
 	Topic,
 	User
 } from '$lib/types';
@@ -268,6 +271,14 @@ const BACKEND_TO_FRONTEND_MATERIAL_TYPE: Record<string, MaterialType> = {
 	exam_collection: 'examCollection',
 	midterm_collection: 'midtermCollection',
 	exercise_collection: 'exerciseCollection',
+	formula_sheet: 'formulaSheet',
+	lecture_slides: 'lectureSlides',
+	solution_guide: 'solutionGuide',
+	syllabus: 'syllabus',
+	practice_test: 'practiceTest',
+	recording: 'recording',
+	textbook_excerpt: 'textbookExcerpt',
+	code_dataset: 'codeDataset',
 	other: 'other'
 };
 
@@ -331,6 +342,7 @@ export interface RawMaterial {
 	coverage: RawMaterialCoverage[];
 	file: string | null;
 	author: string;
+	tags: string[];
 	published: boolean;
 	featured: boolean;
 	order: number;
@@ -351,6 +363,7 @@ export function mapMaterial(json: RawMaterial): Material {
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
 		author: json.author,
+		tags: json.tags ?? [],
 		published: json.published,
 		featured: json.featured,
 		order: json.order
@@ -523,6 +536,45 @@ export function mapExerciseSet(json: RawExerciseSet): ExerciseSet {
 
 // ---- accounts -----------------------------------------------------------------------------------
 
+export interface RawDonationLink {
+	id: number;
+	platform: string; // snake_case backend enum values — see PLATFORM_MAP below for the camelCase mapping
+	label: string;
+	display_label: string;
+	url: string;
+	order: number;
+}
+
+// The backend's DONATION_PLATFORM_CHOICES keys, mapped to this app's own camelCase
+// DonationPlatform union — kept as an explicit table (not a blind `snakeToCamel` transform) so an
+// unrecognized value from the backend degrades to 'other' instead of producing a value TypeScript
+// thinks is valid but isn't.
+const DONATION_PLATFORM_MAP: Record<string, DonationLink['platform']> = {
+	paypal: 'paypal',
+	payu: 'payu',
+	blik: 'blik',
+	card: 'card',
+	apple_pay: 'applePay',
+	google_pay: 'googlePay',
+	buy_me_a_coffee: 'buyMeACoffee',
+	ko_fi: 'koFi',
+	patreon: 'patreon',
+	github_sponsors: 'githubSponsors',
+	bank_transfer: 'bankTransfer',
+	other: 'other'
+};
+
+export function mapDonationLink(json: RawDonationLink): DonationLink {
+	return {
+		id: String(json.id),
+		platform: DONATION_PLATFORM_MAP[json.platform] ?? 'other',
+		label: json.label,
+		displayLabel: json.display_label,
+		url: json.url,
+		order: json.order
+	};
+}
+
 export interface RawProfile {
 	id: number; // the USER's own pk (see accounts/serializers.py's own note on why)
 	username: string;
@@ -532,7 +584,13 @@ export interface RawProfile {
 	preferred_locale: string;
 	is_verified_contributor: boolean;
 	is_moderator: boolean;
-	joined_at: string;
+	joined_at: string | null; // null only on a privacy-gated PublicProfile response
+	is_profile_public?: boolean; // present on GET /users/{id}/ only, not on /auth/me/'s own shape
+	show_profile_publicly?: boolean; // present on /auth/me/ only — a stranger's own PublicProfile never includes it
+	notify_on_comment_reply?: boolean;
+	notify_on_moderation_decision?: boolean;
+	notify_on_content_action?: boolean;
+	donation_links?: RawDonationLink[];
 }
 
 export function mapUser(json: RawProfile): User {
@@ -544,6 +602,67 @@ export function mapUser(json: RawProfile): User {
 		joinedAt: json.joined_at,
 		isVerifiedContributor: json.is_verified_contributor,
 		isModerator: json.is_moderator,
-		preferredLocale: json.preferred_locale
+		preferredLocale: json.preferred_locale,
+		isProfilePublic: json.is_profile_public ?? json.show_profile_publicly,
+		donationLinks: json.donation_links?.map(mapDonationLink),
+		showProfilePublicly: json.show_profile_publicly,
+		notifyOnCommentReply: json.notify_on_comment_reply,
+		notifyOnModerationDecision: json.notify_on_moderation_decision,
+		notifyOnContentAction: json.notify_on_content_action
+	};
+}
+
+// ---- tags -------------------------------------------------------------------------------------
+
+export interface RawTagFollow {
+	tag: string; // already the slug — TagFollowSerializer's own SlugRelatedField(slug_field='slug')
+	notify: boolean;
+}
+
+export function mapTagFollow(json: RawTagFollow): TagFollowState {
+	return { tag: json.tag, notify: json.notify };
+}
+
+// ---- notifications --------------------------------------------------------------------------------
+
+export interface RawNotification {
+	id: number;
+	type: string; // backend's snake_case NOTIFICATION_TYPES key — mapped below
+	actor: number | null;
+	actor_display_name: string;
+	target_label: string;
+	exercise_id: number | null;
+	material_id: number | null;
+	note: string;
+	is_read: boolean;
+	created_at: string;
+}
+
+const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
+	submission_approved: 'submissionApproved',
+	submission_rejected: 'submissionRejected',
+	edit_suggestion_approved: 'editSuggestionApproved',
+	edit_suggestion_rejected: 'editSuggestionRejected',
+	translation_approved: 'translationApproved',
+	translation_rejected: 'translationRejected',
+	comment_reply: 'commentReply',
+	content_auto_hidden: 'contentAutoHidden',
+	content_restored: 'contentRestored',
+	content_removed: 'contentRemoved',
+	new_tagged_content: 'newTaggedContent'
+};
+
+export function mapNotification(json: RawNotification): Notification {
+	return {
+		id: String(json.id),
+		type: NOTIFICATION_TYPE_MAP[json.type] ?? 'commentReply',
+		actorId: json.actor !== null ? String(json.actor) : undefined,
+		actorDisplayName: json.actor_display_name,
+		targetLabel: json.target_label,
+		exerciseId: json.exercise_id !== null ? String(json.exercise_id) : undefined,
+		materialId: json.material_id !== null ? String(json.material_id) : undefined,
+		note: json.note,
+		isRead: json.is_read,
+		createdAt: json.created_at
 	};
 }

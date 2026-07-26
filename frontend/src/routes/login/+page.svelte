@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { DEMO_PASSWORD } from '$lib/demo';
 
 	let email = $state('');
@@ -16,6 +17,12 @@
 		const result = await authStore.login(email, password);
 		submitting = false;
 		if (result.ok) {
+			// The root layout's own onMount only ever fires once, on the very first page load — a
+			// login that happens later in the SAME session (this page, not a fresh reload) never
+			// re-triggers it, so the bell's own unread badge would otherwise stay stale (showing
+			// nothing) until the visitor happened to open it once themselves. Fire-and-forget: the
+			// header re-renders reactively the moment this resolves, nothing here needs to await it.
+			notificationStore.refresh();
 			goto(resolve('/'));
 		} else {
 			error = true;

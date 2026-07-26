@@ -16,13 +16,21 @@ from rest_framework import serializers
 
 from config.i18n_utils import request_locale
 
-from .models import Exercise, ExerciseSource, ExerciseSourceTranslation, ExerciseTranslation, Tag
+from .models import Exercise, ExerciseSource, ExerciseSourceTranslation, ExerciseTranslation, Tag, TagFollow
 
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ['id', 'slug']
+
+
+class TagFollowSerializer(serializers.ModelSerializer):
+    tag = serializers.SlugRelatedField(slug_field='slug', read_only=True)
+
+    class Meta:
+        model = TagFollow
+        fields = ['tag', 'notify']
 
 
 def _resolve_exercise_translation(exercise, locale, status='published'):
@@ -87,12 +95,47 @@ class ExerciseListSerializer(serializers.ModelSerializer):
             'created_at',
         ]
 
+    def _published_translations(self, obj):
+        """✅ Phase 4 — the ONE place every title/locale/content-field resolve on this exercise
+        reads from, replacing what used to be several independent calls to
+        `_resolve_exercise_translation` (one for `title`, a separate one for `resolved_locale`, a
+        third — cached only on `self`, see the note this replaced — for `statement`/`hint`/
+        `answer`/`solution`/`translated_by`). Two real, found-before-they-shipped problems, both
+        caught while adding `ExerciseViewSet.bulk` (the moderation-queue load test's own fix) — the
+        first time this serializer was ever used with `many=True`:
+
+        1. Caching on `self` (the old `ExerciseDetailSerializer._translation`) is silently WRONG
+           under `many=True` — DRF's `ListSerializer` reuses ONE shared child serializer instance
+           across every row, so every exercise past the first in a bulk response would have shown
+           the FIRST exercise's own content. Caching on the per-row `obj` instead (a real, distinct
+           object per row) fixes this at the actual source, not routed around in the new endpoint.
+        2. `title`/`resolved_locale` (this class) previously called `_resolve_exercise_translation`
+           directly and UNCACHED, each triggering its own fresh `exercise.translations.filter(...)`
+           query — meaning even a single exercise cost 2-4 separate translation queries before this
+           unification, on top of `get_available_locales`'s own separate query below.
+
+        Reads `obj.translations.all()`, not `.filter(status='published')` — `.all()` is what lets
+        this transparently use Django's `prefetch_related('translations')` cache when the caller's
+        own queryset requested one (`ExerciseViewSet.bulk` does, specifically so 115 exercises cost
+        ZERO extra queries here, not 115) while still working correctly, just with one real query
+        per object, when it wasn't prefetched (`retrieve()`/`random()`, both single-object, where a
+        prefetch would be pure overhead for no benefit).
+        """
+        if not hasattr(obj, '_cached_published_translations'):
+            obj._cached_published_translations = [t for t in obj.translations.all() if t.status == 'published']
+        return obj._cached_published_translations
+
+    def _translation(self, obj):
+        by_locale = {t.locale: t for t in self._published_translations(obj)}
+        locale = request_locale(self.context)
+        return by_locale.get(locale) or by_locale.get(obj.original_locale) or next(iter(by_locale.values()), None)
+
     def get_title(self, obj):
-        t = _resolve_exercise_translation(obj, request_locale(self.context))
+        t = self._translation(obj)
         return t.title if t else f'#{obj.number}'
 
     def get_resolved_locale(self, obj):
-        t = _resolve_exercise_translation(obj, request_locale(self.context))
+        t = self._translation(obj)
         return t.locale if t else obj.original_locale
 
 
@@ -113,11 +156,6 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
             'translated_by',
             'available_locales',
         ]
-
-    def _translation(self, obj):
-        if not hasattr(self, '_cached_translation'):
-            self._cached_translation = _resolve_exercise_translation(obj, request_locale(self.context))
-        return self._cached_translation
 
     def get_statement(self, obj):
         t = self._translation(obj)
@@ -142,8 +180,10 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     def get_available_locales(self, obj):
         """Every locale with at least one PUBLISHED translation, original locale first — mirrors
         lib/state/mockData.svelte.ts's own `resolveExercise` exactly (Phase 1's own reference
-        implementation of this exact rule)."""
-        published_locales = set(obj.translations.filter(status='published').values_list('locale', flat=True))
+        implementation of this exact rule). Reads the same shared, per-object-cached, prefetch-
+        cache-friendly `_published_translations` every other field above now reads too — no query
+        of its own anymore."""
+        published_locales = {t.locale for t in self._published_translations(obj)}
         rest = sorted(loc for loc in published_locales if loc != obj.original_locale)
         return [obj.original_locale, *rest] if obj.original_locale in published_locales else rest
 

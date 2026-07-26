@@ -18,7 +18,11 @@ $light-accent: #2a6f6f;
 $light-accent-soft: #e7f2f2;
 $light-accent-contrast: #ffffff;
 
-$light-status-success: #1a8a4a;
+// Phase 4 accessibility pass: darkened from #1a8a4a (a real, axe-core-caught WCAG AA failure,
+// 3.92:1 against $light-status-success-bg — below the 4.5:1 normal-text threshold) to a shade
+// that clears it with real margin (5.63:1) while staying visually the same green. The dark-theme
+// counterpart was checked too and was already fine (7.74:1 against its own composited background).
+$light-status-success: #146e3b;
 $light-status-success-bg: #e5f6ec;
 $light-status-danger: #c22b3b;
 $light-status-danger-bg: #fbe8ea;

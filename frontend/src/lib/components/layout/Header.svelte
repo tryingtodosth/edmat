@@ -2,10 +2,12 @@
 	import { resolve } from '$app/paths';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
+	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import LocaleSwitcher from './LocaleSwitcher.svelte';
 	import RandomExerciseButton from './RandomExerciseButton.svelte';
+	import NotificationBell from './NotificationBell.svelte';
 
 	let menuOpen = $state(false);
 </script>
@@ -27,7 +29,12 @@
 			☰
 		</button>
 
-		<nav class="site-nav no-print" class:site-nav--open={menuOpen}>
+		<!-- "Main navigation" -->
+		<nav
+			class="site-nav no-print"
+			class:site-nav--open={menuOpen}
+			aria-label={m.nav_mainNavigation()}
+		>
 			<a href={resolve('/fields')}>{m.nav_browse()}</a>
 			<a href={resolve('/my-set')}>
 				{m.nav_mySet()}
@@ -46,9 +53,15 @@
 			<LocaleSwitcher />
 			<ThemeToggle />
 			{#if authStore.isAuthenticated}
+				<NotificationBell />
 				<a class="account-link" href={resolve('/settings')}>{authStore.user?.displayName}</a>
-				<button type="button" class="link-button" onclick={() => authStore.logout()}
-					>{m.nav_logout()}</button
+				<button
+					type="button"
+					class="link-button"
+					onclick={() => {
+						authStore.logout();
+						notificationStore.clear();
+					}}>{m.nav_logout()}</button
 				>
 			{:else}
 				<a href={resolve('/login')}>{m.nav_login()}</a>

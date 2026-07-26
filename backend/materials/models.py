@@ -1,19 +1,29 @@
 """materiał dydaktyczny — see CLAUDE.md Section 9.
 
-Type choices were widened from the section's own sketch (`script`/`formula_sheet`/`other`) to match
-what the real corpus's own material.yaml `type:` field actually uses — none of the 7 real materials
-are a formula sheet; they're a script, exam collection, midterm collection, or exercise collection.
+Type choices were first widened from the section's own sketch (`script`/`formula_sheet`/`other`) to
+match what the real corpus's own material.yaml `type:` field actually used at the time (none of the
+original 7 real materials were a formula sheet — a script, exam collection, midterm collection, or
+exercise collection). Widened again, deliberately BEYOND what the current corpus happens to contain
+— "expand material types" per explicit request, not another narrow grounding pass: a real university
+materials archive plausibly wants slides/solution guides/syllabi/etc. even before a specific course
+happens to have one uploaded. `formula_sheet` in particular is restored here, not re-invented — it
+was in the section's own original sketch and only ever dropped for not matching the (at the time)
+tiny 7-material corpus, not because it's a bad category.
 
 `Material.topics` (a flat, weightless ManyToManyField to Topic) was replaced outright by
 MaterialCoverage below, not kept alongside it — "which topics does this material cover" is now
 `coverage.values_list('topic', flat=True).distinct()` rather than a second, competing source of
-truth that could drift from the richer one.
+truth that could drift from the richer one. `Material.tags` (new) is NOT the same axis as coverage —
+tags are the same free-form, cross-content-type labels Exercise already has (exercises.Tag), letting
+a material be found/organized the same way an exercise is, independent of the structured
+topic/subtopic/level coverage claims.
 """
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
+from exercises.models import Tag
 from taxonomy.models import Course, Subtopic, Topic
 
 MATERIAL_TYPE_CHOICES = [
@@ -21,6 +31,14 @@ MATERIAL_TYPE_CHOICES = [
     ('exam_collection', 'Exam collection'),
     ('midterm_collection', 'Midterm collection'),
     ('exercise_collection', 'Exercise collection'),
+    ('formula_sheet', 'Formula sheet'),
+    ('lecture_slides', 'Lecture slides'),
+    ('solution_guide', 'Solution guide'),
+    ('syllabus', 'Syllabus'),
+    ('practice_test', 'Practice test'),
+    ('recording', 'Recorded lecture'),
+    ('textbook_excerpt', 'Textbook excerpt'),
+    ('code_dataset', 'Code / dataset'),
     ('other', 'Other'),
 ]
 
@@ -31,6 +49,7 @@ class Material(models.Model):
     type = models.CharField(max_length=20, choices=MATERIAL_TYPE_CHOICES)
     file = models.FileField(upload_to='materials/')
     author = models.CharField(max_length=200, blank=True)
+    tags = models.ManyToManyField(Tag, blank=True, related_name='materials')
     published = models.BooleanField(default=True)
     featured = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)

@@ -15,18 +15,117 @@ from rest_framework.response import Response
 
 from community.models import Comment, Review
 from community.serializers import CommentSerializer, ReviewSerializer
+from notifications.services import label_for_exercise, notify_comment_reply, notify_tag_followers
 
-from .models import Exercise, Tag
-from .serializers import ExerciseDetailSerializer, ExerciseListSerializer, ExerciseTranslationSerializer, TagSerializer
+from .models import Exercise, Tag, TagFollow
+from .serializers import (
+    ExerciseDetailSerializer,
+    ExerciseListSerializer,
+    ExerciseTranslationSerializer,
+    TagFollowSerializer,
+    TagSerializer,
+)
+
+
+def _notify_reply(comment, exercise):
+    notify_comment_reply(comment, target_label=label_for_exercise(exercise), exercise=exercise)
+
+
+# kind -> (model, the M2M-accessor attribute name on that model) — the one place the tag-hover
+# menu's "apply to different content" action (below) and the notify_tag_followers call site both
+# read from, so the two kinds this action supports can't quietly drift apart.
+def _tag_target_model(kind):
+    if kind == 'exercise':
+        return Exercise
+    if kind == 'material':
+        from materials.models import Material
+
+        return Material
+    return None
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
     """GET /api/tags/ — distinct tag list across the whole corpus, backs the Random picker's own
-    tag filter (CLAUDE.md's Random Exercise feature note)."""
+    tag filter (CLAUDE.md's Random Exercise feature note). Plus the tag-hover action menu's own
+    endpoints below (follow/unfollow, mute/unmute notifications on an existing follow, and applying
+    the tag to a different piece of content) — `lookup_field = 'slug'` since every tag reference
+    throughout this app (including the existing `?tag=` filter) is already slug-keyed, never the
+    bare numeric pk `TagSerializer.id` also happens to expose.
+    """
 
     queryset = Tag.objects.all().order_by('slug')
     serializer_class = TagSerializer
     pagination_class = None
+    lookup_field = 'slug'
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+
+    @action(detail=False, methods=['get'], url_path='my-follows')
+    def my_follows(self, request):
+        """GET /api/tags/my-follows/ — every tag the current user follows, plus whether they've
+        muted notifications for that one specifically. The tag-hover menu's own source of truth for
+        rendering "Following" vs. "Follow" without a per-tag round trip."""
+        follows = TagFollow.objects.filter(user=request.user).select_related('tag')
+        return Response(TagFollowSerializer(follows, many=True).data)
+
+    @action(detail=True, methods=['post', 'delete'])
+    def follow(self, request, slug=None):
+        tag = self.get_object()
+        if request.method == 'DELETE':
+            TagFollow.objects.filter(user=request.user, tag=tag).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        follow, _created = TagFollow.objects.get_or_create(user=request.user, tag=tag)
+        return Response(TagFollowSerializer(follow).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def notify(self, request, slug=None):
+        """POST /api/tags/{slug}/notify/ {"notify": bool} — mutes/unmutes notifications on an
+        EXISTING follow, without unfollowing. 404 if the user isn't following this tag at all (the
+        frontend's own menu only ever shows this control once already-following, so reaching this
+        without a real follow row would itself be a real, worth-surfacing inconsistency, not
+        something to silently paper over)."""
+        tag = self.get_object()
+        follow = TagFollow.objects.filter(user=request.user, tag=tag).first()
+        if follow is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        follow.notify = bool(request.data.get('notify', True))
+        follow.save(update_fields=['notify'])
+        return Response(TagFollowSerializer(follow).data)
+
+    @action(detail=True, methods=['post', 'delete'])
+    def apply(self, request, slug=None):
+        """POST/DELETE /api/tags/{slug}/apply/ {"kind": "exercise"|"material", "object_id": N} —
+        the tag-hover menu's "add to different content" action: attach (or remove) this tag on
+        another Exercise/Material. Open to any authenticated user, not moderation-gated — the same
+        trust level MaterialCoverage's own community proposals already get (materials/models.py's
+        own doc comment: additive, reversible, low-stakes organizational metadata, not content
+        itself). Only the POST (add) path notifies followers — removing a tag isn't "new content."
+        """
+        tag = self.get_object()
+        kind = request.data.get('kind')
+        model = _tag_target_model(kind)
+        if model is None:
+            return Response({'kind': ["Must be 'exercise' or 'material'."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            target = model.objects.get(pk=request.data.get('object_id'))
+        except (model.DoesNotExist, ValueError, TypeError):
+            return Response({'object_id': ['No matching content found.']}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.method == 'DELETE':
+            target.tags.remove(tag)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        already_tagged = target.tags.filter(pk=tag.pk).exists()
+        target.tags.add(tag)
+        if not already_tagged:
+            if kind == 'exercise':
+                notify_tag_followers(tag, actor=request.user, exercise=target)
+            else:
+                notify_tag_followers(tag, actor=request.user, material=target)
+        return Response(status=status.HTTP_201_CREATED)
 
 
 def _annotated_exercises():
@@ -173,6 +272,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         serializer = CommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(content_type=content_type, object_id=exercise.pk, author=request.user)
+        _notify_reply(serializer.instance, exercise)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=['get'])
@@ -211,4 +311,41 @@ class ExerciseViewSet(viewsets.ModelViewSet):
                 break
 
         serializer = ExerciseDetailSerializer(chosen, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def bulk(self, request):
+        """GET /api/exercises/bulk/?ids=1,2,3&lang=pl — Phase 4 hardening: closes a real, measured
+        N+1 the moderation-queue load test found (198 pending edit-suggestions/translations meant
+        115 individual GET /api/exercises/{id}/ round-trips from the frontend, ~10s of the page's
+        own real load time — see CLAUDE.md's own writeup). ExerciseDetailSerializer, not the
+        lighter List shape `list()` uses — a bulk resolve's own real callers (My Set's PDF export,
+        the moderation queue's exercise-title lookups) both need at least the Detail shape's own
+        fields (My Set genuinely needs the full statement/hint/answer/solution content to print;
+        moderation only reads `.title`, but sharing one endpoint/mapper for both is simpler than a
+        second, narrower one for a difference that's already this cheap). Does NOT call
+        ContentView.get_or_create the way `retrieve()` does — a bulk resolve for a queue listing or
+        a study sheet isn't a real "viewed this exercise's own detail page" event.
+        """
+        ids_param = request.query_params.get('ids', '')
+        ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+        if not ids:
+            return Response([])
+        # select_related(...) + prefetch_related(...) — without these, ExerciseDetailSerializer
+        # would still cost several queries PER ROW even after `_published_translations` was fixed to
+        # share one cache: `course_slug` resolves `obj.course.slug` (a plain FK, select_related),
+        # `source` is a reverse OneToOne (also select_related), `topics`/`tags` are M2M fields DRF's
+        # own PrimaryKeyRelatedField/SlugRelatedField resolve per object (prefetch_related), and
+        # `source.translations` (ExerciseSourceSerializer.get_name) is its own separate reverse-FK
+        # lookup one level further down. All of these together are what take this endpoint from "one
+        # to several real queries per row" down to the fixed handful the whole bulk response costs
+        # regardless of how many ids were requested — verified via a real CaptureQueriesContext
+        # measurement, not assumed correct from reading the field list.
+        qs = (
+            _annotated_exercises()
+            .filter(pk__in=ids)
+            .select_related('course', 'source')
+            .prefetch_related('translations', 'topics', 'tags', 'source__translations')
+        )
+        serializer = ExerciseDetailSerializer(qs, many=True, context={'request': request})
         return Response(serializer.data)

@@ -17,6 +17,7 @@ class MaterialCoverageInline(admin.TabularInline):
 class MaterialAdmin(admin.ModelAdmin):
     list_display = ['slug', 'course', 'type', 'author', 'published', 'featured']
     list_filter = ['course', 'type', 'published', 'featured']
+    filter_horizontal = ['tags']
     inlines = [MaterialTranslationInline, MaterialCoverageInline]
 
 

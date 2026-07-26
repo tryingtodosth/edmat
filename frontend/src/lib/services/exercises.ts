@@ -71,16 +71,23 @@ export async function getExerciseById(
 	}
 }
 
-// Used by the "My Set" page. No bulk /api/exercises/?ids= lookup exists on the backend — a set is
-// typically a handful of exercises, so N parallel single-exercise fetches (already exactly how
-// getUserById-style resolution works elsewhere in this app, e.g. exercises/[id]/+page.svelte's own
-// resolveUsers) is simple and fast enough rather than adding a bespoke bulk endpoint for one caller.
+// ✅ Phase 4 — real, load-tested bulk resolve, one GET /api/exercises/bulk/?ids=... request instead
+// of the N parallel single-exercise fetches this used to do. That N-fetch approach was fine for "My
+// Set"'s own real-world scale (a handful of exercises, this function's very first real caller) — the
+// assumption this doc comment used to state — but the moderation-queue load test proved it wrong at
+// a genuinely large scale: the /moderation page's own edit-suggestion/translation resolution (a
+// SEPARATE caller from My Set, not routed through this function until now) fired up to 115
+// individual requests under a real seeded backlog, ~10s of the page's own load time on its own — see
+// CLAUDE.md's own writeup. Both callers now share the same real bulk endpoint.
 export async function getExercisesByIds(
 	ids: string[],
 	locale: string
 ): Promise<ResolvedExercise[]> {
-	const found = await Promise.all(ids.map((id) => getExerciseById(id, locale)));
-	return found.filter((e): e is ResolvedExercise => e !== undefined);
+	if (ids.length === 0) return [];
+	const raw = await apiClient.get<RawExerciseDetail[]>(
+		`/exercises/bulk/${toQueryString({ ids: ids.join(','), lang: locale })}`
+	);
+	return raw.map(mapResolvedExerciseDetail);
 }
 
 export async function getTopRatedExercises(locale: string, limit = 6): Promise<ResolvedExercise[]> {
@@ -93,6 +100,32 @@ export async function getTopRatedExercises(locale: string, limit = 6): Promise<R
 export async function getRecentExercises(locale: string, limit = 6): Promise<ResolvedExercise[]> {
 	const raw = await apiClient.get<RawExerciseCommon[]>(
 		`/exercises/${toQueryString({ sort: 'recent', limit: String(limit), lang: locale })}`
+	);
+	return raw.map(mapResolvedExerciseList);
+}
+
+/** Every exercise id carrying a given tag, across every course — the tag-hover menu's own "Save
+ * for later" action (TagChip.svelte) needs a course-agnostic id list to bulk-add, unlike every
+ * other exercise-listing call in this file, which is deliberately course-scoped. */
+export async function getExerciseIdsForTag(tagSlug: string): Promise<string[]> {
+	const raw = await apiClient.get<{ id: number }[]>(
+		`/exercises/${toQueryString({ tag: tagSlug })}`
+	);
+	return raw.map((e) => String(e.id));
+}
+
+/** Course-agnostic text search — the tag-hover menu's own "add to different content" picker
+ * (TagChip.svelte/AddTagToContentModal.svelte) needs to find an exercise by name without knowing
+ * which course it belongs to first, unlike `getExercisesForCourse`'s own always-course-scoped
+ * `filters.query`. */
+export async function searchExercises(
+	query: string,
+	locale: string,
+	limit = 8
+): Promise<ResolvedExercise[]> {
+	if (!query.trim()) return [];
+	const raw = await apiClient.get<RawExerciseCommon[]>(
+		`/exercises/${toQueryString({ q: query, lang: locale, limit: String(limit) })}`
 	);
 	return raw.map(mapResolvedExerciseList);
 }

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Exercise, ExerciseSource, ExerciseSourceTranslation, ExerciseTranslation, Tag
+from .models import Exercise, ExerciseSource, ExerciseSourceTranslation, ExerciseTranslation, Tag, TagFollow
 
 
 class ExerciseTranslationInline(admin.TabularInline):
@@ -37,3 +37,9 @@ admin.site.register(ExerciseTranslation)
 class TagAdmin(admin.ModelAdmin):
     list_display = ['slug']
     search_fields = ['slug']
+
+
+@admin.register(TagFollow)
+class TagFollowAdmin(admin.ModelAdmin):
+    list_display = ['user', 'tag', 'notify', 'created_at']
+    list_filter = ['notify']

@@ -27,6 +27,7 @@
 	import EditSuggestionForm from '$lib/components/submission/EditSuggestionForm.svelte';
 	import TranslateForm from '$lib/components/submission/TranslateForm.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
+	import TagChip from '$lib/components/shared/TagChip.svelte';
 
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
 	let course = $state<Course | undefined>(undefined);
@@ -174,7 +175,8 @@
 		<p class="empty">{m.exercise_notFound()}</p>
 	{:else}
 		{#if course}
-			<nav class="breadcrumb">
+			<!-- "Breadcrumb" -->
+			<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
 				<a href={resolve('/fields')}>{m.common_home()}</a> ›
 				<a href={resolve('/courses/[course]', { course: course.id })}>{course.name}</a>
 			</nav>
@@ -286,7 +288,7 @@
 				<div class="topics">
 					<span class="label">{m.exercise_tags()}:</span>
 					{#each exercise.tags as tag (tag)}
-						<span class="topic-pill topic-pill--tag">#{tag}</span>
+						<TagChip {tag} />
 					{/each}
 				</div>
 			{/if}
@@ -444,9 +446,6 @@
 	}
 	.topic-pill {
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
-	}
-	.topic-pill--tag {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
 	}
 	.content-section {
 		@include mix.card-surface;

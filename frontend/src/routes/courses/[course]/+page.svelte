@@ -80,7 +80,8 @@
 	{:else if notFound}
 		<p class="empty">{m.course_notFound()}</p>
 	{:else if course}
-		<nav class="breadcrumb">
+		<!-- "Breadcrumb" -->
+		<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
 			<a href={resolve('/fields')}>{m.common_home()}</a> ›
 			{#if field}
 				<a href={resolve('/fields/[field]', { field: field.id })}>{field.name}</a>

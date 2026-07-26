@@ -1,8 +1,23 @@
 // Phase 3 — widened from the Phase 1 guess ('script' | 'formulaSheet' | 'other') to match what the
 // real backend model actually settled on once grounded against the real corpus (CLAUDE.md's own
 // Phase 2 note: none of the real material.yaml `type:` values ever produce a formula sheet).
+// Widened again, deliberately BEYOND the current corpus, per an explicit "expand material types"
+// request — see the backend's own materials/models.py doc comment for the full reasoning
+// (`formulaSheet` restored from the original Phase 1/Section-9 sketch, the rest genuinely new).
 export type MaterialType =
-	'script' | 'examCollection' | 'midtermCollection' | 'exerciseCollection' | 'other';
+	| 'script'
+	| 'examCollection'
+	| 'midtermCollection'
+	| 'exerciseCollection'
+	| 'formulaSheet'
+	| 'lectureSlides'
+	| 'solutionGuide'
+	| 'syllabus'
+	| 'practiceTest'
+	| 'recording'
+	| 'textbookExcerpt'
+	| 'codeDataset'
+	| 'other';
 
 // A vote is +1 (agree the claimed level is accurate) or -1 (disagree) — see CoverageVoteSummary's
 // own doc comment for why the WEIGHT of a vote isn't a value on the vote itself.
@@ -60,6 +75,7 @@ export interface Material {
 	fileName: string;
 	fileUrl: string; // Phase 3: a real, working URL served by the Django dev server's MEDIA_ROOT
 	author: string;
+	tags: string[]; // the same free-form Tag vocabulary Exercise.tags already uses — see TagChip.svelte
 	published: boolean;
 	featured: boolean;
 	order: number;

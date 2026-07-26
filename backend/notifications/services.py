@@ -1,0 +1,148 @@
+"""`notify()` — the one place every Notification row in this app gets created, called from
+moderation/views.py (submission/edit/translation decisions, report restore/remove),
+moderation/services.py (community auto-hide), and exercises/views.py + materials/views.py (a comment
+reply). Callers never construct a Notification directly, so the recipient=None guard, the
+self-notification guard, and the privacy-preference check below can never be bypassed by a new call
+site forgetting one of them.
+"""
+
+from __future__ import annotations
+
+from config.i18n_utils import DEFAULT_FALLBACK_LOCALE
+
+# Which Profile boolean (accounts/models.py) gates each notification type — a recipient who has
+# turned a category off simply never gets a row created for it, not just a row they'd have to
+# manually hide. Every type not listed here (there are none today, but a future addition landing
+# here unlisted is a real possibility) defaults to "always notify" in `notify()` below, matching
+# this project's own "never let a new field silently do nothing" instinct — a missing entry means
+# no preference gates it, not that it fails closed.
+_PREFERENCE_FIELD_FOR_TYPE = {
+    'comment_reply': 'notify_on_comment_reply',
+    'submission_approved': 'notify_on_moderation_decision',
+    'submission_rejected': 'notify_on_moderation_decision',
+    'edit_suggestion_approved': 'notify_on_moderation_decision',
+    'edit_suggestion_rejected': 'notify_on_moderation_decision',
+    'translation_approved': 'notify_on_moderation_decision',
+    'translation_rejected': 'notify_on_moderation_decision',
+    'content_auto_hidden': 'notify_on_content_action',
+    'content_restored': 'notify_on_content_action',
+    'content_removed': 'notify_on_content_action',
+}
+
+
+def label_for_exercise(exercise) -> str:
+    """The same per-locale-resolved title moderation/services.py's `_describe` already computes for
+    the moderator-facing queue — reused here so a notification's own `target_label` reads the exact
+    same title a moderator saw when they made the decision, not a second, possibly-differently-
+    resolved copy."""
+    if exercise is None:
+        return ''
+    from exercises.serializers import _resolve_exercise_translation
+
+    translation = _resolve_exercise_translation(exercise, DEFAULT_FALLBACK_LOCALE)
+    return translation.title if translation else f'#{exercise.number}'
+
+
+def notify(
+    recipient,
+    notif_type: str,
+    *,
+    actor=None,
+    target_label: str = '',
+    exercise=None,
+    material=None,
+    note: str = '',
+):
+    """Creates one Notification, or silently no-ops when there's genuinely nothing to notify:
+    - `recipient` is None — the real, common case for legacy/migrated content with no real owner
+      (Exercise.submitted_by is null for every one of the 742 imported exercises), or a translation
+      whose `translated_by` is null (also the migrated original). Not an error condition; every
+      call site already expects this to be silently swallowed rather than needing its own check.
+    - `actor == recipient` — a moderator should never get a notification for their own decision
+      (can't actually happen given who's allowed to submit vs. moderate today, but cheap to guard
+      regardless of whether the two roles ever overlap for one account).
+    - the recipient has turned this notification CATEGORY off in their own privacy settings
+      (accounts/models.py's Profile.notify_on_* fields) — see `_PREFERENCE_FIELD_FOR_TYPE` above.
+      Deliberately NOT consulted for `new_tagged_content` — that type's own gating happens one level
+      up, in `notify_tag_followers`, via each follower's own `TagFollow.notify` flag, a per-TAG
+      choice rather than a blanket account-wide category the way every other type's gating is.
+    """
+    if recipient is None:
+        return None
+    if actor is not None and actor.pk == recipient.pk:
+        return None
+
+    preference_field = _PREFERENCE_FIELD_FOR_TYPE.get(notif_type)
+    if preference_field is not None:
+        profile = getattr(recipient, 'profile', None)
+        if profile is not None and not getattr(profile, preference_field, True):
+            return None
+
+    from .models import Notification
+
+    return Notification.objects.create(
+        recipient=recipient,
+        actor=actor,
+        type=notif_type,
+        target_label=target_label,
+        exercise=exercise,
+        material=material,
+        note=(note or '')[:500],
+    )
+
+
+def label_for_material(material) -> str:
+    """Same "resolve the real, per-locale title" reasoning as `label_for_exercise` above, for a
+    Material's own MaterialTranslation table instead of ExerciseTranslation."""
+    if material is None:
+        return ''
+    translation = material.translations.filter(locale=DEFAULT_FALLBACK_LOCALE).first() or material.translations.first()
+    return translation.title if translation else material.slug
+
+
+def notify_tag_followers(tag, *, actor, exercise=None, material=None):
+    """Called right after a Tag gets attached to a piece of content — both the moderation-approved-
+    submission path (moderation/views.py's `_apply_submission`, a brand-new Exercise) and the
+    "add to different content" tag-hover action (exercises/views.py's `TagViewSet.apply`, an
+    EXISTING Exercise or Material gaining a tag it didn't have before). Notifies every follower of
+    this tag who has `notify=True` on their own `TagFollow` row — deliberately NOT gated by
+    `notify()`'s own account-level `_PREFERENCE_FIELD_FOR_TYPE` (see that function's own note): the
+    per-tag `notify` flag IS the gate here, checked in this loop, before `notify()` is ever called —
+    a follower who muted this one tag never even reaches `notify()`'s own (irrelevant, for this
+    type) account-level check.
+    """
+    label = label_for_exercise(exercise) if exercise is not None else label_for_material(material)
+    from .models import Notification
+
+    for follow in tag.follows.filter(notify=True).select_related('user', 'user__profile'):
+        if follow.user_id == getattr(actor, 'pk', None):
+            continue  # notify()'s own actor==recipient guard would catch this too, checked here to avoid the query overhead of building a Notification just to discard it
+        Notification.objects.create(
+            recipient=follow.user,
+            actor=actor,
+            type='new_tagged_content',
+            target_label=label,
+            exercise=exercise,
+            material=material,
+            note=f'#{tag.slug}',
+        )
+
+
+def notify_comment_reply(comment, *, target_label: str, exercise=None):
+    """Called right after a new Comment is saved — the one shared implementation for both
+    exercises/views.py's `ExerciseViewSet.comments` and materials/views.py's
+    `MaterialCoverageViewSet.comments`, since "was this a reply, and if so tell the parent's author"
+    is the same question regardless of what the thread is attached to. No-ops outright when the new
+    comment isn't a reply at all (`parent_id` unset) — a root-level comment has no one to notify.
+    Replying to your own earlier comment is handled by `notify()`'s own actor==recipient guard, not
+    duplicated here."""
+    if not comment.parent_id:
+        return None
+    return notify(
+        comment.parent.author,
+        'comment_reply',
+        actor=comment.author,
+        target_label=target_label,
+        exercise=exercise,
+        note=comment.body[:200],
+    )

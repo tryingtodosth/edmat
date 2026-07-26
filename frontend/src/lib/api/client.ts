@@ -65,7 +65,12 @@ export const apiClient = {
 	patch<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'PATCH', body: toBody(data) });
 	},
-	delete<T>(path: string): Promise<T> {
-		return request<T>(path, { method: 'DELETE' });
+	// `data` is optional — every pre-existing caller omits it (a plain DELETE by id-in-URL); the tag
+	// "apply"/"un-apply" endpoint (exercises.TagViewSet.apply) is the first that needs a DELETE
+	// carrying a real body (which kind/object_id to detach), the same {kind, object_id} shape its
+	// own POST sibling already sends — fetch's own RequestInit.body works with any method, this was
+	// just never plumbed through until now.
+	delete<T>(path: string, data?: unknown): Promise<T> {
+		return request<T>(path, { method: 'DELETE', body: toBody(data) });
 	}
 };

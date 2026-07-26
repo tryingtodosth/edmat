@@ -33,12 +33,37 @@ TRANSLATION_STATUS_CHOICES = [
 
 class Tag(models.Model):
     """Free-form, per-exercise (not course-scoped) — kept global, matching the real corpus's own
-    per-exercise `tags:` lists."""
+    per-exercise `tags:` lists. Also attachable to a Material (materials/models.py) — the same tag
+    vocabulary, used the same way, across both content types."""
 
     slug = models.SlugField(unique=True)
 
     def __str__(self) -> str:
         return self.slug
+
+
+class TagFollow(models.Model):
+    """"Follow [a tag]" — the tag-hover action menu's own subscription record (frontend
+    `TagChip.svelte`). `notify` is a SEPARATE control from following itself, not the same toggle:
+    following puts a tag on a user's own "followed tags" list regardless of whether they want to be
+    pinged about it, while `notify` (default True the moment you follow, independently togglable
+    afterward without unfollowing) is what actually gates whether new tagged content produces a real
+    `Notification` (see notifications/services.py's `notify_tag_followers`) — the same "follow the
+    subscription, separately choose whether it's noisy" split a lot of real notification systems use,
+    read directly off the request's own "follow, set notifications" as two related but distinct
+    actions rather than one combined toggle.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='tag_follows', on_delete=models.CASCADE)
+    tag = models.ForeignKey(Tag, related_name='follows', on_delete=models.CASCADE)
+    notify = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'tag')]
+
+    def __str__(self) -> str:
+        return f'{self.user} follows #{self.tag.slug} (notify={self.notify})'
 
 
 class Exercise(models.Model):
