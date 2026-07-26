@@ -1295,9 +1295,20 @@ results, and marks a picked result as Added after a real `POST`. `npm run check`
   own material detail page).** `NotificationCard.svelte` now resolves `notification.materialId` to
   `/materials/[id]` — this bullet had gone stale (the material page it was waiting on already shipped
   a separate session) and is corrected here rather than left misleading.
-- **`applyTagToContent` has no de-duplication warning in the UI** — applying an already-present tag
-  again is a harmless no-notification no-op server-side (verified), but the modal doesn't tell the
-  user "this is already tagged," it just silently succeeds a second time.
+- ~~`applyTagToContent` has no de-duplication warning in the UI~~ **✅ Resolved (Phase 4).**
+  `AddTagToContentModal.svelte` already had everything it needed to know this ahead of time — both
+  `ResolvedExercise`/`Material` search results already carry their own real `tags: string[]` (the
+  same field `TagChip` itself already reads), so no backend change was needed, just checking it
+  before the button ever renders as clickable. A result that already carries the tag now shows a
+  plain, non-interactive "Already tagged" label instead of "Add" — genuinely pre-empting the
+  confusing interaction (clicking Add and seeing "Added" appear as if it were new) rather than just
+  reacting to it after the fact with a toast. Deliberately kept "Already tagged" (a pre-existing
+  fact) visually and textually distinct from "Added" (the same session's own just-clicked
+  confirmation) — collapsing the two into one label would have lost exactly the honesty this item
+  asked for. Verified end-to-end with real, live search results: a result already carrying the tag
+  correctly showed no clickable button at all; a genuinely untagged result still showed a normal,
+  clickable "Add" that correctly transitioned to "Added" once clicked, confirming the ordinary flow
+  wasn't disturbed by the new check.
 
 ---
 

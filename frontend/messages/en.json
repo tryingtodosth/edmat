@@ -366,6 +366,7 @@
 	"tag_noResults": "No matches.",
 	"tag_added": "Added",
 	"tag_addAction": "Add",
+	"tag_alreadyTagged": "Already tagged",
 	"tagFollows_none": "You're not following any tags yet — follow one from its hover menu wherever you see it.",
 
 	"materialType_script": "Course script",

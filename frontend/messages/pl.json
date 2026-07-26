@@ -366,6 +366,7 @@
 	"tag_noResults": "Brak wyników.",
 	"tag_added": "Dodano",
 	"tag_addAction": "Dodaj",
+	"tag_alreadyTagged": "Już oznaczono",
 	"tagFollows_none": "Nie obserwujesz jeszcze żadnych tagów — zacznij obserwować z menu widocznego po najechaniu na tag.",
 
 	"materialType_script": "Skrypt",

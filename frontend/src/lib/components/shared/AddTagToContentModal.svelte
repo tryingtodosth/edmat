@@ -53,6 +53,16 @@
 		if (query.trim()) scheduleSearch();
 	}
 
+	// Re-applying an already-present tag is a harmless no-notification no-op server-side, but the
+	// modal used to say nothing about it — a result already carrying this tag showed the same
+	// clickable "Add" as any other, and clicking it just silently "succeeded" a second time with no
+	// visible difference from a genuinely new application. Both `ResolvedExercise`/`Material` search
+	// results already carry their own real `tags: string[]` (used elsewhere by TagChip itself), so
+	// this needed no backend change — just checking it before the button ever becomes clickable.
+	function alreadyHasTag(resultTags: string[]): boolean {
+		return resultTags.includes(tag);
+	}
+
 	async function handleAdd(objectId: string) {
 		error = '';
 		try {
@@ -108,13 +118,17 @@
 			{#each exerciseResults as exercise (exercise.id)}
 				<li class="result-row">
 					<span class="result-row__title">{exercise.title}</span>
-					<button
-						type="button"
-						disabled={addedIds.has(exercise.id)}
-						onclick={() => handleAdd(exercise.id)}
-					>
-						{addedIds.has(exercise.id) ? m.tag_added() : m.tag_addAction()}
-					</button>
+					{#if alreadyHasTag(exercise.tags) && !addedIds.has(exercise.id)}
+						<span class="result-row__already">{m.tag_alreadyTagged()}</span>
+					{:else}
+						<button
+							type="button"
+							disabled={addedIds.has(exercise.id)}
+							onclick={() => handleAdd(exercise.id)}
+						>
+							{addedIds.has(exercise.id) ? m.tag_added() : m.tag_addAction()}
+						</button>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -126,13 +140,17 @@
 			{#each materialResults as material (material.id)}
 				<li class="result-row">
 					<span class="result-row__title">{material.title}</span>
-					<button
-						type="button"
-						disabled={addedIds.has(material.id)}
-						onclick={() => handleAdd(material.id)}
-					>
-						{addedIds.has(material.id) ? m.tag_added() : m.tag_addAction()}
-					</button>
+					{#if alreadyHasTag(material.tags) && !addedIds.has(material.id)}
+						<span class="result-row__already">{m.tag_alreadyTagged()}</span>
+					{:else}
+						<button
+							type="button"
+							disabled={addedIds.has(material.id)}
+							onclick={() => handleAdd(material.id)}
+						>
+							{addedIds.has(material.id) ? m.tag_added() : m.tag_addAction()}
+						</button>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -199,5 +217,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.result-row__already {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		flex-shrink: 0;
 	}
 </style>
