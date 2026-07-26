@@ -152,6 +152,7 @@
 
 	"submit_heading": "Submit a new exercise",
 	"submit_subtitle": "New exercises are reviewed by a moderator before they're published.",
+	"submit_subtitleVerified": "As a verified contributor, your new exercises are published immediately — no review queue.",
 	"submit_field_course": "Course",
 	"submit_field_title": "Title",
 	"submit_field_difficulty": "Difficulty",
@@ -166,6 +167,8 @@
 	"submit_field_tags": "Tags (comma-separated)",
 	"submit_preview": "Preview",
 	"submit_success": "Thanks! Your exercise was submitted and is awaiting review.",
+	"submit_successPublished": "Published! Your exercise is live now — thanks for contributing.",
+	"submit_viewExercise": "View exercise",
 	"submit_loginRequired": "You need to log in to submit an exercise.",
 	"submit_markdownHint": "Supports Markdown and LaTeX (\\( \\) inline, \\[ \\] display).",
 

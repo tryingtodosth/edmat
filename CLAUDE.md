@@ -179,7 +179,7 @@ user stories (Section 6), not losing in the rewrite.
 |---|---|
 | **Anonymous visitor** | Browse, search, filter, read exercises + materials, read reviews/discussion, build a local (browser-only) "my set" and export it to PDF. |
 | **Registered user** | Everything above, plus: leave a rating/review, post/reply in discussion threads, submit a new exercise, suggest an edit to an existing one, submit a translation, save "my set" server-side under a name. |
-| **Verified contributor** *(a lightweight reputation tier, not a separate account type — a flag a moderator grants)* | Submissions and translations from this tier still queue for moderation in v1 (trust doesn't bypass review of *math correctness*, only maybe the response-time priority) — see Section 18 for whether this tier should ever get an auto-publish fast path. |
+| **Verified contributor** *(a lightweight reputation tier, not a separate account type — a flag a moderator grants)* | ✅ **Resolved, Section 18 item 4.** A brand-new exercise submitted by this tier publishes immediately, no queue. Edit suggestions and translations from the same person still queue regardless — trust in new work doesn't extend to an unreviewed change to something already published. |
 | **Moderator** | Everything above, plus: approve/reject new-exercise submissions, edit suggestions, and translation submissions; toggle `published`/`verified` on any exercise; moderate flagged discussion content. |
 | **Admin** | Everything above, plus: manage fields/courses/topics (the controlled vocabularies), manage user roles. |
 
@@ -736,9 +736,8 @@ Per explicit instruction: plan → frontend → backend.
   browsable API keep working in dev. `/api/auth/register/|login/|logout/|me/|password-reset/` built
   — `password-reset` is an honest stub (always returns 200, no real email backend exists yet, same
   "flag it, don't fake it" discipline this doc already applies elsewhere), the other four are real.
-  "Moderator" is, for this prototype, Django's own `is_staff` flag — the simplest real gate
-  available today, not a final answer to Section 18 item 4's still-open verified-contributor
-  question.
+  "Moderator" is, for this prototype, Django's own `is_staff` flag — a coarser, adjacent concept to
+  the separate verified-contributor tier Section 18 item 4 resolves (Phase 4).
 
   **`import_legacy_corpus` (Section 12) built and run against the full real corpus** — idempotent
   via `update_or_create` keyed by each model's own natural key, verified by running it twice in a
@@ -1948,11 +1947,49 @@ zero-remaining check afterward — no scratch data left behind.
 3. ⚠️ **Does `Database-of-Student-Exercise`'s static site keep running post-launch** (Section 12) —
    affects whether migration is one-shot or needs to stay idempotent/repeatable indefinitely.
    `import_legacy_corpus` (built, Phase 2) is already idempotent regardless of how this is answered.
-4. ⚠️ **Verified-contributor fast path.** Should a trusted tier (e.g. an actual TA) ever get
-   auto-publish for their own submissions, or does *everything* always queue for moderation
-   regardless of who submitted it? Section 5 leaves this open rather than deciding it. Phase 2's own
-   "moderator" gate (`is_staff`) is a coarser, adjacent concept — not the same tier this item asks
-   about, and doesn't resolve it.
+4. ✅ **Verified-contributor fast path — resolved and built (Phase 4).** Decided: **auto-publish, but
+   narrowly.** A brand-new exercise submitted by a verified contributor
+   (`Profile.is_verified_contributor` — already a real tier this app grants and reads elsewhere, for
+   material-coverage vote weighting, `materials/serializers.py`) goes live immediately, no moderator
+   review at all. An edit suggestion or a translation from that same person still queues regardless —
+   deliberately, per the policy's own actual scope: trusting someone's brand-new work being
+   mathematically sound is a different claim from trusting an unreviewed CHANGE to something already
+   published and already checked once. `ExerciseSubmissionViewSet.perform_create`
+   (`moderation/views.py`) is the one place this lives; `EditSuggestionViewSet.perform_create` and
+   `ExerciseViewSet.translations` (`exercises/views.py`) are both explicitly, deliberately unchanged,
+   with a comment at each pointing back here so a future reader doesn't wonder why they weren't
+   touched too.
+
+   Reuses `_apply_submission` completely unchanged — the exact function a moderator's own approve
+   action already calls, retry-safe number allocation (Section 17I) included, so an auto-published
+   submission racing a real concurrent moderator approval for the same course is already covered by
+   that same fix, not a new race this path could reintroduce. `reviewed_by` is deliberately left
+   unset (no one actually reviewed it — pretending the submitter reviewed their own work would be
+   dishonest exactly where a moderator might later want to tell "a person checked this" apart from
+   "the system published it on trust"); `review_note` says so in plain language instead
+   (`'Auto-published — submitted by a verified contributor.'`). The resulting `Exercise.verified`
+   flag (a moderator's own "checked the math" attestation, a genuinely separate claim from the
+   Profile-level trust tier) correctly stays `False` — confirmed directly, not assumed, by inspecting
+   a real auto-published row.
+
+   Frontend: `/submit`'s own subtitle and success message both now read `authStore.user
+   ?.isVerifiedContributor` (the same field `CoverageVoteWidget.svelte` already reads for its own
+   2x-vote-weight note) to show the right outcome honestly — "published immediately" with a real
+   working link to the new exercise for a verified contributor, the original "awaiting review"
+   message for everyone else — rather than always implying a queue regardless of what actually
+   happened. Verified end-to-end with real logged-in requests (not just typechecked): a verified
+   contributor's submission came back `status: 'approved'` with a real, published `Exercise` row and
+   correctly did NOT appear in the moderation queue; the identical request from a non-verified user
+   came back `status: 'pending'`, completely unaffected. A real headless-browser run confirmed the
+   `/submit` page itself renders the right subtitle/success copy and a working link to the newly
+   published exercise's own detail page, zero console errors. Phase 2's `is_staff` "moderator" gate
+   remains a coarser, adjacent concept, untouched — this tier is genuinely separate, as this item's
+   own original wording already anticipated.
+
+   **Left open, not built:** no moderator-facing UI exists to grant/revoke
+   `is_verified_contributor` beyond Django admin (already fully functional there — `ProfileAdmin`'s
+   change form has no `readonly_fields` blocking it, confirmed by inspection) — building a dedicated
+   in-app granting flow wasn't part of this policy decision's own scope and wasn't attempted.
 5. ✅ **`venv` vs `.venv` duplication — resolved (Phase 2), recurred and resolved again (Notifications
    feature session).** Both turned out to be stale/mismatched the first time (built against a Python
    version not present on this machine); deleted and rebuilt as a single working `.venv` via

@@ -30,6 +30,13 @@
 	let tagsInput = $state('');
 	let showPreview = $state(false);
 	let success = $state(false);
+	// ✅ Verified-contributor fast path (CLAUDE.md Section 18 item 4) — a submission from a verified
+	// contributor comes back with status: 'approved' and a real resultingExerciseId already, since
+	// the backend published it synchronously rather than queuing it (moderation/views.py's
+	// ExerciseSubmissionViewSet.perform_create). This flag is what the template below reads to show
+	// the right outcome and a real link, instead of always implying "awaiting review" regardless of
+	// what actually happened.
+	let publishedExerciseId = $state<string | null>(null);
 
 	async function init() {
 		courses = await getAllCourses();
@@ -55,7 +62,7 @@
 
 	async function handleSubmit() {
 		if (!authStore.user || !canSubmit) return;
-		await submitExercise(courseId, authStore.user.id, {
+		const result = await submitExercise(courseId, authStore.user.id, {
 			title: title.trim(),
 			topicIds: selectedTopicIds,
 			difficulty,
@@ -71,6 +78,8 @@
 			locale
 		});
 		success = true;
+		publishedExerciseId =
+			result.status === 'approved' ? (result.resultingExerciseId ?? null) : null;
 		title = statement = hint = answer = solution = sourceName = tagsInput = '';
 		selectedTopicIds = [];
 	}
@@ -82,13 +91,26 @@
 
 <div class="page">
 	<h1>{m.submit_heading()}</h1>
-	<p class="subtitle">{m.submit_subtitle()}</p>
+	<!-- Reads the same isVerifiedContributor flag CoverageVoteWidget.svelte already reads for its own
+	     2x-vote-weight note — same real tier, a second honest surface for it. -->
+	<p class="subtitle">
+		{authStore.user?.isVerifiedContributor ? m.submit_subtitleVerified() : m.submit_subtitle()}
+	</p>
 
 	{#if !authStore.isAuthenticated}
 		<p class="login-prompt"><a href={resolve('/login')}>{m.submit_loginRequired()}</a></p>
 	{:else}
 		{#if success}
-			<p class="notice">{m.submit_success()}</p>
+			<p class="notice">
+				{#if publishedExerciseId}
+					{m.submit_successPublished()}
+					<a href={resolve('/exercises/[id]', { id: publishedExerciseId })}
+						>{m.submit_viewExercise()}</a
+					>
+				{:else}
+					{m.submit_success()}
+				{/if}
+			</p>
 		{/if}
 
 		<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>

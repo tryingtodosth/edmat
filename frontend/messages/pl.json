@@ -152,6 +152,7 @@
 
 	"submit_heading": "Dodaj nowe zadanie",
 	"submit_subtitle": "Nowe zadania są sprawdzane przez moderatora, zanim zostaną opublikowane.",
+	"submit_subtitleVerified": "Jako zweryfikowany współtwórca, Twoje nowe zadania są publikowane od razu — bez kolejki moderacji.",
 	"submit_field_course": "Przedmiot",
 	"submit_field_title": "Tytuł",
 	"submit_field_difficulty": "Trudność",
@@ -166,6 +167,8 @@
 	"submit_field_tags": "Tagi (rozdzielone przecinkami)",
 	"submit_preview": "Podgląd",
 	"submit_success": "Dziękujemy! Zadanie zostało wysłane i oczekuje na weryfikację.",
+	"submit_successPublished": "Opublikowano! Twoje zadanie jest już widoczne — dziękujemy za wkład.",
+	"submit_viewExercise": "Zobacz zadanie",
 	"submit_loginRequired": "Musisz się zalogować, aby dodać zadanie.",
 	"submit_markdownHint": "Obsługuje Markdown i LaTeX (\\( \\) w linii, \\[ \\] blokowo).",
 

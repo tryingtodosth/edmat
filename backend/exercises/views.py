@@ -234,6 +234,9 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         serializer = ExerciseTranslationSerializer(data={**request.data, 'exercise': exercise.pk})
         serializer.is_valid(raise_exception=True)
+        # Always 'pending', deliberately unconditional — the verified-contributor auto-publish policy
+        # (CLAUDE.md Section 18 item 4, moderation/views.py's own ExerciseSubmissionViewSet.perform_create)
+        # applies ONLY to a brand-new exercise, never to a translation, regardless of who submitted it.
         serializer.save(status='pending', translated_by=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 

@@ -1,6 +1,7 @@
 """Section 14's moderation surface. "Moderator" is, for this prototype, Django's own `is_staff` flag
-— CLAUDE.md Section 18 item 4 leaves a real verified-contributor-tier question open; is_staff is the
-simplest real gate available today, not a final answer to that question.
+— a coarser, adjacent concept to the separate verified-contributor tier (`Profile.is_verified_contributor`)
+`ExerciseSubmissionViewSet.perform_create` below reads for the auto-publish fast path CLAUDE.md
+Section 18 item 4 resolves.
 """
 
 from django.contrib.contenttypes.models import ContentType
@@ -33,8 +34,9 @@ class IsModerator(permissions.BasePermission):
 
 
 class ExerciseSubmissionViewSet(viewsets.ModelViewSet):
-    """POST /api/exercise-submissions/ (auth required) → moderation queue. A regular user only ever
-    sees their own submissions; a moderator (is_staff) sees every submission."""
+    """POST /api/exercise-submissions/ (auth required) → moderation queue, unless the submitter is a
+    verified contributor (below). A regular user only ever sees their own submissions; a moderator
+    (is_staff) sees every submission."""
 
     serializer_class = ExerciseSubmissionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -49,11 +51,47 @@ class ExerciseSubmissionViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(submitted_by=self.request.user)
+        """CLAUDE.md Section 18 item 4's own real, previously-undecided policy question — resolved: a
+        NEW EXERCISE from a verified contributor (`Profile.is_verified_contributor`, already a real
+        tier this app grants and reads elsewhere for material-coverage vote weighting,
+        materials/serializers.py) goes live immediately, no moderator review. Deliberately narrow,
+        matching the policy exactly as decided, not "trust this person generally": an EDIT SUGGESTION
+        or a TRANSLATION from the same verified contributor still queues regardless
+        (`EditSuggestionViewSet`/`ExerciseTranslationViewSet` are both untouched by this) — trust in
+        someone's own NEW exercise being mathematically sound doesn't extend to trusting an unreviewed
+        CHANGE to something that's already published and already been checked once.
+
+        Reuses `_apply_submission` unchanged — the exact same function `ModerationActionView` calls
+        for a moderator's own approve action, retry-safe number allocation included, so an auto-
+        published submission racing a real concurrent moderator approval for the same course (Section
+        17I) is already covered by the same fix, not a new, second race this path could reintroduce.
+
+        `reviewed_by` is deliberately left unset — genuinely no one reviewed this, and pretending the
+        submitter reviewed their own work would be dishonest in exactly the place a moderator might
+        later want to distinguish "a person checked this" from "the system published it on trust."
+        `review_note` says so in plain language instead. No `_notify_decision` call either: that
+        notification exists to tell a submitter about a moderator's decision they weren't present
+        for — here the submitter IS the one making this request right now, and the response body
+        (`status: 'approved'`, `resulting_exercise` set) already tells them synchronously; a
+        notification a moment later about their own just-completed action would just be noise. Tag
+        followers still get notified as usual — that already happens unconditionally inside
+        `_apply_submission` itself, regardless of which path led there."""
+        submission = serializer.save(submitted_by=self.request.user)
+        profile = getattr(self.request.user, 'profile', None)
+        if profile and profile.is_verified_contributor:
+            _apply_submission(submission, self.request.user)
+            submission.status = 'approved'
+            submission.review_note = 'Auto-published — submitted by a verified contributor.'
+            submission.save(update_fields=['status', 'review_note', 'resulting_exercise'])
 
 
 class EditSuggestionViewSet(viewsets.ModelViewSet):
-    """POST /api/edit-suggestions/ (auth required) → moderation queue."""
+    """POST /api/edit-suggestions/ (auth required) → moderation queue, always — deliberately
+    unconditional, unlike `ExerciseSubmissionViewSet` right above. The verified-contributor
+    auto-publish policy (CLAUDE.md Section 18 item 4) only ever covers a brand-new exercise; an edit
+    suggestion is a change to something that's ALREADY published and already been reviewed once, so
+    trusting a verified contributor's own new work doesn't extend to skipping review of a change to
+    someone else's."""
 
     serializer_class = EditSuggestionSerializer
     permission_classes = [permissions.IsAuthenticated]
