@@ -11,7 +11,9 @@ deliberately deferred) are also built. **The corpus-retirement question (Section
 resolved: retire `Database-of-Student-Exercise`'s static site now** — see Section 12 and Section 18
 item 3 for the decision and what it changed. The translation-publish race (and a more severe,
 non-concurrent bug found while chasing it) is fixed, and this project's first real automated test
-suite exists (66 tests, `manage.py test`) — see Sections 17K/17L. This document is the living spec for
+suite exists — see Sections 17K/17L. **Node governors — a scoped, per-Field/Course moderator role,
+full stack (backend + a real admin page) — are also built** (92 tests total now), see Section 17M.
+This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -2336,8 +2338,9 @@ non-moderator) correctly still passed, since they don't touch the code paths tha
 is the same "does this test actually catch the bug it claims to" discipline a real regression suite
 needs to earn its own trust, applied here rather than assumed from the test reading correctly.
 
-`manage.py test` (no args) runs the full suite (66 tests, ~22s); `manage.py test <app>` runs one
-app's own tests. `manage.py check` and `makemigrations --check --dry-run` both stay clean.
+`manage.py test` (no args) runs the full suite (66 tests as of this section, ~22s; **92 as of
+Section 17M**, ~34s, once the node-governor feature's own 26 tests joined it); `manage.py test <app>`
+runs one app's own tests. `manage.py check` and `makemigrations --check --dry-run` both stay clean.
 
 ### Left open, not built
 
@@ -2363,6 +2366,214 @@ app's own tests. `manage.py check` and `makemigrations --check --dry-run` both s
   get-or-create-on-the-fly path** (`MaterialViewSet.coverage`'s own "matching how a brand-new tag is
   created the first time someone proposes it" behavior) — only the plain `topic`-only case is tested;
   a real, small, worthwhile addition, not attempted here.
+
+## 17M. Feature: node governors — a scoped moderator role (✅ built, full stack)
+
+Every moderation permission in this project has, until now, been all-or-nothing: `is_staff` sees and
+acts on the ENTIRE cross-course moderation queue, and nobody else can act on any of it. That's a real
+gap once EdMat has more than a handful of Fields — a trusted contributor for, say, the "Algebra"
+course shouldn't need full platform-wide staff status just to review submissions/translations/reports
+scoped to their own course. This feature adds a genuinely scoped role instead: a **node governor**
+holds moderation authority over ONE taxonomy node — a `Field` or a `Course` — not the whole platform.
+
+**Scope decisions, made explicitly before building (not defaulted to without asking):** full stack
+(a real backend model/permission engine AND a real SvelteKit admin page, not backend-only with no
+UI); and a Field-level grant cascades down to every Course under it, so granting someone "Algebra"
+the FIELD doesn't mean re-granting each Course inside it one at a time.
+
+### The data model — `NodeGovernor`, a polymorphic grant
+
+```python
+# moderation/models.py
+class NodeGovernor(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='governed_nodes', ...)
+    content_type = models.ForeignKey(ContentType, ...)
+    object_id = models.PositiveIntegerField()
+    node = GenericForeignKey('content_type', 'object_id')       # a Field OR a Course
+    granted_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, related_name='+', ...)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'content_type', 'object_id')]
+        ordering = ['-created_at']   # newest grant first — this project's own live-browser
+                                       # verification of the admin UI caught a real test-script bug
+                                       # (not an app bug) that assumed the opposite ordering, see below
+
+GOVERNABLE_NODE_MODELS = {'field': Field, 'course': Course}
+```
+
+A `GenericForeignKey`, the same polymorphic pattern this project already uses for `Comment`/`Report`
+(one grant row, either kind of node), rather than two separate `FieldGovernor`/`CourseGovernor`
+tables — a Field-vs-Course grant differs only in WHAT it points at, not in any other field, so a
+second model would just be the same five columns duplicated.
+
+### The scoping engine — `is_governor_of_course` / `governed_course_ids`
+
+```python
+# moderation/services.py
+def is_governor_of_course(user, course) -> bool:
+    """Object-level check: can this user act on THIS specific course's moderation items?"""
+    if user is None or not user.is_authenticated: return False
+    if user.is_staff: return True                      # global staff is unaffected by this feature
+    if course is None: return False
+    return NodeGovernor.objects.filter(user=user).filter(
+        Q(content_type=course_ct, object_id=course.pk) |          # direct Course grant
+        Q(content_type=field_ct, object_id=course.field_id)        # OR the owning Field's grant
+    ).exists()
+
+def governed_course_ids(user) -> set[int] | None:
+    """Queryset-level filter: which course ids can this user's moderation QUEUE even show?
+    `None` means "don't filter — global staff sees everything," a REAL set (possibly empty)
+    means genuine scoping, including the honest 'governs nothing at all' case."""
+    if user is None or not user.is_authenticated or user.is_staff: return None
+    # ... resolves direct Course grants + every Course under a granted Field, unions them
+```
+
+**The `None`-vs-`set()` distinction is load-bearing, not incidental.** `build_moderation_queue_payload`
+and `build_report_queue` both take this same `course_ids: set[int] | None` and only filter when it's
+not `None` — collapsing "unfiltered" into an empty-set convention instead would have made a genuine
+zero-grants governor indistinguishable from global staff at the query layer, a real correctness trap
+this design avoids by keeping the two states as different Python values, not the same value read two
+different ways.
+
+**Both an object-level AND a queryset-level check exist, and both matter — a queryset filter alone
+isn't enough.** `ModerationActionView`/`ReportActionView` each act on ONE specific row by id, arriving
+via a URL path parameter a scoped queryset filter never gets a chance to narrow — a governor could
+otherwise POST directly to a moderation action for a row outside their own scope and it would still
+process, since the view never runs the LIST query at all for a single-object action. Both views now
+call `is_governor_of_course`/`_course_for_moderation_target`/`_course_for_report_target` (new small
+helpers resolving "which course does this specific target ultimately belong to") and return `403`
+before any mutation if the acting user doesn't govern that course — checked BEFORE the claim/update,
+not after, so a disallowed request can't even partially apply.
+
+**A real, found-before-shipping bug: `ReportActionView.post()`'s own final response used to return
+the UNSCOPED report queue.** `build_report_queue()` with no arguments returns every pending report
+platform-wide — correct for global staff, a real scope leak for anyone else, since the response body
+would show a scoped governor reports from courses they have no business seeing, purely as a side
+effect of the endpoint's own "return the freshly-resolved queue" convenience. Fixed to
+`build_report_queue(course_ids=governed_course_ids(request.user))`, and caught by a dedicated
+regression test (`ReportActionScopingTests`) specifically written to catch this exact shape of bug,
+not just to exercise the happy path.
+
+### The grant/revoke API — `NodeGovernorViewSet`
+
+`IsModerator.has_permission` was widened to admit anyone holding ANY `NodeGovernor` row (not just
+`is_staff`) — a scoped governor needs to reach `/moderation/queue/` at all, even though what they see
+there is then further narrowed by `governed_course_ids`. Granting/revoking the role itself, though,
+stays **staff-only in this v1** — `NodeGovernorViewSet.get_permissions()` requires `IsAdminUser` for
+`create`/`destroy` specifically, a deliberate, narrower decision than "anyone who can moderate can
+also delegate moderation," see "Left open" below. `get_queryset()` scopes a NON-staff caller's own
+`GET /moderation/governors/` to just their own grant(s) — real, if modest, self-service visibility
+("what do I govern?") without needing staff status just to see your own scope.
+
+`NodeGovernorSerializer` accepts `{ user, kind: 'field'|'course', node_slug }` on write (resolving
+`node_slug` against whichever model `kind` names, `400`ing with a real, specific error if it doesn't
+resolve or the grant already exists — `NodeGovernor.objects.filter(...).exists()` checked in
+`validate()`, not left to the DB's own `unique_together` to surface as an opaque `IntegrityError`),
+and returns a fully resolved, human-readable shape on read (`node_type`, `node_id` — the slug, not the
+raw numeric PK, matching this API's own established id-format convention — `node_label`, resolved
+through the SAME `resolve_translation`/`request_locale` machinery every other node-name lookup in this
+API already uses, so a governor's own scope banner reads "Algebra (verify)," not a bare slug).
+
+### The frontend — `/moderation`'s new "Governors" tab, and a widened gate everywhere else
+
+`authStore.canModerate` (`isModerator || isNodeGovernor`) is the new, single gate the whole frontend
+reads instead of `isModerator` alone — the Header's nav link, and the moderation page's own top-level
+`{#if}`, both switched to it. `ProfileSerializer.get_is_node_governor` is a small, cheap `.exists()`
+query added to the `/me` payload precisely so this flag is available on login without a second
+round-trip.
+
+The moderation page gained a fifth tab, **Governors**, visible ONLY to real global staff
+(`authStore.isModerator`, deliberately NOT `canModerate` — a scoped governor can't grant/revoke this
+role at all in v1, so the tab isn't offered to them rather than being reachable and then 403ing on
+every action inside it). A non-staff governor instead sees a small scope banner above the ordinary
+queue tabs ("You govern: {node}. This is your own scoped queue, not the whole platform's.") — the
+queue itself (Reports/New exercises/Edit suggestions/Translations) is the SAME `ModerationQueueView`
+every staff member already sees, just server-side narrowed to their own course(s), so no separate
+scoped-queue UI was needed, only the banner disclosing that the narrowing exists.
+
+The Governors tab itself: a grant form (a numeric User ID field — see "Left open" on why there's no
+user search — a Scope `<select>` toggling between Field/Course, and a node `<select>` populated from
+whichever list `getFields()`/`getAllCourses()` already loaded) and a list of current grants, each
+rendered as a plain, readable sentence ("verify_nogrant governs the whole field: Math (verify)") with
+a Revoke button.
+
+### Verified end-to-end, live — a real bug found and fixed along the way, not assumed correct
+
+Driven with a real headless-Chromium session (Playwright) against the actual running dev servers
+(backend on :8000, frontend Vite dev on :5173), not just `svelte-check`/`manage.py test` passing in
+isolation — the same "reproduce/verify before trusting it" discipline Sections 17I/17K/17L already
+established for this project. Confirmed, against real seeded data (a `math-verify` Field, an
+`algebra-verify` Course inside it, and three real logged-in accounts — a staff user, a course-scoped
+governor, and a user with zero grants at all):
+
+- The scoped, non-staff governor sees the Moderation nav link, the scope banner reading their exact
+  course, and correctly does NOT see the Governors tab.
+- Global staff sees the Governors tab, the existing grant listed with its correctly-resolved course
+  label, can grant a brand-new FIELD-level governor through the real form (not just via the API
+  directly), sees it appear immediately with the correct "governs the whole field" label, and can
+  revoke it — leaving the other, unrelated grant untouched.
+- A user with zero grants and no staff status sees no Moderation nav link at all, and a direct
+  navigation to `/moderation` shows the access-denied message, not the queue.
+- Backend-only checks (bypassing the UI, hitting the API directly): `/api/auth/me/` correctly reports
+  `is_node_governor`; the scoped governor gets a real `200` from the moderation queue (server-side
+  narrowed) while a zero-grant user gets `403`; a scoped governor attempting to grant/revoke via the
+  API themselves correctly gets `403` (staff-only in v1).
+
+**Two real, found-and-fixed bugs surfaced by this live verification, neither caught by
+`svelte-check`/`manage.py test` alone:**
+
+1. **A genuine runtime type bug in the grant form.** The User ID field was originally
+   `<input type="number">` bound via Svelte 5's `bind:value` — which binds a real JavaScript
+   `number` (or `undefined`) for a number input, NOT the `string` the surrounding code (`.trim()`,
+   `grantNodeGovernor(userId: string, ...)`) assumed throughout. `svelte-check` never flagged the
+   mismatch (the binding's own inferred type doesn't get checked against the DOM input's `type`
+   attribute), but the very first live grant attempt through the actual form threw a real
+   `$.get(...).trim is not a function` in the browser console. Fixed by switching to
+   `type="text" inputmode="numeric" pattern="[0-9]*"` — keeps the numeric mobile keyboard, keeps
+   Svelte's binding a genuine string end to end, matching what the rest of the code already assumed.
+2. **A test-script bug this session's own verification pass caught mid-way, not an app bug** — worth
+   recording anyway since it's exactly the kind of "ordering assumption silently wrong" mistake this
+   project's discipline is meant to surface. `NodeGovernor.Meta.ordering = ['-created_at']` means the
+   list is newest-grant-first; a first draft of the verification script picked the row to revoke via
+   `.last()` (oldest, not newest), which silently revoked the WRONG grant. Confirmed by checking the
+   real API state directly after the run (`GET /moderation/governors/` unexpectedly returned `[]`,
+   both grants gone, not just the intentionally-created one) — fixed by re-targeting the revoke by
+   its actual row text (`.governor-row:has-text("verify_nogrant")`) instead of position, and
+   re-verified clean.
+
+Both fixes were re-verified against a fresh live run before being treated as done — not assumed
+correct from the diff alone.
+
+**Backend: 26 new tests** (`NodeGovernorHelperTests`, `ModerationActionScopingTests`,
+`ModerationQueueScopingTests`, `IsModeratorGateTests`, `NodeGovernorGrantApiTests`,
+`ReportActionScopingTests` — the last including a direct regression test for the queue-leak bug
+above — plus 2 in `accounts/tests.py` for the `/me` flag), bringing the full suite to **92 tests,
+all passing**. `manage.py check` and `makemigrations --check --dry-run` both stay clean.
+`npm run check` (0 errors/0 warnings across 1224 files), `npm run lint` (prettier + eslint, both
+clean — the only warnings anywhere are in `project.inlang`'s own pre-existing, untouched generated
+files), and `npm run build` (production build succeeds) all confirmed clean on the frontend.
+
+### Left open, not built
+
+- **No user-search endpoint.** Granting a governor role means already knowing the target account's
+  real numeric User ID (visible via Django admin's own user list) — a real, honest UX limitation for
+  a v1 admin tool, not a hidden gap. A real `/api/accounts/search/?q=` (or similar) would be the
+  natural next step once this needs to scale past "an admin who already knows the id."
+- **Only global staff can grant/revoke the role, even at Field scope, in this v1.** A Field-level
+  governor can't delegate a narrower Course-level grant to someone else within their own field —
+  every grant/revoke, at any scope, requires real `is_staff`. Explicitly a v1 scope decision
+  (`IsAdminUser` on `create`/`destroy`), not an oversight; delegated sub-granting is a real, deferred
+  follow-up if this role hierarchy ever needs to go more than one level deep.
+- **No audit trail beyond `granted_by`/`created_at`.** A revoke doesn't leave any record of who
+  revoked it or when — the row is simply deleted. Fine for a small admin tool today; a real audit log
+  (who granted/revoked what, and when) would be the natural next step if this needs to be
+  accountable at a larger scale.
+- **No UI or backend concept of a governor's own activity being distinguishable from staff's** in the
+  moderation action's own `reviewed_by`/`resolved_by` fields — a decision made by a scoped governor
+  looks identical to one made by a full staff member in the data, which is arguably correct (the
+  decision itself IS equally authoritative within their scope) but worth naming as a deliberate
+  non-distinction, not an unconsidered gap.
 
 ## 18. Open questions
 

@@ -16,7 +16,9 @@ from rest_framework.test import APITestCase
 
 from community.models import Comment
 from exercises.models import Exercise, ExerciseTranslation
-from moderation.models import ContentView, Report
+from moderation.models import ContentView, NodeGovernor, Report
+from moderation.services import governed_course_ids, is_governor_of_course
+from taxonomy.models import Field
 from testing.factories import make_course, make_exercise, make_user, make_viewer
 
 
@@ -443,6 +445,91 @@ class ReportActionViewTests(APITestCase):
         self.assertIsNotNone(self.exercise.auto_hidden_at)
 
 
+class ReportActionScopingTests(APITestCase):
+    """Node-governor scoping on ReportActionView — including a real regression test for a bug
+    found (not just reasoned about) while building this feature: the response this view returns
+    reuses build_report_queue(), and the FIRST version of this fix left that one final call
+    unscoped, which would have handed a course governor back every OTHER pending report on the
+    platform the moment they resolved one of their own."""
+
+    def _hidden_exercise_in(self, course):
+        exercise = make_exercise(course, 1)
+        _record_views(exercise, 10)
+        for i in range(3):
+            reporter = make_user(f'rep-scope-{course.slug}-{i}')
+            self.client.force_authenticate(reporter)
+            _report(self.client, 'exercise', exercise.pk)
+        exercise.refresh_from_db()
+        assert exercise.auto_hidden_at is not None
+        return exercise
+
+    def test_a_course_governor_can_restore_an_auto_hidden_exercise_in_their_own_course(self):
+        course = make_course('report-scope-a')
+        exercise = self._hidden_exercise_in(course)
+        governor = make_user('report-scope-gov')
+        _grant(governor, 'course', course)
+        self.client.force_authenticate(governor)
+
+        response = self.client.post(
+            reverse(
+                'moderation-report-action',
+                kwargs={'kind': 'exercise', 'pk': exercise.pk, 'decision': 'restore'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        exercise.refresh_from_db()
+        self.assertIsNone(exercise.auto_hidden_at)
+
+    def test_a_course_governor_cannot_act_on_a_report_outside_their_own_course(self):
+        governed_course = make_course('report-scope-b')
+        other_course = make_course('report-scope-c')
+        exercise = self._hidden_exercise_in(other_course)
+        governor = make_user('report-scope-gov2')
+        _grant(governor, 'course', governed_course)
+        self.client.force_authenticate(governor)
+
+        response = self.client.post(
+            reverse(
+                'moderation-report-action',
+                kwargs={'kind': 'exercise', 'pk': exercise.pk, 'decision': 'restore'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        exercise.refresh_from_db()
+        self.assertIsNotNone(exercise.auto_hidden_at)  # untouched
+
+    def test_the_returned_queue_after_resolving_one_report_stays_scoped_to_the_governors_own_course(self):
+        governed_course = make_course('report-scope-d')
+        other_course = make_course('report-scope-e')
+        own_exercise = self._hidden_exercise_in(governed_course)
+        other_exercise = self._hidden_exercise_in(other_course)
+        governor = make_user('report-scope-gov3')
+        _grant(governor, 'course', governed_course)
+        self.client.force_authenticate(governor)
+
+        response = self.client.post(
+            reverse(
+                'moderation-report-action',
+                kwargs={'kind': 'exercise', 'pk': own_exercise.pk, 'decision': 'restore'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        returned_ids = {row['object_id'] for row in response.data if row['kind'] == 'exercise'}
+        # own_exercise was just resolved, so it's no longer pending and correctly absent; the real
+        # check is that other_exercise (a DIFFERENT course this governor doesn't govern) is ALSO
+        # absent — the bug this test guards against would have leaked it into the response.
+        self.assertNotIn(other_exercise.pk, returned_ids)
+
+
 class ReportQueueTests(APITestCase):
     """`build_report_queue` (moderation/services.py) — rewritten from a real, measured N+1 into a
     small, fixed number of bulk queries (CLAUDE.md Section 17F); these tests exercise its actual
@@ -469,3 +556,328 @@ class ReportQueueTests(APITestCase):
         self.assertEqual(group['percent_reported'], 20)
         self.assertFalse(group['is_auto_hidden'])
         self.assertEqual(len(group['reasons']), 2)
+
+
+def _grant(user, kind, node, granted_by=None):
+    content_type = ContentType.objects.get_for_model(type(node))
+    return NodeGovernor.objects.create(
+        user=user, content_type=content_type, object_id=node.pk, granted_by=granted_by
+    )
+
+
+class NodeGovernorHelperTests(APITestCase):
+    """Direct tests of `is_governor_of_course`/`governed_course_ids` (moderation/services.py) — the
+    "node governor" feature's own core scoping logic, exercised independently of any one HTTP view."""
+
+    def setUp(self):
+        self.course_a1 = make_course('gov-helper-a1', field_slug='matematyka')
+        self.course_a2 = make_course('gov-helper-a2', field_slug='matematyka')
+        self.course_b1 = make_course('gov-helper-b1', field_slug='fizyka')
+        self.field_a = Field.objects.get(slug='matematyka')
+
+    def test_global_staff_governs_every_course_and_is_unscoped(self):
+        staff = make_user('helper-staff', is_staff=True)
+
+        self.assertTrue(is_governor_of_course(staff, self.course_a1))
+        self.assertTrue(is_governor_of_course(staff, self.course_b1))
+        self.assertIsNone(governed_course_ids(staff))
+
+    def test_a_course_level_grant_is_scoped_to_just_that_course(self):
+        governor = make_user('helper-course-gov')
+        _grant(governor, 'course', self.course_a1)
+
+        self.assertTrue(is_governor_of_course(governor, self.course_a1))
+        self.assertFalse(is_governor_of_course(governor, self.course_a2))
+        self.assertFalse(is_governor_of_course(governor, self.course_b1))
+        self.assertEqual(governed_course_ids(governor), {self.course_a1.pk})
+
+    def test_a_field_level_grant_cascades_to_every_course_in_that_field(self):
+        governor = make_user('helper-field-gov')
+        _grant(governor, 'field', self.field_a)
+
+        self.assertTrue(is_governor_of_course(governor, self.course_a1))
+        self.assertTrue(is_governor_of_course(governor, self.course_a2))
+        self.assertFalse(is_governor_of_course(governor, self.course_b1))
+        self.assertEqual(governed_course_ids(governor), {self.course_a1.pk, self.course_a2.pk})
+
+    def test_a_user_with_no_grants_governs_nothing(self):
+        plain = make_user('helper-plain')
+
+        self.assertFalse(is_governor_of_course(plain, self.course_a1))
+        self.assertEqual(governed_course_ids(plain), set())
+
+    def test_an_unresolvable_course_is_a_safe_default_deny_for_a_non_staff_user(self):
+        governor = make_user('helper-course-gov2')
+        _grant(governor, 'course', self.course_a1)
+
+        self.assertFalse(is_governor_of_course(governor, None))
+
+
+class ModerationActionScopingTests(APITestCase):
+    """A node governor's OBJECT-level authority, exercised through the real
+    ModerationActionView.post() endpoint — approving a submission outside their own governed
+    course(s) must fail with a clean 403, never silently succeed."""
+
+    def setUp(self):
+        self.course_a = make_course('scope-course-a', field_slug='matematyka')
+        self.course_b = make_course('scope-course-b', field_slug='matematyka')
+        self.other_field_course = make_course('scope-course-c', field_slug='fizyka')
+        self.field = Field.objects.get(slug='matematyka')
+
+    def _submission_for(self, course):
+        from moderation.models import ExerciseSubmission
+
+        return ExerciseSubmission.objects.create(
+            course=course,
+            submitted_by=make_user(f'scope-student-{course.slug}'),
+            payload={'difficulty': 'easy', 'locale': 'pl', 'title': 'T', 'statement': 'S'},
+        )
+
+    def test_course_governor_can_approve_a_submission_in_their_own_course(self):
+        governor = make_user('scope-course-gov')
+        _grant(governor, 'course', self.course_a)
+        submission = self._submission_for(self.course_a)
+        self.client.force_authenticate(governor)
+
+        response = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'submission', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_course_governor_cannot_approve_a_submission_in_a_different_course(self):
+        governor = make_user('scope-course-gov2')
+        _grant(governor, 'course', self.course_a)
+        submission = self._submission_for(self.course_b)
+        self.client.force_authenticate(governor)
+
+        response = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'submission', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, 'pending')
+
+    def test_field_governor_can_approve_items_in_any_course_under_their_field(self):
+        governor = make_user('scope-field-gov')
+        _grant(governor, 'field', self.field)
+        submission = self._submission_for(self.course_b)
+        self.client.force_authenticate(governor)
+
+        response = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'submission', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_field_governor_cannot_approve_items_outside_their_own_field(self):
+        governor = make_user('scope-field-gov2')
+        _grant(governor, 'field', self.field)
+        submission = self._submission_for(self.other_field_course)
+        self.client.force_authenticate(governor)
+
+        response = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'submission', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, 'pending')
+
+
+class ModerationQueueScopingTests(APITestCase):
+    """The moderation queue itself (ModerationQueueView -> build_moderation_queue_payload) — a
+    scoped governor should see only their own course(s); a real global moderator's own experience
+    must stay completely unfiltered, unchanged."""
+
+    def test_a_course_governor_only_sees_their_own_courses_pending_items(self):
+        from moderation.models import ExerciseSubmission
+
+        course_a = make_course('queue-scope-a')
+        course_b = make_course('queue-scope-b')
+        sub_a = ExerciseSubmission.objects.create(
+            course=course_a, submitted_by=make_user('queue-s1'), payload={'title': 'A'}
+        )
+        ExerciseSubmission.objects.create(
+            course=course_b, submitted_by=make_user('queue-s2'), payload={'title': 'B'}
+        )
+        governor = make_user('queue-gov')
+        _grant(governor, 'course', course_a)
+        self.client.force_authenticate(governor)
+
+        response = self.client.get(reverse('moderation-queue'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission_ids = {s['id'] for s in response.data['submissions']}
+        self.assertEqual(submission_ids, {sub_a.pk})
+
+    def test_global_staff_still_sees_every_pending_item_unfiltered(self):
+        from moderation.models import ExerciseSubmission
+
+        course_a = make_course('queue-scope-c')
+        course_b = make_course('queue-scope-d')
+        sub_a = ExerciseSubmission.objects.create(
+            course=course_a, submitted_by=make_user('queue-s3'), payload={'title': 'A'}
+        )
+        sub_b = ExerciseSubmission.objects.create(
+            course=course_b, submitted_by=make_user('queue-s4'), payload={'title': 'B'}
+        )
+        self.client.force_authenticate(make_user('queue-staff', is_staff=True))
+
+        response = self.client.get(reverse('moderation-queue'))
+
+        submission_ids = {s['id'] for s in response.data['submissions']}
+        self.assertEqual(submission_ids, {sub_a.pk, sub_b.pk})
+
+
+class IsModeratorGateTests(APITestCase):
+    """The coarse VIEW-level gate — anyone with at least one real grant can reach the moderation
+    surface at all; a plain authenticated user with none is forbidden, same as before this feature
+    existed."""
+
+    def test_a_node_governor_with_any_grant_can_reach_the_queue(self):
+        course = make_course('gate-course')
+        governor = make_user('gate-gov')
+        _grant(governor, 'course', course)
+        self.client.force_authenticate(governor)
+
+        response = self.client.get(reverse('moderation-queue'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_a_user_with_no_grants_at_all_is_forbidden(self):
+        self.client.force_authenticate(make_user('gate-no-grants'))
+
+        response = self.client.get(reverse('moderation-queue'))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class NodeGovernorGrantApiTests(APITestCase):
+    """The actual administration panel this feature is named for — granting/revoking a
+    NodeGovernor row via `NodeGovernorViewSet` (moderation/views.py)."""
+
+    def setUp(self):
+        self.staff = make_user('grant-staff', is_staff=True)
+        self.course = make_course('grant-course')
+
+    def test_staff_can_grant_a_course_level_governor(self):
+        target = make_user('future-course-gov')
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(
+            reverse('node-governor-list'),
+            {'user': target.pk, 'kind': 'course', 'node_slug': self.course.slug},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(NodeGovernor.objects.filter(user=target).exists())
+        self.assertEqual(response.data['node_type'], 'course')
+        self.assertEqual(response.data['node_id'], self.course.slug)
+
+    def test_staff_can_grant_a_field_level_governor(self):
+        target = make_user('future-field-gov')
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(
+            reverse('node-governor-list'),
+            {'user': target.pk, 'kind': 'field', 'node_slug': 'matematyka'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['node_type'], 'field')
+
+    def test_a_duplicate_grant_is_rejected(self):
+        target = make_user('dup-gov')
+        _grant(target, 'course', self.course, granted_by=self.staff)
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(
+            reverse('node-governor-list'),
+            {'user': target.pk, 'kind': 'course', 'node_slug': self.course.slug},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(NodeGovernor.objects.filter(user=target).count(), 1)
+
+    def test_a_nonexistent_node_slug_is_rejected(self):
+        target = make_user('bad-slug-gov')
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(
+            reverse('node-governor-list'),
+            {'user': target.pk, 'kind': 'course', 'node_slug': 'does-not-exist'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_non_staff_user_cannot_grant_a_governor(self):
+        target = make_user('another-target')
+        self.client.force_authenticate(make_user('not-staff-either'))
+
+        response = self.client.post(
+            reverse('node-governor-list'),
+            {'user': target.pk, 'kind': 'course', 'node_slug': self.course.slug},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_can_revoke_a_grant(self):
+        target = make_user('revoke-me')
+        grant = _grant(target, 'course', self.course, granted_by=self.staff)
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.delete(reverse('node-governor-detail', kwargs={'pk': grant.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(NodeGovernor.objects.filter(pk=grant.pk).exists())
+
+    def test_non_staff_user_only_sees_their_own_grants_in_the_list(self):
+        user_a = make_user('list-user-a')
+        user_b = make_user('list-user-b')
+        _grant(user_a, 'course', self.course, granted_by=self.staff)
+        _grant(user_b, 'course', self.course, granted_by=self.staff)
+        self.client.force_authenticate(user_a)
+
+        response = self.client.get(reverse('node-governor-list'))
+
+        user_ids = {row['user'] for row in response.data}
+        self.assertEqual(user_ids, {user_a.pk})
+
+    def test_staff_sees_every_grant_in_the_list(self):
+        user_a = make_user('list-user-c')
+        user_b = make_user('list-user-d')
+        _grant(user_a, 'course', self.course, granted_by=self.staff)
+        _grant(user_b, 'course', self.course, granted_by=self.staff)
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(reverse('node-governor-list'))
+
+        user_ids = {row['user'] for row in response.data}
+        self.assertEqual(user_ids, {user_a.pk, user_b.pk})

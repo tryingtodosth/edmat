@@ -66,3 +66,34 @@ class LoginViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertNotIn('token', response.data)
+
+
+class MeViewNodeGovernorTests(APITestCase):
+    """`is_node_governor` on ProfileSerializer (GET /auth/me/) — the flag a frontend uses to decide
+    whether to show the scoped moderation nav link/route at all for a non-staff user."""
+
+    def test_a_user_with_a_node_governor_grant_shows_true(self):
+        from django.contrib.contenttypes.models import ContentType
+
+        from moderation.models import NodeGovernor
+        from testing.factories import make_course
+
+        user = make_user('has-a-grant')
+        course = make_course('me-view-course')
+        NodeGovernor.objects.create(
+            user=user, content_type=ContentType.objects.get_for_model(type(course)), object_id=course.pk
+        )
+        self.client.force_authenticate(user)
+
+        response = self.client.get(reverse('auth-me'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['is_node_governor'])
+
+    def test_a_plain_user_with_no_grants_shows_false(self):
+        self.client.force_authenticate(make_user('no-grants-at-all'))
+
+        response = self.client.get(reverse('auth-me'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['is_node_governor'])

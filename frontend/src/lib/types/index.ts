@@ -10,3 +10,4 @@ export * from './exerciseSet';
 export * from './report';
 export * from './notification';
 export * from './tag';
+export * from './nodeGovernor';

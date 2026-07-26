@@ -10,7 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from exercises.models import Exercise
-from taxonomy.models import Course
+from taxonomy.models import Course, Field
 
 REVIEW_STATUS_CHOICES = [
     ('pending', 'Pending'),
@@ -131,3 +131,38 @@ class ContentView(models.Model):
 
     def __str__(self) -> str:
         return f'{self.user} viewed {self.exercise}'
+
+
+# The "node governor" concept: a moderator scoped to ONE taxonomy node (a Field or a Course),
+# distinct from Django's own `is_staff` (a GLOBAL moderator — unchanged, still checked first
+# everywhere this matters, see moderation/services.py's `is_governor_of_course`). A Field-level
+# grant cascades down to every Course under it (a field coordinator governs everything in their
+# field); a Course-level grant is scoped to just that one course (a single course's own TA/rep).
+# Generic FK to Field/Course rather than two separate models — the two node kinds share every real
+# behavior here (who's granted, by whom, when), so a discriminated pair would just be the same row
+# shape twice; GENERIC_NODE_MODELS (services.py) is the one place `kind` <-> model is defined,
+# mirroring moderation/services.py's own REPORT_KIND_MODELS precedent exactly.
+class NodeGovernor(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='governed_nodes', on_delete=models.CASCADE
+    )
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    node = GenericForeignKey('content_type', 'object_id')
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, related_name='+', on_delete=models.SET_NULL
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'content_type', 'object_id')]
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.user} governs {self.node!r}'
+
+
+# The one place `kind` <-> model is defined for node governance — moderation/serializers.py's
+# NodeGovernorSerializer (validating a grant/list request) imports this rather than keeping its own
+# copy, the same discipline REPORT_KIND_MODELS already establishes for the reporting system.
+GOVERNABLE_NODE_MODELS = {'field': Field, 'course': Course}

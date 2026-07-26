@@ -2,20 +2,22 @@
 the moderation queue. If +20% of users who viewed that content report it, it gets hidden right away
 even before a moderator's decision."
 
-Two pieces, both here rather than in views.py since neither is HTTP-shaped: `check_auto_hide` (the
-actual rule, called right after a new Report is saved) and `resolve_view_scope_exercise` (which
-Exercise's own ContentView count a report's percentage gets divided against — reused by
-moderation/views.py's queue builder too, so the displayed percentage and the one the rule itself
-acted on can never drift apart).
+Also home to the "node governor" access-control helpers (`is_governor_of_course`/
+`governed_course_ids`) — a moderator scoped to one taxonomy node (a Field or a Course) rather than
+Django's own global `is_staff`. Neither is HTTP-shaped, matching this module's own existing
+"business logic lives here, views.py stays thin" convention already established for
+`check_auto_hide`/`resolve_view_scope_exercise` below.
 """
 
 from __future__ import annotations
 
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.utils import timezone
 
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation
+from taxonomy.models import Course, Field
 
 # The one place `kind` <-> model is defined — moderation/serializers.py's ReportCreateSerializer
 # (validating an incoming report) and build_report_queue below (rendering the moderator-facing
@@ -34,6 +36,52 @@ _REVERSE_KIND_MODELS = {model: kind for kind, model in REPORT_KIND_MODELS.items(
 # changing the rule's own spirit; trivially tunable if the real number should be different.
 MIN_REPORTS_FOR_AUTO_HIDE = 3
 AUTO_HIDE_THRESHOLD = 0.20
+
+
+def is_governor_of_course(user, course) -> bool:
+    """Does `user` have moderation authority over `course` — Django's global `is_staff` (unchanged,
+    checked first, always wins regardless of `course`), OR a real `NodeGovernor` grant covering it
+    (a direct Course-level grant, OR a Field-level one cascading down since `course` sits under that
+    Field)? `course=None` is a safe-default DENY for a non-staff user — a caller that couldn't
+    determine which course a report's target even belongs to shouldn't guess yes."""
+    if user is None or not user.is_authenticated:
+        return False
+    if user.is_staff:
+        return True
+    if course is None:
+        return False
+    from .models import NodeGovernor
+
+    course_ct = ContentType.objects.get_for_model(Course)
+    field_ct = ContentType.objects.get_for_model(Field)
+    return NodeGovernor.objects.filter(user=user).filter(
+        Q(content_type=course_ct, object_id=course.pk) | Q(content_type=field_ct, object_id=course.field_id)
+    ).exists()
+
+
+def governed_course_ids(user) -> set[int] | None:
+    """Every Course id `user` can act as a governor on, resolving Field-level grants down to every
+    Course under them. Returns `None` for a global (`is_staff`) moderator or an unauthenticated
+    caller — the signal every caller below reads as "skip scoping entirely, see everything," not an
+    empty/no-access result (an authenticated non-staff governor who genuinely governs nothing would
+    get back a real empty `set()` instead, which correctly filters everything out)."""
+    if user is None or not user.is_authenticated or user.is_staff:
+        return None
+    from .models import NodeGovernor
+
+    course_ct = ContentType.objects.get_for_model(Course)
+    field_ct = ContentType.objects.get_for_model(Field)
+    grants = NodeGovernor.objects.filter(user=user).values_list('content_type_id', 'object_id')
+    course_ids: set[int] = set()
+    field_ids: set[int] = set()
+    for ct_id, obj_id in grants:
+        if ct_id == course_ct.id:
+            course_ids.add(obj_id)
+        elif ct_id == field_ct.id:
+            field_ids.add(obj_id)
+    if field_ids:
+        course_ids |= set(Course.objects.filter(field_id__in=field_ids).values_list('id', flat=True))
+    return course_ids
 
 
 def _content_owner(target):
@@ -146,11 +194,19 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
     return '', exercise_id, exercise_title
 
 
-def build_report_queue() -> list[dict]:
+def build_report_queue(course_ids: set[int] | None = None) -> list[dict]:
     """Every target with at least one PENDING report, grouped and sorted by priority — this is the
     literal "gets a priority in the moderation queue" requirement: already auto-hidden items float
     to the very top (most urgent, since they're live-hidden right now and waiting on a decision),
     everything else follows by raw pending-report count descending.
+
+    `course_ids`, added for the "node governor" feature — `None` (the default, and what a global
+    `is_staff` moderator's call always passes, see `build_moderation_queue_payload`) means
+    unfiltered, exactly today's existing behavior. A real `set` scopes the results to only groups
+    whose own resolved Exercise belongs to one of those courses — a group whose course can't be
+    resolved at all (e.g. a Comment targeting something with no viewer-pool concept) is excluded
+    for a SCOPED caller, a safe default (hide rather than show something we can't verify is theirs),
+    but still included for the unscoped (`None`) global-moderator case, unchanged.
 
     ✅ Phase 4 — rewritten from a real, measured N+1 (820 SQL queries / ~1.45s for 198 report
     groups under `seed_moderation_load_test`'s own synthetic backlog — see
@@ -322,6 +378,10 @@ def build_report_queue() -> list[dict]:
             continue
 
         exercise = scope_exercise_by_key.get(key)
+        # Node-governor scoping — see this function's own doc comment for why an unresolvable
+        # exercise (course=None) is excluded for a SCOPED caller but not for the unfiltered one.
+        if course_ids is not None and (exercise is None or exercise.course_id not in course_ids):
+            continue
         # `.get(pk, 0)`, not `.get(pk)` — an exercise genuinely resolved but with zero ContentView
         # rows must read as 0 (a real, meaningful "nobody's viewed this yet"), not None (which means
         # "there's no exercise to measure a viewer pool against at all" — a different, rarer case,
@@ -361,18 +421,27 @@ def build_report_queue() -> list[dict]:
     return results
 
 
-def build_moderation_queue_payload() -> dict:
+def build_moderation_queue_payload(user=None) -> dict:
     """The exact body `GET /api/moderation/queue/` returns (moderation/views.py's
     `ModerationQueueView.get`) — pulled out here, not left duplicated between the view and
     `measure_moderation_queue` (Phase 4's own load-test measurement command), so there is only ever
     ONE real query-building path to keep correct/optimized, not two copies that can silently drift
     the moment one gets a fix (`select_related('course')` below) the other doesn't. Local imports,
     same discipline `check_auto_hide`/`build_report_queue` above already use, to avoid a real
-    circular import (moderation/serializers.py itself imports from this module)."""
+    circular import (moderation/serializers.py itself imports from this module).
+
+    `user`, added for the "node governor" feature — `None` (measure_moderation_queue's own call,
+    unchanged) means unfiltered, matching this function's original, always-unscoped behavior.
+    Passing the requesting user (ModerationQueueView.get does) resolves their own `governed_course_ids`
+    and scopes every one of the four queue sections to it — `None` from THAT resolution (a global
+    `is_staff` moderator) still means unfiltered, so today's global-moderator experience is
+    completely unchanged; only a real, non-staff node governor ever sees a narrower queue."""
     from exercises.serializers import ExerciseTranslationSerializer
 
     from .models import EditSuggestion, ExerciseSubmission
     from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer
+
+    course_ids = governed_course_ids(user) if user is not None else None
 
     # select_related('course') — ExerciseSubmissionSerializer.course is a SlugRelatedField, which
     # resolves `submission.course.slug` per row; without this it's a real, measured N+1 (one query
@@ -381,9 +450,13 @@ def build_moderation_queue_payload() -> dict:
     submissions = ExerciseSubmission.objects.filter(status='pending').select_related('course')
     edits = EditSuggestion.objects.filter(status='pending')
     translations = ExerciseTranslation.objects.filter(status='pending')
+    if course_ids is not None:
+        submissions = submissions.filter(course_id__in=course_ids)
+        edits = edits.filter(exercise__course_id__in=course_ids)
+        translations = translations.filter(exercise__course_id__in=course_ids)
     return {
         'submissions': ExerciseSubmissionSerializer(submissions, many=True).data,
         'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
         'translations': ExerciseTranslationSerializer(translations, many=True).data,
-        'reports': build_report_queue(),
+        'reports': build_report_queue(course_ids=course_ids),
     }

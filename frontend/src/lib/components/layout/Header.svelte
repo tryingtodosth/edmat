@@ -43,7 +43,9 @@
 				{/if}
 			</a>
 			<a href={resolve('/submit')}>{m.nav_submit()}</a>
-			{#if authStore.isModerator}
+			<!-- canModerate, not isModerator — a scoped node governor should reach the moderation page
+			     too, just seeing a narrower queue once there (CLAUDE.md's own "node governor" feature) -->
+			{#if authStore.canModerate}
 				<a href={resolve('/moderation')}>{m.nav_moderation()}</a>
 			{/if}
 		</nav>

@@ -1,10 +1,15 @@
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
+from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.models import Course
 
-from .models import EditSuggestion, ExerciseSubmission, Report
+from .models import GOVERNABLE_NODE_MODELS, EditSuggestion, ExerciseSubmission, NodeGovernor, Report
 from .services import REPORT_KIND_MODELS
+
+User = get_user_model()
+_REVERSE_GOVERNABLE_NODE_MODELS = {model: kind for kind, model in GOVERNABLE_NODE_MODELS.items()}
 
 
 class ExerciseSubmissionSerializer(serializers.ModelSerializer):
@@ -86,3 +91,81 @@ class ReportCreateSerializer(serializers.ModelSerializer):
         model = REPORT_KIND_MODELS[kind]
         content_type = ContentType.objects.get_for_model(model)
         return Report.objects.create(content_type=content_type, object_id=object_id, **validated_data)
+
+
+class NodeGovernorSerializer(serializers.ModelSerializer):
+    """The "node governor" feature's own grant/list serializer — `kind` + `node_slug` (a Field/Course
+    slug, matching every other Field/Course reference in this API, e.g.
+    ExerciseSubmissionSerializer.course above — the frontend never deals with a raw numeric PK for
+    either of those two types) resolve to the real GenericForeignKey target, mirroring
+    ReportCreateSerializer's own `kind`/`object_id` write-only pattern one level up (a slug, not a
+    bare int, since Field/Course are the one pair of models this whole API already treats that way).
+    `user` stays a plain PK — User genuinely is one of the "opaque numeric id" types everywhere else
+    in this app (Review.author, Comment.author, ...), so no special-casing needed there.
+    """
+
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    user_display_name = serializers.SerializerMethodField()
+    kind = serializers.ChoiceField(choices=list(GOVERNABLE_NODE_MODELS), write_only=True)
+    node_slug = serializers.CharField(write_only=True)
+    node_type = serializers.SerializerMethodField()
+    node_id = serializers.SerializerMethodField()
+    node_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NodeGovernor
+        fields = [
+            'id',
+            'user',
+            'user_display_name',
+            'kind',
+            'node_slug',
+            'node_type',
+            'node_id',
+            'node_label',
+            'granted_by',
+            'created_at',
+        ]
+        read_only_fields = ['granted_by', 'created_at']
+
+    def validate(self, attrs):
+        model = GOVERNABLE_NODE_MODELS[attrs['kind']]
+        node = model.objects.filter(slug=attrs['node_slug']).first()
+        if node is None:
+            raise serializers.ValidationError({'node_slug': ['No matching node found.']})
+        content_type = ContentType.objects.get_for_model(model)
+        # Pre-validated here (same style ReportCreateSerializer's own `already_reported` check
+        # already uses) rather than relying on the model's own unique_together to raise
+        # IntegrityError — a clean 400 beats a raw 500 for an entirely expected "already granted"
+        # case.
+        if NodeGovernor.objects.filter(
+            user=attrs['user'], content_type=content_type, object_id=node.pk
+        ).exists():
+            raise serializers.ValidationError({'detail': ['This user already governs this node.']})
+        attrs['_node'] = node
+        attrs['_content_type'] = content_type
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('kind')
+        validated_data.pop('node_slug')
+        node = validated_data.pop('_node')
+        content_type = validated_data.pop('_content_type')
+        return NodeGovernor.objects.create(content_type=content_type, object_id=node.pk, **validated_data)
+
+    def get_node_type(self, obj):
+        return _REVERSE_GOVERNABLE_NODE_MODELS.get(obj.content_type.model_class())
+
+    def get_node_id(self, obj):
+        node = obj.node
+        return getattr(node, 'slug', None)
+
+    def get_node_label(self, obj):
+        node = obj.node
+        if node is None:
+            return ''
+        t = resolve_translation(node.translations, request_locale(self.context))
+        return t.name if t else node.slug
+
+    def get_user_display_name(self, obj):
+        return getattr(obj.user.profile, 'display_name', '') or obj.user.username

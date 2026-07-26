@@ -35,6 +35,13 @@ class ProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
     is_moderator = serializers.BooleanField(source='user.is_staff', read_only=True)
+    # The "node governor" feature's own scoped-moderator flag — deliberately just a cheap boolean
+    # here (a plain `.exists()` check), not the full grant list: this response is fetched on every
+    # authenticated page load (auth.svelte.ts's own init()), so keeping it light matters. A frontend
+    # that needs the actual list of WHICH nodes (to render "you govern: X, Y") calls the dedicated,
+    # already-scoped-to-"my own grants" `GET /api/moderation/governors/` instead — the same endpoint
+    # the governor-management admin panel already needs, not a second, duplicated data path.
+    is_node_governor = serializers.SerializerMethodField()
     donation_links = DonationLinkSerializer(many=True, read_only=True)
 
     class Meta:
@@ -48,6 +55,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'preferred_locale',
             'is_verified_contributor',
             'is_moderator',
+            'is_node_governor',
             'joined_at',
             'show_profile_publicly',
             'notify_on_comment_reply',
@@ -56,6 +64,14 @@ class ProfileSerializer(serializers.ModelSerializer):
             'muted_notification_types',
             'donation_links',
         ]
+
+    def get_is_node_governor(self, obj):
+        # Local import — accounts.models has no reverse dependency on moderation, only this one
+        # serializer method needs it, the same "avoid a real or perceived import cycle" discipline
+        # moderation/services.py's own local imports already establish.
+        from moderation.models import NodeGovernor
+
+        return NodeGovernor.objects.filter(user=obj.user).exists()
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):

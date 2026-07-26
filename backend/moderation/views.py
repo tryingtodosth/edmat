@@ -2,6 +2,11 @@
 — a coarser, adjacent concept to the separate verified-contributor tier (`Profile.is_verified_contributor`)
 `ExerciseSubmissionViewSet.perform_create` below reads for the auto-publish fast path CLAUDE.md
 Section 18 item 4 resolves.
+
+The "node governor" feature (see `.models.NodeGovernor`/`.services.is_governor_of_course`) adds a
+SECOND, narrower kind of moderator on top — scoped to one Field/Course rather than the whole
+platform. `is_staff` stays the coarser, global concept everywhere; it's checked first and always
+wins, so nothing about today's existing global-moderator behavior changes for an `is_staff` user.
 """
 
 from django.contrib.contenttypes.models import ContentType
@@ -15,8 +20,13 @@ from exercises.models import Exercise, ExerciseTranslation
 from exercises.serializers import ExerciseTranslationSerializer
 from notifications.services import label_for_exercise, notify, notify_tag_followers
 
-from .models import EditSuggestion, ExerciseSubmission, Report
-from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer, ReportCreateSerializer
+from .models import EditSuggestion, ExerciseSubmission, NodeGovernor, Report
+from .serializers import (
+    EditSuggestionSerializer,
+    ExerciseSubmissionSerializer,
+    NodeGovernorSerializer,
+    ReportCreateSerializer,
+)
 from .services import (
     REPORT_KIND_MODELS,
     _content_owner,
@@ -24,13 +34,26 @@ from .services import (
     build_moderation_queue_payload,
     build_report_queue,
     check_auto_hide,
+    governed_course_ids,
+    is_governor_of_course,
     resolve_view_scope_exercise,
 )
 
 
 class IsModerator(permissions.BasePermission):
+    """True for Django's own global `is_staff` moderator, OR anyone who governs at least one
+    taxonomy node — the coarse, VIEW-level gate that lets a scoped node governor even reach the
+    moderation surface at all. `ModerationActionView`/`ReportActionView` below still do their own,
+    narrower OBJECT-level check afterward (governs THIS SPECIFIC item's own course) — this class
+    only answers "should this request be allowed anywhere near the moderation endpoints."""
+
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        if user.is_staff:
+            return True
+        return NodeGovernor.objects.filter(user=user).exists()
 
 
 class ExerciseSubmissionViewSet(viewsets.ModelViewSet):
@@ -128,7 +151,11 @@ class ReportViewSet(viewsets.ModelViewSet):
 
 class ModerationQueueView(APIView):
     """GET /api/moderation/queue/ — pending submissions + edits + translations + reports (grouped,
-    priority-sorted — see build_report_queue's own doc comment), moderator only."""
+    priority-sorted — see build_report_queue's own doc comment), moderator (global OR node
+    governor) only. Passing `request.user` through is what makes a scoped node governor
+    automatically see only their own governed course(s) — build_moderation_queue_payload resolves
+    `None` (a global is_staff moderator) back to today's original, completely unfiltered
+    behavior."""
 
     permission_classes = [IsModerator]
 
@@ -137,7 +164,7 @@ class ModerationQueueView(APIView):
         # (services.py) now, not duplicated here — the exact same function
         # `measure_moderation_queue` imports and measures directly, so there is only ever one real
         # code path to keep correct/optimized.
-        return Response(build_moderation_queue_payload())
+        return Response(build_moderation_queue_payload(user=request.user))
 
 
 def _apply_submission(submission, reviewer):
@@ -301,6 +328,16 @@ _KIND_MODELS = {
 }
 
 
+def _course_for_moderation_target(kind, obj):
+    """Which Course a pending moderation-queue item belongs to — the scope
+    `is_governor_of_course` checks a node governor's own authority against. A submission carries
+    its own `course` FK directly; an edit suggestion/translation are both scoped through the
+    Exercise they target."""
+    if kind == 'submission':
+        return obj.course
+    return obj.exercise.course
+
+
 class ModerationActionView(APIView):
     """POST /api/moderation/{kind}/{id}/approve/ and /reject/ — moderator only.
 
@@ -344,7 +381,14 @@ class ModerationActionView(APIView):
     this claim only marks `reviewed_by`/`review_note` and leaves `status` at `'pending'`;
     `_publish_translation` itself owns the real ordering (delete the superseded row, THEN flip this
     one) and is the genuine atomic ownership claim for this case, reported back via its own return
-    value rather than this step's `claimed` count."""
+    value rather than this step's `claimed` count.
+
+    ✅ "Node governor" scoping — `IsModerator` above only checks that SOME kind of moderation
+    authority exists; a real node governor is scoped to one Field/Course, so this view still needs
+    its own, narrower OBJECT-level check for THIS SPECIFIC item, done once, up front, before the row
+    is ever claimed — a governor with no authority over the relevant course gets a plain `403`
+    without the row being touched at all, the same "check before you claim" ordering
+    `is_governor_of_course`'s own callers already establish."""
 
     permission_classes = [IsModerator]
 
@@ -352,6 +396,11 @@ class ModerationActionView(APIView):
         if kind not in _KIND_MODELS or decision not in ('approve', 'reject'):
             return Response(status=status.HTTP_404_NOT_FOUND)
         model, serializer_class = _KIND_MODELS[kind]
+
+        target_obj = get_object_or_404(model, pk=pk)
+        if not is_governor_of_course(request.user, _course_for_moderation_target(kind, target_obj)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
         review_note = request.data.get('review_note', '')
         publishing_translation = kind == 'translation' and decision == 'approve'
         if decision == 'reject':
@@ -368,7 +417,8 @@ class ModerationActionView(APIView):
             claim_fields['status'] = target_status
         claimed = model.objects.filter(pk=pk, status='pending').update(**claim_fields)
         if not claimed:
-            get_object_or_404(model, pk=pk)  # a genuinely bad pk still 404s rather than 409ing
+            # existence was already confirmed by get_object_or_404 above, so 0 rows affected here
+            # only ever means "already decided by someone else" — a real 409, not a disguised 404.
             return Response(
                 {'detail': 'This item has already been reviewed by another moderator.'},
                 status=status.HTTP_409_CONFLICT,
@@ -429,6 +479,17 @@ class ModerationActionView(APIView):
         notify(recipient, f'{kind_prefix}_{outcome}', actor=moderator, target_label=label, exercise=exercise, note=note)
 
 
+def _course_for_report_target(target):
+    """Which Course a reported target belongs to — an Exercise's own `course` directly, or (for a
+    Comment/Review) whichever Exercise `resolve_view_scope_exercise` already resolves its viewer
+    pool against. `None` when that can't be determined at all (the same honest gap
+    `resolve_view_scope_exercise` itself already documents)."""
+    if isinstance(target, Exercise):
+        return target.course
+    exercise = resolve_view_scope_exercise(target)
+    return exercise.course if exercise is not None else None
+
+
 class ReportActionView(APIView):
     """POST /api/moderation/reports/{kind}/{id}/restore/ or .../remove/ — a moderator resolving
     every PENDING report against one target at once (the group build_report_queue rendered as a
@@ -446,6 +507,13 @@ class ReportActionView(APIView):
 
     Either way, `auto_hidden_at` is cleared — once a moderator has actually decided, the content is
     no longer merely "auto-hidden pending review," it's in whatever state that decision produced.
+
+    ✅ "Node governor" scoping — same object-level check `ModerationActionView` does, resolving
+    which Course this report's own target belongs to (`resolve_view_scope_exercise`, the SAME
+    function `check_auto_hide`/`build_report_queue` already use, so a governor's own authority is
+    checked against the identical scope the queue itself was already filtered by — no risk of the
+    two disagreeing). A target with no resolvable course (e.g. a Comment on something with no
+    viewer-pool concept) is a safe-default `403` for anyone who isn't a real global moderator.
     """
 
     permission_classes = [IsModerator]
@@ -455,6 +523,8 @@ class ReportActionView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         model = REPORT_KIND_MODELS[kind]
         target = get_object_or_404(model, pk=pk)
+        if not is_governor_of_course(request.user, _course_for_report_target(target)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         note = request.data.get('resolved_note', '')
 
         update_fields = ['auto_hidden_at']
@@ -487,4 +557,41 @@ class ReportActionView(APIView):
             exercise=exercise,
             note=note,
         )
-        return Response(build_report_queue())
+        # Scoped the same way ModerationQueueView's own read already is — an unscoped call here
+        # would otherwise hand a node governor back every OTHER pending report on the platform too,
+        # not just their own, the moment they restore/remove one real item of their own.
+        return Response(build_report_queue(course_ids=governed_course_ids(request.user)))
+
+
+class NodeGovernorViewSet(viewsets.ModelViewSet):
+    """CRUD for the "node governor" grants themselves — the actual administration panel this
+    feature is named for: who governs which Field/Course. `list`/`create`/`destroy` only; no
+    `update` — revoking and re-granting is a simpler, less error-prone flow than a partial-update
+    one for a role assignment (change the node, change the user — both really are "a different
+    grant," not an edit of this one).
+
+    `list` is scoped to the requester's OWN grants unless they're a real, global `is_staff`
+    moderator, who sees every grant — the same staff-vs-own `get_queryset` split
+    `ExerciseSubmissionViewSet` already establishes. `create`/`destroy` are deliberately
+    `IsAdminUser`-only for v1: only a global moderator can delegate this scoped role today, not
+    (yet) a Field-level governor delegating Course-level ones under their own field — a real,
+    narrower-than-technically-possible scope decision, flagged in CLAUDE.md rather than silently
+    assumed, not an oversight.
+    """
+
+    serializer_class = NodeGovernorSerializer
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        qs = NodeGovernor.objects.select_related('user__profile', 'granted_by', 'content_type')
+        if not self.request.user.is_staff:
+            qs = qs.filter(user=self.request.user)
+        return qs
+
+    def get_permissions(self):
+        if self.action in ('create', 'destroy'):
+            return [permissions.IsAdminUser()]
+        return [permissions.IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        serializer.save(granted_by=self.request.user)

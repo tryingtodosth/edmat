@@ -9,6 +9,13 @@ export interface User {
 	joinedAt: string | null; // null only ever appears on a PublicProfile view of a privacy-gated profile
 	isVerifiedContributor: boolean;
 	isModerator: boolean;
+	// The "node governor" feature (nodeGovernor.ts) — a moderator scoped to one Field/Course rather
+	// than the whole platform. Deliberately just a cheap flag here, not the actual list of governed
+	// nodes — see accounts/serializers.py's ProfileSerializer.get_is_node_governor for why (this
+	// response is fetched on every authenticated page load). A frontend that needs to know WHICH
+	// node(s) calls listNodeGovernors() instead (lib/services/moderation.ts), already scoped to
+	// "my own grants" for a non-staff user by the backend itself.
+	isNodeGovernor: boolean;
 	preferredLocale: string;
 	// Present on the CURRENT user (GET/PATCH /auth/me/) and on any OTHER user resolved via
 	// GET /users/{id}/ — undefined only in a context that never asked for a full profile shape

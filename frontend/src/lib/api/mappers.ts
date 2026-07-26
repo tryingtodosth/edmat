@@ -27,6 +27,7 @@ import type {
 	MaterialCoverage,
 	MaterialType,
 	ModerationStatus,
+	NodeGovernorGrant,
 	Notification,
 	ReportGroup,
 	ReportKind,
@@ -611,6 +612,7 @@ export interface RawProfile {
 	preferred_locale: string;
 	is_verified_contributor: boolean;
 	is_moderator: boolean;
+	is_node_governor: boolean;
 	joined_at: string | null; // null only on a privacy-gated PublicProfile response
 	is_profile_public?: boolean; // present on GET /users/{id}/ only, not on /auth/me/'s own shape
 	show_profile_publicly?: boolean; // present on /auth/me/ only — a stranger's own PublicProfile never includes it
@@ -630,6 +632,7 @@ export function mapUser(json: RawProfile): User {
 		joinedAt: json.joined_at,
 		isVerifiedContributor: json.is_verified_contributor,
 		isModerator: json.is_moderator,
+		isNodeGovernor: json.is_node_governor,
 		preferredLocale: json.preferred_locale,
 		isProfilePublic: json.is_profile_public ?? json.show_profile_publicly,
 		donationLinks: json.donation_links?.map(mapDonationLink),
@@ -640,6 +643,34 @@ export function mapUser(json: RawProfile): User {
 		mutedNotificationTypes: json.muted_notification_types
 			?.map((t) => NOTIFICATION_TYPE_MAP[t])
 			.filter((t): t is Notification['type'] => t !== undefined)
+	};
+}
+
+// ---- node governors -----------------------------------------------------------------------------
+
+export interface RawNodeGovernorGrant {
+	id: number;
+	user: number;
+	user_display_name: string;
+	node_type: 'field' | 'course' | null; // null only if the underlying Field/Course row was since
+	// hard-deleted (GenericForeignKey resolves to None) — not a realistic case for a real grant,
+	// but the backend serializer method can genuinely return None, so this stays honest about it.
+	node_id: string | null;
+	node_label: string;
+	granted_by: number | null;
+	created_at: string;
+}
+
+export function mapNodeGovernorGrant(json: RawNodeGovernorGrant): NodeGovernorGrant {
+	return {
+		id: String(json.id),
+		userId: String(json.user),
+		userDisplayName: json.user_display_name,
+		nodeType: json.node_type ?? 'course',
+		nodeId: json.node_id ?? '',
+		nodeLabel: json.node_label,
+		grantedByUserId: json.granted_by !== null ? String(json.granted_by) : null,
+		createdAt: json.created_at
 	};
 }
 

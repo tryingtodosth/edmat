@@ -4,6 +4,9 @@
 		EditSuggestion,
 		ExerciseSubmission,
 		ExerciseTranslation,
+		Field,
+		GovernableNodeKind,
+		NodeGovernorGrant,
 		ReportGroup,
 		User
 	} from '$lib/types';
@@ -13,10 +16,13 @@
 		decideEditSuggestion,
 		decideExerciseSubmission,
 		decideTranslation,
-		resolveReport
+		resolveReport,
+		listNodeGovernors,
+		grantNodeGovernor,
+		revokeNodeGovernor
 	} from '$lib/services/moderation';
 	import { getUserById } from '$lib/services/users';
-	import { getCourseById } from '$lib/services/taxonomy';
+	import { getCourseById, getFields, getAllCourses } from '$lib/services/taxonomy';
 	import { getExercisesByIds } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { resolve } from '$app/paths';
@@ -25,7 +31,10 @@
 	// "reports" first — this is the literal "gets a priority in the moderation queue" requirement:
 	// reported content (some of it possibly already auto-hidden, waiting on a decision) is the
 	// first thing a moderator opening this page sees, not the last tab they'd have to click to.
-	let tab = $state<'reports' | 'submissions' | 'edits' | 'translations'>('reports');
+	// "governors" — the node-governor administration panel itself — only ever rendered as a real
+	// tab option for a global (is_staff) moderator; a scoped governor never sees it at all (see the
+	// tab bar's own `{#if authStore.isModerator}` guard below).
+	let tab = $state<'reports' | 'submissions' | 'edits' | 'translations' | 'governors'>('reports');
 	let reports = $state<ReportGroup[]>([]);
 	let submissions = $state<ExerciseSubmission[]>([]);
 	let editSuggestions = $state<EditSuggestion[]>([]);
@@ -35,6 +44,20 @@
 	let exerciseTitles = $state<Record<string, string>>({});
 	let notes = $state<Record<string, string>>({});
 	let loading = $state(true);
+
+	// Node-governor state — `myGovernedNodes` is what EVERY moderator sees (the backend already
+	// scopes GET /moderation/governors/ to "my own grants" for a non-staff user, so this is a real,
+	// live list even for a scoped governor, not a staff-only concept); `fields`/`allCourses` back
+	// the grant form's own node picker, only ever fetched for a real global moderator.
+	let myGovernedNodes = $state<NodeGovernorGrant[]>([]);
+	let allGovernors = $state<NodeGovernorGrant[]>([]);
+	let fields = $state<Field[]>([]);
+	let allCourses = $state<Course[]>([]);
+	let grantUserId = $state('');
+	let grantKind = $state<GovernableNodeKind>('course');
+	let grantNodeSlug = $state('');
+	let grantError = $state('');
+	let grantSubmitting = $state(false);
 
 	async function load() {
 		loading = true;
@@ -74,11 +97,22 @@
 		for (const e of exs) titles[e.id] = e.title;
 		exerciseTitles = titles;
 
+		// Node-governor data — `listNodeGovernors()` is ALREADY scoped to "my own grants" server-side
+		// for a non-staff user (moderation/views.py's NodeGovernorViewSet.get_queryset), so the same
+		// one call correctly backs the "you govern: X" banner for a scoped governor; a real global
+		// moderator additionally sees every grant (for the Governors tab's own management list) and
+		// gets the Field/Course pickers the grant form needs.
+		myGovernedNodes = await listNodeGovernors();
+		if (authStore.isModerator) {
+			allGovernors = myGovernedNodes;
+			[fields, allCourses] = await Promise.all([getFields(), getAllCourses()]);
+		}
+
 		loading = false;
 	}
 
 	$effect(() => {
-		if (authStore.isModerator) load();
+		if (authStore.canModerate) load();
 	});
 
 	async function approveSubmission(s: ExerciseSubmission) {
@@ -133,6 +167,39 @@
 	async function removeReport(r: ReportGroup) {
 		reports = await resolveReport(r.kind, r.objectId, 'remove', notes[reportKey(r)]);
 	}
+
+	// The candidate node list for the grant form's own picker — every Field, or every Course,
+	// depending on `grantKind`; re-derived reactively rather than re-fetched, since both lists are
+	// already loaded once in `load()` above.
+	let grantNodeOptions = $derived(grantKind === 'field' ? fields : allCourses);
+
+	async function submitGrant() {
+		grantError = '';
+		if (!grantUserId.trim() || !grantNodeSlug) {
+			grantError = m.moderation_governors_grantMissingFields();
+			return;
+		}
+		grantSubmitting = true;
+		try {
+			await grantNodeGovernor(grantUserId.trim(), grantKind, grantNodeSlug);
+			grantUserId = '';
+			grantNodeSlug = '';
+			allGovernors = await listNodeGovernors();
+		} catch {
+			// A duplicate grant / bad node slug / nonexistent user id are all real, expected 400s from
+			// the backend (moderation/serializers.py's own NodeGovernorSerializer.validate) — a single
+			// honest message covers every case without needing to parse the specific field error out
+			// of the response body just for this small admin form.
+			grantError = m.moderation_governors_grantFailed();
+		} finally {
+			grantSubmitting = false;
+		}
+	}
+
+	async function revokeGrant(grant: NodeGovernorGrant) {
+		await revokeNodeGovernor(grant.id);
+		allGovernors = allGovernors.filter((g) => g.id !== grant.id);
+	}
 </script>
 
 <svelte:head>
@@ -143,11 +210,20 @@
 	<h1>{m.moderation_heading()}</h1>
 	<p class="subtitle">{m.moderation_subtitle()}</p>
 
-	{#if !authStore.isModerator}
+	{#if !authStore.canModerate}
 		<p class="denied">{m.moderation_accessDenied()}</p>
 	{:else if loading}
 		<p class="loading">{m.common_loading()}</p>
 	{:else}
+		{#if !authStore.isModerator && myGovernedNodes.length > 0}
+			<!-- A scoped node governor (not a real global moderator) — makes it unambiguous this is
+			     a NARROWER view than the full platform queue, and which node(s) it's scoped to. -->
+			<p class="scope-banner">
+				{m.moderation_governors_youGovern({
+					nodes: myGovernedNodes.map((g) => g.nodeLabel).join(', ')
+				})}
+			</p>
+		{/if}
 		<div class="tabs" role="tablist">
 			<button
 				type="button"
@@ -193,6 +269,22 @@
 			>
 				{m.moderation_tab_translations({ count: translations.length })}
 			</button>
+			{#if authStore.isModerator}
+				<!-- Staff (global moderator) only — a scoped node governor can't grant/revoke this role
+				     at all in v1 (CLAUDE.md's own documented scope decision), so this tab simply isn't
+				     offered to them, rather than being reachable and then 403ing on every action inside. -->
+				<button
+					type="button"
+					role="tab"
+					id="mod-tab-governors"
+					aria-selected={tab === 'governors'}
+					aria-controls="mod-tabpanel"
+					class:active={tab === 'governors'}
+					onclick={() => (tab = 'governors')}
+				>
+					{m.moderation_tab_governors({ count: allGovernors.length })}
+				</button>
+			{/if}
 		</div>
 
 		<!--
@@ -218,7 +310,10 @@
 						count: submissions.length
 					})}
 				{:else if tab === 'edits'}{m.moderation_tab_edits({ count: editSuggestions.length })}
-				{:else}{m.moderation_tab_translations({ count: translations.length })}
+				{:else if tab === 'translations'}{m.moderation_tab_translations({
+						count: translations.length
+					})}
+				{:else}{m.moderation_tab_governors({ count: allGovernors.length })}
 				{/if}
 			</h2>
 
@@ -340,38 +435,107 @@
 						{/each}
 					</ul>
 				{/if}
-			{:else if translations.length === 0}
-				<p class="empty">{m.moderation_empty()}</p>
+			{:else if tab === 'translations'}
+				{#if translations.length === 0}
+					<p class="empty">{m.moderation_empty()}</p>
+				{:else}
+					<ul class="queue">
+						{#each translations as t (t.id)}
+							<li class="queue-item">
+								<h3>
+									{t.locale.toUpperCase()} — <MathTitle
+										text={exerciseTitles[t.exerciseId] ?? t.exerciseId}
+									/>
+								</h3>
+								<p class="meta">
+									{m.moderation_submittedBy({
+										name: t.translatedByUserId
+											? (usersById[t.translatedByUserId]?.displayName ?? '—')
+											: '—'
+									})}
+								</p>
+								<p class="excerpt"><MathTitle text={t.title} /></p>
+								<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[t.id]}
+								></textarea>
+								<div class="actions">
+									<button type="button" class="approve" onclick={() => approveTranslation(t)}
+										>{m.moderation_approve()}</button
+									>
+									<button type="button" class="reject" onclick={() => rejectTranslation(t)}
+										>{m.moderation_reject()}</button
+									>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			{:else}
-				<ul class="queue">
-					{#each translations as t (t.id)}
-						<li class="queue-item">
-							<h3>
-								{t.locale.toUpperCase()} — <MathTitle
-									text={exerciseTitles[t.exerciseId] ?? t.exerciseId}
-								/>
-							</h3>
-							<p class="meta">
-								{m.moderation_submittedBy({
-									name: t.translatedByUserId
-										? (usersById[t.translatedByUserId]?.displayName ?? '—')
-										: '—'
-								})}
-							</p>
-							<p class="excerpt"><MathTitle text={t.title} /></p>
-							<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[t.id]}
-							></textarea>
-							<div class="actions">
-								<button type="button" class="approve" onclick={() => approveTranslation(t)}
-									>{m.moderation_approve()}</button
-								>
-								<button type="button" class="reject" onclick={() => rejectTranslation(t)}
-									>{m.moderation_reject()}</button
-								>
-							</div>
-						</li>
-					{/each}
-				</ul>
+				<!-- tab === 'governors' — only ever reachable via the tab button itself, which only
+				     renders for a real global moderator (authStore.isModerator), so no extra guard
+				     needed here beyond what already got us into this branch at all. -->
+				<div class="governors-panel">
+					<form class="grant-form" onsubmit={(e) => (e.preventDefault(), submitGrant())}>
+						<h3>{m.moderation_governors_grantHeading()}</h3>
+						<label>
+							{m.moderation_governors_userIdLabel()}
+							<!-- type="text", not "number" — Svelte 5's bind:value on a number input binds a
+							     real `number` (or undefined), not the string grantUserId is declared and used
+							     as everywhere else (submitGrant's own .trim() call, grantNodeGovernor's string
+							     param) — a real runtime TypeError this project's own live-browser verification
+							     caught, svelte-check didn't. inputmode keeps the numeric keyboard on mobile. -->
+							<input
+								type="text"
+								inputmode="numeric"
+								pattern="[0-9]*"
+								placeholder={m.moderation_governors_userIdPlaceholder()}
+								bind:value={grantUserId}
+							/>
+						</label>
+						<label>
+							{m.moderation_governors_kindLabel()}
+							<select bind:value={grantKind} onchange={() => (grantNodeSlug = '')}>
+								<option value="course">{m.moderation_governors_kindCourse()}</option>
+								<option value="field">{m.moderation_governors_kindField()}</option>
+							</select>
+						</label>
+						<label>
+							{m.moderation_governors_nodeLabel()}
+							<select bind:value={grantNodeSlug}>
+								<option value="">{m.moderation_governors_nodePlaceholder()}</option>
+								{#each grantNodeOptions as node (node.id)}
+									<option value={node.id}>{node.name}</option>
+								{/each}
+							</select>
+						</label>
+						{#if grantError}
+							<p class="grant-error">{grantError}</p>
+						{/if}
+						<button type="submit" class="approve" disabled={grantSubmitting}>
+							{m.moderation_governors_grantSubmit()}
+						</button>
+					</form>
+
+					<h3>{m.moderation_governors_listHeading()}</h3>
+					{#if allGovernors.length === 0}
+						<p class="empty">{m.moderation_governors_listEmpty()}</p>
+					{:else}
+						<ul class="governors-list">
+							{#each allGovernors as g (g.id)}
+								<li class="governor-row">
+									<span class="governor-user">{g.userDisplayName}</span>
+									<span class="governor-scope">
+										{g.nodeType === 'field'
+											? m.moderation_governors_scopeField({ label: g.nodeLabel })
+											: m.moderation_governors_scopeCourse({ label: g.nodeLabel })}
+									</span>
+									<button type="button" class="reject" onclick={() => revokeGrant(g)}>
+										{m.moderation_governors_revoke()}
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
 			{/if}
 		</div>
 	{/if}
@@ -506,5 +670,67 @@
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 		border: 1px solid var(--status-danger);
 		cursor: pointer;
+	}
+	.scope-banner {
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-page);
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
+	}
+	.governors-panel {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+	.grant-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		max-width: 360px;
+	}
+	.grant-form label {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	.grant-form input,
+	.grant-form select {
+		@include mix.focus-ring;
+		padding: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-page);
+		font-family: inherit;
+	}
+	.grant-error {
+		color: var(--status-danger);
+		font-size: var(--font-size-sm);
+	}
+	.governors-list {
+		list-style: none;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.governor-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+	}
+	.governor-user {
+		font-weight: 600;
+	}
+	.governor-scope {
+		flex: 1;
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
 	}
 </style>

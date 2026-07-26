@@ -33,6 +33,17 @@ export const authStore = {
 	get isModerator(): boolean {
 		return user?.isModerator ?? false;
 	},
+	get isNodeGovernor(): boolean {
+		return user?.isNodeGovernor ?? false;
+	},
+	/** True for either kind of moderation authority — a real global (is_staff) moderator, OR a
+	 * node governor scoped to at least one Field/Course. This is the gate the moderation nav
+	 * link/route itself uses; the "Governors" management tab on that page still checks
+	 * `isModerator` specifically, since only a global moderator can grant/revoke the scoped role
+	 * (CLAUDE.md's own documented v1 scope decision). */
+	get canModerate(): boolean {
+		return this.isModerator || this.isNodeGovernor;
+	},
 
 	/** Restores `user` from a persisted token on app start — call once from the root layout. A
 	 * token that no longer validates (revoked, expired, or the account deleted) is cleared rather

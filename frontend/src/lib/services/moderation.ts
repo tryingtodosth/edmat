@@ -2,7 +2,9 @@ import type {
 	EditSuggestion,
 	ExerciseSubmission,
 	ExerciseTranslation,
+	GovernableNodeKind,
 	ModerationStatus,
+	NodeGovernorGrant,
 	ReportGroup,
 	ReportKind
 } from '$lib/types';
@@ -11,10 +13,12 @@ import {
 	mapEditSuggestion,
 	mapExerciseSubmission,
 	mapExerciseTranslation,
+	mapNodeGovernorGrant,
 	mapReportGroup,
 	type RawEditSuggestion,
 	type RawExerciseSubmission,
 	type RawExerciseTranslation,
+	type RawNodeGovernorGrant,
 	type RawReportGroup
 } from '$lib/api/mappers';
 
@@ -104,4 +108,37 @@ export async function resolveReport(
 		{ resolved_note: note?.trim() || '' }
 	);
 	return raw.map(mapReportGroup);
+}
+
+// ---- node governors -------------------------------------------------------------------------
+// The "node governor" administration panel itself — granting/revoking who governs which
+// Field/Course (moderation/views.py's NodeGovernorViewSet). `list` is scoped to the caller's OWN
+// grants server-side unless they're a real global (is_staff) moderator, who sees every grant —
+// the exact same backend behavior a plain, unparameterized GET already reflects, nothing extra
+// needed on this side to express "my own vs. everyone's".
+
+export async function listNodeGovernors(): Promise<NodeGovernorGrant[]> {
+	const raw = await apiClient.get<RawNodeGovernorGrant[]>('/moderation/governors/');
+	return raw.map(mapNodeGovernorGrant);
+}
+
+/** `userId` is a real, numeric backend User id — there's no user-search endpoint in this API today
+ * (CLAUDE.md flags this as a known, honest UX limitation, not a hidden gap), so a staff admin
+ * granting this role needs to already know the target account's numeric id (visible via Django
+ * admin's own user list). */
+export async function grantNodeGovernor(
+	userId: string,
+	kind: GovernableNodeKind,
+	nodeSlug: string
+): Promise<NodeGovernorGrant> {
+	const raw = await apiClient.post<RawNodeGovernorGrant>('/moderation/governors/', {
+		user: Number(userId),
+		kind,
+		node_slug: nodeSlug
+	});
+	return mapNodeGovernorGrant(raw);
+}
+
+export async function revokeNodeGovernor(id: string): Promise<void> {
+	await apiClient.delete(`/moderation/governors/${encodeURIComponent(id)}/`);
 }
