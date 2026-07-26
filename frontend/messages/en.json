@@ -356,6 +356,7 @@
 	"tag_savedCount": "Added {count} exercise(s) to your set.",
 	"tag_savedNone": "Already in your set.",
 	"tag_addToContent": "Add to different content…",
+	"tag_removeFromContent": "Remove this tag",
 	"tag_addToContentHeading": "Add #{tag} to…",
 	"tag_kindExercise": "Exercise",
 	"tag_kindMaterial": "Material",

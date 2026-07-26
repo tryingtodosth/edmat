@@ -9,14 +9,28 @@
 	// click inside the menu causes its own target to un-render" race, since "Follow"/"Notify" here
 	// have that identical shape (clicking Follow removes the Notify row that used to be a sibling).
 	import { resolve } from '$app/paths';
+	import type { TaggableKind } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { tagFollowStore } from '$lib/state/tagFollows.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { getExerciseIdsForTag } from '$lib/services/exercises';
+	import { removeTagFromContent } from '$lib/services/tags';
 	import AddTagToContentModal from './AddTagToContentModal.svelte';
 
-	let { tag }: { tag: string } = $props();
+	// `appliedTo` — optional, since a caller only ever knows "this tag is currently applied to THIS
+	// specific piece of content" when it's rendering the chip on that content's own page/card, not
+	// e.g. inside a generic tag-list-everywhere-it-appears view. Both real call sites today
+	// (exercises/[id]/+page.svelte, MaterialCard.svelte) always have this — a bare `{tag}` with no
+	// `appliedTo` just quietly omits the "Remove" row rather than erroring, so nothing breaks if a
+	// future caller genuinely doesn't have a target to remove from.
+	let {
+		tag,
+		appliedTo
+	}: {
+		tag: string;
+		appliedTo?: { kind: TaggableKind; objectId: string; onRemoved: () => void };
+	} = $props();
 
 	let open = $state(false);
 	let container: HTMLSpanElement | undefined = $state();
@@ -24,6 +38,7 @@
 	let savingForLater = $state(false);
 	let savedMessage = $state('');
 	let addingToContent = $state(false);
+	let removing = $state(false);
 
 	function openMenu() {
 		clearTimeout(closeTimer);
@@ -70,6 +85,23 @@
 			savedMessage = added > 0 ? m.tag_savedCount({ count: added }) : m.tag_savedNone();
 		} finally {
 			savingForLater = false;
+		}
+	}
+
+	// The backend endpoint (TagViewSet.apply, DELETE) and this exact service function
+	// (removeTagFromContent) already existed — only the menu affordance calling either was missing.
+	// No confirmation step, matching "add to different content" right below it: tagging is
+	// additive, reversible, low-stakes organizational metadata (TagViewSet.apply's own doc comment),
+	// not a destructive action on the content itself.
+	async function handleRemove() {
+		if (!appliedTo) return;
+		removing = true;
+		try {
+			await removeTagFromContent(tag, appliedTo.kind, appliedTo.objectId);
+			open = false;
+			appliedTo.onRemoved();
+		} finally {
+			removing = false;
 		}
 	}
 </script>
@@ -141,6 +173,17 @@
 					{m.tag_addToContent()}
 				</button>
 			{/if}
+
+			{#if authStore.isAuthenticated && appliedTo}
+				<button
+					type="button"
+					class="tag-chip__item tag-chip__remove"
+					onclick={handleRemove}
+					disabled={removing}
+				>
+					{removing ? m.common_loading() : m.tag_removeFromContent()}
+				</button>
+			{/if}
 		</div>
 	{/if}
 </span>
@@ -210,5 +253,8 @@
 		padding: 2px var(--space-2) var(--space-1);
 		font-size: var(--font-size-xs);
 		color: var(--status-success);
+	}
+	.tag-chip__remove {
+		color: var(--status-danger);
 	}
 </style>

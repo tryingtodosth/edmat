@@ -28,6 +28,14 @@
 	let coverageOverlay = $state<MaterialCoverage[]>([]);
 	let allCoverage = $derived([...material.coverage, ...coverageOverlay]);
 
+	// Same overlay shape, subtracting instead of adding: `material` is a plain prop (this card
+	// renders the same material in a grid/feed context too, not just a detail page), so there's no
+	// single owned `$state` to mutate directly the way the exercise detail page does with its own
+	// `exercise.tags` — a removed-this-session Set is the equivalent "don't refetch, just don't
+	// show it" fix for a prop this component doesn't own.
+	let removedTags = $state<Set<string>>(new Set());
+	let visibleTags = $derived(material.tags.filter((t) => !removedTags.has(t)));
+
 	let openCoverageId = $state<string | null>(null);
 	let openCoverage = $derived(allCoverage.find((c) => c.id === openCoverageId) ?? null);
 
@@ -95,10 +103,17 @@
 		</div>
 	{/if}
 
-	{#if material.tags.length > 0}
+	{#if visibleTags.length > 0}
 		<div class="material-card__tags">
-			{#each material.tags as tag (tag)}
-				<TagChip {tag} />
+			{#each visibleTags as tag (tag)}
+				<TagChip
+					{tag}
+					appliedTo={{
+						kind: 'material',
+						objectId: material.id,
+						onRemoved: () => (removedTags = new Set([...removedTags, tag]))
+					}}
+				/>
 			{/each}
 		</div>
 	{/if}

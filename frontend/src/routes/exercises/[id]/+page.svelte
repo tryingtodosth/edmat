@@ -288,7 +288,16 @@
 				<div class="topics">
 					<span class="label">{m.exercise_tags()}:</span>
 					{#each exercise.tags as tag (tag)}
-						<TagChip {tag} />
+						<TagChip
+							{tag}
+							appliedTo={{
+								kind: 'exercise',
+								objectId: exercise.id,
+								onRemoved: () => {
+									if (exercise) exercise.tags = exercise.tags.filter((t) => t !== tag);
+								}
+							}}
+						/>
 					{/each}
 				</div>
 			{/if}

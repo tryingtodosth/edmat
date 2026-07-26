@@ -1250,16 +1250,34 @@ results, and marks a picked result as Added after a real `POST`. `npm run check`
 
 ### Left open, not built
 
-- **No UI for removing an already-applied tag** — the backend's `DELETE /api/tags/{slug}/apply/`
-  exists and works (verified via curl), but the hover menu itself is deliberately additive-only; a
-  future pass could add a per-tag "remove from this content" affordance directly on the pill where
-  it's shown, once there's a clear UX for it.
+- ~~No UI for removing an already-applied tag~~ **✅ Resolved (Phase 4).** `TagChip.svelte` gained
+  an optional `appliedTo: { kind, objectId, onRemoved }` prop — both real call sites
+  (`exercises/[id]/+page.svelte`, `MaterialCard.svelte`) already had the exercise/material id in
+  scope, so nothing new needed fetching. A "Remove this tag" row (danger-toned, matching this app's
+  own destructive-action color convention) appears in the hover menu whenever that context is
+  present and the viewer is authenticated, calling the `removeTagFromContent` service function that
+  already existed, unused, at the API-client layer — only the UI affordance was ever missing, as
+  originally noted. The exercise detail page updates its own owned `exercise.tags` state directly on
+  removal; `MaterialCard` (a plain, possibly-shared `material` prop, not owned state — it renders in
+  both a feed/grid and a detail context) uses a local session-only "removed this round" `Set`
+  overlay instead, the same subtract-shaped sibling to its own pre-existing `coverageOverlay`
+  add-shaped pattern. Verified end-to-end with real logged-in requests on both an Exercise and a
+  Material — a scratch tag applied via the API, removed through the actual rendered menu in a real
+  headless-browser run (confirmed the real `DELETE` request fired and the chip disappeared), and the
+  backend row confirmed genuinely gone afterward, not just hidden client-side. A real, pre-existing
+  interaction quirk was found (not introduced) while building this test, worth recording rather than
+  silently working around: `TagChip`'s hover-to-open then click-to-toggle behavior means a
+  synthetic/automated click on the trigger ITSELF re-closes a menu hover just opened (Playwright's
+  own `.click()` hovers before clicking, hitting this) — harmless in real usage, since a real user
+  who's just hovered the trigger open clicks a menu ITEM next, never the trigger again, but flagged
+  here since it's a genuine, if narrow, edge case in the pre-existing component, not something this
+  pass's own changes touched.
 - **No "my followed tags" dashboard/settings-page list** — following/muting work per-tag from the
   hover menu; there's no single page listing everything a user currently follows.
-- **`new_tagged_content` notifications about a Material have no link** — this app has no standalone
-  material detail route at all (confirmed: none exists anywhere in `routes/`), so that case falls
-  through to the same non-navigating, mark-as-read-only card the "rejected submission" case already
-  uses. A real fix would need a material detail page first, out of scope for this feature.
+- ~~`new_tagged_content` notifications about a Material have no link~~ **✅ Resolved (Section 17G's
+  own material detail page).** `NotificationCard.svelte` now resolves `notification.materialId` to
+  `/materials/[id]` — this bullet had gone stale (the material page it was waiting on already shipped
+  a separate session) and is corrected here rather than left misleading.
 - **`applyTagToContent` has no de-duplication warning in the UI** — applying an already-present tag
   again is a harmless no-notification no-op server-side (verified), but the modal doesn't tell the
   user "this is already tagged," it just silently succeeds a second time.

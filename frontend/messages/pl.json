@@ -356,6 +356,7 @@
 	"tag_savedCount": "Dodano {count} zadanie(a) do Twojego zestawu.",
 	"tag_savedNone": "Już w Twoim zestawie.",
 	"tag_addToContent": "Dodaj do innej treści…",
+	"tag_removeFromContent": "Usuń ten tag",
 	"tag_addToContentHeading": "Dodaj #{tag} do…",
 	"tag_kindExercise": "Zadanie",
 	"tag_kindMaterial": "Materiał",
