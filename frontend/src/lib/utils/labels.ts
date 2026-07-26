@@ -84,6 +84,25 @@ export const DONATION_PLATFORM_ICONS: Record<DonationPlatform, string> = {
 // a real, worthwhile gap to close alongside the expansion itself (an expanded-but-invisible enum
 // wouldn't let a visitor tell a script from a practice test at a glance). MaterialCard.svelte is
 // the one real consumer today.
+// The submit-material form's own type picker needed an iterable list alongside the label map above
+// — MATERIAL_TYPE_LABELS only ever had a reader (MaterialCard.svelte's badge), never a `<select>`
+// needing every possible value, until this form existed.
+export const MATERIAL_TYPES: MaterialType[] = [
+	'script',
+	'examCollection',
+	'midtermCollection',
+	'exerciseCollection',
+	'formulaSheet',
+	'lectureSlides',
+	'solutionGuide',
+	'syllabus',
+	'practiceTest',
+	'recording',
+	'textbookExcerpt',
+	'codeDataset',
+	'other'
+];
+
 export const MATERIAL_TYPE_LABELS: Record<MaterialType, () => string> = {
 	script: m.materialType_script,
 	examCollection: m.materialType_examCollection,

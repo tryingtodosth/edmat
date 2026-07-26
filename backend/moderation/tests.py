@@ -214,6 +214,298 @@ class SubmissionApprovalTests(APITestCase):
         self.assertEqual(len(numbers), len(set(numbers)), 'exercise numbers must all be distinct')
 
 
+class MaterialSubmissionValidatorTests(APITestCase):
+    """`materials/validators.py`'s own content-type sniffing and size cap — "exams, tests, etc.
+    should be accepted... but also scanned and kept safe." Each real-content-type case here was
+    verified directly against `python-magic` before being trusted (see that module's own doc
+    comment), not assumed from the library's docs; these are the permanent regression form of that
+    same check."""
+
+    def test_a_real_pdf_is_accepted(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from materials.validators import validate_material_submission_file
+
+        f = SimpleUploadedFile('exam.pdf', b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF')
+        validate_material_submission_file(f)  # must not raise
+
+    def test_a_real_png_is_accepted(self):
+        import base64
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from materials.validators import validate_material_submission_file
+
+        png = base64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY'
+            '42YAAAAASUVORK5CYII='
+        )
+        f = SimpleUploadedFile('scan.png', png)
+        validate_material_submission_file(f)  # must not raise
+
+    def test_a_real_tex_file_is_accepted(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from materials.validators import validate_material_submission_file
+
+        f = SimpleUploadedFile('notes.tex', rb'\documentclass{article}\begin{document}Hi\end{document}')
+        validate_material_submission_file(f)  # must not raise
+
+    def test_an_executable_disguised_as_a_pdf_is_rejected(self):
+        from django.core.exceptions import ValidationError
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from materials.validators import validate_material_submission_file
+
+        # A real Windows PE header ('MZ...'), padded well past the point python-magic needs to
+        # positively identify it as an executable rather than falling back to a generic guess.
+        f = SimpleUploadedFile(
+            'totally_a_pdf.pdf',
+            b'MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00' + b'A' * 200,
+        )
+        with self.assertRaises(ValidationError):
+            validate_material_submission_file(f)
+
+    def test_an_oversized_file_is_rejected(self):
+        from django.core.exceptions import ValidationError
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from materials.validators import MAX_MATERIAL_SUBMISSION_SIZE_BYTES, validate_material_submission_file
+
+        f = SimpleUploadedFile('huge.pdf', b'%PDF-1.4' + b'0' * (MAX_MATERIAL_SUBMISSION_SIZE_BYTES + 1))
+        with self.assertRaises(ValidationError):
+            validate_material_submission_file(f)
+
+    def test_a_disallowed_extension_is_rejected(self):
+        from django.core.exceptions import ValidationError
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from materials.validators import validate_material_submission_file
+
+        f = SimpleUploadedFile('script.sh', b'#!/bin/bash\necho hi')
+        with self.assertRaises(ValidationError):
+            validate_material_submission_file(f)
+
+    def test_scan_for_malware_gracefully_degrades_with_no_daemon_reachable(self):
+        """This project's own sandboxed dev environment has no ClamAV daemon at all (confirmed: no
+        clamscan/clamdscan/freshclam binary anywhere, no root access to install one) — the honest,
+        common outcome here is `scanned=False`, never silently upgraded to "clean" without also
+        checking that flag, which is exactly why `scan_for_malware` returns a real dataclass instead
+        of a bare bool."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from materials.validators import scan_for_malware
+
+        f = SimpleUploadedFile('exam.pdf', b'%PDF-1.4 some content')
+        outcome = scan_for_malware(f)
+        self.assertFalse(outcome.scanned)
+        self.assertTrue(outcome.clean)  # "couldn't check" defaults to not-blocking, see MATERIAL_SCAN_REQUIRED
+        self.assertTrue(outcome.detail)
+
+
+class MaterialSubmissionApiTests(APITestCase):
+    """`POST /api/material-submissions/` — the real, multipart upload endpoint itself (as opposed
+    to the validators it calls, covered above)."""
+
+    def setUp(self):
+        self.course = make_course(slug='uw-material-submission-course')
+        self.student = make_user('matsub_student')
+        self.other_student = make_user('matsub_other_student')
+
+    def _upload(self, client, **overrides):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        data = {
+            'course': self.course.slug,
+            'type': 'practice_test',
+            'title': 'A submitted practice test',
+            'description': 'Real practice problems.',
+            'locale': 'en',
+            'file': SimpleUploadedFile('practice.pdf', b'%PDF-1.4 real content'),
+            **overrides,
+        }
+        return client.post('/api/material-submissions/', data, format='multipart')
+
+    def test_authenticated_upload_succeeds_and_records_an_honest_scan_status(self):
+        self.client.force_authenticate(self.student)
+        response = self._upload(self.client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['status'], 'pending')
+        # No ClamAV daemon in this test environment — scan_status must honestly read 'skipped',
+        # never a silently-assumed 'clean' the way it would if perform_create ignored `scanned`.
+        self.assertEqual(response.data['scan_status'], 'skipped')
+
+    def test_anonymous_upload_is_rejected(self):
+        response = self._upload(self.client)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_a_disguised_executable_upload_is_rejected_with_a_400(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_authenticate(self.student)
+        response = self._upload(
+            self.client,
+            file=SimpleUploadedFile(
+                'totally_a_pdf.pdf', b'MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00' + b'A' * 200
+            ),
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_regular_user_only_sees_their_own_submissions(self):
+        self.client.force_authenticate(self.student)
+        self._upload(self.client, title='Mine')
+        self.client.force_authenticate(self.other_student)
+        self._upload(self.client, title='Someone else\'s')
+
+        self.client.force_authenticate(self.student)
+        response = self.client.get('/api/material-submissions/')
+        titles = {row['title'] for row in response.data}
+        self.assertEqual(titles, {'Mine'})
+
+    def test_a_moderator_sees_every_submission(self):
+        moderator = make_user('matsub_mod', is_staff=True)
+        self.client.force_authenticate(self.student)
+        self._upload(self.client, title='Mine')
+        self.client.force_authenticate(self.other_student)
+        self._upload(self.client, title='Someone else\'s')
+
+        self.client.force_authenticate(moderator)
+        response = self.client.get('/api/material-submissions/')
+        titles = {row['title'] for row in response.data}
+        self.assertEqual(titles, {'Mine', "Someone else's"})
+
+    def test_scan_required_rejects_the_upload_when_no_scanner_is_reachable(self):
+        """`MATERIAL_SCAN_REQUIRED` (config/settings.py) is False by default in this project's own
+        sandboxed dev environment (no ClamAV daemon exists to reach at all) — flipping it True here
+        is what a real deployment that actually runs ClamAV would do, which should turn "couldn't
+        scan it" into a hard rejection rather than the honest-skip default this environment uses."""
+        from django.test import override_settings
+
+        from moderation.models import MaterialSubmission
+
+        self.client.force_authenticate(self.student)
+        with override_settings(MATERIAL_SCAN_REQUIRED=True):
+            response = self._upload(self.client)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(MaterialSubmission.objects.count(), 0)  # the failed submission was cleaned up, not left dangling
+
+
+class MaterialSubmissionApprovalTests(APITestCase):
+    """Approve/reject via the shared ModerationActionView, the same real endpoint every other kind
+    (submission/edit/translation) already goes through — `_apply_material_submission`'s own real
+    behavior (a new, published Material + MaterialTranslation) is what's under test here, not the
+    upload endpoint itself (MaterialSubmissionApiTests, above)."""
+
+    def setUp(self):
+        self.moderator = make_user('matsub_approve_mod', is_staff=True)
+        self.student = make_user('matsub_approve_student')
+        self.course = make_course(slug='uw-material-approval-course')
+        self.client.force_authenticate(self.moderator)
+
+    def _submit(self, **overrides):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from moderation.models import MaterialSubmission
+
+        defaults = {
+            'course': self.course,
+            'submitted_by': self.student,
+            'type': 'exam_collection',
+            'title': 'A submitted exam collection',
+            'description': 'Three past exams.',
+            'locale': 'en',
+            'file': SimpleUploadedFile('exams.pdf', b'%PDF-1.4 real content'),
+        }
+        defaults.update(overrides)
+        return MaterialSubmission.objects.create(**defaults)
+
+    def test_approving_a_material_submission_creates_a_real_published_material(self):
+        submission = self._submit()
+
+        response = self.client.post(
+            reverse('moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'}),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, 'approved')
+        self.assertIsNotNone(submission.resulting_material)
+        material = submission.resulting_material
+        self.assertEqual(material.course, self.course)
+        self.assertTrue(material.published)
+        self.assertEqual(material.type, 'exam_collection')
+        translation = material.translations.get(locale='en')
+        self.assertEqual(translation.title, 'A submitted exam collection')
+        # The SAME already-uploaded file, not a re-saved copy under a new path.
+        self.assertEqual(material.file.name, submission.file.name)
+
+    def test_rejecting_a_material_submission_never_creates_a_material(self):
+        submission = self._submit()
+
+        response = self.client.post(
+            reverse('moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'reject'}),
+            {'review_note': 'Wrong course.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, 'rejected')
+        self.assertIsNone(submission.resulting_material)
+
+    def test_double_decision_on_the_same_material_submission_returns_conflict(self):
+        submission = self._submit()
+        url = reverse('moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'})
+
+        first = self.client.post(url, {}, format='json')
+        second = self.client.post(url, {}, format='json')
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_409_CONFLICT)
+
+    def test_two_submissions_with_the_same_title_get_distinct_slugs(self):
+        """`_apply_material_submission`'s own slug-collision retry, the material-file counterpart to
+        `_apply_submission`'s number-allocation retry (SubmissionApprovalTests, above)."""
+        first_submission = self._submit(title='Duplicate Title')
+        second_submission = self._submit(title='Duplicate Title')
+
+        for submission in (first_submission, second_submission):
+            response = self.client.post(
+                reverse(
+                    'moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'}
+                ),
+                {},
+                format='json',
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        first_submission.refresh_from_db()
+        second_submission.refresh_from_db()
+        self.assertNotEqual(first_submission.resulting_material.slug, second_submission.resulting_material.slug)
+
+    def test_a_node_governor_with_no_authority_over_this_course_is_forbidden(self):
+        from moderation.models import NodeGovernor
+        from taxonomy.models import Course
+
+        other_course = make_course(slug='uw-material-approval-other-course')
+        governor = make_user('matsub_approve_governor')
+        NodeGovernor.objects.create(user=governor, content_type=ContentType.objects.get_for_model(Course), object_id=other_course.pk)
+        submission = self._submit()
+
+        self.client.force_authenticate(governor)
+        response = self.client.post(
+            reverse('moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'}),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 class EditSuggestionApprovalTests(APITestCase):
     def setUp(self):
         self.moderator = make_user('mod3', is_staff=True)

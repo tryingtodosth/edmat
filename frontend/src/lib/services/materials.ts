@@ -1,10 +1,19 @@
-import type { CoverageVoteValue, Material, MaterialCoverage } from '$lib/types';
+import type {
+	CoverageVoteValue,
+	Material,
+	MaterialCoverage,
+	MaterialSubmission,
+	MaterialSubmissionDraft
+} from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
 import {
+	FRONTEND_TO_BACKEND_MATERIAL_TYPE,
 	mapMaterial,
 	mapMaterialCoverage,
+	mapMaterialSubmission,
 	type RawMaterial,
-	type RawMaterialCoverage
+	type RawMaterialCoverage,
+	type RawMaterialSubmission
 } from '$lib/api/mappers';
 
 export async function getMaterialsForCourse(courseId: string): Promise<Material[]> {
@@ -89,4 +98,38 @@ export async function retractCoverageVote(coverageId: string): Promise<MaterialC
 		`/material-coverage/${encodeURIComponent(coverageId)}/vote/`
 	);
 	return mapMaterialCoverage(raw);
+}
+
+// ---- material submissions ("exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word
+// document should be accepted too, scanned and kept safe") ------------------------------------
+
+/** A real multipart upload, not JSON — `file` travels as an actual `File` object, separate from the
+ * rest of the draft's plain metadata fields (mirroring how `MaterialSubmissionDraft` itself keeps
+ * the two apart, see that type's own doc comment). The backend runs real content-type sniffing
+ * AND an (optional, honestly-flagged-when-unavailable) malware scan before this ever reaches the
+ * moderation queue — a 400 here can mean either check failed, surfaced via the thrown `ApiError`'s
+ * own message exactly like any other validation error in this app. */
+export async function submitMaterial(
+	draft: MaterialSubmissionDraft,
+	file: File
+): Promise<MaterialSubmission> {
+	const formData = new FormData();
+	formData.append('course', draft.courseId);
+	formData.append('type', FRONTEND_TO_BACKEND_MATERIAL_TYPE[draft.type] ?? 'other');
+	formData.append('title', draft.title);
+	formData.append('description', draft.description);
+	formData.append('locale', draft.locale);
+	formData.append('file', file);
+
+	const raw = await apiClient.postForm<RawMaterialSubmission>('/material-submissions/', formData);
+	return mapMaterialSubmission(raw);
+}
+
+export async function getMaterialSubmissionsForCourse(
+	courseId: string
+): Promise<MaterialSubmission[]> {
+	const raw = await apiClient.get<RawMaterialSubmission[]>(
+		`/material-submissions/?course=${encodeURIComponent(courseId)}`
+	);
+	return raw.map(mapMaterialSubmission);
 }

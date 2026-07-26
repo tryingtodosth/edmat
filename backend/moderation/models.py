@@ -4,12 +4,15 @@ this app into moderating already-PUBLISHED content (Exercise/Comment/Review), no
 submissions — a genuinely different concern from the three models above, which is why they get their
 own doc comment rather than being folded into this file's original one."""
 
+import os
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from exercises.models import Exercise
+from materials.validators import validate_material_submission_file
 from taxonomy.models import Course, Field
 
 REVIEW_STATUS_CHOICES = [
@@ -63,6 +66,72 @@ class EditSuggestion(models.Model):
 
     def __str__(self) -> str:
         return f'edit suggestion by {self.submitted_by} on {self.exercise} [{self.status}]'
+
+
+def material_submission_upload_path(instance, filename: str) -> str:
+    """Deliberately discards the uploader's own original filename, keeping only its (already
+    validated, by the time this actually gets saved) extension — "kept safe" storage, not just safe
+    CONTENT: a real original filename is untrusted input too (path-traversal characters, a
+    double-extension trick like "invoice.pdf.exe", or just an unpredictable collision), and Django's
+    own default `get_valid_name` sanitization is a lower bar than not trusting the name at all. A
+    random UUID is enough to make every stored path unique and unguessable without needing to know
+    anything about `instance` itself (unlike `Material`'s own `upload_to='materials/'`, which is
+    fine for admin/import-created rows where the filename was never adversarial input to begin
+    with)."""
+    import uuid
+
+    ext = os.path.splitext(filename)[1].lower()
+    return f'material_submissions/{uuid.uuid4().hex}{ext}'
+
+
+class MaterialSubmission(models.Model):
+    """A brand-new Material (an exam, a practice test, lecture slides, ...) submitted by a
+    registered user, pending moderator review before it becomes a real, published Material — the
+    same "queue, don't trust blindly" shape ExerciseSubmission above already establishes, adapted
+    for a genuinely FILE-centric submission rather than a JSON payload of text fields (a Material
+    has no rich statement/hint/solution text to draft, just a file plus a handful of plain metadata
+    fields, so a flat JSONField would just be extra indirection around fields this model can hold
+    directly).
+
+    `scan_status`/`scan_detail` record what `materials.validators.scan_for_malware` actually found
+    (or honestly didn't find, if no scanner was reachable) at submission time — surfaced to the
+    moderator reviewing the queue, not silently discarded, since "was this file ever actually
+    scanned" is exactly the kind of thing a moderator deciding whether to trust it should be able to
+    see."""
+
+    SCAN_STATUS_CHOICES = [
+        ('skipped', 'Not scanned'),
+        ('clean', 'Scanned — clean'),
+        ('flagged', 'Scanned — flagged'),
+    ]
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    type = models.CharField(max_length=20)  # materials.models.MATERIAL_TYPE_CHOICES values
+    title = models.CharField(max_length=300)
+    description = models.TextField(blank=True)
+    locale = models.CharField(max_length=8, default='pl')
+    file = models.FileField(
+        upload_to=material_submission_upload_path,
+        validators=[validate_material_submission_file],
+    )
+    scan_status = models.CharField(max_length=10, choices=SCAN_STATUS_CHOICES, default='skipped')
+    scan_detail = models.CharField(max_length=300, blank=True)
+    status = models.CharField(max_length=10, choices=REVIEW_STATUS_CHOICES, default='pending')
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    review_note = models.TextField(blank=True)
+    resulting_material = models.ForeignKey(
+        'materials.Material', null=True, blank=True, on_delete=models.SET_NULL
+    )  # set once approved
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'material submission by {self.submitted_by} [{self.status}]'
 
 
 REPORT_STATUS_CHOICES = [

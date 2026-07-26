@@ -34,7 +34,11 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 	const headers = new Headers(init.headers);
-	if (init.body !== undefined && !headers.has('Content-Type')) {
+	// A FormData body (multipart file upload — see `postForm` below) must NEVER get an explicit
+	// Content-Type set here: the browser generates one itself (`multipart/form-data;
+	// boundary=...`), and the boundary value is only known to the browser's own FormData
+	// serialization, not something this function could set correctly by hand.
+	if (init.body !== undefined && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
 		headers.set('Content-Type', 'application/json');
 	}
 	const token = tokenStore.value;
@@ -61,6 +65,14 @@ export const apiClient = {
 	},
 	post<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'POST', body: toBody(data) });
+	},
+	// A real file upload (materials.ts's `submitMaterial` — "exams, tests, etc. should be
+	// accepted as PDF/PNG/LaTeX/Word documents") — `formData` is passed straight through as the
+	// body, bypassing `toBody`'s JSON.stringify entirely; `request`'s own Content-Type guard above
+	// is what makes this actually send as a real multipart body instead of broken JSON-encoded
+	// FormData.
+	postForm<T>(path: string, formData: FormData): Promise<T> {
+		return request<T>(path, { method: 'POST', body: formData });
 	},
 	patch<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'PATCH', body: toBody(data) });

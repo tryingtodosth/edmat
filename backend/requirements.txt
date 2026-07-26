@@ -4,3 +4,9 @@ django-cors-headers>=4.4,<5.0
 django-filter>=24.3,<25.0
 Pillow>=10.4,<11.0
 PyYAML>=6.0,<7.0
+# materials/validators.py — real content-type sniffing (needs the system libmagic library, already
+# present on a typical Linux install; confirmed present in this project's own dev environment) and
+# an optional ClamAV scan client (talks to an already-running clamd daemon — installing ClamAV
+# itself is a separate, real system package this pip requirement does not provide).
+python-magic>=0.4.27,<0.5
+clamd>=1.0.2,<2.0

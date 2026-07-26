@@ -25,6 +25,7 @@ import type {
 	Field,
 	Material,
 	MaterialCoverage,
+	MaterialSubmission,
 	MaterialType,
 	ModerationStatus,
 	NodeGovernorGrant,
@@ -283,6 +284,17 @@ const BACKEND_TO_FRONTEND_MATERIAL_TYPE: Record<string, MaterialType> = {
 	other: 'other'
 };
 
+// The reverse of the map right above — derived FROM it, not hand-duplicated, so the two can never
+// silently drift apart the moment a new material type is ever added on one side and not the other.
+// Needed for the material-submission upload form (submitMaterial, materials.ts), which sends a
+// type value INTO the backend rather than only ever reading one back out.
+export const FRONTEND_TO_BACKEND_MATERIAL_TYPE = Object.fromEntries(
+	Object.entries(BACKEND_TO_FRONTEND_MATERIAL_TYPE).map(([backend, frontend]) => [
+		frontend,
+		backend
+	])
+) as Record<MaterialType, string>;
+
 export interface RawCoverageVoteSummary {
 	agree_count: number;
 	disagree_count: number;
@@ -452,6 +464,46 @@ export function mapExerciseSubmission(json: RawExerciseSubmission): ExerciseSubm
 		reviewNote: undefinedIfEmpty(json.review_note),
 		createdAt: json.created_at,
 		resultingExerciseId: idOrUndefined(json.resulting_exercise)
+	};
+}
+
+export interface RawMaterialSubmission {
+	id: number;
+	course: string; // slug (SlugRelatedField), same convention as RawExerciseSubmission.course
+	submitted_by: number;
+	type: string;
+	title: string;
+	description: string;
+	locale: string;
+	file: string | null;
+	scan_status: MaterialSubmission['scanStatus'];
+	scan_detail: string;
+	status: ModerationStatus;
+	reviewed_by: number | null;
+	review_note: string;
+	resulting_material: number | null;
+	created_at: string;
+}
+
+export function mapMaterialSubmission(json: RawMaterialSubmission): MaterialSubmission {
+	const fileUrl = json.file ?? '';
+	return {
+		id: String(json.id),
+		courseId: json.course,
+		submittedByUserId: String(json.submitted_by),
+		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? 'other',
+		title: json.title,
+		description: json.description,
+		locale: json.locale,
+		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
+		fileUrl,
+		scanStatus: json.scan_status,
+		scanDetail: json.scan_detail,
+		status: json.status,
+		reviewedByUserId: idOrUndefined(json.reviewed_by),
+		reviewNote: undefinedIfEmpty(json.review_note),
+		createdAt: json.created_at,
+		resultingMaterialId: idOrUndefined(json.resulting_material)
 	};
 }
 

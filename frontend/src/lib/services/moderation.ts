@@ -3,6 +3,7 @@ import type {
 	ExerciseSubmission,
 	ExerciseTranslation,
 	GovernableNodeKind,
+	MaterialSubmission,
 	ModerationStatus,
 	NodeGovernorGrant,
 	ReportGroup,
@@ -13,17 +14,20 @@ import {
 	mapEditSuggestion,
 	mapExerciseSubmission,
 	mapExerciseTranslation,
+	mapMaterialSubmission,
 	mapNodeGovernorGrant,
 	mapReportGroup,
 	type RawEditSuggestion,
 	type RawExerciseSubmission,
 	type RawExerciseTranslation,
+	type RawMaterialSubmission,
 	type RawNodeGovernorGrant,
 	type RawReportGroup
 } from '$lib/api/mappers';
 
 export interface ModerationQueue {
 	exerciseSubmissions: ExerciseSubmission[];
+	materialSubmissions: MaterialSubmission[];
 	editSuggestions: EditSuggestion[];
 	translations: ExerciseTranslation[];
 	// Already priority-sorted by the backend (build_report_queue: auto-hidden first, then report
@@ -35,12 +39,14 @@ export interface ModerationQueue {
 export async function getModerationQueue(): Promise<ModerationQueue> {
 	const raw = await apiClient.get<{
 		submissions: RawExerciseSubmission[];
+		material_submissions: RawMaterialSubmission[];
 		edit_suggestions: RawEditSuggestion[];
 		translations: RawExerciseTranslation[];
 		reports: RawReportGroup[];
 	}>('/moderation/queue/');
 	return {
 		exerciseSubmissions: raw.submissions.map(mapExerciseSubmission),
+		materialSubmissions: raw.material_submissions.map(mapMaterialSubmission),
 		editSuggestions: raw.edit_suggestions.map(mapEditSuggestion),
 		translations: raw.translations.map(mapExerciseTranslation),
 		reports: raw.reports.map(mapReportGroup)
@@ -53,7 +59,7 @@ export async function getModerationQueue(): Promise<ModerationQueue> {
 // moderator's own token can reach this endpoint at all, so a caller can't decide as someone else
 // even by passing a different id here.
 async function decide(
-	kind: 'submission' | 'edit' | 'translation',
+	kind: 'submission' | 'material' | 'edit' | 'translation',
 	id: string,
 	status: ModerationStatus,
 	note?: string
@@ -71,6 +77,15 @@ export async function decideExerciseSubmission(
 	note?: string
 ): Promise<void> {
 	await decide('submission', id, status, note);
+}
+
+export async function decideMaterialSubmission(
+	id: string,
+	status: ModerationStatus,
+	_reviewerId: string,
+	note?: string
+): Promise<void> {
+	await decide('material', id, status, note);
 }
 
 export async function decideEditSuggestion(

@@ -20,6 +20,8 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'comment_reply': 'notify_on_comment_reply',
     'submission_approved': 'notify_on_moderation_decision',
     'submission_rejected': 'notify_on_moderation_decision',
+    'material_submission_approved': 'notify_on_moderation_decision',
+    'material_submission_rejected': 'notify_on_moderation_decision',
     'edit_suggestion_approved': 'notify_on_moderation_decision',
     'edit_suggestion_rejected': 'notify_on_moderation_decision',
     'translation_approved': 'notify_on_moderation_decision',

@@ -6,6 +6,7 @@
 		ExerciseTranslation,
 		Field,
 		GovernableNodeKind,
+		MaterialSubmission,
 		NodeGovernorGrant,
 		ReportGroup,
 		User
@@ -15,6 +16,7 @@
 		getModerationQueue,
 		decideEditSuggestion,
 		decideExerciseSubmission,
+		decideMaterialSubmission,
 		decideTranslation,
 		resolveReport,
 		listNodeGovernors,
@@ -25,6 +27,7 @@
 	import { getCourseById, getFields, getAllCourses } from '$lib/services/taxonomy';
 	import { getExercisesByIds } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
 	import { resolve } from '$app/paths';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 
@@ -34,9 +37,12 @@
 	// "governors" — the node-governor administration panel itself — only ever rendered as a real
 	// tab option for a global (is_staff) moderator; a scoped governor never sees it at all (see the
 	// tab bar's own `{#if authStore.isModerator}` guard below).
-	let tab = $state<'reports' | 'submissions' | 'edits' | 'translations' | 'governors'>('reports');
+	let tab = $state<
+		'reports' | 'submissions' | 'materials' | 'edits' | 'translations' | 'governors'
+	>('reports');
 	let reports = $state<ReportGroup[]>([]);
 	let submissions = $state<ExerciseSubmission[]>([]);
+	let materialSubmissions = $state<MaterialSubmission[]>([]);
 	let editSuggestions = $state<EditSuggestion[]>([]);
 	let translations = $state<ExerciseTranslation[]>([]);
 	let usersById = $state<Record<string, User>>({});
@@ -64,11 +70,13 @@
 		const queue = await getModerationQueue();
 		reports = queue.reports;
 		submissions = queue.exerciseSubmissions;
+		materialSubmissions = queue.materialSubmissions;
 		editSuggestions = queue.editSuggestions;
 		translations = queue.translations;
 
 		const userIds = [
 			...submissions.map((s) => s.submittedByUserId),
+			...materialSubmissions.map((s) => s.submittedByUserId),
 			...editSuggestions.map((e) => e.submittedByUserId),
 			...translations.map((t) => t.translatedByUserId).filter((id): id is string => Boolean(id))
 		];
@@ -77,7 +85,12 @@
 		for (const u of users) if (u) uMap[u.id] = u;
 		usersById = uMap;
 
-		const courseIds = [...new Set(submissions.map((s) => s.courseId))];
+		const courseIds = [
+			...new Set([
+				...submissions.map((s) => s.courseId),
+				...materialSubmissions.map((s) => s.courseId)
+			])
+		];
 		const courses = await Promise.all(courseIds.map((id) => getCourseById(id)));
 		const cMap: Record<string, Course> = {};
 		for (const c of courses) if (c) cMap[c.id] = c;
@@ -123,6 +136,16 @@
 	async function rejectSubmission(s: ExerciseSubmission) {
 		if (!authStore.user) return;
 		await decideExerciseSubmission(s.id, 'rejected', authStore.user.id, notes[s.id]);
+		await load();
+	}
+	async function approveMaterial(s: MaterialSubmission) {
+		if (!authStore.user) return;
+		await decideMaterialSubmission(s.id, 'approved', authStore.user.id, notes[s.id]);
+		await load();
+	}
+	async function rejectMaterial(s: MaterialSubmission) {
+		if (!authStore.user) return;
+		await decideMaterialSubmission(s.id, 'rejected', authStore.user.id, notes[s.id]);
 		await load();
 	}
 	async function approveEdit(e: EditSuggestion) {
@@ -250,6 +273,17 @@
 			<button
 				type="button"
 				role="tab"
+				id="mod-tab-materials"
+				aria-selected={tab === 'materials'}
+				aria-controls="mod-tabpanel"
+				class:active={tab === 'materials'}
+				onclick={() => (tab = 'materials')}
+			>
+				{m.moderation_tab_materials({ count: materialSubmissions.length })}
+			</button>
+			<button
+				type="button"
+				role="tab"
 				id="mod-tab-edits"
 				aria-selected={tab === 'edits'}
 				aria-controls="mod-tabpanel"
@@ -308,6 +342,9 @@
 				{#if tab === 'reports'}{m.moderation_tab_reports({ count: reports.length })}
 				{:else if tab === 'submissions'}{m.moderation_tab_submissions({
 						count: submissions.length
+					})}
+				{:else if tab === 'materials'}{m.moderation_tab_materials({
+						count: materialSubmissions.length
 					})}
 				{:else if tab === 'edits'}{m.moderation_tab_edits({ count: editSuggestions.length })}
 				{:else if tab === 'translations'}{m.moderation_tab_translations({
@@ -395,6 +432,62 @@
 										>{m.moderation_approve()}</button
 									>
 									<button type="button" class="reject" onclick={() => rejectSubmission(s)}
+										>{m.moderation_reject()}</button
+									>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{:else if tab === 'materials'}
+				{#if materialSubmissions.length === 0}
+					<p class="empty">{m.moderation_empty()}</p>
+				{:else}
+					<ul class="queue">
+						{#each materialSubmissions as s (s.id)}
+							<li class="queue-item">
+								<div class="report-header">
+									<span class="report-kind">{MATERIAL_TYPE_LABELS[s.type]()}</span>
+									{#if s.scanStatus === 'skipped'}
+										<span class="scan-badge scan-badge--skipped"
+											>{m.moderation_material_scanSkipped()}</span
+										>
+									{:else if s.scanStatus === 'clean'}
+										<span class="scan-badge scan-badge--clean"
+											>{m.moderation_material_scanClean()}</span
+										>
+									{:else}
+										<span class="scan-badge scan-badge--flagged"
+											>{m.moderation_material_scanFlagged()}</span
+										>
+									{/if}
+								</div>
+								<h3>{s.title}</h3>
+								<p class="meta">
+									{m.moderation_submittedBy({
+										name: usersById[s.submittedByUserId]?.displayName ?? '—'
+									})}
+									{m.moderation_forCourse({ course: coursesById[s.courseId]?.name ?? s.courseId })}
+								</p>
+								<p class="excerpt">{s.description.slice(0, 200)}</p>
+								<!-- eslint-disable svelte/no-navigation-without-resolve -- an external file URL (the Django media server), not an app route resolve() can express -->
+								<a
+									class="context-link"
+									href={s.fileUrl}
+									target="_blank"
+									rel="noopener noreferrer"
+									download
+								>
+									{m.moderation_material_viewFile({ name: s.fileName })}
+								</a>
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+								<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[s.id]}
+								></textarea>
+								<div class="actions">
+									<button type="button" class="approve" onclick={() => approveMaterial(s)}
+										>{m.moderation_approve()}</button
+									>
+									<button type="button" class="reject" onclick={() => rejectMaterial(s)}
 										>{m.moderation_reject()}</button
 									>
 								</div>
@@ -622,6 +715,18 @@
 		letter-spacing: 0.04em;
 	}
 	.hidden-badge {
+		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+	}
+	.scan-badge {
+		font-size: var(--font-size-xs);
+	}
+	.scan-badge--skipped {
+		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+	}
+	.scan-badge--clean {
+		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+	}
+	.scan-badge--flagged {
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 	}
 	.context-link {

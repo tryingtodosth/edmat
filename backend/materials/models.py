@@ -26,6 +26,8 @@ from django.db import models
 from exercises.models import Tag
 from taxonomy.models import Course, Subtopic, Topic
 
+from .validators import validate_material_submission_file
+
 MATERIAL_TYPE_CHOICES = [
     ('script', 'Course script'),
     ('exam_collection', 'Exam collection'),
@@ -47,7 +49,13 @@ class Material(models.Model):
     course = models.ForeignKey(Course, related_name='materials', on_delete=models.CASCADE)
     slug = models.SlugField()
     type = models.CharField(max_length=20, choices=MATERIAL_TYPE_CHOICES)
-    file = models.FileField(upload_to='materials/')
+    # validators=[...] — same real content-type/size check materials.validators.
+    # validate_material_submission_file already gives every user-submitted MaterialSubmission
+    # (moderation/models.py), added here too for defense-in-depth consistency: a raw `.save()` call
+    # (the corpus importer, or MaterialSubmission's own approval path copying an already-validated
+    # file across) bypasses field validators entirely, by design — this only ever runs where
+    # something is actually being VALIDATED (a ModelForm/DRF serializer write), not on every save.
+    file = models.FileField(upload_to='materials/', validators=[validate_material_submission_file])
     author = models.CharField(max_length=200, blank=True)
     tags = models.ManyToManyField(Tag, blank=True, related_name='materials')
     published = models.BooleanField(default=True)

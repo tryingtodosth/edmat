@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     EditSuggestionViewSet,
     ExerciseSubmissionViewSet,
+    MaterialSubmissionViewSet,
     ModerationActionView,
     ModerationQueueView,
     NodeGovernorViewSet,
@@ -13,6 +14,7 @@ from .views import (
 
 router = DefaultRouter()
 router.register('exercise-submissions', ExerciseSubmissionViewSet, basename='exercise-submission')
+router.register('material-submissions', MaterialSubmissionViewSet, basename='material-submission')
 router.register('edit-suggestions', EditSuggestionViewSet, basename='edit-suggestion')
 router.register('reports', ReportViewSet, basename='report')
 # Under moderation/ (not a bare top-level prefix) to sit alongside this app's other

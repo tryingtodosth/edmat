@@ -438,24 +438,27 @@ def build_moderation_queue_payload(user=None) -> dict:
     completely unchanged; only a real, non-staff node governor ever sees a narrower queue."""
     from exercises.serializers import ExerciseTranslationSerializer
 
-    from .models import EditSuggestion, ExerciseSubmission
-    from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer
+    from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission
+    from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer, MaterialSubmissionSerializer
 
     course_ids = governed_course_ids(user) if user is not None else None
 
-    # select_related('course') — ExerciseSubmissionSerializer.course is a SlugRelatedField, which
-    # resolves `submission.course.slug` per row; without this it's a real, measured N+1 (one query
-    # per pending submission), the next-largest cost in this response once build_report_queue()'s
-    # own, larger N+1 was fixed.
+    # select_related('course') — ExerciseSubmissionSerializer.course/MaterialSubmissionSerializer.course
+    # are both SlugRelatedFields, which resolve `submission.course.slug` per row; without this it's
+    # a real, measured N+1 (one query per pending submission), the next-largest cost in this response
+    # once build_report_queue()'s own, larger N+1 was fixed.
     submissions = ExerciseSubmission.objects.filter(status='pending').select_related('course')
+    material_submissions = MaterialSubmission.objects.filter(status='pending').select_related('course')
     edits = EditSuggestion.objects.filter(status='pending')
     translations = ExerciseTranslation.objects.filter(status='pending')
     if course_ids is not None:
         submissions = submissions.filter(course_id__in=course_ids)
+        material_submissions = material_submissions.filter(course_id__in=course_ids)
         edits = edits.filter(exercise__course_id__in=course_ids)
         translations = translations.filter(exercise__course_id__in=course_ids)
     return {
         'submissions': ExerciseSubmissionSerializer(submissions, many=True).data,
+        'material_submissions': MaterialSubmissionSerializer(material_submissions, many=True).data,
         'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
         'translations': ExerciseTranslationSerializer(translations, many=True).data,
         'reports': build_report_queue(course_ids=course_ids),

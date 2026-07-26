@@ -148,6 +148,19 @@ STATIC_URL = 'static/'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Material submission safety (materials/validators.py) — real content-type sniffing always runs
+# regardless of these settings; a genuine ClamAV scan is attempted too, but this sandboxed dev
+# environment has no ClamAV daemon installed (confirmed: no clamscan/clamdscan/freshclam binary
+# anywhere, and no root access to install one — the same constraint CLAUDE.md's own venv note
+# already records for a different tool). MATERIAL_SCAN_REQUIRED=False here is this environment's
+# own honest default (an upload proceeds with the scan recorded as skipped, not silently treated as
+# "scanned and clean") — a real deployment that actually runs ClamAV should set this True, which
+# makes an unreachable scanner a hard rejection instead of a graceful skip.
+MATERIAL_SCAN_REQUIRED = False
+CLAMD_UNIX_SOCKET = '/var/run/clamav/clamd.ctl'
+CLAMD_HOST = 'localhost'
+CLAMD_PORT = 3310
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

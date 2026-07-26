@@ -5,7 +5,14 @@ from rest_framework import serializers
 from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.models import Course
 
-from .models import GOVERNABLE_NODE_MODELS, EditSuggestion, ExerciseSubmission, NodeGovernor, Report
+from .models import (
+    GOVERNABLE_NODE_MODELS,
+    EditSuggestion,
+    ExerciseSubmission,
+    MaterialSubmission,
+    NodeGovernor,
+    Report,
+)
 from .services import REPORT_KIND_MODELS
 
 User = get_user_model()
@@ -51,6 +58,45 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['submitted_by', 'status', 'reviewed_by', 'review_note']
+
+
+class MaterialSubmissionSerializer(serializers.ModelSerializer):
+    """POST /api/material-submissions/ (multipart — `file` is a real upload, not JSON) — the
+    file-centric counterpart to ExerciseSubmissionSerializer above. `course` follows the exact same
+    by-slug convention that one already established. `scan_status`/`scan_detail` are read-only here
+    too — MaterialSubmissionViewSet.perform_create (views.py) is what actually runs
+    materials.validators.scan_for_malware and sets them, never trusted from the client."""
+
+    course = serializers.SlugRelatedField(slug_field='slug', queryset=Course.objects.all())
+
+    class Meta:
+        model = MaterialSubmission
+        fields = [
+            'id',
+            'course',
+            'submitted_by',
+            'type',
+            'title',
+            'description',
+            'locale',
+            'file',
+            'scan_status',
+            'scan_detail',
+            'status',
+            'reviewed_by',
+            'review_note',
+            'resulting_material',
+            'created_at',
+        ]
+        read_only_fields = [
+            'submitted_by',
+            'scan_status',
+            'scan_detail',
+            'status',
+            'reviewed_by',
+            'review_note',
+            'resulting_material',
+        ]
 
 
 class ReportCreateSerializer(serializers.ModelSerializer):

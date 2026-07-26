@@ -12,8 +12,10 @@ resolved: retire `Database-of-Student-Exercise`'s static site now** — see Sect
 item 3 for the decision and what it changed. The translation-publish race (and a more severe,
 non-concurrent bug found while chasing it) is fixed, and this project's first real automated test
 suite exists — see Sections 17K/17L. **Node governors — a scoped, per-Field/Course moderator role,
-full stack (backend + a real admin page) — are also built** (92 tests total now), see Section 17M.
-This document is the living spec for
+full stack (backend + a real admin page) — are also built** (92 tests total then), see Section 17M.
+**Real material uploads (exams/tests/etc. as PDF/PNG/LaTeX/Word, content-sniffed and, where a real
+ClamAV daemon exists, scanned) are also built** (110 tests total now), see Section 17N. This document
+is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -2574,6 +2576,181 @@ files), and `npm run build` (production build succeeds) all confirmed clean on t
   looks identical to one made by a full staff member in the data, which is arguably correct (the
   decision itself IS equally authoritative within their scope) but worth naming as a deliberate
   non-distinction, not an unconsidered gap.
+
+## 17N. Feature: real material uploads — PDF/PNG/LaTeX/Word, content-sniffed and (optionally) scanned (✅ built)
+
+"Exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word document should be accepted too, and
+it should be scanned and kept safe." Before this, `Material` (2.11) had zero create/upload path at
+all — `MaterialViewSet` was, and remains, a plain `ReadOnlyModelViewSet`; every one of the 7 real
+materials in this corpus exists only via `import_legacy_corpus` or the Django admin. This feature
+adds the missing piece: a real, moderated user-submission flow for course materials, mirroring
+`ExerciseSubmission`'s own shape (2.9's own model), with two things `ExerciseSubmission` never
+needed at all — real file-content validation, and an optional malware scan.
+
+### Two separate safety layers, both real, neither faked
+
+`materials/validators.py` is genuinely new ground for this project — every prior "moderation" feature
+gated on trusting a Django model field (text, a JSON payload); this is the first time this app has had
+to reason about untrusted BINARY content at all.
+
+1. **Content-type verification, always on.** `python-magic` (a thin binding over the system
+   `libmagic` library, confirmed already present on this machine — no new system package needed) reads
+   the first few KB of an upload and checks the SNIFFED mime type against a whitelist keyed by
+   extension (`ALLOWED_MATERIAL_TYPES`) — never trusting the extension or the browser-supplied
+   `Content-Type` header, both of which the uploader fully controls. Verified directly before being
+   trusted, not assumed from the library's own docs: a real PDF/PNG/`.tex` file is accepted; a real
+   Windows PE executable (a genuine `MZ...` header) renamed to `.pdf` is rejected, because its sniffed
+   type (an executable signature, or `application/octet-stream` for a very short/ambiguous buffer)
+   simply isn't in the `.pdf` extension's own allowed set either way. `.docx`/`.doc` both accept a
+   genuinely broad container type (`application/zip` / OLE2's own `application/x-ole-storage`)
+   alongside the more specific Office MIME strings some `libmagic` database versions report — a real
+   `.docx` IS a zip archive, a real legacy `.doc` IS an OLE2 compound file; this validator answers "is
+   this really a document/image, not something pretending to be one," not full format forensics. A
+   25MB size cap (`MAX_MATERIAL_SUBMISSION_SIZE_BYTES`) rounds out the same function
+   (`validate_material_submission_file`) — a real Django field validator, wired onto BOTH
+   `MaterialSubmission.file` and `Material.file` itself (the latter for defense-in-depth consistency,
+   even though the corpus importer's own raw `.create()` calls bypass field validators by design,
+   same as every other Django validator in this app).
+2. **Malware scanning, genuinely pluggable, honestly optional here.** `scan_for_malware` tries a real
+   ClamAV daemon — first a Unix socket (`CLAMD_UNIX_SOCKET`), then TCP (`CLAMD_HOST`/`CLAMD_PORT`),
+   both new `config/settings.py` values — via the `clamd` PyPI client, which only ever talks to an
+   ALREADY-RUNNING clamd. This project's own sandboxed dev environment has neither: confirmed no
+   `clamscan`/`clamdscan`/`freshclam` binary anywhere, and no root access to install one (the same
+   constraint CLAUDE.md's own venv note already records for a different tool). The honest, common
+   outcome here is `scanned=False` — returned as a real dataclass (`ScanOutcome`), never silently
+   upgraded to "clean" by a caller that only checks a bare bool. `MATERIAL_SCAN_REQUIRED` (`False` in
+   this environment) is what a real deployment that actually runs ClamAV would flip to `True`, turning
+   "couldn't scan it" into a hard rejection instead of this environment's own honest, recorded skip —
+   the same "flag it, don't fake it" discipline this doc already applies to the email-backend stub
+   (Section 18 item 9) and the avatar-upload URL stand-in (Section 4W).
+
+### `MaterialSubmission` — the file-centric counterpart to `ExerciseSubmission`
+
+Lives in `moderation/models.py`, same app as every other pending-review model, importing
+`Material`/`MATERIAL_TYPE_CHOICES` from `materials.models` the same way `ExerciseSubmission` imports
+`Exercise`. Deliberately real, typed fields (`title`, `description`, `locale`, `type`, `file`) rather
+than `ExerciseSubmission`'s own flat `JSONField` payload — a Material has no rich statement/hint/
+solution text to draft, just a file plus a handful of plain metadata fields, so a JSON payload would
+just be extra indirection around fields this model can hold directly. `scan_status`/`scan_detail` are
+surfaced to the moderator reviewing the queue, not silently discarded — "was this file ever actually
+scanned" is exactly the kind of thing a real moderator deciding whether to trust an upload should see.
+
+**"Kept safe" storage, not just safe content.** `material_submission_upload_path` deliberately
+discards the uploader's own original filename, keeping only its (already-validated) extension — a
+random UUID hex is the real stored filename. A real original filename is untrusted input too (path
+traversal characters, a double-extension trick like `invoice.pdf.exe`, an unpredictable collision) —
+Django's own default `FileSystemStorage.get_valid_name` sanitization is a lower bar than not trusting
+the name at all.
+
+`_apply_material_submission` (moderation/views.py) mirrors `_apply_submission`'s own shape: builds a
+real, published `Material` + `MaterialTranslation` from an approved submission, assigning
+`Material.file` the SAME already-uploaded, already-validated, already-scanned file the submission
+itself holds (a plain FileField reference copy, no re-upload). `Material` has no `number` field to
+allocate the way `Exercise` does, but it does have the same real `unique_together = [('course',
+'slug')]` constraint `Exercise`'s `(course, number)` has — so this function generates a slug from the
+submitted title via `slugify`, retrying with a numeric suffix on collision, the exact same "retry until
+it doesn't collide" shape `_apply_submission`'s own number-allocation loop (Section 17I) already
+established for a different field.
+
+### Wired into every existing moderation surface, not a parallel system
+
+`_KIND_MODELS`/`_course_for_moderation_target` (views.py) both gained a `'material'` entry —
+`ModerationActionView`'s existing approve/reject/idempotency-claim/node-governor-scoping machinery
+(Sections 17I/17M) covers a material submission with zero new logic of its own, the same free ride
+every prior kind already got from that shared view. `build_moderation_queue_payload`
+(moderation/services.py) gained a `material_submissions` key, scoped by `governed_course_ids` exactly
+like `submissions`/`edits`/`translations` already are — a node governor sees only their own course's
+pending material uploads, same as everything else in their scoped queue.
+`notifications/services.py`'s `_PREFERENCE_FIELD_FOR_TYPE` gained
+`material_submission_approved`/`material_submission_rejected`, both mapped to the existing
+`notify_on_moderation_decision` category — `label_for_material` (already built, unused until now) is
+what resolves a real, per-locale title for the notification.
+
+### Frontend — a real multipart upload, not JSON
+
+`apiClient` gained a genuinely new capability: `postForm<T>(path, formData)`, and `request()`'s own
+Content-Type logic was widened to never set `application/json` when the body is a `FormData` instance
+— the browser generates the correct `multipart/form-data; boundary=...` header itself, with a boundary
+value this function could never construct by hand. `submitMaterial` (`lib/services/materials.ts`)
+builds the `FormData` and sends the real `File` object alongside the plain metadata fields.
+
+A new route, `/submit-material`, mirrors `/submit`'s own layout (course/type/language pickers, a
+title/description, and — the one new field kind for this app — a real `<input type="file">` with an
+`accept` attribute matching the validator's own whitelist, a real, honest UX convenience, not the
+security boundary itself). The moderation page gained a sixth tab, "Materials," listing pending
+uploads with the resolved type label, a scan-status badge (`Not scanned` / `Scanned — clean` /
+`Scanned — flagged`, reading directly off `scan_status`), a real working file link (`download`,
+`target="_blank"`, with an `eslint-disable` for `svelte/no-navigation-without-resolve` — an external
+Django-media-server URL, not an app route `resolve()` can express, the same precedent
+`MaterialCard.svelte`'s own download link already established), and the same Approve/Reject actions
+every other queue tab already has.
+
+### Verified end-to-end, live — not just unit-tested
+
+**Backend: 18 new tests** (`MaterialSubmissionValidatorTests`, `MaterialSubmissionApiTests`,
+`MaterialSubmissionApprovalTests`), bringing the full suite to **110 tests, all passing**. Real content
+fixtures throughout, not synthetic placeholders — a genuine minimal PDF/PNG/`.tex` byte sequence for
+the accept cases, a genuine Windows PE header for the disguised-executable reject case, and a real
+`@override_settings(MATERIAL_SCAN_REQUIRED=True)` test confirming an upload IS rejected when no
+scanner is reachable, the counterpart to this environment's own honest default. `manage.py check`/
+`makemigrations --check --dry-run` both stay clean.
+
+**Frontend, driven live against the real running dev servers with headless Chromium** (the same
+"reproduce/verify before trusting it" discipline every Phase 4 feature in this doc already holds
+itself to) — not `npm run check`/`build` alone, though both stayed clean throughout (`0 errors, 0
+warnings`, and `npm run lint`'s prettier+eslint pass clean too, once two real issues below were found
+and fixed):
+
+- A registered student uploaded a REAL PDF through the actual `/submit-material` form; the success
+  message rendered correctly.
+- A staff moderator's Materials tab showed the real submission with the correct type label, course
+  name, submitter name, and an honest "Not scanned" badge (confirming this environment's own
+  `scanned=False` path is surfaced all the way to the UI, not silently hidden) — a real, working file
+  link that resolves to the Django media server.
+- Approving it removed it from the queue; the resulting `Material` genuinely appeared, published, on
+  its real course page — confirmed by navigating there and reading the live-rendered DOM, not assumed
+  from the API response alone.
+- A second upload, a real disguised executable, was REJECTED by the actual running form — a real error
+  message rendered, no false "awaiting review" success shown.
+
+**Two real bugs found and fixed by this live pass, neither caught by `svelte-check` alone:**
+
+1. **A stale `svelte/no-navigation-without-resolve` eslint violation that only reproduced once the
+   `<a>` tag was reformatted onto multiple lines** — `eslint-disable-next-line` only suppresses a
+   violation reported on the literal next line, and the rule reports the violation at the `href`
+   attribute's own line specifically, not the tag's opening line; a multi-line, Prettier-reformatted
+   tag put the two line numbers out of sync. Fixed with a block-scoped `eslint-disable`/`eslint-enable`
+   pair around the whole element instead of a single-line disable comment — immune to reformatting
+   moving attributes across lines, unlike the fragile single-line form.
+2. **The verification script's own `<select>` locators, not an app bug** — `page.locator('select').first()`
+   matched the Header's own always-present "Interface language" selector before ever reaching the
+   actual submit form's course picker, on both the node-governor (Section 17M) and this feature's own
+   verification passes. Fixed by scoping every form-field locator to `form.submit-form` specifically —
+   recorded here since it's the same class of "positional locator vs. a page with more than one
+   matching element" mistake Section 17M's own writeup already caught once, now caught a second time
+   in a genuinely different feature's verification script.
+
+### Left open, not built
+
+- **No real ClamAV daemon exists in this sandboxed dev environment** — `scan_for_malware`'s own
+  network-scanning code path (both the Unix-socket and TCP branches) is real and correctly falls back
+  when unreachable, but was never exercised against an ACTUAL positive detection (a real virus
+  signature triggering `status: 'FOUND'`) — only the "no daemon reachable" branch was ever live-tested,
+  since this environment genuinely has no daemon to test the other branch against. A real deployment
+  that installs ClamAV would be the first to exercise that code path for real.
+- **`MaterialSubmission.type` is a bare `CharField`, not `choices=MATERIAL_TYPE_CHOICES`** — the
+  serializer never validates it against the real enum, so a malformed `type` value would only ever
+  surface as `Material.type` failing ITS OWN `choices` validation the moment `_apply_material_submission`
+  tries to build the real `Material` row from it (a 500, not a clean 400 at submission time). Not hit
+  by any current fixture or the live verification pass (the frontend's own `FRONTEND_TO_BACKEND_MATERIAL_TYPE`
+  map only ever sends real values), but a real, if narrow, gap worth tightening.
+- **No UI for a student to see the outcome of their own material submission** (approved/rejected,
+  with the moderator's own review note) — `ExerciseSubmission` has the identical gap already
+  (unaddressed by any prior session), so this isn't a new hole this feature introduced, just one it
+  didn't take the opportunity to close either.
+- **`getMaterialSubmissionsForCourse` (materials.ts) is built but has no real UI consumer yet** — added
+  for symmetry with `getExerciseSubmissionsForCourse`, but nothing in this pass needed a course-scoped
+  submissions view outside the moderation queue itself.
 
 ## 18. Open questions
 

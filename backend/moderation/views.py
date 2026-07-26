@@ -13,17 +13,20 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, OperationalError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from exercises.models import Exercise, ExerciseTranslation
 from exercises.serializers import ExerciseTranslationSerializer
-from notifications.services import label_for_exercise, notify, notify_tag_followers
+from materials.validators import scan_for_malware
+from notifications.services import label_for_exercise, label_for_material, notify, notify_tag_followers
 
-from .models import EditSuggestion, ExerciseSubmission, NodeGovernor, Report
+from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission, NodeGovernor, Report
 from .serializers import (
     EditSuggestionSerializer,
     ExerciseSubmissionSerializer,
+    MaterialSubmissionSerializer,
     NodeGovernorSerializer,
     ReportCreateSerializer,
 )
@@ -130,6 +133,55 @@ class EditSuggestionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(submitted_by=self.request.user)
+
+
+class MaterialSubmissionViewSet(viewsets.ModelViewSet):
+    """POST /api/material-submissions/ (multipart/form-data — auth required) → moderation queue.
+    "exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word document should be accepted too,
+    scanned and kept safe" — the real content-type/size validation (materials/validators.py's
+    `validate_material_submission_file`, wired onto the model field itself) runs on every write via
+    this ViewSet's own DRF serializer validation; the malware scan below is a SECOND, separate check
+    this view runs explicitly, since "scan it" isn't something a plain field validator can express
+    (it needs network I/O to a scanner, not just a look at the bytes already in hand).
+
+    `parser_classes` declared explicitly rather than left to DRF's own default (which already
+    includes MultiPartParser) — a reader shouldn't have to already know that default to see this
+    endpoint accepts a real file upload, not a JSON body."""
+
+    serializer_class = MaterialSubmissionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_queryset(self):
+        qs = MaterialSubmission.objects.all()
+        if not self.request.user.is_staff:
+            qs = qs.filter(submitted_by=self.request.user)
+        course = self.request.query_params.get('course')
+        if course:
+            qs = qs.filter(course__slug=course)
+        return qs
+
+    def perform_create(self, serializer):
+        """Scans the upload BEFORE it's ever visible to a moderator, recording an honest
+        `scan_status`/`scan_detail` either way (see `MaterialSubmission`'s own doc comment for why
+        this is surfaced, not silently discarded). `MATERIAL_SCAN_REQUIRED` (config/settings.py) —
+        False in this project's own sandboxed dev environment, where no ClamAV daemon exists to
+        reach at all — is what a real deployment that actually runs ClamAV would flip to True, which
+        turns "couldn't scan it" into a hard rejection instead of a recorded, honest skip."""
+        from django.conf import settings
+        from rest_framework.exceptions import ValidationError
+
+        submission = serializer.save(submitted_by=self.request.user)
+        outcome = scan_for_malware(submission.file)
+        if not outcome.scanned and getattr(settings, 'MATERIAL_SCAN_REQUIRED', False):
+            submission.delete()
+            raise ValidationError({'file': [f'Could not scan this file for safety: {outcome.detail}']})
+        if outcome.scanned and not outcome.clean:
+            submission.delete()
+            raise ValidationError({'file': [outcome.detail]})
+        submission.scan_status = 'clean' if outcome.scanned else 'skipped'
+        submission.scan_detail = outcome.detail
+        submission.save(update_fields=['scan_status', 'scan_detail'])
 
 
 class ReportViewSet(viewsets.ModelViewSet):
@@ -283,6 +335,47 @@ def _apply_edit_suggestion(suggestion):
         translation.save(update_fields=[suggestion.field])
 
 
+def _apply_material_submission(submission, reviewer):
+    """Builds a real, published Material + MaterialTranslation from an approved MaterialSubmission
+    — the file-centric counterpart to `_apply_submission` above. `Material.file` is assigned the
+    SAME already-uploaded, already-validated, already-scanned file the submission itself holds
+    (Django's own FileField assignment just copies the reference to the already-stored path, no
+    re-upload/re-validation needed) rather than re-saving the bytes a second time under a new path.
+
+    `slug` has no equivalent in the submission's own payload (unlike Exercise's `number`, which
+    `_apply_submission` computes from the course's own existing rows) — generated here from the
+    submitted title via `slugify`, with a numeric suffix appended only if it collides with an
+    existing Material in the same course (`unique_together = [('course', 'slug')]`,
+    materials/models.py), mirroring the exact "retry until it doesn't collide" shape
+    `_apply_submission`'s own number-allocation loop already established for a different field."""
+    from django.utils.text import slugify
+
+    from materials.models import Material, MaterialTranslation
+
+    base_slug = slugify(submission.title) or 'material'
+    slug = base_slug
+    suffix = 1
+    while Material.objects.filter(course=submission.course, slug=slug).exists():
+        suffix += 1
+        slug = f'{base_slug}-{suffix}'
+
+    material = Material.objects.create(
+        course=submission.course,
+        slug=slug,
+        type=submission.type,
+        file=submission.file,
+        published=True,
+    )
+    MaterialTranslation.objects.create(
+        material=material,
+        locale=submission.locale,
+        title=submission.title,
+        description=submission.description,
+    )
+    submission.resulting_material = material
+    return material
+
+
 def _publish_translation(translation):
     """Promotes a pending translation to published, superseding whatever was previously published
     for the same (exercise, locale) — `ExerciseTranslation`'s own partial unique constraint
@@ -325,15 +418,16 @@ _KIND_MODELS = {
     'submission': (ExerciseSubmission, ExerciseSubmissionSerializer),
     'edit': (EditSuggestion, EditSuggestionSerializer),
     'translation': (ExerciseTranslation, ExerciseTranslationSerializer),
+    'material': (MaterialSubmission, MaterialSubmissionSerializer),
 }
 
 
 def _course_for_moderation_target(kind, obj):
     """Which Course a pending moderation-queue item belongs to — the scope
-    `is_governor_of_course` checks a node governor's own authority against. A submission carries
-    its own `course` FK directly; an edit suggestion/translation are both scoped through the
-    Exercise they target."""
-    if kind == 'submission':
+    `is_governor_of_course` checks a node governor's own authority against. A submission (exercise
+    OR material) carries its own `course` FK directly; an edit suggestion/translation are both
+    scoped through the Exercise they target."""
+    if kind in ('submission', 'material'):
         return obj.course
     return obj.exercise.course
 
@@ -430,6 +524,9 @@ class ModerationActionView(APIView):
                 if kind == 'submission':
                     _apply_submission(obj, request.user)
                     obj.save(update_fields=['resulting_exercise'])
+                elif kind == 'material':
+                    _apply_material_submission(obj, request.user)
+                    obj.save(update_fields=['resulting_material'])
                 elif kind == 'edit':
                     _apply_edit_suggestion(obj)
                 elif kind == 'translation':
@@ -456,27 +553,42 @@ class ModerationActionView(APIView):
 
     @staticmethod
     def _notify_decision(kind, obj, moderator, outcome, note):
-        """One place for the 3-kind x 2-outcome notification matrix — both the approve and reject
-        branches above call this rather than each repeating the same recipient/label lookup six
-        times over. `obj.resulting_exercise` is only ever set on a `submission` that was just
-        approved (still None on a rejected one, since it never became a real Exercise) —
-        `label_for_exercise(None)` and `notify(..., exercise=None)` both already handle that
-        honestly rather than needing a special case here."""
+        """One place for the 4-kind x 2-outcome notification matrix — both the approve and reject
+        branches above call this rather than each repeating the same recipient/label lookup times
+        over. `obj.resulting_exercise`/`obj.resulting_material` are only ever set on a `submission`/
+        `material` that was just approved (still None on a rejected one, since it never became a
+        real Exercise/Material) — `label_for_exercise(None)`/`label_for_material(None)` and
+        `notify(..., exercise=None)`/`notify(..., material=None)` all already handle that honestly
+        rather than needing a special case here."""
+        notify_kwargs = {}
         if kind == 'submission':
             recipient = obj.submitted_by
             exercise = obj.resulting_exercise
             label = label_for_exercise(exercise) if exercise else obj.payload.get('title', '')
+            notify_kwargs['exercise'] = exercise
+        elif kind == 'material':
+            recipient = obj.submitted_by
+            material = obj.resulting_material
+            label = label_for_material(material) if material else obj.title
+            notify_kwargs['material'] = material
         elif kind == 'edit':
             recipient = obj.submitted_by
             exercise = obj.exercise
             label = label_for_exercise(exercise)
+            notify_kwargs['exercise'] = exercise
         else:  # translation
             recipient = obj.translated_by
             exercise = obj.exercise
             label = label_for_exercise(exercise)
+            notify_kwargs['exercise'] = exercise
 
-        kind_prefix = {'submission': 'submission', 'edit': 'edit_suggestion', 'translation': 'translation'}[kind]
-        notify(recipient, f'{kind_prefix}_{outcome}', actor=moderator, target_label=label, exercise=exercise, note=note)
+        kind_prefix = {
+            'submission': 'submission',
+            'material': 'material_submission',
+            'edit': 'edit_suggestion',
+            'translation': 'translation',
+        }[kind]
+        notify(recipient, f'{kind_prefix}_{outcome}', actor=moderator, target_label=label, note=note, **notify_kwargs)
 
 
 def _course_for_report_target(target):
