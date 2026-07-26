@@ -155,10 +155,29 @@ class ExerciseTranslation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # At most one row per (exercise, locale, status) — in practice this means at most one
-        # PUBLISHED version per locale, while still allowing a new pending resubmission after a
-        # rejection (a fresh 'pending' row) to coexist with the still-live 'published' one.
-        unique_together = [('exercise', 'locale', 'status')]
+        # ✅ Phase 4 fix, found while chasing the "translation race" CLAUDE.md Section 17I flagged
+        # and deferred: the ORIGINAL `unique_together = [('exercise', 'locale', 'status')]` was
+        # strictly broader than what this Meta's own comment already claimed it did ("in practice
+        # this means at most one PUBLISHED version per locale") — a real, DETERMINISTIC bug, not
+        # just a rare concurrency edge case, reproduced with zero concurrency involved: (1)
+        # submitting a second pending translation for a locale that already had one pending 500'd
+        # outright (two rows both wanting status='pending' collided under the old, all-statuses
+        # constraint); (2) approving ANY translation that supersedes an already-published one for
+        # the same locale 500'd too, every single time, not just under a race (the moderation
+        # claim step had to set status='published' before _publish_translation ever got a chance to
+        # delete the row it was superseding — see moderation/views.py's own doc comment); (3)
+        # rejecting a resubmitted translation after an EARLIER one for the same locale had already
+        # been rejected 500'd as well, since old rejected rows are never purged. A genuine partial
+        # unique constraint — published rows only — is what this Meta's own comment always
+        # described; multiple pending or rejected rows for the same (exercise, locale) were never
+        # actually meant to be blocked, they just accidentally were.
+        constraints = [
+            models.UniqueConstraint(
+                fields=['exercise', 'locale'],
+                condition=models.Q(status='published'),
+                name='one_published_translation_per_locale',
+            )
+        ]
         ordering = ['exercise', 'locale']
 
     def __str__(self) -> str:

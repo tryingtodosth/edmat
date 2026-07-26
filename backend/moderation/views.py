@@ -256,16 +256,42 @@ def _apply_edit_suggestion(suggestion):
         translation.save(update_fields=[suggestion.field])
 
 
-def _publish_translation(translation, reviewer):
+def _publish_translation(translation):
     """Promotes a pending translation to published, superseding whatever was previously published
-    for the same (exercise, locale) — the unique_together on (exercise, locale, status) means only
-    one row can hold 'published' per locale at a time."""
+    for the same (exercise, locale) — `ExerciseTranslation`'s own partial unique constraint
+    (published rows only, `exercises/models.py`) means only one row can hold 'published' per
+    locale at a time.
+
+    ✅ Phase 4 fix (CLAUDE.md Section 17I's own "left open, not chased" note, and a real, more
+    severe finding made while chasing it): the CALLER used to set `translation.status = 'published'`
+    itself, via `ModerationActionView.post()`'s own generic claim step, BEFORE this function ever
+    ran — which meant the row being promoted and the row it was about to supersede briefly BOTH
+    held `status='published'` at once. That's not a rare concurrency edge case: it collided with
+    the unique constraint on the very FIRST, ordinary, single-moderator approval of any translation
+    that superseded an already-published one for the same locale, reproduced with zero concurrency
+    involved (a plain shell script, no threads). Ordering is the whole fix: delete whatever this
+    row is superseding FIRST, and only THEN flip this row itself — never both `published` at once.
+
+    The flip below (`filter(pk=..., status='pending').update(status='published')`) is also the
+    ONE genuine atomic ownership claim for this row, not a redundant afterthought — the caller no
+    longer safely claims 'pending' → 'published' itself (it can't, for the ordering reason above),
+    so this statement's own WHERE clause is what decides who wins if two requests really do reach
+    this exact row at the same instant: only one UPDATE can see `status='pending'` still true;
+    reviewed_by/review_note are still set by the caller's own earlier, non-exclusive claim (safe to
+    set twice — the DB row can only end up holding whichever moderator's values arrived last, an
+    honest, harmless outcome for a same-row race that should be vanishingly rare in practice given
+    the caller's own guard before this ever runs).
+
+    Returns True if this call actually won the flip, False if a genuinely simultaneous second
+    approval of this SAME row got there first — the caller treats False as the same clean 409 every
+    other double-decision race in this view already reports, not a silent, false 'success'."""
     ExerciseTranslation.objects.filter(
         exercise=translation.exercise, locale=translation.locale, status='published'
     ).exclude(pk=translation.pk).delete()
-    translation.status = 'published'
-    translation.reviewed_by = reviewer
-    translation.save(update_fields=['status', 'reviewed_by'])
+    won = ExerciseTranslation.objects.filter(pk=translation.pk, status='pending').update(
+        status='published'
+    )
+    return bool(won)
 
 
 _KIND_MODELS = {
@@ -305,7 +331,20 @@ class ModerationActionView(APIView):
     clean 409 instead of touching anything. The honest tradeoff: this claims the FINAL status before
     the apply logic that's supposed to justify it has actually run, so if `_apply_*` then fails for
     some unrelated reason, the item would be left claimed but incomplete — handled below by reverting
-    the claim back to `'pending'` in that case, so a moderator can simply retry."""
+    the claim back to `'pending'` in that case, so a moderator can simply retry.
+
+    ✅ Phase 4 — ONE deliberate carve-out from that otherwise-uniform claim, for approving a
+    `translation` specifically (CLAUDE.md Section 17I's own "left open" note, and a more severe,
+    non-concurrent bug found while chasing it — see `_publish_translation`'s own doc comment for the
+    full story). Every other kind/decision pair can safely jump straight from `'pending'` to its
+    final status in this one claim step; `translation` + `approve` can't, because the row being
+    approved is about to SUPERSEDE whatever else currently holds `'published'` for the same
+    (exercise, locale) — flipping straight to `'published'` here, before that supersede has actually
+    happened, collides with the exact constraint meant to prevent it. So for that one combination,
+    this claim only marks `reviewed_by`/`review_note` and leaves `status` at `'pending'`;
+    `_publish_translation` itself owns the real ordering (delete the superseded row, THEN flip this
+    one) and is the genuine atomic ownership claim for this case, reported back via its own return
+    value rather than this step's `claimed` count."""
 
     permission_classes = [IsModerator]
 
@@ -314,6 +353,7 @@ class ModerationActionView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         model, serializer_class = _KIND_MODELS[kind]
         review_note = request.data.get('review_note', '')
+        publishing_translation = kind == 'translation' and decision == 'approve'
         if decision == 'reject':
             target_status = 'rejected'
         else:
@@ -323,9 +363,10 @@ class ModerationActionView(APIView):
             # exercises/models.py); this is the one place that difference has to be bridged explicitly.
             target_status = 'published' if kind == 'translation' else 'approved'
 
-        claimed = model.objects.filter(pk=pk, status='pending').update(
-            status=target_status, reviewed_by=request.user, review_note=review_note
-        )
+        claim_fields = {'reviewed_by': request.user, 'review_note': review_note}
+        if not publishing_translation:
+            claim_fields['status'] = target_status
+        claimed = model.objects.filter(pk=pk, status='pending').update(**claim_fields)
         if not claimed:
             get_object_or_404(model, pk=pk)  # a genuinely bad pk still 404s rather than 409ing
             return Response(
@@ -342,7 +383,19 @@ class ModerationActionView(APIView):
                 elif kind == 'edit':
                     _apply_edit_suggestion(obj)
                 elif kind == 'translation':
-                    _publish_translation(obj, request.user)
+                    won = _publish_translation(obj)
+                    if not won:
+                        # A genuinely simultaneous second approval of this SAME translation got to
+                        # _publish_translation's own atomic flip first — this request's own earlier
+                        # (non-exclusive) reviewed_by/review_note claim never actually secured
+                        # anything on its own, so there's nothing to revert; just report the same
+                        # clean conflict every other double-decision race in this view already does,
+                        # rather than a false "success".
+                        return Response(
+                            {'detail': 'This item has already been reviewed by another moderator.'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+                    obj.status = 'published'
             except Exception:
                 model.objects.filter(pk=pk).update(status='pending', reviewed_by=None, review_note='')
                 raise

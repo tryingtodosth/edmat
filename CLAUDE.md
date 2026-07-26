@@ -2046,13 +2046,10 @@ zero-remaining check afterward — no scratch data left behind.
   server rather than a mocked/simulated one, matching the discipline every other feature in this
   document has already been held to; it isn't captured as a regression test a future change could
   accidentally break without anyone noticing.
-- **The `_publish_translation`/`ExerciseTranslation` path has its own separate, unfixed race**,
-  noted but deliberately not chased as part of this item: two *different* translations for the same
-  `(exercise, locale)` approved concurrently could both pass its own delete-then-set sequence and
-  both momentarily claim `status='published'`, which the `unique_together` that function's own
-  docstring describes exists specifically to prevent. Out of scope here — this item's own concrete,
-  reproduced bug was the submission-approval number collision; flagged honestly rather than silently
-  left undocumented.
+- ~~The `_publish_translation`/`ExerciseTranslation` path has its own separate, unfixed race~~
+  **✅ Resolved (Phase 4), see Section 17K** — and a real, MORE severe bug than "a rare concurrency
+  edge case" was found while chasing it: the exact same collision happened on the very first,
+  ordinary, single-moderator approval too, zero concurrency required.
 - **The retry loop's 5-attempt bound is untested against genuinely higher contention** (more than 6
   simultaneous writers) — reasonable given this app's real moderator count, not validated at a scale
   this environment has no way to produce.
@@ -2136,6 +2133,105 @@ confirmed only the one real, pre-existing "My exam prep" fixture remains. `npm r
 - **The share link has no expiry and no distinction between "share with a specific person" vs.
   "share with anyone who has the link"** — it's the latter, unconditionally, matching exactly what
   "a link to someone else's set" asked for and nothing more.
+
+## 17K. Fix: the translation-publish race — and a more severe, non-concurrent bug found while chasing it (✅ done)
+
+Section 17I's own "Left open" list flagged `_publish_translation`'s race honestly but narrowly —
+framed as "two different translations for the same `(exercise, locale)` approved **concurrently**
+could both momentarily claim `status='published'`." Investigating it properly (reproducing before
+fixing, the same discipline every other bug fix in this document already holds itself to) turned up
+something worse: **the identical collision happened on the very first, ordinary, single-moderator
+approval too — zero concurrency involved.** Confirmed directly, not assumed, with a plain,
+single-threaded shell script against a real copy of the live 742-exercise database: creating an
+already-published translation for a locale, then a second pending one for the same locale, then
+running the EXACT statement `ModerationActionView.post()`'s own claim step already ran
+(`ExerciseTranslation.objects.filter(pk=new_pk, status='pending').update(status='published', ...)`)
+raised a raw `django.db.utils.IntegrityError` immediately — the claim step set the new row's status
+to `'published'` *before* `_publish_translation()` ever got a chance to delete the old published row
+it was meant to supersede, so both rows briefly held `'published'` for the same `(exercise, locale)`,
+violating the very constraint meant to prevent exactly that. Two more real, equally deterministic
+collisions were found the same way, both stemming from the SAME root cause — the original
+`unique_together = [('exercise', 'locale', 'status')]` (`exercises/models.py`) was strictly broader
+than what its own Meta comment already claimed it did ("in practice this means at most one PUBLISHED
+version per locale"): (1) submitting a second pending translation for a locale that already had one
+pending 500'd outright at `POST /api/exercises/{id}/translations/`, since the plain `serializer.save()`
+there does a blind create with no handling for this; (2) rejecting a resubmitted translation after an
+EARLIER one for the same locale had already been rejected 500'd too, since old rejected rows are
+never purged and the all-statuses constraint blocked a second `'rejected'` row for the same locale
+just as much as a second `'pending'` or `'published'` one.
+
+**The real fix, at the root — a genuine partial unique constraint, not a broader one papering over a
+narrower intent.** `ExerciseTranslation.Meta` now declares
+`constraints = [models.UniqueConstraint(fields=['exercise', 'locale'], condition=models.Q(status='published'), name='one_published_translation_per_locale')]`
+(new migration, `exercises/migrations/0004_partial_unique_published_translation.py`) instead of the
+old all-statuses `unique_together` — this is what the Meta comment always said the model did; the
+`unique_together` declaration just never actually matched that stated intent. Applied cleanly against
+a real copy of the live, migrated database with zero data loss or conflict (confirmed directly, not
+assumed — every existing row already satisfies "at most one published row per locale," since that was
+always true in practice even though the schema accidentally over-constrained the other two statuses
+too). This alone fully resolves bugs (2) and (3) above — multiple pending or rejected rows for the
+same locale were never actually meant to be blocked, so they simply aren't anymore, confirmed by
+re-running both reproduction scripts against the newly-migrated schema with a clean, successful
+result each time.
+
+**Bug (1) — the approval-time collision — still needed an ordering fix, since the partial constraint
+correctly keeps enforcing "at most one published row" (that part was always the real intent).**
+`ModerationActionView.post()`'s generic claim step, which used to jump every kind/decision pair
+straight from `'pending'` to its final status in one `UPDATE`, now carves out exactly one exception:
+`kind == 'translation' and decision == 'approve'` claims only `reviewed_by`/`review_note`, leaving
+`status` at `'pending'` — the actual flip to `'published'` is deferred entirely to
+`_publish_translation()`, rewritten to (1) delete whatever else currently holds `'published'` for the
+same `(exercise, locale)` FIRST, then (2) only THEN flip this row from `'pending'` to `'published'`
+via its own atomic, WHERE-anchored `UPDATE` — the correct order the original code's own docstring
+already claimed to follow but didn't actually enforce, since the caller had already jumped the row to
+`'published'` before this function ever ran. That final flip is also now the one genuine ownership
+claim for this specific case (returns `True`/`False`, not just mutated in place) — a **real,
+simultaneous** double-approval of the exact same row (a moderator double-click, or two moderators
+racing the same translation) is still correctly caught: only one of the two identical flip statements
+can see `status='pending'` still true, and the loser gets the same clean 409 every other
+double-decision race in this view already reports, not a false "success."
+
+**Verified end-to-end against a real running server, not assumed from the code alone — the same
+methodology Section 17I's own concurrent-request testing already established, reused here rather than
+invented fresh.** A scratch copy of the real backend + the real, live 742-exercise database was
+migrated and served on its own port so nothing in this pass touched the shared dev database:
+
+1. **A single, ordinary approval superseding an existing published translation** (the deterministic
+   bug — this used to 500 on literally every occurrence, not just under load): a real
+   `POST /api/moderation/translation/{id}/approve/` against a live server correctly returned `200`
+   with the new translation's data, and the superseded row was confirmed genuinely deleted afterward
+   (exactly one row remained for that locale).
+2. **The exact same single translation row approved by two genuinely simultaneous requests**
+   (backgrounded `curl` processes + `wait`, the identical technique 17I's own submission-race test
+   used): exactly one `200` and one clean `409`, zero crashes, exactly one published row at the end.
+3. **Two DIFFERENT pending translations for the SAME `(exercise, locale)`, approved by two genuinely
+   simultaneous requests:** both returned `200` — no crash, no moment where both rows held
+   `'published'` at once (the original invariant violation this whole investigation started from is
+   genuinely gone) — but the DB's own final state showed only ONE of the two survived; the other was
+   deleted by the winner's own "delete superseded" step *after* it had already committed and returned
+   its own `200` to its caller. **This residual outcome is honestly recorded, not silently smoothed
+   over** — see "Left open" below for exactly what it means and why it wasn't chased further.
+
+`manage.py check` and `manage.py makemigrations --check` both clean throughout; the one existing
+caller of `_publish_translation`'s old two-argument signature (`ModerationActionView.post()` itself)
+was updated to the new one-argument form, confirmed via a repo-wide grep — no other call site existed.
+
+### Left open, not built
+
+- **The cross-row race (two different, genuinely simultaneous approvals for the same locale) is now
+  SAFE but not perfectly linearizable** — no crash, no moment of double-`'published'`, but whichever
+  commits last silently deletes the other's already-committed, already-`200`-responded row. Matching
+  Section 17I's own established judgment call for this exact scenario (flag it, don't chase it):
+  fully eliminating this would need real cross-request mutual exclusion keyed on `(exercise, locale)`
+  itself, not just on one row's own pk — and this codebase has ALREADY learned, the hard way (17I's
+  own `select_for_update()`/`atomic()` detour), that reaching for SQLite locking primitives to solve
+  a rare edge case can make things measurably worse under real concurrent write pressure rather than
+  better. Two different translators racing to get the LAST word on the exact same locale at the exact
+  same instant is a genuinely rare event this app's real moderator volume doesn't need to harden
+  against further today; revisit if real usage ever shows otherwise.
+- **No formal automated test suite exists yet to lock this fix in place** — verified live against a
+  real running server exactly like every other fix in this document, not captured as a regression
+  test. See the next piece of work, immediately following this one.
 
 ## 18. Open questions
 
