@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import type { ExerciseSet, ResolvedExercise } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -13,6 +14,9 @@
 	let exercises = $state<ResolvedExercise[]>([]);
 	let savedSets = $state<ExerciseSet[]>([]);
 	let newSetName = $state('');
+	// Which saved set's own share link was just copied — per-row, not a single page-wide flag, so
+	// copying one set's link doesn't show a stale "copied" note next to a DIFFERENT set below it.
+	let sharedSetId = $state<string | null>(null);
 	let saveNotice = $state(false);
 
 	async function reload() {
@@ -50,6 +54,12 @@
 
 	function loadSet(set: ExerciseSet) {
 		guestSetStore.setAll(set.exerciseIds);
+	}
+
+	async function shareSet(set: ExerciseSet) {
+		const url = `${window.location.origin}${resolve('/sets/[id]', { id: set.id })}`;
+		await navigator.clipboard.writeText(url);
+		sharedSetId = set.id;
 	}
 
 	function exportPdf() {
@@ -103,6 +113,12 @@
 							<span>{set.name}</span>
 							<span class="muted"
 								>{m.myset_savedSetItemCount({ count: set.exerciseIds.length })}</span
+							>
+							{#if sharedSetId === set.id}
+								<span class="notice notice--inline">{m.myset_shareCopied()}</span>
+							{/if}
+							<button type="button" class="share" onclick={() => shareSet(set)}
+								>{m.myset_share()}</button
 							>
 							<button type="button" class="load" onclick={() => loadSet(set)}
 								>{m.myset_loadSet()}</button
@@ -211,6 +227,9 @@
 	.notice {
 		color: var(--status-success);
 	}
+	.notice--inline {
+		font-size: var(--font-size-xs);
+	}
 	.saved-list {
 		display: flex;
 		flex-direction: column;
@@ -226,11 +245,16 @@
 		color: var(--text-secondary);
 		font-size: var(--font-size-xs);
 	}
-	.load {
+	.share {
 		@include mix.button-secondary;
 		padding: 2px var(--space-2);
 		font-size: var(--font-size-xs);
 		margin-left: auto;
+	}
+	.load {
+		@include mix.button-secondary;
+		padding: 2px var(--space-2);
+		font-size: var(--font-size-xs);
 	}
 	.set-list {
 		display: flex;

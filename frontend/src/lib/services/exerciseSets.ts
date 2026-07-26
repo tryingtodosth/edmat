@@ -1,5 +1,5 @@
 import type { ExerciseSet } from '$lib/types';
-import { apiClient } from '$lib/api/client';
+import { apiClient, ApiError } from '$lib/api/client';
 import { mapExerciseSet, type RawExerciseSet } from '$lib/api/mappers';
 
 // `userId` stays a parameter for call-site compatibility — the backend already scopes
@@ -28,4 +28,21 @@ export async function updateSet(id: string, exerciseIds: string[]): Promise<void
 	await apiClient.patch(`/exercise-sets/${encodeURIComponent(id)}/`, {
 		exercise_ids: exerciseIds.map(Number)
 	});
+}
+
+/** GET /api/exercise-sets/{id}/ — the one deliberately public `retrieve` on an otherwise
+ * fully owner-scoped endpoint (study/views.py's own `ExerciseSetViewSet`), and the real,
+ * previously-missing "share a link to my set" feature: no auth required, works for a guest
+ * visitor exactly as it does for a logged-in one, since a set's own content was never sensitive —
+ * only the ability to MODIFY someone else's set stays protected. `/sets/[id]`'s own shared-view
+ * route is the one real caller. Same 404-swallowing shape as `getExerciseById` — a bad/deleted id
+ * is an honest "not found" state the caller renders, not an error to surface as a crash. */
+export async function getSharedSet(id: string): Promise<ExerciseSet | undefined> {
+	try {
+		const raw = await apiClient.get<RawExerciseSet>(`/exercise-sets/${encodeURIComponent(id)}/`);
+		return mapExerciseSet(raw);
+	} catch (e) {
+		if (e instanceof ApiError && e.status === 404) return undefined;
+		throw e;
+	}
 }

@@ -519,6 +519,7 @@ export function mapReportGroup(json: RawReportGroup): ReportGroup {
 export interface RawExerciseSet {
 	id: number;
 	owner: number;
+	owner_display_name: string;
 	name: string;
 	items: { id: number; exercise: number; order: number }[];
 	created_at: string;
@@ -528,6 +529,7 @@ export function mapExerciseSet(json: RawExerciseSet): ExerciseSet {
 	return {
 		id: String(json.id),
 		ownerId: String(json.owner),
+		ownerDisplayName: json.owner_display_name,
 		name: json.name,
 		exerciseIds: [...json.items].sort((a, b) => a.order - b.order).map((i) => String(i.exercise)),
 		createdAt: json.created_at

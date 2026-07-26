@@ -14,11 +14,20 @@ class ExerciseSetSerializer(serializers.ModelSerializer):
     exercise_ids = serializers.PrimaryKeyRelatedField(
         source='exercises', many=True, write_only=True, queryset=ExerciseSetItem._meta.get_field('exercise').related_model.objects.all()
     )
+    # Same `getattr(obj.author.profile, 'display_name', '') or obj.author.username` pattern
+    # community/serializers.py's ReviewSerializer/CommentSerializer already establish — a shared
+    # set (retrieve is now public, see ExerciseSetViewSet's own doc comment) is meaningfully more
+    # readable as "Kasia's set" than a bare numeric owner id, which is all a plain FK field would
+    # otherwise serialize to.
+    owner_display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ExerciseSet
-        fields = ['id', 'owner', 'name', 'items', 'exercise_ids', 'created_at']
+        fields = ['id', 'owner', 'owner_display_name', 'name', 'items', 'exercise_ids', 'created_at']
         read_only_fields = ['owner']
+
+    def get_owner_display_name(self, obj):
+        return getattr(obj.owner.profile, 'display_name', '') or obj.owner.username
 
     def create(self, validated_data):
         exercises = validated_data.pop('exercises', [])

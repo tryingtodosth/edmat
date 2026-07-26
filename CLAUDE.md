@@ -5,9 +5,10 @@ migrated corpus), and Phase 3 (frontend wired to the real backend, mocks deleted
 `frontend/` and `backend/`. Phase 4 (hardening) in progress — the LaTeX/KaTeX compatibility sweep
 (Section 11's own ⚠️), a real accessibility audit, the moderation-queue synthetic load test, and a
 real multi-moderator concurrent-access test are done, see Sections 17D/17E/17F/17I; only the
-corpus-retirement decision is not yet done, see Section 16. The material detail page (Section 17G)
-and real-time notification delivery via SSE (Section 17H, Section 18 item 9) are also now built,
-closing two gaps this document had explicitly flagged as open. This document is the living spec for
+corpus-retirement decision is not yet done, see Section 16. The material detail page (Section 17G),
+real-time notification delivery via SSE (Section 17H, Section 18 item 9), and server-side "my set"
+sharing (Section 17J, closing the last item Section 16 had flagged as deliberately deferred) are also
+now built. This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -912,7 +913,8 @@ Per explicit instruction: plan → frontend → backend.
 
 **Left for a later phase, not v1, flagged so they aren't silently forgotten (both are real, working
 features in the current static site — Section 3):**
-- Server-side "my set" sharing (a link to someone else's set, not just your own saved one).
+- ~~Server-side "my set" sharing (a link to someone else's set, not just your own saved one).~~
+  **✅ Resolved (Phase 4), see Section 17J.**
 - The chapter/textbook page-map (`Chapter` model) surfaced as its own browsable UI, not just backing
   data — v1 only needs it to exist in the schema for migration fidelity.
 
@@ -2039,6 +2041,86 @@ zero-remaining check afterward — no scratch data left behind.
 - **The retry loop's 5-attempt bound is untested against genuinely higher contention** (more than 6
   simultaneous writers) — reasonable given this app's real moderator count, not validated at a scale
   this environment has no way to produce.
+
+## 17J. Feature: server-side "my set" sharing (✅ built)
+
+The last item from Section 16's own "real, working features in the current static site, deferred to
+a later phase" list — "a link to someone else's set, not just your own saved one." Before this, an
+`ExerciseSet` was fully server-side-persisted for a registered owner, but `ExerciseSetViewSet.get_queryset`
+scoped EVERY action, including `retrieve`, to `owner=request.user` — there was no way for anyone but
+the owner to view a saved set at all, let alone via a real link.
+
+**Backend — one deliberate exception to an otherwise fully owner-scoped ViewSet.** `retrieve` alone
+is now `AllowAny` and reads `ExerciseSet.objects.all()` (not the owner-filtered queryset); every
+other action (`list`/`create`/`update`/`destroy`) is untouched — still `IsAuthenticated`, still
+scoped to `owner=request.user`. This is the same "public GET, owner-scoped writes" split
+`Exercise`/`Material` already use throughout this app, not a new trust model invented for this
+feature — a set's own content (a name plus an ordered list of exercise references) was never
+sensitive the way, say, a private message would be. The set's own plain numeric id IS the share
+link; no separate opaque/unguessable token was added, since nothing about a set's CONTENT needs to
+stay secret, only the ability to MODIFY someone else's does — and that stays fully protected,
+unchanged, on every other action. `ExerciseSetSerializer` gained `owner_display_name` (the exact
+`getattr(obj.owner.profile, 'display_name', '') or obj.owner.username` pattern
+`community/serializers.py`'s `ReviewSerializer`/`CommentSerializer` already established), so a
+shared view reads as "Kasia's set," not a bare numeric owner id.
+
+**Frontend.** `getSharedSet(id)` (`lib/services/exerciseSets.ts`) — the one new public-read call,
+same 404-swallowing shape `getExerciseById` already established (a bad/deleted id is an honest "not
+found" the caller renders, not a thrown error). A new route, `/sets/[id]`, is the actual shared view
+— reuses the same id-changed idempotency `$effect` guard `exercises/[id]/+page.svelte` already found
+necessary for this exact `page.params.id` pattern (a bare effect reading `page.params.id` re-fires
+spuriously on unrelated state changes on the same page, not just on a genuine navigation; guarding on
+the id actually changing makes it idempotent regardless). Renders the set's name, the resolved
+owner's display name, and the full exercise list (statement/difficulty, same rendering `/my-set`
+itself already uses) — with two real actions, gated correctly for who's viewing:
+- **"Load into my set"** — always available, works identically for a guest or a logged-in visitor,
+  since it only ever writes to the CURRENT visitor's own `guestSetStore` (the same localStorage-
+  backed working set `/my-set` already reads/writes) — the shared set becomes the visitor's own
+  working set, ready to browse/print, without needing an account.
+- **"Save a copy to my account"** — only shown when logged in (a real login-prompt hint renders for
+  a guest instead); calls the EXISTING `createSet` unchanged, building a genuinely new, independently
+  -owned `ExerciseSet` under the CURRENT viewer's own account with the same name/exercises — a real
+  copy, not a reference to the original, so the original owner editing their own set later never
+  retroactively changes what the copier saved.
+
+`/my-set`'s own saved-sets list gained a **"Share"** button per set — builds the real URL via
+`resolve('/sets/[id]', { id: set.id })` against `window.location.origin`, copies it to the clipboard
+(`navigator.clipboard.writeText`), and shows a brief per-row "Link copied!" confirmation (keyed to
+that specific set's own id, so sharing one set doesn't leave a stale confirmation next to a different
+one below it).
+
+**Verified end-to-end, not just by inspection — three separate browser contexts, not one.** Backend,
+direct via `curl`: a real set created by Kasia was successfully retrieved BOTH by a completely
+anonymous request AND by a different logged-in user (Ola), while `list` correctly still showed Ola
+zero sets (Kasia's stayed invisible there) and a `DELETE` attempt by Ola on Kasia's own set correctly
+404'd — the write protection is untouched. Frontend, three real Playwright browser contexts: (1)
+Kasia logs in, saves a named set, clicks Share, and the clipboard is confirmed to contain the exact
+correct `/sets/{id}` URL; (2) a fresh, entirely unauthenticated context navigates directly to that
+URL and correctly sees the set name, "Shared by Kasia Wiśniewska," the exercise, no "Save a copy"
+button but a real login hint instead, clicks "Load into my set," and a follow-up navigation to
+`/my-set` AS THAT SAME GUEST confirms the exercise genuinely landed in their own working set; (3) a
+different logged-in user (Ola) visits the same link, sees "Save a copy to my account" (not the load
+button's guest-only sibling state), clicks it, and the backend confirms a real, fourth `ExerciseSet`
+row now exists, independently owned by Ola, with the same name and exercises as Kasia's original. The
+not-found case (a nonexistent set id) was also verified live, rendering the correct message rather
+than crashing or hanging. All test data (3 scratch sets, across two owners) was cleaned up afterward,
+confirmed only the one real, pre-existing "My exam prep" fixture remains. `npm run check`/`lint` and
+`manage.py check` all clean throughout.
+
+### Left open, not built
+
+- **No "unshare"/revoke mechanism** — a set's `retrieve` is unconditionally public the instant it
+  exists; there's no way for an owner to make a previously-shared set private again short of
+  deleting it outright. Not asked for by the original feature request ("a link to someone else's
+  set"), but a real, honest gap worth naming rather than silently leaving unstated.
+- **No view/copy count, and no list of "sets shared with me"** — a copier's own new `ExerciseSet` is
+  a completely independent row with no back-reference to where it came from; there's no way for the
+  original owner to know their set was ever viewed or copied at all. The static site's own original
+  feature (Section 3) wasn't described as having this either, so it's not a regression, just an
+  honestly-scoped-out enhancement.
+- **The share link has no expiry and no distinction between "share with a specific person" vs.
+  "share with anyone who has the link"** — it's the latter, unconditionally, matching exactly what
+  "a link to someone else's set" asked for and nothing more.
 
 ## 18. Open questions
 
