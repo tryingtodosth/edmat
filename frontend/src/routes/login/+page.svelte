@@ -4,6 +4,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
+	import { messagesStore } from '$lib/state/messages.svelte';
 	import { DEMO_PASSWORD } from '$lib/demo';
 
 	let email = $state('');
@@ -23,6 +24,7 @@
 			// nothing) until the visitor happened to open it once themselves. Fire-and-forget: the
 			// header re-renders reactively the moment this resolves, nothing here needs to await it.
 			notificationStore.refresh();
+			messagesStore.refresh();
 			goto(resolve('/'));
 		} else {
 			error = true;

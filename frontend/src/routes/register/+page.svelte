@@ -5,6 +5,7 @@
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
+	import { messagesStore } from '$lib/state/messages.svelte';
 
 	let displayName = $state('');
 	let email = $state('');
@@ -32,6 +33,7 @@
 			// — a fresh account has nothing to show yet, but this keeps the bell's own state honest
 			// from the very first authenticated render rather than depending on incidental timing.
 			notificationStore.refresh();
+			messagesStore.refresh();
 			goto(resolve('/'));
 		} else if (result.error === 'emailTaken') {
 			error = 'emailTaken';

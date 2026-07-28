@@ -51,7 +51,29 @@ INSTALLED_APPS = [
     'study',
     'accounts',
     'notifications',
+    'services',
+    'messaging',
+    # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
+    # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
+    # is genuinely required here, not optional despite postman's own doc comments suggesting
+    # otherwise — postman.api unconditionally does `from django.contrib.sites.models import Site`
+    # at module load time, and Django's own model metaclass raises a real RuntimeError the instant
+    # that class is defined without 'django.contrib.sites' registered (confirmed directly, not
+    # assumed — this failed with exactly that error before being added here).
+    'django.contrib.sites',
+    'postman',
 ]
+
+SITE_ID = 1
+
+# django-postman's own notify_users() would otherwise try to email a real EMAIL_BACKEND (Django's
+# global default, unset here, is the SMTP backend, which would try to connect to localhost:25 and
+# fail/hang — this project has no real email backend configured anywhere yet, the same honest gap
+# LAUNCHCHECKLIST.md already flags for PasswordResetView). Our own thin API layer passes
+# skip_notification=True to pm_write() specifically to avoid depending on this at all, but the
+# console backend is set here too as a second, harmless safety net for any other codepath
+# (e.g. the Django admin's own moderation actions) that might still call notify_users().
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

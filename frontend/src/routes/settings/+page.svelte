@@ -17,6 +17,11 @@
 	let notifyOnCommentReply = $state(true);
 	let notifyOnModerationDecision = $state(true);
 	let notifyOnContentAction = $state(true);
+	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
+	// signal distinct from a real, course-scoped services.Service listing (see accounts/models.py's
+	// own doc comment): "I'm open to being asked," shown on the public profile.
+	let offersTutoring = $state(false);
+	let tutoringNote = $state('');
 	// Finer-grained than the three booleans above, layered on top — see Profile
 	// .muted_notification_types' own doc comment (accounts/models.py) for the full reasoning. A
 	// type in here is muted even while its own coarse category above stays on. `SvelteSet`, not a
@@ -61,6 +66,8 @@
 		notifyOnCommentReply = authStore.user.notifyOnCommentReply ?? true;
 		notifyOnModerationDecision = authStore.user.notifyOnModerationDecision ?? true;
 		notifyOnContentAction = authStore.user.notifyOnContentAction ?? true;
+		offersTutoring = authStore.user.offersTutoring;
+		tutoringNote = authStore.user.tutoringNote;
 		// Mutate the existing SvelteSet in place, not a reassignment — `mutedTypes` is a plain `let`
 		// (SvelteSet is already reactive to `.add()` on its own, so it was never wrapped in `$state()`
 		// to begin with), and a bare `let` reassignment wouldn't be tracked the way `$state` is.
@@ -81,7 +88,9 @@
 			notifyOnCommentReply,
 			notifyOnModerationDecision,
 			notifyOnContentAction,
-			mutedNotificationTypes: Array.from(mutedTypes)
+			mutedNotificationTypes: Array.from(mutedTypes),
+			offersTutoring,
+			tutoringNote
 		});
 		saving = false;
 		if (result.ok) {
@@ -185,6 +194,21 @@
 					<span>{m.settings_showProfilePublicly()}</span>
 				</label>
 				<p class="field-hint">{m.settings_showProfilePubliclyHint()}</p>
+			</section>
+
+			<section class="field-group">
+				<h2>{m.settings_tutoringHeading()}</h2>
+				<label class="checkbox">
+					<input type="checkbox" bind:checked={offersTutoring} />
+					<span>{m.settings_offersTutoring()}</span>
+				</label>
+				<p class="field-hint">{m.settings_offersTutoringHint()}</p>
+				{#if offersTutoring}
+					<label>
+						<span>{m.settings_tutoringNote()}</span>
+						<input type="text" bind:value={tutoringNote} maxlength="200" />
+					</label>
+				{/if}
 			</section>
 
 			<section class="field-group">

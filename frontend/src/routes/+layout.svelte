@@ -5,6 +5,7 @@
 	import { themeStore } from '$lib/state/theme.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
+	import { messagesStore } from '$lib/state/messages.svelte';
 	import { cookieConsentStore } from '$lib/state/cookieConsent.svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
@@ -19,7 +20,10 @@
 	// page load never has anything to fetch anyway (the bell itself is hidden until authenticated).
 	onMount(() => {
 		authStore.init().then(() => {
-			if (authStore.isAuthenticated) notificationStore.refresh();
+			if (authStore.isAuthenticated) {
+				notificationStore.refresh();
+				messagesStore.refresh();
+			}
 		});
 	});
 </script>

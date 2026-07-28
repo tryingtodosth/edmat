@@ -130,6 +130,8 @@ export const authStore = {
 			notifyOnModerationDecision: boolean;
 			notifyOnContentAction: boolean;
 			mutedNotificationTypes: NotificationType[];
+			offersTutoring: boolean;
+			tutoringNote: string;
 		}>
 	): Promise<{ ok: true } | { ok: false; error: string }> {
 		const body: Record<string, unknown> = {};
@@ -149,6 +151,8 @@ export const authStore = {
 				(t) => NOTIFICATION_TYPE_REVERSE_MAP[t]
 			);
 		}
+		if (patch.offersTutoring !== undefined) body.offers_tutoring = patch.offersTutoring;
+		if (patch.tutoringNote !== undefined) body.tutoring_note = patch.tutoringNote;
 		try {
 			const raw = await apiClient.patch<RawProfile>('/auth/me/', body);
 			user = mapUser(raw);

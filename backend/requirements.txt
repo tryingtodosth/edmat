@@ -10,3 +10,9 @@ PyYAML>=6.0,<7.0
 # itself is a separate, real system package this pip requirement does not provide).
 python-magic>=0.4.27,<0.5
 clamd>=1.0.2,<2.0
+# services/messages.py — user-to-user messaging, the industry-standard, actively-maintained Django
+# app for this (verified against PyPI directly before choosing it: latest release 2026-03, vs. the
+# older django-messages alternative's last release in 2019). django.contrib.sites is a genuine,
+# confirmed-necessary dependency of django-postman itself (its own api.py unconditionally imports
+# the Site model at load time), not an optional extra — see config/settings.py's own note on this.
+django-postman>=4.6,<5.0
