@@ -274,6 +274,17 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         serializer = CommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # Same cross-target check materials/views.py's MaterialCoverageViewSet.comments now applies
+        # — a client-supplied `parent` genuinely threads, but nothing used to stop it from naming a
+        # comment belonging to an entirely different exercise's own thread.
+        parent = serializer.validated_data.get('parent')
+        if parent is not None and (
+            parent.content_type_id != content_type.id or parent.object_id != exercise.pk
+        ):
+            return Response(
+                {'parent': ['This reply must belong to the same discussion.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         serializer.save(content_type=content_type, object_id=exercise.pk, author=request.user)
         _notify_reply(serializer.instance, exercise)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

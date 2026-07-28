@@ -470,6 +470,30 @@
 									{m.moderation_forCourse({ course: coursesById[s.courseId]?.name ?? s.courseId })}
 								</p>
 								<p class="excerpt">{s.description.slice(0, 200)}</p>
+								{#if s.requirements.length > 0 || s.priceAmount !== undefined || s.estimatedMinutes !== undefined}
+									<div class="submission-declared">
+										{#if s.requirements.length > 0}
+											<span class="declared-label">{m.moderation_material_requirementsLabel()}</span
+											>
+											{#each s.requirements as requirement (requirement)}
+												<span class="requirement-chip">{requirement}</span>
+											{/each}
+										{/if}
+										{#if s.priceAmount !== undefined}
+											<span class="meta-pill price"
+												>{m.material_price({
+													amount: s.priceAmount.toFixed(2),
+													currency: s.priceCurrency
+												})}</span
+											>
+										{/if}
+										{#if s.estimatedMinutes !== undefined}
+											<span class="meta-pill time"
+												>{m.material_estimatedMinutes({ minutes: s.estimatedMinutes })}</span
+											>
+										{/if}
+									</div>
+								{/if}
 								<!-- eslint-disable svelte/no-navigation-without-resolve -- an external file URL (the Django media server), not an app route resolve() can express -->
 								<a
 									class="context-link"
@@ -747,6 +771,25 @@
 	}
 	.excerpt {
 		font-size: var(--font-size-sm);
+	}
+	.submission-declared {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-1);
+	}
+	.declared-label {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+	.requirement-chip {
+		@include mix.status-pill(var(--status-info), var(--bg-surface-alt));
+	}
+	.meta-pill {
+		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+		font-weight: 600;
 	}
 	.reason {
 		font-size: var(--font-size-xs);

@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -6,11 +7,20 @@ from rest_framework.response import Response
 
 from community.models import Comment
 from community.serializers import CommentSerializer
+from config.i18n_utils import request_locale
+from moderation.services import is_governor_of_course
 from notifications.services import notify_comment_reply
 from taxonomy.models import Subtopic, SubtopicTranslation, Topic
 
-from .models import Material, MaterialCoverage, MaterialCoverageVote
+from .models import Material, MaterialCoverage, MaterialCoverageVote, MaterialRequirement, MaterialView
 from .serializers import MaterialCoverageCreateSerializer, MaterialCoverageSerializer, MaterialSerializer
+from .services import (
+    _net_vote_weight,
+    clean_requirement_labels,
+    find_duplicate_requirement_label,
+    get_recommended_materials,
+    resolved_title,
+)
 
 
 def _notify_coverage_reply(comment, coverage):
@@ -22,30 +32,171 @@ def _notify_coverage_reply(comment, coverage):
     notify_comment_reply(comment, target_label=label)
 
 
-class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
-    """GET /api/materials/ — course-scoped listing is also available via
-    /api/courses/{slug}/materials/ (taxonomy.CourseViewSet.materials). Plus POST
-    /api/materials/{id}/coverage/ to propose a new topic-subtopic-level claim.
+# Mirrors exercises/views.py's own `_filter_exercises`/`_annotated_exercises` shape exactly — plain,
+# mechanical query-building helpers living directly beside the ViewSet, not a FilterSet class. This
+# is a deliberate consistency call, not an oversight: `django_filters` IS a project dependency and
+# IS wired as the default REST_FRAMEWORK filter backend (config/settings.py), but grepping the whole
+# codebase turns up zero actual `filterset_class`/`filterset_fields` usage anywhere — the backend's
+# REAL established convention for "filter a list by query params" is this manual-Q-filter-function
+# style, not django-filter's declarative FilterSet API. Following the established pattern literally
+# (manual helpers) serves "don't invent a new filtering approach" better than introducing the ONE
+# FilterSet class in an otherwise FilterSet-free codebase would.
+#
+# `topic_id` (new) — a Topic's own numeric PK, not a slug, unlike exercises' own `?topic=` filter
+# (which reads a course-scoped SLUG). Topic slugs are only unique WITHIN one course
+# (`unique_together = [('course', 'slug')]`, taxonomy/models.py) — the materials browse experience
+# this filter backs is explicitly cross-course (GET /api/materials/, not just
+# /api/courses/{slug}/materials/), so a slug alone would be ambiguous the moment two different
+# courses both have, say, a topic called `granice`. The frontend's own Topic.id is already the bare
+# numeric PK as a string (lib/api/mappers.ts's `mapTopic`), so no new id shape needed on that side.
+def _filter_materials(qs, params):
+    course = params.get('course')
+    if course:
+        qs = qs.filter(course__slug=course)
+    field = params.get('field')
+    if field and not course:
+        qs = qs.filter(course__field__slug=field)
+    material_type = params.get('type')
+    if material_type:
+        qs = qs.filter(type=material_type)
+    tag = params.get('tag')
+    if tag:
+        qs = qs.filter(tags__slug=tag)
 
-    `?q=` (new) — a title/description text search, mirroring `exercises/views.py`'s own
-    `_filter_exercises` `Q(translations__title__icontains=q)` pattern exactly. Added specifically to
-    back the tag-hover menu's "add to different content" picker, which needs SOME way to find a
-    material target by name — the course-scoped listing above bypasses this ViewSet's own
-    `get_queryset` entirely (a separate `course.materials.filter(...)` query), so this only ever
-    affects a direct `GET /api/materials/?q=...` call, not that route.
+    topic_id = params.get('topic_id')
+    min_level = params.get('min_level')
+    try:
+        min_level_int = int(min_level) if min_level else None
+    except (TypeError, ValueError):
+        min_level_int = None
+
+    if topic_id:
+        coverage_filter = Q(coverage__topic_id=topic_id)
+        if min_level_int is not None:
+            coverage_filter &= Q(coverage__level__gte=min_level_int)
+        qs = qs.filter(coverage_filter)
+    elif min_level_int is not None:
+        # No specific topic named — "any coverage claim at all reaches this depth," a coarser
+        # "well-covered material" filter than the topic-scoped one above.
+        qs = qs.filter(coverage__level__gte=min_level_int)
+
+    q = params.get('q')
+    if q:
+        qs = qs.filter(
+            Q(translations__title__icontains=q) | Q(translations__description__icontains=q)
+        )
+    return qs.distinct()
+
+
+_SORT_KEYS = ('recent', 'level', 'votes', 'alphabetical')
+
+
+def _sort_materials(materials, sort, locale, topic_id=None):
+    """`materials` is already a concrete LIST by the time this runs, not a queryset — matching this
+    codebase's own established "small real corpus, cheap to score/sort in Python" convention
+    (MaterialCoverageSerializer's own doc comment already makes this exact call for its per-row vote
+    aggregation) rather than a database-level ORDER BY for a scoring rule that depends on Python-side
+    vote-weight math (`_net_vote_weight`) and per-locale title resolution anyway. `sort=None`/anything
+    outside `_SORT_KEYS` leaves the list in whatever order the queryset itself already produced
+    (Material's own `Meta.ordering = ['course', 'order']`) — unchanged default behavior, so no
+    existing caller/test relying on that default order breaks.
+    """
+    if sort == 'recent':
+        return sorted(materials, key=lambda m: m.created_at, reverse=True)
+    if sort == 'alphabetical':
+        return sorted(materials, key=lambda m: resolved_title(m, locale).casefold())
+    if sort == 'level':
+        def best_level(m):
+            rows = m.coverage.all()
+            if topic_id:
+                rows = [r for r in rows if str(r.topic_id) == str(topic_id)]
+            levels = [r.level for r in rows]
+            return max(levels) if levels else -1
+
+        return sorted(materials, key=best_level, reverse=True)
+    if sort == 'votes':
+        return sorted(materials, key=lambda m: sum(_net_vote_weight(r) for r in m.coverage.all()), reverse=True)
+    return materials
+
+
+class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
+    """GET /api/materials/ — the cross-course materials browse/search/filter/sort endpoint; a
+    course-scoped listing is ALSO available via /api/courses/{slug}/materials/
+    (taxonomy.CourseViewSet.materials, which reuses `_filter_materials`/`_sort_materials` below
+    rather than its own separate copy). Plus POST /api/materials/{id}/coverage/ to propose a new
+    topic-subtopic-level claim, and GET /api/materials/recommended/ for the personalized feed (see
+    that action's own doc comment, and materials/services.py, for the full reasoning).
+
+    Query params on `list`: `course` (slug), `field` (slug, ignored if `course` is also given),
+    `type` (MATERIAL_TYPE_CHOICES value), `tag` (slug), `topic_id` (a Topic's numeric PK — see
+    `_filter_materials`'s own note on why not a slug), `min_level` (1-100, a coverage-depth floor),
+    `q` (title/description text search, unchanged from before this overhaul — still what the
+    tag-hover menu's "add to different content" picker uses), and `sort` (one of `_SORT_KEYS`;
+    omitted/unrecognized keeps the existing `(course, order)` default).
     """
 
     queryset = Material.objects.filter(published=True)
     serializer_class = MaterialSerializer
 
     def get_queryset(self):
-        qs = self.queryset
-        q = self.request.query_params.get('q')
-        if q:
-            qs = qs.filter(
-                Q(translations__title__icontains=q) | Q(translations__description__icontains=q)
-            ).distinct()
-        return qs
+        return _filter_materials(self.queryset, self.request.query_params)
+
+    def list(self, request, *args, **kwargs):
+        qs = self.filter_queryset(self.get_queryset())
+        materials = list(
+            qs.prefetch_related(
+                'translations', 'coverage__votes__voter__profile', 'coverage__topic', 'tags', 'requirements'
+            )
+        )
+        materials = _sort_materials(
+            materials,
+            request.query_params.get('sort'),
+            request_locale({'request': request}),
+            topic_id=request.query_params.get('topic_id'),
+        )
+        serializer = self.get_serializer(materials, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Records a real "view" the first time a signed-in user loads this material's own detail
+        page — MaterialView (models.py), the exact same shape/reasoning
+        ExerciseViewSet.retrieve's own ContentView tracking already established, just for Material.
+        A guest visitor isn't tracked, same honesty as that sibling. Fetches the instance once (not
+        via `super().retrieve()`, which would call `get_object()` a second time), matching that same
+        precedent."""
+        instance = self.get_object()
+        if request.user.is_authenticated:
+            MaterialView.objects.get_or_create(user=request.user, material=instance)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def recommended(self, request):
+        """GET /api/materials/recommended/?limit=12 — the materials search/filter/sort overhaul's
+        own "genuine personalization dimension." Delegates entirely to
+        materials/services.py's `get_recommended_materials` (see that module's own header comment
+        for the full, honest reasoning: real engagement signals only, an explicit non-personalized
+        fallback when none exist, never a fabricated ML ranking).
+
+        Deliberately the ONE endpoint in this whole API that returns an OBJECT, `{personalized,
+        results}`, not a bare array the way every other list endpoint in this app does (Phase 3's
+        own established convention) — `personalized` is real, load-bearing information a plain
+        array literally cannot carry: whether what follows is genuinely tailored to this visitor, or
+        the platform's own honest, non-personalized default (a brand-new account or a guest has no
+        real signal to personalize from yet, and this says so rather than quietly presenting a
+        generic list as if it were personal). Flagged here as a deliberate, one-off exception to
+        "bare array everywhere," not an oversight — no existing caller of any OTHER endpoint is
+        affected, since this is a brand-new route with a brand-new frontend consumer.
+        """
+        limit_param = request.query_params.get('limit', '12')
+        try:
+            limit = max(1, min(int(limit_param), 50))
+        except ValueError:
+            limit = 12
+        user = request.user if request.user.is_authenticated else None
+        materials, personalized = get_recommended_materials(user, limit=limit)
+        serializer = MaterialSerializer(materials, many=True, context={'request': request})
+        return Response({'personalized': personalized, 'results': serializer.data})
 
     @action(detail=True, methods=['post'])
     def coverage(self, request, pk=None):
@@ -124,6 +275,74 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @action(detail=True, methods=['put'])
+    def requirements(self, request, pk=None):
+        """PUT /api/materials/{id}/requirements/ — a governor-only bulk replace of this ALREADY-
+        PUBLISHED Material's own requirement list. Gated by the exact same trust boundary every
+        other moderator-adjacent Material mutation in this app already uses (global staff, or a
+        governor of the material's own course — see moderation/services.py's
+        `is_governor_of_course`), NOT open to any authenticated user the way `coverage` above is —
+        a requirement list ("English B2+", "basic algebra") is closer to structural metadata about
+        the material itself than to a reversible, low-stakes community proposal, so it doesn't get
+        `coverage`'s own "anyone can propose, the community votes" trust level.
+
+        Body: `{"requirements": ["English B2+", "basic algebra", ...]}` — a full, ordered replace,
+        not a single add/remove — the natural shape for a governor-facing list editor that always
+        submits its own current full state, and one endpoint shape instead of a second one just for
+        reordering.
+
+        Rejects (400, not silently deduped) a body containing two labels that are the same after
+        trim+casefold — `find_duplicate_requirement_label` (materials/services.py), shared with the
+        identical check on the submission-side `requirements` field
+        (moderation/serializers.py's own `validate_requirements`) so a brand-new submission can't
+        sneak in duplicates any more than an already-published Material's own governor-facing edit
+        can.
+
+        The delete+recreate below runs inside `transaction.atomic()` — SQLite has no row-level
+        locking (`select_for_update()` silently no-ops, the same lesson this app's own moderation
+        race-condition work already learned the hard way, see CLAUDE.md Section 17I/17K), but a
+        plain `atomic()` block still gives this specific delete+bulk_create pair the one property it
+        actually needs: if `bulk_create` ever fails partway through, the preceding `delete()` rolls
+        back with it, so a failed save can't leave a Material with ZERO requirements when it
+        started with some. This is deliberately NOT the same `atomic()`-holds-a-full-exclusive-
+        SQLite-write-lock trap Section 17I's own "select_for_update()/atomic() detour" note
+        describes — that trap bit a MUCH slower, multi-statement apply sequence (several real
+        queries, including cross-table resolution) held open for the whole transaction; this
+        transaction is two fast, adjacent statements against one table, the same low-risk shape
+        `ExerciseSetSerializer.update()`'s own transaction already uses elsewhere in this codebase.
+        A concurrent double-PUT race (two governors racing the same Material's requirements at once)
+        was reproduced once, not left purely theoretical — see CLAUDE.md's own writeup: no crash, no
+        partial state, "last write wins" exactly as this full-replace endpoint's own docstring
+        already promises.
+        """
+        material = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        if not (request.user.is_staff or is_governor_of_course(request.user, material.course)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        labels = request.data.get('requirements', [])
+        if not isinstance(labels, list):
+            return Response(
+                {'requirements': ['Must be a list of labels.']}, status=status.HTTP_400_BAD_REQUEST
+            )
+        cleaned = clean_requirement_labels(labels)
+        duplicate = find_duplicate_requirement_label(cleaned)
+        if duplicate is not None:
+            return Response(
+                {'requirements': [f'"{duplicate}" appears more than once in this list.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            material.requirements.all().delete()
+            MaterialRequirement.objects.bulk_create(
+                MaterialRequirement(material=material, label=label, order=i)
+                for i, label in enumerate(cleaned)
+            )
+        serializer = self.get_serializer(material)
+        return Response(serializer.data)
+
 
 class MaterialCoverageViewSet(viewsets.GenericViewSet):
     """No list/retrieve of its own — a coverage row is always reached through its parent Material
@@ -174,6 +393,21 @@ class MaterialCoverageViewSet(viewsets.GenericViewSet):
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         serializer = CommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # A client-supplied `parent` genuinely threads (CommentSerializer already leaves it
+        # writable, matching the sketch), but nothing used to stop it from naming a comment
+        # belonging to an entirely DIFFERENT coverage row's (or a different content type's own)
+        # thread — a real, if narrow, cross-target misattachment a client could otherwise cause.
+        # Checked here, not in the serializer's own `validate()`, since `content_type`/`object_id`
+        # aren't part of the client-submitted data at all (this view sets them itself, below) — the
+        # serializer has no way to know what target it's about to be saved against until this point.
+        parent = serializer.validated_data.get('parent')
+        if parent is not None and (
+            parent.content_type_id != content_type.id or parent.object_id != coverage.pk
+        ):
+            return Response(
+                {'parent': ['This reply must belong to the same discussion.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         serializer.save(content_type=content_type, object_id=coverage.pk, author=request.user)
         _notify_coverage_reply(serializer.instance, coverage)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

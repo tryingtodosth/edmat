@@ -6,6 +6,7 @@
 	import { getLocale, locales } from '$lib/paraglide/runtime';
 	import { formatDate } from '$lib/utils/format';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { materialsUiStore, type MaterialsUiMode } from '$lib/state/materialsUi.svelte';
 	import { NOTIFICATION_TYPE_CATEGORY, NOTIFICATION_TYPE_LABELS } from '$lib/utils/labels';
 	import DonationLinksEditor from '$lib/components/settings/DonationLinksEditor.svelte';
 	import TagFollowsEditor from '$lib/components/settings/TagFollowsEditor.svelte';
@@ -97,6 +98,37 @@
 
 <div class="page">
 	<h1>{m.settings_heading()}</h1>
+
+	<!-- The materials search/filter/sort overhaul's own "parallel interface" switch — the settings
+	     button that's also going to handle language (preferredLocale, below, and the header's own
+	     LocaleSwitcher) also handles which of the two materials browsing interfaces is active.
+	     Deliberately OUTSIDE the auth gate below: an anonymous visitor is a real persona this app
+	     designs for (CLAUDE.md Section 5), and gets the same real choice a registered user does —
+	     same reasoning theme/guest-set already work without an account. -->
+	<section class="browsing">
+		<h2>{m.settings_browsingHeading()}</h2>
+		<p class="field-hint">{m.settings_browsingHint()}</p>
+		<div class="mode-options" role="radiogroup" aria-label={m.settings_browsingHeading()}>
+			{#each ['simple', 'advanced'] as mode (mode)}
+				<label class="mode-option">
+					<input
+						type="radio"
+						name="materials-mode"
+						checked={materialsUiStore.mode === mode}
+						onchange={() => materialsUiStore.setMode(mode as MaterialsUiMode)}
+					/>
+					<span>
+						{mode === 'simple' ? m.settings_browsingSimple() : m.settings_browsingAdvanced()}
+						<small>
+							{mode === 'simple'
+								? m.settings_browsingSimpleHint()
+								: m.settings_browsingAdvancedHint()}
+						</small>
+					</span>
+				</label>
+			{/each}
+		</div>
+	</section>
 
 	{#if !authStore.isAuthenticated || !authStore.user}
 		<p class="login-prompt"><a href={resolve('/login')}>{m.settings_loginRequired()}</a></p>
@@ -256,6 +288,37 @@
 	.login-prompt a {
 		color: var(--accent);
 		font-weight: 600;
+	}
+	.browsing {
+		@include mix.card-surface;
+		padding: var(--space-4);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.browsing h2 {
+		font-size: var(--font-size-base);
+	}
+	.mode-options {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.mode-option {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+	}
+	.mode-option input {
+		margin-top: 3px;
+	}
+	.mode-option small {
+		display: block;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		font-weight: 400;
 	}
 	.profile,
 	.edit-form,

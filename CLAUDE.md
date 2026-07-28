@@ -14,8 +14,19 @@ non-concurrent bug found while chasing it) is fixed, and this project's first re
 suite exists — see Sections 17K/17L. **Node governors — a scoped, per-Field/Course moderator role,
 full stack (backend + a real admin page) — are also built** (92 tests total then), see Section 17M.
 **Real material uploads (exams/tests/etc. as PDF/PNG/LaTeX/Word, content-sniffed and, where a real
-ClamAV daemon exists, scanned) are also built** (110 tests total now), see Section 17N. This document
-is the living spec for
+ClamAV daemon exists, scanned) are also built** (110 tests total now), see Section 17N. **Material
+requirements (loose, free-text prerequisites, with a governor-only edit path for an already-published
+Material), a confirmed-real threaded/reportable coverage discussion (plus a real cross-target
+`parent`-validation gap closed in both the material-coverage and exercise comment endpoints), and an
+optional price/time-estimate on Material are also built. A follow-up pass closed out that feature's
+own "Left open" list in full: the moderation queue's Materials tab now surfaces a pending
+submission's requirements/price/time-estimate to the reviewing moderator, `price_currency` is now a
+real, curated `choices=` field with a matching `<select>` everywhere it's edited, `RequirementsEditor`
+gained real drag-and-drop plus keyboard Up/Down reordering, a case-insensitive duplicate-label guard
+now rejects (not silently dedupes) on both the governor-edit and submission-time write paths, and the
+governor-edit endpoint's delete+recreate is wrapped in `transaction.atomic()` with the resulting
+lost-update race genuinely reproduced (not just theorized) and confirmed safe** (147 tests total
+now), see Section 17O. This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -2751,6 +2762,347 @@ and fixed):
 - **`getMaterialSubmissionsForCourse` (materials.ts) is built but has no real UI consumer yet** — added
   for symmetry with `getExerciseSubmissionsForCourse`, but nothing in this pass needed a course-scoped
   submissions view outside the moderation queue itself.
+
+## 17O. Feature: material requirements, threaded/reportable coverage discussion (confirmed), and price/time-estimate fields (✅ built)
+
+Four related additions to Materials, requested together: (1) a loose, free-text requirement list
+per Material, with a submission-time field and a governor-only edit path for an already-published
+one; (2) real, multi-level threaded discussion per `MaterialCoverage` claim — largely already
+supported by the data model, confirmed rather than assumed, with one real gap closed; (3) comments
+already reportable, generically, confirmed rather than rebuilt; (4) an optional price and a
+time-estimate on `Material`/`MaterialSubmission`. Backend suite grew from 123 to **144 tests, all
+passing**.
+
+### `MaterialRequirement` — the same loose, free-text style this codebase already uses elsewhere
+
+```python
+# materials/models.py
+class MaterialRequirement(models.Model):
+    material = models.ForeignKey(Material, related_name='requirements', on_delete=models.CASCADE)
+    label = models.CharField(max_length=200)
+    order = models.PositiveIntegerField(default=0)
+    class Meta: ordering = ['order', 'id']
+```
+
+Deliberately not a fixed vocabulary — `label` is whatever the uploader/governor typed ("English
+B2+", "basic algebra," "a graphing calculator"), the same free-form-per-row convention
+`ExerciseSource.collection`/`.name` already establish for a similarly loose field, not a
+`choices=`-constrained enum the way `Material.type`/`difficulty` are. `order` is a plain,
+governor-controlled display order (not creation-order, not alphabetical), the same shape
+`Material.order`/`Course.order`/`Topic.order` already use elsewhere in this schema.
+
+**Read side:** `MaterialRequirementSerializer` (id/label/order), embedded read-only on
+`MaterialSerializer` as `requirements` — the same "no create/update endpoint on `Material` itself"
+posture `coverage`/`tags` already have (`MaterialViewSet` stays a `ReadOnlyModelViewSet` for its
+ordinary CRUD surface).
+
+**Write side #1 — at submission time.** `MaterialSubmission` (moderation/models.py) gained
+`requirements = models.JSONField(default=list, blank=True)` — a plain `list[str]` draft, not a real
+`MaterialRequirement` FK, since there's no real `Material` row yet for one to point at (mirroring
+`ExerciseSubmission.payload`'s own "draft now, real structural rows only once approved" split, just
+narrower — three plain fields here, not a whole JSON blob, since a Material submission is otherwise
+already real, typed fields). `MaterialSubmissionSerializer.requirements` is declared explicitly as
+`serializers.JSONField(required=False, default=list)` with a real `validate_requirements` — this
+endpoint is multipart, not JSON, and a multipart form field always arrives as a bare STRING, not a
+native array; the validator accepts either shape (parses a JSON-encoded string itself when that's
+what arrived, passes a real list straight through when the caller sent one directly, e.g. this
+app's own `format='json'` test requests). `_apply_material_submission` (moderation/views.py) turns
+the submission's own `requirements` list into real, ordered `MaterialRequirement` rows the instant a
+moderator approves it — the exact moment a real `Material` row first exists to attach them to.
+
+**Write side #2 — a governor-only bulk replace for an already-published Material.** A new
+`PUT /api/materials/{id}/requirements/` action on `MaterialViewSet`:
+
+```python
+@action(detail=True, methods=['put'])
+def requirements(self, request, pk=None):
+    material = self.get_object()
+    if not request.user.is_authenticated:
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    if not (request.user.is_staff or is_governor_of_course(request.user, material.course)):
+        return Response(status=status.HTTP_403_FORBIDDEN)
+    ...  # full, ordered replace: delete every existing row, bulk_create the new list
+```
+
+**The trust-boundary decision, made explicitly, not defaulted to.** Gated by the exact same
+`is_governor_of_course` scoping engine Section 17M's node-governor feature already built (global
+staff, or a governor of the material's own course) — deliberately **not** open to any authenticated
+user the way `MaterialCoverage` proposals are. `MaterialCoverage`'s own doc comment already draws
+this line explicitly: a coverage claim is "additive, reversible, low-stakes organizational
+metadata," verified/corrected by community voting rather than gatekept up front. A requirement list
+reads differently — closer to structural metadata about the material itself (what you need to
+actually use it) than to a community discussion point — so it gets the same moderator-adjacent trust
+boundary every other structural mutation in this app already uses, not the open, community-vote
+posture. Body: `{"requirements": ["English B2+", "basic algebra", ...]}` — a full, ordered replace,
+not a single add/remove, matching how a real list-editor UI naturally works (submits its current
+full state) and avoiding a second endpoint shape just for reordering.
+
+### Frontend — chips on the card, a governor-facing editor, wired into the submission form
+
+`lib/types/material.ts`'s `Material` gained `requirements: MaterialRequirement[]`; `MaterialCard.svelte`
+renders each as a plain, non-interactive `.requirement-chip` pill — deliberately not a `TagChip`
+(that component's hover-menu/follow/apply machinery is for the free-form Tag vocabulary, a genuinely
+different axis from a material's own prerequisites). A "Edit requirements" trigger renders only for
+`authStore.canModerate` (the same coarse frontend gate the moderation nav link/page already use,
+Section 17M) — the real, narrower per-course check happens server-side, the same "coarse frontend
+gate, authoritative backend check" split this app's Governors tab already established; a governor
+attempting to edit a material outside their own scope gets a real 403 from the PUT, surfaced as
+`material_requirementsSaveError`.
+
+`RequirementsEditor.svelte` (`lib/components/material/`) — a plain add/remove list (type a label,
+Enter or the Add button appends it; each row gets a remove ×), matching `AddCoverageForm`'s own
+"controlled, dumb, parent owns the async save" shape: it never calls the service function itself,
+only hands the caller a full `string[]` on submit. `apiClient` gained a genuinely new verb,
+`put<T>(path, data?)` — a real full-replace call reads more honestly as PUT than PATCH, and every
+prior HTTP-verb helper on this object already follows the identical thin one-liner shape.
+
+`/submit-material` gained three new, genuinely optional fields — an inline requirements
+add/remove list (Enter to add, mirroring the governor editor's own interaction), and a price/
+estimated-time row. **A real bug found and fixed by this feature's own live-browser verification,
+the identical class Section 17M's node-governor grant form already hit once:** the price/estimated-
+minutes inputs were originally `<input type="number">`, which binds a genuine JS `number` (or
+`undefined`) via Svelte 5's `bind:value` — not the `string` `handleSubmit`'s own `.trim()` calls
+assumed. `svelte-check` never flagged it; the first live submit attempt threw a real
+`$.get(...).trim is not a function` in the browser console, caught only because this was actually
+driven through headless Chromium, not just typechecked. Fixed the same way Section 17M's form was —
+`type="text" inputmode="decimal"`/`inputmode="numeric"` — keeping the state a genuine string end to
+end, matching every other text field on the same form.
+
+### Threaded, reportable coverage discussion — confirmed real, not rebuilt, plus one real gap closed
+
+**Confirmed live, not assumed from reading the code:** `Comment.parent` (self-FK,
+`related_name='replies'`) and `CommentSerializer`'s own writable `parent` field already threaded a
+reply correctly end-to-end through `MaterialCoverageViewSet.comments`'s existing POST branch — a
+root comment, a reply, and a second-level reply-to-a-reply all threaded correctly on the first live
+`curl` attempt, with zero code changes needed for the threading itself. The frontend side was
+**already built too**, further along than a from-scratch read of this feature's own brief would
+suggest: `CoveragePopover.svelte` already called `submitComment(..., parentId)`,
+`DiscussionThread.svelte` already ran `buildCommentTree`/`CommentNode.svelte` (the exact same
+recursive tree-building and rendering the exercise detail page's own discussion already uses — one
+shared component, not two parallel ones), and `CommentNode.svelte` already had a visible **Reply**
+button, correct nested-reply indentation, and a `ReportButton` per comment. All three of these were
+verified live via headless Chromium against real coverage-claim data, not inferred from the
+component reading correctly: a root comment, a reply, and a reply-to-a-reply all rendered nested
+correctly in the actual DOM.
+
+**The one real gap: no validation that a submitted `parent` actually belongs to the SAME target's
+own comment set.** Before this fix, a client could pass an arbitrary comment id belonging to an
+entirely different coverage row's — or a different content type's — own thread, and it would
+silently "reply" there instead. Fixed in `MaterialCoverageViewSet.comments` (materials/views.py):
+
+```python
+parent = serializer.validated_data.get('parent')
+if parent is not None and (
+    parent.content_type_id != content_type.id or parent.object_id != coverage.pk
+):
+    return Response({'parent': [...]}, status=status.HTTP_400_BAD_REQUEST)
+```
+
+Checked in the view, not the serializer's own `validate()` — `content_type`/`object_id` are never
+part of the client-submitted data at all (the view sets them itself right after), so the serializer
+has no way to know what target it's about to be saved against until this point. **The identical
+gap existed in `ExerciseViewSet.comments` (exercises/views.py) too**, confirmed by re-reading that
+action's own code — the same fix was applied there as a bonus, since it's the same bug class in the
+sibling comment endpoint, not a new one this feature introduced. Verified live both directions: a
+`parent` naming a comment on a *different* `MaterialCoverage` row is rejected with 400; a `parent`
+naming a real Comment attached to an *Exercise* instead is also rejected; a `parent` from the *same*
+coverage's own thread still threads correctly, confirmed via the real listing endpoint afterward.
+
+**Comment reportability — confirmed real and fully generic, not rebuilt.** `moderation/services.py`'s
+`REPORT_KIND_MODELS = {'exercise': Exercise, 'comment': Comment, 'review': Review}` means ANY
+`Comment` row is already reportable via the existing `POST /api/reports/`, `kind='comment'`,
+regardless of what that comment's own `content_type`/`object_id` points at — verified live with a
+real `POST` against a comment attached to a `MaterialCoverage` specifically (not just an Exercise,
+which every prior report-system test already covered), confirmed as a real `Report` row afterward.
+`check_auto_hide` was also confirmed to gracefully no-op for this case (no crash, no division by
+zero) — `resolve_view_scope_exercise` has no viewer-pool concept for a `MaterialCoverage` at all, so
+three real reports against a coverage-attached comment correctly never auto-hide it, matching this
+service's own documented honesty about that gap rather than a real bug. The frontend's own
+`ReportButton.svelte` was likewise already wired into `CommentNode.svelte` generically, so a coverage
+reply gets the identical Report affordance an exercise-page comment already has — the same shared
+component, not a second one built for this feature.
+
+### `Material.price_amount`/`price_currency`/`estimated_minutes`
+
+```python
+price_amount = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+price_currency = models.CharField(max_length=3, default='PLN', blank=True)
+estimated_minutes = models.PositiveIntegerField(null=True, blank=True)
+```
+
+Both genuinely optional — a material that sets neither behaves exactly as before this feature
+existed; `price_currency` only means anything once `price_amount` is actually set. **`estimated_minutes`
+was chosen over a page-count "length" field, the other real option on the table, because it's the
+more directly useful signal across every material type this app actually has** — a script, an exam
+collection, a slide deck — and doesn't require a page count nobody has ever recorded for this corpus
+(`material.yaml` never carried one). The identical pair of fields was added to `MaterialSubmission`
+(so a new upload can optionally declare both at submission time) and carried over onto the real
+`Material` row by `_apply_material_submission` the moment it's approved.
+
+`MaterialSerializer`/`MaterialSubmissionSerializer` both expose these as plain passthrough fields —
+no custom serializer logic needed, since neither is translatable text. `MaterialCard.svelte` renders
+"29.99 PLN"/"~45 min" pills only when the respective field is actually set — deliberately **no**
+"Free"/"No estimate" placeholder text for the unset case, since most materials in this corpus stay
+free/no-estimate and a placeholder on every single card would be far noisier than simply rendering
+nothing, the same restraint this app's own Section 17C already applied to `Material.type` before
+that badge existed at all.
+
+### Verified end-to-end against the real running dev servers, not assumed from the code alone
+
+**Backend, live via `curl`:** the full requirements PUT lifecycle (401 anonymous, 403 a plain
+authenticated user with no governor grant, 200 for global staff, 200 for a real course-scoped
+`NodeGovernor`, 403 for a governor of a *different* course); a real multipart submission carrying
+`requirements`/`price_amount`/`price_currency`/`estimated_minutes` together, confirmed round-tripping
+correctly through approval into a real `Material` + its own ordered `MaterialRequirement` rows; the
+full threading/cross-target-rejection/reporting sequence above.
+
+**Frontend, headless Chromium (`playwright-core`), against the real running dev servers:** a real
+material's requirement chips and price/time pills render correctly; the governor-only edit trigger
+is present for a staff account and absent for a plain authenticated one, with the chips themselves
+still visible read-only to both; opening the editor, adding a requirement, removing one, and saving
+correctly updates the rendered chips end-to-end (confirmed via the real PUT, not just local state);
+the `/submit-material` form's own requirements list, price, and estimated-time fields all round-trip
+into a real, correctly-shaped `MaterialSubmission` (confirmed via a direct API read afterward); the
+coverage-discussion root/reply/nested-reply/report flow, all live, zero console/page errors across
+every run. All scratch data created for verification (test users, submissions, materials, coverage
+comments, reports, requirement rows) was cleaned up afterward, confirmed removed via direct queries
+— not just hidden client-side. `npm run check`/`lint`/`build` and `manage.py check`/
+`makemigrations --check --dry-run` all clean throughout.
+
+### Round 2 — closing out the five items the first pass left open
+
+**Status: ✅ all five closed.** Backend suite grew from 144 to **147 tests, all passing**. Same
+rigor as the first pass: real tests, real end-to-end verification against the running dev servers
+(not just `svelte-check`/`manage.py test` in isolation), every new string in both `en.json`/
+`pl.json`, everything left uncommitted.
+
+**1 — the moderation queue's Materials tab now surfaces a pending submission's requirements/price/
+time.** `routes/moderation/+page.svelte`'s Materials tab renders a new `.submission-declared` block
+per pending row — a `Requirements:` label plus one chip per declared requirement (reusing the same
+`.requirement-chip` visual language `MaterialCard.svelte` already established, so a moderator sees
+the identical presentation a reader eventually will), and the existing `material_price`/
+`material_estimatedMinutes` message keys for price/time, all three rendered only when actually
+present on the submission — no "Free"/"No estimate" placeholder noise for the common case where
+none of the three were declared. Verified live: a real pending submission carrying
+`requirements: ['Requirement One', 'Requirement Two']`, `price_amount: '12.50'`,
+`price_currency: 'EUR'`, `estimated_minutes: 25` rendered all three correctly in the moderator's own
+queue view before any approve/reject decision was made.
+
+**2 — a real currency `<select>`, everywhere `price_currency` is edited, plus a `choices=` decision
+made and documented.** `Material.price_currency`/`MaterialSubmission.price_currency` both gained
+`choices=CURRENCY_CHOICES` (materials/models.py — `MaterialSubmission` imports it from
+`materials.models`, no circular-import risk, confirmed: `materials/models.py` has no import of
+`moderation` anywhere) — four real, curated values (`PLN`/`EUR`/`USD`/`GBP`), the same "mirror a
+small backend enum, flag the drift risk" convention `DONATION_PLATFORMS`/`SOURCE_TYPES` already
+establish elsewhere in this app's own sibling project, applied here for the first time to this
+project. **The `choices=` decision, made explicitly, not defaulted to:** yes, constrain the model
+field — this app has no multi-currency payment processing anywhere, `price_amount`/`price_currency`
+are purely display-only fields, so `choices=` follows the exact same precedent
+`Material.type`/`Exercise.difficulty` already establish for a small, real enum rather than a bare,
+unvalidated `CharField`. **The real tradeoff, named plainly rather than silently accepted:** a
+governor wanting to price a material in an exotic currency this 4-value list doesn't cover can't do
+it through the UI without a backend change — four currencies deliberately covers this platform's
+own real, likely case (a Polish university, PLN by default, with EUR/USD/GBP realistic for an
+international audience), not an attempt to be a general-purpose currency picker. The frontend's own
+`MATERIAL_CURRENCIES` (`lib/utils/labels.ts`) is a hand-maintained mirror of the same 4-value list,
+flagged in both files' own comments as the one place drift could creep in — the same honesty this
+codebase's own `NOTIFICATION_TYPE_CATEGORY`/`DONATION_PLATFORMS` mirrors already carry. Wired into
+the one real place `price_currency` is ever edited (`/submit-material` — confirmed via grep there is
+no separate "governor edits an existing material's price" surface anywhere in this app; only
+`requirements` got a governor-facing edit surface in round 1, not price/time, so this is the whole
+scope). Verified live: the select renders exactly `PLN`/`EUR`/`USD`/`GBP`, and picking `USD` sticks
+and round-trips through a real submission.
+
+**3 — real drag-and-drop reordering for `RequirementsEditor.svelte`, plus keyboard Up/Down buttons,
+not one without the other.** Native HTML5 `dragstart`/`dragover`/`drop`/`dragend` — no drag library,
+matching this app's own "no existing DnD precedent to match, keep it simple" scope call; `draggedIndex`
+tracks the row being moved, dropping onto another row splices it out and back in at the target index
+via a shared `moveLabel(from, to)` helper. **The explicit "don't ship mouse-only reordering when
+keyboard support is cheap" instruction was followed literally, not treated as optional:** every row
+also gets a pair of Up/Down icon buttons (`aria-label`s reading `Move {label} up`/`Move {label} down`,
+two new message keys in both locales), correctly `disabled` at each boundary (the first row's Up, the
+last row's Down) — genuinely reachable and operable via keyboard alone, not a decorative pair sitting
+beside a mouse-only drag handle. Verified live with a real headless-Chromium session: the keyboard
+buttons correctly reorder a 3-item list both directions and correctly disable at both boundaries; a
+synthesized native `DragEvent` sequence (`dragstart`→`dragover`→`drop`→`dragend`, dispatched directly
+against the DOM nodes with a real `DataTransfer` object, since Playwright's own mouse-simulation API
+can't drive genuine HTML5 DnD) correctly moved the last item to the front; saving persisted the
+final, drag-and-keyboard-reordered sequence through the real `PUT` endpoint, confirmed via a direct
+API read afterward. **A deliberate scope decision, stated plainly rather than left unstated:**
+`/submit-material`'s own separate, simpler requirements list (a plain `<ul>` with just remove
+buttons, not `RequirementsEditor`) did **not** get the same drag/keyboard reordering — the
+coordinator's own instruction named `RequirementsEditor.svelte` specifically, and a brand-new
+submission's own draft order is materially lower-stakes than reordering an already-published
+Material's real, live-facing requirement list; adding it there too would be a reasonable follow-up,
+not something this round treated as in scope.
+
+**4 — a real, case-insensitive duplicate-label guard, on both write paths, rejecting rather than
+silently deduping.** `materials/services.py` gained two small, shared functions —
+`clean_requirement_labels` (the trim+drop-blank step both paths already needed) and
+`find_duplicate_requirement_label` (a plain case-insensitive-after-trim scan, returning the first
+duplicate's own original-cased label for a readable error message, or `None`) — imported by both
+`materials/views.py`'s governor-only bulk-replace action and `moderation/serializers.py`'s
+`MaterialSubmissionSerializer.validate_requirements`, so the two write paths share one definition of
+"is this a duplicate" rather than two independently-drifting copies, the same "one definition, not
+two" discipline this project's own `_vote_weight`/`_net_vote_weight` split already established for a
+different pair of call sites. Both reject with a real 400 (`ValidationError` on the submission path,
+a structured `{'requirements': [...]}` 400 on the governor-PUT path) naming the specific duplicate —
+never a silent dedupe. Two new tests on the governor-PUT side (an exact duplicate, and a
+case-insensitive-after-trim one — `'English B2+'` vs. `'  english b2+  '`), one new test on the
+submission side (the identical case-insensitive scenario at `POST /api/material-submissions/`),
+confirming both a rejected PUT and a rejected submission leave zero requirement rows behind, not a
+partial write.
+
+**5 — the delete+recreate wrapped in `transaction.atomic()`, and the lost-update race genuinely
+reproduced, not left purely theoretical.** `materials/views.py`'s `requirements` action now wraps
+`material.requirements.all().delete()` + `MaterialRequirement.objects.bulk_create(...)` in a plain
+`with transaction.atomic():` block — no `select_for_update()` (this app's own SQLite dev database has
+no row-level locking at all; Django silently no-ops that call rather than raising, the exact lesson
+Section 17I's own "select_for_update()/atomic() detour" note already learned the hard way for a
+*different*, much slower, multi-statement apply sequence). **The distinction that makes this
+`atomic()` safe where that earlier one wasn't, stated explicitly rather than assumed:** Django's
+SQLite backend holds an exclusive write lock for the *full duration* of an `atomic()` block, not per
+statement — Section 17I's own trap came from wrapping several real, cross-table queries (target
+resolution, number allocation, translation creation) in one such block under real concurrent write
+pressure, turning a moderate wait into `database is locked` failures. This block is two fast,
+adjacent statements against one table — the same low-risk shape `ExerciseSetSerializer.update()`'s
+own transaction already uses elsewhere in this codebase — so the fix here is real ("if `bulk_create`
+ever fails partway, the preceding `delete()` rolls back with it, never leaving zero requirements on
+a Material that started with some") without reintroducing that earlier trap. **Full optimistic
+concurrency (a version check) was judged genuine overkill for this specific action** — a governor-
+only, low-frequency, low-stakes admin edit, not a page under real concurrent write pressure — so per
+the explicit instruction, the lost-update scenario was **reproduced once, for real, rather than left
+theoretical:** 30 genuinely simultaneous `curl` PUT requests (15 backgrounded processes submitting a
+3-item list, 15 submitting a different 2-item list, `wait`'d together) against a real running dev
+server and a real seeded Material — all 30 returned `200`, zero crashes, zero `500`s, and the final
+DB state was confirmed to be **exactly one of the two submitted lists in full**, never empty, never
+a mix of both — the honest "safe, last-write-wins, not perfectly linearizable" outcome this endpoint's
+own docstring already promises, the same class of residual-but-safe outcome Section 17K's own
+`ExerciseTranslation` race investigation already reasoned through and declined to chase further for
+a comparably rare, low-stakes case. Documented plainly in the action's own docstring, not just here.
+
+### Left open, not built
+
+- **No reordering UI for `/submit-material`'s own, separate requirements list** — deliberate, see
+  item 3's own scope note above; `RequirementsEditor.svelte` (the governor-facing editor) is the one
+  place drag/keyboard reordering was built.
+- **The 4-currency `choices=` list can't express an exotic currency a governor might genuinely want**
+  — the real, named tradeoff of item 2 above; widening the list (or exposing a `choices=`-bypassing
+  "other" free-text escape hatch) would be a small, real follow-up if this ever becomes a genuine
+  ask, not something this round built preemptively.
+- **The reproduced concurrent-PUT race (item 5) confirms "safe, not perfectly linearizable," the same
+  residual outcome Section 17K already accepted for a different endpoint** — fully eliminating it
+  would need real cross-request mutual exclusion keyed on the Material id itself, which this
+  codebase has already learned (the hard way, Section 17I) can make things measurably *worse* under
+  SQLite's own real concurrent-write behavior rather than better. Not chased further, by the same
+  judgment call Section 17K already made explicit for its own sibling race.
+- **No duplicate-label check across a re-submission's own history** — the guard is per-request only
+  (two labels in the SAME body); nothing stops two separate, sequential saves from each individually
+  containing no duplicates while still layering the same label in twice across two different
+  governors' own edits at different times (the second save's own full-replace semantics mean this
+  can't actually happen in practice, since a full replace always starts from the submitted list
+  fresh — flagged for completeness, not because it's a real gap this endpoint's own full-replace
+  shape leaves open).
 
 ## 18. Open questions
 

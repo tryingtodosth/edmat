@@ -60,6 +60,16 @@ export interface MaterialCoverage {
 	commentCount: number;
 }
 
+// A loose, free-text prerequisite/skill label — "English B2+", "basic algebra" — not a fixed
+// vocabulary, matching this app's own established style for similarly loose per-item labels (the
+// backend's own MaterialRequirement model doc comment has the full reasoning). `order` is a plain,
+// governor-controlled display order, not derived from anything else.
+export interface MaterialRequirement {
+	id: string;
+	label: string;
+	order: number;
+}
+
 // Materials are a lighter object than exercises and, deliberately, do NOT get the full
 // ExerciseTranslation-style per-locale review system in v1 — CLAUDE.md's priority is translating
 // exercises specifically ("assignments"). title/description are plain strings for now; nothing
@@ -72,6 +82,7 @@ export interface Material {
 	title: string;
 	description: string;
 	coverage: MaterialCoverage[];
+	requirements: MaterialRequirement[];
 	fileName: string;
 	fileUrl: string; // Phase 3: a real, working URL served by the Django dev server's MEDIA_ROOT
 	author: string;
@@ -79,4 +90,53 @@ export interface Material {
 	published: boolean;
 	featured: boolean;
 	order: number;
+	// Added for the search/filter/sort overhaul — backs `sort: 'recent'` and the recommended feed's
+	// own "most recent upload" fallback tiebreak (materials/services.py's `get_recommended_materials`).
+	createdAt: string;
+	// Both genuinely optional — most materials stay free/no-estimate, exactly like before this
+	// feature existed. `priceAmount`/`priceCurrency` render together ("29.99 PLN") only when
+	// `priceAmount` is set — `priceCurrency` alone means nothing. `estimatedMinutes` was chosen over
+	// a page-count "length" field since it's the more directly useful signal across every material
+	// type this app has (a script, an exam collection, a slide deck), and doesn't require a page
+	// count nobody has ever recorded for this corpus.
+	priceAmount?: number;
+	priceCurrency: string;
+	estimatedMinutes?: number;
+}
+
+// The materials search/filter/sort overhaul's own structured query surface — mirrors the backend's
+// own `_filter_materials`/`_sort_materials` (materials/views.py) param-for-param, so a caller never
+// has to guess what's actually filterable. `courseId`/`fieldId` are only meaningful for the
+// cross-course browse hub (routes/materials/+page.svelte) — a course-scoped caller (the course
+// page's own Materials tab) never sets either, since the course is already implied by the URL it
+// calls. `topicId`/`minLevel` are the "difficulty of coverage" dimension: `topicId` alone asks "does
+// this material cover this specific topic at all," `minLevel` alone asks "any topic, but deeply,"
+// and both together ask "THIS topic, at least THIS deep" — the same three-way distinction the
+// backend's own `_filter_materials` doc comment already draws.
+export interface MaterialBrowseFilters {
+	fieldId?: string;
+	courseId?: string;
+	type?: MaterialType;
+	tag?: string;
+	topicId?: string;
+	minLevel?: number; // 1-100, a coverage-depth floor
+	query?: string;
+	sort?: MaterialSort;
+}
+
+// One of `_SORT_KEYS` (materials/views.py) — omitted/unrecognized on the backend keeps its own
+// existing `(course, order)` default, which this app surfaces as `undefined`/no explicit choice
+// rather than a fifth named option, since "the platform's own curated order" isn't really a *sort*
+// so much as the absence of picking one.
+export type MaterialSort = 'recent' | 'level' | 'votes' | 'alphabetical';
+
+// GET /api/materials/recommended/ — deliberately NOT a bare Material[] the way every other list
+// endpoint in this app returns (Phase 3's own established convention); see that endpoint's own doc
+// comment (materials/views.py) for why `personalized` is real, load-bearing information a plain
+// array can't carry on its own: whether this is genuinely tailored to the visitor, or the
+// platform's own honest, non-personalized default (featured-first) for someone this app has no real
+// engagement signal for yet.
+export interface RecommendedMaterialsResult {
+	personalized: boolean;
+	materials: Material[];
 }

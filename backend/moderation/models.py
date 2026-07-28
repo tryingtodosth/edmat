@@ -12,6 +12,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from exercises.models import Exercise
+from materials.models import CURRENCY_CHOICES
 from materials.validators import validate_material_submission_file
 from taxonomy.models import Course, Field
 
@@ -115,6 +116,21 @@ class MaterialSubmission(models.Model):
         upload_to=material_submission_upload_path,
         validators=[validate_material_submission_file],
     )
+    # A brand-new upload can optionally declare its own requirements/price/time-estimate at
+    # submission time, mirroring the same three fields `materials.models.Material`/
+    # `MaterialRequirement` itself carries once published — see `_apply_material_submission`
+    # (views.py) for how these three carry over onto the real Material row on approval.
+    # `requirements` is a plain `list[str]` (materials.models.MaterialRequirement has no equivalent
+    # at submission time, since there's no real Material row yet for it to be a FK to) — a JSONField,
+    # not a second typed model, since this is a draft value that only becomes real MaterialRequirement
+    # rows once approved, the same "structural fields now, translation/derived rows later" split
+    # ExerciseSubmission.payload already establishes for a different field, just narrower (three
+    # plain fields instead of one whole JSON draft, since a Material submission is otherwise
+    # real, typed fields already, not a JSON blob).
+    requirements = models.JSONField(default=list, blank=True)
+    price_amount = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    price_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='PLN', blank=True)
+    estimated_minutes = models.PositiveIntegerField(null=True, blank=True)
     scan_status = models.CharField(max_length=10, choices=SCAN_STATUS_CHOICES, default='skipped')
     scan_detail = models.CharField(max_length=300, blank=True)
     status = models.CharField(max_length=10, choices=REVIEW_STATUS_CHOICES, default='pending')

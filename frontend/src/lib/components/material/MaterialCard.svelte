@@ -2,7 +2,11 @@
 	import { resolve } from '$app/paths';
 	import type { Material, MaterialCoverage, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { proposeCoverage, DuplicateCoverageError } from '$lib/services/materials';
+	import {
+		proposeCoverage,
+		DuplicateCoverageError,
+		setMaterialRequirements
+	} from '$lib/services/materials';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
@@ -11,6 +15,7 @@
 	import CoverageBadge from './CoverageBadge.svelte';
 	import CoveragePopover from './CoveragePopover.svelte';
 	import AddCoverageForm from './AddCoverageForm.svelte';
+	import RequirementsEditor from './RequirementsEditor.svelte';
 
 	// linkTitle: true everywhere this card is used as a feed/grid item (the course page's own
 	// Materials tab — its only caller before Phase 4); false on the material's OWN detail page
@@ -41,6 +46,28 @@
 
 	let addingCoverage = $state(false);
 	let addError = $state<string | null>(null);
+
+	// Requirements — a governor-only edit (materials/views.py's `requirements` action, gated by
+	// global staff or a governor of the material's own course), not open to any authenticated user
+	// the way coverage proposals are (structural metadata, not a low-stakes community proposal). A
+	// full-replace overlay: once a save succeeds, the server's own freshly-returned requirement list
+	// replaces whatever this card started with — the same "server is authoritative, no client-side
+	// tallying" trust model CoveragePopover's own vote handling already establishes.
+	let requirementsOverlay = $state<Material['requirements'] | null>(null);
+	let visibleRequirements = $derived(requirementsOverlay ?? material.requirements);
+	let editingRequirements = $state(false);
+	let requirementsError = $state<string | null>(null);
+
+	async function handleSaveRequirements(labels: string[]) {
+		requirementsError = null;
+		try {
+			const updated = await setMaterialRequirements(material.id, labels);
+			requirementsOverlay = updated.requirements;
+			editingRequirements = false;
+		} catch {
+			requirementsError = m.material_requirementsSaveError();
+		}
+	}
 
 	function slugify(name: string): string {
 		return name
@@ -118,6 +145,41 @@
 		</div>
 	{/if}
 
+	{#if visibleRequirements.length > 0 || authStore.canModerate}
+		<div class="material-card__requirements">
+			{#each visibleRequirements as requirement (requirement.id)}
+				<span class="requirement-chip">{requirement.label}</span>
+			{/each}
+			{#if authStore.canModerate}
+				<button
+					type="button"
+					class="edit-requirements-trigger"
+					onclick={() => ((editingRequirements = true), (requirementsError = null))}
+				>
+					{m.material_requirementsEdit()}
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if material.priceAmount !== undefined || material.estimatedMinutes !== undefined}
+		<div class="material-card__meta">
+			{#if material.priceAmount !== undefined}
+				<span class="meta-pill price"
+					>{m.material_price({
+						amount: material.priceAmount.toFixed(2),
+						currency: material.priceCurrency
+					})}</span
+				>
+			{/if}
+			{#if material.estimatedMinutes !== undefined}
+				<span class="meta-pill time"
+					>{m.material_estimatedMinutes({ minutes: material.estimatedMinutes })}</span
+				>
+			{/if}
+		</div>
+	{/if}
+
 	<div class="material-card__footer">
 		<span class="muted">{m.material_by({ author: material.author })}</span>
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an external file URL (the Django media server), not an app route resolve() can express -->
@@ -140,6 +202,22 @@
 			{topics}
 			onSubmit={handleProposeCoverage}
 			onCancel={() => (addingCoverage = false)}
+		/>
+	</ModalShell>
+{/if}
+
+{#if editingRequirements}
+	<ModalShell
+		title={m.material_requirementsModalTitle()}
+		onClose={() => (editingRequirements = false)}
+	>
+		{#if requirementsError}
+			<p class="add-error">{requirementsError}</p>
+		{/if}
+		<RequirementsEditor
+			initial={visibleRequirements.map((r) => r.label)}
+			onSubmit={handleSaveRequirements}
+			onCancel={() => (editingRequirements = false)}
 		/>
 	</ModalShell>
 {/if}
@@ -186,6 +264,38 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-1);
+	}
+	.material-card__requirements {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+		align-items: center;
+	}
+	.requirement-chip {
+		@include mix.status-pill(var(--status-info), var(--bg-surface-alt));
+	}
+	.edit-requirements-trigger {
+		@include mix.focus-ring;
+		background: none;
+		border: 1px dashed var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: 2px var(--space-2);
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		cursor: pointer;
+		&:hover {
+			color: var(--accent);
+			border-color: var(--accent);
+		}
+	}
+	.material-card__meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+	}
+	.meta-pill {
+		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+		font-weight: 600;
 	}
 	.add-coverage-trigger {
 		@include mix.focus-ring;

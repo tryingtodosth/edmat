@@ -1,9 +1,11 @@
 import type {
 	CoverageVoteValue,
 	Material,
+	MaterialBrowseFilters,
 	MaterialCoverage,
 	MaterialSubmission,
-	MaterialSubmissionDraft
+	MaterialSubmissionDraft,
+	RecommendedMaterialsResult
 } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
 import {
@@ -16,11 +18,62 @@ import {
 	type RawMaterialSubmission
 } from '$lib/api/mappers';
 
-export async function getMaterialsForCourse(courseId: string): Promise<Material[]> {
+// Builds the exact query string the backend's own `_filter_materials`/`_sort_materials`
+// (materials/views.py) read — `type`/`sort` travel through their own front-to-back value maps
+// (MaterialType is camelCase on this side, snake_case on the wire; MaterialSort is already
+// identical on both, per that view's own `_SORT_KEYS`), everything else passes straight through.
+// A local helper, not a shared one — same "small query-string builder living next to its own one
+// real caller" convention lib/services/exercises.ts's own `toQueryString` already established,
+// deliberately not extracted into a shared util for two independently-shaped filter objects.
+function materialQueryString(filters: MaterialBrowseFilters): string {
+	const search = new URLSearchParams();
+	if (filters.fieldId) search.set('field', filters.fieldId);
+	if (filters.courseId) search.set('course', filters.courseId);
+	if (filters.type)
+		search.set('type', FRONTEND_TO_BACKEND_MATERIAL_TYPE[filters.type] ?? filters.type);
+	if (filters.tag) search.set('tag', filters.tag);
+	if (filters.topicId) search.set('topic_id', filters.topicId);
+	if (filters.minLevel) search.set('min_level', String(filters.minLevel));
+	if (filters.query) search.set('q', filters.query);
+	if (filters.sort) search.set('sort', filters.sort);
+	const s = search.toString();
+	return s ? `?${s}` : '';
+}
+
+/** Course-scoped materials listing (routes/courses/[course]'s own Materials tab) — now
+ * filter/sort-capable too, via the exact same query params the cross-course `browseMaterials`
+ * below sends (taxonomy.CourseViewSet.materials, materials/views.py, reuse the identical
+ * `_filter_materials`/`_sort_materials` helpers `MaterialViewSet` itself uses). `filters.courseId`
+ * is deliberately ignored here — the course is already the one this function was called for. */
+export async function getMaterialsForCourse(
+	courseId: string,
+	filters: MaterialBrowseFilters = {}
+): Promise<Material[]> {
+	const qs = materialQueryString({ ...filters, courseId: undefined });
 	const raw = await apiClient.get<RawMaterial[]>(
-		`/courses/${encodeURIComponent(courseId)}/materials/`
+		`/courses/${encodeURIComponent(courseId)}/materials/${qs}`
 	);
 	return raw.map(mapMaterial);
+}
+
+/** The cross-course browse hub (routes/materials/+page.svelte) — every real structured dimension
+ * this overhaul added: type, topic/subtopic coverage depth, tag, free text, and sort, optionally
+ * further scoped to one field/course. Backed by GET /api/materials/ (MaterialViewSet.list). */
+export async function browseMaterials(filters: MaterialBrowseFilters = {}): Promise<Material[]> {
+	const raw = await apiClient.get<RawMaterial[]>(`/materials/${materialQueryString(filters)}`);
+	return raw.map(mapMaterial);
+}
+
+/** GET /api/materials/recommended/ — the overhaul's own genuine personalization dimension. See
+ * materials/services.py's `get_recommended_materials` (backend) and RecommendedMaterialsResult's
+ * own doc comment (material.ts) for why `personalized` is real, load-bearing information, not
+ * decorative — this function's job is just to expose it, never to fabricate it if the backend
+ * ever omitted it. */
+export async function getRecommendedMaterials(limit = 12): Promise<RecommendedMaterialsResult> {
+	const raw = await apiClient.get<{ personalized: boolean; results: RawMaterial[] }>(
+		`/materials/recommended/?limit=${encodeURIComponent(String(limit))}`
+	);
+	return { personalized: raw.personalized, materials: raw.results.map(mapMaterial) };
 }
 
 export async function getMaterialById(id: string): Promise<Material | undefined> {
@@ -120,6 +173,18 @@ export async function submitMaterial(
 	formData.append('description', draft.description);
 	formData.append('locale', draft.locale);
 	formData.append('file', file);
+	// All three genuinely optional — a submission that never sets any of them behaves exactly as
+	// before this feature existed. `requirements` travels as a JSON-encoded string, not a native
+	// array — this is a multipart body, and the backend's own `validate_requirements` (moderation/
+	// serializers.py) specifically parses a string here rather than assuming a real list arrived.
+	if (draft.requirements && draft.requirements.length > 0) {
+		formData.append('requirements', JSON.stringify(draft.requirements));
+	}
+	if (draft.priceAmount !== undefined) formData.append('price_amount', String(draft.priceAmount));
+	if (draft.priceCurrency) formData.append('price_currency', draft.priceCurrency);
+	if (draft.estimatedMinutes !== undefined) {
+		formData.append('estimated_minutes', String(draft.estimatedMinutes));
+	}
 
 	const raw = await apiClient.postForm<RawMaterialSubmission>('/material-submissions/', formData);
 	return mapMaterialSubmission(raw);
@@ -132,4 +197,20 @@ export async function getMaterialSubmissionsForCourse(
 		`/material-submissions/?course=${encodeURIComponent(courseId)}`
 	);
 	return raw.map(mapMaterialSubmission);
+}
+
+// ---- material requirements — a governor-only bulk replace of an ALREADY-PUBLISHED material's own
+// requirement list (materials/views.py's `requirements` action) — see that view's own doc comment
+// for the exact trust boundary (global staff, or a governor of the material's own course; not open
+// to any authenticated user the way MaterialCoverage proposals are). A full, ordered replace, not a
+// single add/remove — the natural shape for a list editor that always submits its own current state.
+export async function setMaterialRequirements(
+	materialId: string,
+	labels: string[]
+): Promise<Material> {
+	const raw = await apiClient.put<RawMaterial>(
+		`/materials/${encodeURIComponent(materialId)}/requirements/`,
+		{ requirements: labels }
+	);
+	return mapMaterial(raw);
 }

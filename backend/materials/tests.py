@@ -1,11 +1,18 @@
 """Part of this project's automated test suite (CLAUDE.md Section 17L)."""
 
+import time
+
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from materials.models import MaterialCoverage, MaterialCoverageVote
-from testing.factories import make_course, make_material, make_topic, make_user
+from community.models import Comment
+from exercises.models import Tag
+from materials.models import MaterialCoverage, MaterialCoverageVote, MaterialView
+from materials.services import get_recommended_materials
+from moderation.models import NodeGovernor
+from taxonomy.models import Course
+from testing.factories import make_course, make_exercise, make_material, make_topic, make_user
 
 
 class MaterialListingTests(APITestCase):
@@ -165,3 +172,362 @@ class MaterialCoverageCommentTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class MaterialFilterSortTests(APITestCase):
+    """The search/filter/sort overhaul's own structured query params (`type`, `topic_id`,
+    `min_level`, `sort`) — none of these had any real test coverage before this class."""
+
+    def setUp(self):
+        self.course = make_course()
+        self.topic = make_topic(self.course)
+        self.other_topic = make_topic(self.course, slug='other-topic')
+
+        self.script = make_material(self.course, 'skrypt', type='script', title='Course script')
+        self.exam = make_material(
+            self.course, 'exam-set', type='exam_collection', title='Exam set'
+        )
+
+        MaterialCoverage.objects.create(material=self.script, topic=self.topic, level=90)
+        MaterialCoverage.objects.create(material=self.exam, topic=self.topic, level=30)
+        MaterialCoverage.objects.create(material=self.exam, topic=self.other_topic, level=95)
+
+    def test_type_filter(self):
+        response = self.client.get(reverse('material-list'), {'type': 'exam_collection'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        slugs = {row['slug'] for row in response.data}
+        self.assertEqual(slugs, {'exam-set'})
+
+    def test_topic_id_filter(self):
+        response = self.client.get(reverse('material-list'), {'topic_id': self.other_topic.pk})
+
+        slugs = {row['slug'] for row in response.data}
+        self.assertEqual(slugs, {'exam-set'})
+
+    def test_topic_id_with_min_level_only_matches_deep_enough_coverage_of_that_topic(self):
+        # `exam-set` covers `self.topic` at only level 30 — asking for that specific topic at
+        # depth >= 50 must exclude it, even though `exam-set` DOES have a level-95 row elsewhere
+        # (on `other_topic`) that would satisfy the floor on its own.
+        response = self.client.get(
+            reverse('material-list'), {'topic_id': self.topic.pk, 'min_level': 50}
+        )
+
+        slugs = {row['slug'] for row in response.data}
+        self.assertEqual(slugs, {'skrypt'})
+
+    def test_min_level_alone_matches_any_topic_reaching_that_depth(self):
+        response = self.client.get(reverse('material-list'), {'min_level': 90})
+
+        slugs = {row['slug'] for row in response.data}
+        self.assertEqual(slugs, {'skrypt', 'exam-set'})  # skrypt@90, exam-set@95 (other_topic)
+
+    def test_sort_alphabetical(self):
+        response = self.client.get(reverse('material-list'), {'sort': 'alphabetical'})
+
+        titles = [row['title'] for row in response.data]
+        self.assertEqual(titles, sorted(titles, key=str.casefold))
+
+    def test_sort_level_orders_by_best_coverage_depth(self):
+        response = self.client.get(reverse('material-list'), {'sort': 'level'})
+
+        slugs = [row['slug'] for row in response.data]
+        # exam-set's own best row is 95 (other_topic), skrypt's own best is 90 — exam-set first.
+        self.assertEqual(slugs, ['exam-set', 'skrypt'])
+
+    def test_sort_level_scoped_to_one_topic_ignores_coverage_of_other_topics(self):
+        response = self.client.get(
+            reverse('material-list'), {'sort': 'level', 'topic_id': self.topic.pk}
+        )
+
+        slugs = [row['slug'] for row in response.data]
+        # Within `self.topic` alone: skrypt=90 beats exam-set=30 — the reverse of the unscoped order.
+        self.assertEqual(slugs, ['skrypt', 'exam-set'])
+
+    def test_sort_votes_orders_by_net_vote_weight(self):
+        voter = make_user('sorter-voter')
+        coverage = self.exam.coverage.get(topic=self.other_topic)
+        MaterialCoverageVote.objects.create(coverage=coverage, voter=voter, value=1)
+
+        response = self.client.get(reverse('material-list'), {'sort': 'votes'})
+
+        slugs = [row['slug'] for row in response.data]
+        self.assertEqual(slugs[0], 'exam-set')  # the only material with any net-positive vote weight
+
+    def test_course_materials_action_honors_the_same_filters(self):
+        response = self.client.get(
+            reverse('course-materials', kwargs={'slug': self.course.slug}), {'type': 'script'}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        slugs = {row['slug'] for row in response.data}
+        self.assertEqual(slugs, {'skrypt'})
+
+
+class MaterialRecommendedTests(APITestCase):
+    def test_anonymous_visitor_gets_the_honest_non_personalized_fallback(self):
+        course = make_course()
+        make_material(course, 'skrypt')
+
+        response = self.client.get(reverse('material-recommended'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data['personalized'])
+        self.assertEqual(len(response.data['results']), 1)
+
+    def test_featured_material_leads_the_non_personalized_fallback(self):
+        course = make_course()
+        make_material(course, 'plain')
+        featured = make_material(course, 'featured-one')
+        featured.featured = True
+        featured.save()
+
+        response = self.client.get(reverse('material-recommended'))
+
+        self.assertEqual(response.data['results'][0]['slug'], 'featured-one')
+
+    def test_a_users_own_engagement_makes_the_response_personalized(self):
+        from moderation.models import ContentView
+
+        course = make_course()
+        make_material(course, 'skrypt')
+        exercise = make_exercise(course, 1)
+        user = make_user('engaged-reader')
+        ContentView.objects.create(user=user, exercise=exercise)
+        self.client.force_authenticate(user)
+
+        response = self.client.get(reverse('material-recommended'))
+
+        self.assertTrue(response.data['personalized'])
+
+    def test_limit_param_is_honored_and_bounded(self):
+        course = make_course()
+        for i in range(5):
+            make_material(course, f'mat-{i}')
+
+        response = self.client.get(reverse('material-recommended'), {'limit': 2})
+
+        self.assertEqual(len(response.data['results']), 2)
+
+
+class MaterialPriceAndTimeSerializationTests(APITestCase):
+    """Both fields are genuinely optional — a material that never sets either behaves exactly as
+    before this feature existed (null on the wire, not a fabricated "Free"/"0 min" default)."""
+
+    def test_unset_price_and_time_serialize_as_null(self):
+        course = make_course()
+        material = make_material(course, 'plain')
+
+        response = self.client.get(reverse('material-detail', kwargs={'pk': material.pk}))
+
+        self.assertIsNone(response.data['price_amount'])
+        self.assertIsNone(response.data['estimated_minutes'])
+        self.assertEqual(response.data['price_currency'], 'PLN')  # the model's own default
+
+    def test_a_priced_material_with_a_time_estimate_serializes_both(self):
+        course = make_course()
+        material = make_material(course, 'priced')
+        material.price_amount = '29.99'
+        material.price_currency = 'EUR'
+        material.estimated_minutes = 45
+        material.save()
+
+        response = self.client.get(reverse('material-detail', kwargs={'pk': material.pk}))
+
+        self.assertEqual(response.data['price_amount'], '29.99')
+        self.assertEqual(response.data['price_currency'], 'EUR')
+        self.assertEqual(response.data['estimated_minutes'], 45)
+
+
+class MaterialRequirementApiTests(APITestCase):
+    """PUT /api/materials/{id}/requirements/ — the governor-facing (not "any authenticated user")
+    bulk-replace endpoint. Gated by the exact same trust boundary moderation/services.py's
+    `is_governor_of_course` already establishes for every other moderator-adjacent Material
+    mutation — global staff, or a real governor of the material's own course."""
+
+    def setUp(self):
+        self.course = make_course(slug='uw-requirement-course')
+        self.other_course = make_course(slug='uw-requirement-other-course')
+        self.material = make_material(self.course, 'skrypt')
+
+    def _put(self, labels):
+        return self.client.put(
+            reverse('material-requirements', kwargs={'pk': self.material.pk}),
+            {'requirements': labels},
+            format='json',
+        )
+
+    def test_anonymous_user_cannot_set_requirements(self):
+        response = self._put(['English B2+'])
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_a_plain_authenticated_user_with_no_governor_grant_is_forbidden(self):
+        self.client.force_authenticate(make_user('plain-student'))
+        response = self._put(['English B2+'])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.material.requirements.count(), 0)
+
+    def test_global_staff_can_set_requirements(self):
+        self.client.force_authenticate(make_user('staff-mod', is_staff=True))
+        response = self._put(['English B2+', 'basic algebra'])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        labels = list(self.material.requirements.order_by('order').values_list('label', flat=True))
+        self.assertEqual(labels, ['English B2+', 'basic algebra'])
+        self.assertEqual([r['label'] for r in response.data['requirements']], labels)
+
+    def test_a_governor_of_the_materials_own_course_can_set_requirements(self):
+        governor = make_user('course-governor')
+        NodeGovernor.objects.create(
+            user=governor,
+            content_type=self._course_content_type(),
+            object_id=self.course.pk,
+        )
+        self.client.force_authenticate(governor)
+
+        response = self._put(['A graphing calculator'])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.material.requirements.count(), 1)
+
+    def test_a_governor_of_a_different_course_is_forbidden(self):
+        governor = make_user('other-course-governor')
+        NodeGovernor.objects.create(
+            user=governor,
+            content_type=self._course_content_type(),
+            object_id=self.other_course.pk,
+        )
+        self.client.force_authenticate(governor)
+
+        response = self._put(['Should not apply'])
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.material.requirements.count(), 0)
+
+    def test_setting_requirements_fully_replaces_the_previous_list_and_preserves_order(self):
+        self.client.force_authenticate(make_user('replace-mod', is_staff=True))
+        self._put(['first', 'second'])
+
+        response = self._put(['only one now'])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.material.requirements.count(), 1)
+        self.assertEqual(self.material.requirements.first().label, 'only one now')
+
+    def test_blank_labels_are_dropped(self):
+        self.client.force_authenticate(make_user('blank-mod', is_staff=True))
+        response = self._put(['real one', '   ', ''])
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        labels = list(self.material.requirements.values_list('label', flat=True))
+        self.assertEqual(labels, ['real one'])
+
+    def test_a_case_insensitive_duplicate_after_trimming_is_rejected_with_400(self):
+        self.client.force_authenticate(make_user('dup-mod', is_staff=True))
+        response = self._put(['English B2+', '  english b2+  '])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('requirements', response.data)
+        # Rejected outright, not silently deduped — nothing should have been written.
+        self.assertEqual(self.material.requirements.count(), 0)
+
+    def test_an_exact_duplicate_is_also_rejected(self):
+        self.client.force_authenticate(make_user('dup-mod-2', is_staff=True))
+        response = self._put(['same', 'other', 'same'])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.material.requirements.count(), 0)
+
+    @staticmethod
+    def _course_content_type():
+        from django.contrib.contenttypes.models import ContentType
+
+        return ContentType.objects.get_for_model(Course)
+
+
+class MaterialCoverageCommentThreadingTests(APITestCase):
+    """Real, threaded discussion per MaterialCoverage claim — CLAUDE.md's own note: the model/API
+    mostly already supported this (Comment.parent, CommentSerializer's own writable `parent` field),
+    confirmed here rather than assumed, plus the one real gap closed alongside it: a submitted
+    `parent` must actually belong to the SAME coverage's own comment set."""
+
+    def setUp(self):
+        self.course = make_course()
+        self.other_course = make_course(slug='uw-thread-other-course')
+        self.material = make_material(self.course, 'skrypt')
+        self.other_material = make_material(self.other_course, 'other-skrypt')
+        self.topic = make_topic(self.course)
+        self.other_topic = make_topic(self.other_course, slug='other-thread-topic')
+        self.coverage = MaterialCoverage.objects.create(
+            material=self.material, topic=self.topic, level=70, proposed_by=make_user('thread-proposer')
+        )
+        self.other_coverage = MaterialCoverage.objects.create(
+            material=self.other_material,
+            topic=self.other_topic,
+            level=40,
+            proposed_by=make_user('other-thread-proposer'),
+        )
+        self.client.force_authenticate(make_user('thread-author'))
+
+    def _post(self, coverage_pk, body, parent=None):
+        payload = {'body': body}
+        if parent is not None:
+            payload['parent'] = parent
+        return self.client.post(
+            reverse('material-coverage-comments', kwargs={'pk': coverage_pk}), payload, format='json'
+        )
+
+    def test_a_reply_with_a_valid_parent_on_the_same_coverage_threads_correctly(self):
+        root = self._post(self.coverage.pk, 'Is this level accurate?')
+        self.assertEqual(root.status_code, status.HTTP_201_CREATED)
+        root_id = root.data['id']
+
+        reply = self._post(self.coverage.pk, 'I think so, yes.', parent=root_id)
+
+        self.assertEqual(reply.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(reply.data['parent'], root_id)
+
+        listing = self.client.get(reverse('material-coverage-comments', kwargs={'pk': self.coverage.pk}))
+        ids_and_parents = {row['id']: row['parent'] for row in listing.data}
+        self.assertEqual(ids_and_parents[reply.data['id']], root_id)
+
+    def test_a_second_level_reply_also_threads_correctly(self):
+        """Genuinely multi-level, not just one reply deep."""
+        root = self._post(self.coverage.pk, 'Root comment')
+        reply1 = self._post(self.coverage.pk, 'First reply', parent=root.data['id'])
+        reply2 = self._post(self.coverage.pk, 'Reply to the reply', parent=reply1.data['id'])
+
+        self.assertEqual(reply2.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(reply2.data['parent'], reply1.data['id'])
+
+    def test_a_parent_from_an_unrelated_coverages_own_thread_is_rejected(self):
+        """The real gap: a client could otherwise pass an arbitrary comment id belonging to a
+        completely different MaterialCoverage's (or Exercise's) own discussion."""
+        foreign_root = self._post(self.other_coverage.pk, 'A comment on a DIFFERENT coverage claim')
+        self.assertEqual(foreign_root.status_code, status.HTTP_201_CREATED)
+
+        response = self._post(self.coverage.pk, 'Trying to reply across coverage rows', parent=foreign_root.data['id'])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('parent', response.data)
+        self.assertEqual(Comment.objects.filter(body='Trying to reply across coverage rows').count(), 0)
+
+    def test_a_parent_from_an_exercise_comment_thread_is_also_rejected(self):
+        """The same cross-target check catches a parent id that resolves to a real Comment, just one
+        attached to an entirely different content type (an Exercise), not another MaterialCoverage."""
+        exercise = make_exercise(self.course, 1)
+        exercise_comment_response = self.client.post(
+            reverse('exercise-comments', kwargs={'pk': exercise.pk}), {'body': 'An exercise comment'}, format='json'
+        )
+        self.assertEqual(exercise_comment_response.status_code, status.HTTP_201_CREATED)
+
+        response = self._post(
+            self.coverage.pk, 'Trying to reply to an exercise comment', parent=exercise_comment_response.data['id']
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_nonexistent_parent_id_is_rejected_by_ordinary_field_validation(self):
+        response = self._post(self.coverage.pk, 'A reply to nothing', parent=999999)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+

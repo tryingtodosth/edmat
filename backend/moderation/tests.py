@@ -19,7 +19,7 @@ from exercises.models import Exercise, ExerciseTranslation
 from moderation.models import ContentView, NodeGovernor, Report
 from moderation.services import governed_course_ids, is_governor_of_course
 from taxonomy.models import Field
-from testing.factories import make_course, make_exercise, make_user, make_viewer
+from testing.factories import make_course, make_exercise, make_material, make_topic, make_user, make_viewer
 
 
 class TranslationApprovalTests(APITestCase):
@@ -375,6 +375,52 @@ class MaterialSubmissionApiTests(APITestCase):
         titles = {row['title'] for row in response.data}
         self.assertEqual(titles, {'Mine', "Someone else's"})
 
+    def test_upload_can_optionally_declare_requirements_price_and_a_time_estimate(self):
+        """Multipart form fields always arrive as bare strings — `requirements` is sent as a
+        JSON-encoded string here, the real shape a browser's own FormData would produce, not the
+        native Python list a JSON-format test request could send instead."""
+        import json
+
+        self.client.force_authenticate(self.student)
+        response = self._upload(
+            self.client,
+            requirements=json.dumps(['English B2+', 'basic algebra']),
+            price_amount='19.99',
+            price_currency='EUR',
+            estimated_minutes='30',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['requirements'], ['English B2+', 'basic algebra'])
+        self.assertEqual(response.data['price_amount'], '19.99')
+        self.assertEqual(response.data['price_currency'], 'EUR')
+        self.assertEqual(response.data['estimated_minutes'], 30)
+
+    def test_a_submission_with_no_requirements_price_or_estimate_stays_genuinely_optional(self):
+        self.client.force_authenticate(self.student)
+        response = self._upload(self.client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['requirements'], [])
+        self.assertIsNone(response.data['price_amount'])
+        self.assertIsNone(response.data['estimated_minutes'])
+
+    def test_a_case_insensitive_duplicate_requirement_at_submission_time_is_rejected(self):
+        """The identical check `materials/views.py`'s governor-only bulk-replace endpoint enforces
+        on an already-published Material (materials/tests.py's own
+        MaterialRequirementApiTests) — shared via materials/services.py's
+        `find_duplicate_requirement_label` so a brand-new submission can't sneak in duplicates
+        either."""
+        import json
+
+        self.client.force_authenticate(self.student)
+        response = self._upload(
+            self.client, requirements=json.dumps(['English B2+', '  english b2+  '])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('requirements', response.data)
+
     def test_scan_required_rejects_the_upload_when_no_scanner_is_reachable(self):
         """`MATERIAL_SCAN_REQUIRED` (config/settings.py) is False by default in this project's own
         sandboxed dev environment (no ClamAV daemon exists to reach at all) — flipping it True here
@@ -442,6 +488,32 @@ class MaterialSubmissionApprovalTests(APITestCase):
         self.assertEqual(translation.title, 'A submitted exam collection')
         # The SAME already-uploaded file, not a re-saved copy under a new path.
         self.assertEqual(material.file.name, submission.file.name)
+
+    def test_approving_a_submission_with_requirements_price_and_estimate_carries_them_over(self):
+        """The submission's own `requirements` (a plain list[str] draft) becomes real, ORDERED
+        MaterialRequirement rows only once approved — there's no real Material row for them to
+        attach to before that."""
+        submission = self._submit(
+            requirements=['English B2+', 'basic algebra'],
+            price_amount='29.99',
+            price_currency='EUR',
+            estimated_minutes=45,
+        )
+
+        response = self.client.post(
+            reverse('moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'}),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        material = submission.resulting_material
+        self.assertEqual(str(material.price_amount), '29.99')
+        self.assertEqual(material.price_currency, 'EUR')
+        self.assertEqual(material.estimated_minutes, 45)
+        labels = list(material.requirements.order_by('order').values_list('label', flat=True))
+        self.assertEqual(labels, ['English B2+', 'basic algebra'])
 
     def test_rejecting_a_material_submission_never_creates_a_material(self):
         submission = self._submit()
@@ -673,6 +745,74 @@ class AutoHideTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.exercise.refresh_from_db()
         self.assertEqual(self.exercise.auto_hidden_at, first_hidden_at)
+
+
+class MaterialCoverageCommentReportTests(APITestCase):
+    """CLAUDE.md's own note: `REPORT_KIND_MODELS = {'exercise': Exercise, 'comment': Comment,
+    'review': Review}` means ANY Comment row — including a reply inside a MaterialCoverage
+    discussion — is already reportable via the existing `POST /api/reports/`, completely
+    generically, regardless of what the comment's own `content_type`/`object_id` points at.
+    Confirmed here directly rather than assumed."""
+
+    def test_reporting_a_comment_attached_to_a_material_coverage_claim_succeeds(self):
+        from materials.models import MaterialCoverage
+
+        course = make_course(slug='uw-coverage-report-course')
+        material = make_material(course, 'skrypt')
+        topic = make_topic(course)
+        coverage = MaterialCoverage.objects.create(
+            material=material, topic=topic, level=60, proposed_by=make_user('coverage-report-proposer')
+        )
+        comment = Comment.objects.create(
+            content_type=ContentType.objects.get_for_model(MaterialCoverage),
+            object_id=coverage.pk,
+            author=make_user('coverage-comment-author'),
+            body='A reply inside a coverage discussion, reported by someone else.',
+        )
+        reporter = make_user('coverage-comment-reporter')
+        self.client.force_authenticate(reporter)
+
+        response = _report(self.client, 'comment', comment.pk, reason='Off-topic.')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            Report.objects.filter(
+                content_type=ContentType.objects.get_for_model(Comment), object_id=comment.pk, reported_by=reporter
+            ).exists()
+        )
+
+    def test_a_materialcoverage_comment_has_no_viewer_pool_so_it_never_auto_hides(self):
+        """MaterialCoverage has no view-tracking concept at all (`resolve_view_scope_exercise`
+        returns None for anything that isn't an Exercise/Review/Comment-eventually-resolving-to-one)
+        — real reports against a coverage-attached comment must still be recorded, and
+        `check_auto_hide` must gracefully no-op (no crash, no division by zero), not silently
+        auto-hide something with no real denominator to measure against."""
+        from materials.models import MaterialCoverage
+        from moderation.services import check_auto_hide
+
+        course = make_course(slug='uw-coverage-noautohide-course')
+        material = make_material(course, 'skrypt')
+        topic = make_topic(course)
+        coverage = MaterialCoverage.objects.create(
+            material=material, topic=topic, level=60, proposed_by=make_user('noautohide-proposer')
+        )
+        comment = Comment.objects.create(
+            content_type=ContentType.objects.get_for_model(MaterialCoverage),
+            object_id=coverage.pk,
+            author=make_user('noautohide-comment-author'),
+            body='Reported three times, still no viewer pool to measure against.',
+        )
+
+        for i in range(3):
+            reporter = make_user(f'noautohide-reporter{i}')
+            self.client.force_authenticate(reporter)
+            response = _report(self.client, 'comment', comment.pk)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        comment.refresh_from_db()
+        self.assertIsNone(comment.auto_hidden_at)
+        self.assertFalse(check_auto_hide(comment))
+        self.assertEqual(Report.objects.filter(object_id=comment.pk, status='pending').count(), 3)
 
 
 class ReportActionViewTests(APITestCase):

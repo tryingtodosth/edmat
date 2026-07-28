@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from .models import Material, MaterialCoverage, MaterialCoverageVote, MaterialTranslation
+from .models import (
+    Material,
+    MaterialCoverage,
+    MaterialCoverageVote,
+    MaterialRequirement,
+    MaterialTranslation,
+)
 
 
 class MaterialTranslationInline(admin.TabularInline):
@@ -13,12 +19,26 @@ class MaterialCoverageInline(admin.TabularInline):
     extra = 0
 
 
+class MaterialRequirementInline(admin.TabularInline):
+    model = MaterialRequirement
+    extra = 0
+
+
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
-    list_display = ['slug', 'course', 'type', 'author', 'published', 'featured']
+    list_display = [
+        'slug',
+        'course',
+        'type',
+        'author',
+        'published',
+        'featured',
+        'price_amount',
+        'estimated_minutes',
+    ]
     list_filter = ['course', 'type', 'published', 'featured']
     filter_horizontal = ['tags']
-    inlines = [MaterialTranslationInline, MaterialCoverageInline]
+    inlines = [MaterialTranslationInline, MaterialCoverageInline, MaterialRequirementInline]
 
 
 @admin.register(MaterialCoverage)

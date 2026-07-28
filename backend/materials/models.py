@@ -44,6 +44,23 @@ MATERIAL_TYPE_CHOICES = [
     ('other', 'Other'),
 ]
 
+# A small, curated set — this app has no multi-currency payment processing anywhere, `price_amount`/
+# `price_currency` are display-only fields (2026 follow-up to Section 17O's own price/time-estimate
+# feature), so `choices=` here follows the exact same precedent MATERIAL_TYPE_CHOICES/DIFFICULTY
+# already establish for a small, real enum rather than a bare, unvalidated CharField. Four currencies
+# genuinely cover this platform's real, likely case (a Polish university, PLN-priced by default, with
+# EUR/USD/GBP realistic for an international audience) — deliberately NOT exhaustive ISO-4217, the
+# same "mirror a small enum, don't try to be a general-purpose currency picker" restraint this app's
+# own DONATION_PLATFORMS/SOURCE_TYPES already apply elsewhere. See CLAUDE.md's own note on this
+# decision for the real tradeoff (a governor wanting an exotic currency can't set one through the UI
+# without a backend change) — flagged there, not silently accepted.
+CURRENCY_CHOICES = [
+    ('PLN', 'PLN'),
+    ('EUR', 'EUR'),
+    ('USD', 'USD'),
+    ('GBP', 'GBP'),
+]
+
 
 class Material(models.Model):
     course = models.ForeignKey(Course, related_name='materials', on_delete=models.CASCADE)
@@ -61,6 +78,22 @@ class Material(models.Model):
     published = models.BooleanField(default=True)
     featured = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
+    # Added for the "search/filter/sort overhaul" — "sort by upload recency" was a real, explicitly
+    # requested capability this model had no field to back at all before now. `auto_now_add=True`,
+    # not a plain `DateTimeField()`, so the corpus importer and the moderation-approval path (which
+    # never set this explicitly) still get a real, honest timestamp for free — same convention
+    # Exercise.created_at already established.
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Both genuinely optional — most materials stay free/no-estimate, exactly like the rest of this
+    # 749-exercise, 7-material corpus today. `price_currency` only means anything once `price_amount`
+    # is actually set (blank=True, not a forced 'PLN' the moment a material has no price at all).
+    # `estimated_minutes` was chosen over a page-count "length" field (the other real option on the
+    # table) because it's the more directly useful signal across every material type this app has —
+    # a script, an exam collection, a slide deck — and doesn't require a page count nobody in this
+    # corpus has ever actually recorded (material.yaml never carried one).
+    price_amount = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    price_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='PLN', blank=True)
+    estimated_minutes = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = [('course', 'slug')]
@@ -68,6 +101,55 @@ class Material(models.Model):
 
     def __str__(self) -> str:
         return f'{self.course.slug}/{self.slug}'
+
+
+class MaterialRequirement(models.Model):
+    """A loose, free-text prerequisite/skill label for actually USING this material — "English
+    B2+", "basic algebra", "a graphing calculator". Deliberately NOT a fixed vocabulary, matching
+    this codebase's own established style for similarly loose, per-item labels (Comment/Report's
+    generic targeting aside, the closest real precedent is `ExerciseSource.collection`/`.name` —
+    free text describing something about one specific row, not a `choices=` enum the way
+    `Material.type`/`difficulty` are) — a requirement is whatever the uploader/governor actually
+    typed, not a value chosen from a list this app would have to keep in sync with reality.
+
+    `order` is a plain, user-controlled display order (not alphabetical, not creation-order) — the
+    same "a plain PositiveIntegerField the client controls, not `auto_now_add`-derived" shape this
+    app already uses for `Material.order`/`Course.order`/`Topic.order` itself.
+    """
+
+    material = models.ForeignKey(Material, related_name='requirements', on_delete=models.CASCADE)
+    label = models.CharField(max_length=200)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self) -> str:
+        return f'{self.material}: {self.label}'
+
+
+class MaterialView(models.Model):
+    """One row per (user, material) — mirrors moderation.models.ContentView's own shape and
+    reasoning exactly, just scoped to Material instead of Exercise: recorded the first time an
+    authenticated user loads this material's own detail page (MaterialViewSet.retrieve, below).
+
+    This is the real "have I already looked at this" engagement signal the materials search/
+    filter/sort overhaul's own personalization engine (materials/services.py's
+    get_recommended_materials) uses to DEPRIORITIZE — not hide — a material a visitor has already
+    opened; a material worth resurfacing shouldn't vanish just because it was seen once. Guests
+    aren't tracked, same honesty ContentView's own doc comment already states — there's no
+    identity to key a row on. Deliberately no `unique_together`/extra Meta at all, mirroring
+    ContentView's own shape exactly (that model enforces "one row per (user, exercise)" purely via
+    `get_or_create` at the call site, not a DB constraint) rather than inventing a stricter
+    guarantee for this new, structurally identical sibling.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    material = models.ForeignKey(Material, related_name='views', on_delete=models.CASCADE)
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f'{self.user} viewed {self.material}'
 
 
 class MaterialCoverage(models.Model):

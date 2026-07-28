@@ -36,6 +36,7 @@
 			aria-label={m.nav_mainNavigation()}
 		>
 			<a href={resolve('/fields')}>{m.nav_browse()}</a>
+			<a href={resolve('/materials')}>{m.nav_materials()}</a>
 			<a href={resolve('/my-set')}>
 				{m.nav_mySet()}
 				{#if guestSetStore.count > 0 && !authStore.isAuthenticated}
