@@ -48,6 +48,15 @@ class Profile(models.Model):
     # all" override that layers on top of, not instead of, the per-tag choice.
     muted_notification_types = models.JSONField(default=list, blank=True)
 
+    # Tutoring ("Korepetycje") — a deliberately lightweight, opt-in signal, distinct from a real
+    # services.Service listing (services/models.py): this is "I'm open to being asked," shown as a
+    # badge on the public profile with a short free-text note, with NO structured course tie-in and
+    # no rate — a user can set just this, or go further and create one or more real, course-scoped
+    # Service listings, or both. The user's own explicit call ("let user set that personally") is why
+    # both exist side by side rather than the app forcing one shape.
+    offers_tutoring = models.BooleanField(default=False)
+    tutoring_note = models.CharField(max_length=200, blank=True)
+
     def __str__(self) -> str:
         return self.display_name or self.user.username
 

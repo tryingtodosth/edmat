@@ -5,10 +5,12 @@
 	// an id-changed idempotency guard" pattern the exercise/course detail pages already establish —
 	// no +page.ts, this app has no server-rendered-auth story to back one (CLAUDE.md Section 16).
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { formatDate } from '$lib/utils/format';
 	import { getUserById } from '$lib/services/users';
+	import { authStore } from '$lib/state/auth.svelte';
 	import type { User } from '$lib/types';
 	import DonationLinksList from '$lib/components/shared/DonationLinksList.svelte';
 
@@ -57,10 +59,28 @@
 				{#if user.isVerifiedContributor}
 					<span class="badge">{m.settings_role_verifiedContributor()}</span>
 				{/if}
-				{#if !user.isModerator && !user.isVerifiedContributor && user.isProfilePublic}
+				{#if user.offersTutoring}
+					<span class="badge badge--tutoring">{m.profile_offersTutoring()}</span>
+				{/if}
+				{#if !user.isModerator && !user.isVerifiedContributor && !user.offersTutoring && user.isProfilePublic}
 					<span class="badge badge--neutral">{m.settings_role_member()}</span>
 				{/if}
 			</div>
+
+			{#if user.offersTutoring && user.tutoringNote}
+				<p class="tutoring-note">{user.tutoringNote}</p>
+			{/if}
+
+			{#if authStore.isAuthenticated && authStore.user?.id !== user.id}
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- an internal route built from resolve('/messages/new') plus a query string the eslint rule can't statically see through -->
+				<a
+					class="message-link"
+					href={`${resolve('/messages/new')}?to=${encodeURIComponent(user.id)}`}
+				>
+					{m.profile_sendMessage()}
+				</a>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			{/if}
 
 			{#if user.isProfilePublic === false}
 				<p class="private-notice">{m.profile_private()}</p>
@@ -109,6 +129,18 @@
 	}
 	.badge--neutral {
 		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
+	}
+	.badge--tutoring {
+		@include mix.status-pill(var(--accent), var(--accent-soft));
+	}
+	.tutoring-note {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		font-style: italic;
+	}
+	.message-link {
+		@include mix.button-secondary;
+		align-self: flex-start;
 	}
 	.private-notice {
 		font-size: var(--font-size-sm);

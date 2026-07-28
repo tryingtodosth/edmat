@@ -17,6 +17,15 @@ export interface User {
 	// "my own grants" for a non-staff user by the backend itself.
 	isNodeGovernor: boolean;
 	preferredLocale: string;
+	// Tutoring ("Korepetycje") — a deliberately lightweight, opt-in signal, distinct from a real
+	// services.Service listing (service.ts): "I'm open to being asked," shown as a badge on the
+	// public profile with a short free-text note, no structured course tie-in and no rate. Always
+	// present on both the current user's own /auth/me/ shape and a stranger's /users/{id} one (see
+	// accounts/serializers.py — both ProfileSerializer and PublicProfileSerializer include these
+	// two unconditionally, regardless of showProfilePublicly, since opting in to tutoring is itself
+	// the point of setting it).
+	offersTutoring: boolean;
+	tutoringNote: string;
 	// Present on the CURRENT user (GET/PATCH /auth/me/) and on any OTHER user resolved via
 	// GET /users/{id}/ — undefined only in a context that never asked for a full profile shape
 	// (there isn't one today, every mapper call site populates these; kept optional so a future,

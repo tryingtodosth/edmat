@@ -63,6 +63,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             'notify_on_content_action',
             'muted_notification_types',
             'donation_links',
+            'offers_tutoring',
+            'tutoring_note',
         ]
 
     def get_is_node_governor(self, obj):
@@ -91,6 +93,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'notify_on_moderation_decision',
             'notify_on_content_action',
             'muted_notification_types',
+            'offers_tutoring',
+            'tutoring_note',
         ]
 
 
@@ -131,6 +135,11 @@ class PublicProfileSerializer(serializers.ModelSerializer):
             'joined_at',
             'is_profile_public',
             'donation_links',
+            # Always shown regardless of show_profile_publicly, same reasoning as donation_links
+            # above — a user who turns this on wants to be discovered for tutoring; gating it behind
+            # an unrelated privacy toggle would defeat the entire point of opting in.
+            'offers_tutoring',
+            'tutoring_note',
         ]
 
     def get_email(self, obj):

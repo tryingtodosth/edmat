@@ -14,8 +14,12 @@ non-concurrent bug found while chasing it) is fixed, and this project's first re
 suite exists — see Sections 17K/17L. **Node governors — a scoped, per-Field/Course moderator role,
 full stack (backend + a real admin page) — are also built** (92 tests total then), see Section 17M.
 **Real material uploads (exams/tests/etc. as PDF/PNG/LaTeX/Word, content-sniffed and, where a real
-ClamAV daemon exists, scanned) are also built** (110 tests total now), see Section 17N. This document
-is the living spec for
+ClamAV daemon exists, scanned) are also built** (110 tests total now), see Section 17N.
+**Tutoring/services listings (course-scoped, browsable, filterable) and real user-to-user
+messaging (built over django-postman) are also built, full stack — both apps' own automated test
+suites (services/messaging/tests.py) and their entire frontend (browse/create/manage a listing,
+send/reply/view messages) were added this pass** (138 tests total now), see Section 17O. This
+document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
 proceed — the same "one consistent, current-state document" convention already used successfully in
@@ -2751,6 +2755,174 @@ and fixed):
 - **`getMaterialSubmissionsForCourse` (materials.ts) is built but has no real UI consumer yet** — added
   for symmetry with `getExerciseSubmissionsForCourse`, but nothing in this pass needed a course-scoped
   submissions view outside the moderation queue itself.
+
+## 17O. Feature: Tutoring/services listings, and real user-to-user messaging (✅ built, full stack)
+
+Two new apps, built together since the second is what makes the first actually useful beyond a bare
+listing page: a real, course-scoped "Services" listing (a tutor advertising themselves against one
+or more real Courses from the existing taxonomy) and real user-to-user messaging, so a visitor can
+actually reach out to a listing's own provider rather than the listing being a dead end.
+
+### Backend — `services` and `messaging`, both already built and wired in before this pass began
+
+`services.Service` (`provider`, `title`, `description`, `courses` M2M to `taxonomy.Course`,
+`hourly_rate`/`currency` — display-only, this app has no real payment processing anywhere —
+`is_active`) is deliberately the fuller, structured sibling of `accounts.Profile.offers_tutoring`
+(2.12/Section 9's own note): the bare flag is "I'm open to being asked," a `Service` is a real,
+course-scoped marketplace-style presence a visitor can browse and filter by course. `ServiceViewSet`
+matches this app's own established "public GET, owner-scoped writes" split (`ExerciseSetViewSet`)
+exactly — `?course=<slug>` for course-scoped discovery, `?mine=true` for a registered user's own
+listings (including paused ones the public browse never shows), and a non-owner's write attempt
+correctly 404s (queryset-scoping, not permission-checking, the same pattern `NodeGovernorViewSet`
+already establishes).
+
+`messaging/` has no models of its own — it's a thin DRF wrapper over **django-postman**'s own
+`Message` model and `pm_write()` API (verified against PyPI directly before choosing it over the
+older, unmaintained `django-messages` alternative). django-postman ships no equivalent for a REPLY
+within an existing thread (only its own Django form classes handle that) — `reply_to_message()`
+(`messaging/services.py`) replicates that exact thread-linking sequence, read directly from the
+installed package's own `BaseWriteForm._save()` source, not guessed: the first-ever reply promotes
+the original message into being its own thread root (`parent.thread = parent`), and every reply
+after that inherits the same `thread_id`. The reply's own recipient is "whoever isn't the current
+replier" on the parent message, not unconditionally `parent.sender` — a real back-and-forth
+conversation, not a one-way restriction. `django.contrib.sites` is a genuine, confirmed-necessary
+dependency of django-postman itself (its own `api.py` unconditionally imports the `Site` model at
+load time), not an optional extra. Auto-moderation is off (no `POSTMAN_AUTO_MODERATE_AS` configured)
+— every message is immediately accepted, and `skip_notification=True` throughout since this project
+has no real email backend configured (the same honest gap `PasswordResetView`'s own stub already
+flags) — messages are surfaced via this app's own REST endpoints, not email.
+
+`MessageViewSet` (a plain `GenericViewSet`, not a `ModelViewSet` — django-postman's own manager
+methods already do the real folder-scoping work) exposes `GET /messages/?folder=inbox|sent|
+archives|trash` (default `inbox`), `GET/POST /messages/{id}/` (retrieve marks read as a side effect
+if the caller is the recipient and it isn't already — the natural "opening a message marks it read"
+behavior), `POST /messages/{id}/reply/`, `GET /messages/{id}/thread/` (every message in the
+conversation, oldest first), and `GET /messages/unread-count/` (a bell-badge count, matching this
+project's own pre-existing Notification-bell precedent). Authenticated-only throughout — there's no
+anonymous/visitor messaging path in this app.
+
+### This session's own work: real automated tests, and the frontend (previously entirely unbuilt)
+
+**Backend test coverage — both apps had only empty `tests.py` stubs before this pass, despite real,
+non-trivial business logic (course-scoped filtering, message threading, unread counts, ownership
+permissions) already sitting untested.** `services/tests.py` (12 tests) covers course-scoped
+creation/discovery, the `?mine=`/`is_active` visibility split, unknown-course-slug rejection, and
+the full owner-vs-non-owner update/delete boundary. `messaging/tests.py` (16 tests) covers sending,
+replying (including the "recipient is whoever isn't the current replier" case specifically, not just
+the trivial always-reply-to-sender case), thread ordering and `replies_count`, retrieve-marks-read
+(and that retrieving as the *sender* does **not** mark it read or affect the recipient's count), folder
+listing, invalid-folder rejection, and — the access-boundary case — a third party who's neither
+sender nor recipient correctly gets a `404` from reply/thread/retrieve alike, not a `403` (matching
+this app's own queryset-scoping convention). Full backend suite: **138 tests, all passing** (up from
+110 before this pass); `manage.py check`/`makemigrations --check --dry-run` both stay clean.
+
+**Frontend — built from scratch, this app's first real UI for either feature.** New types
+(`service.ts`/`message.ts`, plus `User` widened with `offersTutoring`/`tutoringNote`, both already
+real backend fields with zero frontend wiring before this pass), mappers (`RawService`/`mapService`,
+`RawMessage`/`mapMessage`), and two new service-layer files:
+
+- **`lib/services/tutoring.ts`** — deliberately NOT named `services/services.ts` (this app's own
+  "one `lib/services/*.ts` file per backend app" convention would otherwise produce exactly that
+  self-referential path), matching `ServiceViewSet` 1:1 regardless of the file's own name.
+- **`lib/services/messaging.ts`** — `getMessages`/`getMessage`/`getThread`/`sendMessage`/
+  `replyToMessage`/`getUnreadMessageCount`, plus `lib/state/messages.svelte.ts` (a lightweight
+  unread-count rune store, mirroring `notifications.svelte.ts`'s own shape but deliberately without
+  a live SSE connection — this feature has no real-time-push requirement the way the Notification
+  bell's own stream does, so a plain refetch-on-the-obvious-moments discipline is honest and
+  sufficient rather than duplicating that infrastructure).
+
+**Routes**: `/services` (browse + course filter +, for an authenticated visitor, a "My listings"
+tab with inline edit/pause/reactivate/delete, reusing the same `ServiceForm` the create page uses —
+off one `initial?` prop, two modes, this app's own established shape), `/services/new`,
+`/messages` (folder tabs, one row per individual message — matching django-postman's own
+`inbox()`/`sent()` manager methods, which return one row per message, not one row per conversation),
+`/messages/new` (reads `?to=`/`?subject=` from the URL — a Service listing's own "Contact" link is
+the real, primary entry point, pre-filling both from the listing's provider/title), and
+`/messages/[id]` (the full thread, oldest first, with a reply composer — opening it also marks
+every OTHER still-unread message in the same thread addressed to the current user read, not just the
+one that was clicked, the natural "viewing this conversation clears it" webmail expectation).
+`Header.svelte` gained "Tutoring listings"/"Messages" nav links, the latter with an unread badge
+matching the pre-existing "My Set" guest-count badge's own visual convention. The settings page
+gained a real "Tutoring" section (the opt-in checkbox + note, previously a backend-only field with
+no UI anywhere) and the public profile page (`/users/[id]`) gained a tutoring badge, the note, and a
+"Send message" link for any other logged-in visitor. **Full i18n parity maintained** — every new
+string added to both `en.json`/`pl.json` in this same pass (461 keys total in each, verified
+key-set-identical programmatically before treating the pass as done), never English-only.
+
+### Two real bugs found and fixed during live verification, not shipped broken
+
+Both found via a real headless-Chromium session (`playwright-core`, the same cached-binary
+methodology `check_accessibility.ts`/`check_katex_compatibility.ts` already establish for this
+project) driving the actual running dev servers with two real logged-in accounts (Kasia/Ola) end to
+end — not assumed correct from the code reading right.
+
+1. **A genuine runtime type bug, the exact same class Section 17M's own node-governor grant form
+   already hit once:** `ServiceForm.svelte`'s hourly-rate field was `<input type="number"
+   bind:value={hourlyRate}>` — Svelte's `bind:value` on a `type="number"` input coerces to a real
+   JavaScript `number` (or `undefined`), not the `string` `draftToBody` (`tutoring.ts`) assumed
+   throughout. `svelte-check` never flagged the mismatch; the first live submission threw a real
+   `TypeError: draft.hourlyRate.trim is not a function` in the browser console, caught specifically
+   because verification drove the actual form rather than stopping at `npm run check`/`build`
+   passing. Fixed the same way Section 17M's own identical bug was fixed:
+   `type="text" inputmode="decimal"` — keeps the numeric mobile keyboard, keeps the binding a
+   genuine string end to end.
+2. **A real, more serious one: an uncaught 401 during server-side rendering crashed the ENTIRE Vite
+   dev server process, not just the one page.** `routes/messages/+page.svelte`'s initial
+   `getMessages('inbox')` call — authenticated-only (`messaging/views.py`'s `MessageViewSet`) — was
+   fired eagerly at the component's own top level. Unlike this app's own pre-existing eager-fetch
+   precedent (`submit-material`'s `getAllCourses()`, a PUBLIC endpoint that returns `200` with no
+   token), a bare top-level call also runs during SSR, where the server-rendering process has no
+   browser-stored token at all — the resulting `401 ApiError` was never caught anywhere, and Node's
+   own unhandled-rejection handling took the whole dev server process down. A first fix (gating the
+   initial call inside `onMount`, matching `notifications/+page.svelte`'s own precedent) closed the
+   SSR-crash risk but reintroduced a *second*, more subtle race: `onMount` checks
+   `authStore.isAuthenticated` exactly once, synchronously, at mount time — but a genuine hard
+   reload/direct visit re-runs the root layout's own async `authStore.init()` from scratch, which
+   hasn't necessarily resolved by the instant this page's own `onMount` fires, so a direct hard
+   visit to `/messages` could still show an empty inbox despite a valid, persisted session. Fixed
+   properly by switching to a real `$effect` — re-running whenever `authStore.isAuthenticated`
+   itself changes, exactly matching `routes/moderation/+page.svelte`'s own pre-existing, correct
+   solution to the identical problem (`$effect(() => { if (authStore.canModerate) load(); })`) — with
+   a `loadedOnce` guard so the effect doesn't re-fire and silently reset the folder tab back to
+   "Inbox" on some later, unrelated reactive change once the real fetch has already happened.
+
+### Verified end-to-end, live, not assumed from the code alone
+
+A full real-account, two-browser-context run (Kasia and Ola, both real seeded demo users): Kasia
+creates a course-scoped listing through the real form; it appears in the public browse tab with the
+course correctly resolved to its real name (not a bare slug) and in her own "My listings" tab; pausing
+it flips the status pill correctly. Ola, browsing, sees a real "Contact" link (correctly absent on
+Kasia's own listings when Kasia views them) that opens the compose form with the recipient and
+subject correctly pre-filled from the listing; sending lands on a real, new thread page showing her
+own message bubble, with **no** false unread badge for her own outgoing message. Kasia sees a real
+unread badge, the inbox correctly marks the row unread, opening the thread clears the badge and shows
+exactly the one message; replying correctly grows the thread to two messages. Ola then sees a real
+unread badge for the reply and the full two-message thread. Separately: enabling the tutoring opt-in
+and note in Settings correctly shows both on Kasia's public profile, alongside a working "Send
+Message" link. **Zero console/page errors across the entire run** once both bugs above were fixed.
+`npm run check` (0 errors/0 warnings), `eslint` (clean), `npm run build` (succeeds), and the full
+backend suite (138/138) all confirmed clean after every fix, not just at the start.
+
+### Left open, not built
+
+- **No user-search endpoint** — composing a new message means already knowing the recipient's real
+  user id (via a Service listing's own "Contact" link, or a profile's own "Send Message" link);
+  there's no way to start a conversation with an arbitrary user you don't already have a link to.
+  Same honest v1 limitation Section 17M's own node-governor grant form already documents for the
+  identical reason.
+- **No message edit/delete/report, no attachments** — this app's messaging surface covers exactly
+  what a listing inquiry needs (send, reply, thread, unread count); nothing beyond that was built.
+- **No archiving/trash UI** — `MessageViewSet`'s own `folder=archives|trash` query values are real
+  and already wired (django-postman's own manager methods back them), but the Inbox page only ever
+  offers Inbox/Sent tabs; a visitor can't archive or delete a conversation from the UI today.
+- **No donation-link-style reordering for a provider's multiple Service listings** — a "My listings"
+  row order is whatever the backend's own `-created_at` ordering returns, no manual reordering.
+- **No moderation/reporting surface for either a Service listing or a message** — unlike
+  Exercise/Material/Comment, neither of these new content types is wired into the existing
+  `Report`/auto-hide system. A real, if narrow, gap worth naming rather than silently leaving
+  unstated, since both are genuinely public-facing, user-generated content.
+
+---
 
 ## 18. Open questions
 

@@ -3,6 +3,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
+	import { messagesStore } from '$lib/state/messages.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import LocaleSwitcher from './LocaleSwitcher.svelte';
@@ -44,6 +45,15 @@
 			</a>
 			<a href={resolve('/submit')}>{m.nav_submit()}</a>
 			<a href={resolve('/submit-material')}>{m.nav_submitMaterial()}</a>
+			<a href={resolve('/services')}>{m.nav_services()}</a>
+			{#if authStore.isAuthenticated}
+				<a href={resolve('/messages')}>
+					{m.nav_messages()}
+					{#if messagesStore.unreadCount > 0}
+						<span class="badge">{messagesStore.unreadCount}</span>
+					{/if}
+				</a>
+			{/if}
 			<!-- canModerate, not isModerator — a scoped node governor should reach the moderation page
 			     too, just seeing a narrower queue once there (CLAUDE.md's own "node governor" feature) -->
 			{#if authStore.canModerate}
@@ -64,6 +74,7 @@
 					onclick={() => {
 						authStore.logout();
 						notificationStore.clear();
+						messagesStore.clear();
 					}}>{m.nav_logout()}</button
 				>
 			{:else}

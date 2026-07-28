@@ -27,6 +27,7 @@ import type {
 	MaterialCoverage,
 	MaterialSubmission,
 	MaterialType,
+	Message,
 	ModerationStatus,
 	NodeGovernorGrant,
 	Notification,
@@ -34,6 +35,7 @@ import type {
 	ReportKind,
 	ResolvedExercise,
 	Review,
+	Service,
 	Subtopic,
 	TagFollowState,
 	Topic,
@@ -673,6 +675,11 @@ export interface RawProfile {
 	notify_on_content_action?: boolean;
 	muted_notification_types?: string[]; // snake_case type strings — converted below
 	donation_links?: RawDonationLink[];
+	// Always present on BOTH /auth/me/ and /users/{id}/ — accounts/serializers.py's
+	// ProfileSerializer/PublicProfileSerializer both include these unconditionally, regardless of
+	// show_profile_publicly (opting in to tutoring is itself the point of setting it).
+	offers_tutoring: boolean;
+	tutoring_note: string;
 }
 
 export function mapUser(json: RawProfile): User {
@@ -686,6 +693,8 @@ export function mapUser(json: RawProfile): User {
 		isModerator: json.is_moderator,
 		isNodeGovernor: json.is_node_governor,
 		preferredLocale: json.preferred_locale,
+		offersTutoring: json.offers_tutoring,
+		tutoringNote: json.tutoring_note,
 		isProfilePublic: json.is_profile_public ?? json.show_profile_publicly,
 		donationLinks: json.donation_links?.map(mapDonationLink),
 		showProfilePublicly: json.show_profile_publicly,
@@ -764,5 +773,79 @@ export function mapNotification(json: RawNotification): Notification {
 		note: json.note,
 		isRead: json.is_read,
 		createdAt: json.created_at
+	};
+}
+
+// ---- services (tutoring listings) --------------------------------------------------------------
+
+export interface RawService {
+	id: number;
+	provider_id: number;
+	provider_username: string;
+	provider_display_name: string;
+	title: string;
+	description: string;
+	course_slugs: string[];
+	hourly_rate: string | null; // DRF's DecimalField serializes as a string, not a JS number
+	currency: string;
+	is_active: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export function mapService(json: RawService): Service {
+	return {
+		id: String(json.id),
+		providerId: String(json.provider_id),
+		providerUsername: json.provider_username,
+		providerDisplayName: json.provider_display_name,
+		title: json.title,
+		description: json.description,
+		courseIds: json.course_slugs,
+		hourlyRate: json.hourly_rate !== null ? Number(json.hourly_rate) : null,
+		currency: (json.currency as Service['currency']) || 'PLN',
+		isActive: json.is_active,
+		createdAt: json.created_at,
+		updatedAt: json.updated_at
+	};
+}
+
+// ---- messaging ------------------------------------------------------------------------------
+
+export interface RawMessage {
+	id: number;
+	sender_id: number;
+	sender_username: string;
+	sender_display_name: string;
+	recipient_id: number;
+	recipient_username: string;
+	recipient_display_name: string;
+	subject: string;
+	body: string;
+	sent_at: string;
+	read_at: string | null;
+	is_read: boolean;
+	parent_id: number | null;
+	thread_id: number | null;
+	replies_count: number;
+}
+
+export function mapMessage(json: RawMessage): Message {
+	return {
+		id: String(json.id),
+		senderId: String(json.sender_id),
+		senderUsername: json.sender_username,
+		senderDisplayName: json.sender_display_name,
+		recipientId: String(json.recipient_id),
+		recipientUsername: json.recipient_username,
+		recipientDisplayName: json.recipient_display_name,
+		subject: json.subject,
+		body: json.body,
+		sentAt: json.sent_at,
+		readAt: json.read_at,
+		isRead: json.is_read,
+		parentId: idOrUndefined(json.parent_id) ?? null,
+		threadId: idOrUndefined(json.thread_id) ?? null,
+		repliesCount: json.replies_count
 	};
 }

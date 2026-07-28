@@ -12,3 +12,5 @@ export * from './report';
 export * from './notification';
 export * from './tag';
 export * from './nodeGovernor';
+export * from './service';
+export * from './message';
