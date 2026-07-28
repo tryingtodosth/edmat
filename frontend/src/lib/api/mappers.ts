@@ -25,6 +25,7 @@ import type {
 	Field,
 	Material,
 	MaterialCoverage,
+	MaterialRequirement,
 	MaterialSubmission,
 	MaterialType,
 	ModerationStatus,
@@ -346,6 +347,20 @@ export function mapMaterialCoverage(json: RawMaterialCoverage): MaterialCoverage
 	};
 }
 
+export interface RawMaterialRequirement {
+	id: number;
+	label: string;
+	order: number;
+}
+
+export function mapMaterialRequirement(json: RawMaterialRequirement): MaterialRequirement {
+	return {
+		id: String(json.id),
+		label: json.label,
+		order: json.order
+	};
+}
+
 export interface RawMaterial {
 	id: number;
 	course: number;
@@ -353,6 +368,7 @@ export interface RawMaterial {
 	slug: string;
 	type: string;
 	coverage: RawMaterialCoverage[];
+	requirements: RawMaterialRequirement[];
 	file: string | null;
 	author: string;
 	tags: string[];
@@ -361,6 +377,10 @@ export interface RawMaterial {
 	order: number;
 	title: string;
 	description: string;
+	price_amount: string | null;
+	price_currency: string;
+	estimated_minutes: number | null;
+	created_at: string;
 }
 
 export function mapMaterial(json: RawMaterial): Material {
@@ -373,13 +393,18 @@ export function mapMaterial(json: RawMaterial): Material {
 		title: json.title,
 		description: json.description,
 		coverage: json.coverage.map(mapMaterialCoverage),
+		requirements: (json.requirements ?? []).map(mapMaterialRequirement),
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
 		author: json.author,
 		tags: json.tags ?? [],
 		published: json.published,
 		featured: json.featured,
-		order: json.order
+		order: json.order,
+		priceAmount: json.price_amount != null ? Number(json.price_amount) : undefined,
+		priceCurrency: json.price_currency,
+		estimatedMinutes: json.estimated_minutes ?? undefined,
+		createdAt: json.created_at
 	};
 }
 
@@ -476,6 +501,10 @@ export interface RawMaterialSubmission {
 	description: string;
 	locale: string;
 	file: string | null;
+	requirements: string[];
+	price_amount: string | null;
+	price_currency: string;
+	estimated_minutes: number | null;
 	scan_status: MaterialSubmission['scanStatus'];
 	scan_detail: string;
 	status: ModerationStatus;
@@ -497,6 +526,10 @@ export function mapMaterialSubmission(json: RawMaterialSubmission): MaterialSubm
 		locale: json.locale,
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
+		requirements: json.requirements ?? [],
+		priceAmount: json.price_amount != null ? Number(json.price_amount) : undefined,
+		priceCurrency: json.price_currency,
+		estimatedMinutes: json.estimated_minutes ?? undefined,
 		scanStatus: json.scan_status,
 		scanDetail: json.scan_detail,
 		status: json.status,

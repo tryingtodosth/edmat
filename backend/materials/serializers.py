@@ -4,13 +4,9 @@ from rest_framework import serializers
 from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.serializers import SubtopicSerializer, TopicSerializer
 
-from .models import Material, MaterialCoverage
-
-
-def _vote_weight(user) -> int:
-    """A verified contributor's vote counts double — see MaterialCoverageVote's own doc comment for
-    why this is computed here, live, rather than stored on the vote."""
-    return 2 if getattr(getattr(user, 'profile', None), 'is_verified_contributor', False) else 1
+from .models import Material, MaterialCoverage, MaterialRequirement
+from .services import _vote_weight  # see services.py's own doc comment: moved there so the
+# personalization engine and this serializer's own vote-weight math share one definition, not two.
 
 
 class MaterialCoverageSerializer(serializers.ModelSerializer):
@@ -81,10 +77,21 @@ class MaterialCoverageCreateSerializer(serializers.ModelSerializer):
         fields = ['id', 'topic', 'subtopic', 'level']
 
 
+class MaterialRequirementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MaterialRequirement
+        fields = ['id', 'label', 'order']
+
+
 class MaterialSerializer(serializers.ModelSerializer):
     title = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
     coverage = MaterialCoverageSerializer(many=True, read_only=True)
+    # Read-only here too — see the `requirements` action on MaterialViewSet (views.py) for the one
+    # real write path: a governor-only bulk replace, not a per-row create/update through this
+    # serializer, the same "structural metadata, not a plain CRUD field" treatment `coverage` above
+    # already gets (that one via community voting, this one via the governor trust boundary).
+    requirements = MaterialRequirementSerializer(many=True, read_only=True)
     course_slug = serializers.SlugRelatedField(source='course', slug_field='slug', read_only=True)
     # Read-only here on purpose — Material has no create/update endpoint at all (MaterialViewSet is
     # a ReadOnlyModelViewSet), so the only way a tag is ever added/removed is the tag-hover menu's
@@ -101,6 +108,7 @@ class MaterialSerializer(serializers.ModelSerializer):
             'slug',
             'type',
             'coverage',
+            'requirements',
             'file',
             'author',
             'tags',
@@ -109,6 +117,10 @@ class MaterialSerializer(serializers.ModelSerializer):
             'order',
             'title',
             'description',
+            'price_amount',
+            'price_currency',
+            'estimated_minutes',
+            'created_at',
         ]
 
     def get_title(self, obj):

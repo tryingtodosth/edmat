@@ -350,7 +350,7 @@ def _apply_material_submission(submission, reviewer):
     `_apply_submission`'s own number-allocation loop already established for a different field."""
     from django.utils.text import slugify
 
-    from materials.models import Material, MaterialTranslation
+    from materials.models import Material, MaterialRequirement, MaterialTranslation
 
     base_slug = slugify(submission.title) or 'material'
     slug = base_slug
@@ -365,12 +365,22 @@ def _apply_material_submission(submission, reviewer):
         type=submission.type,
         file=submission.file,
         published=True,
+        price_amount=submission.price_amount,
+        price_currency=submission.price_currency or 'PLN',
+        estimated_minutes=submission.estimated_minutes,
     )
     MaterialTranslation.objects.create(
         material=material,
         locale=submission.locale,
         title=submission.title,
         description=submission.description,
+    )
+    # The submission's own `requirements` (a plain list[str] draft, moderation/models.py's own doc
+    # comment) becomes real, ordered MaterialRequirement rows only now — there was no real Material
+    # row for them to be a FK to before this point.
+    MaterialRequirement.objects.bulk_create(
+        MaterialRequirement(material=material, label=label, order=i)
+        for i, label in enumerate(submission.requirements or [])
     )
     submission.resulting_material = material
     return material

@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from community.models import Comment, Review
-from testing.factories import make_course, make_exercise, make_user
+from testing.factories import make_course, make_exercise, make_material, make_topic, make_user
 
 
 class ReviewTests(APITestCase):
@@ -120,6 +120,54 @@ class CommentTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertFalse(Comment.objects.exists())
+
+    def test_a_parent_from_an_unrelated_exercises_own_thread_is_rejected(self):
+        """The same cross-target check materials/views.py's MaterialCoverageViewSet.comments now
+        applies (Section 17O) — a client-supplied `parent` genuinely threads, but nothing used to
+        stop it from naming a comment belonging to an entirely different Exercise's own thread."""
+        other_exercise = make_exercise(self.course, 2)
+        foreign_root = self.client.post(
+            reverse('exercise-comments', kwargs={'pk': other_exercise.pk}),
+            {'body': 'A comment on a different exercise entirely.'},
+            format='json',
+        )
+        self.assertEqual(foreign_root.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(
+            reverse('exercise-comments', kwargs={'pk': self.exercise.pk}),
+            {'body': 'Trying to reply across exercises', 'parent': foreign_root.data['id']},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('parent', response.data)
+        self.assertEqual(Comment.objects.filter(body='Trying to reply across exercises').count(), 0)
+
+    def test_a_parent_from_a_material_coverage_thread_is_also_rejected(self):
+        """The identical cross-target check, the other direction — a parent id resolving to a real
+        Comment, just one attached to a different content type (a MaterialCoverage claim)."""
+        course = make_course(slug='uw-comment-cross-target-course')
+        material = make_material(course, 'skrypt')
+        topic = make_topic(course)
+        from materials.models import MaterialCoverage
+
+        coverage = MaterialCoverage.objects.create(
+            material=material, topic=topic, level=50, proposed_by=self.user
+        )
+        coverage_comment = self.client.post(
+            reverse('material-coverage-comments', kwargs={'pk': coverage.pk}),
+            {'body': 'A comment on a coverage claim.'},
+            format='json',
+        )
+        self.assertEqual(coverage_comment.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(
+            reverse('exercise-comments', kwargs={'pk': self.exercise.pk}),
+            {'body': 'Trying to reply to a coverage comment', 'parent': coverage_comment.data['id']},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_a_removed_comments_body_and_author_are_blanked_in_the_response(self):
         """community/serializers.py's CommentSerializer.to_representation blanks `body` (and

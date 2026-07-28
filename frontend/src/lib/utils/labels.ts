@@ -6,6 +6,7 @@
 import type {
 	Difficulty,
 	DonationPlatform,
+	MaterialSort,
 	MaterialType,
 	NotificationType,
 	SourceType
@@ -19,6 +20,14 @@ export const DIFFICULTY_LABELS: Record<Difficulty, () => string> = {
 	medium: m.difficulty_medium,
 	hard: m.difficulty_hard
 };
+
+// A hand-maintained mirror of the backend's own `materials.models.CURRENCY_CHOICES` — same "mirror
+// a small backend enum, flag the drift risk in both files' own comments" convention
+// `DONATION_PLATFORMS`/`SOURCE_TYPES` already establish elsewhere in this file, rather than a
+// dedicated read-only endpoint for 4 rarely-changing rows. Currency codes need no per-locale label —
+// "PLN"/"EUR"/"USD"/"GBP" read identically in both `en.json`/`pl.json`, so there's no sibling
+// `_LABELS` map the way `DIFFICULTY_LABELS`/`SOURCE_TYPE_LABELS` have.
+export const MATERIAL_CURRENCIES = ['PLN', 'EUR', 'USD', 'GBP'] as const;
 
 export const SOURCE_TYPES: SourceType[] = ['exercises', 'midterm', 'exam', 'other'];
 
@@ -117,6 +126,18 @@ export const MATERIAL_TYPE_LABELS: Record<MaterialType, () => string> = {
 	textbookExcerpt: m.materialType_textbookExcerpt,
 	codeDataset: m.materialType_codeDataset,
 	other: m.materialType_other
+};
+
+// The overhaul's own `sort=` values (materials/views.py's own `_SORT_KEYS`) — `undefined`/no
+// selection deliberately isn't a fifth option here, matching MaterialSort's own doc comment
+// (material.ts): "the platform's own curated order" is the absence of a sort choice, not one.
+export const MATERIAL_SORTS: MaterialSort[] = ['recent', 'level', 'votes', 'alphabetical'];
+
+export const MATERIAL_SORT_LABELS: Record<MaterialSort, () => string> = {
+	recent: m.materialSort_recent,
+	level: m.materialSort_level,
+	votes: m.materialSort_votes,
+	alphabetical: m.materialSort_alphabetical
 };
 
 // The three coarse Profile.notify_on_* fields each real NotificationType falls under — mirrors the

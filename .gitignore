@@ -1,6 +1,10 @@
 # Python virtualenvs
 .venv/
 venv/
+# A worktree's own backend/.venv is often a symlink to the shared venv outside the repo — the
+# trailing-slash patterns above only match a real directory, not a symlink, so this bare form
+# catches that case too.
+.venv
 
 # Python bytecode / cache
 __pycache__/

@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
+from materials.services import clean_requirement_labels, find_duplicate_requirement_label
 from taxonomy.models import Course
 
 from .models import (
@@ -65,9 +66,20 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
     file-centric counterpart to ExerciseSubmissionSerializer above. `course` follows the exact same
     by-slug convention that one already established. `scan_status`/`scan_detail` are read-only here
     too — MaterialSubmissionViewSet.perform_create (views.py) is what actually runs
-    materials.validators.scan_for_malware and sets them, never trusted from the client."""
+    materials.validators.scan_for_malware and sets them, never trusted from the client.
+
+    `requirements`/`price_amount`/`price_currency`/`estimated_minutes` are all genuinely optional —
+    a submission that never sets any of them behaves exactly as before this feature existed.
+    `requirements` is declared explicitly (not left to ModelSerializer's own JSONField default)
+    because this endpoint is multipart, not JSON: a plain `serializers.JSONField(binary=False)`
+    round-trips a real Python list fine when the request body actually IS JSON (this project's own
+    test suite posts this way), but a multipart form field always arrives as a bare STRING — so
+    `validate_requirements` below accepts either shape, parsing a JSON-encoded string itself rather
+    than silently storing the raw string as a single-element requirement.
+    """
 
     course = serializers.SlugRelatedField(slug_field='slug', queryset=Course.objects.all())
+    requirements = serializers.JSONField(required=False, default=list)
 
     class Meta:
         model = MaterialSubmission
@@ -80,6 +92,10 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
             'description',
             'locale',
             'file',
+            'requirements',
+            'price_amount',
+            'price_currency',
+            'estimated_minutes',
             'scan_status',
             'scan_detail',
             'status',
@@ -97,6 +113,27 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
             'review_note',
             'resulting_material',
         ]
+
+    def validate_requirements(self, value):
+        if isinstance(value, str):
+            import json
+
+            try:
+                value = json.loads(value) if value.strip() else []
+            except ValueError:
+                raise serializers.ValidationError('Must be a JSON array of strings.')
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Must be a JSON array of strings.')
+        cleaned = clean_requirement_labels(value)
+        # Same case-insensitive (after trim) duplicate check the governor-only bulk-replace endpoint
+        # (materials/views.py's `requirements` action) already enforces on an already-published
+        # Material — shared via materials/services.py's `find_duplicate_requirement_label` so a
+        # brand-new submission can't sneak in duplicates any more than an edit to an existing
+        # Material's own requirement list can.
+        duplicate = find_duplicate_requirement_label(cleaned)
+        if duplicate is not None:
+            raise serializers.ValidationError(f'"{duplicate}" appears more than once in this list.')
+        return cleaned
 
 
 class ReportCreateSerializer(serializers.ModelSerializer):

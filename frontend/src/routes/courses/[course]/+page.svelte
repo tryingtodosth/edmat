@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import type { Course, Field, Material, ResolvedExercise, Topic } from '$lib/types';
+	import type {
+		Course,
+		Field,
+		Material,
+		MaterialBrowseFilters,
+		ResolvedExercise,
+		Topic
+	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { getCourseById, getFieldById, getTopicsForCourse } from '$lib/services/taxonomy';
@@ -10,6 +17,7 @@
 	import FiltersSidebar from '$lib/components/course/FiltersSidebar.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
+	import MaterialFilterBar from '$lib/components/material/MaterialFilterBar.svelte';
 
 	let course = $state<Course | undefined>(undefined);
 	let field = $state<Field | undefined>(undefined);
@@ -18,6 +26,7 @@
 	let exercises = $state<ResolvedExercise[]>([]);
 	let tab = $state<'exercises' | 'materials'>('exercises');
 	let filters = $state<ExerciseFilters>({});
+	let materialFilters = $state<MaterialBrowseFilters>({});
 	let loading = $state(true);
 	let notFound = $state(false);
 
@@ -25,6 +34,7 @@
 		loading = true;
 		notFound = false;
 		filters = {};
+		materialFilters = {};
 		const c = await getCourseById(courseId);
 		if (!c) {
 			notFound = true;
@@ -32,14 +42,10 @@
 			return;
 		}
 		course = c;
-		const [f, t, mats] = await Promise.all([
-			getFieldById(c.fieldId),
-			getTopicsForCourse(courseId),
-			getMaterialsForCourse(courseId)
-		]);
+		const [f, t] = await Promise.all([getFieldById(c.fieldId), getTopicsForCourse(courseId)]);
 		field = f;
 		topics = t;
-		materials = mats;
+		materials = await getMaterialsForCourse(courseId);
 		loading = false;
 	}
 
@@ -67,6 +73,24 @@
 				exercises = list;
 			}
 		);
+	});
+
+	// Same shape, for the Materials tab's own filter bar — course-scoped `getMaterialsForCourse`
+	// now forwards every real structured param the search/filter/sort overhaul added (type,
+	// topic/subtopic coverage depth, tag, free text, sort) to the backend's own
+	// `_filter_materials`/`_sort_materials` (materials/views.py), the exact same ones the
+	// cross-course /materials hub already uses.
+	$effect(() => {
+		if (!course) return;
+		const query = materialFilters.query;
+		const type = materialFilters.type;
+		const tag = materialFilters.tag;
+		const topicId = materialFilters.topicId;
+		const minLevel = materialFilters.minLevel;
+		const sort = materialFilters.sort;
+		getMaterialsForCourse(course.id, { query, type, tag, topicId, minLevel, sort }).then((list) => {
+			materials = list;
+		});
 	});
 </script>
 
@@ -128,16 +152,23 @@
 				</div>
 			</div>
 		{:else}
-			<h2>{m.course_materialCount({ count: materials.length })}</h2>
-			{#if materials.length === 0}
-				<p class="empty">{m.material_noMaterials()}</p>
-			{:else}
+			<div class="layout">
+				<MaterialFilterBar
+					bind:filters={materialFilters}
+					resultCount={materials.length}
+					scope="course"
+					{topics}
+				/>
 				<div class="grid grid--materials">
-					{#each materials as material (material.id)}
-						<MaterialCard {material} {topics} />
-					{/each}
+					{#if materials.length === 0}
+						<p class="empty">{m.material_noMaterials()}</p>
+					{:else}
+						{#each materials as material (material.id)}
+							<MaterialCard {material} {topics} />
+						{/each}
+					{/if}
 				</div>
-			{/if}
+			</div>
 		{/if}
 	{/if}
 </div>
@@ -204,10 +235,6 @@
 	}
 	.loading,
 	.empty {
-		color: var(--text-secondary);
-	}
-	h2 {
-		font-size: var(--font-size-base);
 		color: var(--text-secondary);
 	}
 

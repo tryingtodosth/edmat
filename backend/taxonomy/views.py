@@ -51,9 +51,33 @@ class CourseViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'])
     def materials(self, request, slug=None):
+        """Course-scoped materials listing — now filter/sort-capable via the exact same
+        `_filter_materials`/`_sort_materials` helpers `materials.views.MaterialViewSet` itself uses
+        (imported lazily, same "avoid a module-level import cycle" discipline this method's own
+        sibling `exercises` action already establishes for `_filter_exercises`/`_annotated_exercises`)
+        — the materials search/filter/sort overhaul's own type/tag/topic_id/min_level/q/sort params
+        all work here too, not just on the new cross-course /api/materials/ endpoint, since this is
+        the ACTUAL route the per-course "Materials" tab (routes/courses/[course]) has always called.
+        """
+        from config.i18n_utils import request_locale
+        from materials.models import Material
         from materials.serializers import MaterialSerializer
+        from materials.views import _filter_materials, _sort_materials
 
         course = self.get_object()
-        materials = course.materials.filter(published=True)
+        params = request.query_params.copy()
+        params['course'] = course.slug
+        qs = _filter_materials(Material.objects.filter(published=True), params)
+        materials = list(
+            qs.prefetch_related(
+                'translations', 'coverage__votes__voter__profile', 'coverage__topic', 'tags', 'requirements'
+            )
+        )
+        materials = _sort_materials(
+            materials,
+            request.query_params.get('sort'),
+            request_locale({'request': request}),
+            topic_id=request.query_params.get('topic_id'),
+        )
         serializer = MaterialSerializer(materials, many=True, context={'request': request})
         return Response(serializer.data)

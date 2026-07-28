@@ -77,6 +77,12 @@ export const apiClient = {
 	patch<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'PATCH', body: toBody(data) });
 	},
+	// A genuine full-replace call (the materials-requirements governor edit, materials.ts's
+	// setMaterialRequirements) — PUT reads more honestly than PATCH for "replace this whole list,"
+	// and every prior HTTP-verb helper here already follows the same thin one-liner shape.
+	put<T>(path: string, data?: unknown): Promise<T> {
+		return request<T>(path, { method: 'PUT', body: toBody(data) });
+	},
 	// `data` is optional — every pre-existing caller omits it (a plain DELETE by id-in-URL); the tag
 	// "apply"/"un-apply" endpoint (exercises.TagViewSet.apply) is the first that needs a DELETE
 	// carrying a real body (which kind/object_id to detach), the same {kind, object_id} shape its
