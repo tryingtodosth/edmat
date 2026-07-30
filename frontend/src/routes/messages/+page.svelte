@@ -10,6 +10,7 @@
 	import { formatDate } from '$lib/utils/format';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { getMessages } from '$lib/services/messaging';
+	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
 	let folder = $state<MessageFolder>('inbox');
 	let messages = $state<Message[]>([]);
@@ -19,7 +20,17 @@
 	async function load(next: MessageFolder) {
 		folder = next;
 		loading = true;
-		messages = await getMessages(next);
+		try {
+			messages = await getMessages(next);
+		} catch {
+			// getMessages() used to only ever fail for a genuinely unauthenticated caller, which this
+			// call site never is (gated behind authStore.isAuthenticated below). Since the messaging
+			// kill switch (feature_gate('messaging')) can now make this 403 for an authenticated but
+			// non-staff visitor too, a real failure path exists here now — FeatureGate already shows
+			// the real "unavailable" notice for that case, so this just needs to fail quietly rather
+			// than surface an unhandled-rejection console error on top of it.
+			messages = [];
+		}
 		loading = false;
 	}
 
@@ -54,59 +65,61 @@
 	<title>{m.messages_heading()} — {m.common_appName()}</title>
 </svelte:head>
 
-<div class="page">
-	<div class="page__header">
-		<h1>{m.messages_heading()}</h1>
-		<a class="compose" href={resolve('/messages/new')}>{m.messages_compose()}</a>
-	</div>
-
-	{#if !authStore.isAuthenticated}
-		<p class="login-prompt"><a href={resolve('/login')}>{m.messages_loginRequired()}</a></p>
-	{:else}
-		<div class="tabs" role="tablist">
-			<button
-				type="button"
-				role="tab"
-				aria-selected={folder === 'inbox'}
-				class:active={folder === 'inbox'}
-				onclick={() => load('inbox')}
-			>
-				{m.messages_tab_inbox()}
-			</button>
-			<button
-				type="button"
-				role="tab"
-				aria-selected={folder === 'sent'}
-				class:active={folder === 'sent'}
-				onclick={() => load('sent')}
-			>
-				{m.messages_tab_sent()}
-			</button>
+<FeatureGate feature="messaging">
+	<div class="page">
+		<div class="page__header">
+			<h1>{m.messages_heading()}</h1>
+			<a class="compose" href={resolve('/messages/new')}>{m.messages_compose()}</a>
 		</div>
 
-		{#if loading}
-			<p class="empty">{m.common_loading()}</p>
-		{:else if messages.length === 0}
-			<p class="empty">{m.messages_empty()}</p>
+		{#if !authStore.isAuthenticated}
+			<p class="login-prompt"><a href={resolve('/login')}>{m.messages_loginRequired()}</a></p>
 		{:else}
-			<ul class="list">
-				{#each messages as message (message.id)}
-					<li>
-						<a
-							class="row"
-							class:row--unread={folder === 'inbox' && !message.isRead}
-							href={resolve('/messages/[id]', { id: message.id })}
-						>
-							<span class="party">{otherParty(message)}</span>
-							<span class="subject">{message.subject}</span>
-							<span class="date">{formatDate(message.sentAt, getLocale())}</span>
-						</a>
-					</li>
-				{/each}
-			</ul>
+			<div class="tabs" role="tablist">
+				<button
+					type="button"
+					role="tab"
+					aria-selected={folder === 'inbox'}
+					class:active={folder === 'inbox'}
+					onclick={() => load('inbox')}
+				>
+					{m.messages_tab_inbox()}
+				</button>
+				<button
+					type="button"
+					role="tab"
+					aria-selected={folder === 'sent'}
+					class:active={folder === 'sent'}
+					onclick={() => load('sent')}
+				>
+					{m.messages_tab_sent()}
+				</button>
+			</div>
+
+			{#if loading}
+				<p class="empty">{m.common_loading()}</p>
+			{:else if messages.length === 0}
+				<p class="empty">{m.messages_empty()}</p>
+			{:else}
+				<ul class="list">
+					{#each messages as message (message.id)}
+						<li>
+							<a
+								class="row"
+								class:row--unread={folder === 'inbox' && !message.isRead}
+								href={resolve('/messages/[id]', { id: message.id })}
+							>
+								<span class="party">{otherParty(message)}</span>
+								<span class="subject">{message.subject}</span>
+								<span class="date">{formatDate(message.sentAt, getLocale())}</span>
+							</a>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 		{/if}
-	{/if}
-</div>
+	</div>
+</FeatureGate>
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;

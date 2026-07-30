@@ -7,6 +7,8 @@ from rest_framework.response import Response
 
 from postman.models import Message
 
+from moderation.permissions import feature_gate
+
 from .serializers import MessageSerializer, ReplySerializer, SendMessageSerializer
 from .services import reply_to_message, send_message
 
@@ -38,7 +40,7 @@ class MessageViewSet(viewsets.GenericViewSet):
     existing Notification-bell precedent (notifications/views.py).
     """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, feature_gate('messaging')]
     serializer_class = MessageSerializer
 
     def get_queryset(self):

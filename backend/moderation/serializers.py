@@ -10,6 +10,7 @@ from .models import (
     GOVERNABLE_NODE_MODELS,
     EditSuggestion,
     ExerciseSubmission,
+    FeatureFlag,
     MaterialSubmission,
     NodeGovernor,
     Report,
@@ -252,3 +253,24 @@ class NodeGovernorSerializer(serializers.ModelSerializer):
 
     def get_user_display_name(self, obj):
         return getattr(obj.user.profile, 'display_name', '') or obj.user.username
+
+
+class FeatureFlagSerializer(serializers.ModelSerializer):
+    """`key` is read-only — the 4 real flags are a fixed, curated set (FeatureFlag.Meta, seeded by
+    migration), never client-creatable; a PATCH only ever touches `is_enabled`.
+    `updated_by_display_name` mirrors the exact `getattr(obj.x.profile, 'display_name', '') or
+    obj.x.username` pattern already established for NodeGovernorSerializer.user_display_name/
+    ReviewSerializer/CommentSerializer above — the standard way this API resolves "whose name do we
+    show" without a second round-trip."""
+
+    updated_by_display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeatureFlag
+        fields = ['key', 'is_enabled', 'updated_at', 'updated_by_display_name']
+        read_only_fields = ['key', 'updated_at', 'updated_by_display_name']
+
+    def get_updated_by_display_name(self, obj):
+        if obj.updated_by is None:
+            return None
+        return getattr(obj.updated_by.profile, 'display_name', '') or obj.updated_by.username

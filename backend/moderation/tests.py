@@ -16,8 +16,8 @@ from rest_framework.test import APITestCase
 
 from community.models import Comment
 from exercises.models import Exercise, ExerciseTranslation
-from moderation.models import ContentView, NodeGovernor, Report
-from moderation.services import governed_course_ids, is_governor_of_course
+from moderation.models import ContentView, FeatureFlag, NodeGovernor, Report
+from moderation.services import governed_course_ids, is_feature_enabled, is_governor_of_course
 from taxonomy.models import Field
 from testing.factories import make_course, make_exercise, make_material, make_topic, make_user, make_viewer
 
@@ -1313,3 +1313,96 @@ class NodeGovernorGrantApiTests(APITestCase):
 
         user_ids = {row['user'] for row in response.data}
         self.assertEqual(user_ids, {user_a.pk, user_b.pk})
+
+
+class FeatureFlagTests(APITestCase):
+    """The 4 kill switches (moderation/models.py's FeatureFlag) — seeded by migration
+    0009_seed_feature_flags, all enabled by default. `is_feature_enabled` itself (a plain helper,
+    not an HTTP-shaped test) is covered directly here too, since it's the one place both the
+    ViewSet's own read side and every `feature_gate`-protected endpoint elsewhere ultimately read
+    from."""
+
+    def setUp(self):
+        self.staff = make_user('flag-staff', is_staff=True)
+        self.plain_user = make_user('flag-plain')
+
+    def test_is_feature_enabled_fails_open_for_a_missing_row(self):
+        FeatureFlag.objects.filter(key='tutoring').delete()
+        self.assertTrue(is_feature_enabled('tutoring'))
+
+    def test_list_is_public_and_returns_all_four_seeded_flags(self):
+        response = self.client.get(reverse('feature-flag-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        keys = {row['key'] for row in response.data}
+        self.assertEqual(
+            keys, {'tutoring', 'messaging', 'exercise_submissions', 'material_submissions'}
+        )
+        self.assertTrue(all(row['is_enabled'] for row in response.data))
+
+    def test_non_staff_cannot_toggle_a_flag(self):
+        self.client.force_authenticate(self.plain_user)
+
+        response = self.client.patch(
+            reverse('feature-flag-detail', kwargs={'key': 'tutoring'}), {'is_enabled': False}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(FeatureFlag.objects.get(key='tutoring').is_enabled)
+
+    def test_anonymous_cannot_toggle_a_flag(self):
+        response = self.client.patch(
+            reverse('feature-flag-detail', kwargs={'key': 'tutoring'}), {'is_enabled': False}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_staff_can_toggle_a_flag_and_updated_by_is_recorded(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.patch(
+            reverse('feature-flag-detail', kwargs={'key': 'tutoring'}), {'is_enabled': False}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        flag = FeatureFlag.objects.get(key='tutoring')
+        self.assertFalse(flag.is_enabled)
+        self.assertEqual(flag.updated_by, self.staff)
+
+    def test_exercise_submissions_flag_off_blocks_non_staff(self):
+        FeatureFlag.objects.filter(key='exercise_submissions').update(is_enabled=False)
+        course = make_course(slug='uw-flag-am2')
+        self.client.force_authenticate(self.plain_user)
+
+        response = self.client.get(reverse('exercise-submission-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_exercise_submissions_flag_off_still_allows_staff(self):
+        FeatureFlag.objects.filter(key='exercise_submissions').update(is_enabled=False)
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(reverse('exercise-submission-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_material_submissions_flag_off_blocks_non_staff(self):
+        FeatureFlag.objects.filter(key='material_submissions').update(is_enabled=False)
+        self.client.force_authenticate(self.plain_user)
+
+        response = self.client.get(reverse('material-submission-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_flag_back_on_restores_access(self):
+        FeatureFlag.objects.filter(key='exercise_submissions').update(is_enabled=False)
+        self.client.force_authenticate(self.plain_user)
+        self.assertEqual(
+            self.client.get(reverse('exercise-submission-list')).status_code, status.HTTP_403_FORBIDDEN
+        )
+
+        FeatureFlag.objects.filter(key='exercise_submissions').update(is_enabled=True)
+
+        self.assertEqual(
+            self.client.get(reverse('exercise-submission-list')).status_code, status.HTTP_200_OK
+        )

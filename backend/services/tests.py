@@ -9,6 +9,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from moderation.models import FeatureFlag
 from services.models import Service
 from testing.factories import make_course, make_user
 
@@ -176,3 +177,55 @@ class ServiceOwnershipTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Service.objects.filter(pk=self.service.pk).exists())
+
+
+class TutoringKillSwitchTests(APITestCase):
+    """The 'tutoring' FeatureFlag (moderation/models.py) — a moderator-facing kill switch, wired in
+    via moderation/permissions.py's feature_gate('tutoring') on EVERY ServiceViewSet action, not
+    just create. Confirms the whole surface genuinely vanishes for a non-staff caller while off, and
+    that a real global moderator is unaffected (they can still browse/manage listings to decide
+    whether to turn it back on)."""
+
+    def setUp(self):
+        self.course = make_course(slug='uw-killswitch-am2')
+        self.provider = make_user('kill-provider')
+        self.visitor = make_user('kill-visitor')
+        self.staff = make_user('kill-staff', is_staff=True)
+        self.service = Service.objects.create(
+            provider=self.provider, title='AM2 tutoring', description='...'
+        )
+        self.service.courses.add(self.course)
+        FeatureFlag.objects.filter(key='tutoring').update(is_enabled=False)
+
+    def test_anonymous_browse_is_blocked_while_off(self):
+        # DRF's own convention: an unauthenticated request is always reported as 401, not 403,
+        # regardless of WHICH permission class in the list actually denied it (this app's other
+        # anonymous-write tests, e.g. test_anonymous_user_cannot_create_a_listing above, already
+        # rely on this same behavior) — 403 is reserved for an AUTHENTICATED caller who's simply not
+        # allowed, which the create-while-off test below covers instead.
+        response = self.client.get(reverse('service-list'))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_authenticated_non_staff_create_is_blocked_while_off(self):
+        self.client.force_authenticate(self.visitor)
+
+        response = self.client.post(
+            reverse('service-list'),
+            {'title': 'New listing', 'description': '...', 'course_slugs': [self.course.slug]},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_can_still_browse_while_off(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(reverse('service-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_turning_it_back_on_restores_access(self):
+        FeatureFlag.objects.filter(key='tutoring').update(is_enabled=True)
+
+        response = self.client.get(reverse('service-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

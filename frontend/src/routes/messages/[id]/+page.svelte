@@ -15,6 +15,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { getMessage, getThread, replyToMessage } from '$lib/services/messaging';
 	import { messagesStore } from '$lib/state/messages.svelte';
+	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
 	let thread = $state<Message[]>([]);
 	let loading = $state(true);
@@ -27,29 +28,40 @@
 		loading = true;
 		notFound = false;
 
-		const opened = await getMessage(id);
-		if (!opened) {
+		try {
+			const opened = await getMessage(id);
+			if (!opened) {
+				notFound = true;
+				loading = false;
+				return;
+			}
+
+			const rows = await getThread(id);
+			thread = rows;
+			loading = false;
+
+			// Mark every OTHER still-unread row addressed to the current user read too, not just the
+			// one that was opened directly — the natural "viewing this conversation clears it"
+			// expectation. Fire-and-forget relative to rendering: isRead/readAt aren't rendered
+			// anywhere in this thread view, so there's no need to re-fetch and re-render once these
+			// settle.
+			const currentUserId = authStore.user?.id;
+			const stillUnread = rows.filter(
+				(row) => row.id !== opened.id && row.recipientId === currentUserId && !row.isRead
+			);
+			if (stillUnread.length > 0) {
+				await Promise.all(stillUnread.map((row) => getMessage(row.id)));
+			}
+			messagesStore.refresh();
+		} catch {
+			// getMessage/getThread used to only ever throw for a genuinely unauthenticated caller —
+			// now that the messaging kill switch (feature_gate('messaging')) can 403 an authenticated
+			// but non-staff visitor too, this is a real failure path. FeatureGate already shows the
+			// real "unavailable" notice; this just needs to stop loading quietly rather than surface
+			// a redundant unhandled-rejection error on top of it.
 			notFound = true;
 			loading = false;
-			return;
 		}
-
-		const rows = await getThread(id);
-		thread = rows;
-		loading = false;
-
-		// Mark every OTHER still-unread row addressed to the current user read too, not just the one
-		// that was opened directly — the natural "viewing this conversation clears it" expectation.
-		// Fire-and-forget relative to rendering: isRead/readAt aren't rendered anywhere in this
-		// thread view, so there's no need to re-fetch and re-render once these settle.
-		const currentUserId = authStore.user?.id;
-		const stillUnread = rows.filter(
-			(row) => row.id !== opened.id && row.recipientId === currentUserId && !row.isRead
-		);
-		if (stillUnread.length > 0) {
-			await Promise.all(stillUnread.map((row) => getMessage(row.id)));
-		}
-		messagesStore.refresh();
 	}
 
 	let loadedForId = $state<string | undefined>(undefined);
@@ -82,42 +94,44 @@
 	<title>{thread[0]?.subject ?? m.messages_heading()} — {m.common_appName()}</title>
 </svelte:head>
 
-<div class="page">
-	<a class="back" href={resolve('/messages')}>&larr; {m.messages_backToInbox()}</a>
+<FeatureGate feature="messaging">
+	<div class="page">
+		<a class="back" href={resolve('/messages')}>&larr; {m.messages_backToInbox()}</a>
 
-	{#if loading}
-		<p class="empty">{m.common_loading()}</p>
-	{:else if notFound}
-		<p class="empty">{m.messages_notFound()}</p>
-	{:else}
-		<h1>{thread[0]?.subject}</h1>
+		{#if loading}
+			<p class="empty">{m.common_loading()}</p>
+		{:else if notFound}
+			<p class="empty">{m.messages_notFound()}</p>
+		{:else}
+			<h1>{thread[0]?.subject}</h1>
 
-		<ul class="bubbles">
-			{#each thread as message (message.id)}
-				{@const isOwn = message.senderId === authStore.user?.id}
-				<li class="bubble" class:bubble--own={isOwn}>
-					<div class="bubble__meta">
-						<span class="author">{message.senderDisplayName}</span>
-						<span class="date">{formatDate(message.sentAt, getLocale())}</span>
-					</div>
-					<p class="body">{message.body}</p>
-				</li>
-			{/each}
-		</ul>
+			<ul class="bubbles">
+				{#each thread as message (message.id)}
+					{@const isOwn = message.senderId === authStore.user?.id}
+					<li class="bubble" class:bubble--own={isOwn}>
+						<div class="bubble__meta">
+							<span class="author">{message.senderDisplayName}</span>
+							<span class="date">{formatDate(message.sentAt, getLocale())}</span>
+						</div>
+						<p class="body">{message.body}</p>
+					</li>
+				{/each}
+			</ul>
 
-		{#if errorMessage}
-			<p class="error">{errorMessage}</p>
+			{#if errorMessage}
+				<p class="error">{errorMessage}</p>
+			{/if}
+
+			<form class="reply-form" onsubmit={handleReply}>
+				<textarea rows="3" bind:value={replyBody} placeholder={m.messages_field_body()} required
+				></textarea>
+				<button type="submit" class="submit" disabled={!replyBody.trim() || sending}>
+					{sending ? m.common_loading() : m.messages_send()}
+				</button>
+			</form>
 		{/if}
-
-		<form class="reply-form" onsubmit={handleReply}>
-			<textarea rows="3" bind:value={replyBody} placeholder={m.messages_field_body()} required
-			></textarea>
-			<button type="submit" class="submit" disabled={!replyBody.trim() || sending}>
-				{sending ? m.common_loading() : m.messages_send()}
-			</button>
-		</form>
-	{/if}
-</div>
+	</div>
+</FeatureGate>
 
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;

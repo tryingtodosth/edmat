@@ -12,6 +12,7 @@
 	import { deleteService, getMyServices, getServices, updateService } from '$lib/services/tutoring';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import ServiceForm from '$lib/components/service/ServiceForm.svelte';
+	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
 	let courses = $state<Course[]>([]);
 	let courseFilter = $state('');
@@ -29,13 +30,30 @@
 
 	async function loadBrowse() {
 		loading = true;
-		listings = await getServices(courseFilter || undefined);
+		try {
+			listings = await getServices(courseFilter || undefined);
+		} catch {
+			// A real, live-found bug (the exact class already documented in
+			// messages/+page.svelte's own comment): getServices() used to always succeed for an
+			// anonymous caller, so a bare eager call at the script's top level never had anything to
+			// catch. Once the tutoring kill switch (feature_gate('tutoring')) could make this
+			// endpoint genuinely 401/403, that same eager call — which also runs during SSR — threw
+			// an UNCAUGHT rejection that crashed the entire Vite dev server process outright, not
+			// just this one page. FeatureGate already shows the real "unavailable" notice for this
+			// exact case; a failed fetch here just needs to fail quietly, not surface a second,
+			// redundant error.
+			listings = [];
+		}
 		loading = false;
 	}
 
 	async function loadMine() {
 		loading = true;
-		myListings = await getMyServices();
+		try {
+			myListings = await getMyServices();
+		} catch {
+			myListings = [];
+		}
 		loading = false;
 	}
 
@@ -46,8 +64,20 @@
 		else loadMine();
 	}
 
-	loadCourses();
-	loadBrowse();
+	// A real `$effect`, not a bare eager top-level call — `$effect` bodies are browser-only and
+	// never run during SSR, which is the actual, categorical fix for the crash above (the try/catch
+	// in loadBrowse/loadMine only helps once code is already running in the browser; it does
+	// nothing for a request SSR itself would have fired). `loadedOnce` mirrors
+	// messages/+page.svelte's own guard so this fires exactly once, not on every unrelated reactive
+	// change.
+	let loadedOnce = $state(false);
+	$effect(() => {
+		if (!loadedOnce) {
+			loadedOnce = true;
+			loadCourses();
+			loadBrowse();
+		}
+	});
 
 	async function handleCourseFilterChange() {
 		await loadBrowse();
@@ -82,106 +112,108 @@
 	<title>{m.services_heading()} — {m.common_appName()}</title>
 </svelte:head>
 
-<div class="page">
-	<div class="page__header">
-		<div>
-			<h1>{m.services_heading()}</h1>
-			<p class="subtitle">{m.services_subtitle()}</p>
+<FeatureGate feature="tutoring">
+	<div class="page">
+		<div class="page__header">
+			<div>
+				<h1>{m.services_heading()}</h1>
+				<p class="subtitle">{m.services_subtitle()}</p>
+			</div>
+			{#if authStore.isAuthenticated}
+				<a class="new-listing" href={resolve('/services/new')}>{m.services_newListing()}</a>
+			{/if}
 		</div>
+
 		{#if authStore.isAuthenticated}
-			<a class="new-listing" href={resolve('/services/new')}>{m.services_newListing()}</a>
-		{/if}
-	</div>
-
-	{#if authStore.isAuthenticated}
-		<div class="tabs" role="tablist">
-			<button
-				type="button"
-				role="tab"
-				aria-selected={tab === 'browse'}
-				class:active={tab === 'browse'}
-				onclick={() => selectTab('browse')}
-			>
-				{m.services_tab_browse()}
-			</button>
-			<button
-				type="button"
-				role="tab"
-				aria-selected={tab === 'mine'}
-				class:active={tab === 'mine'}
-				onclick={() => selectTab('mine')}
-			>
-				{m.services_tab_mine()}
-			</button>
-		</div>
-	{/if}
-
-	{#if tab === 'browse'}
-		<label class="filter">
-			<span>{m.services_filterByCourse()}</span>
-			<select bind:value={courseFilter} onchange={handleCourseFilterChange}>
-				<option value="">{m.services_allCourses()}</option>
-				{#each courses as course (course.id)}
-					<option value={course.id}>{course.name}</option>
-				{/each}
-			</select>
-		</label>
-
-		{#if loading}
-			<p class="empty">{m.common_loading()}</p>
-		{:else if listings.length === 0}
-			<p class="empty">{m.services_empty()}</p>
-		{:else}
-			<div class="grid">
-				{#each listings as service (service.id)}
-					<ServiceCard
-						{service}
-						courseNames={service.courseIds.map((id) => courseNameById.get(id) ?? id)}
-					/>
-				{/each}
+			<div class="tabs" role="tablist">
+				<button
+					type="button"
+					role="tab"
+					aria-selected={tab === 'browse'}
+					class:active={tab === 'browse'}
+					onclick={() => selectTab('browse')}
+				>
+					{m.services_tab_browse()}
+				</button>
+				<button
+					type="button"
+					role="tab"
+					aria-selected={tab === 'mine'}
+					class:active={tab === 'mine'}
+					onclick={() => selectTab('mine')}
+				>
+					{m.services_tab_mine()}
+				</button>
 			</div>
 		{/if}
-	{:else if loading}
-		<p class="empty">{m.common_loading()}</p>
-	{:else if myListings.length === 0}
-		<p class="empty">{m.services_mineEmpty()}</p>
-	{:else}
-		<ul class="mine-list">
-			{#each myListings as service (service.id)}
-				<li class="mine-row">
-					{#if editingId === service.id}
-						<ServiceForm
-							initial={service}
-							{courses}
-							onSubmit={(draft) => handleEditSubmit(service.id, draft)}
-							onCancel={() => (editingId = null)}
+
+		{#if tab === 'browse'}
+			<label class="filter">
+				<span>{m.services_filterByCourse()}</span>
+				<select bind:value={courseFilter} onchange={handleCourseFilterChange}>
+					<option value="">{m.services_allCourses()}</option>
+					{#each courses as course (course.id)}
+						<option value={course.id}>{course.name}</option>
+					{/each}
+				</select>
+			</label>
+
+			{#if loading}
+				<p class="empty">{m.common_loading()}</p>
+			{:else if listings.length === 0}
+				<p class="empty">{m.services_empty()}</p>
+			{:else}
+				<div class="grid">
+					{#each listings as service (service.id)}
+						<ServiceCard
+							{service}
+							courseNames={service.courseIds.map((id) => courseNameById.get(id) ?? id)}
 						/>
-					{:else}
-						<div class="mine-row__summary">
-							<div>
-								<strong>{service.title}</strong>
-								<span class="status" class:status--paused={!service.isActive}>
-									{service.isActive ? m.services_statusActive() : m.services_statusPaused()}
-								</span>
+					{/each}
+				</div>
+			{/if}
+		{:else if loading}
+			<p class="empty">{m.common_loading()}</p>
+		{:else if myListings.length === 0}
+			<p class="empty">{m.services_mineEmpty()}</p>
+		{:else}
+			<ul class="mine-list">
+				{#each myListings as service (service.id)}
+					<li class="mine-row">
+						{#if editingId === service.id}
+							<ServiceForm
+								initial={service}
+								{courses}
+								onSubmit={(draft) => handleEditSubmit(service.id, draft)}
+								onCancel={() => (editingId = null)}
+							/>
+						{:else}
+							<div class="mine-row__summary">
+								<div>
+									<strong>{service.title}</strong>
+									<span class="status" class:status--paused={!service.isActive}>
+										{service.isActive ? m.services_statusActive() : m.services_statusPaused()}
+									</span>
+								</div>
+								<div class="mine-row__actions">
+									<button type="button" onclick={() => (editingId = service.id)}>
+										{m.services_edit()}
+									</button>
+									<button type="button" onclick={() => handleTogglePause(service)}>
+										{service.isActive ? m.services_pause() : m.services_reactivate()}
+									</button>
+									<button type="button" class="danger" onclick={() => handleDelete(service.id)}>
+										{m.common_delete()}
+									</button>
+								</div>
 							</div>
-							<div class="mine-row__actions">
-								<button type="button" onclick={() => (editingId = service.id)}>
-									{m.services_edit()}
-								</button>
-								<button type="button" onclick={() => handleTogglePause(service)}>
-									{service.isActive ? m.services_pause() : m.services_reactivate()}
-								</button>
-								<button type="button" class="danger" onclick={() => handleDelete(service.id)}>
-									{m.common_delete()}
-								</button>
-							</div>
-						</div>
-					{/if}
-				</li>
-			{/each}
-		</ul>
-	{/if}
-</div>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</div>
+</FeatureGate>
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;

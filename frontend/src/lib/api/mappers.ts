@@ -22,6 +22,7 @@ import type {
 	ExerciseSource,
 	ExerciseSubmission,
 	ExerciseTranslation,
+	FeatureFlag,
 	Field,
 	Material,
 	MaterialCoverage,
@@ -765,6 +766,24 @@ export function mapNodeGovernorGrant(json: RawNodeGovernorGrant): NodeGovernorGr
 		nodeLabel: json.node_label,
 		grantedByUserId: json.granted_by !== null ? String(json.granted_by) : null,
 		createdAt: json.created_at
+	};
+}
+
+// ---- feature flags ------------------------------------------------------------------------------
+
+export interface RawFeatureFlag {
+	key: string;
+	is_enabled: boolean;
+	updated_at: string;
+	updated_by_display_name: string | null;
+}
+
+export function mapFeatureFlag(json: RawFeatureFlag): FeatureFlag {
+	return {
+		key: json.key as FeatureFlag['key'],
+		isEnabled: json.is_enabled,
+		updatedAt: json.updated_at,
+		updatedByDisplayName: json.updated_by_display_name
 	};
 }
 

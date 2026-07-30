@@ -4,6 +4,7 @@
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import LocaleSwitcher from './LocaleSwitcher.svelte';
@@ -44,10 +45,16 @@
 					<span class="badge">{guestSetStore.count}</span>
 				{/if}
 			</a>
-			<a href={resolve('/submit')}>{m.nav_submit()}</a>
-			<a href={resolve('/submit-material')}>{m.nav_submitMaterial()}</a>
-			<a href={resolve('/services')}>{m.nav_services()}</a>
-			{#if authStore.isAuthenticated}
+			{#if featureFlagsStore.isEnabled('exercise_submissions') || authStore.isModerator}
+				<a href={resolve('/submit')}>{m.nav_submit()}</a>
+			{/if}
+			{#if featureFlagsStore.isEnabled('material_submissions') || authStore.isModerator}
+				<a href={resolve('/submit-material')}>{m.nav_submitMaterial()}</a>
+			{/if}
+			{#if featureFlagsStore.isEnabled('tutoring') || authStore.isModerator}
+				<a href={resolve('/services')}>{m.nav_services()}</a>
+			{/if}
+			{#if authStore.isAuthenticated && (featureFlagsStore.isEnabled('messaging') || authStore.isModerator)}
 				<a href={resolve('/messages')}>
 					{m.nav_messages()}
 					{#if messagesStore.unreadCount > 0}

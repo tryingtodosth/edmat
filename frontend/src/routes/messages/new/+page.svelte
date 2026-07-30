@@ -13,6 +13,7 @@
 	import { getUserById } from '$lib/services/users';
 	import { sendMessage } from '$lib/services/messaging';
 	import { messagesStore } from '$lib/state/messages.svelte';
+	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
 	let recipient = $state<User | undefined>(undefined);
 	let recipientNotFound = $state(false);
@@ -57,37 +58,39 @@
 	<title>{m.messages_compose()} — {m.common_appName()}</title>
 </svelte:head>
 
-<div class="page">
-	<h1>{m.messages_compose()}</h1>
+<FeatureGate feature="messaging">
+	<div class="page">
+		<h1>{m.messages_compose()}</h1>
 
-	{#if !authStore.isAuthenticated}
-		<p class="login-prompt"><a href={resolve('/login')}>{m.messages_loginRequired()}</a></p>
-	{:else if recipientNotFound}
-		<p class="empty">{m.messages_recipientNotFound()}</p>
-	{:else if !recipient}
-		<p class="empty">{m.messages_noRecipient()}</p>
-	{:else}
-		<p class="to-line">{m.messages_toLabel({ name: recipient.displayName })}</p>
+		{#if !authStore.isAuthenticated}
+			<p class="login-prompt"><a href={resolve('/login')}>{m.messages_loginRequired()}</a></p>
+		{:else if recipientNotFound}
+			<p class="empty">{m.messages_recipientNotFound()}</p>
+		{:else if !recipient}
+			<p class="empty">{m.messages_noRecipient()}</p>
+		{:else}
+			<p class="to-line">{m.messages_toLabel({ name: recipient.displayName })}</p>
 
-		{#if errorMessage}
-			<p class="error">{errorMessage}</p>
+			{#if errorMessage}
+				<p class="error">{errorMessage}</p>
+			{/if}
+
+			<form class="compose-form" onsubmit={handleSubmit}>
+				<label class="field">
+					<span>{m.messages_field_subject()}</span>
+					<input type="text" bind:value={subject} required maxlength="255" />
+				</label>
+				<label class="field">
+					<span>{m.messages_field_body()}</span>
+					<textarea rows="6" bind:value={body}></textarea>
+				</label>
+				<button type="submit" class="submit" disabled={!canSubmit || submitting}>
+					{submitting ? m.common_loading() : m.messages_send()}
+				</button>
+			</form>
 		{/if}
-
-		<form class="compose-form" onsubmit={handleSubmit}>
-			<label class="field">
-				<span>{m.messages_field_subject()}</span>
-				<input type="text" bind:value={subject} required maxlength="255" />
-			</label>
-			<label class="field">
-				<span>{m.messages_field_body()}</span>
-				<textarea rows="6" bind:value={body}></textarea>
-			</label>
-			<button type="submit" class="submit" disabled={!canSubmit || submitting}>
-				{submitting ? m.common_loading() : m.messages_send()}
-			</button>
-		</form>
-	{/if}
-</div>
+	</div>
+</FeatureGate>
 
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;

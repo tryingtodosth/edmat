@@ -7,6 +7,7 @@
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import { cookieConsentStore } from '$lib/state/cookieConsent.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
 	import CookieConsentBanner from '$lib/components/layout/CookieConsentBanner.svelte';
@@ -14,6 +15,10 @@
 	let { children } = $props();
 
 	onMount(() => themeStore.init());
+	// AllowAny server-side and independent of auth — an anonymous visitor's nav/routes need to
+	// reflect a killed feature just as much as a logged-in one's, so this doesn't wait on (or get
+	// gated behind) authStore.init() the way notifications/messages below do.
+	onMount(() => featureFlagsStore.refresh());
 	// Restores the session from a persisted token (token.svelte.ts) — Phase 3's real login now
 	// survives a reload, unlike Phase 1's deliberately session-only mock auth. Notifications are
 	// only worth fetching once a real session actually resolves — a fresh, momentarily-unauthenticated

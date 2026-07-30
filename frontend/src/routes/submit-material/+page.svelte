@@ -6,6 +6,7 @@
 	import { submitMaterial } from '$lib/services/materials';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { MATERIAL_CURRENCIES, MATERIAL_TYPES, MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
+	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
 	// "exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word document should be accepted
 	// too, scanned and kept safe" — the actual real content-type sniffing + optional malware scan
@@ -114,138 +115,141 @@
 	<title>{m.submitMaterial_heading()} — {m.common_appName()}</title>
 </svelte:head>
 
-<div class="page">
-	<h1>{m.submitMaterial_heading()}</h1>
-	<p class="subtitle">{m.submitMaterial_subtitle()}</p>
+<FeatureGate feature="material_submissions">
+	<div class="page">
+		<h1>{m.submitMaterial_heading()}</h1>
+		<p class="subtitle">{m.submitMaterial_subtitle()}</p>
 
-	{#if !authStore.isAuthenticated}
-		<p class="login-prompt"><a href={resolve('/login')}>{m.submitMaterial_loginRequired()}</a></p>
-	{:else}
-		{#if success}
-			<p class="notice">{m.submitMaterial_success()}</p>
-		{/if}
-		{#if errorMessage}
-			<p class="error">{errorMessage}</p>
-		{/if}
+		{#if !authStore.isAuthenticated}
+			<p class="login-prompt"><a href={resolve('/login')}>{m.submitMaterial_loginRequired()}</a></p>
+		{:else}
+			{#if success}
+				<p class="notice">{m.submitMaterial_success()}</p>
+			{/if}
+			{#if errorMessage}
+				<p class="error">{errorMessage}</p>
+			{/if}
 
-		<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
-			<label class="field">
-				<span>{m.submitMaterial_field_course()}</span>
-				<select bind:value={courseId}>
-					{#each courses as c (c.id)}
-						<option value={c.id}>{c.name}</option>
-					{/each}
-				</select>
-			</label>
-
-			<label class="field">
-				<span>{m.submitMaterial_field_title()}</span>
-				<input type="text" bind:value={title} required />
-			</label>
-
-			<div class="field-row">
+			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
 				<label class="field">
-					<span>{m.submitMaterial_field_type()}</span>
-					<select bind:value={type}>
-						{#each MATERIAL_TYPES as t (t)}
-							<option value={t}>{MATERIAL_TYPE_LABELS[t]()}</option>
+					<span>{m.submitMaterial_field_course()}</span>
+					<select bind:value={courseId}>
+						{#each courses as c (c.id)}
+							<option value={c.id}>{c.name}</option>
 						{/each}
 					</select>
 				</label>
+
 				<label class="field">
-					<span>{m.submitMaterial_field_language()}</span>
-					<select bind:value={locale}>
-						<option value="pl">PL</option>
-						<option value="en">EN</option>
-					</select>
+					<span>{m.submitMaterial_field_title()}</span>
+					<input type="text" bind:value={title} required />
 				</label>
-			</div>
 
-			<label class="field">
-				<span>{m.submitMaterial_field_description()} <em>({m.common_optional()})</em></span>
-				<textarea rows="3" bind:value={description}></textarea>
-			</label>
-
-			<label class="field">
-				<span>{m.submitMaterial_field_file()}</span>
-				<input
-					id="material-file-input"
-					type="file"
-					accept={ACCEPTED_EXTENSIONS}
-					onchange={handleFileChange}
-					required
-				/>
-				<span class="file-hint">{m.submitMaterial_fileHint()}</span>
-				{#if file}
-					<span class="file-picked">{file.name}</span>
-				{/if}
-			</label>
-
-			<div class="field">
-				<span>{m.submitMaterial_field_requirements()} <em>({m.common_optional()})</em></span>
-				{#if requirements.length > 0}
-					<ul class="requirements-list">
-						{#each requirements as requirement, index (index)}
-							<li>
-								<span>{requirement}</span>
-								<button type="button" onclick={() => removeRequirement(index)}>&times;</button>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-				<input
-					type="text"
-					placeholder={m.submitMaterial_requirementsAddPlaceholder()}
-					bind:value={requirementDraft}
-					onkeydown={(e) => {
-						if (e.key === 'Enter') {
-							e.preventDefault();
-							addRequirement();
-						}
-					}}
-				/>
-				<span class="file-hint">{m.submitMaterial_requirementsHint()}</span>
-			</div>
-
-			<div class="field-row">
-				<label class="field">
-					<span>{m.submitMaterial_field_price()} <em>({m.common_optional()})</em></span>
-					<div class="price-inputs">
-						<input
-							type="text"
-							inputmode="decimal"
-							placeholder={m.submitMaterial_priceAmountPlaceholder()}
-							bind:value={priceAmount}
-						/>
-						<select
-							class="currency-input"
-							aria-label={m.submitMaterial_field_priceCurrency()}
-							bind:value={priceCurrency}
-						>
-							{#each MATERIAL_CURRENCIES as currency (currency)}
-								<option value={currency}>{currency}</option>
+				<div class="field-row">
+					<label class="field">
+						<span>{m.submitMaterial_field_type()}</span>
+						<select bind:value={type}>
+							{#each MATERIAL_TYPES as t (t)}
+								<option value={t}>{MATERIAL_TYPE_LABELS[t]()}</option>
 							{/each}
 						</select>
-					</div>
-				</label>
+					</label>
+					<label class="field">
+						<span>{m.submitMaterial_field_language()}</span>
+						<select bind:value={locale}>
+							<option value="pl">PL</option>
+							<option value="en">EN</option>
+						</select>
+					</label>
+				</div>
+
 				<label class="field">
-					<span>{m.submitMaterial_field_estimatedMinutes()} <em>({m.common_optional()})</em></span>
+					<span>{m.submitMaterial_field_description()} <em>({m.common_optional()})</em></span>
+					<textarea rows="3" bind:value={description}></textarea>
+				</label>
+
+				<label class="field">
+					<span>{m.submitMaterial_field_file()}</span>
+					<input
+						id="material-file-input"
+						type="file"
+						accept={ACCEPTED_EXTENSIONS}
+						onchange={handleFileChange}
+						required
+					/>
+					<span class="file-hint">{m.submitMaterial_fileHint()}</span>
+					{#if file}
+						<span class="file-picked">{file.name}</span>
+					{/if}
+				</label>
+
+				<div class="field">
+					<span>{m.submitMaterial_field_requirements()} <em>({m.common_optional()})</em></span>
+					{#if requirements.length > 0}
+						<ul class="requirements-list">
+							{#each requirements as requirement, index (index)}
+								<li>
+									<span>{requirement}</span>
+									<button type="button" onclick={() => removeRequirement(index)}>&times;</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 					<input
 						type="text"
-						inputmode="numeric"
-						pattern="[0-9]*"
-						placeholder={m.submitMaterial_estimatedMinutesPlaceholder()}
-						bind:value={estimatedMinutes}
+						placeholder={m.submitMaterial_requirementsAddPlaceholder()}
+						bind:value={requirementDraft}
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								addRequirement();
+							}
+						}}
 					/>
-				</label>
-			</div>
+					<span class="file-hint">{m.submitMaterial_requirementsHint()}</span>
+				</div>
 
-			<button type="submit" class="submit" disabled={!canSubmit || submitting}>
-				{m.common_submit()}
-			</button>
-		</form>
-	{/if}
-</div>
+				<div class="field-row">
+					<label class="field">
+						<span>{m.submitMaterial_field_price()} <em>({m.common_optional()})</em></span>
+						<div class="price-inputs">
+							<input
+								type="text"
+								inputmode="decimal"
+								placeholder={m.submitMaterial_priceAmountPlaceholder()}
+								bind:value={priceAmount}
+							/>
+							<select
+								class="currency-input"
+								aria-label={m.submitMaterial_field_priceCurrency()}
+								bind:value={priceCurrency}
+							>
+								{#each MATERIAL_CURRENCIES as currency (currency)}
+									<option value={currency}>{currency}</option>
+								{/each}
+							</select>
+						</div>
+					</label>
+					<label class="field">
+						<span>{m.submitMaterial_field_estimatedMinutes()} <em>({m.common_optional()})</em></span
+						>
+						<input
+							type="text"
+							inputmode="numeric"
+							pattern="[0-9]*"
+							placeholder={m.submitMaterial_estimatedMinutesPlaceholder()}
+							bind:value={estimatedMinutes}
+						/>
+					</label>
+				</div>
+
+				<button type="submit" class="submit" disabled={!canSubmit || submitting}>
+					{m.common_submit()}
+				</button>
+			</form>
+		{/if}
+	</div>
+</FeatureGate>
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;

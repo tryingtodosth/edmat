@@ -7,6 +7,7 @@
 	import { getAllCourses } from '$lib/services/taxonomy';
 	import { createService } from '$lib/services/tutoring';
 	import ServiceForm from '$lib/components/service/ServiceForm.svelte';
+	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
 	let courses = $state<Course[]>([]);
 
@@ -25,16 +26,18 @@
 	<title>{m.services_newListing()} — {m.common_appName()}</title>
 </svelte:head>
 
-<div class="page">
-	<h1>{m.services_newListing()}</h1>
-	<p class="subtitle">{m.services_newListingSubtitle()}</p>
+<FeatureGate feature="tutoring">
+	<div class="page">
+		<h1>{m.services_newListing()}</h1>
+		<p class="subtitle">{m.services_newListingSubtitle()}</p>
 
-	{#if !authStore.isAuthenticated}
-		<p class="login-prompt"><a href={resolve('/login')}>{m.services_loginRequired()}</a></p>
-	{:else}
-		<ServiceForm {courses} onSubmit={handleSubmit} />
-	{/if}
-</div>
+		{#if !authStore.isAuthenticated}
+			<p class="login-prompt"><a href={resolve('/login')}>{m.services_loginRequired()}</a></p>
+		{:else}
+			<ServiceForm {courses} onSubmit={handleSubmit} />
+		{/if}
+	</div>
+</FeatureGate>
 
 <style lang="scss">
 	.page {

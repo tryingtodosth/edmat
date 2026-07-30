@@ -4,6 +4,7 @@
 		EditSuggestion,
 		ExerciseSubmission,
 		ExerciseTranslation,
+		FeatureFlagKey,
 		Field,
 		GovernableNodeKind,
 		MaterialSubmission,
@@ -27,7 +28,8 @@
 	import { getCourseById, getFields, getAllCourses } from '$lib/services/taxonomy';
 	import { getExercisesByIds } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
-	import { MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import { MATERIAL_TYPE_LABELS, FEATURE_FLAG_LABELS } from '$lib/utils/labels';
 	import { resolve } from '$app/paths';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 
@@ -38,8 +40,10 @@
 	// tab option for a global (is_staff) moderator; a scoped governor never sees it at all (see the
 	// tab bar's own `{#if authStore.isModerator}` guard below).
 	let tab = $state<
-		'reports' | 'submissions' | 'materials' | 'edits' | 'translations' | 'governors'
+		'reports' | 'submissions' | 'materials' | 'edits' | 'translations' | 'governors' | 'flags'
 	>('reports');
+	let flagTogglePending = $state<Record<string, boolean>>({});
+	let flagError = $state('');
 	let reports = $state<ReportGroup[]>([]);
 	let submissions = $state<ExerciseSubmission[]>([]);
 	let materialSubmissions = $state<MaterialSubmission[]>([]);
@@ -119,9 +123,25 @@
 		if (authStore.isModerator) {
 			allGovernors = myGovernedNodes;
 			[fields, allCourses] = await Promise.all([getFields(), getAllCourses()]);
+			// Kill switches are the same "real global staff only" scope as granting/revoking a node
+			// governor above — a scoped governor never sees this tab at all (the tab button's own
+			// {#if authStore.isModerator} guard below), so no point fetching it for them.
+			await featureFlagsStore.refresh();
 		}
 
 		loading = false;
+	}
+
+	async function toggleFlag(key: FeatureFlagKey, isEnabled: boolean) {
+		flagError = '';
+		flagTogglePending = { ...flagTogglePending, [key]: true };
+		try {
+			await featureFlagsStore.toggle(key, isEnabled);
+		} catch {
+			flagError = m.moderation_flags_toggleFailed();
+		} finally {
+			flagTogglePending = { ...flagTogglePending, [key]: false };
+		}
 	}
 
 	$effect(() => {
@@ -318,6 +338,19 @@
 				>
 					{m.moderation_tab_governors({ count: allGovernors.length })}
 				</button>
+				<!-- Kill switches are the same platform-wide, staff-only scope as node-governor
+				     grant/revoke — not offered to a scoped governor either, same reasoning as above. -->
+				<button
+					type="button"
+					role="tab"
+					id="mod-tab-flags"
+					aria-selected={tab === 'flags'}
+					aria-controls="mod-tabpanel"
+					class:active={tab === 'flags'}
+					onclick={() => (tab = 'flags')}
+				>
+					{m.moderation_tab_flags()}
+				</button>
 			{/if}
 		</div>
 
@@ -350,7 +383,8 @@
 				{:else if tab === 'translations'}{m.moderation_tab_translations({
 						count: translations.length
 					})}
-				{:else}{m.moderation_tab_governors({ count: allGovernors.length })}
+				{:else if tab === 'governors'}{m.moderation_tab_governors({ count: allGovernors.length })}
+				{:else}{m.moderation_tab_flags()}
 				{/if}
 			</h2>
 
@@ -586,10 +620,10 @@
 						{/each}
 					</ul>
 				{/if}
-			{:else}
-				<!-- tab === 'governors' — only ever reachable via the tab button itself, which only
-				     renders for a real global moderator (authStore.isModerator), so no extra guard
-				     needed here beyond what already got us into this branch at all. -->
+			{:else if tab === 'governors'}
+				<!-- only ever reachable via the tab button itself, which only renders for a real
+				     global moderator (authStore.isModerator), so no extra guard needed here beyond
+				     what already got us into this branch at all. -->
 				<div class="governors-panel">
 					<form class="grant-form" onsubmit={(e) => (e.preventDefault(), submitGrant())}>
 						<h3>{m.moderation_governors_grantHeading()}</h3>
@@ -652,6 +686,40 @@
 							{/each}
 						</ul>
 					{/if}
+				</div>
+			{:else}
+				<!-- tab === 'flags' — same "only ever reachable via a staff-only tab button" reasoning
+				     as the governors branch right above. -->
+				<div class="flags-panel">
+					<p class="flags-intro">{m.moderation_flags_intro()}</p>
+					{#if flagError}
+						<p class="grant-error">{flagError}</p>
+					{/if}
+					<ul class="flags-list">
+						{#each featureFlagsStore.all as flag (flag.key)}
+							<li class="flag-row">
+								<div class="flag-info">
+									<span class="flag-name">{FEATURE_FLAG_LABELS[flag.key]()}</span>
+									<span class="flag-status" class:flag-status--off={!flag.isEnabled}>
+										{flag.isEnabled ? m.moderation_flags_on() : m.moderation_flags_off()}
+									</span>
+									{#if flag.updatedByDisplayName}
+										<span class="flag-meta">
+											{m.moderation_flags_lastChangedBy({ name: flag.updatedByDisplayName })}
+										</span>
+									{/if}
+								</div>
+								<button
+									type="button"
+									class={flag.isEnabled ? 'reject' : 'approve'}
+									disabled={flagTogglePending[flag.key]}
+									onclick={() => toggleFlag(flag.key, !flag.isEnabled)}
+								>
+									{flag.isEnabled ? m.moderation_flags_turnOff() : m.moderation_flags_turnOn()}
+								</button>
+							</li>
+						{/each}
+					</ul>
 				</div>
 			{/if}
 		</div>
@@ -880,5 +948,48 @@
 		flex: 1;
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
+	}
+	.flags-panel {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.flags-intro {
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
+	}
+	.flags-list {
+		list-style: none;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.flag-row {
+		@include mix.card-surface;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding: var(--space-3);
+	}
+	.flag-info {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.flag-name {
+		font-weight: 600;
+	}
+	.flag-status {
+		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		align-self: flex-start;
+	}
+	.flag-status--off {
+		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+	}
+	.flag-meta {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 </style>

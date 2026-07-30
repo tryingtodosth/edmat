@@ -463,3 +463,14 @@ def build_moderation_queue_payload(user=None) -> dict:
         'translations': ExerciseTranslationSerializer(translations, many=True).data,
         'reports': build_report_queue(course_ids=course_ids),
     }
+
+
+def is_feature_enabled(key: str) -> bool:
+    """The one place every `feature_gate` permission (moderation/permissions.py) reads a kill
+    switch's current state from. Fails OPEN — see FeatureFlag's own doc comment (models.py) for why
+    a missing row means "on," not "off." A plain `.filter().first()` rather than `.get()` on
+    purpose: no exception to catch for the "not provisioned yet" case, just a `None` to fall through."""
+    from .models import FeatureFlag
+
+    flag = FeatureFlag.objects.filter(key=key).first()
+    return True if flag is None else flag.is_enabled

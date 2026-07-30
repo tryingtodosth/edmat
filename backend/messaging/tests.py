@@ -10,6 +10,7 @@ from postman.models import Message
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from moderation.models import FeatureFlag
 from testing.factories import make_user
 
 
@@ -255,3 +256,49 @@ class FolderListingTests(APITestCase):
         response = self.client.get(reverse('message-list'))
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class MessagingKillSwitchTests(APITestCase):
+    """The 'messaging' FeatureFlag (moderation/models.py), wired in via
+    moderation/permissions.py's feature_gate('messaging') on MessageViewSet.permission_classes —
+    applies to every action (list/retrieve/create/reply/thread/unread-count), so the whole surface
+    is inaccessible to a non-staff user while off."""
+
+    def setUp(self):
+        self.sender = make_user('kill-msg-sender')
+        self.recipient = make_user('kill-msg-recipient')
+        self.staff = make_user('kill-msg-staff', is_staff=True)
+        FeatureFlag.objects.filter(key='messaging').update(is_enabled=False)
+
+    def test_inbox_is_blocked_while_off(self):
+        self.client.force_authenticate(self.recipient)
+
+        response = self.client.get(reverse('message-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_sending_a_message_is_blocked_while_off(self):
+        self.client.force_authenticate(self.sender)
+
+        response = self.client.post(
+            reverse('message-list'),
+            {'recipient_id': self.recipient.pk, 'subject': 'Hi', 'body': 'Still there?'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(Message.objects.filter(subject='Hi').exists())
+
+    def test_staff_is_unaffected_while_off(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(reverse('message-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_turning_it_back_on_restores_access(self):
+        FeatureFlag.objects.filter(key='messaging').update(is_enabled=True)
+        self.client.force_authenticate(self.recipient)
+
+        response = self.client.get(reverse('message-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

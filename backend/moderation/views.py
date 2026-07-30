@@ -12,7 +12,7 @@ wins, so nothing about today's existing global-moderator behavior changes for an
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, OperationalError, transaction
 from django.shortcuts import get_object_or_404
-from rest_framework import permissions, status, viewsets
+from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,10 +22,12 @@ from exercises.serializers import ExerciseTranslationSerializer
 from materials.validators import scan_for_malware
 from notifications.services import label_for_exercise, label_for_material, notify, notify_tag_followers
 
-from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission, NodeGovernor, Report
+from .models import EditSuggestion, ExerciseSubmission, FeatureFlag, MaterialSubmission, NodeGovernor, Report
+from .permissions import feature_gate
 from .serializers import (
     EditSuggestionSerializer,
     ExerciseSubmissionSerializer,
+    FeatureFlagSerializer,
     MaterialSubmissionSerializer,
     NodeGovernorSerializer,
     ReportCreateSerializer,
@@ -65,7 +67,10 @@ class ExerciseSubmissionViewSet(viewsets.ModelViewSet):
     (is_staff) sees every submission."""
 
     serializer_class = ExerciseSubmissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    # feature_gate('exercise_submissions') applies to EVERY action (list/retrieve/create/...), not
+    # just create — a killed feature genuinely vanishes from the API for a non-staff caller (see
+    # permissions.py's own doc comment), not just from the "Submit exercise" nav link.
+    permission_classes = [permissions.IsAuthenticated, feature_gate('exercise_submissions')]
 
     def get_queryset(self):
         qs = ExerciseSubmission.objects.all()
@@ -149,7 +154,7 @@ class MaterialSubmissionViewSet(viewsets.ModelViewSet):
     endpoint accepts a real file upload, not a JSON body."""
 
     serializer_class = MaterialSubmissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, feature_gate('material_submissions')]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
@@ -717,3 +722,30 @@ class NodeGovernorViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(granted_by=self.request.user)
+
+
+class FeatureFlagViewSet(mixins.ListModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
+    """GET /api/feature-flags/ — AllowAny, the one place every part of the app (staff or not, logged
+    in or not) learns whether a given feature is currently killed; the frontend fetches this once on
+    boot (independent of auth) so even an anonymous visitor's nav/routes reflect the current state.
+    PATCH /api/feature-flags/{key}/ — IsAdminUser only, matching NodeGovernorViewSet's own
+    create/destroy gate for a comparably platform-wide admin action; there's no narrower "node
+    governor can toggle their own course's flags" concept here, these are deliberately global.
+
+    No `create`/`destroy` at all (only List + Update mixins) — the 4 real flags are a fixed set
+    (FeatureFlag.Meta / the seeding migration), not something a client can add or remove.
+    `lookup_field = 'key'` so the URL reads as `/feature-flags/tutoring/`, not an opaque numeric id
+    — the key already IS the natural, stable identifier, the same reasoning Course/Field use their
+    own slug as the URL lookup rather than a raw PK."""
+
+    queryset = FeatureFlag.objects.select_related('updated_by__profile')
+    serializer_class = FeatureFlagSerializer
+    lookup_field = 'key'
+
+    def get_permissions(self):
+        if self.action == 'list':
+            return [permissions.AllowAny()]
+        return [permissions.IsAdminUser()]
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)

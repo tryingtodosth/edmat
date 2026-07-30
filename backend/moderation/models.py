@@ -251,3 +251,41 @@ class NodeGovernor(models.Model):
 # NodeGovernorSerializer (validating a grant/list request) imports this rather than keeping its own
 # copy, the same discipline REPORT_KIND_MODELS already establishes for the reporting system.
 GOVERNABLE_NODE_MODELS = {'field': Field, 'course': Course}
+
+
+# A fixed, curated set — not user-creatable, matching this codebase's own "curated choices=, not
+# free text" discipline for a small, known enum (MATERIAL_TYPE_CHOICES, CURRENCY_CHOICES). The 4
+# real rows are provisioned once by a data migration; a client can only ever flip is_enabled on one
+# of these, never add/remove a key. Deliberately platform-wide (not course-scoped like NodeGovernor)
+# — a genuine "kill switch" for an entire feature surface, not a per-course moderation tool.
+FEATURE_FLAG_CHOICES = [
+    ('tutoring', 'Tutoring/services listings'),
+    ('messaging', 'User-to-user messaging'),
+    ('exercise_submissions', 'New exercise submissions'),
+    ('material_submissions', 'New material uploads'),
+]
+
+
+class FeatureFlag(models.Model):
+    """A platform-wide kill switch. `services.is_feature_enabled(key)` is the one place this gets
+    read from — it fails OPEN (returns True) if a row is somehow missing, so a flag that hasn't
+    been provisioned yet (a fresh env before its data migration ran, or a key introduced after this
+    row existed) never accidentally breaks the feature it's meant to gate; the intended, safe
+    default for every feature in this app is "on" until a moderator deliberately turns it off.
+
+    `is_staff` always bypasses this (see moderation/permissions.py's `feature_gate`) — a kill switch
+    hides a feature from ordinary visitors, it never locks staff out of their own moderation tools,
+    including the ability to see what a "killed" feature's existing data still looks like."""
+
+    key = models.CharField(max_length=40, choices=FEATURE_FLAG_CHOICES, unique=True)
+    is_enabled = models.BooleanField(default=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, related_name='+', on_delete=models.SET_NULL
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['key']
+
+    def __str__(self) -> str:
+        return f'{self.key}: {"on" if self.is_enabled else "off"}'

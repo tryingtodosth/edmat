@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     EditSuggestionViewSet,
     ExerciseSubmissionViewSet,
+    FeatureFlagViewSet,
     MaterialSubmissionViewSet,
     ModerationActionView,
     ModerationQueueView,
@@ -17,6 +18,7 @@ router.register('exercise-submissions', ExerciseSubmissionViewSet, basename='exe
 router.register('material-submissions', MaterialSubmissionViewSet, basename='material-submission')
 router.register('edit-suggestions', EditSuggestionViewSet, basename='edit-suggestion')
 router.register('reports', ReportViewSet, basename='report')
+router.register('feature-flags', FeatureFlagViewSet, basename='feature-flag')
 # Under moderation/ (not a bare top-level prefix) to sit alongside this app's other
 # moderation-namespaced endpoints (moderation/queue/, moderation/reports/...) below — this is the
 # "node governor" feature's own administration surface (list/grant/revoke who governs which

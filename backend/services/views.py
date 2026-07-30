@@ -1,8 +1,12 @@
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
+from moderation.permissions import feature_gate
+
 from .models import Service
 from .serializers import ServiceSerializer, ServiceWriteSerializer
+
+_TutoringFeatureGate = feature_gate('tutoring')
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -32,9 +36,13 @@ class ServiceViewSet(viewsets.ModelViewSet):
         return ServiceSerializer
 
     def get_permissions(self):
+        # feature_gate('tutoring') is added to EVERY branch — a killed tutoring feature vanishes
+        # from the API for a non-staff caller across list/retrieve too, not just create/update
+        # (moderation/permissions.py's own doc comment); the underlying is_staff bypass inside the
+        # gate itself is what still lets a real moderator browse/manage listings while it's off.
         if self.action in ('list', 'retrieve'):
-            return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated()]
+            return [permissions.AllowAny(), _TutoringFeatureGate()]
+        return [permissions.IsAuthenticated(), _TutoringFeatureGate()]
 
     def get_queryset(self):
         if self.action in ('update', 'partial_update', 'destroy'):
