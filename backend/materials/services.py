@@ -55,19 +55,50 @@ def find_duplicate_requirement_label(labels: list[str]) -> str | None:
     return None
 
 
-# A verified contributor's vote counts double toward a coverage claim's own net weight — moved here
-# from materials/serializers.py (which now imports it back) so the personalization engine and the
-# coverage-vote summary share exactly one definition of "how much does this person's vote count,"
-# rather than two independently-drifting copies of the same rule.
+# A verified contributor's vote counts double toward a coverage OR requirement claim's own net
+# weight — moved here from materials/serializers.py (which now imports it back) so the
+# personalization engine and both vote-summary serializers share exactly one definition of "how
+# much does this person's vote count," rather than independently-drifting copies of the same rule.
 def _vote_weight(user) -> int:
     return 2 if getattr(getattr(user, 'profile', None), 'is_verified_contributor', False) else 1
 
 
-def _net_vote_weight(coverage) -> int:
+def _net_vote_weight(target) -> int:
+    """`target` is any object exposing a `.votes` related manager — a MaterialCoverage OR a
+    MaterialRequirement, both of which have exactly that shape (their own `votes` FK
+    `related_name`), so one function serves both without needing to know which kind it was given."""
     total = 0
-    for vote in coverage.votes.all():
+    for vote in target.votes.all():
         total += _vote_weight(vote.voter) if vote.value == 1 else -_vote_weight(vote.voter)
     return total
+
+
+def build_vote_summary(votes, request) -> dict:
+    """The one shared implementation of "is this claim accurate" vote tallying — used by BOTH
+    `MaterialCoverageSerializer.get_vote_summary` and `MaterialRequirementSerializer.get_vote_summary`
+    (materials/serializers.py), which used to have their own, identical copy of this exact math
+    hand-duplicated in each (before requirements could be voted on at all). `votes` is already a
+    concrete, prefetched list (`obj.votes.all()`, not a fresh queryset) — the same "small real
+    corpus, cheap to score in Python" call this module's own `get_recommended_materials` already
+    makes for a comparable per-row aggregation."""
+    agree_weight = sum(_vote_weight(v.voter) for v in votes if v.value == 1)
+    disagree_weight = sum(_vote_weight(v.voter) for v in votes if v.value == -1)
+    total_weight = agree_weight + disagree_weight
+
+    current_user_vote = None
+    if request is not None and request.user.is_authenticated:
+        mine = next((v for v in votes if v.voter_id == request.user.id), None)
+        current_user_vote = mine.value if mine else None
+
+    return {
+        'agree_count': sum(1 for v in votes if v.value == 1),
+        'disagree_count': sum(1 for v in votes if v.value == -1),
+        'agree_weight': agree_weight,
+        'disagree_weight': disagree_weight,
+        'net_weight': agree_weight - disagree_weight,
+        'percent_agree': round(100 * agree_weight / total_weight) if total_weight else None,
+        'current_user_vote': current_user_vote,
+    }
 
 
 def _best_coverage_level(material) -> int:
@@ -86,7 +117,11 @@ def resolved_title(material, locale: str) -> str:
 
 def _materials_queryset():
     return Material.objects.filter(published=True).select_related('course').prefetch_related(
-        'translations', 'coverage__votes__voter__profile', 'coverage__topic', 'tags', 'requirements'
+        'translations',
+        'coverage__votes__voter__profile',
+        'coverage__topic',
+        'tags',
+        'requirements__votes__voter__profile',
     )
 
 
@@ -192,8 +227,11 @@ def get_recommended_materials(user, limit: int = 12) -> tuple[list[Material], bo
         for row in overlap_rows:
             s += row.level / 20.0
         # The community's own verification signal (weighted agree/disagree votes) folds in too,
-        # scaled down so it nudges the ranking rather than dominating it outright.
+        # scaled down so it nudges the ranking rather than dominating it outright — both votable
+        # claim types now count (coverage AND requirements are the same "the community vetted this"
+        # signal, just on two different kinds of row).
         s += sum(_net_vote_weight(row) for row in rows) * 0.2
+        s += sum(_net_vote_weight(req) for req in material.requirements.all()) * 0.2
         if material.pk in viewed_material_ids:
             # Deprioritize, don't exclude — an already-opened material can still be worth
             # resurfacing (e.g. right before an exam), it just shouldn't crowd out something new.

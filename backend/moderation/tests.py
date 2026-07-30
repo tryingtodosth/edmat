@@ -438,6 +438,87 @@ class MaterialSubmissionApiTests(APITestCase):
         self.assertEqual(MaterialSubmission.objects.count(), 0)  # the failed submission was cleaned up, not left dangling
 
 
+class MaterialUploadVerifiedContributorGateTests(APITestCase):
+    """The `material_uploads_verified_only` flag — a NARROWER, differently-shaped restriction from
+    the blanket `material_submissions` kill switch (which stays entirely untouched and unrelated
+    here): when turned ON, only a verified contributor (or real staff) may submit a NEW upload,
+    while an ordinary authenticated user can still list/retrieve their own past submissions."""
+
+    def setUp(self):
+        self.course = make_course(slug='uw-verified-gate-course')
+        self.plain_user = make_user('gate_plain_user')
+        self.verified_user = make_user('gate_verified_user', is_verified_contributor=True)
+        self.moderator = make_user('gate_moderator', is_staff=True)
+
+    def _upload(self, client, **overrides):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        data = {
+            'course': self.course.slug,
+            'type': 'practice_test',
+            'title': 'A submitted practice test',
+            'description': 'Real practice problems.',
+            'locale': 'en',
+            'file': SimpleUploadedFile('practice.pdf', b'%PDF-1.4 real content'),
+            **overrides,
+        }
+        return client.post('/api/material-submissions/', data, format='multipart')
+
+    def _set_flag(self, enabled):
+        FeatureFlag.objects.update_or_create(
+            key='material_uploads_verified_only', defaults={'is_enabled': enabled}
+        )
+
+    def test_flag_defaults_to_off_and_a_plain_user_can_upload(self):
+        # No explicit _set_flag call — this is the real, migration-seeded default (0011), not a
+        # value this test itself sets up, so it doubles as a regression test for that seed.
+        self.client.force_authenticate(self.plain_user)
+        response = self._upload(self.client)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_when_enabled_a_plain_user_is_blocked(self):
+        self._set_flag(True)
+        self.client.force_authenticate(self.plain_user)
+        response = self._upload(self.client)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_when_enabled_a_verified_contributor_can_still_upload(self):
+        self._set_flag(True)
+        self.client.force_authenticate(self.verified_user)
+        response = self._upload(self.client)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_when_enabled_a_moderator_can_still_upload(self):
+        self._set_flag(True)
+        self.client.force_authenticate(self.moderator)
+        response = self._upload(self.client)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_when_enabled_a_plain_user_can_still_list_their_own_past_submissions(self):
+        # The restriction is scoped to `create` alone — confirmed by first uploading while the flag
+        # is OFF (a real, pre-existing submission), then turning it ON and re-checking `list` still
+        # works for that same, now-restricted user.
+        self.client.force_authenticate(self.plain_user)
+        self._upload(self.client, title='Uploaded before the restriction turned on')
+
+        self._set_flag(True)
+        response = self.client.get('/api/material-submissions/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        titles = {row['title'] for row in response.data}
+        self.assertEqual(titles, {'Uploaded before the restriction turned on'})
+
+    def test_the_platform_wide_kill_switch_still_applies_independently(self):
+        # material_submissions=False must still block EVERYONE, verified or not — a completely
+        # separate, unrelated flag from material_uploads_verified_only.
+        FeatureFlag.objects.update_or_create(
+            key='material_submissions', defaults={'is_enabled': False}
+        )
+        self.client.force_authenticate(self.verified_user)
+        response = self._upload(self.client)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 class MaterialSubmissionApprovalTests(APITestCase):
     """Approve/reject via the shared ModerationActionView, the same real endpoint every other kind
     (submission/edit/translation) already goes through — `_apply_material_submission`'s own real
@@ -488,6 +569,22 @@ class MaterialSubmissionApprovalTests(APITestCase):
         self.assertEqual(translation.title, 'A submitted exam collection')
         # The SAME already-uploaded file, not a re-saved copy under a new path.
         self.assertEqual(material.file.name, submission.file.name)
+
+    def test_approving_a_material_submission_records_a_real_clickable_submitted_by(self):
+        """A real, found gap: `_apply_material_submission` used to build the resulting Material
+        with NO attribution at all — `Material.author` (a free-text field) was never set from the
+        submission either, so a community-submitted material had zero clickable byline, unlike an
+        Exercise's own `submitted_by`. Confirms the fix: the real submitter carries over."""
+        submission = self._submit()
+
+        self.client.post(
+            reverse('moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'}),
+            {},
+            format='json',
+        )
+
+        submission.refresh_from_db()
+        self.assertEqual(submission.resulting_material.submitted_by, self.student)
 
     def test_approving_a_submission_with_requirements_price_and_estimate_carries_them_over(self):
         """The submission's own `requirements` (a plain list[str] draft) becomes real, ORDERED
@@ -990,6 +1087,204 @@ class ReportQueueTests(APITestCase):
         self.assertEqual(len(group['reasons']), 2)
 
 
+class TagMaterialRequirementReportTests(APITestCase):
+    """Reporting a Tag, a Material, or a MaterialRequirement ("skill tag") — the newest three
+    REPORT_KIND_MODELS entries (moderation/services.py). None of the three has a viewer-pool
+    concept (same as the pre-existing `service` kind), so none of them ever auto-hide on their own
+    — they queue immediately on the first report and wait on a moderator's own decision. This also
+    exercises the real bug this feature's own build found: `build_report_queue`'s target-resolution
+    branch used to assume "anything that isn't Exercise/Review/Service is a reported Comment" and
+    would have crashed (an AttributeError reading a Comment-only field) the instant one of these
+    three showed up in a real pending queue."""
+
+    def setUp(self):
+        self.moderator = make_user('tmr-mod', is_staff=True)
+        self.course = make_course('tmr-course')
+
+    def _report_as_new_users(self, kind, object_id, prefix, count=1):
+        for i in range(count):
+            reporter = make_user(f'tmr-reporter-{prefix}-{i}')
+            self.client.force_authenticate(reporter)
+            response = _report(self.client, kind, object_id)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_reporting_a_tag_queues_it_and_a_moderator_can_remove_it(self):
+        from exercises.models import Tag
+
+        tag = Tag.objects.create(slug='tmr-bad-tag')
+        self._report_as_new_users('tag', tag.pk, 'tag')
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(reverse('moderation-queue'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        groups = [g for g in response.data['reports'] if g['kind'] == 'tag' and g['object_id'] == tag.pk]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]['preview'], '#tmr-bad-tag')
+        self.assertFalse(groups[0]['is_auto_hidden'])
+        self.assertIsNone(groups[0]['view_count'])
+
+        response = self.client.post(
+            reverse('moderation-report-action', kwargs={'kind': 'tag', 'pk': tag.pk, 'decision': 'remove'}),
+            {}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        tag.refresh_from_db()
+        self.assertTrue(tag.is_removed)
+        self.assertFalse(Tag.objects.filter(pk=tag.pk, is_removed=False).exists())
+
+    def test_reporting_a_material_queues_it_and_a_moderator_can_remove_and_restore_it(self):
+        material = make_material(self.course, 'tmr-material', title='Report Me')
+        self._report_as_new_users('material', material.pk, 'mat')
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(reverse('moderation-queue'))
+        groups = [
+            g for g in response.data['reports'] if g['kind'] == 'material' and g['object_id'] == material.pk
+        ]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]['preview'], 'Report Me')
+
+        response = self.client.post(
+            reverse('moderation-report-action', kwargs={'kind': 'material', 'pk': material.pk, 'decision': 'remove'}),
+            {}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        material.refresh_from_db()
+        self.assertFalse(material.published)
+
+        # A removed Material disappears from the public read API entirely, same as Exercise.
+        detail = self.client.get(reverse('material-detail', kwargs={'pk': material.pk}))
+        self.assertEqual(detail.status_code, status.HTTP_404_NOT_FOUND)
+
+        response = self.client.post(
+            reverse('moderation-report-action', kwargs={'kind': 'material', 'pk': material.pk, 'decision': 'restore'}),
+            {}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        material.refresh_from_db()
+        self.assertTrue(material.published)
+
+    def test_reporting_a_requirement_queues_it_and_a_moderator_can_remove_it(self):
+        from materials.models import MaterialRequirement
+
+        material = make_material(self.course, 'tmr-material-2', title='Has A Requirement')
+        requirement = MaterialRequirement.objects.create(material=material, label='basic algebra')
+        self._report_as_new_users('requirement', requirement.pk, 'req')
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(reverse('moderation-queue'))
+        groups = [
+            g for g in response.data['reports']
+            if g['kind'] == 'requirement' and g['object_id'] == requirement.pk
+        ]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]['preview'], 'basic algebra')
+
+        response = self.client.post(
+            reverse(
+                'moderation-report-action',
+                kwargs={'kind': 'requirement', 'pk': requirement.pk, 'decision': 'remove'},
+            ),
+            {}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        requirement.refresh_from_db()
+        self.assertTrue(requirement.is_removed)
+
+        # A removed requirement disappears from the material's own serialized requirements list.
+        detail = self.client.get(reverse('material-detail', kwargs={'pk': material.pk}))
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertNotIn('basic algebra', [r['label'] for r in detail.data['requirements']])
+
+    def test_a_non_moderator_cannot_act_on_a_reported_material(self):
+        material = make_material(self.course, 'tmr-material-3')
+        self._report_as_new_users('material', material.pk, 'mat3')
+
+        self.client.force_authenticate(make_user('tmr-not-a-mod'))
+        response = self.client.post(
+            reverse('moderation-report-action', kwargs={'kind': 'material', 'pk': material.pk, 'decision': 'remove'}),
+            {}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        material.refresh_from_db()
+        self.assertTrue(material.published)  # untouched
+
+
+class ServiceReviewReportTests(APITestCase):
+    """Reporting a tutor's own review (ServiceReview, `kind='service_review'`) — a genuinely
+    different backend model from `review` (community.Review, an Exercise review) sharing the same
+    frontend ReviewList component (ReviewList.svelte's own new `kind` prop). No viewer-pool concept
+    (same as `service`/`tag`/`material`/`requirement`), so it queues immediately, no auto-hide."""
+
+    def setUp(self):
+        from services.models import Service, ServiceReview
+
+        self.moderator = make_user('svcrev-mod', is_staff=True)
+        provider = make_user('svcrev-provider')
+        self.service = Service.objects.create(provider=provider, title='Tutoring for Calc II')
+        author = make_user('svcrev-author')
+        self.review = ServiceReview.objects.create(
+            service=self.service, author=author, rating=1, body='Rude and unhelpful.'
+        )
+
+    def _report_as_new_users(self, object_id, count=1):
+        for i in range(count):
+            reporter = make_user(f'svcrev-reporter-{i}')
+            self.client.force_authenticate(reporter)
+            response = _report(self.client, 'service_review', object_id)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_reporting_a_tutor_review_queues_it_and_a_moderator_can_remove_it(self):
+        self._report_as_new_users(self.review.pk)
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(reverse('moderation-queue'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        groups = [
+            g for g in response.data['reports']
+            if g['kind'] == 'service_review' and g['object_id'] == self.review.pk
+        ]
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]['preview'], 'Rude and unhelpful.')
+        self.assertFalse(groups[0]['is_auto_hidden'])
+        self.assertIsNone(groups[0]['view_count'])
+
+        response = self.client.post(
+            reverse(
+                'moderation-report-action',
+                kwargs={'kind': 'service_review', 'pk': self.review.pk, 'decision': 'remove'},
+            ),
+            {}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.review.refresh_from_db()
+        self.assertTrue(self.review.is_removed)
+
+        # A removed review disappears from the tutor's own reviews list and rating aggregate.
+        self.client.force_authenticate(None)
+        reviews = self.client.get(reverse('service-reviews', kwargs={'pk': self.service.pk}))
+        self.assertEqual(reviews.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(reviews.data), 0)
+        detail = self.client.get(reverse('service-detail', kwargs={'pk': self.service.pk}))
+        self.assertEqual(detail.data['review_count'], 0)
+        self.assertIsNone(detail.data['average_rating'])
+
+    def test_a_non_moderator_cannot_remove_a_reported_tutor_review(self):
+        self._report_as_new_users(self.review.pk)
+
+        self.client.force_authenticate(make_user('svcrev-not-a-mod'))
+        response = self.client.post(
+            reverse(
+                'moderation-report-action',
+                kwargs={'kind': 'service_review', 'pk': self.review.pk, 'decision': 'remove'},
+            ),
+            {}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.review.refresh_from_db()
+        self.assertFalse(self.review.is_removed)  # untouched
+
+
 def _grant(user, kind, node, granted_by=None):
     content_type = ContentType.objects.get_for_model(type(node))
     return NodeGovernor.objects.create(
@@ -1330,15 +1625,29 @@ class FeatureFlagTests(APITestCase):
         FeatureFlag.objects.filter(key='tutoring').delete()
         self.assertTrue(is_feature_enabled('tutoring'))
 
-    def test_list_is_public_and_returns_all_four_seeded_flags(self):
+    def test_list_is_public_and_returns_all_seeded_flags(self):
         response = self.client.get(reverse('feature-flag-list'))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         keys = {row['key'] for row in response.data}
         self.assertEqual(
-            keys, {'tutoring', 'messaging', 'exercise_submissions', 'material_submissions'}
+            keys,
+            {
+                'tutoring',
+                'messaging',
+                'exercise_submissions',
+                'material_submissions',
+                'material_uploads_verified_only',
+            },
         )
-        self.assertTrue(all(row['is_enabled'] for row in response.data))
+        # The first 4 are plain kill switches, seeded on; `material_uploads_verified_only` is the
+        # one, deliberately-inverted-semantics exception (0011's own seed migration) — its own
+        # dedicated MaterialUploadVerifiedContributorGateTests covers its actual on/off behavior.
+        by_key = {row['key']: row['is_enabled'] for row in response.data}
+        self.assertTrue(
+            all(by_key[k] for k in ('tutoring', 'messaging', 'exercise_submissions', 'material_submissions'))
+        )
+        self.assertFalse(by_key['material_uploads_verified_only'])
 
     def test_non_staff_cannot_toggle_a_flag(self):
         self.client.force_authenticate(self.plain_user)

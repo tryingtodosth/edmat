@@ -53,7 +53,11 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
     bare numeric pk `TagSerializer.id` also happens to expose.
     """
 
-    queryset = Tag.objects.all().order_by('slug')
+    # `is_removed=False` — a moderator-removed tag (the new tag-reporting feature) shouldn't be
+    # browsable/searchable/appliable to new content anymore. Doesn't affect the moderation report
+    # system itself: ReportActionView/build_report_queue (moderation/services.py) resolve a reported
+    # Tag directly via REPORT_KIND_MODELS, never through this ViewSet's own queryset.
+    queryset = Tag.objects.filter(is_removed=False).order_by('slug')
     serializer_class = TagSerializer
     pagination_class = None
     lookup_field = 'slug'
@@ -158,6 +162,13 @@ def _filter_exercises(qs, params):
     tag = params.get('tag')
     if tag:
         qs = qs.filter(tags__slug=tag)
+    # A user's own published exercise submissions — "what they were doing/contributing," a public
+    # profile page's own new section (CLAUDE.md's tutoring-listings feature note, item 6). Already
+    # scoped to `published=True` by `_annotated_exercises()` itself, so this never leaks a still-
+    # pending/rejected submission to a stranger viewing someone else's profile.
+    submitted_by = params.get('submitted_by')
+    if submitted_by:
+        qs = qs.filter(submitted_by_id=submitted_by)
     verified = params.get('verified')
     if verified in ('true', '1'):
         qs = qs.filter(verified=True)

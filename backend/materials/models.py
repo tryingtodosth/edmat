@@ -73,7 +73,23 @@ class Material(models.Model):
     # file across) bypasses field validators entirely, by design — this only ever runs where
     # something is actually being VALIDATED (a ModelForm/DRF serializer write), not on every save.
     file = models.FileField(upload_to='materials/', validators=[validate_material_submission_file])
+    # Free text, NOT a User FK — the real corpus's own material.yaml `author:` values are plain
+    # human names (a course TA/professor), almost never a registered platform account, so this is
+    # deliberately never rendered as a clickable link (frontend's own MaterialCard, see its doc
+    # comment). `submitted_by` below is the genuinely DIFFERENT, real-account attribution this was
+    # missing — mirrors `Exercise.submitted_by` exactly, and is what a community-submitted
+    # material's own clickable byline actually resolves through.
     author = models.CharField(max_length=200, blank=True)
+    # A found, real gap: `_apply_material_submission` (moderation/views.py) builds a real Material
+    # from an approved MaterialSubmission — which already has a real `submitted_by` User — but
+    # nothing ever carried that onto the resulting Material, so a community-submitted material had
+    # NO real, clickable attribution at all, unlike Exercise's own `submitted_by`. Null for every
+    # one of the 7 legacy corpus materials (imported with no submitter, matching
+    # Exercise.submitted_by's own "null for migrated legacy content" convention) and for any
+    # existing Material predating this field.
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL
+    )
     tags = models.ManyToManyField(Tag, blank=True, related_name='materials')
     published = models.BooleanField(default=True)
     featured = models.BooleanField(default=False)
@@ -103,6 +119,37 @@ class Material(models.Model):
         return f'{self.course.slug}/{self.slug}'
 
 
+class MaterialReview(models.Model):
+    """A star rating + optional written review on a Material — the same shape `community.Review`
+    (Exercise) and `services.ServiceReview` (a tutoring listing) already establish, just targeting a
+    Material instead. Kept as its own small model (not a generic FK) for the identical reason those
+    two aren't unified into one either: a plain, direct FK is simpler than a GenericForeignKey for a
+    review, which — unlike Comment — never needs to be reused across MORE than the one content type
+    it was built for at a time; each of the three review models was added only once its own content
+    type actually needed reviewing, matching this app's own "build what's asked, not a speculative
+    generic system" restraint.
+    """
+
+    material = models.ForeignKey(Material, related_name='reviews', on_delete=models.CASCADE)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    body = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('material', 'author')]  # one review per user per material, same as Review/ServiceReview
+
+    def __str__(self) -> str:
+        return f'{self.rating}★ by {self.author} on {self.material}'
+
+
+# Shared by both MaterialRequirementVote AND MaterialCoverageVote below — "agree/disagree" is the
+# identical real question for either kind of claim (is this REQUIREMENT actually needed / is this
+# coverage LEVEL accurate), just voted on a different target row. One choices tuple, not two
+# independently-drifting copies of the same two values.
+VOTE_CHOICES = [(1, 'Agree'), (-1, 'Disagree')]
+
+
 class MaterialRequirement(models.Model):
     """A loose, free-text prerequisite/skill label for actually USING this material — "English
     B2+", "basic algebra", "a graphing calculator". Deliberately NOT a fixed vocabulary, matching
@@ -120,12 +167,39 @@ class MaterialRequirement(models.Model):
     material = models.ForeignKey(Material, related_name='requirements', on_delete=models.CASCADE)
     label = models.CharField(max_length=200)
     order = models.PositiveIntegerField(default=0)
+    # Open to any authenticated user to PROPOSE (propose_requirement, materials/views.py) — the same
+    # reason a Tag needs a real removal path, not just a resolved-with-no-effect report: a bad-faith
+    # or simply wrong "skill tag" is live the instant it's proposed. Reused the same way `is_removed`
+    # already tombstones a reported Comment/Review — filtered out of `MaterialSerializer.requirements`
+    # for an ordinary reader, still present in the row for a moderator reviewing the report itself.
+    is_removed = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['order', 'id']
 
     def __str__(self) -> str:
         return f'{self.material}: {self.label}'
+
+
+class MaterialRequirementVote(models.Model):
+    """The exact same "is this claim accurate" weighted signal `MaterialCoverageVote` already
+    provides for a coverage row, just targeting a MaterialRequirement instead — "split material
+    tags into two groups (covers / requires), each votable, so users can sort by that." Weight is
+    computed the same way, live, at read time (`materials/services.py`'s `_vote_weight`/
+    `_net_vote_weight`, both already generic over any object exposing a `.votes` related manager —
+    this model's own `related_name='votes'` is what makes that work without any change to either
+    function)."""
+
+    requirement = models.ForeignKey(MaterialRequirement, related_name='votes', on_delete=models.CASCADE)
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=VOTE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('requirement', 'voter')]  # one vote per user per requirement
+
+    def __str__(self) -> str:
+        return f'{self.get_value_display()} by {self.voter} on {self.requirement}'
 
 
 class MaterialView(models.Model):
@@ -190,9 +264,6 @@ class MaterialCoverage(models.Model):
         return f'{self.material}@{self.topic.slug}{sub}={self.level}'
 
 
-COVERAGE_VOTE_CHOICES = [(1, 'Agree'), (-1, 'Disagree')]
-
-
 class MaterialCoverageVote(models.Model):
     """A weighted "is this level accurate" signal on one MaterialCoverage claim.
 
@@ -207,7 +278,7 @@ class MaterialCoverageVote(models.Model):
 
     coverage = models.ForeignKey(MaterialCoverage, related_name='votes', on_delete=models.CASCADE)
     voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    value = models.SmallIntegerField(choices=COVERAGE_VOTE_CHOICES)
+    value = models.SmallIntegerField(choices=VOTE_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -37,6 +37,14 @@ class Tag(models.Model):
     vocabulary, used the same way, across both content types."""
 
     slug = models.SlugField(unique=True)
+    # A tag is entirely ungated (any authenticated user can apply any free-form string, live, with
+    # zero moderation — CLAUDE.md's own flagged risk: a slur, a defamatory label). This is what a
+    # moderator's "remove" decision on a reported tag actually sets — a real, global tombstone
+    # (moderation/moderation's own generic `hasattr(target, 'is_removed')` handling already covers
+    # this for free, same as Comment/Review), not just resolving the report rows with no real
+    # effect. Filtered out wherever a tag is serialized to an ordinary reader (Exercise/Material
+    # `tags`), same as a removed Comment/Review already disappears from its own reader-facing list.
+    is_removed = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return self.slug

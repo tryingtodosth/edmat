@@ -125,7 +125,15 @@
 	async function handleReviewSubmit(rating: number, body: string) {
 		if (!exercise || !authStore.user) return;
 		const review = await submitReview(exercise.id, authStore.user.id, rating, body);
-		reviews = [review, ...reviews];
+		// A real, reproducible bug: resubmitting an EXISTING review (the backend's own
+		// `unique_together = [('exercise', 'author')]` upsert path, exercises/views.py's `reviews`
+		// action) returns the SAME review id, not a new one. Blindly prepending it here left the old
+		// entry for that id still in `reviews`, giving ReviewList.svelte's `{#each reviews as review
+		// (review.id)}` two rows with the identical key — a real Svelte `each_key_duplicate`
+		// exception that crashed the review list's render outright, which is exactly why the
+		// resubmitted review never visibly appeared. Filtering out any existing row with the same id
+		// before prepending makes an edit replace its old entry instead of duplicating it.
+		reviews = [review, ...reviews.filter((r) => r.id !== review.id)];
 		await resolveUsers([review.userId]);
 		submissionNotice = 'review';
 	}
@@ -199,6 +207,29 @@
 							: undefined}
 					/>
 				</div>
+				{#if exercise.submittedByUserId}
+					<!-- A real, found gap: submittedByUserId was already resolved into usersById (the
+					     fetch below already asked for it) but never actually rendered anywhere on this
+					     page — a community-submitted exercise showed no attribution at all, unlike a
+					     review/comment/translation, which all link to their own author. Absent entirely
+					     for the 742 migrated corpus exercises (submitted_by is null for those), so this
+					     only ever appears for a genuinely community-submitted one. Same
+					     "link the author's name to their public profile" convention ReviewList.svelte/
+					     CommentNode.svelte already establish, reused rather than left as plain text. -->
+					<p class="submitted-by">
+						{m.exercise_submittedByPrefix()}
+						{#if usersById[exercise.submittedByUserId]}
+							<a
+								class="submitted-by__link"
+								href={resolve('/users/[id]', { id: exercise.submittedByUserId })}
+							>
+								{usersById[exercise.submittedByUserId].displayName}
+							</a>
+						{:else}
+							<span>—</span>
+						{/if}
+					</p>
+				{/if}
 				<div class="exercise__toolbar">
 					<LanguagePicker
 						availableLocales={exercise.availableLocales}
@@ -426,6 +457,19 @@
 		flex-wrap: wrap;
 		gap: var(--space-1);
 		align-items: center;
+	}
+	.submitted-by {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		margin-top: var(--space-1);
+	}
+	.submitted-by__link {
+		color: var(--text-secondary);
+		font-weight: 600;
+		text-decoration: underline;
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.exercise__toolbar {
 		display: flex;

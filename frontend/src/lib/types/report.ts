@@ -1,8 +1,19 @@
-// A user flagging an already-published Exercise, Comment, or Review — see the backend's own
-// moderation/services.py module doc comment for the full feature ("reported comment, content,
-// review etc gets a priority in the moderation queue; if +20% of users who viewed that content
-// report it, it gets hidden right away, before any moderator decision").
-export type ReportKind = 'exercise' | 'comment' | 'review';
+// A user flagging an already-published Exercise, Comment, Review, (tutoring) Service listing, Tag,
+// Material, or MaterialRequirement ("skill tag") — see the backend's own moderation/services.py
+// module doc comment for the full feature ("reported comment, content, review etc gets a priority
+// in the moderation queue; if +20% of users who viewed that content report it, it gets hidden right
+// away, before any moderator decision"). None of the last four (service/tag/material/requirement)
+// have a viewer-pool concept the way an Exercise does, so none of them ever auto-hide on their own —
+// they still queue normally for a moderator's own decision, exactly like the first three kinds.
+export type ReportKind =
+	| 'exercise'
+	| 'comment'
+	| 'review'
+	| 'service'
+	| 'tag'
+	| 'material'
+	| 'requirement'
+	| 'service_review';
 
 // One GROUP per reported target (moderation/services.py's build_report_queue) — not one row per
 // individual Report, since a moderator reviews and resolves every pending report against a target

@@ -3,6 +3,8 @@ import type {
 	Material,
 	MaterialBrowseFilters,
 	MaterialCoverage,
+	MaterialRequirement,
+	MaterialReview,
 	MaterialSubmission,
 	MaterialSubmissionDraft,
 	RecommendedMaterialsResult
@@ -12,9 +14,13 @@ import {
 	FRONTEND_TO_BACKEND_MATERIAL_TYPE,
 	mapMaterial,
 	mapMaterialCoverage,
+	mapMaterialRequirement,
+	mapMaterialReview,
 	mapMaterialSubmission,
 	type RawMaterial,
 	type RawMaterialCoverage,
+	type RawMaterialRequirement,
+	type RawMaterialReview,
 	type RawMaterialSubmission
 } from '$lib/api/mappers';
 
@@ -213,4 +219,79 @@ export async function setMaterialRequirements(
 		{ requirements: labels }
 	);
 	return mapMaterial(raw);
+}
+
+// Thrown specifically for the 409 "this requirement already exists" case (materials/views.py's own
+// `propose_requirement` action) — mirrors DuplicateCoverageError above for the identical purpose.
+export class DuplicateRequirementError extends Error {}
+
+/** POST /api/materials/{id}/requirements/propose_requirement/ — open to any authenticated user,
+ * the requirement-side counterpart to `proposeCoverage` above (a real, found gap: this used to be
+ * governor-only end to end, with no way for an ordinary user to add one at all). A single new
+ * requirement, not a full-list replace — `setMaterialRequirements` above (still governor-only)
+ * stays the bulk-reorder/removal power; this only ever appends one. */
+export async function proposeRequirement(
+	materialId: string,
+	label: string
+): Promise<MaterialRequirement> {
+	try {
+		const raw = await apiClient.post<RawMaterialRequirement>(
+			`/materials/${encodeURIComponent(materialId)}/requirements/propose_requirement/`,
+			{ label }
+		);
+		return mapMaterialRequirement(raw);
+	} catch (e) {
+		if (e instanceof ApiError && e.status === 409) throw new DuplicateRequirementError(e.message);
+		throw e;
+	}
+}
+
+// ---- requirement voting — the new votable half of "split material tags into two groups
+// (covers/requires), each votable, so users can sort by that." Open to any authenticated user,
+// same shape as castCoverageVote/retractCoverageVote above. --------------------------------------
+
+export async function castRequirementVote(
+	requirementId: string,
+	value: CoverageVoteValue
+): Promise<MaterialRequirement> {
+	const raw = await apiClient.post<RawMaterialRequirement>(
+		`/material-requirements/${encodeURIComponent(requirementId)}/vote/`,
+		{ value }
+	);
+	return mapMaterialRequirement(raw);
+}
+
+export async function retractRequirementVote(requirementId: string): Promise<MaterialRequirement> {
+	const raw = await apiClient.delete<RawMaterialRequirement>(
+		`/material-requirements/${encodeURIComponent(requirementId)}/vote/`
+	);
+	return mapMaterialRequirement(raw);
+}
+
+// ---- reviews — "add discussions and reviews to materials" ---------------------------------------
+
+export async function getMaterialReviews(materialId: string): Promise<MaterialReview[]> {
+	const raw = await apiClient.get<RawMaterialReview[]>(
+		`/materials/${encodeURIComponent(materialId)}/reviews/`
+	);
+	const reviews = raw.map(mapMaterialReview);
+	reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+	return reviews;
+}
+
+// `userId` stays a parameter for call-site compatibility with `submitReview`/`submitServiceReview`
+// — the backend already scopes this to whoever the auth token belongs to (MaterialReview.author =
+// request.user), and already upserts on resubmission rather than duplicating (unique_together =
+// [('material', 'author')]).
+export async function submitMaterialReview(
+	materialId: string,
+	_userId: string,
+	rating: number,
+	body?: string
+): Promise<MaterialReview> {
+	const raw = await apiClient.post<RawMaterialReview>(
+		`/materials/${encodeURIComponent(materialId)}/reviews/`,
+		{ rating, body: body?.trim() || '' }
+	);
+	return mapMaterialReview(raw);
 }

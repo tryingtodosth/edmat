@@ -64,8 +64,7 @@ class Command(BaseCommand):
             user, created = User.objects.get_or_create(
                 username=spec['username'], defaults={'email': spec['email'], 'is_staff': spec['is_staff']}
             )
-            if created:
-                user.set_password(DEMO_PASSWORD)
+            user.set_password(DEMO_PASSWORD)
             user.email = spec['email']
             user.is_staff = spec['is_staff']
             user.save()

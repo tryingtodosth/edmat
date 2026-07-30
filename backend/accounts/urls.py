@@ -9,6 +9,8 @@ from .views import (
     PasswordResetView,
     RegisterView,
     UserPublicView,
+    UserReviewsView,
+    UserServiceReviewsView,
 )
 
 router = DefaultRouter()
@@ -21,4 +23,10 @@ urlpatterns = router.urls + [
     path('auth/me/', MeView.as_view(), name='auth-me'),
     path('auth/password-reset/', PasswordResetView.as_view(), name='auth-password-reset'),
     path('users/<int:pk>/', UserPublicView.as_view(), name='user-public'),
+    path('users/<int:pk>/reviews/', UserReviewsView.as_view(), name='user-reviews'),
+    path(
+        'users/<int:pk>/service-reviews/',
+        UserServiceReviewsView.as_view(),
+        name='user-service-reviews',
+    ),
 ]

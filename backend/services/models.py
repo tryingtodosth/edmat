@@ -46,3 +46,48 @@ class Service(models.Model):
 
     def __str__(self) -> str:
         return f'{self.title} ({self.provider})'
+
+
+class ServiceReview(models.Model):
+    """A star rating + optional written review on a tutoring listing — the same shape
+    `community.models.Review` already establishes for an Exercise, kept as its own parallel model
+    (not a generic/GenericForeignKey retrofit of Review itself) rather than reworking an existing,
+    tightly-coupled model's own direct `exercise` FK and every call site built against it."""
+
+    service = models.ForeignKey(Service, related_name='reviews', on_delete=models.CASCADE)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField()  # 1-5
+    body = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # A moderator's own "reports were founded" decision (the report-a-tutor-review feature) —
+    # follows `community.Review.is_removed`'s own precedent exactly: a REMOVED review disappears
+    # entirely from `service.reviews` reads (services/views.py's `reviews` action, and this
+    # serializer's own average_rating/review_count), not a Comment-style tombstone-blank — a
+    # ServiceReview is never threaded/replied-to, so there's no structural reason to keep a hidden
+    # row visibly present the way a removed Comment's own reply chain needs.
+    is_removed = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = [('service', 'author')]  # one review per user per listing
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.rating}★ on {self.service_id} by {self.author}'
+
+
+class ServiceWatch(models.Model):
+    """"Add to watchlist to compare certain listings" — a plain, per-user bookmark on a Service, no
+    richer than that: comparing is a frontend concern (rendering several watched listings side by
+    side from the same data `GET /api/services/{id}/` already returns), not something this model
+    needs its own logic for."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='watched_services', on_delete=models.CASCADE)
+    service = models.ForeignKey(Service, related_name='watchers', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'service')]
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.user} watches {self.service_id}'

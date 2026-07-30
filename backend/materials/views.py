@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Max, Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -12,8 +12,22 @@ from moderation.services import is_governor_of_course
 from notifications.services import notify_comment_reply
 from taxonomy.models import Subtopic, SubtopicTranslation, Topic
 
-from .models import Material, MaterialCoverage, MaterialCoverageVote, MaterialRequirement, MaterialView
-from .serializers import MaterialCoverageCreateSerializer, MaterialCoverageSerializer, MaterialSerializer
+from .models import (
+    Material,
+    MaterialCoverage,
+    MaterialCoverageVote,
+    MaterialRequirement,
+    MaterialRequirementVote,
+    MaterialReview,
+    MaterialView,
+)
+from .serializers import (
+    MaterialCoverageCreateSerializer,
+    MaterialCoverageSerializer,
+    MaterialRequirementSerializer,
+    MaterialReviewSerializer,
+    MaterialSerializer,
+)
 from .services import (
     _net_vote_weight,
     clean_requirement_labels,
@@ -30,6 +44,13 @@ def _notify_coverage_reply(comment, coverage):
     # per-locale-resolved title.
     label = f'{coverage.material.slug} — {coverage.topic.slug}'
     notify_comment_reply(comment, target_label=label)
+
+
+def _notify_material_reply(comment, material, locale):
+    # A whole-material discussion's own reply notification — the same "no natural Exercise to link,
+    # fall back to a resolved title" shape `_notify_coverage_reply` above already establishes, just
+    # one level up (the Material itself, not one specific coverage claim on it).
+    notify_comment_reply(comment, target_label=resolved_title(material, locale), material=material)
 
 
 # Mirrors exercises/views.py's own `_filter_exercises`/`_annotated_exercises` shape exactly — plain,
@@ -115,7 +136,16 @@ def _sort_materials(materials, sort, locale, topic_id=None):
 
         return sorted(materials, key=best_level, reverse=True)
     if sort == 'votes':
-        return sorted(materials, key=lambda m: sum(_net_vote_weight(r) for r in m.coverage.all()), reverse=True)
+        # Both votable claim types count toward "most community-vetted material" — coverage AND
+        # requirement votes are the identical "the community verified this claim" signal, just cast
+        # on two different kinds of row (materials/models.py's own MaterialRequirementVote doc
+        # comment).
+        def total_votes(m):
+            return sum(_net_vote_weight(r) for r in m.coverage.all()) + sum(
+                _net_vote_weight(req) for req in m.requirements.all()
+            )
+
+        return sorted(materials, key=total_votes, reverse=True)
     return materials
 
 
@@ -135,7 +165,7 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
     omitted/unrecognized keeps the existing `(course, order)` default).
     """
 
-    queryset = Material.objects.filter(published=True)
+    queryset = Material.objects.filter(published=True).select_related('submitted_by__profile')
     serializer_class = MaterialSerializer
 
     def get_queryset(self):
@@ -145,7 +175,11 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
         qs = self.filter_queryset(self.get_queryset())
         materials = list(
             qs.prefetch_related(
-                'translations', 'coverage__votes__voter__profile', 'coverage__topic', 'tags', 'requirements'
+                'translations',
+                'coverage__votes__voter__profile',
+                'coverage__topic',
+                'tags',
+                'requirements__votes__voter__profile',
             )
         )
         materials = _sort_materials(
@@ -275,16 +309,65 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @action(detail=True, methods=['post'], url_path='requirements/propose_requirement')
+    def propose_requirement(self, request, pk=None):
+        """POST /api/materials/{id}/requirements/propose_requirement/ — open to any authenticated
+        user, the requirement-side counterpart to `coverage` above: "anyone can propose, the
+        community votes" (materials/models.py's own MaterialRequirementVote doc comment) — a single
+        new requirement, not a full-list replace, so proposing one never risks touching anyone
+        else's already-existing rows. Originally this whole claim type was governor-only end to end
+        (see `requirements` below, which still IS governor-only, for the reason that was the right
+        call); opening just the PROPOSE half to everyone — while keeping bulk-reorder/removal a
+        governor-only curation power — is the same asymmetry `coverage`'s own open-propose/
+        governor-adjacent-nothing split already has no equivalent tension for, since coverage never
+        had a separate governor-only edit path to begin with. A brand-new proposal starts with zero
+        votes; the community's own agree/disagree signal (already-built `vote` action) is what
+        actually surfaces or buries it from here, exactly like a freshly-proposed coverage claim.
+
+        Body: `{"label": "English B2+"}`. Rejects (409, matching `coverage`'s own duplicate-pairing
+        response) a label that's a case-insensitive match (after trim) of an EXISTING requirement —
+        `find_duplicate_requirement_label` (materials/services.py), the same check the governor-only
+        bulk replace and the submission-time draft both already enforce, reused here a third time
+        rather than a fourth independent copy of the identical rule.
+        """
+        material = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        label = clean_requirement_labels([request.data.get('label', '')])
+        if not label:
+            return Response({'label': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        label = label[0]
+
+        existing_labels = list(material.requirements.values_list('label', flat=True))
+        if find_duplicate_requirement_label([*existing_labels, label]) is not None:
+            return Response(
+                {
+                    'detail': (
+                        'This requirement is already listed for this material — '
+                        'vote on the existing one instead of proposing a duplicate.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        next_order = (material.requirements.aggregate(Max('order'))['order__max'] or 0) + 1
+        requirement = MaterialRequirement.objects.create(
+            material=material, label=label, order=next_order
+        )
+        return Response(
+            MaterialRequirementSerializer(requirement, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
     @action(detail=True, methods=['put'])
     def requirements(self, request, pk=None):
         """PUT /api/materials/{id}/requirements/ — a governor-only bulk replace of this ALREADY-
-        PUBLISHED Material's own requirement list. Gated by the exact same trust boundary every
-        other moderator-adjacent Material mutation in this app already uses (global staff, or a
-        governor of the material's own course — see moderation/services.py's
-        `is_governor_of_course`), NOT open to any authenticated user the way `coverage` above is —
-        a requirement list ("English B2+", "basic algebra") is closer to structural metadata about
-        the material itself than to a reversible, low-stakes community proposal, so it doesn't get
-        `coverage`'s own "anyone can propose, the community votes" trust level.
+        PUBLISHED Material's own requirement list (reordering, removing, or renaming several at
+        once) — a real curation power, distinct from `propose_requirement` above (open to anyone,
+        adds exactly one). Gated by the exact same trust boundary every other moderator-adjacent
+        Material mutation in this app already uses (global staff, or a governor of the material's
+        own course — see moderation/services.py's `is_governor_of_course`).
 
         Body: `{"requirements": ["English B2+", "basic algebra", ...]}` — a full, ordered replace,
         not a single add/remove — the natural shape for a governor-facing list editor that always
@@ -341,6 +424,100 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
                 for i, label in enumerate(cleaned)
             )
         serializer = self.get_serializer(material)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get', 'post'])
+    def comments(self, request, pk=None):
+        """A whole-Material discussion thread — the exact same generic Comment mechanism Exercise/
+        Service already use, targeting the Material itself directly (`ContentType.get_for_model
+        (Material)`), NOT the same thing as `MaterialCoverageViewSet.comments` below (that one is
+        scoped to a single topic/subtopic coverage CLAIM; this is the material as a whole — "add
+        discussions... to materials," a real, previously-missing top-level thread, distinct from
+        the narrower per-claim one that already existed). Public GET (matching every other
+        discussion thread in this app), auth-required POST, the same cross-target `parent`
+        validation `ExerciseViewSet.comments`/`ServiceViewSet.comments` already enforce."""
+        material = self.get_object()
+        content_type = ContentType.objects.get_for_model(Material)
+        if request.method == 'GET':
+            qs = Comment.objects.filter(content_type=content_type, object_id=material.pk)
+            serializer = CommentSerializer(qs, many=True)
+            return Response(serializer.data)
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        serializer = CommentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        parent = serializer.validated_data.get('parent')
+        if parent is not None and (
+            parent.content_type_id != content_type.id or parent.object_id != material.pk
+        ):
+            return Response(
+                {'parent': ['This reply must belong to the same discussion.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer.save(content_type=content_type, object_id=material.pk, author=request.user)
+        _notify_material_reply(serializer.instance, material, request_locale({'request': request}))
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get', 'post'])
+    def reviews(self, request, pk=None):
+        """Star rating + optional written review on a Material — the same upsert-on-resubmit shape
+        `ExerciseViewSet.reviews`/`ServiceViewSet.reviews` already establish (POSTing again updates
+        your own existing review rather than creating a second row, since `MaterialReview` has the
+        identical `unique_together = [('material', 'author')]`)."""
+        material = self.get_object()
+        if request.method == 'GET':
+            qs = material.reviews.all()
+            serializer = MaterialReviewSerializer(qs, many=True)
+            return Response(serializer.data)
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        existing = MaterialReview.objects.filter(material=material, author=request.user).first()
+        serializer = MaterialReviewSerializer(
+            existing, data={**request.data, 'material': material.pk}, partial=existing is not None
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(material=material, author=request.user)
+        return Response(
+            serializer.data, status=status.HTTP_201_CREATED if existing is None else status.HTTP_200_OK
+        )
+
+
+class MaterialRequirementViewSet(viewsets.GenericViewSet):
+    """No list/retrieve of its own — a requirement row is always reached through its parent
+    Material (embedded via MaterialSerializer.requirements), this ViewSet exists purely to host the
+    one action that targets ONE specific requirement row: voting on whether it's actually needed —
+    the exact same "is this claim accurate" community signal `MaterialCoverageViewSet.vote` already
+    provides for a coverage row. Open to any authenticated user, matching that same precedent
+    (voting is the community-verification layer for BOTH votable claim types; who may PROPOSE one
+    stays asymmetric — coverage is open, requirements stay governor-only — but voting on an
+    already-existing one of either kind is not)."""
+
+    queryset = MaterialRequirement.objects.all()
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @action(detail=True, methods=['post', 'delete'])
+    def vote(self, request, pk=None):
+        requirement = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.method == 'DELETE':
+            MaterialRequirementVote.objects.filter(requirement=requirement, voter=request.user).delete()
+        else:
+            try:
+                value = int(request.data.get('value'))
+            except (TypeError, ValueError):
+                value = None
+            if value not in (1, -1):
+                return Response(
+                    {'value': ['Must be 1 (agree) or -1 (disagree).']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            MaterialRequirementVote.objects.update_or_create(
+                requirement=requirement, voter=request.user, defaults={'value': value}
+            )
+
+        serializer = MaterialRequirementSerializer(requirement, context={'request': request})
         return Response(serializer.data)
 
 

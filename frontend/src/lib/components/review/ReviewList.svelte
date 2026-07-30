@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Review, User } from '$lib/types';
+	import type { ReportKind, User } from '$lib/types';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { formatRelativeDate } from '$lib/utils/format';
@@ -7,7 +7,31 @@
 	import StarRating from '$lib/components/shared/StarRating.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 
-	let { reviews, usersById }: { reviews: Review[]; usersById: Record<string, User> } = $props();
+	// A structural shape (id/userId/rating/body/createdAt), not the full exercise-specific `Review`
+	// type — lets this same component render a tutoring listing's own `ServiceReview` too
+	// (services/+page.svelte's detail view), without either type needing a shared base interface.
+	interface ReviewLike {
+		id: string;
+		userId: string;
+		rating: number;
+		body?: string;
+		createdAt: string;
+	}
+
+	let {
+		reviews,
+		usersById,
+		showReportButton = true,
+		kind = 'review'
+	}: {
+		reviews: ReviewLike[];
+		usersById: Record<string, User>;
+		showReportButton?: boolean;
+		// 'review' (community.Review, an Exercise review) by default; the tutoring-listing detail
+		// page passes 'service_review' — a genuinely different backend model/report kind sharing
+		// this exact same list shape, per `ReviewLike`'s own doc comment above.
+		kind?: ReportKind;
+	} = $props();
 </script>
 
 {#if reviews.length === 0}
@@ -30,9 +54,11 @@
 				{#if review.body}
 					<p class="review__body">{review.body}</p>
 				{/if}
-				<div class="review__actions">
-					<ReportButton kind="review" objectId={review.id} />
-				</div>
+				{#if showReportButton}
+					<div class="review__actions">
+						<ReportButton {kind} objectId={review.id} />
+					</div>
+				{/if}
 			</li>
 		{/each}
 	</ul>

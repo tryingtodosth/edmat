@@ -263,6 +263,14 @@ FEATURE_FLAG_CHOICES = [
     ('messaging', 'User-to-user messaging'),
     ('exercise_submissions', 'New exercise submissions'),
     ('material_submissions', 'New material uploads'),
+    # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
+    # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
+    # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's
+    # existing behavior — any authenticated user may upload — so provisioning this flag never
+    # narrows who can upload until a moderator deliberately turns it on. Kept in the same curated
+    # choices/model/admin-UI list as the other 4 (the tutoring-listings feature request's own
+    # explicit "it should be with other kill switches" instruction), not a separate mechanism.
+    ('material_uploads_verified_only', 'Material uploads: verified contributors only'),
 ]
 
 

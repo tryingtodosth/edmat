@@ -90,6 +90,19 @@ export async function getExercisesByIds(
 	return raw.map(mapResolvedExerciseDetail);
 }
 
+/** A user's own published exercise submissions — the public profile page's own "what they were
+ * doing/contributing" section. Already scoped to `published=True` server-side
+ * (`_annotated_exercises()`), so a stranger's profile never leaks a still-pending submission. */
+export async function getExercisesBySubmitter(
+	userId: string,
+	locale: string
+): Promise<ResolvedExercise[]> {
+	const raw = await apiClient.get<RawExerciseCommon[]>(
+		`/exercises/${toQueryString({ submitted_by: userId, lang: locale })}`
+	);
+	return raw.map(mapResolvedExerciseList);
+}
+
 export async function getTopRatedExercises(locale: string, limit = 6): Promise<ResolvedExercise[]> {
 	const raw = await apiClient.get<RawExerciseCommon[]>(
 		`/exercises/${toQueryString({ sort: 'top', limit: String(limit), lang: locale })}`

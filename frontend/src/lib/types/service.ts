@@ -19,8 +19,34 @@ export interface Service {
 	hourlyRate: number | null; // display-only, this app has no real payment processing anywhere
 	currency: ServiceCurrency;
 	isActive: boolean;
+	averageRating: number | null;
+	reviewCount: number;
 	createdAt: string;
 	updatedAt: string;
+}
+
+/** A star rating + optional written review on a tutoring listing — the same shape `Review` already
+ * has for an Exercise, just targeting a `Service` instead (`serviceId`, not `exerciseId`). Kept as
+ * its own type rather than widening `Review` itself, since a review's target is always exactly one
+ * or the other, never either — see `ReviewList.svelte`'s own structural `ReviewLike` prop type,
+ * which both this and `Review` already satisfy without needing a shared base interface. */
+export interface ServiceReview {
+	id: string;
+	serviceId: string;
+	userId: string;
+	rating: number;
+	body?: string;
+	createdAt: string;
+}
+
+/** "Add to watchlist to compare certain listings" — one row per (user, service) the CURRENT user
+ * is watching. `service` is embedded in full (not just an id) since the watchlist/comparison view
+ * renders straight from this, matching the backend's own `ServiceWatchSerializer.to_representation`
+ * reasoning (services/serializers.py). */
+export interface ServiceWatch {
+	id: string;
+	service: Service;
+	createdAt: string;
 }
 
 /** What creating/editing a listing needs — `hourlyRate` stays a string here (a raw, possibly-empty

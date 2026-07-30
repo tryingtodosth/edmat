@@ -4,21 +4,29 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 
+	// `question` (new): this widget is structurally identical for a MaterialRequirement's own vote
+	// (`materials/[id]/+page.svelte`'s Requires group) — same CoverageVoteSummary shape, same
+	// agree/disagree tally math — except the one line of framing text ("is this LEVEL accurate"
+	// doesn't read right for "is this REQUIREMENT actually needed"). Widened with an optional
+	// override rather than duplicating the whole component for that one difference, matching this
+	// session's own "widen a structurally-reusable component" precedent (ReviewList.svelte).
 	let {
 		summary,
 		onVote,
-		onRetract
+		onRetract,
+		question = m.coverage_voteQuestion
 	}: {
 		summary: CoverageVoteSummary;
 		onVote: (value: 1 | -1) => void;
 		onRetract: () => void;
+		question?: () => string;
 	} = $props();
 
 	let totalWeight = $derived(summary.agreeWeight + summary.disagreeWeight);
 </script>
 
 <div class="vote-widget">
-	<p class="vote-widget__question">{m.coverage_voteQuestion()}</p>
+	<p class="vote-widget__question">{question()}</p>
 
 	{#if authStore.isAuthenticated}
 		<div class="vote-widget__actions">

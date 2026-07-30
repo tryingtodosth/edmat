@@ -103,6 +103,54 @@ class UserPublicView(generics.RetrieveAPIView):
         return get_object_or_404(self.get_queryset(), user_id=self.kwargs['pk'])
 
 
+class UserReviewsView(generics.ListAPIView):
+    """GET /api/users/{id}/reviews/ — every EXERCISE review this user has authored, publicly
+    visible ones only (excludes a moderator-removed or still-auto-hidden row, the exact same
+    `is_removed=False, auto_hidden_at__isnull=True` visibility filter `ExerciseViewSet.reviews`
+    already applies for a single exercise's own review list — this is the same data, just sliced by
+    author instead of by exercise). Public, `AllowAny` — a review is already public content
+    everywhere else it appears (an exercise's own detail page), so listing the same rows grouped by
+    their author isn't a new disclosure. Feeds the public profile page's own "their reviews"
+    section (CLAUDE.md's tutoring-listings feature note, item 6 — "user profiles should list...
+    their reviews")."""
+
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from community.serializers import ReviewSerializer
+
+        return ReviewSerializer
+
+    def get_queryset(self):
+        from community.models import Review
+
+        return Review.objects.filter(
+            author_id=self.kwargs['pk'], is_removed=False, auto_hidden_at__isnull=True
+        ).order_by('-created_at')
+
+
+class UserServiceReviewsView(generics.ListAPIView):
+    """GET /api/users/{id}/service-reviews/ — the same idea as `UserReviewsView` above, for
+    tutoring-listing reviews instead of exercise reviews (`ServiceReview` has no `is_removed`/
+    `auto_hidden_at` fields at all — Section 17P's own "Left open" note already flags that neither
+    Service reviews nor listings are wired into the report/auto-hide system yet, so there is
+    nothing here to filter by beyond the plain rows themselves)."""
+
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None
+
+    def get_serializer_class(self):
+        from services.serializers import ServiceReviewSerializer
+
+        return ServiceReviewSerializer
+
+    def get_queryset(self):
+        from services.models import ServiceReview
+
+        return ServiceReview.objects.filter(author_id=self.kwargs['pk']).order_by('-created_at')
+
+
 class DonationLinkViewSet(viewsets.ModelViewSet):
     """Self-service CRUD for the CURRENT user's own donation links — "users can set multiple
     donation links that [a visitor] can choose from" (accounts/models.py's DonationLink). Always

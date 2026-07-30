@@ -1,11 +1,13 @@
 <script lang="ts">
 	// The real, previously-missing "share a link to my set" feature (CLAUDE.md Section 16's own
 	// "deferred to a later phase" note) — a read-only view of SOMEONE ELSE's server-side set,
-	// reached via a direct link (their own set's plain numeric id — study/views.py's own
-	// ExerciseSetViewSet.retrieve is deliberately public now, see that file's doc comment for why
-	// a set's content was never sensitive enough to need an opaque token). Works for a guest
-	// exactly as it does for a logged-in visitor, matching the exercise/course detail pages' own
-	// "no server-rendered auth story, plain $effect keyed off page.params" pattern.
+	// reached via its own unguessable slug (study/models.py's `_generate_set_slug`). A set is
+	// PRIVATE by default (study/views.py's own ExerciseSetViewSet.retrieve gates on `is_public`) —
+	// this route resolves for anyone once the owner has actually shared it, and ALSO for the owner
+	// themselves previewing their own still-private one (the "is this what my friend will see"
+	// check, see the private-preview note below). Works for a guest exactly as it does for a
+	// logged-in visitor, matching the exercise/course detail pages' own "no server-rendered auth
+	// story, plain $effect keyed off page.params" pattern.
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type { ExerciseSet, ResolvedExercise } from '$lib/types';
@@ -91,6 +93,13 @@
 			{#if set.ownerDisplayName}
 				<p class="shared-by">{m.sharedSet_sharedBy({ name: set.ownerDisplayName })}</p>
 			{/if}
+			{#if !set.isPublic && authStore.user?.id === set.ownerId}
+				<!-- Only the owner can even reach this branch at all — a stranger holding this exact
+				     link gets a real 404 from the backend the instant is_public is false (the owner-
+				     preview exception, study/views.py's own ExerciseSetViewSet.get_queryset), so this
+				     note is never shown to anyone else by mistake. -->
+				<p class="private-note">{m.sharedSet_privateOwnerNote()}</p>
+			{/if}
 		</header>
 
 		<div class="toolbar">
@@ -121,12 +130,30 @@
 		{:else}
 			<ol class="set-list">
 				{#each exercises as exercise, i (exercise.id)}
+					{@const options = set.itemOptions[exercise.id]}
 					<li class="set-item">
 						<div class="set-item__top">
-							<h3>{i + 1}. <MathTitle text={exercise.title} /></h3>
+							<h3>
+								{i + 1}.
+								<a class="set-item__link" href={resolve('/exercises/[id]', { id: exercise.id })}>
+									<MathTitle text={exercise.title} />
+								</a>
+							</h3>
 							<DifficultyBadge difficulty={exercise.difficulty} />
 						</div>
 						<MathContent source={exercise.statement} />
+						{#if options?.includeHint && exercise.hint}
+							<p class="content-label">{m.myset_field_hint()}</p>
+							<MathContent source={exercise.hint} />
+						{/if}
+						{#if options?.includeAnswer && exercise.answer}
+							<p class="content-label">{m.myset_field_answer()}</p>
+							<MathContent source={exercise.answer} />
+						{/if}
+						{#if options?.includeSolution && exercise.solution}
+							<p class="content-label">{m.myset_field_solution()}</p>
+							<MathContent source={exercise.solution} />
+						{/if}
 					</li>
 				{/each}
 			</ol>
@@ -151,6 +178,10 @@
 	.shared-by {
 		color: var(--text-secondary);
 		margin-top: var(--space-1);
+	}
+	.private-note {
+		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		margin-top: var(--space-2);
 	}
 	.hint {
 		font-size: var(--font-size-sm);
@@ -191,6 +222,14 @@
 		@include mix.card-surface;
 		padding: var(--space-4);
 	}
+	.content-label {
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-secondary);
+		margin-top: var(--space-2);
+	}
 	.set-item__top {
 		display: flex;
 		align-items: center;
@@ -199,6 +238,12 @@
 		h3 {
 			flex: 1;
 			font-size: var(--font-size-base);
+		}
+	}
+	.set-item__link {
+		color: var(--text-primary);
+		&:hover {
+			color: var(--accent);
 		}
 	}
 </style>

@@ -129,6 +129,27 @@
 		flex-direction: column;
 		max-height: 420px;
 	}
+	// A real, found-live bug: `right: 0` anchors the popover to THIS BELL's own right edge, not the
+	// viewport's — on mobile, the bell sits well short of the true right edge (other header actions,
+	// e.g. the account name/logout link, come after it), so a wide (`90vw`) popover anchored there
+	// overflowed past the LEFT edge of the screen entirely, leaving 0 of its notification cards
+	// actually visible ("only half displayed" undersold it — the real fraction measured 0%).
+	// `position: fixed` with viewport-relative left/right sidesteps the wrong-anchor problem
+	// completely, regardless of exactly where the bell itself ends up in the header's own layout;
+	// anchoring to the BOTTOM of the viewport (rather than computing a "below the header" offset
+	// that would need to track the header's own height) needs no magic pixel value to stay correct
+	// if the header's own content ever changes.
+	@media (max-width: 480px) {
+		.menu {
+			position: fixed;
+			left: var(--space-2);
+			right: var(--space-2);
+			top: auto;
+			bottom: var(--space-2);
+			width: auto;
+			max-height: min(420px, 60vh);
+		}
+	}
 	.menu__header {
 		display: flex;
 		align-items: center;

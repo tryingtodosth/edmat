@@ -36,6 +36,33 @@ class ExerciseListingTests(APITestCase):
         self.assertEqual(ids, {self.hard.pk})
 
 
+class ExerciseSubmittedByFilterTests(APITestCase):
+    """The public profile page's own new "what they were doing/contributing" section (CLAUDE.md's
+    tutoring-listings feature note, item 6) needs a way to list a specific user's own published
+    exercise submissions — `?submitted_by=<id>` on the plain exercise list endpoint."""
+
+    def setUp(self):
+        self.course = make_course()
+        self.author = make_user('u-contributor')
+        self.mine = make_exercise(self.course, 1, title='Mine')
+        self.mine.submitted_by = self.author
+        self.mine.save(update_fields=['submitted_by'])
+        self.someone_elses = make_exercise(self.course, 2, title='Not mine')
+
+    def test_filters_to_only_that_users_submissions(self):
+        response = self.client.get(reverse('exercise-list'), {'submitted_by': self.author.pk})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = {row['id'] for row in response.data}
+        self.assertEqual(ids, {self.mine.pk})
+
+    def test_a_pending_unpublished_submission_never_leaks_through(self):
+        self.mine.published = False
+        self.mine.save(update_fields=['published'])
+        response = self.client.get(reverse('exercise-list'), {'submitted_by': self.author.pk})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+
 class ExerciseLocaleResolutionTests(APITestCase):
     """CLAUDE.md Section 10's "resolve, fall back to original" behavior — a reader always sees the
     published translation for their requested `?lang=`, falling back to the original locale when

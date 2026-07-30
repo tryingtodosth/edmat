@@ -15,8 +15,9 @@
 	import { tagFollowStore } from '$lib/state/tagFollows.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { getExerciseIdsForTag } from '$lib/services/exercises';
-	import { removeTagFromContent } from '$lib/services/tags';
+	import { getTagBySlug, removeTagFromContent } from '$lib/services/tags';
 	import AddTagToContentModal from './AddTagToContentModal.svelte';
+	import ReportButton from './ReportButton.svelte';
 
 	// `appliedTo` — optional, since a caller only ever knows "this tag is currently applied to THIS
 	// specific piece of content" when it's rendering the chip on that content's own page/card, not
@@ -39,11 +40,19 @@
 	let savedMessage = $state('');
 	let addingToContent = $state(false);
 	let removing = $state(false);
+	// Resolved lazily, only once the menu is actually opened while authenticated — every other tag
+	// reference in this app is slug-keyed (see `getTagBySlug`'s own doc comment), this is the one
+	// spot that needs the real numeric id (Report's own object_id), so it isn't fetched for every
+	// rendered chip, only for the ones a user actually interacts with.
+	let tagId = $state<string | null>(null);
 
 	function openMenu() {
 		clearTimeout(closeTimer);
 		open = true;
-		if (authStore.isAuthenticated) tagFollowStore.ensureLoaded();
+		if (authStore.isAuthenticated) {
+			tagFollowStore.ensureLoaded();
+			if (tagId === null) getTagBySlug(tag).then((t) => (tagId = t.id));
+		}
 	}
 
 	function scheduleClose() {
@@ -116,7 +125,13 @@
 	onmouseenter={openMenu}
 	onmouseleave={scheduleClose}
 >
-	<button type="button" class="tag-chip__trigger" onclick={toggleMenu} aria-expanded={open}>
+	<button
+		type="button"
+		class="tag-chip__trigger"
+		onclick={toggleMenu}
+		aria-expanded={open}
+		title={tag}
+	>
 		#{tag}
 	</button>
 
@@ -184,6 +199,12 @@
 					{removing ? m.common_loading() : m.tag_removeFromContent()}
 				</button>
 			{/if}
+
+			{#if authStore.isAuthenticated && tagId}
+				<div class="tag-chip__item">
+					<ReportButton kind="tag" objectId={tagId} />
+				</div>
+			{/if}
 		</div>
 	{/if}
 </span>
@@ -205,6 +226,14 @@
 		border: none;
 		cursor: pointer;
 		font: inherit;
+		// Unlike the other status-pill consumers (type/difficulty/source badges — a short, fixed
+		// vocabulary), a tag is free-form, uploader-chosen text with no length cap — the real corpus
+		// has tags 40+ characters long. The mixin's own `white-space: nowrap` is right for those
+		// short badges but lets a long tag stretch the pill arbitrarily wide instead; truncate it here
+		// instead, with the full label still available via `title`.
+		max-width: 160px;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.tag-chip__menu {
 		position: absolute;

@@ -19,11 +19,13 @@ from rest_framework.views import APIView
 
 from exercises.models import Exercise, ExerciseTranslation
 from exercises.serializers import ExerciseTranslationSerializer
+from materials.models import Material
 from materials.validators import scan_for_malware
 from notifications.services import label_for_exercise, label_for_material, notify, notify_tag_followers
+from services.models import Service
 
 from .models import EditSuggestion, ExerciseSubmission, FeatureFlag, MaterialSubmission, NodeGovernor, Report
-from .permissions import feature_gate
+from .permissions import RequireVerifiedContributorForMaterialUploads, feature_gate
 from .serializers import (
     EditSuggestionSerializer,
     ExerciseSubmissionSerializer,
@@ -154,8 +156,17 @@ class MaterialSubmissionViewSet(viewsets.ModelViewSet):
     endpoint accepts a real file upload, not a JSON body."""
 
     serializer_class = MaterialSubmissionSerializer
-    permission_classes = [permissions.IsAuthenticated, feature_gate('material_submissions')]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_permissions(self):
+        # The verified-contributor restriction is deliberately scoped to `create` alone — an
+        # ordinary (non-verified) user who already has past submissions should still see them here
+        # (list/retrieve), and the platform-wide `material_submissions` kill switch above still
+        # gates every action for everyone regardless, unchanged.
+        perms = [permissions.IsAuthenticated(), feature_gate('material_submissions')()]
+        if self.action == 'create':
+            perms.append(RequireVerifiedContributorForMaterialUploads())
+        return perms
 
     def get_queryset(self):
         qs = MaterialSubmission.objects.all()
@@ -370,6 +381,7 @@ def _apply_material_submission(submission, reviewer):
         type=submission.type,
         file=submission.file,
         published=True,
+        submitted_by=submission.submitted_by,
         price_amount=submission.price_amount,
         price_currency=submission.price_currency or 'PLN',
         estimated_minutes=submission.estimated_minutes,
@@ -610,7 +622,13 @@ def _course_for_report_target(target):
     """Which Course a reported target belongs to — an Exercise's own `course` directly, or (for a
     Comment/Review) whichever Exercise `resolve_view_scope_exercise` already resolves its viewer
     pool against. `None` when that can't be determined at all (the same honest gap
-    `resolve_view_scope_exercise` itself already documents)."""
+    `resolve_view_scope_exercise` itself already documents) — a Service, Tag, Material, or
+    MaterialRequirement report all fall through to this, same as the pre-existing Service case:
+    a real, if narrow, scope decision (matching Service's own already-shipped precedent, not a new
+    one invented here) that only a global `is_staff` moderator can act on these four kinds today,
+    never a course-scoped node governor. Material/MaterialRequirement DO have a real, resolvable
+    course (`target.course`/`target.material.course`) that a future pass could wire through here to
+    give governors real scoped access — left as a genuine follow-up, not attempted in this pass."""
     if isinstance(target, Exercise):
         return target.course
     exercise = resolve_view_scope_exercise(target)
@@ -654,19 +672,37 @@ class ReportActionView(APIView):
             return Response(status=status.HTTP_403_FORBIDDEN)
         note = request.data.get('resolved_note', '')
 
-        update_fields = ['auto_hidden_at']
-        target.auto_hidden_at = None
+        # A real, found-by-a-failing-test gap: Service has no `auto_hidden_at` field at all (it can
+        # never actually auto-hide in the first place — check_auto_hide always no-ops for it, no
+        # viewer-pool to measure against), so unconditionally including this in `update_fields` blew
+        # up with a real `ValueError` from `.save()` the first time this action ran against a
+        # reported Service. Same defensive `hasattr` shape `is_removed` below already uses, applied
+        # here too rather than assuming every reportable model has this field.
+        update_fields = []
+        if hasattr(target, 'auto_hidden_at'):
+            target.auto_hidden_at = None
+            update_fields.append('auto_hidden_at')
         if decision == 'restore':
-            if isinstance(target, Exercise):
+            if isinstance(target, (Exercise, Material)):
                 target.published = True
                 update_fields.append('published')
         else:  # remove
             if hasattr(target, 'is_removed'):
                 target.is_removed = True
                 update_fields.append('is_removed')
-            if isinstance(target, Exercise):
+            if isinstance(target, (Exercise, Material)):
                 target.published = False
                 update_fields.append('published')
+            if isinstance(target, Service):
+                # A real, found-before-shipping gap: Service has neither `is_removed` nor
+                # `published`, so without this branch a "remove" decision on a reported tutoring
+                # listing resolved the report rows but left the listing itself fully live and
+                # discoverable — the moderator action would have had no actual effect. Reuses the
+                # SAME `is_active` field a provider's own pause/reactivate toggle already writes to
+                # (services/models.py's own "tombstone, don't hard-delete" field), rather than
+                # inventing a second, parallel "hidden" concept for this one content type.
+                target.is_active = False
+                update_fields.append('is_active')
         target.save(update_fields=update_fields)
 
         content_type = ContentType.objects.get_for_model(model)

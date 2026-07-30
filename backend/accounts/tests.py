@@ -97,3 +97,62 @@ class MeViewNodeGovernorTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse(response.data['is_node_governor'])
+
+
+class UserReviewsViewTests(APITestCase):
+    """GET /api/users/{id}/reviews/ — the public profile page's own new "their reviews" section
+    (CLAUDE.md's tutoring-listings feature note, item 6), for EXERCISE reviews specifically."""
+
+    def test_lists_only_that_users_own_visible_reviews(self):
+        from community.models import Review
+        from testing.factories import make_course, make_exercise
+
+        course = make_course('user-reviews-course')
+        exercise = make_exercise(course, 1)
+        author = make_user('review-author')
+        someone_else = make_user('review-someone-else')
+        Review.objects.create(exercise=exercise, author=author, rating=5, body='Great!')
+        Review.objects.create(exercise=exercise, author=someone_else, rating=2, body='Meh.')
+
+        response = self.client.get(reverse('user-reviews', kwargs={'pk': author.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['author'], author.pk)
+
+    def test_a_removed_review_is_excluded(self):
+        from community.models import Review
+        from testing.factories import make_course, make_exercise
+
+        course = make_course('user-reviews-removed-course')
+        exercise = make_exercise(course, 1)
+        author = make_user('review-author-removed')
+        Review.objects.create(
+            exercise=exercise, author=author, rating=1, body='Removed', is_removed=True
+        )
+
+        response = self.client.get(reverse('user-reviews', kwargs={'pk': author.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+
+class UserServiceReviewsViewTests(APITestCase):
+    """GET /api/users/{id}/service-reviews/ — the same "their reviews" profile section, for
+    tutoring-listing reviews."""
+
+    def test_lists_only_that_users_own_service_reviews(self):
+        from services.models import Service, ServiceReview
+
+        provider = make_user('service-reviews-provider')
+        service = Service.objects.create(provider=provider, title='Tutoring')
+        author = make_user('service-review-author')
+        someone_else = make_user('service-review-someone-else')
+        ServiceReview.objects.create(service=service, author=author, rating=4, body='Helpful.')
+        ServiceReview.objects.create(service=service, author=someone_else, rating=3, body='Fine.')
+
+        response = self.client.get(reverse('user-service-reviews', kwargs={'pk': author.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['author'], author.pk)

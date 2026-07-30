@@ -11,6 +11,16 @@ export async function getReviewsForExercise(exerciseId: string): Promise<Review[
 	return reviews;
 }
 
+/** A specific user's own authored exercise reviews — the public profile page's own "their reviews"
+ * section. Already publicly-visible-only server-side (excludes a removed/auto-hidden row, the same
+ * filter `getReviewsForExercise` implicitly gets via `ExerciseViewSet.reviews`'s own queryset). */
+export async function getReviewsByUser(userId: string): Promise<Review[]> {
+	const raw = await apiClient.get<RawReview[]>(`/users/${encodeURIComponent(userId)}/reviews/`);
+	const reviews = raw.map(mapReview);
+	reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+	return reviews;
+}
+
 // `userId` stays a parameter for call-site compatibility, but the backend already scopes a review
 // to whoever the auth token belongs to (Review.author = request.user, exercises/views.py's own
 // `reviews` action) — sending someone else's id here couldn't attribute the review to them anyway.

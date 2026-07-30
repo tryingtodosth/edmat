@@ -63,11 +63,29 @@ export interface MaterialCoverage {
 // A loose, free-text prerequisite/skill label — "English B2+", "basic algebra" — not a fixed
 // vocabulary, matching this app's own established style for similarly loose per-item labels (the
 // backend's own MaterialRequirement model doc comment has the full reasoning). `order` is a plain,
-// governor-controlled display order, not derived from anything else.
+// governor-controlled display order, not derived from anything else. `voteSummary` (new) is the
+// exact same "is this claim accurate" weighted signal `MaterialCoverage` already has — "split
+// material tags into two groups (covers/requires), each votable, so users can sort by that" — the
+// requirement side of that split, reusing `CoverageVoteSummary`'s own shape unchanged since the
+// question ("agree/disagree, weighted") is identical for either claim type.
 export interface MaterialRequirement {
 	id: string;
 	label: string;
 	order: number;
+	voteSummary: CoverageVoteSummary;
+}
+
+// A star rating + optional written review on a Material — the same shape `Review` (Exercise) and
+// `ServiceReview` (a tutoring listing) already establish, just targeting a Material. See
+// ReviewList.svelte's own structural `ReviewLike` prop type, which all three already satisfy
+// without needing a shared base interface.
+export interface MaterialReview {
+	id: string;
+	materialId: string;
+	userId: string;
+	rating: number;
+	body?: string;
+	createdAt: string;
 }
 
 // Materials are a lighter object than exercises and, deliberately, do NOT get the full
@@ -85,11 +103,20 @@ export interface Material {
 	requirements: MaterialRequirement[];
 	fileName: string;
 	fileUrl: string; // Phase 3: a real, working URL served by the Django dev server's MEDIA_ROOT
+	// Free text, NOT a real account — the real corpus's own material.yaml `author:` values are
+	// plain human names (a course TA/professor), almost never a registered platform user, so this
+	// is deliberately never rendered as a clickable link. `submittedByUserId` below is the
+	// genuinely different, REAL-account attribution that was missing entirely until now — the
+	// material counterpart to `ResolvedExercise.submittedByUserId`.
 	author: string;
+	submittedByUserId?: string;
+	submittedByDisplayName?: string;
 	tags: string[]; // the same free-form Tag vocabulary Exercise.tags already uses — see TagChip.svelte
 	published: boolean;
 	featured: boolean;
 	order: number;
+	averageRating: number | null;
+	reviewCount: number;
 	// Added for the search/filter/sort overhaul — backs `sort: 'recent'` and the recommended feed's
 	// own "most recent upload" fallback tiebreak (materials/services.py's `get_recommended_materials`).
 	createdAt: string;

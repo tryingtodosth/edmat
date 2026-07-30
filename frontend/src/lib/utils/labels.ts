@@ -191,5 +191,6 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	tutoring: m.featureFlags_label_tutoring,
 	messaging: m.featureFlags_label_messaging,
 	exercise_submissions: m.featureFlags_label_exerciseSubmissions,
-	material_submissions: m.featureFlags_label_materialSubmissions
+	material_submissions: m.featureFlags_label_materialSubmissions,
+	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };

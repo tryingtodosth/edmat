@@ -10,22 +10,56 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _split_env_list(name: str, default: tuple[str, ...] = ()) -> list[str]:
+    """A comma-separated env var -> list, falling back to `default` (usually empty) when unset —
+    the one place every one of the env-driven list settings below (ALLOWED_HOSTS,
+    CSRF_TRUSTED_ORIGINS, the extra CORS origins) reads from, so a real deployment sets these once
+    in /etc/apache2/envvars (see deploy/DEPLOYMENT.md) without needing a settings.py edit at all,
+    while local dev (nothing set) gets back exactly the empty/default list it always had."""
+    raw = os.environ.get(name)
+    if not raw:
+        return list(default)
+    return [item.strip() for item in raw.split(',') if item.strip()]
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-x#=tushw$te2p$ti6@wo5(6o40kvc+k_n6s7x212pn9c0p_9-s'
+# SECURITY WARNING: keep the secret key used in production secret! Read from the environment (a
+# real deployment sets `DJANGO_SECRET_KEY` in /etc/apache2/envvars — sourced by apache2.service on
+# every start, which is what makes it visible to a mod_wsgi daemon process; see
+# deploy/DEPLOYMENT.md) rather than committed to a file in this repo. The fallback below is the
+# literal key `django-admin startproject` originally generated — fine for local dev (never
+# reachable from outside this machine), never acceptable for a real deployment, which is exactly
+# why this is read from the environment rather than hardcoded unconditionally.
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY', 'django-insecure-x#=tushw$te2p$ti6@wo5(6o40kvc+k_n6s7x212pn9c0p_9-s'
+)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# SECURITY WARNING: don't run with debug turned on in production! Also read from the environment —
+# defaults to True (the historical dev behavior) so nothing changes for local `manage.py runserver`
+# unless `DJANGO_DEBUG=False` is explicitly set server-side, once Apache is confirmed serving
+# /static/ and /media/ directly (Django's own dev-time auto-serving of both only runs while DEBUG
+# is True).
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+# Empty by default (Django's own documented behavior: DEBUG=True + ALLOWED_HOSTS=[] implicitly
+# allows localhost/127.0.0.1, exactly what local dev needs) — a real deployment sets
+# `DJANGO_ALLOWED_HOSTS=edmat.net,www.edmat.net,webek4.fuw.edu.pl` (or whatever the real domain(s)
+# are) in /etc/apache2/envvars instead of this being hardcoded into a file every environment shares.
+ALLOWED_HOSTS = _split_env_list('DJANGO_ALLOWED_HOSTS')
+
+# Empty by default — CSRF_TRUSTED_ORIGINS only matters once a real Host-header-spoofing-resistant
+# origin check is needed (Django 4+, distinct from ALLOWED_HOSTS), which local dev over plain HTTP
+# never hits. A real deployment sets `DJANGO_CSRF_TRUSTED_ORIGINS=https://edmat.net,https://www.edmat.net`.
+CSRF_TRUSTED_ORIGINS = _split_env_list('DJANGO_CSRF_TRUSTED_ORIGINS')
 
 
 # Application definition
@@ -164,9 +198,16 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Needed the moment DEBUG is False and a real webserver (not Django's own dev server) takes over
+# serving static assets — the Django admin's and DRF's browsable-API's own CSS/JS, collected here by
+# `manage.py collectstatic` and served directly by Apache (see deploy/apache/edmat.conf's own
+# Alias /static/ directive) rather than through the WSGI app itself. Harmless in local dev — nothing
+# reads this until `collectstatic` is actually run, which local dev never needs to.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 # User-uploaded files (Material PDFs, Section 9) — served by Django's dev server only while DEBUG is
-# on (config/urls.py wires static() for this); a real deployment would front this with a real media
-# host, not attempted here (mock-era honesty, matching the rest of this project's own conventions).
+# on (config/urls.py wires static() for this); a real deployment fronts this with Apache directly
+# instead (see deploy/apache/edmat.conf's own Alias /media/ directive) once DEBUG is False.
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -222,10 +263,35 @@ REST_FRAMEWORK = {
 # CORS — the SvelteKit dev server (Phase 1 frontend) runs on a separate origin/port; this is what
 # lets it call the API directly during Phase 3 wiring. Tightened to a real allowlist rather than
 # CORS_ALLOW_ALL_ORIGINS, since credentials (the auth token) will ride along with these requests.
+# A real deployment serves the built frontend from the SAME origin as the API (Apache's own vhost,
+# see deploy/apache/edmat.conf) — a genuinely same-origin request never needs a CORS header at all,
+# so this allowlist only ever matters there for the rare legitimate cross-origin case (a local dev
+# frontend pointed at the real production API). `DJANGO_CORS_ALLOWED_ORIGINS` extends, rather than
+# replaces, the dev list below — nothing to set for local dev, which keeps working unchanged.
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://localhost:5174',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
-]
+] + _split_env_list('DJANGO_CORS_ALLOWED_ORIGINS')
 CORS_ALLOW_CREDENTIALS = True
+
+# --- Real-TLS settings, gated behind one environment variable rather than hardcoded on ------------
+# Deliberately NOT unconditionally True: this same settings.py has to keep working correctly during
+# the deployment sequence's own earlier steps too (Apache running plain HTTP only, before certbot
+# has actually issued a certificate) — flipping SECURE_SSL_REDIRECT on before a working TLS listener
+# exists would mean every single request gets redirected to an HTTPS URL nothing is yet listening
+# on, taking the whole site down. Set `EDMAT_HTTPS_READY=true` in the environment (the real
+# systemd unit, once deploy/apache/edmat.conf's own TLS vhost is live and verified) to turn all of
+# this on at once — see deploy/DEPLOYMENT.md for the exact moment this should flip.
+_HTTPS_READY = os.environ.get('EDMAT_HTTPS_READY', 'false').lower() == 'true'
+
+if _HTTPS_READY:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year — only after confirming HTTPS itself works end-to-end;
+    # HSTS is a real, hard-to-undo browser-side commitment (see deploy/DEPLOYMENT.md's own note on
+    # why this one specifically should be the LAST toggle flipped, not the first)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True

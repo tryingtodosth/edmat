@@ -54,6 +54,9 @@
 			{#if featureFlagsStore.isEnabled('tutoring') || authStore.isModerator}
 				<a href={resolve('/services')}>{m.nav_services()}</a>
 			{/if}
+			{#if authStore.isAuthenticated && (featureFlagsStore.isEnabled('tutoring') || authStore.isModerator)}
+				<a href={resolve('/services/watchlist')}>{m.nav_watchlist()}</a>
+			{/if}
 			{#if authStore.isAuthenticated && (featureFlagsStore.isEnabled('messaging') || authStore.isModerator)}
 				<a href={resolve('/messages')}>
 					{m.nav_messages()}

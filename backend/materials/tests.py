@@ -8,7 +8,14 @@ from rest_framework.test import APITestCase
 
 from community.models import Comment
 from exercises.models import Tag
-from materials.models import MaterialCoverage, MaterialCoverageVote, MaterialView
+from materials.models import (
+    MaterialCoverage,
+    MaterialCoverageVote,
+    MaterialRequirement,
+    MaterialRequirementVote,
+    MaterialReview,
+    MaterialView,
+)
 from materials.services import get_recommended_materials
 from moderation.models import NodeGovernor
 from taxonomy.models import Course
@@ -44,6 +51,27 @@ class MaterialListingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         slugs = {row['slug'] for row in response.data}
         self.assertEqual(slugs, {'skrypt'})
+
+    def test_submitted_by_display_name_is_null_when_there_is_no_real_submitter(self):
+        """The legacy corpus's own materials (imported with no submitter) must never show a
+        fabricated name — `None`, not an empty string, so the frontend can tell "no real submitter"
+        apart from "a submitter with a genuinely blank display name.\""""
+        response = self.client.get(reverse('material-detail', kwargs={'pk': self.material.pk}))
+
+        self.assertIsNone(response.data['submitted_by'])
+        self.assertIsNone(response.data['submitted_by_display_name'])
+
+    def test_submitted_by_display_name_resolves_a_real_submitters_own_name(self):
+        submitter = make_user('material-submitter-display-name')
+        submitter.profile.display_name = 'Real Submitter Name'
+        submitter.profile.save(update_fields=['display_name'])
+        self.material.submitted_by = submitter
+        self.material.save(update_fields=['submitted_by'])
+
+        response = self.client.get(reverse('material-detail', kwargs={'pk': self.material.pk}))
+
+        self.assertEqual(response.data['submitted_by'], submitter.pk)
+        self.assertEqual(response.data['submitted_by_display_name'], 'Real Submitter Name')
 
 
 class MaterialCoverageProposalTests(APITestCase):
@@ -445,6 +473,76 @@ class MaterialRequirementApiTests(APITestCase):
         return ContentType.objects.get_for_model(Course)
 
 
+class MaterialRequirementProposalTests(APITestCase):
+    """POST /api/materials/{id}/requirements/propose_requirement/ — open to any authenticated user,
+    the requirement-side counterpart to MaterialCoverageProposalTests above (single-item propose,
+    the community then votes — MaterialRequirementVoteTests already covers the voting half). Kept
+    entirely separate from the governor-only bulk-replace PUT above, which is unaffected."""
+
+    def setUp(self):
+        self.course = make_course(slug='uw-propose-requirement-course')
+        self.material = make_material(self.course, 'skrypt-propose-req')
+        self.user = make_user('requirement-proposer')
+        self.client.force_authenticate(self.user)
+
+    def _propose(self, label):
+        return self.client.post(
+            reverse('material-propose-requirement', kwargs={'pk': self.material.pk}),
+            {'label': label},
+            format='json',
+        )
+
+    def test_a_plain_authenticated_user_can_propose_a_new_requirement(self):
+        response = self._propose('English B2+')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['label'], 'English B2+')
+        self.assertEqual(self.material.requirements.count(), 1)
+
+    def test_a_brand_new_proposal_starts_with_zero_votes(self):
+        response = self._propose('basic algebra')
+
+        self.assertEqual(response.data['vote_summary']['agree_count'], 0)
+        self.assertEqual(response.data['vote_summary']['net_weight'], 0)
+
+    def test_anonymous_user_cannot_propose_a_requirement(self):
+        self.client.force_authenticate(None)
+        response = self._propose('Should be rejected')
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(self.material.requirements.count(), 0)
+
+    def test_proposing_a_case_insensitive_duplicate_of_an_existing_requirement_is_rejected(self):
+        MaterialRequirement.objects.create(material=self.material, label='English B2+')
+
+        response = self._propose('  english b2+  ')
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(self.material.requirements.count(), 1)
+
+    def test_a_blank_label_is_rejected(self):
+        response = self._propose('   ')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_two_different_users_can_each_propose_their_own_requirement(self):
+        self._propose('English B2+')
+        self.client.force_authenticate(make_user('second-proposer'))
+
+        response = self._propose('basic algebra')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.material.requirements.count(), 2)
+
+    def test_new_proposals_append_after_existing_requirements_order(self):
+        MaterialRequirement.objects.create(material=self.material, label='first', order=0)
+        MaterialRequirement.objects.create(material=self.material, label='second', order=1)
+
+        response = self._propose('third')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['order'], 2)
+
+
 class MaterialCoverageCommentThreadingTests(APITestCase):
     """Real, threaded discussion per MaterialCoverage claim — CLAUDE.md's own note: the model/API
     mostly already supported this (Comment.parent, CommentSerializer's own writable `parent` field),
@@ -530,4 +628,215 @@ class MaterialCoverageCommentThreadingTests(APITestCase):
     def test_a_nonexistent_parent_id_is_rejected_by_ordinary_field_validation(self):
         response = self._post(self.coverage.pk, 'A reply to nothing', parent=999999)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class MaterialRequirementVoteTests(APITestCase):
+    """The new votable half of "split material tags into two groups (covers/requires), each
+    votable, so users can sort by that" — mirrors MaterialCoverageVoteTests above exactly, just
+    targeting a MaterialRequirement instead of a MaterialCoverage row."""
+
+    def setUp(self):
+        self.course = make_course()
+        self.material = make_material(self.course, 'skrypt-req')
+        self.requirement = MaterialRequirement.objects.create(material=self.material, label='English B2+')
+
+    def _vote(self, user, value):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            reverse('material-requirement-vote', kwargs={'pk': self.requirement.pk}),
+            {'value': value},
+            format='json',
+        )
+
+    def test_agree_and_disagree_counts_are_computed_correctly(self):
+        self._vote(make_user('req-voter1'), 1)
+        self._vote(make_user('req-voter2'), 1)
+        response = self._vote(make_user('req-voter3'), -1)
+
+        summary = response.data['vote_summary']
+        self.assertEqual(summary['agree_count'], 2)
+        self.assertEqual(summary['disagree_count'], 1)
+        self.assertEqual(summary['net_weight'], 1)
+
+    def test_a_verified_contributors_vote_counts_double(self):
+        contributor = make_user('req-vip', is_verified_contributor=True)
+        response = self._vote(contributor, 1)
+
+        summary = response.data['vote_summary']
+        self.assertEqual(summary['agree_count'], 1)
+        self.assertEqual(summary['agree_weight'], 2)
+
+    def test_revoting_updates_the_existing_vote_rather_than_duplicating_it(self):
+        voter = make_user('req-flip-flopper')
+        self._vote(voter, 1)
+
+        response = self._vote(voter, -1)
+
+        self.assertEqual(
+            MaterialRequirementVote.objects.filter(requirement=self.requirement, voter=voter).count(), 1
+        )
+        self.assertEqual(response.data['vote_summary']['agree_count'], 0)
+        self.assertEqual(response.data['vote_summary']['disagree_count'], 1)
+
+    def test_deleting_a_vote_removes_it(self):
+        voter = make_user('req-remover')
+        self._vote(voter, 1)
+
+        response = self.client.delete(reverse('material-requirement-vote', kwargs={'pk': self.requirement.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(
+            MaterialRequirementVote.objects.filter(requirement=self.requirement, voter=voter).exists()
+        )
+
+    def test_anonymous_vote_is_rejected(self):
+        response = self.client.post(
+            reverse('material-requirement-vote', kwargs={'pk': self.requirement.pk}), {'value': 1}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_an_invalid_value_is_rejected(self):
+        self.client.force_authenticate(make_user('req-bad-voter'))
+        response = self.client.post(
+            reverse('material-requirement-vote', kwargs={'pk': self.requirement.pk}), {'value': 3}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_sort_by_votes_ranks_a_material_with_more_net_requirement_votes_first(self):
+        """The `?sort=votes` endpoint-level check — confirms requirement votes actually feed into
+        the same ranking coverage votes already did, not just that the per-row vote_summary math
+        works in isolation."""
+        well_voted = make_material(self.course, 'well-voted-reqs')
+        well_voted_req = MaterialRequirement.objects.create(material=well_voted, label='Calculus I')
+        for i in range(3):
+            self._vote(make_user(f'sort-voter-{i}'), 1)  # votes on self.requirement (self.material)
+        MaterialRequirementVote.objects.create(
+            requirement=well_voted_req, voter=make_user('sort-voter-extra'), value=1
+        )
+        for i in range(5):
+            MaterialRequirementVote.objects.create(
+                requirement=well_voted_req, voter=make_user(f'sort-voter-more-{i}'), value=1
+            )
+
+        response = self.client.get(reverse('material-list'), {'sort': 'votes'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [row['id'] for row in response.data]
+        self.assertEqual(ids[0], well_voted.pk)
+
+
+class MaterialReviewsTests(APITestCase):
+    """Star rating + optional written review on a Material — mirrors
+    services/tests.py's own ServiceReviewsTests (the same upsert-on-resubmit shape, the same
+    average_rating/review_count surfaced on the parent serializer)."""
+
+    def setUp(self):
+        self.course = make_course()
+        self.material = make_material(self.course, 'reviewed-material')
+
+    def test_creating_a_review_succeeds_and_is_listed(self):
+        self.client.force_authenticate(make_user('mat-reviewer'))
+        response = self.client.post(
+            reverse('material-reviews', kwargs={'pk': self.material.pk}),
+            {'rating': 5, 'body': 'Excellent script.'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        list_response = self.client.get(reverse('material-reviews', kwargs={'pk': self.material.pk}))
+        self.assertEqual(len(list_response.data), 1)
+        self.assertEqual(list_response.data[0]['rating'], 5)
+
+    def test_resubmitting_updates_the_existing_review_rather_than_duplicating_it(self):
+        reviewer = make_user('mat-resubmitter')
+        self.client.force_authenticate(reviewer)
+        self.client.post(
+            reverse('material-reviews', kwargs={'pk': self.material.pk}), {'rating': 2, 'body': 'Meh.'}, format='json'
+        )
+
+        response = self.client.post(
+            reverse('material-reviews', kwargs={'pk': self.material.pk}),
+            {'rating': 5, 'body': 'Actually great on a second read.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)  # 200, not 201 — an update, not a create
+        self.assertEqual(MaterialReview.objects.filter(material=self.material, author=reviewer).count(), 1)
+        self.assertEqual(MaterialReview.objects.get(material=self.material, author=reviewer).rating, 5)
+
+    def test_anonymous_review_is_rejected(self):
+        response = self.client.post(
+            reverse('material-reviews', kwargs={'pk': self.material.pk}), {'rating': 4}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_average_rating_and_review_count_reflect_real_reviews(self):
+        self.client.force_authenticate(make_user('mat-reviewer-a'))
+        self.client.post(
+            reverse('material-reviews', kwargs={'pk': self.material.pk}), {'rating': 4}, format='json'
+        )
+        self.client.force_authenticate(make_user('mat-reviewer-b'))
+        self.client.post(
+            reverse('material-reviews', kwargs={'pk': self.material.pk}), {'rating': 2}, format='json'
+        )
+
+        response = self.client.get(reverse('material-detail', kwargs={'pk': self.material.pk}))
+
+        self.assertEqual(response.data['average_rating'], 3.0)
+        self.assertEqual(response.data['review_count'], 2)
+
+
+class MaterialCommentsTests(APITestCase):
+    """A whole-material discussion thread — "add discussions... to materials," distinct from the
+    already-existing per-coverage-claim thread (MaterialCoverageCommentTests above)."""
+
+    def setUp(self):
+        self.course = make_course()
+        self.material = make_material(self.course, 'discussed-material')
+
+    def _post(self, body, parent=None):
+        data = {'body': body}
+        if parent is not None:
+            data['parent'] = parent
+        return self.client.post(reverse('material-comments', kwargs={'pk': self.material.pk}), data, format='json')
+
+    def test_authenticated_user_can_post_a_root_comment(self):
+        self.client.force_authenticate(make_user('mat-commenter'))
+        response = self._post('Is this script up to date?')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_anonymous_comment_is_rejected(self):
+        response = self._post('Trying to comment while logged out')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_a_reply_threads_correctly(self):
+        self.client.force_authenticate(make_user('mat-root-author'))
+        root = self._post('A root comment')
+
+        self.client.force_authenticate(make_user('mat-reply-author'))
+        reply = self._post('A reply', parent=root.data['id'])
+
+        self.assertEqual(reply.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(reply.data['parent'], root.data['id'])
+
+    def test_a_parent_from_a_different_materials_own_thread_is_rejected(self):
+        other_material = make_material(self.course, 'a-different-material')
+        self.client.force_authenticate(make_user('mat-cross-target-author'))
+        other_root = self.client.post(
+            reverse('material-comments', kwargs={'pk': other_material.pk}), {'body': 'On a different material'}, format='json'
+        )
+
+        response = self._post('Trying to reply across materials', parent=other_root.data['id'])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_get_lists_comments_publicly_with_no_auth_required(self):
+        self.client.force_authenticate(make_user('mat-public-commenter'))
+        self._post('A publicly-readable comment')
+        self.client.force_authenticate(None)
+
+        response = self.client.get(reverse('material-comments', kwargs={'pk': self.material.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
 

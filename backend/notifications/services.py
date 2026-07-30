@@ -161,11 +161,17 @@ def notify_tag_followers(tag, *, actor, exercise=None, material=None):
         )
 
 
-def notify_comment_reply(comment, *, target_label: str, exercise=None):
-    """Called right after a new Comment is saved — the one shared implementation for both
-    exercises/views.py's `ExerciseViewSet.comments` and materials/views.py's
-    `MaterialCoverageViewSet.comments`, since "was this a reply, and if so tell the parent's author"
-    is the same question regardless of what the thread is attached to. No-ops outright when the new
+def notify_comment_reply(comment, *, target_label: str, exercise=None, material=None):
+    """Called right after a new Comment is saved — the one shared implementation for
+    exercises/views.py's `ExerciseViewSet.comments`, materials/views.py's
+    `MaterialCoverageViewSet.comments`/`MaterialViewSet.comments`, and services/views.py's
+    `ServiceViewSet.comments`, since "was this a reply, and if so tell the parent's author" is the
+    same question regardless of what the thread is attached to. `material` (new) lets a whole-
+    material discussion reply carry a real, clickable link the way an exercise reply already does
+    (`notify()`'s own `material=` param, unchanged) — a per-coverage-claim reply still passes
+    neither (there's no natural single Material/Exercise page for a specific coverage row to link
+    to any more precisely than the material's own detail page, and `_notify_coverage_reply` was
+    never asked to add that link, so it's left exactly as before). No-ops outright when the new
     comment isn't a reply at all (`parent_id` unset) — a root-level comment has no one to notify.
     Replying to your own earlier comment is handled by `notify()`'s own actor==recipient guard, not
     duplicated here."""
@@ -177,5 +183,6 @@ def notify_comment_reply(comment, *, target_label: str, exercise=None):
         actor=comment.author,
         target_label=target_label,
         exercise=exercise,
+        material=material,
         note=comment.body[:200],
     )

@@ -27,6 +27,7 @@ import type {
 	Material,
 	MaterialCoverage,
 	MaterialRequirement,
+	MaterialReview,
 	MaterialSubmission,
 	MaterialType,
 	Message,
@@ -38,6 +39,8 @@ import type {
 	ResolvedExercise,
 	Review,
 	Service,
+	ServiceReview,
+	ServiceWatch,
 	Subtopic,
 	TagFollowState,
 	Topic,
@@ -354,13 +357,15 @@ export interface RawMaterialRequirement {
 	id: number;
 	label: string;
 	order: number;
+	vote_summary: RawCoverageVoteSummary;
 }
 
 export function mapMaterialRequirement(json: RawMaterialRequirement): MaterialRequirement {
 	return {
 		id: String(json.id),
 		label: json.label,
-		order: json.order
+		order: json.order,
+		voteSummary: mapVoteSummary(json.vote_summary)
 	};
 }
 
@@ -374,6 +379,8 @@ export interface RawMaterial {
 	requirements: RawMaterialRequirement[];
 	file: string | null;
 	author: string;
+	submitted_by: number | null;
+	submitted_by_display_name: string | null;
 	tags: string[];
 	published: boolean;
 	featured: boolean;
@@ -383,6 +390,8 @@ export interface RawMaterial {
 	price_amount: string | null;
 	price_currency: string;
 	estimated_minutes: number | null;
+	average_rating: number | null;
+	review_count: number;
 	created_at: string;
 }
 
@@ -400,13 +409,38 @@ export function mapMaterial(json: RawMaterial): Material {
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
 		author: json.author,
+		submittedByUserId: idOrUndefined(json.submitted_by),
+		submittedByDisplayName: json.submitted_by_display_name ?? undefined,
 		tags: json.tags ?? [],
 		published: json.published,
 		featured: json.featured,
 		order: json.order,
+		averageRating: json.average_rating,
+		reviewCount: json.review_count,
 		priceAmount: json.price_amount != null ? Number(json.price_amount) : undefined,
 		priceCurrency: json.price_currency,
 		estimatedMinutes: json.estimated_minutes ?? undefined,
+		createdAt: json.created_at
+	};
+}
+
+export interface RawMaterialReview {
+	id: number;
+	material: number;
+	author: number;
+	author_display_name: string;
+	rating: number;
+	body: string;
+	created_at: string;
+}
+
+export function mapMaterialReview(json: RawMaterialReview): MaterialReview {
+	return {
+		id: String(json.id),
+		materialId: String(json.material),
+		userId: String(json.author),
+		rating: json.rating,
+		body: json.body || undefined,
 		createdAt: json.created_at
 	};
 }
@@ -607,20 +641,40 @@ export function mapReportGroup(json: RawReportGroup): ReportGroup {
 
 export interface RawExerciseSet {
 	id: number;
+	slug: string;
 	owner: number;
 	owner_display_name: string;
 	name: string;
-	items: { id: number; exercise: number; order: number }[];
+	items: {
+		id: number;
+		exercise: number;
+		order: number;
+		include_hint: boolean;
+		include_answer: boolean;
+		include_solution: boolean;
+	}[];
+	is_public: boolean;
 	created_at: string;
 }
 
 export function mapExerciseSet(json: RawExerciseSet): ExerciseSet {
+	const sortedItems = [...json.items].sort((a, b) => a.order - b.order);
+	const itemOptions: ExerciseSet['itemOptions'] = {};
+	for (const item of sortedItems) {
+		itemOptions[String(item.exercise)] = {
+			includeHint: item.include_hint,
+			includeAnswer: item.include_answer,
+			includeSolution: item.include_solution
+		};
+	}
 	return {
-		id: String(json.id),
+		id: json.slug,
 		ownerId: String(json.owner),
 		ownerDisplayName: json.owner_display_name,
 		name: json.name,
-		exerciseIds: [...json.items].sort((a, b) => a.order - b.order).map((i) => String(i.exercise)),
+		exerciseIds: sortedItems.map((i) => String(i.exercise)),
+		itemOptions,
+		isPublic: json.is_public,
 		createdAt: json.created_at
 	};
 }
@@ -841,6 +895,8 @@ export interface RawService {
 	hourly_rate: string | null; // DRF's DecimalField serializes as a string, not a JS number
 	currency: string;
 	is_active: boolean;
+	average_rating: number | null;
+	review_count: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -857,8 +913,45 @@ export function mapService(json: RawService): Service {
 		hourlyRate: json.hourly_rate !== null ? Number(json.hourly_rate) : null,
 		currency: (json.currency as Service['currency']) || 'PLN',
 		isActive: json.is_active,
+		averageRating: json.average_rating,
+		reviewCount: json.review_count,
 		createdAt: json.created_at,
 		updatedAt: json.updated_at
+	};
+}
+
+export interface RawServiceReview {
+	id: number;
+	service: number;
+	author: number;
+	author_display_name: string;
+	rating: number;
+	body: string;
+	created_at: string;
+}
+
+export function mapServiceReview(json: RawServiceReview): ServiceReview {
+	return {
+		id: String(json.id),
+		serviceId: String(json.service),
+		userId: String(json.author),
+		rating: json.rating,
+		body: json.body || undefined,
+		createdAt: json.created_at
+	};
+}
+
+export interface RawServiceWatch {
+	id: number;
+	service: RawService;
+	created_at: string;
+}
+
+export function mapServiceWatch(json: RawServiceWatch): ServiceWatch {
+	return {
+		id: String(json.id),
+		service: mapService(json.service),
+		createdAt: json.created_at
 	};
 }
 

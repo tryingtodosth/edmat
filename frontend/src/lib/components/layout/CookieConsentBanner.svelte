@@ -80,6 +80,34 @@
 		gap: var(--space-4);
 		max-width: 720px;
 		margin: 0 auto;
+		// A real, found-live bug: with no height cap, this fixed-to-the-bottom banner's own content
+		// (a full paragraph plus 3 wrapping buttons) can grow tall enough on a short mobile viewport
+		// to cover a large fraction of the screen — including, depending on scroll position,
+		// whatever page content sits behind it (a login form's own submit button in one confirmed
+		// repro; almost certainly the same mechanism behind "notifications only half visible" on
+		// mobile, since the banner sits in front of/over the bottom portion of ANY page until
+		// dismissed). Capping height and scrolling internally guarantees this never consumes more
+		// than a bounded fraction of any real viewport, however long its own text ends up being.
+		max-height: min(320px, 45vh);
+		overflow-y: auto;
+	}
+	@media (max-width: 480px) {
+		.cookie-banner {
+			left: var(--space-2);
+			right: var(--space-2);
+			bottom: var(--space-2);
+			padding: var(--space-3);
+			gap: var(--space-2);
+			max-height: min(280px, 45vh);
+		}
+		.cookie-banner__actions {
+			width: 100%;
+		}
+		.manage,
+		.reject,
+		.accept {
+			flex: 1;
+		}
 	}
 	.cookie-banner__text {
 		flex: 1;

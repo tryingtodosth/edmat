@@ -68,7 +68,13 @@ class ExerciseListSerializer(serializers.ModelSerializer):
     resolved_locale = serializers.SerializerMethodField()
     course_slug = serializers.SlugRelatedField(source='course', slug_field='slug', read_only=True)
     topics = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-    tags = serializers.SlugRelatedField(slug_field='slug', many=True, read_only=True)
+    # A plain SerializerMethodField, not a SlugRelatedField — a moderator-removed Tag
+    # (`Tag.is_removed`, added alongside the tag/material/"skill tag" reporting feature) needs
+    # filtering out for an ordinary reader. Filtered in PYTHON over the already-fetched `.all()`
+    # list, not `.filter(is_removed=False)`, which would issue a fresh query and silently bypass
+    # `ExerciseViewSet.bulk`'s own `prefetch_related('tags')` (the exact N+1 that prefetch exists to
+    # avoid, same reasoning `_published_translations` above already documents for `translations`).
+    tags = serializers.SerializerMethodField()
     source = ExerciseSourceSerializer(read_only=True)
     average_rating = serializers.FloatField(read_only=True, allow_null=True)
     review_count = serializers.IntegerField(read_only=True)
@@ -129,6 +135,9 @@ class ExerciseListSerializer(serializers.ModelSerializer):
         by_locale = {t.locale: t for t in self._published_translations(obj)}
         locale = request_locale(self.context)
         return by_locale.get(locale) or by_locale.get(obj.original_locale) or next(iter(by_locale.values()), None)
+
+    def get_tags(self, obj):
+        return [t.slug for t in obj.tags.all() if not t.is_removed]
 
     def get_title(self, obj):
         t = self._translation(obj)

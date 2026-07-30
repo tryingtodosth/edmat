@@ -200,7 +200,12 @@
 	const REPORT_KIND_LABELS: Record<ReportGroup['kind'], () => string> = {
 		exercise: m.report_kind_exercise,
 		comment: m.report_kind_comment,
-		review: m.report_kind_review
+		review: m.report_kind_review,
+		service: m.report_kind_service,
+		tag: m.report_kind_tag,
+		material: m.report_kind_material,
+		requirement: m.report_kind_requirement,
+		service_review: m.report_kind_service_review
 	};
 
 	async function restoreReport(r: ReportGroup) {

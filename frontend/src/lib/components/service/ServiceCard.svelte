@@ -7,13 +7,16 @@
 	import type { Service } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
+	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 
 	let {
 		service,
-		courseNames = []
+		courseNames = [],
+		linkTitle = true
 	}: {
 		service: Service;
 		courseNames?: string[];
+		linkTitle?: boolean;
 	} = $props();
 
 	let isOwnListing = $derived(authStore.user?.id === service.providerId);
@@ -27,11 +30,28 @@
 
 <article class="service-card">
 	<div class="service-card__heading">
-		<h3>{service.title}</h3>
+		<h3>
+			{#if linkTitle}
+				<a class="service-card__title-link" href={resolve('/services/[id]', { id: service.id })}>
+					{service.title}
+				</a>
+			{:else}
+				{service.title}
+			{/if}
+		</h3>
 		{#if service.hourlyRate !== null}
 			<span class="rate">{service.hourlyRate} {service.currency}/h</span>
 		{/if}
 	</div>
+
+	{#if service.reviewCount > 0}
+		<p class="rating-summary">
+			{m.review_average({
+				average: service.averageRating ?? 0,
+				count: service.reviewCount
+			})}
+		</p>
+	{/if}
 
 	{#if service.description}
 		<p class="description">{service.description}</p>
@@ -52,6 +72,7 @@
 		{#if authStore.isAuthenticated && !isOwnListing}
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an internal route built from resolve('/messages/new') plus a query string the eslint rule can't statically see through -->
 			<a class="contact" href={contactHref}>{m.services_contact()}</a>
+			<ReportButton kind="service" objectId={service.id} />
 		{/if}
 	</div>
 </article>
@@ -74,6 +95,17 @@
 	}
 	h3 {
 		font-size: var(--font-size-base);
+	}
+	.service-card__title-link {
+		color: var(--text-primary);
+		&:hover {
+			color: var(--accent);
+			text-decoration: underline;
+		}
+	}
+	.rating-summary {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 	.rate {
 		@include mix.status-pill(var(--accent), var(--accent-soft));

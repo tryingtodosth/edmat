@@ -164,7 +164,7 @@
 						<p class="empty">{m.material_noMaterials()}</p>
 					{:else}
 						{#each materials as material (material.id)}
-							<MaterialCard {material} {topics} />
+							<MaterialCard {material} />
 						{/each}
 					{/if}
 				</div>

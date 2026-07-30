@@ -16,16 +16,33 @@ from django.db.models import Q
 from django.utils import timezone
 
 from community.models import Comment, Review
-from exercises.models import Exercise, ExerciseTranslation
+from exercises.models import Exercise, ExerciseTranslation, Tag
+from materials.models import Material, MaterialRequirement
+from services.models import Service, ServiceReview
 from taxonomy.models import Course, Field
 
 # The one place `kind` <-> model is defined — moderation/serializers.py's ReportCreateSerializer
 # (validating an incoming report) and build_report_queue below (rendering the moderator-facing
-# queue) both import this rather than each keeping their own copy.
+# queue) both import this rather than each keeping their own copy. `service` is a real, public-
+# facing user-generated listing exactly like the other three (a title/description anyone can read),
+# so it gets the same generic reporting mechanism rather than a bespoke one. `tag`/`material`/
+# `requirement` (a MaterialRequirement — a "skill tag") joined for the identical reason: all three
+# are live, user-generated content with no moderation gate at write time (QA.md's own flagged risk
+# for tags specifically: a slur or defamatory label is live the instant it's applied).
+# `service_review` — a written review of a TUTOR (a Service listing), the exact same "one written
+# opinion, one rating" shape `review` (community.Review, an Exercise review) already covers, just a
+# separate model (ServiceReview) rather than a generic retrofit of Review itself — a deliberately
+# DIFFERENT kind string from `review`, not reused, since REPORT_KIND_MODELS maps one kind to exactly
+# one model and the two are genuinely different tables.
 REPORT_KIND_MODELS = {
     'exercise': Exercise,
     'comment': Comment,
     'review': Review,
+    'service': Service,
+    'tag': Tag,
+    'material': Material,
+    'requirement': MaterialRequirement,
+    'service_review': ServiceReview,
 }
 _REVERSE_KIND_MODELS = {model: kind for kind, model in REPORT_KIND_MODELS.items()}
 
@@ -91,6 +108,10 @@ def _content_owner(target):
     what turns that into a correct, silent no-op rather than something this function needs to
     special-case itself."""
     if isinstance(target, Exercise):
+        return target.submitted_by
+    if isinstance(target, Service):
+        return target.provider
+    if isinstance(target, Material):
         return target.submitted_by
     return getattr(target, 'author', None)
 
@@ -164,6 +185,18 @@ def check_auto_hide(target) -> bool:
     return True
 
 
+def _material_title(material) -> str:
+    """The same "resolve, fall back to original" title lookup `MaterialSerializer.get_title`
+    already does (materials/serializers.py) — reused here (not re-imported from there, to avoid a
+    real circular import: materials/serializers.py has no reason to import moderation, but keeping
+    the lookup itself in one place, not two independently-drifting copies, is still worth it) for
+    the moderator-facing report preview."""
+    from config.i18n_utils import resolve_translation, DEFAULT_FALLBACK_LOCALE
+
+    t = resolve_translation(material.translations, DEFAULT_FALLBACK_LOCALE)
+    return t.title if t else material.slug
+
+
 def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
     """(preview text, the exercise id it belongs to, that exercise's own title) — the moderator-
     facing summary for one reported target. Deliberately reads the REAL body/title regardless of
@@ -177,6 +210,30 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
         t = _resolve_exercise_translation(target, DEFAULT_FALLBACK_LOCALE)
         title = t.title if t else f'#{target.number}'
         return title, target.pk, title
+
+    if kind == 'service':
+        # A tutoring listing isn't scoped to one Exercise the way a Comment/Review borrows its
+        # parent's — `resolve_view_scope_exercise` already returns None for it (its own default
+        # branch), so `check_auto_hide` correctly never auto-hides a reported listing (no view-count
+        # denominator to measure against); it still queues normally for a moderator's own decision.
+        return target.title[:150], None, None
+
+    if kind == 'tag':
+        # Same "no viewer-pool concept" shape as Service — a Tag is global, shared across every
+        # Exercise/Material it's applied to, not scoped to any one of them.
+        return f'#{target.slug}', None, None
+
+    if kind == 'material':
+        return _material_title(target), None, None
+
+    if kind == 'requirement':
+        return target.label[:150], None, None
+
+    if kind == 'service_review':
+        # Same "no viewer-pool concept" shape as `service` itself — a tutoring listing's own review
+        # isn't scoped to an Exercise page either.
+        preview = target.body[:150] if target.body else f'{target.rating}★ (no written review)'
+        return preview, None, None
 
     exercise = resolve_view_scope_exercise(target)
     exercise_title = None
@@ -279,6 +336,13 @@ def build_report_queue(course_ids: set[int] | None = None) -> list[dict]:
             scope_exercise_by_key[key] = obj.exercise
             if obj.exercise_id:
                 needed_exercise_ids.add(obj.exercise_id)
+        elif isinstance(obj, (Service, Tag, Material, MaterialRequirement, ServiceReview)):
+            # None of these five have a viewer-pool concept at all (not page-scoped to one Exercise
+            # the way a Comment/Review borrows its parent's) — resolved directly to None, matching
+            # resolve_view_scope_exercise's own behavior for each, rather than falling into the
+            # "every remaining target is a Comment" branch below, which assumes a
+            # `content_type_id`/`object_id` pair none of these five genuinely have.
+            scope_exercise_by_key[key] = None
         else:
             comment_keys.append(key)  # every remaining target is a reported Comment
 
@@ -393,6 +457,19 @@ def build_report_queue(course_ids: set[int] | None = None) -> list[dict]:
         if kind == 'exercise':
             title = _title_for(target)
             preview, exercise_id, exercise_title = title, target.pk, title
+        elif kind == 'service':
+            # No exercise scope to report here at all — `exercise` is already None for this kind
+            # (set directly above, never routed through the comment-resolution pass).
+            preview, exercise_id, exercise_title = target.title[:150], None, None
+        elif kind == 'tag':
+            preview, exercise_id, exercise_title = f'#{target.slug}', None, None
+        elif kind == 'material':
+            preview, exercise_id, exercise_title = _material_title(target), None, None
+        elif kind == 'requirement':
+            preview, exercise_id, exercise_title = target.label[:150], None, None
+        elif kind == 'service_review':
+            preview = target.body[:150] if target.body else f'{target.rating}★ (no written review)'
+            exercise_id, exercise_title = None, None
         else:
             exercise_id = exercise.pk if exercise is not None else None
             exercise_title = _title_for(exercise) if exercise is not None else None

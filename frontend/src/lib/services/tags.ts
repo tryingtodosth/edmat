@@ -10,6 +10,18 @@ export async function getMyTagFollows(): Promise<TagFollowState[]> {
 	return raw.map(mapTagFollow);
 }
 
+/** Resolves a tag's own numeric id from its slug — every other tag reference throughout this app
+ * is slug-keyed (TagChip.svelte's own `tag: string` prop, `?tag=` filters, follow/apply), but
+ * `Report` (moderation/models.py) is a plain GenericForeignKey needing a real integer `object_id`,
+ * the one place this app's own tag-by-slug convention needs a real numeric id at all. Called lazily,
+ * only when a tag's own report flow is actually opened, not eagerly for every rendered chip. */
+export async function getTagBySlug(slug: string): Promise<{ id: string; slug: string }> {
+	const raw = await apiClient.get<{ id: number; slug: string }>(
+		`/tags/${encodeURIComponent(slug)}/`
+	);
+	return { id: String(raw.id), slug: raw.slug };
+}
+
 export async function followTag(slug: string): Promise<TagFollowState> {
 	const raw = await apiClient.post<RawTagFollow>(`/tags/${encodeURIComponent(slug)}/follow/`);
 	return mapTagFollow(raw);

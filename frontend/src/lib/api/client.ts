@@ -44,7 +44,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 	const token = tokenStore.value;
 	if (token) headers.set('Authorization', `Token ${token}`);
 
-	const res = await fetch(`${PUBLIC_API_BASE_URL}${path}`, { ...init, headers });
+	// `credentials: 'omit'` — this app is Token-auth only (DRF's TokenAuthentication, via the
+	// Authorization header above); no request this client ever makes needs a cookie. Left at
+	// fetch()'s own default (`same-origin`) before this, that meant any stray `sessionid` cookie
+	// (e.g. from visiting Django's own /admin/ in the same browser) would ride along on every
+	// same-origin request once frontend+API share one origin in production (deploy/apache/
+	// edmat.conf) — DRF's SessionAuthentication would then authenticate the request as THAT
+	// session and enforce CSRF against it, which this client never sends a token for by design,
+	// producing a real "CSRF Failed" 403 on an otherwise-correct Token-authenticated request. This
+	// exact failure mode was already hit once for registration (LAUNCHCHECKLIST.md's own "First
+	// production deployment" notes) and flagged as the right fix but never actually applied —
+	// applied now, closing the whole bug class rather than leaving it to resurface per-endpoint.
+	const res = await fetch(`${PUBLIC_API_BASE_URL}${path}`, {
+		...init,
+		headers,
+		credentials: 'omit'
+	});
 
 	if (res.status === 204) return undefined as T;
 

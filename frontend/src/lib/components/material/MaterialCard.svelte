@@ -1,103 +1,75 @@
 <script lang="ts">
+	// The public browse/grid card — deliberately a compact SUMMARY only, matching ServiceCard's own
+	// "one card component, reused at a different weight/context" economy: every real interactive
+	// flow this card used to cram inline (proposing coverage, editing requirements, voting) now lives
+	// on the material's own detail page instead (routes/materials/[id]/+page.svelte), the same way
+	// ServiceCard has no inline review/comment/watchlist UI of its own either.
+	//
+	// A real, reported bug this rewrite fixes: a material with dozens of coverage claims (the real
+	// corpus has materials with 30+, CLAUDE.md's own materials-overhaul note) used to render every
+	// single one as its own clickable badge inline on this card — several wrapped lines of coverage
+	// chips before a reader ever reached the description, price, or download link, on EVERY card in
+	// a grid of them. This card now shows only the top few (by net community vote) of each of the
+	// two votable groups — "Covers" and "Requires" — with a plain "+N more" count, never the full
+	// list; the full, sortable, votable list lives on the detail page.
 	import { resolve } from '$app/paths';
-	import type { Material, MaterialCoverage, Topic } from '$lib/types';
+	import type { Material, MaterialCoverage } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import {
-		proposeCoverage,
-		DuplicateCoverageError,
-		setMaterialRequirements
-	} from '$lib/services/materials';
-	import { authStore } from '$lib/state/auth.svelte';
 	import { MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
-	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
-	import CoverageBadge from './CoverageBadge.svelte';
 	import CoveragePopover from './CoveragePopover.svelte';
-	import AddCoverageForm from './AddCoverageForm.svelte';
-	import RequirementsEditor from './RequirementsEditor.svelte';
 
-	// linkTitle: true everywhere this card is used as a feed/grid item (the course page's own
-	// Materials tab — its only caller before Phase 4); false on the material's OWN detail page
-	// (materials/[id]/+page.svelte, this card's new second caller), where linking the title back to
-	// the very page it's already on would be a pointless, confusing self-link.
-	let {
-		material,
-		topics = [],
-		linkTitle = true
-	}: { material: Material; topics?: Topic[]; linkTitle?: boolean } = $props();
+	// linkTitle: true everywhere this card is used as a feed/grid item; false on the material's OWN
+	// detail page, where linking the title back to the very page it's already on would be a
+	// pointless, confusing self-link.
+	let { material, linkTitle = true }: { material: Material; linkTitle?: boolean } = $props();
 
-	// Local, session-only overlay so a freshly-proposed coverage row appears immediately without
-	// re-fetching the whole material — same "optimistic append" shape this app's own
-	// exercise-detail page already uses for a just-submitted review/comment.
-	let coverageOverlay = $state<MaterialCoverage[]>([]);
-	let allCoverage = $derived([...material.coverage, ...coverageOverlay]);
+	const PREVIEW_COUNT = 3;
 
-	// Same overlay shape, subtracting instead of adding: `material` is a plain prop (this card
-	// renders the same material in a grid/feed context too, not just a detail page), so there's no
-	// single owned `$state` to mutate directly the way the exercise detail page does with its own
-	// `exercise.tags` — a removed-this-session Set is the equivalent "don't refetch, just don't
-	// show it" fix for a prop this component doesn't own.
+	// A real, found gap: the compact coverage chips this rewrite introduced were plain, non-
+	// interactive `<span>`s — a reader could no longer open a claim's own discussion/vote popover
+	// from the list view at all, only from the detail page. Fixed by reusing CoveragePopover
+	// directly (the exact same modal the detail page already opens), rather than inventing a
+	// second, lighter interaction for what's still the same underlying claim.
+	//
+	// A local vote-update overlay, not a direct mutation of the `material` prop — MaterialCard
+	// renders a plain, possibly-shared `material` object (a grid/feed item, not this component's own
+	// owned state), so a vote cast inside the popover updates THIS overlay instead, the same
+	// "overlay, don't mutate a shared prop" shape `removedTags` below already establishes for tags.
+	let coverageVoteOverlay = $state<Record<string, MaterialCoverage>>({});
+	let effectiveCoverage = $derived(
+		material.coverage.map((c) => coverageVoteOverlay[c.id] ?? c)
+	);
+	let openCoverageId = $state<string | null>(null);
+	let openCoverage = $derived(effectiveCoverage.find((c) => c.id === openCoverageId) ?? null);
+
+	function handleCoverageVoteChange(updated: MaterialCoverage) {
+		coverageVoteOverlay = { ...coverageVoteOverlay, [updated.id]: updated };
+	}
+
+	// Sorted by net community vote (highest-agreed-with first) — the whole point of making both
+	// groups votable is that a reader sees the most-vetted claims first, not creation order.
+	let topCoverage = $derived(
+		[...effectiveCoverage]
+			.sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
+			.slice(0, PREVIEW_COUNT)
+	);
+	let extraCoverageCount = $derived(Math.max(0, material.coverage.length - PREVIEW_COUNT));
+
+	let topRequirements = $derived(
+		[...material.requirements]
+			.sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
+			.slice(0, PREVIEW_COUNT)
+	);
+	let extraRequirementCount = $derived(Math.max(0, material.requirements.length - PREVIEW_COUNT));
+
+	// Local, session-only overlay — the same subtract-shaped sibling to `coverageOverlay`'s own
+	// pre-existing add-shaped pattern this card already used elsewhere in this app (MaterialCard is
+	// a plain, possibly-shared `material` prop, not owned state, so there's no single source to
+	// mutate directly the way an owned-state page can).
 	let removedTags = $state<Set<string>>(new Set());
 	let visibleTags = $derived(material.tags.filter((t) => !removedTags.has(t)));
-
-	let openCoverageId = $state<string | null>(null);
-	let openCoverage = $derived(allCoverage.find((c) => c.id === openCoverageId) ?? null);
-
-	let addingCoverage = $state(false);
-	let addError = $state<string | null>(null);
-
-	// Requirements — a governor-only edit (materials/views.py's `requirements` action, gated by
-	// global staff or a governor of the material's own course), not open to any authenticated user
-	// the way coverage proposals are (structural metadata, not a low-stakes community proposal). A
-	// full-replace overlay: once a save succeeds, the server's own freshly-returned requirement list
-	// replaces whatever this card started with — the same "server is authoritative, no client-side
-	// tallying" trust model CoveragePopover's own vote handling already establishes.
-	let requirementsOverlay = $state<Material['requirements'] | null>(null);
-	let visibleRequirements = $derived(requirementsOverlay ?? material.requirements);
-	let editingRequirements = $state(false);
-	let requirementsError = $state<string | null>(null);
-
-	async function handleSaveRequirements(labels: string[]) {
-		requirementsError = null;
-		try {
-			const updated = await setMaterialRequirements(material.id, labels);
-			requirementsOverlay = updated.requirements;
-			editingRequirements = false;
-		} catch {
-			requirementsError = m.material_requirementsSaveError();
-		}
-	}
-
-	function slugify(name: string): string {
-		return name
-			.toLowerCase()
-			.trim()
-			.replace(/[^a-z0-9]+/g, '-')
-			.replace(/(^-|-$)/g, '');
-	}
-
-	async function handleProposeCoverage(input: {
-		topicId: string;
-		subtopicName: string;
-		level: number;
-	}) {
-		addError = null;
-		try {
-			const coverage = await proposeCoverage(material.id, {
-				topicId: input.topicId,
-				level: input.level,
-				...(input.subtopicName
-					? { subtopicSlug: slugify(input.subtopicName), subtopicName: input.subtopicName }
-					: {})
-			});
-			coverageOverlay = [...coverageOverlay, coverage];
-			addingCoverage = false;
-		} catch (e) {
-			addError =
-				e instanceof DuplicateCoverageError ? m.coverage_addDuplicate() : m.common_error_generic();
-		}
-	}
 </script>
 
 <article class="material-card">
@@ -111,21 +83,44 @@
 		{/if}
 		<span class="material-type">{MATERIAL_TYPE_LABELS[material.type]()}</span>
 	</div>
-	<p>{material.description}</p>
 
-	{#if allCoverage.length > 0 || authStore.isAuthenticated}
-		<div class="material-card__coverage">
-			{#each allCoverage as coverage (coverage.id)}
-				<CoverageBadge {coverage} onclick={() => (openCoverageId = coverage.id)} />
-			{/each}
-			{#if authStore.isAuthenticated && topics.length > 0}
+	{#if material.reviewCount > 0}
+		<p class="rating-summary">
+			{m.review_average({
+				average: material.averageRating ?? 0,
+				count: material.reviewCount
+			})}
+		</p>
+	{/if}
+
+	<p class="description">{material.description}</p>
+
+	{#if topCoverage.length > 0}
+		<div class="claim-line">
+			<span class="claim-line__label">{m.material_coversLabel()}</span>
+			{#each topCoverage as coverage (coverage.id)}
 				<button
 					type="button"
-					class="add-coverage-trigger"
-					onclick={() => ((addingCoverage = true), (addError = null))}
+					class="claim-chip claim-chip--coverage"
+					onclick={() => (openCoverageId = coverage.id)}
 				>
-					+ {m.coverage_addTrigger()}
+					{coverage.subtopicName ?? coverage.topicName}
 				</button>
+			{/each}
+			{#if extraCoverageCount > 0}
+				<span class="claim-more">{m.material_moreCount({ count: extraCoverageCount })}</span>
+			{/if}
+		</div>
+	{/if}
+
+	{#if topRequirements.length > 0}
+		<div class="claim-line">
+			<span class="claim-line__label">{m.material_requiresLabel()}</span>
+			{#each topRequirements as requirement (requirement.id)}
+				<span class="claim-chip claim-chip--requirement">{requirement.label}</span>
+			{/each}
+			{#if extraRequirementCount > 0}
+				<span class="claim-more">{m.material_moreCount({ count: extraRequirementCount })}</span>
 			{/if}
 		</div>
 	{/if}
@@ -142,23 +137,6 @@
 					}}
 				/>
 			{/each}
-		</div>
-	{/if}
-
-	{#if visibleRequirements.length > 0 || authStore.canModerate}
-		<div class="material-card__requirements">
-			{#each visibleRequirements as requirement (requirement.id)}
-				<span class="requirement-chip">{requirement.label}</span>
-			{/each}
-			{#if authStore.canModerate}
-				<button
-					type="button"
-					class="edit-requirements-trigger"
-					onclick={() => ((editingRequirements = true), (requirementsError = null))}
-				>
-					{m.material_requirementsEdit()}
-				</button>
-			{/if}
 		</div>
 	{/if}
 
@@ -181,7 +159,24 @@
 	{/if}
 
 	<div class="material-card__footer">
-		<span class="muted">{m.material_by({ author: material.author })}</span>
+		{#if material.submittedByUserId}
+			<!-- A real, found gap: a community-submitted material had NO clickable attribution at all
+			     (Material.author is free text — a course TA/professor's name from the legacy corpus,
+			     almost never a real account, so it stays plain text below) until `submitted_by` was
+			     added. Same "link the author's name to their public profile" convention the exercise
+			     detail page's own `submitted-by` link already establishes. -->
+			<span class="submitted-by">
+				{m.material_submittedByPrefix()}
+				<a
+					class="submitted-by-link"
+					href={resolve('/users/[id]', { id: material.submittedByUserId })}
+				>
+					{material.submittedByDisplayName ?? material.submittedByUserId}
+				</a>
+			</span>
+		{:else if material.author}
+			<span class="muted">{m.material_by({ author: material.author })}</span>
+		{/if}
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an external file URL (the Django media server), not an app route resolve() can express -->
 		<a class="download" href={material.fileUrl} target="_blank" rel="noopener noreferrer" download>
 			{m.material_download()}
@@ -190,36 +185,11 @@
 </article>
 
 {#if openCoverage}
-	<CoveragePopover coverage={openCoverage} onClose={() => (openCoverageId = null)} />
-{/if}
-
-{#if addingCoverage}
-	<ModalShell title={m.coverage_addTrigger()} onClose={() => (addingCoverage = false)}>
-		{#if addError}
-			<p class="add-error">{addError}</p>
-		{/if}
-		<AddCoverageForm
-			{topics}
-			onSubmit={handleProposeCoverage}
-			onCancel={() => (addingCoverage = false)}
-		/>
-	</ModalShell>
-{/if}
-
-{#if editingRequirements}
-	<ModalShell
-		title={m.material_requirementsModalTitle()}
-		onClose={() => (editingRequirements = false)}
-	>
-		{#if requirementsError}
-			<p class="add-error">{requirementsError}</p>
-		{/if}
-		<RequirementsEditor
-			initial={visibleRequirements.map((r) => r.label)}
-			onSubmit={handleSaveRequirements}
-			onCancel={() => (editingRequirements = false)}
-		/>
-	</ModalShell>
+	<CoveragePopover
+		coverage={openCoverage}
+		onClose={() => (openCoverageId = null)}
+		onVoteChange={handleCoverageVoteChange}
+	/>
 {/if}
 
 <style lang="scss">
@@ -249,44 +219,53 @@
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
 		flex-shrink: 0;
 	}
-	p {
+	.rating-summary {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.description {
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
 		flex: 1;
 	}
-	.material-card__coverage {
+	.claim-line {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-1);
 		align-items: center;
+		font-size: var(--font-size-xs);
+	}
+	.claim-line__label {
+		color: var(--text-secondary);
+		font-weight: 600;
+	}
+	.claim-chip {
+		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+	}
+	.claim-chip--coverage {
+		@include mix.focus-ring;
+		color: var(--status-info);
+		background: var(--status-info-bg);
+		border: none;
+		cursor: pointer;
+		font: inherit;
+		&:hover {
+			background: var(--accent-soft);
+			color: var(--accent);
+		}
+	}
+	.claim-chip--requirement {
+		color: var(--accent);
+		background: var(--accent-soft);
+	}
+	.claim-more {
+		color: var(--text-secondary);
+		font-style: italic;
 	}
 	.material-card__tags {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-1);
-	}
-	.material-card__requirements {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-1);
-		align-items: center;
-	}
-	.requirement-chip {
-		@include mix.status-pill(var(--status-info), var(--bg-surface-alt));
-	}
-	.edit-requirements-trigger {
-		@include mix.focus-ring;
-		background: none;
-		border: 1px dashed var(--border-color);
-		border-radius: var(--radius-sm);
-		padding: 2px var(--space-2);
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-		cursor: pointer;
-		&:hover {
-			color: var(--accent);
-			border-color: var(--accent);
-		}
 	}
 	.material-card__meta {
 		display: flex;
@@ -297,23 +276,6 @@
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
 		font-weight: 600;
 	}
-	.add-coverage-trigger {
-		@include mix.focus-ring;
-		background: none;
-		border: 1px dashed var(--border-color);
-		border-radius: var(--radius-sm);
-		padding: 2px var(--space-2);
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-		cursor: pointer;
-		&:hover {
-			color: var(--accent);
-			border-color: var(--accent);
-		}
-	}
-	.add-error {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
-	}
 	.material-card__footer {
 		display: flex;
 		align-items: center;
@@ -323,6 +285,18 @@
 	.muted {
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
+	}
+	.submitted-by {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.submitted-by-link {
+		font-weight: 600;
+		color: var(--text-secondary);
+		text-decoration: underline;
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.download {
 		@include mix.button-secondary;

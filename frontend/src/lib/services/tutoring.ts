@@ -4,9 +4,16 @@
 // since that self-referential path read as confusing rather than merely unusual. Mirrors the
 // backend's own ServiceViewSet 1:1 regardless of the file's own name.
 
-import type { Service, ServiceDraft } from '$lib/types';
+import type { Service, ServiceDraft, ServiceReview, ServiceWatch } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
-import { mapService, type RawService } from '$lib/api/mappers';
+import {
+	mapService,
+	mapServiceReview,
+	mapServiceWatch,
+	type RawService,
+	type RawServiceReview,
+	type RawServiceWatch
+} from '$lib/api/mappers';
 
 function draftToBody(draft: ServiceDraft): Record<string, unknown> {
 	const trimmedRate = draft.hourlyRate.trim();
@@ -33,6 +40,17 @@ export async function getServices(courseId?: string): Promise<Service[]> {
  * my listings" view, matching `ServiceViewSet`'s own `?mine=true` convention. */
 export async function getMyServices(): Promise<Service[]> {
 	const raw = await apiClient.get<RawService[]>('/services/?mine=true');
+	return raw.map(mapService);
+}
+
+/** A specific user's own ACTIVE tutoring listings — the public profile page's own "their tutoring
+ * listings" section. Only ever active ones (the backend's own `?provider=` filter reuses the
+ * ordinary public-browse default, services/views.py's own doc comment), matching what a stranger
+ * visiting that profile should see — never a paused listing, even the profile owner's own. */
+export async function getServicesByProvider(userId: string): Promise<Service[]> {
+	const raw = await apiClient.get<RawService[]>(
+		`/services/?provider=${encodeURIComponent(userId)}`
+	);
 	return raw.map(mapService);
 }
 
@@ -65,4 +83,87 @@ export async function updateService(id: string, draft: ServiceDraft): Promise<Se
 
 export async function deleteService(id: string): Promise<void> {
 	await apiClient.delete(`/services/${encodeURIComponent(id)}/`);
+}
+
+/** A single listing's own detail page — public, matching `ExerciseSetViewSet.retrieve`'s own
+ * "public GET, owner-scoped writes" precedent (CLAUDE.md Section 17J); the backend's own
+ * `get_queryset` additionally lets a provider view their own paused listing directly (see
+ * services/views.py's own doc comment), so a 404 here means either a genuinely nonexistent id or
+ * someone else's paused listing — same 404-swallowing shape `getSharedSet` already establishes. */
+export async function getServiceById(id: string): Promise<Service | undefined> {
+	try {
+		const raw = await apiClient.get<RawService>(`/services/${encodeURIComponent(id)}/`);
+		return mapService(raw);
+	} catch (e) {
+		if (e instanceof ApiError && e.status === 404) return undefined;
+		throw e;
+	}
+}
+
+/** A specific user's own authored tutoring-listing reviews — the public profile page's own "their
+ * reviews" section, the `ServiceReview` counterpart to `getReviewsByUser` (reviews.ts). */
+export async function getServiceReviewsByUser(userId: string): Promise<ServiceReview[]> {
+	const raw = await apiClient.get<RawServiceReview[]>(
+		`/users/${encodeURIComponent(userId)}/service-reviews/`
+	);
+	const reviews = raw.map(mapServiceReview);
+	reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+	return reviews;
+}
+
+export async function getServiceReviews(serviceId: string): Promise<ServiceReview[]> {
+	const raw = await apiClient.get<RawServiceReview[]>(
+		`/services/${encodeURIComponent(serviceId)}/reviews/`
+	);
+	const reviews = raw.map(mapServiceReview);
+	reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+	return reviews;
+}
+
+// `userId` stays a parameter for call-site compatibility with `submitReview` (exercises' own
+// review submission) — the backend already scopes this to whoever the auth token belongs to
+// (ServiceReview.author = request.user, services/views.py's own `reviews` action), and already
+// upserts on resubmission rather than duplicating (unique_together = [('service', 'author')]).
+export async function submitServiceReview(
+	serviceId: string,
+	_userId: string,
+	rating: number,
+	body?: string
+): Promise<ServiceReview> {
+	const raw = await apiClient.post<RawServiceReview>(
+		`/services/${encodeURIComponent(serviceId)}/reviews/`,
+		{ rating, body: body?.trim() || '' }
+	);
+	return mapServiceReview(raw);
+}
+
+/** The current user's own watchlist — authenticated-only, no public read at all (a watchlist is
+ * inherently personal, see `ServiceWatchViewSet`'s own doc comment). Each row already embeds its
+ * full `Service`, so a comparison view can render straight from this one response. */
+export async function getWatchlist(): Promise<ServiceWatch[]> {
+	const raw = await apiClient.get<RawServiceWatch[]>('/service-watches/');
+	return raw.map(mapServiceWatch);
+}
+
+// Thrown specifically for an already-watched listing (services/serializers.py's own
+// `ServiceWatchSerializer.validate`) — a distinct, named error so a caller can show a real,
+// specific message rather than the generic one every other failure gets.
+export class AlreadyWatchingError extends Error {}
+
+export async function watchService(serviceId: string): Promise<ServiceWatch> {
+	try {
+		const raw = await apiClient.post<RawServiceWatch>('/service-watches/', {
+			service: Number(serviceId)
+		});
+		return mapServiceWatch(raw);
+	} catch (e) {
+		if (e instanceof ApiError && e.status === 400) {
+			throw new AlreadyWatchingError(e.message);
+		}
+		throw e;
+	}
+}
+
+export async function unwatchService(watchId: string): Promise<void> {
+	await apiClient.delete(`/service-watches/${encodeURIComponent(watchId)}/`);
 }

@@ -1,7 +1,11 @@
-// 'material' was never a real backend target (see comments.ts's own note — no call site ever used
-// it) and stays that way; 'materialCoverage' is the real second target added alongside 'exercise'
-// — a discussion thread scoped to one specific topic-subtopic-level claim, not the whole material.
-export type CommentTargetType = 'exercise' | 'material' | 'materialCoverage';
+// 'material' — a WHOLE material's own top-level discussion (materials/views.py's
+// MaterialViewSet.comments, GET /api/materials/{id}/comments/) — genuinely became a real backend
+// target ("add discussions... to materials"); this comment used to say otherwise (no call site had
+// ever used it) and is corrected here rather than left stale. Distinct from 'materialCoverage'
+// below, a discussion scoped to one specific topic-subtopic-level claim, not the whole material.
+// 'service' is the other real one — a tutoring listing's own discussion (services/views.py's
+// ServiceViewSet.comments), the same generic Comment mechanism reused again.
+export type CommentTargetType = 'exercise' | 'material' | 'materialCoverage' | 'service';
 
 export interface Comment {
 	id: string;

@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from taxonomy.models import Course
 
-from .models import Service
+from .models import Service, ServiceReview, ServiceWatch
 
 
 class ServiceSerializer(serializers.ModelSerializer):
@@ -15,6 +15,12 @@ class ServiceSerializer(serializers.ModelSerializer):
     course_slugs = serializers.SlugRelatedField(
         source='courses', slug_field='slug', many=True, read_only=True
     )
+    # A plain SerializerMethodField (2 extra queries per row), not a queryset-level annotation the
+    # way ExerciseListSerializer's own average_rating/review_count need to be at real corpus scale
+    # (383+ exercises) — a services browse page is a small, course-scoped or "my listings" set, not
+    # a page that has ever needed that same optimization; revisit only if that stops being true.
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Service
@@ -29,6 +35,8 @@ class ServiceSerializer(serializers.ModelSerializer):
             'hourly_rate',
             'currency',
             'is_active',
+            'average_rating',
+            'review_count',
             'created_at',
             'updated_at',
         ]
@@ -36,6 +44,29 @@ class ServiceSerializer(serializers.ModelSerializer):
     def get_provider_display_name(self, obj):
         profile = getattr(obj.provider, 'profile', None)
         return (profile.display_name if profile and profile.display_name else obj.provider.username)
+
+    def get_average_rating(self, obj):
+        from django.db.models import Avg
+
+        avg = obj.reviews.filter(is_removed=False).aggregate(avg=Avg('rating'))['avg']
+        return round(avg, 1) if avg is not None else None
+
+    def get_review_count(self, obj):
+        return obj.reviews.filter(is_removed=False).count()
+
+
+class ServiceReviewSerializer(serializers.ModelSerializer):
+    # Same `getattr(obj.author.profile, 'display_name', '') or obj.author.username` pattern
+    # community/serializers.py's ReviewSerializer already establishes for the identical purpose.
+    author_display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ServiceReview
+        fields = ['id', 'service', 'author', 'author_display_name', 'rating', 'body', 'created_at']
+        read_only_fields = ['author']
+
+    def get_author_display_name(self, obj):
+        return getattr(obj.author.profile, 'display_name', '') or obj.author.username
 
 
 class ServiceWriteSerializer(serializers.ModelSerializer):
@@ -75,3 +106,33 @@ class ServiceWriteSerializer(serializers.ModelSerializer):
         if courses is not None:
             instance.courses.set(courses)
         return instance
+
+
+class ServiceWatchSerializer(serializers.ModelSerializer):
+    """"Add to watchlist to compare certain listings" — `service` is the only real write input
+    (`user`/`created_at` are always the caller/server, matching this app's own established
+    "never trust an author/owner field from the client" convention). The full nested `Service`
+    representation is embedded on read (via `to_representation` below) so the watchlist page can
+    render/compare real listings directly from this one response, without a second N-request
+    fan-out for each watched id."""
+
+    class Meta:
+        model = ServiceWatch
+        fields = ['id', 'service', 'created_at']
+
+    def validate(self, attrs):
+        # A real, found-by-a-failing-test bug: without this pre-check, a duplicate watch attempt
+        # fell straight through to the DB's own `unique_together` constraint and surfaced as a raw
+        # 500 IntegrityError instead of a clean 400 — the same "check .exists() first" pattern
+        # NodeGovernorSerializer/ReportCreateSerializer already establish elsewhere in this app for
+        # the identical class of "would violate a unique constraint" case.
+        request = self.context.get('request')
+        if request is not None and request.user.is_authenticated:
+            if ServiceWatch.objects.filter(user=request.user, service=attrs['service']).exists():
+                raise serializers.ValidationError({'detail': ['You already have this listing on your watchlist.']})
+        return attrs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['service'] = ServiceSerializer(instance.service, context=self.context).data
+        return data

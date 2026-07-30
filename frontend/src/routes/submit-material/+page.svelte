@@ -4,6 +4,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getAllCourses } from '$lib/services/taxonomy';
 	import { submitMaterial } from '$lib/services/materials';
+	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { MATERIAL_CURRENCIES, MATERIAL_TYPES, MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
@@ -98,13 +99,20 @@
 			estimatedMinutes = '';
 			const input = document.getElementById('material-file-input') as HTMLInputElement | null;
 			if (input) input.value = '';
-		} catch {
+		} catch (e) {
 			// A rejected content-type/oversized-file/failed-scan upload all come back as a real 400
 			// from the backend (materials/validators.py's own validator, or MaterialSubmissionViewSet
 			// .perform_create's scan check) — one honest, generic message covers every case, matching
 			// this app's own established convention for the material-submission upload form
-			// (materials/views.py's own doc comment).
-			errorMessage = m.submitMaterial_uploadFailed();
+			// (materials/views.py's own doc comment). A 403 is a genuinely different failure kind —
+			// the new material_uploads_verified_only kill switch (moderation/permissions.py's
+			// RequireVerifiedContributorForMaterialUploads) — worth its own clearer message so a
+			// non-verified user understands WHY, rather than assuming their file itself was rejected.
+			if (e instanceof ApiError && e.status === 403) {
+				errorMessage = m.submitMaterial_verifiedContributorsOnly();
+			} else {
+				errorMessage = m.submitMaterial_uploadFailed();
+			}
 		} finally {
 			submitting = false;
 		}

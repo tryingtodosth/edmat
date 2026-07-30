@@ -11,8 +11,21 @@
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import CoverageVoteWidget from './CoverageVoteWidget.svelte';
 
-	let { coverage: initial, onClose }: { coverage: MaterialCoverage; onClose: () => void } =
-		$props();
+	// `onVoteChange` (new, optional): the material detail page now sorts its own "Covers" group by
+	// net vote weight ("split material tags into two groups... each votable, so users can sort by
+	// that") — without this, a vote cast here would update only this popover's own local `coverage`
+	// copy, leaving the PARENT page's sort order (and any other on-screen count of the same claim)
+	// stale until a full reload. Optional because a caller with no such list to keep in sync (none
+	// today, but nothing requires one) shouldn't need to pass a no-op.
+	let {
+		coverage: initial,
+		onClose,
+		onVoteChange
+	}: {
+		coverage: MaterialCoverage;
+		onClose: () => void;
+		onVoteChange?: (updated: MaterialCoverage) => void;
+	} = $props();
 
 	// A local, mutable copy — voting/retracting return the server's own freshly-recomputed row
 	// (vote_summary included), so this just gets reassigned wholesale rather than needing its own
@@ -48,10 +61,12 @@
 
 	async function handleVote(value: 1 | -1) {
 		coverage = await castCoverageVote(coverage.id, value);
+		onVoteChange?.(coverage);
 	}
 
 	async function handleRetract() {
 		coverage = await retractCoverageVote(coverage.id);
+		onVoteChange?.(coverage);
 	}
 
 	async function handleComment(body: string, parentId?: string) {
