@@ -3839,6 +3839,126 @@ connect → transfer → consent → un-publish → delete loop. `npm run check`
   materially worse thing to be casual about than a cart; real storage, a consent audit trail and a
   GDPR answer belong with the deployment question, not this round.
 
+## 17T. Feature: courses run by users, and taking part in them (✅ built, full stack)
+
+People can now run a course here, and other people can join it. A new Django app, `classroom/`, plus
+`/classroom` on the frontend.
+
+### The name, first, because it is the one decision everything else inherits
+
+`taxonomy.Course` already exists and means a *przedmiot* — a university subject like Analiza
+Matematyczna II, which nobody runs and nobody enrols in. What this adds is the other Polish word, a
+*kurs*: something a person teaches over time to a group who sign up. English collapses the two onto
+one word; the code must not.
+
+`/api/courses/` and the frontend's `/courses/[course]` are both already the taxonomy's, so this is
+not merely a readability preference — the namespace is genuinely occupied. Renaming
+`taxonomy.Course` to `Subject` would be the tidier long-term fix and was rejected as far too much
+collateral for a naming preference: it reaches into migrations, the corpus importer, the API and the
+frontend's routes. So the new thing takes the new name — **model `TaughtCourse`, app `classroom`,
+API `/api/taught-courses/`, route `/classroom`** — and **users never see any of it**: in both
+locales it is simply "Courses" / "Kursy", because a visitor should not pay for an internal
+disambiguation.
+
+### What a course is, and the states that are deliberately not booleans
+
+`status` is one field (`draft → open → running → finished`) rather than `is_published` +
+`is_finished`, for the same reason `Service.delivery_mode` already gives: two booleans make an
+illegal state representable — finished but never published — that every read site would then have to
+defend against.
+
+**A course starts as a draft and is invisible to everyone but its instructor.** Creating something is
+not announcing it. That is enforced by queryset filtering rather than a permission check, so a draft
+is absent from every listing for free instead of being hidden by a rule each new endpoint has to
+remember, and a stranger poking at one gets a 404 — which is also the honest answer, since for them
+it does not exist.
+
+`enrollment_policy` is `open` (anyone, immediately) or `approval` (the instructor decides). Not a
+boolean, so a third policy — an invite code, say — is a value rather than a schema change.
+`capacity = 0` means uncapped, which is genuinely different from a large limit and is the right
+default for a reading group nobody intends to cap.
+
+`Enrollment.status` has five values, and the three endings are separate on purpose: someone who
+**left** may re-join, someone **removed** may not, and a **declined** request is a decision rather
+than an absence. One `inactive` flag would throw away exactly what both parties need to see later.
+One row per person per course, reused across leaving and re-joining, so "am I in this?" stays a
+single lookup with a single answer.
+
+### Why the refusal reason travels to the client
+
+`TaughtCourse.enrollment_block_reason()` returns *why* somebody cannot join — not a boolean — and the
+API passes it through. "This course is full" and "the instructor removed you" are the same refusal to
+a boolean and completely different to a person: one is a matter of waiting, the other is not. The
+frontend has a line for each of the six.
+
+The cap is enforced on **both** paths — joining and the instructor approving — because a limit that
+only holds on one of them is not a limit. Lowering a cap below the people already admitted is refused
+rather than silently leaving the course over capacity or, far worse, dropping somebody already let
+in.
+
+### Lessons: public blurb, participant-only notes
+
+A lesson's title and description are public so somebody can judge whether to join; `participant_notes`
+is the part worth joining for and is blanked for anybody who is not in the course. Blanked rather than
+omitted, so the response shape never changes with the caller and no client has to branch on whether a
+key exists. A **pending** request does not unlock it — asking is not joining.
+
+Lesson content *references* existing exercises and materials rather than copying them, so a corrected
+exercise stays corrected everywhere and nothing here becomes a second, silently diverging copy of the
+corpus.
+
+### The roster is not public
+
+A course roster is a list of real people. Participants see each other; the instructor additionally
+sees pending requests, since acting on them is their job; a stranger browsing the catalogue gets a
+403. The course page still shows a participant *count*, which is what somebody deciding whether to
+join actually needs.
+
+### A kill switch, like every other feature surface here
+
+`FeatureFlag('classroom')`, seeded on, gating every action including reads — the same `feature_gate`
+contract `tutoring` and `messaging` already use, with the same `is_staff` bypass so a moderator can
+still manage what exists while the feature is off.
+
+### Verified
+
+`backend/classroom/tests.py` — **28 tests**, weighted towards the boundaries that fail silently: a
+draft is invisible, a roster is not public, a full course refuses on both paths, a removed person
+cannot walk back in, participant notes stay out of an outsider's response, and the creator becomes
+the instructor regardless of what was posted. Full backend suite afterwards: **419 tests, OK**.
+
+`frontend/e2e/classroom.mjs` — **29 checks in a real browser, three separate accounts in three
+separate contexts, zero console/page errors**: the same page rendering three different things to a
+stranger, a participant and the instructor; the approval flow from both ends including the note the
+applicant wrote; leaving giving the seat back and re-locking the notes; a full course refusing in its
+own words. `npm run check`: 0 errors, 0 warnings. `npm run build`: clean. Both locales carry all 68
+new keys.
+
+One pre-existing test needed updating rather than working around: `moderation`'s own
+`test_list_is_public_and_returns_all_seeded_flags` asserts the exact set of seeded flags, and there is
+now a sixth. That is the intended effect of adding a kill switch, so the expectation was what was
+stale.
+
+### Left open, not built
+
+- **No discussion inside a course.** `community.Comment` already does threaded, reportable
+  discussion for exercises and materials and is the obvious thing to reuse, but it was not wired up
+  here.
+- **No notifications.** Nobody is told their request was approved or declined; they find out by
+  looking. `notifications/services.py` is where that would go, and it wants a new type per event.
+- **Subject/field tagging exists in the model and the API but has no picker** — the form preserves
+  whatever is already set rather than offering to change it, so discovery by subject is reachable
+  only through the API today.
+- **Lessons cannot be reordered or edited in place from the UI** (the API supports PATCH); adding and
+  deleting is all the page offers.
+- **Attaching exercises and materials to a lesson is API-only** for the same reason — the picker is
+  its own piece of work, and `My Set` already has one worth borrowing from.
+- **No calendar or reminder anywhere**, despite `scheduled_at` existing.
+- **A price is display-only**, exactly like a tutoring listing's rate: nothing here takes money, and
+  the form says so.
+- **No cap on how many courses one person may run**, and no moderation queue for course content —
+  only the platform-wide kill switch and ordinary reporting elsewhere.
+
 ---
 
 ## 18. Open questions
@@ -3965,7 +4085,8 @@ connect → transfer → consent → un-publish → delete loop. `npm run check`
 | Polish (source data) | English (this project) |
 |---|---|
 | kierunek | field |
-| przedmiot | course |
+| przedmiot | course (`taxonomy.Course`) — a university subject |
+| kurs (prowadzony przez użytkownika) | taught course (`classroom.TaughtCourse`) — something a person runs and others join |
 | dział / temat | topic |
 | zadanie | exercise |
 | materiał (dydaktyczny) | material |

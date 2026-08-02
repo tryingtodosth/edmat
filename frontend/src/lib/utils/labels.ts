@@ -184,11 +184,12 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	newTaggedContent: m.notifPref_newTaggedContent
 };
 
-// The 4 platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
+// The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
 // — mirrored by hand here, same "small, rarely-changing enum, flag the drift risk rather than fetch
 // a labels endpoint for it" call this codebase already made for DONATION_PLATFORMS/SOURCE_TYPES.
 export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	tutoring: m.featureFlags_label_tutoring,
+	classroom: m.featureFlags_label_classroom,
 	messaging: m.featureFlags_label_messaging,
 	exercise_submissions: m.featureFlags_label_exerciseSubmissions,
 	material_submissions: m.featureFlags_label_materialSubmissions,

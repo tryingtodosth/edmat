@@ -89,6 +89,7 @@ INSTALLED_APPS = [
     'messaging',
     'telemetry',
     'identity',
+    'classroom',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting

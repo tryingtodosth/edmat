@@ -1802,18 +1802,28 @@ class FeatureFlagTests(APITestCase):
             keys,
             {
                 'tutoring',
+                'classroom',
                 'messaging',
                 'exercise_submissions',
                 'material_submissions',
                 'material_uploads_verified_only',
             },
         )
-        # The first 4 are plain kill switches, seeded on; `material_uploads_verified_only` is the
-        # one, deliberately-inverted-semantics exception (0011's own seed migration) — its own
+        # The 5 plain kill switches are seeded on; `material_uploads_verified_only` is the one,
+        # deliberately-inverted-semantics exception (0011's own seed migration) — its own
         # dedicated MaterialUploadVerifiedContributorGateTests covers its actual on/off behavior.
         by_key = {row['key']: row['is_enabled'] for row in response.data}
         self.assertTrue(
-            all(by_key[k] for k in ('tutoring', 'messaging', 'exercise_submissions', 'material_submissions'))
+            all(
+                by_key[k]
+                for k in (
+                    'tutoring',
+                    'classroom',
+                    'messaging',
+                    'exercise_submissions',
+                    'material_submissions',
+                )
+            )
         )
         self.assertFalse(by_key['material_uploads_verified_only'])
 

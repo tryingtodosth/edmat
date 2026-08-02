@@ -51,6 +51,9 @@
 			{#if featureFlagsStore.isEnabled('material_submissions') || authStore.isModerator}
 				<a href={resolve('/submit-material')}>{m.nav_submitMaterial()}</a>
 			{/if}
+			{#if featureFlagsStore.isEnabled('classroom') || authStore.isModerator}
+				<a href={resolve('/classroom')}>{m.nav_classroom()}</a>
+			{/if}
 			{#if featureFlagsStore.isEnabled('tutoring') || authStore.isModerator}
 				<a href={resolve('/services')}>{m.nav_services()}</a>
 			{/if}
