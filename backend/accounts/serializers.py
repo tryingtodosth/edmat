@@ -51,6 +51,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'username',
             'email',
             'display_name',
+            'bio',
             'avatar',
             'preferred_locale',
             'is_verified_contributor',
@@ -88,6 +89,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
         model = Profile
         fields = [
             'display_name',
+            'bio',
             'preferred_locale',
             'show_profile_publicly',
             'notify_on_comment_reply',
@@ -130,6 +132,7 @@ class PublicProfileSerializer(serializers.ModelSerializer):
             'username',
             'email',
             'display_name',
+            'bio',
             'avatar',
             'preferred_locale',
             'is_verified_contributor',

@@ -4006,6 +4006,68 @@ will read it.
 - **No cap on how many courses one person may run**, and no moderation queue for course content —
   only the platform-wide kill switch and ordinary reporting elsewhere.
 
+
+### Follow-up: a one-command install, and demo content to install (✅ built)
+
+`setup.sh`, `run.sh`, `MARYSIA.md` — for handing the project to somebody on Ubuntu with nothing
+installed. `MARYSIA.md` is in Polish, because the person it is written for reads Polish and a setup
+guide is exactly the wrong place to make somebody translate as they go.
+
+**The two files are split on purpose**: `setup.sh` builds, `run.sh` starts. Re-running the build
+should never kill a running site, and starting should never rebuild.
+
+**The `.venv`/`node_modules`/database are all created by the script**, so the thing you send is just
+the repository — which is what "ready to send without node/venv" required. Everything a person might
+reasonably want to change is four lines at the top of `setup.sh`; the rest is machinery.
+
+#### Two real bugs, found only by running it on a genuinely clean copy
+
+Both would have hit the recipient and nobody else, which is exactly why testing on a working machine
+would not have caught them:
+
+- **`python3 -c 'import venv'` is not a test for `python3-venv`.** The `venv` module ships with
+  Python itself, so it imports fine on a machine where `python3 -m venv` cannot build a working
+  environment. Ubuntu splits out `ensurepip`, which is what the check now looks for. The first clean
+  run failed exactly the way a new user's would.
+- **Changing the port broke the site silently.** `run.sh` invites you to change the ports, but the
+  API only accepts browser requests from origins it knows, and its built-in allowlist covers the
+  default port only — so a changed port produced "Something went wrong" and no clue. `run.sh` now
+  passes the chosen origin through, and keeps `frontend/.env` in step with the backend port.
+
+#### The demo content, and why profiles needed new models to hold it
+
+`manage.py seed_demo_content` (idempotent, `--reset` to redo) creates four people with real
+histories, reviews with text, threaded comments, three courses with participants, one pending
+request and one draft. It exists because an empty app is genuinely hard to judge: every list says
+"nothing here yet", so a feature that works is indistinguishable from one that does not.
+
+Placing that content required two new models:
+
+- **`ExperienceEntry`** — self-declared, and labelled as such on screen. That is the whole reason it
+  sits next to the education card rather than inside it: one is a claim a person typed, the other is
+  a claim an institution made, and a reader should be able to tell without being told.
+- **`SkillEntry`** — with `evidence` (`self_declared` / `coursework` / `registry`), which is the
+  interesting field. `registry` is **not self-assignable**: the serializer downgrades it, because a
+  value anybody can type is worth what typing costs. It is what `identity.standing.skill_seeds`
+  already computes, so imported USOS grades have somewhere to land.
+
+The **activity feed** (`GET /users/{id}/activity/`) is derived on read rather than stored. A real
+event log would mean touching every mutation and would still miss everything that happened before
+the feature existed — the corpus alone is 742 exercises with a history this app never recorded.
+Tags come from real data (an exercise's own tags, a course's subjects), so filtering by one means
+something, and **undated items sort last rather than being given a fake date**.
+
+**A real API defect the tests caught**: DRF derives uniqueness validators from `unique_together` but
+not from `Meta.constraints`, which is what `SkillEntry` uses — so a duplicate skill label surfaced as
+a 500 rather than a 400. Fixed in the serializer.
+
+**Verified on a genuinely clean copy** (`git write-tree` → `git archive` → no `.venv`, no
+`node_modules`, no database): `setup.sh` ran end to end, `run.sh` started both halves, and a
+17-check browser pass confirmed every promise `MARYSIA.md` makes — courses listed, the draft hidden,
+the demo login working, Piotr's pending request waiting with its note, a profile showing experience,
+skills with their evidence, and an activity feed that filters by tag and re-sorts. 458 backend tests
+(16 new), zero console errors.
+
 ---
 
 ## 18. Open questions

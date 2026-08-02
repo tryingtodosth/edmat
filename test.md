@@ -4,7 +4,7 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py` | 442 |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 458 |
 | **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 86 checks across 2 scripts |
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
@@ -58,6 +58,7 @@ inherit from it rather than repeating the line.
 |---|---|
 | `classroom` (51) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings |
 | `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
+| `accounts` profile extras (16) | Experience, skills, the derived activity feed, and the demo-content seed |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
 | `exercises`, `materials`, `community`, `study`, `services`, `messaging`, `notifications`, `telemetry`, `accounts` | Their own domains |
 
@@ -181,7 +182,33 @@ consent one field at a time → un-publish → delete.
 
 ---
 
-## 3. Other checks
+## 3. Checking a fresh install
+
+`setup.sh` is the thing a new person runs, so it is worth checking on something that has never been
+built before rather than on your own working copy — the failures it is meant to prevent only happen
+on a clean machine.
+
+```sh
+# a genuinely clean copy of the repository, with no .venv, no node_modules and no database
+TREE=$(git write-tree) && mkdir -p /tmp/edmat-fresh
+git archive "$TREE" --format=tar | tar -x -C /tmp/edmat-fresh
+cd /tmp/edmat-fresh && ./setup.sh && ./run.sh
+```
+
+Two bugs this caught that no other check would have:
+
+- **`python3 -c 'import venv'` is not a test for python3-venv.** The `venv` module ships with Python
+  itself, so it imports fine on a machine where `python3 -m venv` cannot build a working
+  environment. What Ubuntu splits into that package is `ensurepip`, which is what the script now
+  looks for.
+- **Changing the ports broke the site silently.** `run.sh` invites you to change them, but the API
+  only accepts browser requests from origins it knows, and its built-in list covers the default port
+  only — so a changed port produced "Something went wrong" with no clue as to why. `run.sh` now
+  passes the chosen origin through.
+
+---
+
+## 4. Other checks
 
 ```sh
 cd frontend
@@ -203,7 +230,7 @@ cd backend
 
 ---
 
-## 4. Adding tests
+## 5. Adding tests
 
 - **A rule belongs in the Django suite.** Ask "what would fail silently?" — that is the test worth
   writing. Most of `classroom/tests.py` is refusals rather than happy paths for exactly that reason.

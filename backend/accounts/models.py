@@ -21,6 +21,10 @@ class Profile(models.Model):
         upload_to='avatars/', blank=True, null=True, validators=[validate_avatar_file]
     )
     preferred_locale = models.CharField(max_length=8, default='en')
+    # A short self-description. Always public when set — like `display_name`, it is something the
+    # account holder actively wrote to be read, so `show_profile_publicly` (which withholds info a
+    # visitor never chose to publish, e.g. the joined date) does not gate it.
+    bio = models.TextField(max_length=1000, blank=True)
     is_verified_contributor = models.BooleanField(default=False)
     joined_at = models.DateTimeField(auto_now_add=True)
 
@@ -119,3 +123,92 @@ class DonationLink(models.Model):
 
     def __str__(self) -> str:
         return f'{self.label or self.get_platform_display()} ({self.profile})'
+
+
+# What somebody has DONE and what they are GOOD AT — two separate lists, because they answer two
+# different questions and mix badly in one. An experience entry is a period with a place attached;
+# a skill is a claim about a subject, and the interesting thing about it is what backs the claim.
+EXPERIENCE_KIND_CHOICES = [
+    ('study', 'Studies'),
+    ('work', 'Work'),
+    ('teaching', 'Teaching'),
+    ('project', 'Project'),
+    ('other', 'Other'),
+]
+
+
+class ExperienceEntry(models.Model):
+    """One line of somebody's history, as they choose to describe it.
+
+    Entirely self-declared and shown as such — nothing here is verified, and it is not pretending to
+    be. That is a different thing from `identity.EducationProfile`, where a claim is backed by an
+    institution's own registry; the two sit next to each other on a profile precisely so the
+    difference is visible.
+    """
+
+    profile = models.ForeignKey(Profile, related_name='experience', on_delete=models.CASCADE)
+    kind = models.CharField(max_length=12, choices=EXPERIENCE_KIND_CHOICES, default='other')
+    title = models.CharField(max_length=200)
+    organisation = models.CharField(max_length=200, blank=True)
+    started_on = models.DateField(null=True, blank=True)
+    # Null means ongoing, which is genuinely different from an unknown end date — the UI says
+    # "present" rather than leaving a dash somebody has to interpret.
+    ended_on = models.DateField(null=True, blank=True)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        # Most recent first, with an explicit `order` available for somebody who wants to override
+        # that on their own profile. Nulls (ongoing) sort to the top, which is where they belong.
+        ordering = ['order', '-started_on', 'id']
+
+    def __str__(self) -> str:
+        return f'{self.title} ({self.profile})'
+
+
+SKILL_LEVEL_CHOICES = [
+    ('learning', 'Learning'),
+    ('comfortable', 'Comfortable'),
+    ('teaching', 'Could teach it'),
+]
+
+# What actually backs the claim — the whole point of the field. A skill anybody can type is worth
+# what typing costs; one the university's own registry attested is not, and a reader deserves to be
+# able to tell them apart at a glance rather than being asked to trust a flat list.
+SKILL_EVIDENCE_CHOICES = [
+    ('self_declared', 'Self-declared'),
+    ('coursework', 'Passed the course here'),
+    ('registry', 'Confirmed by the university registry'),
+]
+
+
+class SkillEntry(models.Model):
+    profile = models.ForeignKey(Profile, related_name='skills', on_delete=models.CASCADE)
+    label = models.CharField(max_length=100)
+    level = models.CharField(max_length=12, choices=SKILL_LEVEL_CHOICES, default='comfortable')
+    evidence = models.CharField(
+        max_length=16, choices=SKILL_EVIDENCE_CHOICES, default='self_declared'
+    )
+    # Optional links into the real taxonomy — what makes a skill more than a word. A skill tied to a
+    # Course can be counted, filtered and matched against the exercises on this site; a free-text one
+    # cannot, which is why both are allowed but only one of them is useful to the rest of the app.
+    # This is also where `identity.standing.skill_seeds` would land once USOS grades are imported for
+    # real: the seeds already compute exactly this shape.
+    course = models.ForeignKey(
+        'taxonomy.Course', null=True, blank=True, related_name='claimed_skills', on_delete=models.SET_NULL
+    )
+    field = models.ForeignKey(
+        'taxonomy.Field', null=True, blank=True, related_name='claimed_skills', on_delete=models.SET_NULL
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'label']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['profile', 'label'], name='unique_skill_label_per_profile'
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.label} ({self.profile})'

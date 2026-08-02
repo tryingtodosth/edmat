@@ -26,6 +26,7 @@
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import EducationCard from '$lib/components/shared/EducationCard.svelte';
+	import ProfileExtras from '$lib/components/profile/ProfileExtras.svelte';
 	import type { PublicEducation } from '$lib/types/identity';
 
 	let user = $state<User | undefined>(undefined);
@@ -165,6 +166,10 @@
 				{/if}
 			</div>
 
+			{#if user.bio}
+				<p class="bio">{user.bio}</p>
+			{/if}
+
 			{#if user.offersTutoring && user.tutoringNote}
 				<p class="tutoring-note">{user.tutoringNote}</p>
 			{/if}
@@ -197,6 +202,8 @@
 		{#if education}
 			<EducationCard {education} />
 		{/if}
+
+		<ProfileExtras userId={user.id} />
 
 		{#if tutoringListings.length > 0}
 			<section class="profile-section">
@@ -304,6 +311,9 @@
 	}
 	.badge--tutoring {
 		@include mix.status-pill(var(--accent), var(--accent-soft));
+	}
+	.bio {
+		white-space: pre-wrap;
 	}
 	.tutoring-note {
 		font-size: var(--font-size-sm);

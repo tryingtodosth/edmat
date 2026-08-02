@@ -14,6 +14,10 @@ Two parts, run separately:
 
 ---
 
+> **Just want it running?** [`MARYSIA.md`](./MARYSIA.md) is a two-command setup for Ubuntu
+> (`./setup.sh` then `./run.sh`) that installs everything missing, in Polish, assuming nothing.
+> The rest of this file is the manual version.
+
 ## Prerequisites
 
 - **Python 3.12** (the backend was built and tested against `3.12.3`)

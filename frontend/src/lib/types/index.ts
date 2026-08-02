@@ -17,3 +17,4 @@ export * from './message';
 export * from './featureFlag';
 export * from './identity';
 export * from './classroom';
+export * from './profileExtras';

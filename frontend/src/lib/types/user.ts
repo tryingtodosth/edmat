@@ -4,6 +4,7 @@ import type { NotificationType } from './notification';
 export interface User {
 	id: string;
 	displayName: string;
+	bio?: string;
 	email: string;
 	avatarUrl?: string;
 	joinedAt: string | null; // null only ever appears on a PublicProfile view of a privacy-gated profile

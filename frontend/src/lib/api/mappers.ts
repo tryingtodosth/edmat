@@ -787,6 +787,7 @@ export interface RawProfile {
 	username: string;
 	email: string;
 	display_name: string;
+	bio?: string;
 	avatar: string | null;
 	preferred_locale: string;
 	is_verified_contributor: boolean;
@@ -811,6 +812,7 @@ export interface RawProfile {
 export function mapUser(json: RawProfile): User {
 	return {
 		id: String(json.id),
+		bio: json.bio,
 		displayName: json.display_name || json.username,
 		email: json.email,
 		avatarUrl: json.avatar ?? undefined,
