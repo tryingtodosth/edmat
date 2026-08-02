@@ -15,3 +15,4 @@ export * from './nodeGovernor';
 export * from './service';
 export * from './message';
 export * from './featureFlag';
+export * from './identity';

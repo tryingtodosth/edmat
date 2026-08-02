@@ -168,6 +168,26 @@ class UserPublicView(generics.RetrieveAPIView):
     def get_object(self):
         return get_object_or_404(self.get_queryset(), user_id=self.kwargs['pk'])
 
+    def retrieve(self, request, *args, **kwargs):
+        """Adds the education claim, but only as far as that account's own consent allows.
+
+        Deliberately layered on here rather than added to `PublicProfileSerializer.Meta.fields`:
+        an education profile is optional (most accounts have none), and the gating is three
+        independent consents rather than one field-level rule — `identity.standing.public_view`
+        already owns exactly that decision, and expressing it a second time as serializer fields
+        would give one rule two homes to drift between.
+
+        Returns None rather than an empty object when nothing may be shown, so the frontend renders
+        no section at all instead of an empty heading that implies something is being withheld.
+        """
+        response = super().retrieve(request, *args, **kwargs)
+        from identity.models import EducationProfile
+        from identity.standing import public_view
+
+        education = EducationProfile.objects.filter(user_id=self.kwargs['pk']).first()
+        response.data['education'] = public_view(education)
+        return response
+
 
 class UserReviewsView(generics.ListAPIView):
     """GET /api/users/{id}/reviews/ — every EXERCISE review this user has authored, publicly

@@ -6,6 +6,7 @@
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import { DEMO_PASSWORD } from '$lib/demo';
+	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
 
 	let email = $state('');
 	let password = $state('');
@@ -58,6 +59,11 @@
 
 	<p class="demo-note">{m.auth_login_demoNote({ password: DEMO_PASSWORD })}</p>
 
+	<!-- Below the real form, not above it: the working way in should be the first thing on the
+	     page, and a row of drafts sitting on top of it would put the unfinished half first. -->
+	<div class="divider"><span>{m.auth_providers_divider()}</span></div>
+	<ProviderButtons />
+
 	<p class="switch">
 		{m.auth_login_noAccount()}
 		<a href={resolve('/register')}>{m.auth_login_registerLink()}</a>
@@ -109,6 +115,20 @@
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
 		text-align: center;
+	}
+	.divider {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
+		&::before,
+		&::after {
+			content: '';
+			flex: 1;
+			height: 1px;
+			background: var(--border-color);
+		}
 	}
 	.switch {
 		text-align: center;

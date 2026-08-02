@@ -9,7 +9,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { formatDate, formatRelativeDate } from '$lib/utils/format';
-	import { getUserById } from '$lib/services/users';
+	import { getUserById, getUserEducation } from '$lib/services/users';
 	import { getExercisesBySubmitter, getExercisesByIds } from '$lib/services/exercises';
 	import { getReviewsByUser } from '$lib/services/reviews';
 	import {
@@ -25,6 +25,8 @@
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
+	import EducationCard from '$lib/components/shared/EducationCard.svelte';
+	import type { PublicEducation } from '$lib/types/identity';
 
 	let user = $state<User | undefined>(undefined);
 	let loading = $state(true);
@@ -101,6 +103,8 @@
 		listingCourseNamesById = Object.fromEntries(entries);
 	}
 
+	let education = $state<PublicEducation | null>(null);
+
 	async function loadUser(id: string) {
 		loading = true;
 		notFound = false;
@@ -115,7 +119,12 @@
 		await Promise.all([
 			loadContributions(id, locale),
 			loadReviews(id, locale),
-			loadTutoringListings(id)
+			loadTutoringListings(id),
+			// Null unless that account consented — see getUserEducation. A failure here must never
+			// take the whole profile down over an optional section.
+			getUserEducation(id)
+				.then((res) => (education = res))
+				.catch(() => (education = null))
 		]);
 		loading = false;
 	}
@@ -184,6 +193,10 @@
 				</div>
 			{/if}
 		</section>
+
+		{#if education}
+			<EducationCard {education} />
+		{/if}
 
 		{#if tutoringListings.length > 0}
 			<section class="profile-section">

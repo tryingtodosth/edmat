@@ -102,6 +102,7 @@ edmat/
 │   ├── manage.py
 │   ├── config/                settings, root urls
 │   ├── accounts/               User profiles, auth endpoints
+│   ├── identity/                sign-in provider drafts, schools, education & the USOS seam
 │   ├── taxonomy/                Field / Course / Topic / Chapter
 │   ├── exercises/                 Exercise / ExerciseTranslation / Tag
 │   ├── materials/                  course PDFs

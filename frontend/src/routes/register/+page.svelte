@@ -6,6 +6,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
+	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
 
 	let displayName = $state('');
 	let email = $state('');
@@ -88,6 +89,11 @@
 		<button type="submit" class="submit" disabled={submitting}>{m.auth_register_submit()}</button>
 	</form>
 
+	<!-- Sign-in providers are equally a sign-UP path, so they belong on both pages rather than only
+	     on /login. Same drafts, same modal, same honesty about what they do today. -->
+	<div class="divider"><span>{m.auth_providers_divider()}</span></div>
+	<ProviderButtons />
+
 	<p class="switch">
 		{m.auth_register_haveAccount()}
 		<a href={resolve('/login')}>{m.auth_register_loginLink()}</a>
@@ -140,6 +146,20 @@
 	}
 	.submit {
 		@include mix.button-primary;
+	}
+	.divider {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
+		&::before,
+		&::after {
+			content: '';
+			flex: 1;
+			height: 1px;
+			background: var(--border-color);
+		}
 	}
 	.switch {
 		text-align: center;

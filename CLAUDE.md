@@ -3670,6 +3670,175 @@ All scratch listings created during verification were deleted afterward, confirm
   volume should self-host or use a commercial geocoder.
 - **The 1/second gate is per-process** until a shared cache is configured — the same caveat, and the
   same one-line fix, as the auth throttles in Section 17Q.
+## 17S. Feature: sign-in provider drafts, and the USOS ground (✅ built — drafts on the front, real ground behind them)
+
+Two halves of one feature, and they are at deliberately different stages: **four sign-in providers
+(School, Google, Apple, GitHub) as honest drafts**, and **the ground for USOS connections** — real
+models, a real seam, real consent, real tests — which is what turns a sign-in into a verified
+student, a transferred diploma and a transferred transcript, each only if the person wants it.
+
+Everything lives in one new Django app, `backend/identity/`, plus `frontend/src/lib/components/auth/`
+and `frontend/src/lib/components/settings/EducationPanel.svelte`.
+
+### Why the buttons are drafts, and what "draft" means here concretely
+
+The instruction was explicit: clicking a provider button should open a modal describing the current
+state of that connection and linking to the repository. So there is **no mock handshake anywhere** —
+a draft that quietly signed somebody in would be considerably worse than an honest button, and the
+Django suite pins that (`test_no_provider_endpoint_can_authenticate_anybody`).
+
+**The configuration, though, is real.** Every endpoint is the provider's own published URL, every
+scope is one EdMat would genuinely request, and each carries the quirk that actually breaks a first
+integration:
+
+- **Apple** POSTs its response (`response_mode=form_post`) the moment any scope is requested, so a
+  callback route that only accepts GET never runs at all; it sends the user's name **exactly once**,
+  on the first authorization only; and its client secret is a short-lived ES256 JWT that must be
+  regenerated, not a fixed string.
+- **GitHub** is plain OAuth 2.0, so the token carries no identity: `/user` for the profile, and a
+  second call to `/user/emails` because the email there is frequently `null` — and only the entry
+  flagged verified may ever be trusted.
+- **Google** is OIDC, so the `id_token` already carries identity and the userinfo call is a wasted
+  round trip; what the callback owes instead is real token verification.
+- **School** is SAML 2.0 federation in practice, not OAuth — which is why it shares no code with the
+  three above, and is the only one that could ever return `eduPersonAffiliation`, the attribute that
+  actually distinguishes a student from an alumnus from staff.
+
+**What is missing is one thing per provider — a client id and secret** — and the modal computes that
+rather than asserting it. `providers.blockers_for()` reads `settings.EDMAT_OAUTH_CLIENTS`, so
+configuring a real client is what makes the UI stop calling that provider a draft, with **no copy to
+remember to edit anywhere**. That is the whole reason the modal is a fetch rather than a paragraph in
+a Svelte file, and it is tested directly
+(`test_the_state_is_computed_from_settings_not_hardcoded`).
+
+The modal also lists **what a real callback must check** — `state`, single-use code, server-side
+exchange, full `id_token` verification on the OIDC two, and the never-adopt-an-account-on-an-
+unverified-email rule for GitHub. Written down because these are the parts that are easy to skip and
+expensive to skip: none of them is visible in a flow that otherwise appears to work.
+
+### The school picker is load-bearing, not decorative
+
+`identity.School` — 23 institutions seeded by data migration (PL, plus UA/CZ/DE), each with
+`email_domains`, a grade scale, and `usos_base_url`. Matching on a domain is strict — exact domain or
+a subdomain of one — so `@wne.uw.edu.pl` counts and `uw.edu.pl.example.com` does not, since a looser
+rule would let anybody mint a verification badge by registering a hostname.
+
+A blank `usos_base_url` is a **statement, not missing data**: that institution runs no USOS
+installation, so the UI says so instead of offering a button whose only possible outcome is failure.
+Secondary schools are deliberately not enumerated (tens of thousands in this market), so "my school
+is not listed" is a real first-class answer carrying no verification — the honest outcome rather than
+a gap.
+
+### USOS: what specifically blocks a real connection, and it is not code
+
+`identity/usos.py`. USOS API issues credentials **per institution, by that institution, to a named
+application, after a request a human there approves.** There is no global key — twelve universities
+is twelve registrations — and that is encoded in the design (`UsosCredentials` keyed by school slug,
+capabilities probed per installation) rather than discovered later by a client that assumed one.
+
+Three things recorded because a first implementation usually gets them wrong: **it is OAuth 1.0a**
+(HMAC-SHA1, three legs — an OAuth 2 library does not apply, which is exactly why this shares nothing
+with the three consumer providers); **scopes are granular and asked for up front**, so `studies` does
+not include `grades`; and **installations genuinely differ**, so capabilities are probed.
+
+`active_connector()` is the **one line** a real client replaces. The default,
+`UnconfiguredUsosConnector`, verifies nobody — so a half-finished deployment cannot accidentally
+appear to. `MockUsosConnector` (behind `EDMAT_USOS_MOCK`, never on by default) exists so the ground
+is genuinely exercised by the test suite against the same interface a real client will implement,
+rather than being plausible-looking code nobody has run; it respects granted scopes and per-
+installation capabilities, so a UI bug that forgets to request a scope fails there rather than in
+production. There is **no `if mock` branch in any UI**.
+
+**There is deliberately no access-token column.** A real token carrying `offline_access` is a
+long-lived credential to somebody's academic record, and this project ships an unencrypted SQLite
+file. It belongs in an encrypted store keyed by the link row, and adding a plaintext column now would
+be laying exactly the wrong ground.
+
+### Grades: reconciling §3a with what was actually asked for
+
+LAUNCHCHECKLIST §3a says grades "are not [needed], and must never be requested" — because asking for
+more than is used is both a privacy failure and a reason for a university to refuse the registration.
+The requested feature is that a person *may* transfer their diploma and transcript if they want to.
+
+**Both hold, because they are two different authorizations.** `BASE_SCOPES` is what an ordinary
+connection asks for (`studies`); grades are added only by an explicit, separate act by the account
+holder. The registration request to each university should say exactly that — an optional,
+user-initiated scope, not part of the default grant. Attempting an import without it is refused with
+the real reason and the scope name, not a generic failure
+(`test_grades_need_their_own_authorization`).
+
+### Transfer and consent are never the same click
+
+`EducationSharing` is three independent flags that all start `False`, and **a student who connects
+USOS to prove they are a student and never shows a single mark is the case this is shaped around**,
+not an edge case it tolerates. Importing touches no consent flag at all
+(`test_importing_publishes_nothing`), and the public profile renders one field at a time as each is
+allowed (`test_consent_is_granted_one_field_at_a_time`). The gating lives server-side in
+`standing.public_view`, so the frontend cannot leak something by forgetting a condition.
+
+`weighted_average` is ECTS-weighted, because that is how every institution here computes it — an
+unweighted mean across a 30-credit thesis and a 2-credit elective is not an average of anything — and
+it **refuses to mix scales**, returning `None` for a transcript containing ECTS letters rather than
+inventing a mapping onto the Polish 2–5 scale that no registrar would sign.
+
+Changing your declared institution drops every claim it backed; disconnecting USOS falls back to the
+school-email verification rather than to nothing, since that one was never USOS's to grant.
+
+### The "boost" is §3's verification ceiling, implemented rather than reinvented
+
+`identity/standing.py`. LAUNCHCHECKLIST §3 already defines
+`effective_tier = max(usos_tier, min(rep_tier, verification_ceiling))`. Reputation does not exist
+yet, so this module owns **exactly one term** — the ceiling — computed from §3's own ladder. When REP
+lands it supplies the others and this needs no revision.
+
+Four rules it follows:
+
+1. **It is a ceiling on capability, never authority.** §2b is explicit: mod level is never granted by
+   identity. A verified first-year may upload, link, review and comment freely, and may do nothing
+   whatsoever to anybody else's work — asserted directly (`test_connecting_grants_no_authority`).
+2. **It is fully itemised.** `reasons` is the entire computation and the UI renders every line.
+3. **It cannot be earned by typing.** Self-declaring a school is worth one step and no more. An
+   institutional address is **not** counted as verification at all, because EdMat has no
+   email-confirmation flow — a verification obtainable by typing would be worth exactly as much to
+   somebody lying. The UI explains that rather than silently granting nothing
+   (`school_email_eligible`), which is also the sharpest argument yet for building confirmation.
+4. **Capability never depends on publishing.** Skill seeded from a transcript comes from the import,
+   not the consent to display it, so nothing pressures anybody into publishing marks to keep up
+   (`test_publishing_does_not_change_what_you_may_do`).
+
+`CourseGrade.matched_course` is why a transcript is worth more here than a badge: §3a's "seeded SKILL
+from real enrolment". A result in a course the registry names maps onto `taxonomy.Course` directly —
+someone who passed Analiza Matematyczna II has an institutionally-attested claim no amount of
+upvoting establishes as cheaply. Matching is deliberately conservative; an unmatched result is kept
+but never placed, since a wrong match would attach competence to the wrong corner of the site.
+
+### Verified
+
+`backend/identity/tests.py` — **36 tests**. Full backend suite afterwards: **391 tests, OK, zero
+regressions**. `frontend/e2e/education-auth.mjs` — **42 checks in a real browser against both
+servers, zero console/page errors**, covering the part only a browser can confirm: all four drafts
+offered and labelled as drafts on the button itself, each modal describing its own provider's real
+quirk and blockers, the repository link, Escape closing it, the school picker distinguishing a
+university that runs USOS from one that does not, **no session created by any of it**, then the whole
+connect → transfer → consent → un-publish → delete loop. `npm run check`: 0 errors, 0 warnings.
+`npm run build`: clean. Both locales carry all 70 new keys.
+
+### Left open, not built
+
+- **No real redirect for any provider**, and no callback route — the checks it owes are written down
+  rather than implemented.
+- **No account-linking UI**, and no way to unlink.
+- **The `school` provider is SAML in the design and an email-domain check in reality**, which is a
+  genuinely weaker claim and is labelled as one everywhere it appears.
+- **USOS installation URLs are the conventional `usosapi.<host>` form and unverified** — several
+  institutions deviate, so each must be confirmed against the consortium's registry.
+- **Course matching is name-based**, best-effort; a real mapping is per-university course codes.
+- **Transcripts are re-imported wholesale, never diffed** — no history, no "this changed", no
+  re-sync prompt when a link goes stale.
+- **Education data sits in the same SQLite file as everything else.** For a transcript that is a
+  materially worse thing to be casual about than a cart; real storage, a consent audit trail and a
+  GDPR answer belong with the deployment question, not this round.
+
 ---
 
 ## 18. Open questions

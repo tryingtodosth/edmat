@@ -9,6 +9,7 @@
 	import { materialsUiStore, type MaterialsUiMode } from '$lib/state/materialsUi.svelte';
 	import { NOTIFICATION_TYPE_CATEGORY, NOTIFICATION_TYPE_LABELS } from '$lib/utils/labels';
 	import AvatarEditor from '$lib/components/settings/AvatarEditor.svelte';
+	import EducationPanel from '$lib/components/settings/EducationPanel.svelte';
 	import DonationLinksEditor from '$lib/components/settings/DonationLinksEditor.svelte';
 	import TagFollowsEditor from '$lib/components/settings/TagFollowsEditor.svelte';
 
@@ -178,6 +179,13 @@
 		<section class="avatar">
 			<h2>{m.settings_avatarHeading()}</h2>
 			<AvatarEditor />
+		</section>
+
+		<!-- Standalone for the same reason as the avatar above: it saves through its own endpoints
+		     as you go (each consent toggle is its own decision, and batching three of them behind a
+		     Save button would blur exactly the distinction the feature exists to make). -->
+		<section class="education-section">
+			<EducationPanel />
 		</section>
 
 		<form class="edit-form" onsubmit={handleSave}>
