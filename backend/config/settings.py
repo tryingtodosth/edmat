@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     'notifications',
     'services',
     'messaging',
+    'telemetry',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
@@ -118,6 +119,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Last on purpose: it reads `request.user`, which only exists once AuthenticationMiddleware
+    # above has run, and it times the whole stack beneath it.
+    'telemetry.middleware.RequestLogMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -160,6 +164,55 @@ DATABASES = {
         'OPTIONS': {'timeout': 20},
     }
 }
+
+# --- Activity logs live in their own sharded SQLite files, never in db.sqlite3 ------------------
+#
+# Three separate reasons, all real:
+#
+# 1. **Blast radius.** A log table is by far the highest-volume writer in this app and the one with
+#    the shortest useful life. Keeping it out of `default` means the corpus, the accounts and the
+#    moderation record are never competing with it for SQLite's single writer lock, and never share
+#    its backup or vacuum schedule.
+# 2. **Deletion is a file operation.** Retention is a legal obligation, not a nice-to-have, and
+#    `DELETE FROM` in SQLite doesn't return the disk — it needs a VACUUM that locks the database.
+#    Sharding means whole files can eventually be dropped instead.
+# 3. **Write concurrency.** SQLite allows one writer per FILE. N files means N concurrent writers.
+#
+# **Shard assignment is `user_id // LOG_SHARD_SIZE`, deliberately not `user_id % shard_count`.**
+# That distinction is the whole design: integer division means shard membership NEVER changes as
+# more shards are added, so growing capacity is "create another file", never "rewrite every row".
+# Modulo would reshard the entire history every time the shard count changed.
+#
+# Anonymous traffic — the majority of requests on a public study site — cannot be sharded by a user
+# it doesn't have, so it goes to its own dedicated file. That shard is the busiest by far, and is a
+# real argument for splitting it by MONTH rather than by user later on; see LAUNCHCHECKLIST.md.
+# How many reverse proxies sit in front of Django. Mirrors DRF's `NUM_PROXIES` below and is read by
+# `telemetry.middleware.client_ip` for the same reason: only the rightmost `X-Forwarded-For` entries
+# were written by our own Apache, everything to the left of them came from the caller.
+EDMAT_TRUSTED_PROXY_HOPS = int(os.environ.get('EDMAT_NUM_PROXIES', '1'))
+
+LOG_SHARD_SIZE = int(os.environ.get('EDMAT_LOG_SHARD_SIZE', '1000'))
+LOG_SHARD_COUNT = int(os.environ.get('EDMAT_LOG_SHARD_COUNT', '8'))
+LOG_ANON_SHARD = 'logs_anon'
+LOG_DIR = Path(os.environ.get('EDMAT_LOG_DIR', BASE_DIR / 'logdata'))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _log_shard_db(name: str) -> dict:
+    return {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': LOG_DIR / f'{name}.sqlite3',
+        # Same reasoning as `default` above — a log write must wait its turn rather than fail, since
+        # a dropped log entry is a hole in an audit trail nobody notices until it matters.
+        'OPTIONS': {'timeout': 20},
+    }
+
+
+for _shard_index in range(LOG_SHARD_COUNT):
+    DATABASES[f'logs_{_shard_index}'] = _log_shard_db(f'logs_{_shard_index}')
+DATABASES[LOG_ANON_SHARD] = _log_shard_db(LOG_ANON_SHARD)
+
+DATABASE_ROUTERS = ['telemetry.routers.LogShardRouter']
 
 
 # Password validation
@@ -258,6 +311,69 @@ REST_FRAMEWORK = {
     # each builds its own plain Response(serializer.data) — leaving pagination on globally would
     # just have meant a real, avoidable inconsistency between the two endpoint styles.
     'DEFAULT_PAGINATION_CLASS': None,
+    # Rate limiting — a whole-project security scan found this app had NO throttling of any kind
+    # anywhere, which meant `/api/auth/login/` accepted unlimited password guesses against any
+    # account. `ScopedRateThrottle` is what lets an individual view opt into a tighter budget via its
+    # own `throttle_scope` (registration, password reset, avatar upload); `accounts/throttles.py`
+    # adds the two login-specific ones, which are applied directly on `LoginView` rather than
+    # globally, since keying every request in the app on a submitted username makes no sense.
+    #
+    # DEPLOYMENT CAVEAT, real and worth not discovering the hard way: DRF throttling counts through
+    # Django's cache, and this file configures no `CACHES` at all — so the default per-process
+    # `LocMemCache` applies, and every worker in a multi-process deployment keeps its OWN counter,
+    # multiplying every rate below by the worker count. Correct as-is for this prototype's
+    # single-process dev server; a real deployment needs a shared cache (Redis/Memcached) before
+    # these numbers mean what they say.
+    # Behind Apache's `ProxyPass`, `REMOTE_ADDR` is always the proxy, so DRF reads
+    # `X-Forwarded-For` instead. Left unset, it uses the WHOLE header — and since Apache APPENDS to
+    # any header the client already sent, a caller supplying their own `X-Forwarded-For: <random>`
+    # gets `<random>, <their real ip>` and therefore a brand-new throttle bucket on every request.
+    # That silently defeated the per-IP `login` limit below. `1` means "trust exactly one hop" — the
+    # rightmost entry, the only one Apache itself wrote — so the value is no longer client-supplied.
+    # It must match the real number of reverse proxies in front of Django; raise it only if another
+    # one is genuinely added.
+    'NUM_PROXIES': int(os.environ.get('EDMAT_NUM_PROXIES', '1')),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        # The two global backstops are deliberately loose. This is a browse-heavy app — one exercise
+        # detail page already fires several requests (the exercise, its reviews, its comments, the
+        # author lookups), and the moderation page fires more than a dozen — so a tight global limit
+        # would break ordinary reading long before it inconvenienced anyone abusive. These exist to
+        # bound a runaway scraper, not to be the app's real security boundary; the scoped rates below
+        # are where the actual protection lives.
+        'anon': '600/hour',
+        'user': '3000/hour',
+        # Per-IP password guessing. 10/min is roughly 3x what a human fumbling a password does and
+        # ~4 orders of magnitude below a useful brute-force rate.
+        'login': '10/min',
+        # Per-account, IP-independent — the credential-stuffing case a per-IP limit cannot see. Much
+        # looser than the per-IP rate on purpose: this key is one an attacker who knows a victim's
+        # email can deliberately exhaust to lock the real owner out, so it's sized to stop a
+        # systematic search, not to punish typos. See accounts/throttles.py for the full reasoning.
+        'login_username': '30/hour',
+        'register': '10/hour',
+        # `PasswordResetView` is still the honest always-200 stub Phase 2 shipped (no email backend
+        # exists yet, Section 18 item 9), so there is nothing here to brute-force TODAY. Throttled
+        # anyway, because the moment a real email backend lands this becomes an unauthenticated
+        # endpoint that sends mail to an address the caller chooses — i.e. a spam relay — and the
+        # limit is far easier to add now than to remember to add then.
+        'password_reset': '5/hour',
+        # Avatar upload is the most expensive authenticated write in the app: it decodes and
+        # re-encodes a real image (accounts/avatar.py). 20/hour is far more than anyone genuinely
+        # changing their profile picture needs, and low enough that the decode cost can't be used as
+        # a CPU-exhaustion lever by a logged-in account.
+        'avatar': '20/hour',
+        # Address lookup proxies to Nominatim (OpenStreetMap), whose usage policy caps the WHOLE
+        # application at 1 request/second. services/geocoding.py enforces that globally and caches
+        # results for a day; this per-user scope is the second layer, so one account typing in the
+        # location picker cannot spend the shared budget everyone else depends on. Generous enough
+        # for real use — a search fires per submitted query, not per keystroke.
+        'geocode': '60/hour',
+    },
 }
 
 # CORS — the SvelteKit dev server (Phase 1 frontend) runs on a separate origin/port; this is what

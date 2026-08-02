@@ -1,3 +1,5 @@
+import type { CoverageVoteSummary } from './material';
+
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export type SourceType = 'exercises' | 'midterm' | 'exam' | 'other';
@@ -36,6 +38,16 @@ export interface Exercise {
 	reviewCount?: number;
 }
 
+// A loose, free-text prerequisite/skill label for actually attempting this exercise — the exact
+// same shape `MaterialRequirement` already establishes for a Material (material.ts), reused here
+// unchanged since the concept (and its vote_summary weighting) is identical for either content type.
+export interface ExerciseRequirement {
+	id: string;
+	label: string;
+	order: number;
+	voteSummary: CoverageVoteSummary;
+}
+
 export type TranslationStatus = 'published' | 'pending' | 'rejected';
 
 export interface ExerciseTranslation {
@@ -65,4 +77,5 @@ export interface ResolvedExercise extends Exercise {
 	solution: string;
 	translatedByUserId?: string;
 	availableLocales: string[]; // every locale with at least one PUBLISHED translation, original first
+	requirements: ExerciseRequirement[];
 }

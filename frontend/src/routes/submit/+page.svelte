@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Course, Difficulty, SourceType, Topic } from '$lib/types';
+	import type { Course, Difficulty, Field, SourceType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getAllCourses, getTopicsForCourse } from '$lib/services/taxonomy';
+	import { getCoursesForField, getFields, getTopicsForCourse } from '$lib/services/taxonomy';
 	import { submitExercise } from '$lib/services/submissions';
 	import { authStore } from '$lib/state/auth.svelte';
 	import {
@@ -14,9 +14,11 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
+	let fields = $state<Field[]>([]);
 	let courses = $state<Course[]>([]);
 	let topics = $state<Topic[]>([]);
 
+	let fieldId = $state('');
 	let courseId = $state('');
 	let title = $state('');
 	let difficulty = $state<Difficulty>('medium');
@@ -29,6 +31,11 @@
 	let solution = $state('');
 	let locale = $state('pl');
 	let tagsInput = $state('');
+	// Free-text prerequisite/"skill tag" chips — same add-one-at-a-time interaction
+	// submit-material/+page.svelte's own requirements editor already establishes for a Material,
+	// applied here to Exercise for the first time.
+	let requirements = $state<string[]>([]);
+	let requirementDraft = $state('');
 	let showPreview = $state(false);
 	let success = $state(false);
 	// ✅ Verified-contributor fast path (CLAUDE.md Section 18 item 4) — a submission from a verified
@@ -40,10 +47,20 @@
 	let publishedExerciseId = $state<string | null>(null);
 
 	async function init() {
-		courses = await getAllCourses();
-		if (courses.length) courseId = courses[0].id;
+		fields = await getFields();
+		if (fields.length) await onFieldChange(fields[0].id);
 	}
 	init();
+
+	// Field → Course cascade — same pattern RandomExerciseButton.svelte's own filter popover
+	// already establishes: picking a field resets the course (and, transitively via the $effect
+	// below, the topics) to that field's own first course, rather than a flat, cross-field course
+	// list a submitter had to scroll through to find the right one.
+	async function onFieldChange(next: string) {
+		fieldId = next;
+		courses = fieldId ? await getCoursesForField(fieldId) : [];
+		courseId = courses.length ? courses[0].id : '';
+	}
 
 	$effect(() => {
 		if (!courseId) return;
@@ -53,10 +70,30 @@
 		});
 	});
 
-	function toggleTopic(id: string) {
-		selectedTopicIds = selectedTopicIds.includes(id)
-			? selectedTopicIds.filter((t) => t !== id)
-			: [...selectedTopicIds, id];
+	// "Covers" — chip-picker over the course's own real Topics (a controlled vocabulary, unlike the
+	// free-text requirement chips below): an "add topic" select offers only topics not yet picked;
+	// picking one adds it immediately, shown as a removable chip, replacing the old plain checkbox
+	// list with the same chip visual language MaterialCard's own "Covers"/"Requires" chips use.
+	let availableTopics = $derived(topics.filter((t) => !selectedTopicIds.includes(t.id)));
+
+	function addTopic(id: string) {
+		if (!id || selectedTopicIds.includes(id)) return;
+		selectedTopicIds = [...selectedTopicIds, id];
+	}
+
+	function removeTopic(id: string) {
+		selectedTopicIds = selectedTopicIds.filter((t) => t !== id);
+	}
+
+	function addRequirement() {
+		const trimmed = requirementDraft.trim();
+		if (!trimmed) return;
+		requirements = [...requirements, trimmed];
+		requirementDraft = '';
+	}
+
+	function removeRequirement(index: number) {
+		requirements = requirements.filter((_, i) => i !== index);
 	}
 
 	let canSubmit = $derived(Boolean(courseId && title.trim() && statement.trim()));
@@ -72,6 +109,7 @@
 				.split(',')
 				.map((t) => t.trim())
 				.filter(Boolean),
+			requirements: requirements.length > 0 ? requirements : undefined,
 			statement,
 			hint,
 			answer,
@@ -83,6 +121,8 @@
 			result.status === 'approved' ? (result.resultingExerciseId ?? null) : null;
 		title = statement = hint = answer = solution = sourceName = tagsInput = '';
 		selectedTopicIds = [];
+		requirements = [];
+		requirementDraft = '';
 	}
 </script>
 
@@ -116,6 +156,15 @@
 			{/if}
 
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
+				<label class="field">
+					<span>{m.submit_field_field()}</span>
+					<select value={fieldId} onchange={(e) => onFieldChange(e.currentTarget.value)}>
+						{#each fields as f (f.id)}
+							<option value={f.id}>{f.name}</option>
+						{/each}
+					</select>
+				</label>
+
 				<label class="field">
 					<span>{m.submit_field_course()}</span>
 					<select bind:value={courseId}>
@@ -159,18 +208,27 @@
 				{#if topics.length}
 					<div class="field">
 						<span>{m.submit_field_topics()}</span>
-						<div class="topic-checks">
-							{#each topics as topic (topic.id)}
-								<label class="checkbox">
-									<input
-										type="checkbox"
-										checked={selectedTopicIds.includes(topic.id)}
-										onchange={() => toggleTopic(topic.id)}
-									/>
-									{topic.name}
-								</label>
-							{/each}
-						</div>
+						{#if selectedTopicIds.length > 0}
+							<ul class="chip-list">
+								{#each selectedTopicIds as id (id)}
+									{@const topic = topics.find((t) => t.id === id)}
+									{#if topic}
+										<li>
+											<span>{topic.name}</span>
+											<button type="button" onclick={() => removeTopic(id)}>&times;</button>
+										</li>
+									{/if}
+								{/each}
+							</ul>
+						{/if}
+						{#if availableTopics.length > 0}
+							<select value="" onchange={(e) => (addTopic(e.currentTarget.value), (e.currentTarget.value = ''))}>
+								<option value="" disabled>{m.submit_topicsAddPlaceholder()}</option>
+								{#each availableTopics as topic (topic.id)}
+									<option value={topic.id}>{topic.name}</option>
+								{/each}
+							</select>
+						{/if}
 					</div>
 				{/if}
 
@@ -202,6 +260,32 @@
 					<span>{m.submit_field_tags()}</span>
 					<input type="text" bind:value={tagsInput} />
 				</label>
+
+				<div class="field">
+					<span>{m.submit_field_requirements()} <em>({m.common_optional()})</em></span>
+					{#if requirements.length > 0}
+						<ul class="chip-list">
+							{#each requirements as requirement, index (index)}
+								<li>
+									<span>{requirement}</span>
+									<button type="button" onclick={() => removeRequirement(index)}>&times;</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+					<input
+						type="text"
+						placeholder={m.submit_requirementsAddPlaceholder()}
+						bind:value={requirementDraft}
+						onkeydown={(e) => {
+							if (e.key === 'Enter') {
+								e.preventDefault();
+								addRequirement();
+							}
+						}}
+					/>
+					<span class="markdown-hint">{m.submit_requirementsHint()}</span>
+				</div>
 
 				<button type="button" class="preview-toggle" onclick={() => (showPreview = !showPreview)}>
 					{m.submit_preview()}
@@ -275,17 +359,34 @@
 		font-family: inherit;
 		resize: vertical;
 	}
-	.topic-checks {
+	.chip-list {
+		list-style: none;
 		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2);
-	}
-	.checkbox {
-		display: inline-flex;
-		align-items: center;
+		flex-direction: column;
 		gap: var(--space-1);
-		font-weight: 400;
-		font-size: var(--font-size-xs);
+		li {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: var(--space-2);
+			padding: var(--space-1) var(--space-2);
+			border: 1px solid var(--border-color);
+			border-radius: var(--radius-sm);
+			font-weight: 400;
+			font-size: var(--font-size-sm);
+		}
+		button {
+			@include mix.focus-ring;
+			background: none;
+			border: none;
+			color: var(--text-secondary);
+			cursor: pointer;
+			font-size: var(--font-size-md);
+			line-height: 1;
+			&:hover {
+				color: var(--status-danger);
+			}
+		}
 	}
 	.markdown-hint {
 		font-size: var(--font-size-xs);

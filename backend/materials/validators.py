@@ -20,8 +20,12 @@ and kept safe" request). Two, deliberately separate layers, both real:
    deployment that actually runs ClamAV sets `MATERIAL_SCAN_REQUIRED=True` (config/settings.py) to
    make an unreachable scanner a hard rejection instead of a graceful skip; this sandbox's own
    default stays False, matching the same "flag it, don't fake it" discipline CLAUDE.md already
-   applies to the email backend / avatar-upload stubs, rather than pretending a scan happened when
-   it didn't.
+   applies to the email-backend stub, rather than pretending a scan happened when it didn't. (This
+   comment used to also cite an "avatar-upload stub" — that is now a real, validated upload path,
+   `accounts/avatar.py`; it takes a different approach worth knowing about when reading this module,
+   since the two answer different questions: a Material's bytes must be preserved as submitted, so
+   the only options are sniffing and scanning, whereas an avatar is re-encoded from its pixels
+   outright, which discards any payload rather than trying to detect one.)
 """
 
 from __future__ import annotations

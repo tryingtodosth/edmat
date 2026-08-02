@@ -1,8 +1,35 @@
+import decimal
+
 from rest_framework import serializers
 
 from taxonomy.models import Course
 
-from .models import Service, ServiceReview, ServiceWatch
+from .geocoding import COORD_PRECISION
+from .models import IN_PERSON_MODES, Service, ServiceReview, ServiceWatch
+
+
+class CoordinateField(serializers.DecimalField):
+    """A DecimalField that ROUNDS excess precision instead of rejecting it.
+
+    DRF's own DecimalField treats more decimal places than the model allows as a validation error,
+    which is the wrong behavior for a coordinate: Nominatim returns 7+ places, the model stores 6,
+    and nobody typing an address has any idea either number exists. The failure this prevents was
+    real, not theoretical — the frontend echoed a search result straight back and got a 400 saying
+    the value it had just been handed was invalid.
+
+    services/geocoding.py already rounds at its own boundary, so this is the second layer, covering
+    any coordinate that did NOT come from a search — a pin dragged on the map, or any other client.
+    Rounding is unambiguously safe here: the 7th decimal place is ~1 cm.
+    """
+
+    def to_internal_value(self, data):
+        try:
+            data = round(decimal.Decimal(str(data).strip()), COORD_PRECISION)
+        except (decimal.InvalidOperation, ValueError, AttributeError):
+            # Not a number at all — hand it to the parent, whose error message for this is already
+            # the right one.
+            pass
+        return super().to_internal_value(data)
 
 
 class ServiceSerializer(serializers.ModelSerializer):
@@ -35,6 +62,10 @@ class ServiceSerializer(serializers.ModelSerializer):
             'hourly_rate',
             'currency',
             'is_active',
+            'delivery_mode',
+            'location_label',
+            'location_lat',
+            'location_lon',
             'average_rating',
             'review_count',
             'created_at',
@@ -78,10 +109,28 @@ class ServiceWriteSerializer(serializers.ModelSerializer):
     slug, see CLAUDE.md's own note on id-format convention)."""
 
     course_slugs = serializers.ListField(child=serializers.SlugField(), write_only=True, required=False)
+    location_lat = CoordinateField(
+        max_digits=9, decimal_places=COORD_PRECISION, required=False, allow_null=True
+    )
+    location_lon = CoordinateField(
+        max_digits=9, decimal_places=COORD_PRECISION, required=False, allow_null=True
+    )
 
     class Meta:
         model = Service
-        fields = ['id', 'title', 'description', 'course_slugs', 'hourly_rate', 'currency', 'is_active']
+        fields = [
+            'id',
+            'title',
+            'description',
+            'course_slugs',
+            'hourly_rate',
+            'currency',
+            'is_active',
+            'delivery_mode',
+            'location_label',
+            'location_lat',
+            'location_lon',
+        ]
 
     def validate_course_slugs(self, slugs):
         courses = list(Course.objects.filter(slug__in=slugs, published=True))
@@ -90,6 +139,40 @@ class ServiceWriteSerializer(serializers.ModelSerializer):
         if missing:
             raise serializers.ValidationError(f'Unknown course slug(s): {", ".join(sorted(missing))}')
         return courses
+
+    def validate(self, attrs):
+        """Keeps `delivery_mode` and the location fields consistent with each other, in both
+        directions — a listing that claims in-person tutoring but has no place, and a listing that
+        carries a stale pin for tutoring that is now online-only, are both real states a user can
+        otherwise produce just by editing an existing listing.
+
+        Runs on PATCH too, which is why the mode is read from the instance when the request does not
+        supply one: a partial update that sends only `location_lat` must still be checked against the
+        mode the listing ALREADY has, not silently treated as unconstrained.
+        """
+        mode = attrs.get('delivery_mode') or getattr(self.instance, 'delivery_mode', 'online')
+
+        if mode in IN_PERSON_MODES:
+            lat = attrs.get('location_lat', getattr(self.instance, 'location_lat', None))
+            lon = attrs.get('location_lon', getattr(self.instance, 'location_lon', None))
+            if lat is None or lon is None:
+                raise serializers.ValidationError(
+                    {
+                        'location_lat': [
+                            'An in-person or hybrid listing needs a location on the map.'
+                        ]
+                    }
+                )
+        else:
+            # Online-only: actively CLEAR any location rather than merely ignoring it. Leaving a
+            # previous pin in place would keep rendering a map, on a listing whose tutoring no longer
+            # happens anywhere in particular — worse than showing nothing, because it is wrong rather
+            # than absent.
+            attrs['location_label'] = ''
+            attrs['location_lat'] = None
+            attrs['location_lon'] = None
+
+        return attrs
 
     def create(self, validated_data):
         courses = validated_data.pop('course_slugs', [])

@@ -18,6 +18,7 @@ import type {
 	DonationLink,
 	EditSuggestion,
 	Exercise,
+	ExerciseRequirement,
 	ExerciseSet,
 	ExerciseSource,
 	ExerciseSubmission,
@@ -184,6 +185,28 @@ export interface RawExerciseDetail extends RawExerciseCommon {
 	solution: string;
 	translated_by: number | null;
 	available_locales: string[];
+	requirements: RawExerciseRequirement[];
+}
+
+export interface RawExerciseRequirement {
+	id: number;
+	label: string;
+	order: number;
+	vote_summary: RawCoverageVoteSummary;
+}
+
+/** The exact same mapping `mapMaterialRequirement` already does for a Material's own requirement
+ * row — kept as its own function (not a shared generic one) purely because the two Raw shapes are
+ * declared as separate interfaces (`RawExerciseRequirement`/`RawMaterialRequirement`), matching how
+ * the backend keeps `ExerciseRequirementSerializer`/`MaterialRequirementSerializer` as two thin,
+ * identical-shaped serializers rather than one shared one. */
+export function mapExerciseRequirement(json: RawExerciseRequirement): ExerciseRequirement {
+	return {
+		id: String(json.id),
+		label: json.label,
+		order: json.order,
+		voteSummary: mapVoteSummary(json.vote_summary)
+	};
 }
 
 function mapExerciseBase(json: RawExerciseCommon): Exercise {
@@ -220,7 +243,8 @@ export function mapResolvedExerciseList(json: RawExerciseCommon): ResolvedExerci
 		answer: '',
 		solution: '',
 		translatedByUserId: undefined,
-		availableLocales: []
+		availableLocales: [],
+		requirements: []
 	};
 }
 
@@ -235,7 +259,8 @@ export function mapResolvedExerciseDetail(json: RawExerciseDetail): ResolvedExer
 		answer: json.answer,
 		solution: json.solution,
 		translatedByUserId: idOrUndefined(json.translated_by),
-		availableLocales: json.available_locales
+		availableLocales: json.available_locales,
+		requirements: (json.requirements ?? []).map(mapExerciseRequirement)
 	};
 }
 
@@ -379,6 +404,7 @@ export interface RawMaterial {
 	requirements: RawMaterialRequirement[];
 	file: string | null;
 	author: string;
+	source_url: string;
 	submitted_by: number | null;
 	submitted_by_display_name: string | null;
 	tags: string[];
@@ -409,6 +435,7 @@ export function mapMaterial(json: RawMaterial): Material {
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
 		author: json.author,
+		sourceUrl: json.source_url || undefined,
 		submittedByUserId: idOrUndefined(json.submitted_by),
 		submittedByDisplayName: json.submitted_by_display_name ?? undefined,
 		tags: json.tags ?? [],
@@ -538,6 +565,8 @@ export interface RawMaterialSubmission {
 	description: string;
 	locale: string;
 	file: string | null;
+	author: string;
+	source_url: string;
 	requirements: string[];
 	price_amount: string | null;
 	price_currency: string;
@@ -563,6 +592,8 @@ export function mapMaterialSubmission(json: RawMaterialSubmission): MaterialSubm
 		locale: json.locale,
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
+		author: json.author ?? '',
+		sourceUrl: json.source_url || undefined,
 		requirements: json.requirements ?? [],
 		priceAmount: json.price_amount != null ? Number(json.price_amount) : undefined,
 		priceCurrency: json.price_currency,
@@ -884,6 +915,21 @@ export function mapNotification(json: RawNotification): Notification {
 
 // ---- services (tutoring listings) --------------------------------------------------------------
 
+// Mirrors services/models.py's own DELIVERY_MODE_CHOICES. Snake_case on the wire, camelCase in
+// this app's own types — the same small hand-maintained enum mirror (and the same honestly-flagged
+// drift risk) as FRONTEND_TO_BACKEND_MATERIAL_TYPE and DONATION_PLATFORMS.
+export const BACKEND_TO_FRONTEND_DELIVERY_MODE: Record<string, Service['deliveryMode']> = {
+	online: 'online',
+	in_person: 'inPerson',
+	hybrid: 'hybrid'
+};
+
+export const FRONTEND_TO_BACKEND_DELIVERY_MODE: Record<Service['deliveryMode'], string> = {
+	online: 'online',
+	inPerson: 'in_person',
+	hybrid: 'hybrid'
+};
+
 export interface RawService {
 	id: number;
 	provider_id: number;
@@ -895,6 +941,10 @@ export interface RawService {
 	hourly_rate: string | null; // DRF's DecimalField serializes as a string, not a JS number
 	currency: string;
 	is_active: boolean;
+	delivery_mode: string;
+	location_label: string;
+	location_lat: string | null; // DRF DecimalField -> string, same as hourly_rate above
+	location_lon: string | null;
 	average_rating: number | null;
 	review_count: number;
 	created_at: string;
@@ -913,6 +963,18 @@ export function mapService(json: RawService): Service {
 		hourlyRate: json.hourly_rate !== null ? Number(json.hourly_rate) : null,
 		currency: (json.currency as Service['currency']) || 'PLN',
 		isActive: json.is_active,
+		deliveryMode: BACKEND_TO_FRONTEND_DELIVERY_MODE[json.delivery_mode] ?? 'online',
+		// Built only when BOTH coordinates are really present. A half-set location is not a location,
+		// and leaving it undefined lets every consumer use one plain `{#if service.location}` instead
+		// of separately null-checking two fields it would then have to keep in step.
+		location:
+			json.location_lat !== null && json.location_lon !== null
+				? {
+						label: json.location_label ?? '',
+						lat: Number(json.location_lat),
+						lon: Number(json.location_lon)
+					}
+				: undefined,
 		averageRating: json.average_rating,
 		reviewCount: json.review_count,
 		createdAt: json.created_at,

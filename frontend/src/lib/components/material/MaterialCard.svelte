@@ -38,9 +38,7 @@
 	// owned state), so a vote cast inside the popover updates THIS overlay instead, the same
 	// "overlay, don't mutate a shared prop" shape `removedTags` below already establishes for tags.
 	let coverageVoteOverlay = $state<Record<string, MaterialCoverage>>({});
-	let effectiveCoverage = $derived(
-		material.coverage.map((c) => coverageVoteOverlay[c.id] ?? c)
-	);
+	let effectiveCoverage = $derived(material.coverage.map((c) => coverageVoteOverlay[c.id] ?? c));
 	let openCoverageId = $state<string | null>(null);
 	let openCoverage = $derived(effectiveCoverage.find((c) => c.id === openCoverageId) ?? null);
 
@@ -102,6 +100,7 @@
 				<button
 					type="button"
 					class="claim-chip claim-chip--coverage"
+					title={coverage.subtopicName ?? coverage.topicName}
 					onclick={() => (openCoverageId = coverage.id)}
 				>
 					{coverage.subtopicName ?? coverage.topicName}
@@ -117,7 +116,9 @@
 		<div class="claim-line">
 			<span class="claim-line__label">{m.material_requiresLabel()}</span>
 			{#each topRequirements as requirement (requirement.id)}
-				<span class="claim-chip claim-chip--requirement">{requirement.label}</span>
+				<span class="claim-chip claim-chip--requirement" title={requirement.label}
+					>{requirement.label}</span
+				>
 			{/each}
 			{#if extraRequirementCount > 0}
 				<span class="claim-more">{m.material_moreCount({ count: extraRequirementCount })}</span>
@@ -174,8 +175,31 @@
 					{material.submittedByDisplayName ?? material.submittedByUserId}
 				</a>
 			</span>
-		{:else if material.author}
+		{/if}
+		<!-- `author` used to hang off an `{:else if}` on `submittedBy` above, so a material with both
+		     silently showed only the submitter. They answer genuinely different questions — who WROTE
+		     it vs. which account UPLOADED it — and the submission form now collects the author
+		     explicitly, so both are routinely present and both are shown. Still plain text, never a
+		     link: these are human names (a TA/professor), not platform accounts. -->
+		{#if material.author}
 			<span class="muted">{m.material_by({ author: material.author })}</span>
+		{/if}
+		{#if material.sourceUrl}
+			<!-- A block-scoped disable/enable pair, not `eslint-disable-next-line`: this rule reports at
+			     the `href` ATTRIBUTE's own line, so once Prettier reflows the tag across several lines
+			     the single-line form no longer points at the reported line and the error returns. Same
+			     fragility, same fix, as CLAUDE.md Section 17N already recorded for this file's own
+			     download link. `nofollow` because this URL is user-submitted. -->
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- a user-declared external URL, not an app route resolve() can express -->
+			<a
+				class="source-link"
+				href={material.sourceUrl}
+				target="_blank"
+				rel="noopener noreferrer nofollow"
+			>
+				{m.material_source()}
+			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		{/if}
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an external file URL (the Django media server), not an app route resolve() can express -->
 		<a class="download" href={material.fileUrl} target="_blank" rel="noopener noreferrer" download>
@@ -241,6 +265,13 @@
 	}
 	.claim-chip {
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+		// A coverage/requirement label is real, unbounded-length text (a topic/subtopic name or a
+		// free-text "skill tag"), not the short, fixed-vocabulary badges (type/difficulty/source)
+		// the shared mixin's own `white-space: nowrap` is otherwise right for — same truncation
+		// fix TagChip.svelte's own `.tag-chip__trigger` already applies, for the identical reason.
+		max-width: 220px;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.claim-chip--coverage {
 		@include mix.focus-ring;
@@ -302,5 +333,14 @@
 		@include mix.button-secondary;
 		padding: var(--space-1) var(--space-3);
 		font-size: var(--font-size-xs);
+	}
+	// A plain link, deliberately not styled as a button like `.download` beside it — following a
+	// provenance link is a secondary, informational action, and giving it equal visual weight to
+	// "get the file" would misrepresent which one the reader is actually here for.
+	.source-link {
+		@include mix.focus-ring;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		text-decoration: underline;
 	}
 </style>

@@ -7,6 +7,7 @@
 import type { Service, ServiceDraft, ServiceReview, ServiceWatch } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
 import {
+	FRONTEND_TO_BACKEND_DELIVERY_MODE,
 	mapService,
 	mapServiceReview,
 	mapServiceWatch,
@@ -14,6 +15,15 @@ import {
 	type RawServiceReview,
 	type RawServiceWatch
 } from '$lib/api/mappers';
+
+/** Browse-page filters. `deliveryMode` here is a QUESTION, not a listing's own answer: asking for
+ * `inPerson` matches both in-person and hybrid listings, since a hybrid tutor genuinely satisfies
+ * someone who wants to meet in person (and likewise for `online`). Hence no `hybrid` option — it is
+ * not a thing a student searches for, it is a thing a tutor offers. */
+export interface ServiceBrowseFilters {
+	deliveryMode?: 'online' | 'inPerson';
+	near?: { lat: number; lon: number; radiusKm?: number };
+}
 
 function draftToBody(draft: ServiceDraft): Record<string, unknown> {
 	const trimmedRate = draft.hourlyRate.trim();
@@ -23,16 +33,36 @@ function draftToBody(draft: ServiceDraft): Record<string, unknown> {
 		course_slugs: draft.courseIds,
 		hourly_rate: trimmedRate ? trimmedRate : null,
 		currency: draft.currency,
-		is_active: draft.isActive
+		is_active: draft.isActive,
+		delivery_mode: FRONTEND_TO_BACKEND_DELIVERY_MODE[draft.deliveryMode],
+		// Always sent, including as empty/null for an online-only listing — the backend clears any
+		// previous location when the mode is online, and sending nothing on a PATCH would instead
+		// leave a stale pin in place on a listing that no longer has a physical location at all.
+		location_label: draft.locationLabel,
+		location_lat: draft.locationLat,
+		location_lon: draft.locationLon
 	};
 }
 
 /** The public browse page (`?course=` narrows to one course's own listings, matching the exact
  * "course-scoped discovery" reasoning `ServiceViewSet`'s own doc comment gives). Only ever returns
  * `is_active` listings — a paused one only shows up via `getMyServices` below. */
-export async function getServices(courseId?: string): Promise<Service[]> {
-	const query = courseId ? `?course=${encodeURIComponent(courseId)}` : '';
-	const raw = await apiClient.get<RawService[]>(`/services/${query}`);
+export async function getServices(
+	courseId?: string,
+	filters: ServiceBrowseFilters = {}
+): Promise<Service[]> {
+	const search = new URLSearchParams();
+	if (courseId) search.set('course', courseId);
+	if (filters.deliveryMode) {
+		search.set('delivery_mode', FRONTEND_TO_BACKEND_DELIVERY_MODE[filters.deliveryMode]);
+	}
+	// "Tutors within N km of me" — what makes a stored location useful rather than merely displayed.
+	if (filters.near) {
+		search.set('near', `${filters.near.lat},${filters.near.lon}`);
+		if (filters.near.radiusKm) search.set('radius_km', String(filters.near.radiusKm));
+	}
+	const query = search.toString();
+	const raw = await apiClient.get<RawService[]>(`/services/${query ? `?${query}` : ''}`);
 	return raw.map(mapService);
 }
 

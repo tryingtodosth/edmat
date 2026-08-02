@@ -5,6 +5,25 @@
 
 export type ServiceCurrency = 'PLN' | 'EUR' | 'USD';
 
+/** How the tutoring actually happens. A single union rather than a pair of `isOnline`/`isInPerson`
+ * booleans — two booleans make an illegal fourth state representable (neither set, a listing nobody
+ * can attend) that every read site would then have to defend against.
+ *
+ * `hybrid` is a real third answer, not a convenience: "online, or in person if you come to Warsaw"
+ * is a common offer, and it deliberately matches BOTH filters rather than neither. */
+export type ServiceDeliveryMode = 'online' | 'inPerson' | 'hybrid';
+
+/** Where an in-person or hybrid listing takes place. Absent entirely for online-only listings —
+ * the backend actively clears these when a listing switches to online, so a stale pin can never
+ * outlive the tutoring it described. */
+export interface ServiceLocation {
+	/** Human-readable address, stored rather than re-derived: reverse-geocoding on every render
+	 * would hammer Nominatim for a string that never changes, which its usage policy forbids. */
+	label: string;
+	lat: number;
+	lon: number;
+}
+
 export interface Service {
 	id: string;
 	providerId: string;
@@ -19,6 +38,9 @@ export interface Service {
 	hourlyRate: number | null; // display-only, this app has no real payment processing anywhere
 	currency: ServiceCurrency;
 	isActive: boolean;
+	deliveryMode: ServiceDeliveryMode;
+	/** Set only for `inPerson`/`hybrid` listings; `undefined` for online-only ones. */
+	location?: ServiceLocation;
 	averageRating: number | null;
 	reviewCount: number;
 	createdAt: string;
@@ -59,4 +81,12 @@ export interface ServiceDraft {
 	hourlyRate: string;
 	currency: ServiceCurrency;
 	isActive: boolean;
+	deliveryMode: ServiceDeliveryMode;
+	// Only meaningful for `inPerson`/`hybrid`. Kept as three flat fields rather than a nested
+	// `ServiceLocation` because the picker sets them independently — coordinates land the instant the
+	// pin drops, while the label arrives later from the reverse lookup (and may never arrive at all if
+	// that lookup fails, which must not lose the coordinates).
+	locationLabel: string;
+	locationLat: number | null;
+	locationLon: number | null;
 }

@@ -44,6 +44,23 @@
 		{/if}
 	</div>
 
+	<!-- How you can actually attend, shown on every card without exception — for a student choosing
+	     a tutor this is a hard filter, not a detail: an in-person-only listing 300 km away is simply
+	     not an option, and finding that out only after opening the listing wastes the trip. The
+	     location line renders beneath it whenever there is one. -->
+	<p class="delivery">
+		<span class="mode-pill mode-pill--{service.deliveryMode}">
+			{service.deliveryMode === 'online'
+				? m.services_mode_online()
+				: service.deliveryMode === 'inPerson'
+					? m.services_mode_inPerson()
+					: m.services_mode_hybrid()}
+		</span>
+		{#if service.location}
+			<span class="location-label">{service.location.label || m.services_locationNoLabel()}</span>
+		{/if}
+	</p>
+
 	{#if service.reviewCount > 0}
 		<p class="rating-summary">
 			{m.review_average({
@@ -106,6 +123,31 @@
 	.rating-summary {
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
+	}
+	.delivery {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+		margin: 0;
+		font-size: var(--font-size-sm);
+	}
+	.location-label {
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+	.mode-pill {
+		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+		font-size: var(--font-size-xs);
+	}
+	// In-person and hybrid share the accent treatment because they share the fact that matters —
+	// you can meet this person. Online stays neutral: it is the default and the most common, so
+	// highlighting it would make the pill decorative rather than informative.
+	.mode-pill--inPerson,
+	.mode-pill--hybrid {
+		@include mix.status-pill(var(--accent), var(--accent-soft));
 	}
 	.rate {
 		@include mix.status-pill(var(--accent), var(--accent-soft));

@@ -66,6 +66,18 @@
 		color: var(--accent);
 		background: var(--accent-soft);
 	}
+	.coverage-badge__label {
+		// A topic/subtopic name is real, unbounded-length text, not a short fixed-vocabulary
+		// label — truncate just the label (not the whole badge) so the depth/comment-count
+		// suffixes stay visible, matching the identical fix already applied to MaterialCard's
+		// own `.claim-chip` and TagChip's `.tag-chip__trigger`. `inline-block` (not the default
+		// `inline`) is required for `text-overflow: ellipsis` to actually take effect at all.
+		display: inline-block;
+		max-width: 220px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		vertical-align: bottom;
+	}
 	.coverage-badge__depth {
 		opacity: 0.75;
 	}

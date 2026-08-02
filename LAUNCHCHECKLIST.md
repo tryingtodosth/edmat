@@ -241,3 +241,302 @@ carried forward here since "launch" is exactly the point they stop being deferra
 4. 🔵 and ⚪ as a genuine pre-launch QA pass, not an afterthought — especially the KaTeX sweep, since
    a wrong-looking math exercise is the single most damaging thing this specific product could show
    a new visitor.
+5. 🟤 is post-launch by definition — it needs real users before any of its numbers mean
+   anything — but the email-verification and rate-limiting items in 🟠 are prerequisites for it,
+   worth knowing while doing them.
+
+---
+
+## 🟤 Trust system — REP, SKILL and ENERGY (design, nothing built)
+
+Appended as a design brief, not a checklist of known gaps: unlike everything above, none of this
+exists in any form today. It replaces the current all-or-nothing trust model (`is_staff` for
+moderators, one `is_verified_contributor` boolean for everyone else) with a earned-permission ladder,
+and moves administration off Django admin onto our own pages.
+
+**Numbers below are a starting proposal, not tuned.** Every threshold, weight and cost is a guess
+that needs real traffic to calibrate — they're written down concretely so they can be argued with
+and changed, not because they're right.
+
+### 0. Administration moves off `/admin`
+
+Django admin stays as break-glass for superusers only. Everything routine gets a real page, extending
+the existing `/moderation` surface (which already has a Flags tab from the kill-switch work):
+
+- [ ] **Settings page** — platform settings, currently only reachable as `FeatureFlag` rows and
+  `settings.py` constants. Thresholds, energy costs and tier requirements below all belong here, not
+  in code, or they can never be tuned without a deploy.
+- [ ] **Verification queue** — review and grant the multi-step verification levels in §3.
+- [ ] **Tier management** — see and override a user's tier, with the reason recorded.
+- [ ] **Appeal panel** — §4's investigation flow.
+- [ ] **Field-skill overview** — who is trusted in which field, and where nobody is.
+
+### 1. Three separate quantities
+
+They answer different questions and must not be collapsed into one score:
+
+| Quantity | Scope | Answers | Moved by |
+| --- | --- | --- | --- |
+| **REP** | one per user, global | how much the platform trusts your judgement → your tier | votes on your content, accepted contributions, moderation decisions upheld or overturned |
+| **SKILL** | one per (user, `taxonomy.Field`) | whether you're competent *in this subject* | votes and endorsements on your work in that field, weighted by content difficulty |
+| **ENERGY** | one per user, regenerating | how much you may do right now — **1 energy = 1 comment/message** | spent per action, regenerates on a clock; cap and rate set by tier |
+
+### 2. Two separate ladders
+
+The original sketch had one ladder, where the top rung was "moderation takes effect immediately."
+That does not survive contact with USOS (§2a): granting every verified UW member the top rung would
+hand tens of thousands of people a one-click delete button, and the appeal panel — peers "at or above
+the actor's tier" — would degenerate into "everybody," which is no panel at all.
+
+So capability and authority are split. **What you may DO is a tier, and it can be granted by
+identity. What you may do TO OTHER PEOPLE is a mod level, and it can only ever be earned.**
+
+#### 2a. Capability tier — what you may do
+
+Cumulative. Reached either by earning REP or, for a UW member, immediately via USOS (§3).
+
+| Tier | Grants | REP band | Energy cap | Regen |
+| --- | --- | --- | --- | --- |
+| **S** | nothing further to unlock — full participation | 2500+ | 300 | 8/h |
+| **A** | upload any accepted file format | 750–2499 | 150 | 4/h |
+| **B** | share links | 200–749 | 80 | 2/h |
+| **C** | write reviews | 50–199 | 40 | 1/h |
+| **D** | comments/messages post directly | 10–49 | 20 | 1/2h |
+| **E** | may comment, but every comment queues for approval | 0–9 | 5 | 1/6h |
+| **F** | suspended — read only | below 0 | 0 | — |
+
+#### 2b. Mod level — what you may do to other people's work
+
+**Never granted by identity, never by USOS, never by capability tier.** Two of these already exist in
+the codebase and should be extended rather than duplicated: `NodeGovernor` (a real Field- or
+Course-scoped moderator, Section 17M) and `is_staff`.
+
+| Level | Authority | How it is reached | Exists today? |
+| --- | --- | --- | --- |
+| **M0** | none — can report, nothing more | default, including every USOS-verified member | — |
+| **M1** | reports carry real weight; can send content to the queue, never remove it | capability tier ≥ B and no upheld complaint in 90 days | no |
+| **M2** | acts on the queue, but only in fields where SKILL ≥ C; every decision appealable | capability tier ≥ A, M1 for 30 days, granted by an M3+ | no |
+| **M3** | full authority within one Field or Course, including immediate effect | granted by staff — this is `NodeGovernor` | **yes** |
+| **M4** | platform-wide | `is_staff` | **yes** |
+
+**Immediate, unqueued effect — the old S-tier power — now belongs to M3 and above only.** That is the
+single change that keeps §4's accountability meaningful once tier S is handed out in bulk.
+
+#### 2c. Vote weight comes from REP, not from tier
+
+| REP band | Weight |
+| --- | --- |
+| S (2500+) | 16 |
+| A (750–2499) | 8 |
+| B (200–749) | 4 |
+| C (50–199) | 2 |
+| D (10–49) | 1 |
+| E / F | 0 |
+
+Deliberately keyed on the REP band a person actually earned, **not** on their effective capability
+tier. A USOS-verified fresher holds tier S — they can upload, link, review and comment freely, which
+is what trusting a real UW member should mean — while their vote still weighs 0 until they have a
+record. Without this split, one first-year could hide anything on the site on their first afternoon.
+
+**Hiding content still takes 16 points of weighted downvote**, and hiding is now additionally gated on
+the content having been queued by an M1+ or crossing that threshold — so it is a real consensus of
+people who have built standing, not a single click. `Comment.is_removed` is already a tombstone rather
+than a hard delete, so there is somewhere for this to land without losing the record.
+
+### 3. How a tier is reached — USOS, or the earned ladder
+
+`effective_tier = max(usos_tier, min(rep_tier, verification_ceiling))`.
+
+**A UW member gets tier S the moment their USOS account is connected. Everybody else earns it**, via
+the ladder below — EdMat is a public study resource, not a UW-only intranet, and an alumnus, a
+student at another university, or someone revising alone must still have a real path in.
+
+| Step | Raises ceiling to |
+| --- | --- |
+| **USOS account connected (§3a)** | **S, immediately** |
+| 1. Email confirmed (the 🟠 item above — this system needs it) | E |
+| 2. Display name + declared field of study | D |
+| 3. Institutional email or student ID | C |
+| 4. Human check — CAPTCHA plus a cooling-off period since registration | B |
+| 5. Vouched for by 2 distinct A/S contributors | A |
+| 6. Manual grant — recorded, revocable | S |
+
+#### 3a. USOS connection
+
+USOS is the university's own student record system, and connecting to it proves — from the
+institution's own database rather than from anything the user typed — that this is a real, currently
+enrolled person, which of them they are, and what they study. It is a far stronger claim than steps
+3–6 above were ever approximating, which is why it replaces all of them at once.
+
+- [ ] **OAuth against the USOS API** (`apps.usos.edu.pl` / UW's own installation). Note it is
+  **OAuth 1.0a**, not OAuth 2 — an older flow with request-token/authorize/access-token legs and
+  signed requests, so a modern OAuth2 client library will not do.
+- [ ] **This needs an administrative step before any code runs**: the application must be registered
+  with the university to obtain a consumer key and be granted the scopes it needs. That is a request
+  to the operator, not something engineering can unblock on its own — start it early.
+- [ ] **Request the narrowest scopes that work.** Identity and enrolment are needed; grades are not,
+  and must never be requested. Asking for more than is used is both a privacy failure and a reason
+  for the university to refuse the registration.
+
+**What connecting grants**, all of it immediate:
+
+- [ ] **Capability tier S.** Upload, links, reviews, comments, no approval queue.
+- [ ] **Mod level M0.** Explicitly nothing — see §2b. Being a real student is an identity claim, not
+  evidence of judgement about other people's work.
+- [ ] **Vote weight 0 until REP is earned** — see §2c.
+- [ ] **Seeded SKILL from real enrolment.** USOS knows which courses this person has actually taken,
+  and those map onto `taxonomy.Course` directly. Someone who passed Analiza Matematyczna II has a
+  real, institutionally-attested claim to competence in it that no amount of upvoting could establish
+  as cheaply. A conservative seed (enough for tier C in that field, not more) is the honest version:
+  having taken a course is evidence, not proof.
+- [ ] **A staff account is a different claim from a student one.** USOS distinguishes them; a lecturer
+  or TA is the obvious candidate pool for M2/M3, though still by grant rather than automatically.
+
+**What it closes, from this section's own open questions:**
+
+- [ ] **Sockpuppets.** One USOS identity, one account — the single most effective anti-abuse measure
+  available here, and one no amount of energy-cost tuning could match.
+- [ ] **Cold start.** The original ladder was unreachable at launch (nobody could be vouched for by
+  two A/S contributors when none existed). USOS makes the entire founding population tier S on day
+  one, so the earned ladder only ever has to serve people from outside UW.
+
+**What it does not solve, and must be designed for:**
+
+- [ ] **Affiliation lapses.** Students graduate and staff leave. A tier granted once and never
+  re-checked becomes a permanent grant to someone the university no longer knows. Re-verify on a
+  schedule (once a semester), and on lapse fall back to the *earned* tier rather than dropping the
+  account to F — someone who contributed for three years should not be demoted to read-only for
+  graduating.
+- [ ] **Everyone at UW is not everyone who matters.** ~40,000 people is not a small trusted circle,
+  and USOS proves enrolment, not good faith. This is precisely why the mod-level split in §2b exists.
+- [ ] **The privacy policy must be updated before this ships.** `/privacy` currently states that no
+  data goes to any third party except OpenStreetMap. Connecting USOS adds a new category of personal
+  data (university identity, affiliation, enrolment) and a new recipient, and needs its own section,
+  its own retention rule, and a statement of what is requested and what deliberately is not.
+- [ ] **Availability.** If USOS is down, connection must fail into the ordinary earned ladder rather
+  than locking people out of a study site the night before an exam.
+
+### 4. Accountability — what makes an M3 grant safe to hand out
+
+Immediate, unreviewable removal by one person is the most dangerous thing in this design. It is now
+confined to M3+ (§2b) rather than to a tier tens of thousands of people hold, but it still needs to
+be answerable: every hide and every immediate action writes an appealable record.
+
+- [ ] An appeal convenes a panel of peers **at or above the actor's own MOD LEVEL** — not their
+  capability tier, which after USOS says nothing about judgement — excluding the actor and the
+  content's author. Quorum 3 for an ordinary hide, 5 for an M3+ immediate action.
+- [ ] Decision **upheld** → actor **+15 REP**.
+- [ ] Decision **overturned** → actor loses REP scaled by the authority they exercised: **M1 −20,
+  M2 −60, M3 −160, M4 −250**. The more power you used, the more being wrong costs.
+- [ ] **3 overturns in 90 days** → automatic demotion of one MOD LEVEL. Re-earnable.
+- [ ] **Demotion never touches the capability tier.** Being wrong about someone else's work is not
+  evidence you can no longer be trusted to upload your own, and conflating the two would make every
+  moderator quietly reluctant to make a call. This is the practical payoff of splitting the ladders.
+- [ ] Panel members who vote against the panel's own eventual consensus take a small penalty, so
+  sitting on a panel isn't a free rubber stamp.
+
+### 5. Field-scoped skill
+
+SKILL(user, field) moves on the same events as REP, but only for content in that field, multiplied by
+the difficulty of the linked material — `Exercise.difficulty` already exists: **easy ×1, medium ×2,
+hard ×3**. Same S–F letters, lower bands, since field activity is narrower: F <0, E 0–4, D 5–24,
+C 25–99, B 100–374, A 375–1249, S 1250+.
+
+- [ ] **Endorsements — the "extra effort" review.** A user spends real energy to tag someone's
+  comment with a field/skill/tag *and* rate it; that boosts the author's SKILL in that field
+  specifically, not their global REP.
+- [ ] **Endorsements are themselves reviewable** — was the tag even right? A bogus endorsement costs
+  the endorser, or endorsement becomes a trivial way to pump a friend's skill.
+- [ ] **Proposal, not in the original brief:** moderation authority should be capped by field
+  competence — an M2 may only act where their own `skill_tier(field)` is C or better, and even an M3's
+  scope is a Field or Course rather than the whole platform (which `NodeGovernor` already enforces
+  today). Without this, someone with authority can delete specialist content they have no ability to
+  judge, which is exactly the failure the skill axis exists to prevent. USOS makes this cheaper than
+  it looks: enrolment already says which courses a person has actually taken (§3a).
+
+### 6. Energy costs
+
+| Action | Cost |
+| --- | --- |
+| Comment / message | **1** (the unit) |
+| Vote | 0 — free, but weighted by tier |
+| Share a link | 2 |
+| Write a review | 3 |
+| Skill endorsement | 5 |
+| File upload | 10 |
+| Flag content | 1, refunded if the flag is upheld |
+| Serve on an appeal panel | 0, and +2 REP |
+
+### 7. REP events
+
+| Event | REP |
+| --- | --- |
+| Your comment upvoted | +2 × difficulty multiplier |
+| Your comment downvoted | −2 |
+| Review accepted | +10 |
+| Translation published | +15 |
+| Exercise submission accepted | +25 |
+| Material upload accepted | +25 |
+| Skill endorsement received | +5 |
+| Your flag upheld | +3 |
+| Your moderation decision upheld | +15 |
+| Your moderation decision overturned | −(vote weight × 10) |
+| Your content hidden by consensus | −20 |
+
+- [ ] **Daily cap of +50 REP from votes alone**, or a coordinated group can farm someone to A.
+
+### 8. Milestones — moving between levels
+
+- [ ] **Hysteresis.** You promote at the threshold but only demote at **80%** of it — reach 200 for B,
+  keep B until you drop below 160. Without this, anyone sitting on a boundary flaps tier daily.
+- [ ] **Dwell time.** Minimum **7 days** at a tier before promoting again (E→D exempt, it should
+  follow email confirmation immediately). Stops one burst of activity vaulting a new account to A.
+- [ ] **Inactivity decay.** −2% REP per month with no actions, floored at the bottom of the current
+  tier — standing tracks current engagement without demoting someone for taking a holiday. Decay
+  applies to REP only, **not** SKILL: standing lapses, knowledge doesn't.
+- [ ] **Every transition writes a record** (who, from, to, why, when), visible on the tier-management
+  page. A tier must never change silently.
+- [ ] **F is never automatic.** Suspension requires a real moderation action, never a REP threshold —
+  auto-suspension on negative REP is the single easiest thing in this design to weaponise by
+  brigading a user.
+
+### 9. What this replaces or absorbs
+
+- [ ] `Profile.is_verified_contributor` becomes **derived** (`tier >= A`), which after USOS means
+  every UW member holds it. Keep the column through the migration as a manual override for the non-UW
+  population, then retire it.
+- [ ] **`NodeGovernor` (Section 17M) IS M3, and `is_staff` IS M4** — both already built, both already
+  scoped, both already carrying `granted_by`. Mod levels should extend that model rather than
+  introduce a second, parallel notion of "who may moderate what"; M1/M2 are the genuinely new rungs.
+- [ ] The verified-contributor fast path in 🟢 (auto-publish for trusted submitters, CLAUDE.md
+  Section 18 item 4) needs revisiting once tier S is granted in bulk: "a verified contributor's
+  submission publishes with no review" is a very different policy when that means every UW student
+  rather than a handful of hand-picked accounts.
+- [ ] `RequireVerifiedContributorForMaterialUploads` and the `material_uploads_verified_only` flag
+  (`moderation/permissions.py`) generalise into "minimum tier for this action", configurable per
+  action from the settings page rather than one hardcoded boolean per feature.
+- [ ] Energy **partially** covers the "No rate limiting anywhere" item in 🟠 — but it's an
+  application-level budget, not a defence against someone hammering `/api/auth/login/`. DRF
+  throttling is still needed underneath it.
+
+### 10. Open questions — genuinely unresolved, not deferred detail
+
+- [x] ~~**Sockpuppets and brigading.**~~ Largely answered by USOS (§3a): one university identity, one
+  account. Still open for the non-UW population, who reach tier S through the earned ladder with no
+  equivalent identity check behind them — a ring of real accounts from outside UW can still coordinate
+  votes, and a discount for accounts that habitually vote together remains real work.
+- [x] ~~**Cold start.**~~ Answered by USOS: the founding population is tier S on day one, so "vouched
+  by 2 A/S contributors" no longer has to bootstrap from nothing. **Mod levels still cold-start
+  though** — M2 requires an M3+ to grant it, and M3 requires staff, so the first appeal panels have to
+  be convened from a handful of manually granted accounts. Decide what an appeal does before enough
+  M2s exist to form a quorum.
+- [ ] **What happens to a UW member's tier when they lose access to their own account?** USOS is the
+  identity anchor, so account recovery is now partly the university's problem rather than entirely
+  ours — worth confirming that a re-connection restores the same account rather than creating a
+  second one.
+- [ ] **Is the energy cap or the regen rate the real limit?** Everyone refills to cap overnight, so
+  for anyone who isn't posting continuously the regen rate never binds and only the cap matters.
+- [ ] **Does SKILL gate reading?** Assumed no — this is a study resource, and gating who may *read*
+  hard material would defeat the point. Worth confirming that's the intent.
+- [ ] **Do downvotes cost the voter anything?** Free downvoting is cheap to abuse; charging for it
+  suppresses legitimate signal. Unresolved.

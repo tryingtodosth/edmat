@@ -25,6 +25,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import ReviewList from '$lib/components/review/ReviewList.svelte';
+	import LocationMap from '$lib/components/service/LocationMap.svelte';
 	import ReviewForm from '$lib/components/review/ReviewForm.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 
@@ -163,6 +164,24 @@
 
 		<ServiceCard {service} {courseNames} linkTitle={false} />
 
+		<!-- The map lives on the detail page only, never on the browse card. A Leaflet instance per
+		     card would mean a dozen map widgets and a tile request storm on one browse page, for
+		     information the card's own location line already conveys in text. Here, where a student
+		     is deciding whether they can actually get there, the map is the point. -->
+		{#if service.location}
+			<section class="content-section location-section">
+				<h2>{m.services_field_location()}</h2>
+				<p class="location-address">
+					{service.location.label || m.services_locationNoLabel()}
+				</p>
+				<LocationMap
+					lat={service.location.lat}
+					lon={service.location.lon}
+					label={service.location.label}
+				/>
+			</section>
+		{/if}
+
 		{#if authStore.isAuthenticated && authStore.user?.id !== service.providerId}
 			<section class="watchlist-action no-print">
 				<button
@@ -210,6 +229,17 @@
 
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;
+	.location-section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.location-address {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
 
 	.page {
 		max-width: 780px;

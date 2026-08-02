@@ -163,6 +163,41 @@ class SubmissionApprovalTests(APITestCase):
         self.assertEqual(translation.title, 'A submitted exercise')
         self.assertEqual(translation.status, 'published')
 
+    def test_approving_a_submission_with_requirements_creates_real_exercise_requirement_rows(self):
+        submission = self._submit(requirements=['basic algebra', 'epsilon-delta proofs'])
+
+        response = self.client.post(
+            reverse('moderation-action', kwargs={'kind': 'submission', 'pk': submission.pk, 'decision': 'approve'}),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        exercise = submission.resulting_exercise
+        self.assertEqual(
+            list(exercise.requirements.order_by('order').values_list('label', flat=True)),
+            ['basic algebra', 'epsilon-delta proofs'],
+        )
+
+    def test_submitting_an_exercise_with_duplicate_requirement_labels_is_rejected(self):
+        self.client.force_authenticate(self.student)
+        response = self.client.post(
+            reverse('exercise-submission-list'),
+            {
+                'course': self.course.slug,
+                'payload': {
+                    'difficulty': 'easy',
+                    'locale': 'pl',
+                    'title': 'Dup requirements',
+                    'statement': 'Prove something.',
+                    'requirements': ['basic algebra', '  Basic Algebra  '],
+                },
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_rejecting_a_submission_never_creates_an_exercise(self):
         submission = self._submit()
 
@@ -336,6 +371,32 @@ class MaterialSubmissionApiTests(APITestCase):
         # never a silently-assumed 'clean' the way it would if perform_create ignored `scanned`.
         self.assertEqual(response.data['scan_status'], 'skipped')
 
+    def test_author_and_source_url_are_accepted_and_stored(self):
+        self.client.force_authenticate(self.student)
+
+        response = self._upload(
+            self.client,
+            author='dr hab. Anna Kowalska',
+            source_url='https://example.edu/courses/am2/materials',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['author'], 'dr hab. Anna Kowalska')
+        self.assertEqual(response.data['source_url'], 'https://example.edu/courses/am2/materials')
+
+    def test_a_malformed_source_url_is_rejected_rather_than_stored(self):
+        """A `URLField`, not free text — a stored non-URL would render as a broken link on every
+        material card that shows it, and provenance nobody can follow is worse than none."""
+        from moderation.models import MaterialSubmission
+
+        self.client.force_authenticate(self.student)
+
+        response = self._upload(self.client, source_url='not a url at all')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('source_url', response.data)
+        self.assertFalse(MaterialSubmission.objects.filter(source_url='not a url at all').exists())
+
     def test_anonymous_upload_is_rejected(self):
         response = self._upload(self.client)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -349,6 +410,38 @@ class MaterialSubmissionApiTests(APITestCase):
             file=SimpleUploadedFile(
                 'totally_a_pdf.pdf', b'MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00' + b'A' * 200
             ),
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_uploading_with_a_valid_coverage_entry_is_accepted(self):
+        import json
+
+        topic = make_topic(self.course, 'matsub-api-topic')
+        self.client.force_authenticate(self.student)
+        response = self._upload(
+            self.client, coverage=json.dumps([{'topic_id': topic.pk, 'level': 40}])
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['coverage'], [{'topic_id': topic.pk, 'level': 40}])
+
+    def test_uploading_with_a_coverage_topic_from_a_different_course_is_rejected(self):
+        import json
+
+        other_course = make_course(slug='uw-material-submission-other-course')
+        other_topic = make_topic(other_course, 'matsub-api-other-topic')
+        self.client.force_authenticate(self.student)
+        response = self._upload(
+            self.client, coverage=json.dumps([{'topic_id': other_topic.pk, 'level': 40}])
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_uploading_with_an_out_of_range_coverage_level_is_rejected(self):
+        import json
+
+        topic = make_topic(self.course, 'matsub-api-range-topic')
+        self.client.force_authenticate(self.student)
+        response = self._upload(
+            self.client, coverage=json.dumps([{'topic_id': topic.pk, 'level': 999}])
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -570,6 +663,62 @@ class MaterialSubmissionApprovalTests(APITestCase):
         # The SAME already-uploaded file, not a re-saved copy under a new path.
         self.assertEqual(material.file.name, submission.file.name)
 
+    def test_declared_author_and_source_url_carry_onto_the_published_material(self):
+        """Provenance is only knowable by the uploader — a moderator cannot recover an author or an
+        origin from a PDF's bytes. If it is captured at submission time but dropped on approval, the
+        record is lost at exactly the moment it becomes public, so this pins the carry-over."""
+        submission = self._submit(
+            author='dr hab. Anna Kowalska',
+            source_url='https://example.edu/courses/am2/materials',
+        )
+
+        response = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        material = submission.resulting_material
+        self.assertEqual(material.author, 'dr hab. Anna Kowalska')
+        self.assertEqual(material.source_url, 'https://example.edu/courses/am2/materials')
+
+    def test_a_submission_declaring_neither_still_approves_cleanly(self):
+        """Both fields are deliberately optional — a scan of a paper handout has no URL, and forcing
+        one would produce fabricated provenance, which is the opposite of the point."""
+        submission = self._submit()
+
+        response = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertEqual(submission.resulting_material.author, '')
+        self.assertEqual(submission.resulting_material.source_url, '')
+
+    def test_the_moderation_queue_shows_provenance_to_the_reviewer(self):
+        """Storing it is not enough: the approve/reject call is where a provenance/copyright judgment
+        actually gets made (CLAUDE.md Section 18 item 2), so it has to reach the reviewer's queue."""
+        self._submit(author='Prof. Jan Nowak', source_url='https://example.edu/handout.pdf')
+
+        response = self.client.get(reverse('moderation-queue'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(
+            r for r in response.data['material_submissions'] if r['author'] == 'Prof. Jan Nowak'
+        )
+        self.assertEqual(row['source_url'], 'https://example.edu/handout.pdf')
+
     def test_approving_a_material_submission_records_a_real_clickable_submitted_by(self):
         """A real, found gap: `_apply_material_submission` used to build the resulting Material
         with NO attribution at all — `Material.author` (a free-text field) was never set from the
@@ -611,6 +760,25 @@ class MaterialSubmissionApprovalTests(APITestCase):
         self.assertEqual(material.estimated_minutes, 45)
         labels = list(material.requirements.order_by('order').values_list('label', flat=True))
         self.assertEqual(labels, ['English B2+', 'basic algebra'])
+
+    def test_approving_a_submission_with_coverage_creates_real_material_coverage_rows(self):
+        topic = make_topic(self.course, 'matsub-approval-topic')
+        submission = self._submit(coverage=[{'topic_id': topic.pk, 'level': 60}])
+
+        response = self.client.post(
+            reverse('moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'}),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        material = submission.resulting_material
+        coverage_rows = list(material.coverage.all())
+        self.assertEqual(len(coverage_rows), 1)
+        self.assertEqual(coverage_rows[0].topic_id, topic.pk)
+        self.assertEqual(coverage_rows[0].level, 60)
+        self.assertEqual(coverage_rows[0].proposed_by, self.student)
 
     def test_rejecting_a_material_submission_never_creates_a_material(self):
         submission = self._submit()

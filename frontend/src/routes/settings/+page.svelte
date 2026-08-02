@@ -8,6 +8,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { materialsUiStore, type MaterialsUiMode } from '$lib/state/materialsUi.svelte';
 	import { NOTIFICATION_TYPE_CATEGORY, NOTIFICATION_TYPE_LABELS } from '$lib/utils/labels';
+	import AvatarEditor from '$lib/components/settings/AvatarEditor.svelte';
 	import DonationLinksEditor from '$lib/components/settings/DonationLinksEditor.svelte';
 	import TagFollowsEditor from '$lib/components/settings/TagFollowsEditor.svelte';
 
@@ -168,6 +169,15 @@
 			<a class="view-public" href={resolve('/users/[id]', { id: user.id })}>
 				{m.profile_viewPublic()}
 			</a>
+		</section>
+
+		<!-- Its own section, deliberately outside the `edit-form` below: the avatar has its own
+		     multipart endpoint and saves immediately on its own action, so folding it into a form
+		     whose Save button posts a JSON PATCH would imply it's part of that same submit when it
+		     isn't. Same standalone-section shape DonationLinksEditor/TagFollowsEditor already use. -->
+		<section class="avatar">
+			<h2>{m.settings_avatarHeading()}</h2>
+			<AvatarEditor />
 		</section>
 
 		<form class="edit-form" onsubmit={handleSave}>
@@ -346,6 +356,7 @@
 	}
 	.profile,
 	.edit-form,
+	.avatar,
 	.donations,
 	.tags {
 		@include mix.card-surface;
@@ -356,6 +367,7 @@
 	}
 	.profile h2,
 	.field-group h2,
+	.avatar h2,
 	.donations h2,
 	.tags h2 {
 		font-size: var(--font-size-base);

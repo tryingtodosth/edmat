@@ -80,6 +80,26 @@ class Material(models.Model):
     # missing — mirrors `Exercise.submitted_by` exactly, and is what a community-submitted
     # material's own clickable byline actually resolves through.
     author = models.CharField(max_length=200, blank=True)
+    # Where this material came from — a link wherever one exists (a course page, a university's own
+    # materials directory, an arXiv/OER entry), which is why this is a `URLField` and not free text.
+    #
+    # Genuinely distinct from `author` above and from `ExerciseSource` (Section 9's own 1:1 model for
+    # an exercise's exam/midterm provenance): `author` is WHO wrote it, this is WHERE it came from,
+    # and neither answers the other. A material can have an author and no traceable source (a TA's
+    # own handout), or a source and no named author (an anonymous departmental script).
+    #
+    # This matters beyond bookkeeping. CLAUDE.md Section 18 item 2 is a still-open ⚠️ on the
+    # copyright/provenance of transcribed course material — a real question that cannot even be
+    # investigated for a given file without a record of where it came from. Every material uploaded
+    # before this field existed simply has no answer available; capturing it from now on is what
+    # makes that question answerable going forward.
+    #
+    # `blank=True`, deliberately not required: a genuine scan of a paper handout has no URL, and
+    # forcing an uploader to invent one would produce worse data than an honest blank. Every one of
+    # the 7 legacy corpus materials is blank for exactly this reason — material.yaml never carried a
+    # source URL, so backfilling one would mean fabricating provenance, which is the precise opposite
+    # of what this field is for.
+    source_url = models.URLField(max_length=500, blank=True)
     # A found, real gap: `_apply_material_submission` (moderation/views.py) builds a real Material
     # from an approved MaterialSubmission — which already has a real `submitted_by` User — but
     # nothing ever carried that onto the resulting Material, so a community-submitted material had
@@ -299,3 +319,15 @@ class MaterialTranslation(models.Model):
 
     def __str__(self) -> str:
         return f'{self.material} ({self.locale})'
+
+    def save(self, *args, **kwargs):
+        # Same real, server-side sanitization ExerciseTranslation.save() applies (config/sanitize.py)
+        # — see that model's own doc comment for the full reasoning. `description` is rendered as
+        # plain, auto-escaped text on the frontend (MaterialCard.svelte), never as `{@html}`, so it
+        # was never actually exploitable — sanitized anyway for the same defense-in-depth reason,
+        # and so this model doesn't silently diverge from its own sibling's discipline.
+        from config.sanitize import sanitize_content
+
+        self.title = sanitize_content(self.title)
+        self.description = sanitize_content(self.description)
+        super().save(*args, **kwargs)
