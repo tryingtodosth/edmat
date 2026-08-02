@@ -333,3 +333,263 @@ class KillSwitchTests(ApiTestCase):
 
         staff = User.objects.create_user('mod', 'mod@x.example', 'pw12345!', is_staff=True)
         self.assertEqual(self.as_(staff).get('/api/taught-courses/').status_code, 200)
+
+
+class DiscussionTests(ApiTestCase):
+    """Reading and posting are two different questions, and `discussion_mode` only answers the first."""
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+
+    def post_as(self, user, body='Cześć'):
+        return self.as_(user).post(
+            f'/api/taught-courses/{self.course.pk}/comments/', {'body': body}, format='json'
+        )
+
+    def test_participants_only_is_the_default(self):
+        self.assertEqual(self.course.discussion_mode, 'participants')
+        self.assertEqual(
+            self.client.get(f'/api/taught-courses/{self.course.pk}/comments/').status_code, 403
+        )
+        self.assertEqual(
+            self.as_(self.other).get(f'/api/taught-courses/{self.course.pk}/comments/').status_code,
+            403,
+        )
+
+    def test_a_participant_reads_and_posts(self):
+        self.as_(self.student).post(f'/api/taught-courses/{self.course.pk}/enrol/')
+        posted = self.post_as(self.student)
+        self.assertEqual(posted.status_code, 201)
+        read = self.as_(self.student).get(f'/api/taught-courses/{self.course.pk}/comments/')
+        self.assertEqual([c['body'] for c in read.data], ['Cześć'])
+
+    def test_the_instructor_is_in_the_conversation_without_being_on_the_roster(self):
+        self.assertEqual(self.post_as(self.instructor).status_code, 201)
+
+    def test_a_public_thread_is_readable_but_not_writable_by_outsiders(self):
+        """The whole point of two separate checks: open to read, closed to post."""
+        self.course.discussion_mode = 'public'
+        self.course.save()
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{self.course.pk}/comments/', {'body': 'Witam'}, format='json'
+        )
+        anon = self.client.get(f'/api/taught-courses/{self.course.pk}/comments/')
+        self.assertEqual(anon.status_code, 200)
+        self.assertEqual([c['body'] for c in anon.data], ['Witam'])
+        self.assertEqual(self.post_as(self.other).status_code, 403)
+
+    def test_turning_the_discussion_off_closes_it_for_everybody(self):
+        self.as_(self.student).post(f'/api/taught-courses/{self.course.pk}/enrol/')
+        self.course.discussion_mode = 'off'
+        self.course.save()
+        self.assertEqual(
+            self.as_(self.student).get(f'/api/taught-courses/{self.course.pk}/comments/').status_code,
+            403,
+        )
+        self.assertEqual(self.post_as(self.student).status_code, 403)
+        # Including the instructor: off means off, not "off for other people".
+        self.assertEqual(self.post_as(self.instructor).status_code, 403)
+
+    def test_a_pending_request_does_not_get_into_the_conversation(self):
+        course = self.make_course(enrollment_policy='approval')
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.assertEqual(
+            self.as_(self.student).get(f'/api/taught-courses/{course.pk}/comments/').status_code, 403
+        )
+
+    def test_a_reply_cannot_be_smuggled_in_from_another_thread(self):
+        other_course = self.make_course(title='Elsewhere')
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{other_course.pk}/comments/', {'body': 'root'}, format='json'
+        )
+        from community.models import Comment
+
+        foreign = Comment.objects.first()
+        res = self.as_(self.instructor).post(
+            f'/api/taught-courses/{self.course.pk}/comments/',
+            {'body': 'reply', 'parent': foreign.pk},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('parent', res.data)
+
+    def test_the_viewer_is_told_what_they_may_do(self):
+        detail = self.client.get(f'/api/taught-courses/{self.course.pk}/').data
+        self.assertFalse(detail['can_read_discussion'])
+        self.assertFalse(detail['can_post_discussion'])
+        self.as_(self.student).post(f'/api/taught-courses/{self.course.pk}/enrol/')
+        detail = self.as_(self.student).get(f'/api/taught-courses/{self.course.pk}/').data
+        self.assertTrue(detail['can_read_discussion'])
+        self.assertTrue(detail['can_post_discussion'])
+
+
+class NotificationTests(ApiTestCase):
+    def notifs(self, user, type_=None):
+        from notifications.models import Notification
+
+        qs = Notification.objects.filter(recipient=user)
+        return qs.filter(type=type_) if type_ else qs
+
+    def test_asking_to_join_tells_the_instructor_and_carries_the_note(self):
+        course = self.make_course(enrollment_policy='approval')
+        self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/enrol/', {'request_note': 'Rok drugi'}, format='json'
+        )
+        row = self.notifs(self.instructor, 'course_enrollment_requested').get()
+        self.assertEqual(row.target_label, course.title)
+        self.assertEqual(row.taught_course_id, course.pk)
+        self.assertEqual(row.note, 'Rok drugi')
+
+    def test_joining_an_open_course_notifies_nobody(self):
+        """Otherwise a popular course buries its instructor in noise they cannot act on."""
+        course = self.make_course()
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.assertEqual(self.notifs(self.instructor).count(), 0)
+
+    def test_every_decision_reaches_the_person_it_is_about(self):
+        for decision, expected in (
+            ('approve', 'course_enrollment_approved'),
+            ('decline', 'course_enrollment_declined'),
+            ('remove', 'course_removed'),
+        ):
+            course = self.make_course(enrollment_policy='approval')
+            enrol = self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+            self.as_(self.instructor).post(
+                f'/api/taught-courses/{course.pk}/enrollments/{enrol.data["id"]}/',
+                {'decision': decision},
+                format='json',
+            )
+            self.assertTrue(
+                self.notifs(self.student, expected).filter(taught_course=course).exists(), decision
+            )
+
+    def test_a_new_lesson_reaches_participants_but_not_the_instructor(self):
+        course = self.make_course()
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/lessons/', {'title': 'Ciągi'}, format='json'
+        )
+        self.assertEqual(self.notifs(self.student, 'course_new_lesson').count(), 1)
+        # notify()'s own actor==recipient guard: nobody is told about their own action.
+        self.assertEqual(self.notifs(self.instructor, 'course_new_lesson').count(), 0)
+
+    def test_a_post_reaches_the_other_people_in_the_conversation(self):
+        course = self.make_course()
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.as_(self.other).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/comments/', {'body': 'Pytanie'}, format='json'
+        )
+        self.assertEqual(self.notifs(self.other, 'course_new_post').count(), 1)
+        self.assertEqual(self.notifs(self.instructor, 'course_new_post').count(), 1)
+        self.assertEqual(self.notifs(self.student, 'course_new_post').count(), 0)
+
+    def test_a_pending_request_is_never_told_what_is_happening_inside(self):
+        """Leaking course activity to somebody not admitted would undo the participants-only rule."""
+        course = self.make_course(enrollment_policy='approval')
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/lessons/', {'title': 'Ciągi'}, format='json'
+        )
+        self.assertEqual(self.notifs(self.student, 'course_new_lesson').count(), 0)
+
+
+class NotificationSettingTests(ApiTestCase):
+    """Three independent switches, at three levels, each of which must work on its own."""
+
+    def notif_count(self, user, type_):
+        from notifications.models import Notification
+
+        return Notification.objects.filter(recipient=user, type=type_).count()
+
+    def test_the_instructor_can_stop_announcing_lessons(self):
+        course = self.make_course(announce_new_lessons=False)
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/lessons/', {'title': 'Ciągi'}, format='json'
+        )
+        self.assertEqual(self.notif_count(self.student, 'course_new_lesson'), 0)
+
+    def test_the_instructor_can_stop_announcing_posts(self):
+        course = self.make_course(announce_new_posts=False)
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.as_(self.other).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/comments/', {'body': 'x'}, format='json'
+        )
+        self.assertEqual(self.notif_count(self.other, 'course_new_post'), 0)
+
+    def test_a_participant_can_mute_one_course_without_leaving_it(self):
+        course = self.make_course()
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        muted = self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/mute/', {'notify': False}, format='json'
+        )
+        self.assertEqual(muted.status_code, 200)
+        self.assertFalse(muted.data['notify'])
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/lessons/', {'title': 'Ciągi'}, format='json'
+        )
+        self.assertEqual(self.notif_count(self.student, 'course_new_lesson'), 0)
+        # Still genuinely in the course — muting is not leaving.
+        self.assertEqual(course.active_participant_count, 1)
+
+    def test_muting_is_reversible_and_reported_back(self):
+        course = self.make_course()
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        client = self.as_(self.student)
+        client.post(f'/api/taught-courses/{course.pk}/mute/', {'notify': False}, format='json')
+        self.assertFalse(client.get(f'/api/taught-courses/{course.pk}/').data['notify_me'])
+        client.post(f'/api/taught-courses/{course.pk}/mute/', {'notify': True}, format='json')
+        self.assertTrue(client.get(f'/api/taught-courses/{course.pk}/').data['notify_me'])
+
+    def test_notify_me_is_null_for_somebody_not_in_the_course(self):
+        """Distinct from False, which means "in the course, muted"."""
+        course = self.make_course()
+        self.assertIsNone(self.as_(self.other).get(f'/api/taught-courses/{course.pk}/').data['notify_me'])
+
+    def test_only_a_participant_can_mute(self):
+        course = self.make_course()
+        res = self.as_(self.other).post(
+            f'/api/taught-courses/{course.pk}/mute/', {'notify': False}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_the_account_wide_category_switches_all_six_off(self):
+        course = self.make_course()
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        profile = self.student.profile
+        profile.notify_on_course_activity = False
+        profile.save()
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/lessons/', {'title': 'Ciągi'}, format='json'
+        )
+        self.assertEqual(self.notif_count(self.student, 'course_new_lesson'), 0)
+
+    def test_one_type_can_be_muted_without_the_rest(self):
+        """The per-type list layers on top of the coarse category, never instead of it."""
+        course = self.make_course()
+        self.as_(self.student).post(f'/api/taught-courses/{course.pk}/enrol/')
+        profile = self.student.profile
+        profile.muted_notification_types = ['course_new_lesson']
+        profile.save()
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/lessons/', {'title': 'Ciągi'}, format='json'
+        )
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/comments/', {'body': 'x'}, format='json'
+        )
+        self.assertEqual(self.notif_count(self.student, 'course_new_lesson'), 0)
+        self.assertEqual(self.notif_count(self.student, 'course_new_post'), 1)
+
+    def test_settings_are_the_instructors_alone_to_change(self):
+        course = self.make_course()
+        res = self.as_(self.student).patch(
+            f'/api/taught-courses/{course.pk}/', {'discussion_mode': 'off'}, format='json'
+        )
+        self.assertEqual(res.status_code, 404)
+        ok = self.as_(self.instructor).patch(
+            f'/api/taught-courses/{course.pk}/', {'discussion_mode': 'public'}, format='json'
+        )
+        self.assertEqual(ok.data['discussion_mode'], 'public')

@@ -77,6 +77,9 @@ one).
 
 ## Useful commands
 
+**See [`test.md`](./test.md)** for the full testing guide — what each suite covers, how to run
+them, and the two environment quirks that most often look like a regression but are not.
+
 ```sh
 # Backend — from edmat/backend/, using ../.venv/bin/python3
 manage.py check                    # sanity check

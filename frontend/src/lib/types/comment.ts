@@ -5,7 +5,14 @@
 // below, a discussion scoped to one specific topic-subtopic-level claim, not the whole material.
 // 'service' is the other real one — a tutoring listing's own discussion (services/views.py's
 // ServiceViewSet.comments), the same generic Comment mechanism reused again.
-export type CommentTargetType = 'exercise' | 'material' | 'materialCoverage' | 'service';
+export type CommentTargetType =
+	| 'exercise'
+	| 'material'
+	| 'materialCoverage'
+	| 'service'
+	// A course run by a user (classroom.TaughtCourse) — the same generic Comment mechanism, so the
+	// thread, the tree builder and the report flow all come for free.
+	| 'taughtCourse';
 
 export interface Comment {
 	id: string;

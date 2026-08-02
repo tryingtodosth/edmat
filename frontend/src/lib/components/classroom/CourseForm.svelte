@@ -3,7 +3,7 @@
 	// drift the moment one gained a field.
 	import { untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
-	import type { TaughtCourse, TaughtCourseDraft } from '$lib/types/classroom';
+	import type { DiscussionMode, TaughtCourse, TaughtCourseDraft } from '$lib/types/classroom';
 
 	let {
 		initial = null,
@@ -31,6 +31,11 @@
 	let startsOn = $state(untrack(() => initial?.startsOn ?? ''));
 	let endsOn = $state(untrack(() => initial?.endsOn ?? ''));
 	let price = $state(untrack(() => initial?.price ?? ''));
+	let discussionMode = $state<DiscussionMode>(
+		untrack(() => initial?.discussionMode ?? 'participants')
+	);
+	let announceNewLessons = $state(untrack(() => initial?.announceNewLessons ?? true));
+	let announceNewPosts = $state(untrack(() => initial?.announceNewPosts ?? true));
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -49,7 +54,10 @@
 			startsOn: startsOn || null,
 			endsOn: endsOn || null,
 			price: price || null,
-			currency: initial?.currency || 'PLN'
+			currency: initial?.currency || 'PLN',
+			discussionMode,
+			announceNewLessons,
+			announceNewPosts
 		});
 	}
 </script>
@@ -116,6 +124,36 @@
 		<span class="hint">{m.classroom_form_priceHint()}</span>
 	</label>
 
+	<fieldset>
+		<legend>{m.classroom_form_discussionLegend()}</legend>
+		<label class="field">
+			<span>{m.classroom_form_discussionMode()}</span>
+			<select bind:value={discussionMode}>
+				<option value="participants">{m.classroom_form_discussionParticipants()}</option>
+				<option value="public">{m.classroom_form_discussionPublic()}</option>
+				<option value="off">{m.classroom_form_discussionOff()}</option>
+			</select>
+			<!-- Reading and posting are separate questions; only the first is configurable, because
+			     letting strangers post into somebody's course would be a different feature. -->
+			<span class="hint">{m.classroom_form_discussionHint()}</span>
+		</label>
+	</fieldset>
+
+	<fieldset>
+		<legend>{m.classroom_form_announceLegend()}</legend>
+		<label class="check">
+			<input type="checkbox" bind:checked={announceNewLessons} />
+			<span>{m.classroom_form_announceLessons()}</span>
+		</label>
+		<label class="check">
+			<input type="checkbox" bind:checked={announceNewPosts} />
+			<span>{m.classroom_form_announcePosts()}</span>
+		</label>
+		<!-- Said plainly, because it is the thing that makes these switches safe to leave on: each
+		     participant can still mute the course, and their account settings win over both. -->
+		<span class="hint">{m.classroom_form_announceHint()}</span>
+	</fieldset>
+
 	{#if error}
 		<p class="error">{error}</p>
 	{/if}
@@ -161,6 +199,25 @@
 		border-radius: var(--radius-sm);
 		background: var(--bg-page);
 		font: inherit;
+	}
+	fieldset {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: var(--space-3);
+	}
+	legend {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		padding: 0 var(--space-1);
+	}
+	.check {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
 	}
 	.error {
 		color: var(--status-danger);

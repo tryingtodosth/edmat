@@ -149,7 +149,11 @@ export const MATERIAL_SORT_LABELS: Record<MaterialSort, () => string> = {
 // still gets an entry so the settings UI can offer a SEPARATE, standalone "mute this type
 // account-wide" override layered on top of the per-tag choice (Profile.muted_notification_types).
 export type NotificationPreferenceCategory =
-	'notifyOnCommentReply' | 'notifyOnModerationDecision' | 'notifyOnContentAction' | null;
+	| 'notifyOnCommentReply'
+	| 'notifyOnModerationDecision'
+	| 'notifyOnContentAction'
+	| 'notifyOnCourseActivity'
+	| null;
 
 export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPreferenceCategory> =
 	{
@@ -163,7 +167,15 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		contentAutoHidden: 'notifyOnContentAction',
 		contentRestored: 'notifyOnContentAction',
 		contentRemoved: 'notifyOnContentAction',
-		newTaggedContent: null
+		newTaggedContent: null,
+		// All six share one coarse category — somebody who does not want course traffic does not want
+		// any of it — while the per-type list below still allows peeling off one of them.
+		courseEnrollmentRequested: 'notifyOnCourseActivity',
+		courseEnrollmentApproved: 'notifyOnCourseActivity',
+		courseEnrollmentDeclined: 'notifyOnCourseActivity',
+		courseRemoved: 'notifyOnCourseActivity',
+		courseNewLesson: 'notifyOnCourseActivity',
+		courseNewPost: 'notifyOnCourseActivity'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -181,7 +193,13 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	contentAutoHidden: m.notifPref_contentAutoHidden,
 	contentRestored: m.notifPref_contentRestored,
 	contentRemoved: m.notifPref_contentRemoved,
-	newTaggedContent: m.notifPref_newTaggedContent
+	newTaggedContent: m.notifPref_newTaggedContent,
+	courseEnrollmentRequested: m.notifPref_courseEnrollmentRequested,
+	courseEnrollmentApproved: m.notifPref_courseEnrollmentApproved,
+	courseEnrollmentDeclined: m.notifPref_courseEnrollmentDeclined,
+	courseRemoved: m.notifPref_courseRemoved,
+	courseNewLesson: m.notifPref_courseNewLesson,
+	courseNewPost: m.notifPref_courseNewPost
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)

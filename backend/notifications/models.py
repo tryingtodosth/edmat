@@ -36,6 +36,17 @@ NOTIFICATION_TYPES = [
     # FOLLOWER, not a participant in the event itself (everything above notifies someone about their
     # OWN content/decision; this notifies someone who merely subscribed to a tag).
     ('new_tagged_content', 'New content tagged with a tag you follow'),
+    # Courses run by users (classroom/). Six types rather than one 'course_activity', because they
+    # are genuinely different events with different recipients — an instructor gets the request, the
+    # applicant gets the answer — and a single type would leave the UI unable to say which happened
+    # without parsing a label. They share one coarse preference category, which is where "I do not
+    # want any of this" belongs.
+    ('course_enrollment_requested', 'Somebody asked to join your course'),
+    ('course_enrollment_approved', 'You were let into a course'),
+    ('course_enrollment_declined', 'Your request to join was declined'),
+    ('course_removed', 'You were removed from a course'),
+    ('course_new_lesson', 'A new lesson in a course you are taking'),
+    ('course_new_post', 'A new post in a course discussion'),
 ]
 
 
@@ -57,6 +68,12 @@ class Notification(models.Model):
     # no Exercise to link through. Same nullable/SET_NULL shape as `exercise` above, same reasoning.
     material = models.ForeignKey(
         'materials.Material', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    # Same nullable/SET_NULL shape and the same reason as `material` above: a course notification has
+    # neither an Exercise nor a Material to link through, and a notification you cannot click is
+    # markedly less useful than one you can.
+    taught_course = models.ForeignKey(
+        'classroom.TaughtCourse', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
     # A moderator's own review_note/resolved_note, or a comment reply's own short preview — whatever
     # extra context that event type actually has, blank when it doesn't.

@@ -6,13 +6,17 @@ is done in the queryset rather than by after-the-fact checks — so somebody pok
 instructor's draft gets a 404, which is also the honest answer, since for them it does not exist.
 """
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from community.models import Comment
+from community.serializers import CommentSerializer
 from moderation.permissions import feature_gate
+from notifications.services import notify, notify_course_participants
 
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
@@ -148,6 +152,18 @@ class TaughtCourseViewSet(viewsets.ModelViewSet):
         except IntegrityError:
             return Response({'detail': 'already_enrolled'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if joining_status == 'pending':
+            # Only under the approval policy is there anything for the instructor to do. Announcing
+            # every open-policy join would be noise proportional to the course's popularity, which is
+            # exactly the kind of notification people learn to ignore.
+            notify(
+                course.instructor,
+                'course_enrollment_requested',
+                actor=request.user,
+                target_label=course.title,
+                taught_course=course,
+                note=note,
+            )
         return Response(EnrollmentSerializer(enrollment).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, _ClassroomFeatureGate])
@@ -212,7 +228,88 @@ class TaughtCourseViewSet(viewsets.ModelViewSet):
             enrollment.status = 'removed'
         enrollment.decided_at = timezone.now()
         enrollment.save()
+        # Every one of these is somebody's answer to a question they asked, so all three are worth
+        # telling them about — including being removed, which is the one they would otherwise
+        # discover by finding the course gone.
+        notify(
+            enrollment.participant,
+            {
+                'approve': 'course_enrollment_approved',
+                'decline': 'course_enrollment_declined',
+                'remove': 'course_removed',
+            }[decision],
+            actor=request.user,
+            target_label=course.title,
+            taught_course=course,
+        )
         return Response(EnrollmentSerializer(enrollment).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, _ClassroomFeatureGate])
+    def mute(self, request, pk=None):
+        """Stay in the course, stop hearing about it — `Enrollment.notify`.
+
+        Its own endpoint rather than a field on the enrolment write path, because there is no other
+        enrolment write path: a participant does not otherwise edit their own membership.
+        """
+        course = self.get_object()
+        enrollment = course.enrollments.filter(participant=request.user).first()
+        if not enrollment or enrollment.status not in ACTIVE_ENROLLMENT_STATUSES:
+            return Response({'detail': 'not_enrolled'}, status=status.HTTP_400_BAD_REQUEST)
+        enrollment.notify = bool(request.data.get('notify', False))
+        enrollment.save(update_fields=['notify'])
+        return Response(EnrollmentSerializer(enrollment).data)
+
+    # --- discussion ---------------------------------------------------------------------------
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        permission_classes=[permissions.IsAuthenticatedOrReadOnly, _ClassroomFeatureGate],
+    )
+    def comments(self, request, pk=None):
+        """The course discussion — the same generic `Comment` (content_type/object_id) that
+        Exercise, Material and Service threads already use, not a bespoke one built for this.
+
+        Reading and posting are two different questions: `discussion_mode` decides who may READ,
+        while posting is always restricted to the people actually in the course. "Anyone may read"
+        is a reasonable thing for an instructor to want; "anyone may post into my course" is not.
+        """
+        course = self.get_object()
+        content_type = ContentType.objects.get_for_model(TaughtCourse)
+
+        if request.method == 'GET':
+            if not course.discussion_visible_to(request.user):
+                return Response(status=status.HTTP_403_FORBIDDEN)
+            qs = Comment.objects.filter(content_type=content_type, object_id=course.pk)
+            return Response(CommentSerializer(qs, many=True).data)
+
+        if not course.discussion_writable_by(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        serializer = CommentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # The same cross-target check every other `comments` action here applies: a client-supplied
+        # parent genuinely threads, but nothing should let it name a comment from another thread.
+        parent = serializer.validated_data.get('parent')
+        if parent is not None and (
+            parent.content_type_id != content_type.id or parent.object_id != course.pk
+        ):
+            return Response(
+                {'parent': ['This reply must belong to the same discussion.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer.save(content_type=content_type, object_id=course.pk, author=request.user)
+
+        if course.announce_new_posts:
+            notify_course_participants(
+                course,
+                'course_new_post',
+                actor=request.user,
+                note=serializer.instance.body[:200],
+                # The instructor is not on the roster but is unquestionably in the conversation.
+                include_instructor=True,
+            )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     # --- lessons --------------------------------------------------------------------------------
 
@@ -240,6 +337,10 @@ class TaughtCourseViewSet(viewsets.ModelViewSet):
         write = LessonWriteSerializer(data=request.data)
         write.is_valid(raise_exception=True)
         lesson = write.save(course=course)
+        if course.announce_new_lessons:
+            notify_course_participants(
+                course, 'course_new_lesson', actor=request.user, note=lesson.title
+            )
         return Response(
             LessonSerializer(lesson, context={'is_participant': True}).data,
             status=status.HTTP_201_CREATED,

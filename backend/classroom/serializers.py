@@ -92,6 +92,12 @@ class TaughtCourseSerializer(serializers.ModelSerializer):
     can_enrol = serializers.SerializerMethodField()
     enrollment_block_reason = serializers.SerializerMethodField()
     is_instructor = serializers.SerializerMethodField()
+    # Resolved server-side for the same reason `can_enrol` is: whether this viewer may read or post
+    # in the thread depends on the course's mode AND their membership, and a client working that out
+    # for itself is a client that can get it wrong.
+    can_read_discussion = serializers.SerializerMethodField()
+    can_post_discussion = serializers.SerializerMethodField()
+    notify_me = serializers.SerializerMethodField()
 
     class Meta:
         model = TaughtCourse
@@ -106,6 +112,9 @@ class TaughtCourseSerializer(serializers.ModelSerializer):
             'status',
             'enrollment_policy',
             'capacity',
+            'discussion_mode',
+            'announce_new_lessons',
+            'announce_new_posts',
             'language',
             'starts_on',
             'ends_on',
@@ -120,6 +129,9 @@ class TaughtCourseSerializer(serializers.ModelSerializer):
             'can_enrol',
             'enrollment_block_reason',
             'is_instructor',
+            'can_read_discussion',
+            'can_post_discussion',
+            'notify_me',
         ]
 
     def _user(self):
@@ -162,6 +174,18 @@ class TaughtCourseSerializer(serializers.ModelSerializer):
     def get_can_enrol(self, course) -> bool:
         return course.enrollment_block_reason(self._user()) is None
 
+    def get_can_read_discussion(self, course) -> bool:
+        return course.discussion_visible_to(self._user())
+
+    def get_can_post_discussion(self, course) -> bool:
+        return course.discussion_writable_by(self._user())
+
+    def get_notify_me(self, course) -> bool | None:
+        """The viewer's own per-course mute. None when they are not in the course at all, which is
+        genuinely different from "in the course, notifications off"."""
+        enrollment = self._my_enrollment(course)
+        return enrollment.notify if enrollment else None
+
 
 class TaughtCourseWriteSerializer(serializers.ModelSerializer):
     # Referred to by their slugs rather than their numeric pks, matching how the rest of this API
@@ -185,6 +209,9 @@ class TaughtCourseWriteSerializer(serializers.ModelSerializer):
             'status',
             'enrollment_policy',
             'capacity',
+            'discussion_mode',
+            'announce_new_lessons',
+            'announce_new_posts',
             'language',
             'starts_on',
             'ends_on',
@@ -227,6 +254,7 @@ class EnrollmentSerializer(serializers.ModelSerializer):
             'participant',
             'status',
             'request_note',
+            'notify',
             'requested_at',
             'decided_at',
         ]

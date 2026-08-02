@@ -19,6 +19,7 @@
 	let notifyOnCommentReply = $state(true);
 	let notifyOnModerationDecision = $state(true);
 	let notifyOnContentAction = $state(true);
+	let notifyOnCourseActivity = $state(true);
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, course-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
@@ -46,6 +47,9 @@
 	const contentActionTypes = (Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]).filter(
 		(t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnContentAction'
 	);
+	const courseActivityTypes = (
+		Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]
+	).filter((t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnCourseActivity');
 
 	function toggleMuted(type: NotificationType) {
 		if (mutedTypes.has(type)) {
@@ -68,6 +72,7 @@
 		notifyOnCommentReply = authStore.user.notifyOnCommentReply ?? true;
 		notifyOnModerationDecision = authStore.user.notifyOnModerationDecision ?? true;
 		notifyOnContentAction = authStore.user.notifyOnContentAction ?? true;
+		notifyOnCourseActivity = authStore.user.notifyOnCourseActivity ?? true;
 		offersTutoring = authStore.user.offersTutoring;
 		tutoringNote = authStore.user.tutoringNote;
 		// Mutate the existing SvelteSet in place, not a reassignment — `mutedTypes` is a plain `let`
@@ -90,6 +95,7 @@
 			notifyOnCommentReply,
 			notifyOnModerationDecision,
 			notifyOnContentAction,
+			notifyOnCourseActivity,
 			mutedNotificationTypes: Array.from(mutedTypes),
 			offersTutoring,
 			tutoringNote
@@ -242,6 +248,26 @@
 				{#if notifyOnModerationDecision}
 					<ul class="fine-tune">
 						{#each moderationDecisionTypes as type (type)}
+							<li>
+								<label class="checkbox checkbox--sub">
+									<input
+										type="checkbox"
+										checked={!mutedTypes.has(type)}
+										onchange={() => toggleMuted(type)}
+									/>
+									<span>{NOTIFICATION_TYPE_LABELS[type]?.()}</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<label class="checkbox">
+					<input type="checkbox" bind:checked={notifyOnCourseActivity} />
+					<span>{m.settings_notifyOnCourseActivity()}</span>
+				</label>
+				{#if notifyOnCourseActivity}
+					<ul class="fine-tune">
+						{#each courseActivityTypes as type (type)}
 							<li>
 								<label class="checkbox checkbox--sub">
 									<input

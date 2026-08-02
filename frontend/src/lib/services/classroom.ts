@@ -44,6 +44,9 @@ function mapCourse(raw: any): TaughtCourse {
 		status: raw.status,
 		enrollmentPolicy: raw.enrollment_policy,
 		capacity: raw.capacity,
+		discussionMode: raw.discussion_mode,
+		announceNewLessons: raw.announce_new_lessons,
+		announceNewPosts: raw.announce_new_posts,
 		language: raw.language,
 		startsOn: raw.starts_on,
 		endsOn: raw.ends_on,
@@ -57,7 +60,10 @@ function mapCourse(raw: any): TaughtCourse {
 		myEnrollmentStatus: raw.my_enrollment_status ?? null,
 		canEnrol: raw.can_enrol ?? false,
 		enrollmentBlockReason: raw.enrollment_block_reason ?? null,
-		isInstructor: raw.is_instructor ?? false
+		isInstructor: raw.is_instructor ?? false,
+		canReadDiscussion: raw.can_read_discussion ?? false,
+		canPostDiscussion: raw.can_post_discussion ?? false,
+		notifyMe: raw.notify_me ?? null
 	};
 }
 
@@ -72,6 +78,7 @@ function mapEnrollment(raw: any): Enrollment {
 		},
 		status: raw.status,
 		requestNote: raw.request_note ?? '',
+		notify: raw.notify ?? true,
 		requestedAt: raw.requested_at,
 		decidedAt: raw.decided_at
 	};
@@ -87,6 +94,9 @@ function draftToBody(draft: TaughtCourseDraft): Record<string, unknown> {
 		status: draft.status,
 		enrollment_policy: draft.enrollmentPolicy,
 		capacity: draft.capacity,
+		discussion_mode: draft.discussionMode,
+		announce_new_lessons: draft.announceNewLessons,
+		announce_new_posts: draft.announceNewPosts,
 		language: draft.language,
 		// Empty date inputs must go as null, not '' — a blank string is not a date and the API
 		// rightly refuses it.
@@ -176,6 +186,13 @@ export async function enrol(courseId: string, requestNote = ''): Promise<Enrollm
 export async function leaveCourse(courseId: string): Promise<Enrollment> {
 	return mapEnrollment(
 		await apiClient.post(`/taught-courses/${encodeURIComponent(courseId)}/leave/`)
+	);
+}
+
+/** Stay in the course, stop hearing about it — `Enrollment.notify`. */
+export async function muteCourse(courseId: string, notify: boolean): Promise<Enrollment> {
+	return mapEnrollment(
+		await apiClient.post(`/taught-courses/${encodeURIComponent(courseId)}/mute/`, { notify })
 	);
 }
 

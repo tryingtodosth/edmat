@@ -9,6 +9,9 @@ function targetPath(targetType: CommentTargetType, targetId: string): string {
 		return `/material-coverage/${encodeURIComponent(targetId)}/comments/`;
 	}
 	if (targetType === 'service') return `/services/${encodeURIComponent(targetId)}/comments/`;
+	if (targetType === 'taughtCourse') {
+		return `/taught-courses/${encodeURIComponent(targetId)}/comments/`;
+	}
 	throw new Error(`Comments on a '${targetType}' target have no backend endpoint yet.`);
 }
 

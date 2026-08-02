@@ -16,7 +16,15 @@ export type NotificationType =
 	// A followed tag (TagFollow) got attached to new/existing content — see the backend's own
 	// notify_tag_followers. `note` carries the tag itself (`#slug`), since this is the one type
 	// whose recipient is a follower rather than a participant in the underlying event.
-	| 'newTaggedContent';
+	| 'newTaggedContent'
+	// Courses run by users (classroom/). Six types rather than one, because the recipient and the
+	// next action differ per event — an instructor gets the request, the applicant gets the answer.
+	| 'courseEnrollmentRequested'
+	| 'courseEnrollmentApproved'
+	| 'courseEnrollmentDeclined'
+	| 'courseRemoved'
+	| 'courseNewLesson'
+	| 'courseNewPost';
 
 export interface Notification {
 	id: string;
@@ -26,6 +34,7 @@ export interface Notification {
 	targetLabel: string;
 	exerciseId?: string; // absent when there's nowhere real to link (e.g. a rejected submission)
 	materialId?: string; // set instead of exerciseId when a newTaggedContent notification targets a Material
+	taughtCourseId?: string; // set for the course types, which have neither an exercise nor a material
 	note: string;
 	isRead: boolean;
 	createdAt: string;

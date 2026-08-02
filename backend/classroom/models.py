@@ -41,6 +41,22 @@ PUBLIC_STATUSES = frozenset({'open', 'running', 'finished'})
 #: The one state that accepts new participants.
 ENROLLING_STATUSES = frozenset({'open'})
 
+# Who may read the course discussion. Three values rather than a boolean pair for the same reason
+# `status` is one field: "off" and "public" and "participants only" are three states, and two
+# booleans would make a fourth, meaningless one representable.
+#
+# `participants` is the default because it matches what the rest of the course already does — the
+# roster is private and lesson notes are participant-only, so a discussion that was public by default
+# would be the one place the course quietly leaked.
+DISCUSSION_MODE_CHOICES = [
+    ('off', 'No discussion'),
+    ('participants', 'Participants and the instructor'),
+    ('public', 'Anyone can read; participants can post'),
+]
+
+#: Modes in which the thread is readable by somebody who is not in the course.
+PUBLICLY_READABLE_DISCUSSION = frozenset({'public'})
+
 # How somebody gets in. Two honest answers, and the difference is real: a reading group wants anyone
 # who turns up; a small course with twelve seats and prerequisites wants to choose. Not a boolean,
 # so a third policy (an invite code, say) is a value rather than a schema change.
@@ -110,6 +126,17 @@ class TaughtCourse(models.Model):
     price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     currency = models.CharField(max_length=3, default='PLN', blank=True)
 
+    # --- what this course announces, and to whom -------------------------------------------------
+    # Per-course rather than only per-account, because the right answer genuinely differs by course:
+    # a ten-week seminar posting one lesson a week should announce each one, and a busy reading group
+    # posting daily should not. The instructor knows which of those they are running; nobody else
+    # can. Each defaults to the behaviour somebody would expect if they never opened the settings.
+    discussion_mode = models.CharField(
+        max_length=12, choices=DISCUSSION_MODE_CHOICES, default='participants'
+    )
+    announce_new_lessons = models.BooleanField(default=True)
+    announce_new_posts = models.BooleanField(default=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -141,6 +168,35 @@ class TaughtCourse(models.Model):
     @property
     def is_full(self) -> bool:
         return self.capacity > 0 and self.active_participant_count >= self.capacity
+
+    def discussion_visible_to(self, user) -> bool:
+        """Whether this person may READ the thread. Posting is a separate, stricter question — see
+        `discussion_writable_by` — because "anyone can read" is a reasonable thing for an instructor
+        to want and "anyone can post" is generally not."""
+        if self.discussion_mode == 'off':
+            return False
+        if self.discussion_mode in PUBLICLY_READABLE_DISCUSSION:
+            return True
+        if not user or not user.is_authenticated:
+            return False
+        if self.instructor_id == user.pk:
+            return True
+        return self.enrollments.filter(
+            participant=user, status__in=ACTIVE_ENROLLMENT_STATUSES
+        ).exists()
+
+    def discussion_writable_by(self, user) -> bool:
+        """Only the people actually in the course, in every mode. A public thread is public to
+        read; letting strangers post into somebody's course would make it a different feature."""
+        if self.discussion_mode == 'off':
+            return False
+        if not user or not user.is_authenticated:
+            return False
+        if self.instructor_id == user.pk:
+            return True
+        return self.enrollments.filter(
+            participant=user, status__in=ACTIVE_ENROLLMENT_STATUSES
+        ).exists()
 
     def enrollment_block_reason(self, user) -> str | None:
         """Why this person cannot join, or None if they can.
@@ -210,6 +266,12 @@ class Enrollment(models.Model):
     # Free text from the person asking to join, and only meaningful under the `approval` policy —
     # an instructor choosing between applicants needs something to choose on.
     request_note = models.CharField(max_length=500, blank=True)
+
+    # "Stay in the course, stop hearing about it" — deliberately its own per-course flag rather than
+    # only an account-wide switch, mirroring `exercises.TagFollow.notify` exactly: muting one busy
+    # course should not cost somebody notifications from every other one, and leaving the course
+    # entirely is far too blunt an instrument for "this thread is noisy".
+    notify = models.BooleanField(default=True)
 
     requested_at = models.DateTimeField(auto_now_add=True)
     decided_at = models.DateTimeField(null=True, blank=True)

@@ -29,6 +29,14 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'content_auto_hidden': 'notify_on_content_action',
     'content_restored': 'notify_on_content_action',
     'content_removed': 'notify_on_content_action',
+    # All six course types share one coarse category: somebody who does not want course traffic does
+    # not want any of it, and the per-type mute list already exists for finer control than that.
+    'course_enrollment_requested': 'notify_on_course_activity',
+    'course_enrollment_approved': 'notify_on_course_activity',
+    'course_enrollment_declined': 'notify_on_course_activity',
+    'course_removed': 'notify_on_course_activity',
+    'course_new_lesson': 'notify_on_course_activity',
+    'course_new_post': 'notify_on_course_activity',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile
@@ -66,6 +74,7 @@ def notify(
     target_label: str = '',
     exercise=None,
     material=None,
+    taught_course=None,
     note: str = '',
 ):
     """Creates one Notification, or silently no-ops when there's genuinely nothing to notify:
@@ -111,6 +120,7 @@ def notify(
         target_label=target_label,
         exercise=exercise,
         material=material,
+        taught_course=taught_course,
         note=(note or '')[:500],
     )
 
@@ -186,3 +196,46 @@ def notify_comment_reply(comment, *, target_label: str, exercise=None, material=
         material=material,
         note=comment.body[:200],
     )
+
+
+def notify_course_participants(
+    course, notif_type: str, *, actor=None, note: str = '', include_instructor: bool = False
+):
+    """Tell everybody taking part in a course that something happened in it.
+
+    Three independent gates, and they are deliberately checked at three different levels, because
+    they answer three different questions:
+
+    * the **course's own setting** — the instructor decided whether this kind of event is announced
+      at all (a course that posts a lesson a day should be able to stop announcing each one);
+    * each **participant's per-course mute** (`Enrollment.notify`) — the same shape `TagFollow.notify`
+      already uses, so somebody can stay in a busy course without hearing about every post;
+    * each person's **account-wide preference**, which `notify()` applies on its own.
+
+    Only active participants are notified. Somebody with a pending request has not joined, and
+    telling them what is happening inside would leak exactly what the participants-only rule exists
+    to protect.
+    """
+    from classroom.models import ACTIVE_ENROLLMENT_STATUSES
+
+    recipients = []
+    for enrollment in course.enrollments.filter(
+        status__in=ACTIVE_ENROLLMENT_STATUSES, notify=True
+    ).select_related('participant'):
+        recipients.append(enrollment.participant)
+    if include_instructor:
+        recipients.append(course.instructor)
+
+    created = []
+    for recipient in recipients:
+        result = notify(
+            recipient,
+            notif_type,
+            actor=actor,
+            target_label=course.title,
+            taught_course=course,
+            note=note,
+        )
+        if result is not None:
+            created.append(result)
+    return created

@@ -129,6 +129,7 @@ export const authStore = {
 			notifyOnCommentReply: boolean;
 			notifyOnModerationDecision: boolean;
 			notifyOnContentAction: boolean;
+			notifyOnCourseActivity: boolean;
 			mutedNotificationTypes: NotificationType[];
 			offersTutoring: boolean;
 			tutoringNote: string;
@@ -144,6 +145,8 @@ export const authStore = {
 		if (patch.notifyOnModerationDecision !== undefined) {
 			body.notify_on_moderation_decision = patch.notifyOnModerationDecision;
 		}
+		if (patch.notifyOnCourseActivity !== undefined)
+			body.notify_on_course_activity = patch.notifyOnCourseActivity;
 		if (patch.notifyOnContentAction !== undefined)
 			body.notify_on_content_action = patch.notifyOnContentAction;
 		if (patch.mutedNotificationTypes !== undefined) {

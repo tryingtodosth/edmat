@@ -45,10 +45,23 @@ async function goto(path) {
 console.log('\n[1] The login page offers all four sign-in drafts');
 await goto('/login');
 const buttons = await page.locator('.provider').allInnerTexts();
-check('school is offered', buttons.some((t) => /University account/i.test(t)), buttons.join(' | '));
-check('Google is offered', buttons.some((t) => /Google/.test(t)));
-check('Apple is offered', buttons.some((t) => /Apple/.test(t)));
-check('GitHub is offered', buttons.some((t) => /GitHub/.test(t)));
+check(
+	'school is offered',
+	buttons.some((t) => /University account/i.test(t)),
+	buttons.join(' | ')
+);
+check(
+	'Google is offered',
+	buttons.some((t) => /Google/.test(t))
+);
+check(
+	'Apple is offered',
+	buttons.some((t) => /Apple/.test(t))
+);
+check(
+	'GitHub is offered',
+	buttons.some((t) => /GitHub/.test(t))
+);
 check('each is labelled a draft on the button itself', (await page.locator('.badge').count()) >= 4);
 check(
 	'the real email+password form is still there, and first',
@@ -159,7 +172,11 @@ const userId = await page.evaluate(async () => {
 });
 await goto(`/users/${userId}`);
 let profile = await page.locator('main').innerText();
-check('the profile shows no education section at all', !/Education/i.test(profile), profile.slice(0, 300));
+check(
+	'the profile shows no education section at all',
+	!/Education/i.test(profile),
+	profile.slice(0, 300)
+);
 check('and certainly no marks', !/Analiza/.test(profile));
 
 console.log('\n[10] Consent publishes it, one field at a time');
@@ -169,7 +186,11 @@ await consents.nth(0).check();
 await settle(1200);
 await goto(`/users/${userId}`);
 profile = await page.locator('main').innerText();
-check('the institution is now public', /Uniwersytet Warszawski/.test(profile), profile.slice(0, 400));
+check(
+	'the institution is now public',
+	/Uniwersytet Warszawski/.test(profile),
+	profile.slice(0, 400)
+);
 check('the diploma is still private', !/Licencjat/.test(profile));
 check('the marks are still private', !/Analiza/.test(profile));
 

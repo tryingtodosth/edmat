@@ -40,6 +40,10 @@ class Profile(models.Model):
     notify_on_comment_reply = models.BooleanField(default=True)
     notify_on_moderation_decision = models.BooleanField(default=True)
     notify_on_content_action = models.BooleanField(default=True)
+    # Courses run by users (classroom/). One coarse category covering all six course notification
+    # types — somebody who does not want course traffic does not want any of it, and the per-type
+    # mute list below already gives finer control than a second boolean would.
+    notify_on_course_activity = models.BooleanField(default=True)
 
     # Finer-grained than the three coarse booleans above, layered on TOP of them rather than
     # replacing them: `notify()` only ever reaches this check once the notification's own coarse

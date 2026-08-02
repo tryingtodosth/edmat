@@ -14,9 +14,15 @@
 		EnrolmentRefused,
 		getCourse,
 		getParticipants,
-		leaveCourse
+		leaveCourse,
+		muteCourse
 	} from '$lib/services/classroom';
 	import type { Enrollment, TaughtCourse } from '$lib/types/classroom';
+	import type { Comment, User } from '$lib/types';
+	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
+	import { getUserById } from '$lib/services/users';
+	import { authStore } from '$lib/state/auth.svelte';
+	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 
 	let course = $state<TaughtCourse | null>(null);
 	let participants = $state<Enrollment[]>([]);
@@ -28,6 +34,40 @@
 
 	let newLessonTitle = $state('');
 	let newLessonNotes = $state('');
+
+	let comments = $state<Comment[]>([]);
+	let usersById = $state<Record<string, User>>({});
+
+	/** Author names for the thread, resolved once per unseen id — the same shape the tutoring
+	 * listing page already uses, rather than a second way of doing it. */
+	async function loadCommentAuthors(rows: Comment[]) {
+		const unique = [...new Set(rows.map((c) => c.authorId))].filter((id) => id && !usersById[id]);
+		if (unique.length === 0) return;
+		const found = await Promise.all(unique.map((id) => getUserById(id)));
+		const next = { ...usersById };
+		for (const u of found) if (u) next[u.id] = u;
+		usersById = next;
+	}
+
+	async function loadDiscussion(id: string, allowed: boolean) {
+		if (!allowed) {
+			comments = [];
+			return;
+		}
+		try {
+			comments = await getCommentsForTarget('taughtCourse', id);
+			await loadCommentAuthors(comments);
+		} catch {
+			// A 403 here is the feature working, not an error worth showing: the course simply does
+			// not let this person read the thread.
+			comments = [];
+		}
+	}
+
+	async function postComment(body: string, parentId?: string) {
+		await submitComment('taughtCourse', page.params.id!, authStore.user?.id ?? '', body, parentId);
+		await loadDiscussion(page.params.id!, true);
+	}
 
 	// Every refusal the API can give, each said in its own words. Collapsing them into one "you
 	// cannot join" would throw away precisely the information the person needs to act on: being
@@ -62,6 +102,7 @@
 		} else {
 			participants = [];
 		}
+		await loadDiscussion(id, found.canReadDiscussion);
 		loading = false;
 	}
 
@@ -248,6 +289,42 @@
 			{/if}
 		</section>
 
+		<!-- The discussion. `canReadDiscussion`/`canPostDiscussion` are resolved server-side, because
+		     whether this viewer may read or post depends on the course's mode AND their membership. -->
+		{#if course.canReadDiscussion}
+			<section class="discussion-section">
+				<h2>{m.classroom_discussionHeading()}</h2>
+				{#if course.canPostDiscussion}
+					<DiscussionThread {comments} {usersById} onSubmit={postComment} />
+				{:else}
+					<!-- A public thread: readable by anyone, writable only by the people in the course. -->
+					<p class="status">{m.classroom_discussionReadOnly()}</p>
+					<DiscussionThread {comments} {usersById} onSubmit={() => {}} />
+				{/if}
+			</section>
+		{:else if course.discussionMode !== 'off'}
+			<section class="discussion-section">
+				<h2>{m.classroom_discussionHeading()}</h2>
+				<p class="status">{m.classroom_discussionParticipantsOnly()}</p>
+			</section>
+		{/if}
+
+		<!-- Per-course mute: stay in, stop hearing about it. Only ever offered to somebody who is
+		     actually in the course, since there is nothing to mute otherwise. -->
+		{#if isActive}
+			<section class="mute-section">
+				<label class="mute">
+					<input
+						type="checkbox"
+						checked={course.notifyMe ?? true}
+						disabled={busy}
+						onchange={(e) => run(() => muteCourse(course!.id, e.currentTarget.checked))}
+					/>
+					<span>{m.classroom_notifyMe()}</span>
+				</label>
+			</section>
+		{/if}
+
 		<!-- The roster, and — for the instructor only — the requests waiting on a decision. -->
 		{#if course.isInstructor || isActive}
 			<section class="roster">
@@ -339,6 +416,12 @@
 	.description {
 		white-space: pre-wrap;
 	}
+	.mute {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+	}
 	.locked {
 		font-style: italic;
 	}
@@ -353,7 +436,9 @@
 	}
 	.enrol,
 	.lessons,
-	.roster {
+	.roster,
+	.discussion-section,
+	.mute-section {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);

@@ -3939,13 +3939,60 @@ One pre-existing test needed updating rather than working around: `moderation`'s
 now a sixth. That is the intended effect of adding a kill switch, so the expectation was what was
 stale.
 
+
+### Follow-up: discussion, notifications, and a setting for each of them (✅ built)
+
+Three layers of switch, and the reason there are three is that they answer three different
+questions — which is also why none of them could sensibly have been folded into the others.
+
+**Discussion** reuses `community.Comment` through its existing GenericForeignKey, so the thread, the
+tree builder, the report flow and the frontend's `DiscussionThread` all come for free; nothing about
+it is bespoke. `discussion_mode` (`off` / `participants` / `public`) is three values rather than a
+boolean pair for the same reason `status` is one field. **Reading and posting are separate
+questions**: the mode decides who may READ, while posting is always restricted to the people in the
+course. "Anyone may read my course discussion" is a reasonable thing to want; "anyone may post into
+it" is not, and collapsing the two would have made the public mode unusable. Participants-only is the
+default, because the roster is private and lesson notes are participant-only — a discussion that was
+public by default would be the one place a course quietly leaked.
+
+**Notifications** add six types rather than one `course_activity`, because the recipient and the next
+action genuinely differ per event: an instructor gets the request, the applicant gets the answer, and
+a single type would leave the UI unable to say which happened without parsing a label. They carry a
+nullable `Notification.taught_course` FK for the same reason `material` was added earlier — a
+notification you cannot click is markedly less useful than one you can.
+
+Two deliberate silences. **Joining an open course notifies nobody**, since that would be noise
+proportional to the course's popularity and nothing the instructor can act on. And **a pending
+request is never told what is happening inside** — telling somebody not yet admitted about new
+lessons would undo the participants-only rule from the other direction.
+
+**The three switches**, checked at three levels by `notify_course_participants`:
+
+1. the **course's own setting** (`announce_new_lessons` / `announce_new_posts`) — a ten-week seminar
+   posting one lesson a week should announce each; a reading group posting daily should not, and only
+   the instructor knows which they are running;
+2. the **participant's per-course mute** (`Enrollment.notify`), mirroring `TagFollow.notify` exactly —
+   muting one busy course must not cost somebody every other course's notifications, and leaving is
+   far too blunt an instrument for "this thread is noisy";
+3. the **account-wide category** (`Profile.notify_on_course_activity`), which `notify()` applies on
+   its own, plus the existing per-type mute list layered on top of it.
+
+**23 more tests** (51 in `classroom`, 442 across the backend) and **15 more browser checks** (44 in
+`e2e/classroom.mjs`). See `test.md` for what each suite covers and how to run them.
+
+A real bug this round, found by the browser suite rather than by reading: the new copy "The
+discussion is for people taking part in this course" contains the exact phrase an earlier check used
+to detect membership, so a whole-page match began reporting a member as a non-member. The app was
+right and the assertion was ambiguous — now scoped to the section. Recorded because it is the
+failure mode of text assertions generally, and `test.md` says so where somebody writing the next one
+will read it.
+
 ### Left open, not built
 
-- **No discussion inside a course.** `community.Comment` already does threaded, reportable
+- ~~**No discussion inside a course.**~~ — built, see above. `community.Comment` already does threaded, reportable
   discussion for exercises and materials and is the obvious thing to reuse, but it was not wired up
   here.
-- **No notifications.** Nobody is told their request was approved or declined; they find out by
-  looking. `notifications/services.py` is where that would go, and it wants a new type per event.
+- ~~**No notifications.**~~ — built, see above: six types, three levels of setting.
 - **Subject/field tagging exists in the model and the API but has no picker** — the form preserves
   whatever is already set rather than offering to change it, so discovery by subject is reachable
   only through the API today.

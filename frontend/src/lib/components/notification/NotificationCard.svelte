@@ -43,6 +43,24 @@
 			m.notification_newTaggedContent({
 				actor: notification.actorDisplayName || m.notification_someone(),
 				title: notification.targetLabel
+			}),
+		courseEnrollmentRequested: () =>
+			m.notification_courseEnrollmentRequested({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		courseEnrollmentApproved: () =>
+			m.notification_courseEnrollmentApproved({ title: notification.targetLabel }),
+		courseEnrollmentDeclined: () =>
+			m.notification_courseEnrollmentDeclined({ title: notification.targetLabel }),
+		courseRemoved: () => m.notification_courseRemoved({ title: notification.targetLabel }),
+		// `note` carries the lesson's own title and renders on its own line below, so this says what
+		// happened rather than repeating it — the same restraint newTaggedContent already follows.
+		courseNewLesson: () => m.notification_courseNewLesson({ title: notification.targetLabel }),
+		courseNewPost: () =>
+			m.notification_courseNewPost({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
 			})
 	};
 
@@ -57,7 +75,9 @@
 			? resolve('/exercises/[id]', { id: notification.exerciseId })
 			: notification.materialId
 				? resolve('/materials/[id]', { id: notification.materialId })
-				: undefined
+				: notification.taughtCourseId
+					? resolve('/classroom/[id]', { id: notification.taughtCourseId })
+					: undefined
 	);
 
 	function handleClick() {

@@ -766,7 +766,13 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	content_auto_hidden: 'contentAutoHidden',
 	content_restored: 'contentRestored',
 	content_removed: 'contentRemoved',
-	new_tagged_content: 'newTaggedContent'
+	new_tagged_content: 'newTaggedContent',
+	course_enrollment_requested: 'courseEnrollmentRequested',
+	course_enrollment_approved: 'courseEnrollmentApproved',
+	course_enrollment_declined: 'courseEnrollmentDeclined',
+	course_removed: 'courseRemoved',
+	course_new_lesson: 'courseNewLesson',
+	course_new_post: 'courseNewPost'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -792,6 +798,7 @@ export interface RawProfile {
 	notify_on_comment_reply?: boolean;
 	notify_on_moderation_decision?: boolean;
 	notify_on_content_action?: boolean;
+	notify_on_course_activity?: boolean;
 	muted_notification_types?: string[]; // snake_case type strings — converted below
 	donation_links?: RawDonationLink[];
 	// Always present on BOTH /auth/me/ and /users/{id}/ — accounts/serializers.py's
@@ -820,6 +827,7 @@ export function mapUser(json: RawProfile): User {
 		notifyOnCommentReply: json.notify_on_comment_reply,
 		notifyOnModerationDecision: json.notify_on_moderation_decision,
 		notifyOnContentAction: json.notify_on_content_action,
+		notifyOnCourseActivity: json.notify_on_course_activity,
 		mutedNotificationTypes: json.muted_notification_types
 			?.map((t) => NOTIFICATION_TYPE_MAP[t])
 			.filter((t): t is Notification['type'] => t !== undefined)
@@ -893,6 +901,7 @@ export interface RawNotification {
 	target_label: string;
 	exercise_id: number | null;
 	material_id: number | null;
+	taught_course_id: number | null;
 	note: string;
 	is_read: boolean;
 	created_at: string;
@@ -907,6 +916,10 @@ export function mapNotification(json: RawNotification): Notification {
 		targetLabel: json.target_label,
 		exerciseId: json.exercise_id !== null ? String(json.exercise_id) : undefined,
 		materialId: json.material_id !== null ? String(json.material_id) : undefined,
+		taughtCourseId:
+			json.taught_course_id !== null && json.taught_course_id !== undefined
+				? String(json.taught_course_id)
+				: undefined,
 		note: json.note,
 		isRead: json.is_read,
 		createdAt: json.created_at

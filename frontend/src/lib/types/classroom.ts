@@ -8,6 +8,9 @@
 
 export type CourseStatus = 'draft' | 'open' | 'running' | 'finished';
 export type EnrollmentPolicy = 'open' | 'approval';
+/** Who may READ the thread. Posting is always restricted to the people in the course — "anyone may
+ * read" is a reasonable thing for an instructor to want, "anyone may post" is not. */
+export type DiscussionMode = 'off' | 'participants' | 'public';
 export type EnrollmentStatus = 'pending' | 'active' | 'left' | 'declined' | 'removed';
 
 /** Why the viewer cannot join. Resolved server-side, because "full" and "you were removed" are the
@@ -50,6 +53,9 @@ export interface TaughtCourse {
 	status: CourseStatus;
 	enrollmentPolicy: EnrollmentPolicy;
 	capacity: number;
+	discussionMode: DiscussionMode;
+	announceNewLessons: boolean;
+	announceNewPosts: boolean;
 	language: string;
 	startsOn: string | null;
 	endsOn: string | null;
@@ -65,6 +71,11 @@ export interface TaughtCourse {
 	canEnrol: boolean;
 	enrollmentBlockReason: EnrollmentBlockReason | null;
 	isInstructor: boolean;
+	canReadDiscussion: boolean;
+	canPostDiscussion: boolean;
+	/** The viewer's own per-course mute. null when they are not in the course at all, which is
+	 * genuinely different from being in it with notifications off. */
+	notifyMe: boolean | null;
 }
 
 export interface Enrollment {
@@ -74,6 +85,7 @@ export interface Enrollment {
 	participant: Participant;
 	status: EnrollmentStatus;
 	requestNote: string;
+	notify: boolean;
 	requestedAt: string;
 	decidedAt: string | null;
 }
@@ -87,6 +99,9 @@ export interface TaughtCourseDraft {
 	status: CourseStatus;
 	enrollmentPolicy: EnrollmentPolicy;
 	capacity: number;
+	discussionMode: DiscussionMode;
+	announceNewLessons: boolean;
+	announceNewPosts: boolean;
 	language: string;
 	startsOn: string | null;
 	endsOn: string | null;
