@@ -13,7 +13,15 @@
 // confirm is the half this feature was actually asked for: that clicking a provider button opens a
 // modal describing that connection's real state and linking to the repository — and that it does
 // not sign anybody in.
-import { chromium } from 'playwright';
+// Resolves `playwright` when it is installed, and falls back to `playwright-core` (a real
+// devDependency) plus CHROME=/path/to/chrome otherwise — so this runs on a machine that has the
+// browsers but not the full package.
+let chromium;
+try {
+	({ chromium } = await import('playwright'));
+} catch {
+	({ chromium } = await import('playwright-core'));
+}
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
 let pass = 0;
@@ -29,7 +37,9 @@ const check = (label, ok, extra = '') => {
 	}
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(
+	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
+);
 const page = await browser.newPage();
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => {

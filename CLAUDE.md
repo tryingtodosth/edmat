@@ -1256,6 +1256,129 @@ its own sub-list, and re-checking it correctly restored the sub-list with the ea
 still shown, unaffected by the toggle. `npm run check`/`lint` and `manage.py check` all clean
 throughout.
 
+## Courses, overhauled — many admins, contributed content, chapters, invite links (built)
+
+The course feature above shipped with exactly one privileged person, content only its instructor
+could add, no grouping, and no way in except asking. Four things changed, and they interlock.
+
+### Many people run one course (`CourseStaff`)
+
+`TaughtCourse.instructor` stays as the denormalized owner — every existing byline, listing and
+`mine=teaching` filter already reads it — but permissions now come from a real `CourseStaff` row per
+person. **Three roles, not a boolean**, because the useful distinction is not "trusted or not" but
+which job somebody was brought in to do: an `assistant` curates content and acts on participants, an
+`admin` also changes the course itself and its staff, and the `owner` additionally can delete it.
+
+- **The owner row is real data, not an implied special case**, so `role_of()` is one lookup with no
+  "…or the instructor field" branch at every call site. A partial unique index enforces one owner per
+  course in the database rather than in whichever view remembers.
+- **`TaughtCourse.save()` creates it, not the viewset.** The first attempt put it in `perform_create`
+  and 16 existing tests broke — the honest signal that "every course has an owner" is an invariant of
+  the model, since seed commands, fixtures and the admin create courses too. Every one of them would
+  otherwise have produced a course nobody, including its author, had any permission over.
+- **The owner can never be demoted or removed through the API.** A course whose owner a co-admin could
+  evict is a course that can be taken hostage, and it would leave nobody able to grant roles back.
+- **Promoting a participant retires their enrolment**, so one person never counts twice against
+  capacity — the same rule `enrollment_block_reason` already stated for the instructor, now true for
+  every member of staff.
+- Eight scattered `instructor_id == user.pk` checks became `can_administer` / `can_curate` /
+  `is_staff_member`, each picked for what that endpoint actually guards. That scattering is precisely
+  the shape that goes wrong when a second kind of privileged person appears.
+
+### Content can be contributed, and usually waits (`CourseItem`)
+
+One model for two jobs that turn out to be the same job: staff filing content into a chapter, and a
+participant offering something for review, differ only in what `status` starts as. Splitting them
+would mean an approved contribution became a different row, losing who submitted it — the single most
+useful thing to keep.
+
+`contribution_policy` is `staff` / `approval` / `open`, defaulting to **`approval`** because it is the
+only value safe to pick on somebody's behalf: an unattended course neither accepts strangers' uploads
+silently nor silently refuses a participant who has something worth adding.
+
+- **Content is referenced, never copied**, exactly as `Lesson` already does — a corrected exercise
+  stays corrected everywhere and a course never becomes a diverging fork of the corpus.
+- **Staff never queue behind themselves**: approving your own upload is a click that means nothing,
+  and it would make the review queue mostly noise.
+- **A pending item is visible to staff and to its own submitter, and to nobody else.** The submitter
+  half matters: somebody who submits and then cannot find their material assumes it failed.
+- **Every member of staff is notified**, not the owner alone — a queue that notifies one person is a
+  queue that stalls whenever that person is away.
+- A rejection carries a reason. Two partial unique constraints (not one over both columns) stop the
+  same thing being added twice, because NULLs do not compare equal in SQL.
+
+### Chapters, and dates that open them (`Chapter`)
+
+Time-gating lives on the chapter rather than on each item, because that is how a course is actually
+run: "week 3 opens on the 14th" is one decision about a group of things, and setting the same date
+nine times is nine chances to get it wrong.
+
+**A locked chapter still renders** — title, description and unlock date — while its contents do not.
+Hiding it entirely would make a course look shorter than it is, and "there is a week 3 and it opens on
+the 14th" is information a participant should have. Staff read it early, and are still told it is
+shut, because they are the people who have to prepare it. `unlocks_at = NULL` means never gated, which
+is genuinely different from a date that has passed.
+
+Deleting a chapter keeps its content, unfiled — the deletion is a statement about the grouping, not
+about what somebody put in it, which is why `CourseItem.chapter` is `SET_NULL`.
+
+### Invite links (`CourseInvite`)
+
+A token addressed directly (`/api/course-invites/<token>/`), not nested under a course id, because
+somebody holding a link has the token and nothing else — that is what makes it shareable.
+
+- **It bypasses the approval queue** — the sender already made that decision — but **never capacity**.
+  Quietly seating an invited guest over the limit would break the promise the limit makes to everybody
+  already in. The use count is incremented under `select_for_update`, so two people racing for the
+  last use cannot both win.
+- **`owner` is deliberately not an invite role.** Transferring a course is a decision about a named
+  person, never something left lying in a URL.
+- **Revoking is a timestamp, not a delete**, so a dead link keeps its use count and the record of who
+  killed it.
+- The preview is **readable logged out** — telling somebody to sign up without saying what for is how
+  an invite gets ignored — and deliberately thin: a title and who runs it, never the roster or the
+  content, because the token travels through group chats. The page is `noindex`.
+
+### Also this round
+
+The course author's name in the header is now a **link to their profile**. Split into a prefix plus
+the name rather than interpolating one message, since only the name should be the link; safe for both
+locales here because "Run by {name}" and "Prowadzi {name}" both end in the placeholder. The card in
+listings deliberately keeps plain text — the whole card is already an `<a>`, and nesting anchors is
+invalid HTML.
+
+### Verified
+
+**493 backend tests** (86 in `classroom`, up from 51) and **`e2e/classroom-overhaul.mjs`, 29 browser
+checks, zero console/page errors**: a co-admin editing but not deleting, a locked chapter legible to
+both sides, a contribution invisible until **the co-admin** (not the owner) approved it, a link
+previewed logged out then followed into the course, and a revoked link refused. `e2e/classroom.mjs`
+re-run: **44/44, no regressions**. `npm run check`: 0 errors, 0 warnings. `npm run build`: clean.
+
+One diagnosis worth recording: the pre-existing browser script began failing at registration
+mid-session with no code change involved. It was the real per-IP registration throttle, exhausted by
+this session's own runs — the app working as designed. Restarting the API clears the cache it lives
+in. Also, editing files while a browser script runs triggers a Vite HMR reload underneath it and
+produces failures that look like regressions and are not.
+
+### Left open, not built
+
+- **No people search**, so adding staff is by account id from a profile URL. The honest stopgap, but
+  the first thing a real deployment would need.
+- **No content picker**: contributing is likewise by material/exercise id. The submit flow for genuinely
+  new uploads is still the existing `/submit-material`, untouched.
+- **Chapter locking does not reach lesson content.** A material inside a locked chapter is still
+  reachable if staff also attached it to a lesson. That is a configuration somebody chose rather than a
+  bypass, but the two surfaces do not know about each other.
+- **Chapters cannot be reordered or edited in place** from the UI — only created and deleted. `order`
+  and `description` exist on the model and in the API.
+- **No transfer of ownership**, by design for now: the owner row is immutable through the API, so
+  handing a course over needs a real "transfer" action that does not exist yet.
+- **An invite cannot be edited** — no changing its expiry or use count after minting. Revoke and mint
+  another.
+- **Unlock dates have no timezone UI.** The input is the browser's local time and the API stores an
+  aware datetime; a course run across timezones would want to say which one it means.
+
 ### Left open, not built
 
 - **Real-time/push delivery and email** — see Section 18 item 9's own detailed writeup (Django

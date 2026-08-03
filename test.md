@@ -4,8 +4,8 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 458 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 100 checks across 3 scripts |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 493 |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 129 checks across 4 scripts |
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
@@ -56,7 +56,7 @@ inherit from it rather than repeating the line.
 
 | App | Focus |
 |---|---|
-| `classroom` (51) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings |
+| `classroom` (86) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings, staff roles, contributions, chapters, invite links |
 | `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
 | `accounts` profile extras (16) | Experience, skills, the derived activity feed, and the demo-content seed |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
@@ -88,6 +88,25 @@ inherit from it rather than repeating the line.
   muting one type without the rest.
 - **KillSwitchTests** — the feature flag hides the whole surface (401 anonymous, 403 signed in) while
   a moderator keeps access.
+- **StaffTests** — creating a course seats its author as owner *at the model level*, so a seed command
+  or the admin produces one too; an admin may edit but only the owner may delete; an assistant curates
+  content but cannot touch settings or the staff list; **the owner can never be demoted or removed**,
+  because a course whose owner a co-admin could evict is one that can be taken hostage; promoting a
+  participant gives up their seat, so nobody counts twice against the cap.
+- **ContributionTests** — the three policies; a non-participant is refused even when the course is open
+  to contributions; a pending submission is visible to staff and to its own author and to nobody else;
+  every member of staff is notified, not just the owner, so the queue does not stall when one person is
+  away; approving publishes and tells the contributor; rejecting keeps the reason; staff never queue
+  behind themselves; a contributor may withdraw their own pending submission but not somebody else's;
+  the same thing cannot be added twice.
+- **ChapterTests** — a locked chapter still *appears*, with its unlock date, while its contents do not,
+  so a course never looks shorter than it is; staff read it early because they have to prepare it; no
+  date means always open, which is not the same as a date in the past; deleting a chapter keeps its
+  content, unfiled.
+- **InviteTests** — a link jumps the approval queue but **never seats anybody over capacity**; a staff
+  link makes a co-teacher; used-up, expired and revoked each refuse in their own words; revoking keeps
+  the row; the preview is readable logged out and says little; an unknown token is a 404 rather than a
+  description; following your own link does not demote you.
 
 ---
 
@@ -132,6 +151,7 @@ cd frontend
 node e2e/classroom.mjs
 node e2e/education-auth.mjs
 node e2e/material-claims.mjs
+node e2e/classroom-overhaul.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -169,6 +189,14 @@ offered and labelled drafts, each modal describing its own provider's real quirk
 repository link, Escape closing it, the school picker distinguishing a university that runs USOS from
 one that does not, **no session created by any of it**, then connect → transfer diploma/grades →
 consent one field at a time → un-publish → delete.
+
+**`e2e/classroom-overhaul.mjs` (29 checks)** — several people running one course. An owner creates it,
+makes a second account an administrator, and that co-admin can edit and mint invite links but is
+offered no delete. Two chapters, one dated far in the future: staff are told it is still shut, a
+participant sees that it exists and when it opens but none of its contents. A participant contributes
+a material, is told it is waiting, and it stays invisible to everybody else until the **co-admin** —
+not the owner — approves it. Then an invite link: readable logged out without leaking anything else,
+joining straight past the approval queue, and refused once revoked.
 
 **`e2e/material-claims.mjs` (14 checks)** — a material card previews only its top few coverage and
 requirement claims (the real corpus has materials with 30), so the "+N more" count beside them is the

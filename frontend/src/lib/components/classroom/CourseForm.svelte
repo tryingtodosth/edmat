@@ -3,7 +3,12 @@
 	// drift the moment one gained a field.
 	import { untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
-	import type { DiscussionMode, TaughtCourse, TaughtCourseDraft } from '$lib/types/classroom';
+	import type {
+		ContributionPolicy,
+		DiscussionMode,
+		TaughtCourse,
+		TaughtCourseDraft
+	} from '$lib/types/classroom';
 
 	let {
 		initial = null,
@@ -36,6 +41,9 @@
 	);
 	let announceNewLessons = $state(untrack(() => initial?.announceNewLessons ?? true));
 	let announceNewPosts = $state(untrack(() => initial?.announceNewPosts ?? true));
+	let contributionPolicy = $state<ContributionPolicy>(
+		untrack(() => initial?.contributionPolicy ?? 'approval')
+	);
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -57,7 +65,8 @@
 			currency: initial?.currency || 'PLN',
 			discussionMode,
 			announceNewLessons,
-			announceNewPosts
+			announceNewPosts,
+			contributionPolicy
 		});
 	}
 </script>
@@ -136,6 +145,21 @@
 			<!-- Reading and posting are separate questions; only the first is configurable, because
 			     letting strangers post into somebody's course would be a different feature. -->
 			<span class="hint">{m.classroom_form_discussionHint()}</span>
+		</label>
+	</fieldset>
+
+	<fieldset>
+		<legend>{m.classroom_form_contributionLegend()}</legend>
+		<label class="field">
+			<span>{m.classroom_form_contributionPolicy()}</span>
+			<select bind:value={contributionPolicy}>
+				<option value="approval">{m.classroom_form_contributionApproval()}</option>
+				<option value="open">{m.classroom_form_contributionOpen()}</option>
+				<option value="staff">{m.classroom_form_contributionStaff()}</option>
+			</select>
+			<!-- Approval is the default because it is the only value that is safe to pick on somebody's
+			     behalf: an unattended course neither accepts uploads silently nor refuses them. -->
+			<span class="hint">{m.classroom_form_contributionHint()}</span>
 		</label>
 	</fieldset>
 

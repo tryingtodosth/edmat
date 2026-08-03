@@ -47,6 +47,14 @@ NOTIFICATION_TYPES = [
     ('course_removed', 'You were removed from a course'),
     ('course_new_lesson', 'A new lesson in a course you are taking'),
     ('course_new_post', 'A new post in a course discussion'),
+    # Contributions and staffing, added with the course overhaul. Same reasoning as above: the
+    # recipients differ (staff get the submission, the contributor gets the answer), so collapsing
+    # them would leave the UI unable to say what happened.
+    ('course_contribution_submitted', 'Somebody offered content to a course you run'),
+    ('course_contribution_approved', 'Your contribution was accepted'),
+    ('course_contribution_rejected', 'Your contribution was not accepted'),
+    ('course_staff_added', 'You were made a member of a course team'),
+    ('course_invite_used', 'Somebody used your invite link'),
 ]
 
 

@@ -9,7 +9,15 @@
 // The Django suite pins the rules; what only a browser can show is that the same page genuinely
 // renders three different things to three different people — a stranger, a participant, and the
 // person running the course — and that the approval flow works from both ends.
-import { chromium } from 'playwright';
+// Resolves `playwright` when it is installed, and falls back to `playwright-core` (a real
+// devDependency) plus CHROME=/path/to/chrome otherwise — so this runs on a machine that has the
+// browsers but not the full package.
+let chromium;
+try {
+	({ chromium } = await import('playwright'));
+} catch {
+	({ chromium } = await import('playwright-core'));
+}
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
 let pass = 0;
@@ -25,7 +33,9 @@ const check = (label, ok, extra = '') => {
 	}
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch(
+	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
+);
 
 /** A separate browser context per person — the whole feature is about who is looking, so sharing
  * one session between "the instructor" and "a student" would test nothing. */

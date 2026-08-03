@@ -6,14 +6,27 @@ notes stay out of an outsider's response. Those are the properties that fail sil
 create flow announces itself immediately; a roster leaking to strangers does not.
 """
 
+from datetime import timedelta
+
 from django.contrib.auth.models import User
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
+from materials.models import Material, MaterialTranslation
+from notifications.models import Notification
 from taxonomy.models import Course as Subject, Field
 from telemetry.routers import all_log_shards
 
-from .models import Enrollment, Lesson, TaughtCourse
+from .models import (
+    Chapter,
+    CourseInvite,
+    CourseItem,
+    CourseStaff,
+    Enrollment,
+    Lesson,
+    TaughtCourse,
+)
 
 
 class ApiTestCase(TestCase):
@@ -34,6 +47,16 @@ class ApiTestCase(TestCase):
         client = APIClient()
         client.force_authenticate(user)
         return client
+
+    def make_material(self, slug, title):
+        """A material plus the translation its title actually lives on.
+
+        `Material` has no `title` column — titles are per-locale rows, which is why every material
+        response resolves one rather than reading a field.
+        """
+        material = Material.objects.create(course=self.subject, slug=slug, type='script')
+        MaterialTranslation.objects.create(material=material, locale='pl', title=title)
+        return material
 
     def make_course(self, **kwargs):
         defaults = {
@@ -593,3 +616,461 @@ class NotificationSettingTests(ApiTestCase):
             f'/api/taught-courses/{course.pk}/', {'discussion_mode': 'public'}, format='json'
         )
         self.assertEqual(ok.data['discussion_mode'], 'public')
+
+
+class StaffTests(ApiTestCase):
+    """More than one person runs a course, and what each of them may do differs."""
+
+    def test_creating_a_course_seats_its_author_as_owner(self):
+        course = self.make_course()
+        self.assertEqual(course.role_of(self.instructor), 'owner')
+        # Not via the viewset — the invariant belongs to the model, so a seed command or the admin
+        # creating a course must produce one too.
+        self.assertEqual(course.staff.filter(role='owner').count(), 1)
+
+    def test_an_admin_can_edit_the_course_but_only_the_owner_can_delete_it(self):
+        course = self.make_course()
+        CourseStaff.objects.create(course=course, user=self.other, role='admin')
+
+        edited = self.as_(self.other).patch(
+            f'/api/taught-courses/{course.pk}/', {'summary': 'now with more rigour'}, format='json'
+        )
+        self.assertEqual(edited.status_code, 200)
+
+        refused = self.as_(self.other).delete(f'/api/taught-courses/{course.pk}/')
+        self.assertEqual(refused.status_code, 404)
+        self.assertTrue(TaughtCourse.objects.filter(pk=course.pk).exists())
+
+        allowed = self.as_(self.instructor).delete(f'/api/taught-courses/{course.pk}/')
+        self.assertEqual(allowed.status_code, 204)
+
+    def test_an_assistant_curates_content_but_cannot_touch_settings_or_staff(self):
+        course = self.make_course()
+        CourseStaff.objects.create(course=course, user=self.other, role='assistant')
+        client = self.as_(self.other)
+
+        made = client.post(
+            f'/api/taught-courses/{course.pk}/chapters/', {'title': 'Week 1'}, format='json'
+        )
+        self.assertEqual(made.status_code, 201)
+
+        # Settings and the staff list are an administrator's, and an assistant is not one.
+        self.assertEqual(
+            client.patch(
+                f'/api/taught-courses/{course.pk}/', {'title': 'renamed'}, format='json'
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            client.post(
+                f'/api/taught-courses/{course.pk}/staff/',
+                {'user_id': self.student.pk, 'role': 'assistant'},
+                format='json',
+            ).status_code,
+            404,
+        )
+
+    def test_the_owner_can_never_be_demoted_or_removed(self):
+        course = self.make_course()
+        CourseStaff.objects.create(course=course, user=self.other, role='admin')
+        owner_row = course.staff.get(role='owner')
+        client = self.as_(self.other)
+
+        demote = client.patch(
+            f'/api/taught-courses/{course.pk}/staff/{owner_row.pk}/',
+            {'role': 'assistant'},
+            format='json',
+        )
+        self.assertEqual(demote.status_code, 400)
+        self.assertEqual(demote.data['detail'], 'owner_immutable')
+
+        remove = client.delete(f'/api/taught-courses/{course.pk}/staff/{owner_row.pk}/')
+        self.assertEqual(remove.status_code, 400)
+        self.assertEqual(course.staff.get(pk=owner_row.pk).role, 'owner')
+
+    def test_promoting_a_participant_gives_up_their_seat(self):
+        """Otherwise one person counts twice against capacity — once as staff, once on the roster."""
+        course = self.make_course(capacity=2)
+        Enrollment.objects.create(course=course, participant=self.student, status='active')
+        self.assertEqual(course.active_participant_count, 1)
+
+        self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/staff/',
+            {'user_id': self.student.pk, 'role': 'assistant'},
+            format='json',
+        )
+        self.assertEqual(course.active_participant_count, 0)
+        self.assertEqual(course.role_of(self.student), 'assistant')
+
+    def test_staff_cannot_enrol_as_participants(self):
+        course = self.make_course()
+        CourseStaff.objects.create(course=course, user=self.other, role='assistant')
+        response = self.as_(self.other).post(f'/api/taught-courses/{course.pk}/enrol/')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data['detail'], 'instructor_cannot_enrol')
+
+    def test_a_co_teacher_sees_the_course_in_their_own_teaching_list(self):
+        course = self.make_course(status='draft')
+        CourseStaff.objects.create(course=course, user=self.other, role='assistant')
+        mine = self.as_(self.other).get('/api/taught-courses/?mine=teaching')
+        self.assertIn(course.pk, [c['id'] for c in mine.data])
+
+    def test_the_roster_is_readable_by_staff_and_participants_but_not_strangers(self):
+        course = self.make_course()
+        CourseStaff.objects.create(course=course, user=self.other, role='assistant')
+        Enrollment.objects.create(course=course, participant=self.student, status='active')
+
+        self.assertEqual(
+            self.as_(self.other).get(f'/api/taught-courses/{course.pk}/staff/').status_code, 200
+        )
+        self.assertEqual(
+            self.as_(self.student).get(f'/api/taught-courses/{course.pk}/staff/').status_code, 200
+        )
+        outsider = User.objects.create_user('zosia', 'z@x.example', 'pw12345!')
+        self.assertEqual(
+            self.as_(outsider).get(f'/api/taught-courses/{course.pk}/staff/').status_code, 403
+        )
+
+
+class ContributionTests(ApiTestCase):
+    """Uploading materials and exercises into a course, and the review that usually gates it."""
+
+    def setUp(self):
+        super().setUp()
+        self.material = self.make_material('skrypt', 'Skrypt')
+        self.other_material = self.make_material('zadania', 'Zadania')
+
+    def _enrol(self, user, course):
+        return Enrollment.objects.create(course=course, participant=user, status='active')
+
+    def test_a_closed_course_refuses_participant_contributions(self):
+        course = self.make_course(contribution_policy='staff')
+        self._enrol(self.student, course)
+        response = self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data['detail'], 'contributions_closed')
+
+    def test_a_non_participant_cannot_contribute_even_when_the_course_is_open_to_it(self):
+        course = self.make_course(contribution_policy='open')
+        response = self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data['detail'], 'not_a_participant')
+
+    def test_under_approval_a_submission_waits_and_is_invisible_to_other_participants(self):
+        course = self.make_course(contribution_policy='approval')
+        self._enrol(self.student, course)
+        self._enrol(self.other, course)
+
+        created = self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        )
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.data['status'], 'pending')
+
+        # The submitter still sees their own, waiting — otherwise it looks like it vanished.
+        mine = self.as_(self.student).get(f'/api/taught-courses/{course.pk}/items/')
+        self.assertEqual([i['id'] for i in mine.data], [created.data['id']])
+        # Another participant sees nothing at all.
+        theirs = self.as_(self.other).get(f'/api/taught-courses/{course.pk}/items/')
+        self.assertEqual(theirs.data, [])
+        # Staff see it, because acting on it is their job.
+        staff = self.as_(self.instructor).get(f'/api/taught-courses/{course.pk}/items/')
+        self.assertEqual(len(staff.data), 1)
+
+    def test_every_member_of_staff_is_told_about_a_submission(self):
+        course = self.make_course(contribution_policy='approval')
+        CourseStaff.objects.create(course=course, user=self.other, role='assistant')
+        self._enrol(self.student, course)
+
+        self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        )
+        for person in (self.instructor, self.other):
+            self.assertTrue(
+                Notification.objects.filter(
+                    recipient=person, type='course_contribution_submitted'
+                ).exists(),
+                f'{person} was not told',
+            )
+
+    def test_approving_publishes_it_and_tells_the_contributor(self):
+        course = self.make_course(contribution_policy='approval')
+        self._enrol(self.student, course)
+        self._enrol(self.other, course)
+        item_id = self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        ).data['id']
+
+        approved = self.as_(self.instructor).patch(
+            f'/api/taught-courses/{course.pk}/items/{item_id}/',
+            {'decision': 'approve'},
+            format='json',
+        )
+        self.assertEqual(approved.status_code, 200)
+        self.assertEqual(approved.data['status'], 'approved')
+        self.assertEqual(approved.data['decided_by']['id'], self.instructor.pk)
+
+        visible = self.as_(self.other).get(f'/api/taught-courses/{course.pk}/items/')
+        self.assertEqual([i['id'] for i in visible.data], [item_id])
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.student, type='course_contribution_approved'
+            ).exists()
+        )
+
+    def test_rejecting_keeps_the_reason_and_hides_it_from_the_course(self):
+        course = self.make_course(contribution_policy='approval')
+        self._enrol(self.student, course)
+        self._enrol(self.other, course)
+        item_id = self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        ).data['id']
+
+        rejected = self.as_(self.instructor).patch(
+            f'/api/taught-courses/{course.pk}/items/{item_id}/',
+            {'decision': 'reject', 'decision_note': 'Already covered by week 2.'},
+            format='json',
+        )
+        self.assertEqual(rejected.data['status'], 'rejected')
+        self.assertEqual(rejected.data['decision_note'], 'Already covered by week 2.')
+        self.assertEqual(self.as_(self.other).get(f'/api/taught-courses/{course.pk}/items/').data, [])
+
+    def test_under_the_open_policy_a_participant_publishes_directly(self):
+        course = self.make_course(contribution_policy='open')
+        self._enrol(self.student, course)
+        created = self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        )
+        self.assertEqual(created.data['status'], 'approved')
+
+    def test_staff_never_queue_behind_themselves(self):
+        course = self.make_course(contribution_policy='approval')
+        created = self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        )
+        self.assertEqual(created.data['status'], 'approved')
+
+    def test_a_contributor_may_withdraw_their_own_pending_submission_but_not_somebody_elses(self):
+        course = self.make_course(contribution_policy='approval')
+        self._enrol(self.student, course)
+        self._enrol(self.other, course)
+        mine = self.as_(self.student).post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        ).data['id']
+
+        self.assertEqual(
+            self.as_(self.other).delete(
+                f'/api/taught-courses/{course.pk}/items/{mine}/'
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.as_(self.student).delete(
+                f'/api/taught-courses/{course.pk}/items/{mine}/'
+            ).status_code,
+            204,
+        )
+
+    def test_the_same_thing_cannot_be_added_to_one_course_twice(self):
+        course = self.make_course(contribution_policy='open')
+        self._enrol(self.student, course)
+        client = self.as_(self.student)
+        first = client.post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        )
+        self.assertEqual(first.status_code, 201)
+        second = client.post(
+            f'/api/taught-courses/{course.pk}/items/', {'material': self.material.pk}, format='json'
+        )
+        self.assertEqual(second.status_code, 400)
+        self.assertEqual(second.data['detail'], 'already_in_course')
+
+    def test_an_item_must_name_exactly_one_thing(self):
+        course = self.make_course()
+        neither = self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/items/', {}, format='json'
+        )
+        self.assertEqual(neither.status_code, 400)
+
+
+class ChapterTests(ApiTestCase):
+    """Collections, and the dates that open them."""
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.material = self.make_material('skrypt', 'Skrypt')
+        Enrollment.objects.create(
+            course=self.course, participant=self.student, status='active'
+        )
+
+    def _chapter(self, **kwargs):
+        return Chapter.objects.create(course=self.course, title='Week 3', **kwargs)
+
+    def _item_in(self, chapter):
+        return CourseItem.objects.create(
+            course=self.course, chapter=chapter, material=self.material, status='approved'
+        )
+
+    def test_a_locked_chapter_still_appears_but_its_contents_do_not(self):
+        chapter = self._chapter(unlocks_at=timezone.now() + timedelta(days=7))
+        self._item_in(chapter)
+
+        seen = self.as_(self.student).get(f'/api/taught-courses/{self.course.pk}/chapters/')
+        self.assertEqual(len(seen.data), 1, 'the chapter itself must remain visible')
+        self.assertFalse(seen.data[0]['is_unlocked'])
+        self.assertIsNotNone(seen.data[0]['unlocks_at'])
+        self.assertEqual(seen.data[0]['items'], [], 'contents must stay shut')
+
+    def test_staff_can_read_a_locked_chapter_because_they_have_to_prepare_it(self):
+        chapter = self._chapter(unlocks_at=timezone.now() + timedelta(days=7))
+        self._item_in(chapter)
+        seen = self.as_(self.instructor).get(f'/api/taught-courses/{self.course.pk}/chapters/')
+        self.assertEqual(len(seen.data[0]['items']), 1)
+        self.assertFalse(seen.data[0]['is_unlocked'], 'still shut, just readable by staff')
+
+    def test_a_chapter_whose_date_has_passed_is_open(self):
+        chapter = self._chapter(unlocks_at=timezone.now() - timedelta(minutes=1))
+        self._item_in(chapter)
+        seen = self.as_(self.student).get(f'/api/taught-courses/{self.course.pk}/chapters/')
+        self.assertTrue(seen.data[0]['is_unlocked'])
+        self.assertEqual(len(seen.data[0]['items']), 1)
+
+    def test_a_chapter_with_no_date_is_simply_always_open(self):
+        chapter = self._chapter()
+        self._item_in(chapter)
+        seen = self.as_(self.student).get(f'/api/taught-courses/{self.course.pk}/chapters/')
+        self.assertTrue(seen.data[0]['is_unlocked'])
+        self.assertEqual(len(seen.data[0]['items']), 1)
+
+    def test_deleting_a_chapter_keeps_its_content_unfiled(self):
+        chapter = self._chapter()
+        item = self._item_in(chapter)
+        self.as_(self.instructor).delete(
+            f'/api/taught-courses/{self.course.pk}/chapters/{chapter.pk}/'
+        )
+        item.refresh_from_db()
+        self.assertIsNone(item.chapter_id)
+        self.assertTrue(CourseItem.objects.filter(pk=item.pk).exists())
+
+    def test_an_item_cannot_be_filed_into_another_courses_chapter(self):
+        elsewhere = Chapter.objects.create(
+            course=self.make_course(title='Different course'), title='Theirs'
+        )
+        item = CourseItem.objects.create(
+            course=self.course, material=self.material, status='approved'
+        )
+        response = self.as_(self.instructor).patch(
+            f'/api/taught-courses/{self.course.pk}/items/{item.pk}/',
+            {'chapter': elsewhere.pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class InviteTests(ApiTestCase):
+    """Links that let somebody in without asking."""
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course(enrollment_policy='approval')
+
+    def _make_invite(self, **kwargs):
+        response = self.as_(self.instructor).post(
+            f'/api/taught-courses/{self.course.pk}/invites/', kwargs, format='json'
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data
+
+    def test_only_administrators_may_mint_a_link(self):
+        CourseStaff.objects.create(course=self.course, user=self.other, role='assistant')
+        self.assertEqual(
+            self.as_(self.other).post(
+                f'/api/taught-courses/{self.course.pk}/invites/', {}, format='json'
+            ).status_code,
+            404,
+        )
+
+    def test_a_link_lets_somebody_straight_past_the_approval_queue(self):
+        invite = self._make_invite(role='participant')
+        joined = self.as_(self.student).post(f'/api/course-invites/{invite["token"]}/accept/')
+        self.assertEqual(joined.status_code, 200)
+        self.assertEqual(joined.data['detail'], 'joined')
+        # 'active', not 'pending' — which is the entire point of having been invited.
+        self.assertEqual(
+            self.course.enrollments.get(participant=self.student).status, 'active'
+        )
+
+    def test_a_staff_link_makes_somebody_a_co_teacher(self):
+        invite = self._make_invite(role='assistant')
+        self.as_(self.student).post(f'/api/course-invites/{invite["token"]}/accept/')
+        self.assertEqual(self.course.role_of(self.student), 'assistant')
+
+    def test_a_link_never_seats_somebody_over_capacity(self):
+        course = self.make_course(capacity=1)
+        Enrollment.objects.create(course=course, participant=self.other, status='active')
+        invite = self.as_(self.instructor).post(
+            f'/api/taught-courses/{course.pk}/invites/', {}, format='json'
+        ).data
+        refused = self.as_(self.student).post(f'/api/course-invites/{invite["token"]}/accept/')
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.data['detail'], 'full')
+
+    def test_a_link_stops_working_once_it_is_used_up(self):
+        invite = self._make_invite(max_uses=1)
+        self.assertEqual(
+            self.as_(self.student).post(
+                f'/api/course-invites/{invite["token"]}/accept/'
+            ).status_code,
+            200,
+        )
+        spent = self.as_(self.other).post(f'/api/course-invites/{invite["token"]}/accept/')
+        self.assertEqual(spent.status_code, 400)
+        self.assertEqual(spent.data['detail'], 'used_up')
+
+    def test_an_expired_link_is_refused(self):
+        invite = self._make_invite()
+        CourseInvite.objects.filter(token=invite['token']).update(
+            expires_at=timezone.now() - timedelta(minutes=1)
+        )
+        response = self.as_(self.student).post(f'/api/course-invites/{invite["token"]}/accept/')
+        self.assertEqual(response.data['detail'], 'expired')
+
+    def test_revoking_kills_a_link_without_deleting_its_record(self):
+        invite = self._make_invite()
+        revoked = self.as_(self.instructor).delete(
+            f'/api/taught-courses/{self.course.pk}/invites/{invite["id"]}/'
+        )
+        self.assertEqual(revoked.status_code, 200)
+        self.assertIsNotNone(revoked.data['revoked_at'])
+        self.assertFalse(revoked.data['is_usable'])
+        self.assertTrue(CourseInvite.objects.filter(pk=invite['id']).exists())
+
+        response = self.as_(self.student).post(f'/api/course-invites/{invite["token"]}/accept/')
+        self.assertEqual(response.data['detail'], 'revoked')
+
+    def test_the_preview_is_readable_logged_out_and_says_little(self):
+        invite = self._make_invite()
+        preview = self.client.get(f'/api/course-invites/{invite["token"]}/')
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(preview.data['course_title'], self.course.title)
+        self.assertTrue(preview.data['is_usable'])
+        # Nothing about who else is in the room, or what is in the course.
+        self.assertNotIn('description', preview.data)
+        self.assertNotIn('participants', preview.data)
+
+    def test_an_unknown_token_is_a_404_rather_than_a_description(self):
+        self.assertEqual(self.client.get('/api/course-invites/nope/').status_code, 404)
+        self.assertEqual(
+            self.as_(self.student).post('/api/course-invites/nope/accept/').status_code, 404
+        )
+
+    def test_following_your_own_link_does_not_demote_you(self):
+        invite = self._make_invite(role='participant')
+        response = self.as_(self.instructor).post(f'/api/course-invites/{invite["token"]}/accept/')
+        self.assertEqual(response.data['detail'], 'already_staff')
+        self.assertEqual(self.course.role_of(self.instructor), 'owner')

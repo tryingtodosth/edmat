@@ -23,9 +23,94 @@ export type EnrollmentBlockReason =
 	| 'removed'
 	| 'full';
 
+/** What somebody is to a course they run. Three rather than a boolean, because the useful question
+ * is not "trusted or not" but which job they were brought in to do — see the backend's own note. */
+export type StaffRole = 'owner' | 'admin' | 'assistant';
+
+/** Who may put materials and exercises into a course. */
+export type ContributionPolicy = 'staff' | 'approval' | 'open';
+
+/** The lifecycle of one offered piece of content. `pending` only exists under the approval policy. */
+export type ContributionStatus = 'pending' | 'approved' | 'rejected';
+
+/** What following an invite link grants. No 'owner': transferring a course is a decision about a
+ * named person, never something left lying in a URL. */
+export type InviteRole = 'participant' | 'assistant' | 'admin';
+
+/** Why a link will not work. A reason rather than a boolean, for the same purpose as
+ * `EnrollmentBlockReason`: "expired" and "already used up" are different to the person holding it. */
+export type InviteUnusableReason = 'revoked' | 'expired' | 'used_up';
+
 export interface Participant {
 	id: string;
 	displayName: string;
+}
+
+export interface CourseStaffMember {
+	id: string;
+	user: Participant;
+	role: StaffRole;
+	addedAt: string;
+}
+
+export interface CourseItem {
+	id: string;
+	kind: 'material' | 'exercise';
+	chapter: string | null;
+	material: string | null;
+	exercise: string | null;
+	/** Enough to recognise the thing without a second request — a material's resolved title, or an
+	 * exercise's subject-and-number, which is the only name an exercise has ever had here. */
+	label: string;
+	order: number;
+	note: string;
+	status: ContributionStatus;
+	submittedBy: Participant | null;
+	decidedBy: Participant | null;
+	decidedAt: string | null;
+	decisionNote: string;
+	createdAt: string;
+}
+
+export interface Chapter {
+	id: string;
+	title: string;
+	description: string;
+	order: number;
+	unlocksAt: string | null;
+	/** The chapter's own state, not the viewer's access to it: staff see a locked chapter's contents
+	 * while it is still shut, and need to know that it is. */
+	isUnlocked: boolean;
+	/** Empty for a participant while the chapter is locked. The chapter itself still renders, so a
+	 * course never looks shorter than it is. */
+	items: CourseItem[];
+}
+
+export interface CourseInvite {
+	id: string;
+	token: string;
+	role: InviteRole;
+	label: string;
+	createdBy: Participant | null;
+	createdAt: string;
+	/** 0 means unlimited, matching how `capacity` already says the same thing. */
+	maxUses: number;
+	uses: number;
+	expiresAt: string | null;
+	revokedAt: string | null;
+	isUsable: boolean;
+	unusableReason: InviteUnusableReason | null;
+}
+
+/** What somebody holding a link is told before they act on it, and before they have logged in.
+ * Deliberately thin — an invite token travels through group chats. */
+export interface InvitePreview {
+	courseId: string;
+	courseTitle: string;
+	instructorName: string;
+	role: InviteRole;
+	isUsable: boolean;
+	unusableReason: InviteUnusableReason | null;
 }
 
 export interface Lesson {
@@ -76,6 +161,23 @@ export interface TaughtCourse {
 	/** The viewer's own per-course mute. null when they are not in the course at all, which is
 	 * genuinely different from being in it with notifications off. */
 	notifyMe: boolean | null;
+
+	contributionPolicy: ContributionPolicy;
+	/** The viewer's own standing, resolved server-side — a client that computes a permission is a
+	 * client that can compute it wrongly. null means they do not run this course. */
+	myRole: StaffRole | null;
+	canAdminister: boolean;
+	canCurate: boolean;
+	canContribute: boolean;
+	/** Whether what THIS viewer adds would wait for review. False for staff, who never queue behind
+	 * themselves. */
+	contributionNeedsApproval: boolean;
+	chapters: Chapter[];
+	/** Content in the course but filed in no chapter — where a submission lands before anybody
+	 * decides which week it belongs to, and where everything lives in a course using no chapters. */
+	unfiledItems: CourseItem[];
+	/** 0 for anybody who cannot act on the queue. */
+	pendingContributionCount: number;
 }
 
 export interface Enrollment {
@@ -102,11 +204,26 @@ export interface TaughtCourseDraft {
 	discussionMode: DiscussionMode;
 	announceNewLessons: boolean;
 	announceNewPosts: boolean;
+	contributionPolicy: ContributionPolicy;
 	language: string;
 	startsOn: string | null;
 	endsOn: string | null;
 	price: string | null;
 	currency: string;
+}
+
+export interface ChapterDraft {
+	title: string;
+	description: string;
+	order: number;
+	unlocksAt: string | null;
+}
+
+export interface CourseInviteDraft {
+	role: InviteRole;
+	label: string;
+	maxUses: number;
+	expiresAt: string | null;
 }
 
 export interface LessonDraft {

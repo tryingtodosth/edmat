@@ -6,18 +6,41 @@
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
+		addCourseStaff,
 		addLesson,
+		createChapter,
+		createInvite,
+		decideCourseItem,
 		decideEnrollment,
+		deleteChapter,
 		deleteCourse,
 		deleteLesson,
 		enrol,
 		EnrolmentRefused,
 		getCourse,
+		getCourseStaff,
+		getInvites,
 		getParticipants,
 		leaveCourse,
-		muteCourse
+		moveCourseItem,
+		muteCourse,
+		removeCourseItem,
+		removeCourseStaff,
+		revokeInvite,
+		setCourseStaffRole,
+		submitCourseItem
 	} from '$lib/services/classroom';
-	import type { Enrollment, TaughtCourse } from '$lib/types/classroom';
+	import type {
+		CourseInvite,
+		CourseStaffMember,
+		Enrollment,
+		TaughtCourse
+	} from '$lib/types/classroom';
+	import CourseContent from '$lib/components/classroom/CourseContent.svelte';
+	import CourseContribute from '$lib/components/classroom/CourseContribute.svelte';
+	import CourseInvites from '$lib/components/classroom/CourseInvites.svelte';
+	import CourseReviewQueue from '$lib/components/classroom/CourseReviewQueue.svelte';
+	import CourseStaffPanel from '$lib/components/classroom/CourseStaffPanel.svelte';
 	import type { Comment, User } from '$lib/types';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
 	import { getUserById } from '$lib/services/users';
@@ -31,6 +54,27 @@
 	let busy = $state(false);
 	let refusal = $state<string | null>(null);
 	let requestNote = $state('');
+
+	let staff = $state<CourseStaffMember[]>([]);
+	let invites = $state<CourseInvite[]>([]);
+	let staffError = $state('');
+	let inviteError = $state('');
+	let contributeError = $state('');
+	let contributeNotice = $state('');
+
+	// New-chapter form, kept here rather than in CourseContent: that component renders for everybody,
+	// and creating a chapter is a curator's action, so the two have genuinely different audiences.
+	let newChapterTitle = $state('');
+	let newChapterUnlocksAt = $state('');
+
+	/** Everything offered and not yet decided on. Derived from the course payload, which already
+	 * contains only what this viewer may see — a participant's copy simply has none. */
+	let pendingItems = $derived(
+		[
+			...(course?.unfiledItems ?? []),
+			...(course?.chapters ?? []).flatMap((chapter) => chapter.items)
+		].filter((item) => item.status === 'pending')
+	);
 
 	let newLessonTitle = $state('');
 	let newLessonNotes = $state('');
@@ -102,6 +146,29 @@
 		} else {
 			participants = [];
 		}
+
+		// Who runs it is readable by anybody in the room; the links are an administrator's alone, so
+		// they are only fetched when the viewer actually has them. Both fail softly for the same
+		// reason the roster does — a refusal here is the permission working, not a page error.
+		if (found.isInstructor || found.myEnrollmentStatus === 'active') {
+			try {
+				staff = await getCourseStaff(id);
+			} catch {
+				staff = [];
+			}
+		} else {
+			staff = [];
+		}
+		if (found.canAdminister) {
+			try {
+				invites = await getInvites(id);
+			} catch {
+				invites = [];
+			}
+		} else {
+			invites = [];
+		}
+
 		await loadDiscussion(id, found.canReadDiscussion);
 		loading = false;
 	}
@@ -127,6 +194,76 @@
 		}
 	}
 
+	/** The same shape as `run`, but reporting into a named error slot rather than the enrolment
+	 * refusal banner — these failures belong beside the control that caused them. */
+	async function act(fn: () => Promise<unknown>, onError: (message: string) => void) {
+		busy = true;
+		onError('');
+		try {
+			await fn();
+			await load(page.params.id!);
+		} catch (e) {
+			const detail = (e as { body?: { detail?: string } })?.body?.detail;
+			onError(detail ?? m.common_error_generic());
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function contribute(input: {
+		kind: 'material' | 'exercise';
+		id: string;
+		chapterId: string | null;
+		note: string;
+	}) {
+		contributeNotice = '';
+		busy = true;
+		contributeError = '';
+		try {
+			await submitCourseItem(page.params.id!, {
+				materialId: input.kind === 'material' ? input.id : undefined,
+				exerciseId: input.kind === 'exercise' ? input.id : undefined,
+				chapterId: input.chapterId,
+				note: input.note
+			});
+			// Which message is right depends on whether it published or queued — telling somebody it
+			// was added when it is actually waiting is how a review queue loses people's trust.
+			contributeNotice = course?.contributionNeedsApproval
+				? m.classroom_contribute_queued()
+				: m.classroom_contribute_done();
+			await load(page.params.id!);
+		} catch (e) {
+			const detail = (e as { body?: { detail?: string } })?.body?.detail;
+			contributeError =
+				detail === 'already_in_course'
+					? m.classroom_contribute_duplicate()
+					: detail === 'contributions_closed' || detail === 'not_a_participant'
+						? m.classroom_contribute_closed()
+						: m.common_error_generic();
+		} finally {
+			busy = false;
+		}
+	}
+
+	function addChapter(event: SubmitEvent) {
+		event.preventDefault();
+		const title = newChapterTitle.trim();
+		if (!title) return;
+		const unlocksAt = newChapterUnlocksAt || null;
+		newChapterTitle = '';
+		newChapterUnlocksAt = '';
+		act(
+			() =>
+				createChapter(page.params.id!, {
+					title,
+					description: '',
+					order: (course?.chapters.length ?? 0) + 1,
+					unlocksAt
+				}),
+			(msg) => (staffError = msg)
+		);
+	}
+
 	let isPending = $derived(course?.myEnrollmentStatus === 'pending');
 	let isActive = $derived(course?.myEnrollmentStatus === 'active');
 	let pendingRequests = $derived(participants.filter((p) => p.status === 'pending'));
@@ -146,7 +283,18 @@
 		<header class="head">
 			<h1>{course.title}</h1>
 			<p class="meta">
-				{m.classroom_byInstructor({ name: course.instructor.displayName })}
+				<!-- The author's name links to their profile: who is running a course is the main thing
+				     somebody weighs before joining, and their profile is where standing, portfolio and
+				     other courses already live.
+
+				     Split into a prefix plus the name rather than interpolating one message, because
+				     only the name should be the link. Safe for both locales here — "Run by {name}" and
+				     "Prowadzi {name}" both end in the placeholder — but a language that puts the name
+				     first would need its own arrangement rather than this concatenation. -->
+				{m.classroom_byInstructorPrefix()}
+				<a class="author" href={resolve('/users/[id]', { id: course.instructor.id })}>
+					{course.instructor.displayName}
+				</a>
 				{#if course.startsOn}· {course.startsOn}{/if}
 				{#if course.price}· {course.price} {course.currency}{/if}
 			</p>
@@ -217,6 +365,116 @@
 				<p class="error">{REFUSAL[refusal]?.() ?? m.common_error_generic()}</p>
 			{/if}
 		</section>
+
+		<!-- Content: chapters and the materials/exercises filed under them. Rendered for everybody,
+		     including a stranger, because what a course contains is part of deciding to join — the
+		     server has already decided which items and which locked chapters this viewer may see. -->
+		<CourseContent
+			{course}
+			onmove={course.canCurate
+				? (itemId, chapterId) =>
+						act(
+							() => moveCourseItem(course!.id, itemId, chapterId),
+							(msg) => (staffError = msg)
+						)
+				: undefined}
+			onremove={(itemId) =>
+				act(
+					() => removeCourseItem(course!.id, itemId),
+					(msg) => (contributeError = msg)
+				)}
+			ondeletechapter={course.canCurate
+				? (chapterId) =>
+						act(
+							() => deleteChapter(course!.id, chapterId),
+							(msg) => (staffError = msg)
+						)
+				: undefined}
+		/>
+
+		{#if course.canCurate}
+			<section class="chapter-new">
+				<h2>{m.classroom_chapters_heading()}</h2>
+				<form onsubmit={addChapter}>
+					<label class="field">
+						<span>{m.classroom_chapters_title()}</span>
+						<input type="text" bind:value={newChapterTitle} maxlength="200" required />
+					</label>
+					<label class="field">
+						<span>{m.classroom_chapters_unlocksAt()}</span>
+						<input type="datetime-local" bind:value={newChapterUnlocksAt} />
+						<!-- Empty means open immediately, which is genuinely different from a date in the
+						     past: the first was never gated at all. -->
+						<span class="hint">{m.classroom_chapters_unlocksAtHint()}</span>
+					</label>
+					<button type="submit" class="small" disabled={busy}>
+						{m.classroom_chapters_add()}
+					</button>
+				</form>
+			</section>
+		{/if}
+
+		{#if course.canContribute}
+			<CourseContribute
+				{course}
+				{busy}
+				error={contributeError}
+				notice={contributeNotice}
+				onsubmit={contribute}
+			/>
+		{/if}
+
+		{#if course.canCurate && pendingItems.length > 0}
+			<CourseReviewQueue
+				pending={pendingItems}
+				{busy}
+				ondecide={(itemId, decision, note) =>
+					act(
+						() => decideCourseItem(course!.id, itemId, decision, note),
+						(msg) => (contributeError = msg)
+					)}
+			/>
+		{/if}
+
+		{#if staff.length > 0}
+			<CourseStaffPanel
+				{course}
+				{staff}
+				error={staffError}
+				onadd={(userId, role) =>
+					act(
+						() => addCourseStaff(course!.id, userId, role),
+						(msg) => (staffError = msg)
+					)}
+				onrole={(staffId, role) =>
+					act(
+						() => setCourseStaffRole(course!.id, staffId, role),
+						(msg) => (staffError = msg)
+					)}
+				onremove={(staffId) =>
+					act(
+						() => removeCourseStaff(course!.id, staffId),
+						(msg) => (staffError = msg)
+					)}
+			/>
+		{/if}
+
+		{#if course.canAdminister}
+			<CourseInvites
+				{invites}
+				error={inviteError}
+				oncreate={(draft) =>
+					act(
+						() => createInvite(course!.id, draft),
+						(msg) => (inviteError = msg)
+					)}
+				onrevoke={(inviteId) =>
+					act(
+						() => revokeInvite(course!.id, inviteId),
+						(msg) => (inviteError = msg)
+					)}
+			/>
+		{/if}
 
 		<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
 		     are the part worth joining for, and the API blanks them for anyone who has not. -->
@@ -392,6 +650,31 @@
 
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;
+
+	.chapter-new form {
+		display: flex;
+		gap: var(--space-2);
+		align-items: flex-end;
+		flex-wrap: wrap;
+	}
+	.chapter-new .field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		font-size: var(--font-size-sm);
+	}
+	.chapter-new .hint {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.chapter-new input {
+		@include mix.focus-ring;
+		padding: var(--space-1) var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+	}
 
 	.page {
 		max-width: 800px;
