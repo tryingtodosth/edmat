@@ -203,7 +203,10 @@
 			<EducationCard {education} />
 		{/if}
 
-		<ProfileExtras userId={user.id} />
+		<!-- Your own profile is the same page everybody else sees; the ⋯ menus are the only difference,
+		     so what you edit is what you are looking at rather than a separate form you then have to
+		     imagine the public version of. -->
+		<ProfileExtras userId={user.id} canEdit={authStore.user?.id === user.id} />
 
 		{#if tutoringListings.length > 0}
 			<section class="profile-section">

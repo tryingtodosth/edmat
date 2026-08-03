@@ -7,7 +7,18 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
-	import { getUserActivity, getUserExtras } from '$lib/services/profileExtras';
+	import {
+		createExperience,
+		createSkill,
+		deleteExperience,
+		deleteSkill,
+		getUserActivity,
+		getUserExtras,
+		swapOrder,
+		updateExperience,
+		updateSkill
+	} from '$lib/services/profileExtras';
+	import MeatballsMenu from '$lib/components/shared/MeatballsMenu.svelte';
 	import type {
 		ActivityFeed,
 		ActivityItem,
@@ -15,7 +26,108 @@
 		SkillEntry
 	} from '$lib/types/profileExtras';
 
-	let { userId }: { userId: string } = $props();
+	// `canEdit` is passed by the page, which knows whose profile this is and who is signed in. The
+	// page stays exactly what a visitor sees — these controls are additions to it, not a different
+	// screen, which is the whole point of editing in place.
+	let { userId, canEdit = false }: { userId: string; canEdit?: boolean } = $props();
+
+	// Which row is open in a form, and what is in it. `null` is "nothing being edited"; an id is that
+	// row; the empty string is a new one, which is genuinely different from editing row "".
+	let editingExperience = $state<string | null>(null);
+	let editingSkill = $state<string | null>(null);
+	let draft = $state<Record<string, string>>({});
+	let busy = $state(false);
+	let editError = $state('');
+
+	function startExperience(entry: ExperienceEntry | null) {
+		editingSkill = null;
+		editingExperience = entry?.id ?? '';
+		draft = {
+			kind: entry?.kind ?? 'study',
+			title: entry?.title ?? '',
+			organisation: entry?.organisation ?? '',
+			startedOn: entry?.startedOn ?? '',
+			endedOn: entry?.endedOn ?? '',
+			description: entry?.description ?? ''
+		};
+		editError = '';
+	}
+
+	function startSkill(entry: SkillEntry | null) {
+		editingExperience = null;
+		editingSkill = entry?.id ?? '';
+		draft = { label: entry?.label ?? '', level: entry?.level ?? 'comfortable' };
+		editError = '';
+	}
+
+	function cancelEdit() {
+		editingExperience = null;
+		editingSkill = null;
+		editError = '';
+	}
+
+	/** Every write goes through here: run it, reload from the server, report failure in place.
+	 *
+	 * Reloading rather than patching local state is deliberate — the server owns `order` and applies
+	 * its own sort, so guessing the new arrangement client-side is how a list ends up disagreeing
+	 * with the one everybody else sees. */
+	async function run(fn: () => Promise<unknown>) {
+		busy = true;
+		editError = '';
+		try {
+			await fn();
+			const extras = await getUserExtras(userId);
+			experience = extras.experience;
+			skills = extras.skills;
+			cancelEdit();
+		} catch {
+			editError = m.common_error_generic();
+		} finally {
+			busy = false;
+		}
+	}
+
+	function saveExperience(event: SubmitEvent) {
+		event.preventDefault();
+		const payload = {
+			kind: draft.kind as ExperienceEntry['kind'],
+			title: draft.title.trim(),
+			organisation: draft.organisation.trim(),
+			startedOn: draft.startedOn || null,
+			endedOn: draft.endedOn || null,
+			description: draft.description.trim()
+		};
+		if (!payload.title) return;
+		const id = editingExperience;
+		run(() =>
+			id
+				? updateExperience(id, payload)
+				: createExperience({ ...payload, order: experience.length })
+		);
+	}
+
+	function saveSkill(event: SubmitEvent) {
+		event.preventDefault();
+		const payload = { label: draft.label.trim(), level: draft.level as SkillEntry['level'] };
+		if (!payload.label) return;
+		const id = editingSkill;
+		run(() => (id ? updateSkill(id, payload) : createSkill({ ...payload, order: skills.length })));
+	}
+
+	/** Move by swapping with a neighbour — the simplest honest reorder, and the same shape the
+	 * material/exercise requirement editors already use rather than drag-and-drop. */
+	function move(kind: 'experience' | 'skill', index: number, by: -1 | 1) {
+		const list: { id: string; order: number }[] = kind === 'experience' ? experience : skills;
+		const other = list[index + by];
+		if (!other) return;
+		run(() => swapOrder(kind, list[index], other));
+	}
+
+	function confirmRemove(label: string): boolean {
+		// A native confirm rather than a bespoke dialog: this app has exactly one modal shell and it
+		// is built for content, not for a yes/no. Deleting is the one irreversible thing here.
+		return typeof window === 'undefined' || window.confirm(m.profile_edit_confirmRemove({ label }));
+	}
 
 	let experience = $state<ExperienceEntry[]>([]);
 	let skills = $state<SkillEntry[]>([]);
@@ -105,14 +217,22 @@
 </script>
 
 {#if !loading}
-	{#if experience.length > 0}
+	{#if experience.length > 0 || canEdit}
 		<section class="profile-section">
-			<h2>{m.profile_experienceHeading()}</h2>
+			<div class="section-head">
+				<h2>{m.profile_experienceHeading()}</h2>
+				{#if canEdit}
+					<MeatballsMenu
+						label={m.profile_edit_menuFor({ section: m.profile_experienceHeading() })}
+						items={[{ label: m.profile_edit_add(), onselect: () => startExperience(null) }]}
+					/>
+				{/if}
+			</div>
 			<!-- Said once, plainly: none of this is checked. The education card above it may be, and the
 			     difference is the point of showing them separately. -->
 			<p class="note">{m.profile_experienceNote()}</p>
 			<ul class="timeline">
-				{#each experience as entry (entry.id)}
+				{#each experience as entry, index (entry.id)}
 					<li>
 						<div class="row">
 							<strong>{entry.title}</strong>
@@ -124,17 +244,93 @@
 						</div>
 						{#if entry.organisation}<p class="meta">{entry.organisation}</p>{/if}
 						{#if entry.description}<p class="meta">{entry.description}</p>{/if}
+						{#if canEdit}
+							<div class="row-menu">
+								<MeatballsMenu
+									label={m.profile_edit_menuFor({ section: entry.title })}
+									items={[
+										{ label: m.profile_edit_edit(), onselect: () => startExperience(entry) },
+										{
+											label: m.profile_edit_moveUp(),
+											disabled: index === 0,
+											onselect: () => move('experience', index, -1)
+										},
+										{
+											label: m.profile_edit_moveDown(),
+											disabled: index === experience.length - 1,
+											onselect: () => move('experience', index, 1)
+										},
+										{
+											label: m.profile_edit_remove(),
+											danger: true,
+											onselect: () =>
+												confirmRemove(entry.title) && run(() => deleteExperience(entry.id))
+										}
+									]}
+								/>
+							</div>
+						{/if}
 					</li>
 				{/each}
 			</ul>
+
+			{#if canEdit && editingExperience !== null}
+				<form class="edit-form" onsubmit={saveExperience}>
+					<label>
+						<span>{m.profile_edit_title()}</span>
+						<input type="text" bind:value={draft.title} maxlength="200" required />
+					</label>
+					<label>
+						<span>{m.profile_edit_organisation()}</span>
+						<input type="text" bind:value={draft.organisation} maxlength="200" />
+					</label>
+					<label>
+						<span>{m.profile_edit_kind()}</span>
+						<select bind:value={draft.kind}>
+							<option value="study">{m.profile_kind_study()}</option>
+							<option value="work">{m.profile_kind_work()}</option>
+							<option value="teaching">{m.profile_kind_teaching()}</option>
+							<option value="project">{m.profile_kind_project()}</option>
+							<option value="other">{m.profile_kind_other()}</option>
+						</select>
+					</label>
+					<label>
+						<span>{m.profile_edit_startedOn()}</span>
+						<input type="date" bind:value={draft.startedOn} />
+					</label>
+					<label>
+						<span>{m.profile_edit_endedOn()}</span>
+						<input type="date" bind:value={draft.endedOn} />
+						<!-- Empty means ongoing, which is a different statement from an unknown end date. -->
+						<span class="hint">{m.profile_edit_endedOnHint()}</span>
+					</label>
+					<label class="wide">
+						<span>{m.profile_edit_description()}</span>
+						<textarea bind:value={draft.description} rows="3"></textarea>
+					</label>
+					<div class="edit-form__actions">
+						<button type="submit" class="primary" disabled={busy}>{m.common_save()}</button>
+						<button type="button" onclick={cancelEdit}>{m.common_cancel()}</button>
+					</div>
+					{#if editError}<p class="error">{editError}</p>{/if}
+				</form>
+			{/if}
 		</section>
 	{/if}
 
-	{#if skills.length > 0}
+	{#if skills.length > 0 || canEdit}
 		<section class="profile-section">
-			<h2>{m.profile_skillsHeading()}</h2>
+			<div class="section-head">
+				<h2>{m.profile_skillsHeading()}</h2>
+				{#if canEdit}
+					<MeatballsMenu
+						label={m.profile_edit_menuFor({ section: m.profile_skillsHeading() })}
+						items={[{ label: m.profile_edit_add(), onselect: () => startSkill(null) }]}
+					/>
+				{/if}
+			</div>
 			<ul class="skills">
-				{#each skills as skill (skill.id)}
+				{#each skills as skill, index (skill.id)}
 					<li class="skill">
 						<span class="skill__label">{skill.label}</span>
 						<span class="skill__level">{LEVEL_LABEL[skill.level]?.() ?? skill.level}</span>
@@ -145,9 +341,56 @@
 							{skill.evidence === 'registry' ? '✓ ' : ''}{EVIDENCE_LABEL[skill.evidence]?.() ??
 								skill.evidence}
 						</span>
+						{#if canEdit}
+							<MeatballsMenu
+								label={m.profile_edit_menuFor({ section: skill.label })}
+								items={[
+									{ label: m.profile_edit_edit(), onselect: () => startSkill(skill) },
+									{
+										label: m.profile_edit_moveUp(),
+										disabled: index === 0,
+										onselect: () => move('skill', index, -1)
+									},
+									{
+										label: m.profile_edit_moveDown(),
+										disabled: index === skills.length - 1,
+										onselect: () => move('skill', index, 1)
+									},
+									{
+										label: m.profile_edit_remove(),
+										danger: true,
+										onselect: () => confirmRemove(skill.label) && run(() => deleteSkill(skill.id))
+									}
+								]}
+							/>
+						{/if}
 					</li>
 				{/each}
 			</ul>
+
+			{#if canEdit && editingSkill !== null}
+				<form class="edit-form" onsubmit={saveSkill}>
+					<label>
+						<span>{m.profile_edit_label()}</span>
+						<input type="text" bind:value={draft.label} maxlength="100" required />
+					</label>
+					<label>
+						<span>{m.profile_edit_level()}</span>
+						<select bind:value={draft.level}>
+							<option value="learning">{LEVEL_LABEL.learning()}</option>
+							<option value="comfortable">{LEVEL_LABEL.comfortable()}</option>
+							<option value="teaching">{LEVEL_LABEL.teaching()}</option>
+						</select>
+					</label>
+					<!-- No evidence picker: 'registry' means an institution said so, and the API refuses
+					     to let anybody type it. Anything added here is self-declared by definition. -->
+					<div class="edit-form__actions">
+						<button type="submit" class="primary" disabled={busy}>{m.common_save()}</button>
+						<button type="button" onclick={cancelEdit}>{m.common_cancel()}</button>
+					</div>
+					{#if editError}<p class="error">{editError}</p>{/if}
+				</form>
+			{/if}
 		</section>
 	{/if}
 
@@ -254,6 +497,73 @@
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
+
+	.section-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+	}
+	.row-menu {
+		display: flex;
+		justify-content: flex-end;
+	}
+	.edit-form {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		align-items: flex-end;
+		margin-top: var(--space-3);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--border-color);
+	}
+	.edit-form label {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		font-size: var(--font-size-sm);
+	}
+	.edit-form .wide {
+		flex: 1;
+		min-width: 14rem;
+	}
+	.edit-form .hint {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.edit-form input,
+	.edit-form select,
+	.edit-form textarea {
+		@include mix.focus-ring;
+		padding: var(--space-1) var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		font: inherit;
+	}
+	.edit-form__actions {
+		display: flex;
+		gap: var(--space-2);
+	}
+	.edit-form button {
+		@include mix.focus-ring;
+		padding: var(--space-1) var(--space-3);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		cursor: pointer;
+	}
+	.edit-form .primary {
+		border: none;
+		background: var(--accent);
+		color: var(--bg-surface);
+	}
+	.error {
+		font-size: var(--font-size-sm);
+		color: var(--status-danger, #c0392b);
+	}
 
 	section {
 		@include mix.card-surface;

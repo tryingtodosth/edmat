@@ -5,7 +5,7 @@ Two suites, deliberately different in kind:
 | | What it is | Where | Count |
 |---|---|---|---|
 | **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 493 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 129 checks across 4 scripts |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 137 checks across 5 scripts |
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
@@ -152,6 +152,7 @@ node e2e/classroom.mjs
 node e2e/education-auth.mjs
 node e2e/material-claims.mjs
 node e2e/classroom-overhaul.mjs
+node e2e/profile-editing.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -189,6 +190,11 @@ offered and labelled drafts, each modal describing its own provider's real quirk
 repository link, Escape closing it, the school picker distinguishing a university that runs USOS from
 one that does not, **no session created by any of it**, then connect → transfer diploma/grades →
 consent one field at a time → un-publish → delete.
+
+**`e2e/profile-editing.mjs` (8 checks)** — editing your own profile in place. The ⋯ menus appear on
+your own profile, add two experience entries, reorder them, rename one, delete it, add a skill — each
+through the menu, each a real write — and then a second browser context looks at the same page and
+gets all of the content with none of the controls.
 
 **`e2e/classroom-overhaul.mjs` (29 checks)** — several people running one course. An owner creates it,
 makes a second account an administrator, and that co-admin can edit and mint invite links but is
