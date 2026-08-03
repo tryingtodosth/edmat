@@ -925,5 +925,10 @@
 	"profile_kind_work": "Work",
 	"profile_kind_teaching": "Teaching",
 	"profile_kind_project": "Project",
-	"profile_kind_other": "Other"
+	"profile_kind_other": "Other",
+	"classroom_manageHeading": "Manage this course",
+	"classroom_manage_review": "Waiting for review",
+	"classroom_manage_content": "Chapters and content",
+	"classroom_manage_people": "Who runs it",
+	"classroom_manage_invites": "Invite links"
 }

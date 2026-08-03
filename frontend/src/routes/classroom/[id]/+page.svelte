@@ -392,92 +392,140 @@
 				: undefined}
 		/>
 
-		{#if course.canCurate}
-			<section class="chapter-new">
-				<h2>{m.classroom_chapters_heading()}</h2>
-				<form onsubmit={addChapter}>
-					<label class="field">
-						<span>{m.classroom_chapters_title()}</span>
-						<input type="text" bind:value={newChapterTitle} maxlength="200" required />
-					</label>
-					<label class="field">
-						<span>{m.classroom_chapters_unlocksAt()}</span>
-						<input type="datetime-local" bind:value={newChapterUnlocksAt} />
-						<!-- Empty means open immediately, which is genuinely different from a date in the
-						     past: the first was never gated at all. -->
-						<span class="hint">{m.classroom_chapters_unlocksAtHint()}</span>
-					</label>
-					<button type="submit" class="small" disabled={busy}>
-						{m.classroom_chapters_add()}
-					</button>
-				</form>
+		<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
+		     are the part worth joining for, and the API blanks them for anyone who has not. -->
+		<!-- Everything for running the course, in one place and shut by default.
+		     Before this the four management forms sat open between "Content" and "Lessons", so an
+		     owner met four empty forms demanding input before reaching anything readable — and the
+		     page they saw was nothing like the page they were publishing. Collapsed disclosures keep
+		     the course reading identically for everybody; managing it is a deliberate click.
+
+		     `<details>` rather than a bespoke accordion: it is keyboard- and screen-reader-correct for
+		     free, and this app has no accordion component to reuse. -->
+		{#if course.canCurate || course.canAdminister}
+			<section class="manage">
+				<h2>{m.classroom_manageHeading()}</h2>
+				{#if course.pendingContributionCount > 0}
+					<!-- The one thing worth pulling out of a shut drawer: somebody is waiting on a
+					     decision, and a queue nobody is told about is a queue that stalls. -->
+					<p class="manage__badge">
+						{m.classroom_review_count({ count: course.pendingContributionCount })}
+					</p>
+				{/if}
+
+				{#if course.canCurate}
+					<details class="manage__group" open={course.pendingContributionCount > 0}>
+						<summary>{m.classroom_manage_review()}</summary>
+						{#if course.canCurate && pendingItems.length > 0}
+							<CourseReviewQueue
+								pending={pendingItems}
+								{busy}
+								ondecide={(itemId, decision, note) =>
+									act(
+										() => decideCourseItem(course!.id, itemId, decision, note),
+										(msg) => (contributeError = msg)
+									)}
+							/>
+						{/if}
+					</details>
+
+					<details class="manage__group">
+						<summary>{m.classroom_manage_content()}</summary>
+						{#if course.canCurate}
+							<section class="chapter-new">
+								<h2>{m.classroom_chapters_heading()}</h2>
+								<form onsubmit={addChapter}>
+									<label class="field">
+										<span>{m.classroom_chapters_title()}</span>
+										<input type="text" bind:value={newChapterTitle} maxlength="200" required />
+									</label>
+									<label class="field">
+										<span>{m.classroom_chapters_unlocksAt()}</span>
+										<input type="datetime-local" bind:value={newChapterUnlocksAt} />
+										<!-- Empty means open immediately, which is genuinely different from a date in the
+									     past: the first was never gated at all. -->
+										<span class="hint">{m.classroom_chapters_unlocksAtHint()}</span>
+									</label>
+									<button type="submit" class="small" disabled={busy}>
+										{m.classroom_chapters_add()}
+									</button>
+								</form>
+							</section>
+						{/if}
+						{#if course.canContribute}
+							<CourseContribute
+								{course}
+								{busy}
+								error={contributeError}
+								notice={contributeNotice}
+								onsubmit={contribute}
+							/>
+						{/if}
+					</details>
+				{/if}
+
+				{#if course.canAdminister}
+					<details class="manage__group">
+						<summary>{m.classroom_manage_people()}</summary>
+						{#if staff.length > 0}
+							<CourseStaffPanel
+								{course}
+								{staff}
+								error={staffError}
+								onadd={(userId, role) =>
+									act(
+										() => addCourseStaff(course!.id, userId, role),
+										(msg) => (staffError = msg)
+									)}
+								onrole={(staffId, role) =>
+									act(
+										() => setCourseStaffRole(course!.id, staffId, role),
+										(msg) => (staffError = msg)
+									)}
+								onremove={(staffId) =>
+									act(
+										() => removeCourseStaff(course!.id, staffId),
+										(msg) => (staffError = msg)
+									)}
+							/>
+						{/if}
+					</details>
+
+					<details class="manage__group">
+						<summary>{m.classroom_manage_invites()}</summary>
+						{#if course.canAdminister}
+							<CourseInvites
+								{invites}
+								error={inviteError}
+								oncreate={(draft) =>
+									act(
+										() => createInvite(course!.id, draft),
+										(msg) => (inviteError = msg)
+									)}
+								onrevoke={(inviteId) =>
+									act(
+										() => revokeInvite(course!.id, inviteId),
+										(msg) => (inviteError = msg)
+									)}
+							/>
+						{/if}
+					</details>
+				{/if}
 			</section>
 		{/if}
 
-		{#if course.canContribute}
-			<CourseContribute
-				{course}
-				{busy}
-				error={contributeError}
-				notice={contributeNotice}
-				onsubmit={contribute}
-			/>
+		{#if course.canContribute && !course.canCurate}
+			{#if true}
+				<CourseContribute
+					{course}
+					{busy}
+					error={contributeError}
+					notice={contributeNotice}
+					onsubmit={contribute}
+				/>
+			{/if}
 		{/if}
 
-		{#if course.canCurate && pendingItems.length > 0}
-			<CourseReviewQueue
-				pending={pendingItems}
-				{busy}
-				ondecide={(itemId, decision, note) =>
-					act(
-						() => decideCourseItem(course!.id, itemId, decision, note),
-						(msg) => (contributeError = msg)
-					)}
-			/>
-		{/if}
-
-		{#if staff.length > 0}
-			<CourseStaffPanel
-				{course}
-				{staff}
-				error={staffError}
-				onadd={(userId, role) =>
-					act(
-						() => addCourseStaff(course!.id, userId, role),
-						(msg) => (staffError = msg)
-					)}
-				onrole={(staffId, role) =>
-					act(
-						() => setCourseStaffRole(course!.id, staffId, role),
-						(msg) => (staffError = msg)
-					)}
-				onremove={(staffId) =>
-					act(
-						() => removeCourseStaff(course!.id, staffId),
-						(msg) => (staffError = msg)
-					)}
-			/>
-		{/if}
-
-		{#if course.canAdminister}
-			<CourseInvites
-				{invites}
-				error={inviteError}
-				oncreate={(draft) =>
-					act(
-						() => createInvite(course!.id, draft),
-						(msg) => (inviteError = msg)
-					)}
-				onrevoke={(inviteId) =>
-					act(
-						() => revokeInvite(course!.id, inviteId),
-						(msg) => (inviteError = msg)
-					)}
-			/>
-		{/if}
-
-		<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
-		     are the part worth joining for, and the API blanks them for anyone who has not. -->
 		<section class="lessons">
 			<h2>{m.classroom_lessonsHeading()}</h2>
 			{#if course.lessons.length === 0}
@@ -650,6 +698,48 @@
 
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;
+
+	.manage {
+		@include mix.card-surface;
+		padding: var(--space-4);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.manage__badge {
+		align-self: flex-start;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--bg-surface);
+		background: var(--accent);
+		border-radius: var(--radius-sm);
+		padding: 2px var(--space-2);
+	}
+	.manage__group {
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+	}
+	.manage__group > summary {
+		cursor: pointer;
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+	}
+	.manage__group[open] > summary {
+		border-bottom: 1px solid var(--border-color);
+	}
+	.manage__group > :global(*:not(summary)) {
+		padding: var(--space-3);
+	}
+	/* The panels inside a drawer were written as top-level sections and carry their own h2, which at
+	   page size competed with the drawer label right above it. Demoted visually only — the heading
+	   level itself is left alone, since that is what a screen reader navigates by. */
+	.manage__group :global(h2) {
+		font-size: var(--font-size-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-secondary);
+	}
 
 	.chapter-new form {
 		display: flex;

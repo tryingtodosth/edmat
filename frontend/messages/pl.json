@@ -925,5 +925,10 @@
 	"profile_kind_work": "Praca",
 	"profile_kind_teaching": "Nauczanie",
 	"profile_kind_project": "Projekt",
-	"profile_kind_other": "Inne"
+	"profile_kind_other": "Inne",
+	"classroom_manageHeading": "Zarządzaj kursem",
+	"classroom_manage_review": "Czeka na sprawdzenie",
+	"classroom_manage_content": "Rozdziały i materiały",
+	"classroom_manage_people": "Kto prowadzi",
+	"classroom_manage_invites": "Linki z zaproszeniem"
 }
