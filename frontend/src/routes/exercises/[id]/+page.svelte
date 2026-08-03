@@ -61,7 +61,9 @@
 	// rather than porting Material's separate-overlay pattern (which exists there for a different
 	// reason: MaterialCard renders a possibly-shared prop, not owned state).
 	let sortedRequirements = $derived(
-		[...(exercise?.requirements ?? [])].sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
+		[...(exercise?.requirements ?? [])].sort(
+			(a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight
+		)
 	);
 	let editingRequirements = $state(false);
 	let requirementsError = $state<string | null>(null);
@@ -279,27 +281,32 @@
 							: undefined}
 					/>
 				</div>
-				{#if exercise.submittedByUserId}
-					<!-- A real, found gap: submittedByUserId was already resolved into usersById (the
-					     fetch below already asked for it) but never actually rendered anywhere on this
-					     page — a community-submitted exercise showed no attribution at all, unlike a
-					     review/comment/translation, which all link to their own author. Absent entirely
-					     for the 742 migrated corpus exercises (submitted_by is null for those), so this
-					     only ever appears for a genuinely community-submitted one. Same
-					     "link the author's name to their public profile" convention ReviewList.svelte/
-					     CommentNode.svelte already establish, reused rather than left as plain text. -->
-					<p class="submitted-by">
-						{m.exercise_submittedByPrefix()}
-						{#if usersById[exercise.submittedByUserId]}
-							<a
-								class="submitted-by__link"
-								href={resolve('/users/[id]', { id: exercise.submittedByUserId })}
-							>
-								{usersById[exercise.submittedByUserId].displayName}
-							</a>
-						{:else}
-							<span>—</span>
-						{/if}
+				<!-- Everybody with a real account who worked on this, each linked to their profile.
+				     Replaces a submitter-only line: an exercise genuinely has several contributors — whoever
+				     submitted it, whoever wrote each locale's text, and whoever reviewed those — and naming
+				     only the first credited most people not at all.
+
+				     Absent entirely for the 742 imported corpus exercises, which nobody here submitted and
+				     whose translations carry no account. That silence is honest: crediting somebody for a
+				     row lifted from a course archive would be inventing an author. -->
+				{#if exercise.contributors.length > 0}
+					<p class="contributors">
+						<span class="contributors__label">{m.exercise_contributorsHeading()}</span>
+						{#each exercise.contributors as contributor, index (`${contributor.id}-${contributor.role}-${contributor.locale ?? ''}`)}
+							{#if index > 0}<span aria-hidden="true">·</span>{/if}
+							<span class="contributors__person">
+								<a class="contributors__link" href={resolve('/users/[id]', { id: contributor.id })}
+									>{contributor.displayName}</a
+								>
+								<span class="contributors__role">
+									{contributor.role === 'submitted'
+										? m.exercise_role_submitted()
+										: contributor.role === 'translated'
+											? m.exercise_role_translated({ locale: contributor.locale ?? '' })
+											: m.exercise_role_reviewed({ locale: contributor.locale ?? '' })}
+								</span>
+							</span>
+						{/each}
 					</p>
 				{/if}
 				<div class="exercise__toolbar">
@@ -531,7 +538,10 @@
 </div>
 
 {#if proposingRequirement}
-	<ModalShell title={m.exercise_requirementAddTrigger()} onClose={() => (proposingRequirement = false)}>
+	<ModalShell
+		title={m.exercise_requirementAddTrigger()}
+		onClose={() => (proposingRequirement = false)}
+	>
 		{#if proposeRequirementError}
 			<p class="add-error">{proposeRequirementError}</p>
 		{/if}
@@ -560,7 +570,10 @@
 {/if}
 
 {#if editingRequirements}
-	<ModalShell title={m.exercise_requirementsModalTitle()} onClose={() => (editingRequirements = false)}>
+	<ModalShell
+		title={m.exercise_requirementsModalTitle()}
+		onClose={() => (editingRequirements = false)}
+	>
 		{#if requirementsError}
 			<p class="add-error">{requirementsError}</p>
 		{/if}
@@ -574,6 +587,26 @@
 
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;
+
+	.contributors {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-1);
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.contributors__label {
+		font-weight: 600;
+	}
+	.contributors__person {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.25rem;
+	}
+	.contributors__role {
+		opacity: 0.8;
+	}
 
 	.page {
 		max-width: 780px;
@@ -615,19 +648,6 @@
 		flex-wrap: wrap;
 		gap: var(--space-1);
 		align-items: center;
-	}
-	.submitted-by {
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-		margin-top: var(--space-1);
-	}
-	.submitted-by__link {
-		color: var(--text-secondary);
-		font-weight: 600;
-		text-decoration: underline;
-		&:hover {
-			color: var(--accent);
-		}
 	}
 	.exercise__toolbar {
 		display: flex;

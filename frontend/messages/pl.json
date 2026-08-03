@@ -897,5 +897,9 @@
 	"classroom_join_already": "Już jesteś w tym kursie.",
 	"classroom_join_full": "W tym kursie nie ma już miejsc.",
 	"classroom_invites_roleParticipant": "Uczestnik",
-	"classroom_byInstructorPrefix": "Prowadzi"
+	"classroom_byInstructorPrefix": "Prowadzi",
+	"exercise_contributorsHeading": "Współtwórcy:",
+	"exercise_role_submitted": "zgłoszenie",
+	"exercise_role_translated": "tłumaczenie na {locale}",
+	"exercise_role_reviewed": "korekta {locale}"
 }

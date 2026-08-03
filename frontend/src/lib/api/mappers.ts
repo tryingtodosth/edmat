@@ -186,6 +186,14 @@ export interface RawExerciseDetail extends RawExerciseCommon {
 	translated_by: number | null;
 	available_locales: string[];
 	requirements: RawExerciseRequirement[];
+	contributors: RawExerciseContributor[];
+}
+
+export interface RawExerciseContributor {
+	id: number;
+	display_name: string;
+	role: 'submitted' | 'translated' | 'reviewed';
+	locale: string | null;
 }
 
 export interface RawExerciseRequirement {
@@ -244,7 +252,11 @@ export function mapResolvedExerciseList(json: RawExerciseCommon): ResolvedExerci
 		solution: '',
 		translatedByUserId: undefined,
 		availableLocales: [],
-		requirements: []
+		// Empty on the list shape for the same reason `requirements` is: a card never credits anybody,
+		// and resolving contributors for all 383 exercises in a course listing would be paid for
+		// nothing. Empty here means "not asked for", not "nobody worked on it".
+		requirements: [],
+		contributors: []
 	};
 }
 
@@ -260,7 +272,15 @@ export function mapResolvedExerciseDetail(json: RawExerciseDetail): ResolvedExer
 		solution: json.solution,
 		translatedByUserId: idOrUndefined(json.translated_by),
 		availableLocales: json.available_locales,
-		requirements: (json.requirements ?? []).map(mapExerciseRequirement)
+		requirements: (json.requirements ?? []).map(mapExerciseRequirement),
+		// Names come resolved from the API rather than as bare ids the page then fetches one by one —
+		// that was a real N+1 over the network on a page that already knows it needs every one.
+		contributors: (json.contributors ?? []).map((c) => ({
+			id: String(c.id),
+			displayName: c.display_name,
+			role: c.role,
+			locale: c.locale ?? undefined
+		}))
 	};
 }
 

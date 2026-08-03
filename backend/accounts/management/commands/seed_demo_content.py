@@ -29,7 +29,8 @@ from django.utils import timezone
 from accounts.models import ExperienceEntry, Profile, SkillEntry
 from classroom.models import Enrollment, Lesson, TaughtCourse
 from community.models import Comment, Review
-from exercises.models import Exercise, Tag
+from exercises.models import Exercise, ExerciseTranslation, Tag
+from materials.models import Material
 from taxonomy.models import Course, Field
 
 User = get_user_model()
@@ -197,14 +198,64 @@ class Command(BaseCommand):
         self._seed_reviews_and_comments(people, rng)
         courses = self._seed_courses(people)
         self._seed_course_activity(courses, people)
+        attributed = self._seed_attribution(people)
 
         self.stdout.write(
             self.style.SUCCESS(
                 f'Seeded {len(people)} demo profiles, {Review.objects.count()} reviews, '
-                f'{Comment.objects.count()} comments and {len(courses)} courses. '
+                f'{Comment.objects.count()} comments, {len(courses)} courses and '
+                f'{attributed} attributed contributions. '
                 f'Password for every demo account: {DEMO_PASSWORD}'
             )
         )
+
+    # -- attribution ------------------------------------------------------------------------------
+
+    def _seed_attribution(self, people: dict) -> int:
+        """Give some content a real account behind it, so the credit lines are not permanently empty.
+
+        Both the exercise and the material pages link whoever contributed to their profile, and both
+        were rendering nothing at all — not because the link was missing but because the imported
+        corpus has `submitted_by = NULL` on every row. It was imported from a course archive; nobody
+        on this platform submitted it, and inventing an uploader for all 742 would be a lie told at
+        scale.
+
+        So a handful are attributed here instead, in the command whose entire job is to make features
+        visible. Deliberately a handful and not all of them: the mixture is the honest state of a real
+        catalogue — some things somebody here contributed, most things predating the platform — and it
+        keeps the "no contributors" rendering path exercised rather than hidden.
+
+        Idempotent: only ever fills a blank, so re-running never reassigns something and never
+        overwrites a real submission made through the app.
+        """
+        contributors = [
+            people[key] for key in ('michal', 'ania', 'piotr') if key in people
+        ]
+        if not contributors:
+            return 0
+
+        touched = 0
+        for index, material in enumerate(Material.objects.filter(submitted_by__isnull=True)[:4]):
+            material.submitted_by = contributors[index % len(contributors)]
+            material.save(update_fields=['submitted_by'])
+            touched += 1
+
+        for index, exercise in enumerate(Exercise.objects.filter(submitted_by__isnull=True)[:6]):
+            exercise.submitted_by = contributors[index % len(contributors)]
+            exercise.save(update_fields=['submitted_by'])
+            touched += 1
+
+        # A translation credit as well, so the exercise page shows what it looks like with more than
+        # one person on it — which is the case the plural list exists for.
+        translations = ExerciseTranslation.objects.filter(
+            translated_by__isnull=True, status='published'
+        ).exclude(exercise__submitted_by__isnull=True)[:4]
+        for index, translation in enumerate(translations):
+            translation.translated_by = contributors[(index + 1) % len(contributors)]
+            translation.save(update_fields=['translated_by'])
+            touched += 1
+
+        return touched
 
     # -- people -----------------------------------------------------------------------------------
 

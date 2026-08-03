@@ -897,5 +897,9 @@
 	"classroom_join_already": "You are already in this course.",
 	"classroom_join_full": "This course is full.",
 	"classroom_invites_roleParticipant": "Participant",
-	"classroom_byInstructorPrefix": "Run by"
+	"classroom_byInstructorPrefix": "Run by",
+	"exercise_contributorsHeading": "Contributors:",
+	"exercise_role_submitted": "submitted",
+	"exercise_role_translated": "translated to {locale}",
+	"exercise_role_reviewed": "reviewed {locale}"
 }
