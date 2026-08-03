@@ -182,3 +182,51 @@ class SeedDemoContentTests(ApiTestCase):
 
         call_command('seed_demo_content', verbosity=0)
         self.assertTrue(TaughtCourse.objects.filter(status='draft').exists())
+
+
+class DisplayPreferenceTests(ApiTestCase):
+    """How somebody wants their own clock and calendar drawn.
+
+    Two things worth pinning rather than trusting: that the DEFAULTS are 24-hour and Monday whatever
+    interface language the account reads in — the whole reason these are stored fields rather than an
+    inference from the locale — and that they are the account holder's own business, not a stranger's.
+    """
+
+    def test_a_new_account_gets_24_hour_and_monday(self):
+        response = self.as_(self.me).get('/api/auth/me/')
+        self.assertEqual(response.data['time_format'], '24h')
+        self.assertEqual(response.data['week_starts_on'], 'monday')
+
+    def test_the_default_does_not_follow_the_interface_language(self):
+        """An English reader who has said nothing still gets 24-hour. `Intl`'s own per-locale default
+        would hand them 4:00 PM, which was the behaviour before these fields existed and was nobody's
+        choice."""
+        self.me.profile.preferred_locale = 'en'
+        self.me.profile.save()
+
+        response = self.as_(self.me).get('/api/auth/me/')
+        self.assertEqual(response.data['time_format'], '24h')
+
+    def test_both_can_be_changed(self):
+        response = self.as_(self.me).patch(
+            '/api/auth/me/', {'time_format': '12h', 'week_starts_on': 'sunday'}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.me.profile.refresh_from_db()
+        self.assertEqual(self.me.profile.time_format, '12h')
+        self.assertEqual(self.me.profile.week_starts_on, 'sunday')
+
+    def test_a_value_outside_the_two_choices_is_refused(self):
+        response = self.as_(self.me).patch(
+            '/api/auth/me/', {'time_format': '36h'}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_they_are_not_on_somebody_elses_public_profile(self):
+        """Not because a clock preference is sensitive, but because a stranger's settings are not a
+        public endpoint's business — the same reasoning PublicProfileSerializer already applies to the
+        notification preferences."""
+        response = self.as_(self.other).get(f'/api/users/{self.me.pk}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('time_format', response.data)
+        self.assertNotIn('week_starts_on', response.data)

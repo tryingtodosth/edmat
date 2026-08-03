@@ -8,6 +8,7 @@
 	// its own domain objects into entries first.
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { formatHourMark } from '$lib/utils/datetime';
 	import {
 		BACKGROUND_TONES,
 		type CalendarEntry,
@@ -129,9 +130,7 @@
 				     that had to be kept in step with the row height by hand. The last mark is dropped:
 				     it would sit on the bottom edge with nothing below it, and be clipped. -->
 				{#each hourMarks.slice(0, -1) as hour (hour)}
-					<span class="week__hour" style={linePosition(hour)}>
-						{String(hour).padStart(2, '0')}:00
-					</span>
+					<span class="week__hour" style={linePosition(hour)}>{formatHourMark(hour)}</span>
 				{/each}
 			</div>
 

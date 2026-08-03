@@ -10,6 +10,8 @@
 	// slots" and the tutor's "days with sessions" are the same picture.
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
+	import { weekdayNames } from '$lib/utils/datetime';
 	import { type CalendarMonthDay, fromIsoDate, isoDate, monthGridDays, monthOf } from './calendar';
 
 	let {
@@ -30,19 +32,12 @@
 	} = $props();
 
 	let byDate = $derived(new Map(days.map((day) => [day.date, day])));
-	let grid = $derived(monthGridDays(month));
+	// Both the grid and the header follow the viewer's own week order — they have to come from the
+	// same preference, or the 1st lands under the wrong name.
+	let grid = $derived(monthGridDays(month, displayPrefs.weekStartsOn));
 	const today = isoDate(new Date());
 
-	// Monday-first, matching the backend's own weekday numbering and both locales' convention. Built
-	// from a real week through Intl rather than hardcoded, so the names come out translated (and
-	// abbreviated the way each locale abbreviates) without a message key per day.
-	let weekdayNames = $derived(
-		Array.from({ length: 7 }, (_, index) =>
-			new Intl.DateTimeFormat(getLocale(), { weekday: 'short' }).format(
-				new Date(2024, 0, 1 + index) // 2024-01-01 was a Monday
-			)
-		)
-	);
+	let headings = $derived(weekdayNames('short'));
 
 	function dayNumber(date: string): number {
 		return fromIsoDate(date).getDate();
@@ -55,7 +50,7 @@
 
 <div class="month">
 	<div class="month__weekdays" aria-hidden="true">
-		{#each weekdayNames as name (name)}
+		{#each headings as name (name)}
 			<span>{name}</span>
 		{/each}
 	</div>

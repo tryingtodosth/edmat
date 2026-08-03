@@ -171,6 +171,12 @@ async function resetTutor(token) {
 			await api(token, `/bookings/${booking.id}/cancel/`, { method: 'POST', body: '{}' });
 		}
 	}
+	// Back to the app's own defaults. Without this a previous run that switched to 12-hour/Sunday
+	// would leave the "defaults" check below asserting against a setting rather than a default.
+	await api(token, '/auth/me/', {
+		method: 'PATCH',
+		body: JSON.stringify({ time_format: '24h', week_starts_on: 'monday' })
+	});
 }
 
 /** A date a fixed number of weeks out that falls on `weekday` (Monday = 0, matching the backend).
@@ -539,7 +545,71 @@ check(
 	String(await tutorPage.locator('.month__dot').count())
 );
 
-console.log('\n[12] A listing with a live booking refuses to be deleted');
+console.log('\n[12] 24-hour and Monday by default; 12-hour and Sunday are a real setting');
+tutorPage = await renew(tutorPage);
+await goto(tutorPage, '/bookings');
+await tutorPage.getByRole('button', { name: /My availability/i }).click();
+await settle(tutorPage, 1800);
+
+// The default is the app's own, NOT whatever Intl would pick for the interface language — for `en`
+// that is 12-hour and a Sunday-first week, which is precisely what these settings exist to stop
+// being decided for people.
+let axis = await tutorPage.locator('.week__axis').innerText();
+check(
+	'the clock is 24-hour out of the box, in English',
+	/\d{2}:00/.test(axis) && !/AM|PM/.test(axis),
+	axis.replace(/\n/g, ' ')
+);
+// Scoped to the FIRST column heading, not the whole row: the heading reads "3 Mon" (number then
+// weekday), so anchoring a regex at the start of the row tests the date rather than the day.
+let firstColumn = await tutorPage.locator('.week__day-head').first().innerText();
+check('and the week starts on Monday', /Mon/i.test(firstColumn), firstColumn);
+let ruleRow = await tutorPage.locator('.panel', { hasText: 'Weekly hours' }).innerText();
+check('a published rule reads in 24-hour too', /14:00/.test(ruleRow), ruleRow.slice(0, 200));
+
+await goto(tutorPage, '/settings');
+await settle(tutorPage, 1200);
+const dates = tutorPage.locator('.field-group', { hasText: 'Dates and times' });
+check('Settings offers both as real choices', (await dates.locator('select').count()) === 2);
+await dates.locator('select').first().selectOption('12h');
+await dates.locator('select').nth(1).selectOption('sunday');
+await tutorPage.locator('form button[type="submit"]').first().click();
+await settle(tutorPage, 2200);
+
+tutorPage = await renew(tutorPage);
+await goto(tutorPage, '/bookings');
+await tutorPage.getByRole('button', { name: /My availability/i }).click();
+await settle(tutorPage, 1800);
+axis = await tutorPage.locator('.week__axis').innerText();
+check('the axis switches to AM/PM', /AM|PM/.test(axis), axis.replace(/\n/g, ' '));
+firstColumn = await tutorPage.locator('.week__day-head').first().innerText();
+check('and the week now starts on Sunday', /Sun/i.test(firstColumn), firstColumn);
+ruleRow = await tutorPage.locator('.panel', { hasText: 'Weekly hours' }).innerText();
+check(
+	'the published rule follows, rather than staying 24-hour',
+	/2:00/.test(ruleRow) && !/14:00/.test(ruleRow),
+	ruleRow.slice(0, 200)
+);
+
+// The month grid has to agree with the header, or the 1st lands under the wrong name.
+await tutorPage.locator('.panel [role="tablist"] button', { hasText: /^Month$/ }).click();
+await settle(tutorPage, 1600);
+const monthHead = await tutorPage.locator('.month__weekdays span').first().innerText();
+check('the month grid re-orders with it', /Sun/i.test(monthHead), monthHead);
+
+// It survives a hard reload — it is a stored setting, not a toggle living in the tab.
+await goto(tutorPage, '/bookings');
+await tutorPage.getByRole('button', { name: /My availability/i }).click();
+await settle(tutorPage, 1800);
+check('and it survives a reload', /AM|PM/.test(await tutorPage.locator('.week__axis').innerText()));
+
+// Back to the defaults, so a later run of this script starts where it expects to.
+await api(tutorToken, '/auth/me/', {
+	method: 'PATCH',
+	body: JSON.stringify({ time_format: '24h', week_starts_on: 'monday' })
+});
+
+console.log('\n[13] A listing with a live booking refuses to be deleted');
 const deletion = await api(tutorToken, `/services/${derivedId}/`, { method: 'DELETE' });
 check('deleting is refused with a conflict', deletion.status === 409, String(deletion.status));
 check(

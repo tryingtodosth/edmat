@@ -819,6 +819,8 @@ export interface RawProfile {
 	bio?: string;
 	avatar: string | null;
 	preferred_locale: string;
+	time_format?: string;
+	week_starts_on?: string;
 	is_verified_contributor: boolean;
 	is_moderator: boolean;
 	is_node_governor: boolean;
@@ -859,6 +861,10 @@ export function mapUser(json: RawProfile): User {
 		notifyOnCommentReply: json.notify_on_comment_reply,
 		notifyOnModerationDecision: json.notify_on_moderation_decision,
 		notifyOnContentAction: json.notify_on_content_action,
+		// Anything unrecognised falls back to the app's own defaults rather than to whatever the
+		// browser would pick — same reasoning as the fields themselves.
+		timeFormat: json.time_format === '12h' ? '12h' : '24h',
+		weekStartsOn: json.week_starts_on === 'sunday' ? 'sunday' : 'monday',
 		notifyOnCourseActivity: json.notify_on_course_activity,
 		notifyOnBooking: json.notify_on_booking,
 		mutedNotificationTypes: json.muted_notification_types

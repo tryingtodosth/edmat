@@ -4,8 +4,8 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 559 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 179 checks across 6 scripts |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 564 |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 188 checks across 6 scripts |
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
@@ -59,7 +59,7 @@ inherit from it rather than repeating the line.
 | `classroom` (86) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings, staff roles, contributions, chapters, invite links |
 | `booking` (66) | Availability arithmetic, the two availability modes against each other, the booking lifecycle, notifications, listing deletion, the tutor's own calendar |
 | `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
-| `accounts` profile extras (16) | Experience, skills, the derived activity feed, and the demo-content seed |
+| `accounts` profile extras (21) | Experience, skills, the derived activity feed, the demo-content seed, and the clock/week-start display preferences |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
 | `exercises`, `materials`, `community`, `study`, `services`, `messaging`, `notifications`, `telemetry`, `accounts` | Their own domains |
 
@@ -242,7 +242,7 @@ a material, is told it is waiting, and it stays invisible to everybody else unti
 not the owner — approves it. Then an invite link: readable logged out without leaking anything else,
 joining straight past the approval queue, and refused once revoked.
 
-**`e2e/booking.mjs` (42 checks)** — three people in three contexts, because the entire feature is
+**`e2e/booking.mjs` (51 checks)** — three people in three contexts, because the entire feature is
 about the same grid of buttons meaning two different things. A tutor publishes one 14:00–17:00 Tuesday
 rule through the real form (having first been told, correctly, that nobody can book them without one)
 and it becomes three one-hour slots. The same window is captioned differently on a `derived` and a
@@ -260,14 +260,21 @@ marks the days with free times; clicking a day opens its week. And the tutor's o
 published hours as background bands with the confirmed session **on** them and the declined one absent
 — the difference between this endpoint and the student-facing one, made visible.
 
+Finally the display preferences: in English, with nothing set, the axis is 24-hour and the week starts
+Monday — the point, since `Intl` would have picked neither. Switching in Settings flips the axis to
+AM/PM, moves the week to Sunday-first, re-orders the month grid to match, carries a published rule's
+own times with it, and survives a hard reload.
+
 Two things about this script specifically, both deliberate:
 
 - **It signs in as the seeded demo users rather than registering.** Registration is rate-limited per IP,
   and a script that registers three people exhausts it on repeated runs — at which point the whole run
   fails in a way that looks exactly like a regression. The price is that those accounts carry state
   between runs, so the script starts by clearing the tutor's rules and exceptions and cancelling their
-  live bookings **through the real endpoints**. It needs `password123` (the `seed_demo_users` password),
-  overridable with `E2E_DEMO_PASSWORD`.
+  live bookings **through the real endpoints**, and resetting the clock/week-start preferences to the
+  defaults — otherwise a previous run's setting quietly becomes the "default" the first check asserts
+  against. It needs `password123` (the `seed_demo_users` password), overridable with
+  `E2E_DEMO_PASSWORD`.
 - **It ignores exactly one console error**: Chromium logs every non-2xx fetch regardless of whether the
   app handled it, and this run deliberately provokes a `409` by confirming a clashing session. Only that
   status is ignored; a 500 or a 403 still fails the run.

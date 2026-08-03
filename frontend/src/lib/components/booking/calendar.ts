@@ -84,31 +84,40 @@ export function dayRange(from: Date, count: number): string[] {
 	);
 }
 
-/** The Monday of the week containing `day`.
+/** `count` days from `day`, without mutating anything — the Date constructor normalises an
+ * out-of-range day itself, which is both correct across month ends and what this project's
+ * `svelte/prefer-svelte-reactivity` rule wants. */
+export function shiftDays(day: Date, count: number): Date {
+	return new Date(day.getFullYear(), day.getMonth(), day.getDate() + count);
+}
+
+/** The first day of the week containing `day`.
  *
- * Monday-first throughout this feature: it is the European convention both locales here expect, and
- * it matches the backend's own `date.weekday()` numbering, so nothing has to convert between two
- * week shapes.
+ * `weekStartsOn` is in `Date.getDay()` numbering — 1 for Monday, 0 for Sunday — and defaults to
+ * Monday, which is this app's own default (see state/displayPrefs.svelte.ts) and what the backend
+ * speaks. It is a parameter rather than a store read on purpose: this module is pure geometry with
+ * no imports of its own, which is what makes it testable and what keeps the preference in exactly
+ * one place.
  */
-export function startOfWeek(day: Date): Date {
-	const mondayBased = (day.getDay() + 6) % 7;
-	return new Date(day.getFullYear(), day.getMonth(), day.getDate() - mondayBased);
+export function startOfWeek(day: Date, weekStartsOn: 0 | 1 = 1): Date {
+	const offset = (day.getDay() - weekStartsOn + 7) % 7;
+	return new Date(day.getFullYear(), day.getMonth(), day.getDate() - offset);
 }
 
 /** Every day drawn by a month grid: the whole month, plus the leading and trailing days needed to
- * fill whole Monday–Sunday rows.
+ * fill whole weeks, in whichever week order the viewer has asked for.
  *
  * The neighbouring days are real days rather than blanks because a grid that ends mid-row reads as
- * broken, and because "the 1st is a Thursday" is far easier to see when the preceding Monday is
- * drawn than when three empty cells are.
+ * broken, and because "the 1st is a Thursday" is far easier to see when the preceding first-day-of-
+ * week is drawn than when three empty cells are.
  */
-export function monthGridDays(month: string): string[] {
+export function monthGridDays(month: string, weekStartsOn: 0 | 1 = 1): string[] {
 	const [year, monthNumber] = month.split('-').map(Number);
 	const first = new Date(year, monthNumber - 1, 1);
 	const last = new Date(year, monthNumber, 0);
-	const from = startOfWeek(first);
-	const to = startOfWeek(last);
-	// `to` is the Monday of the last row, so the grid runs to that Monday + 6.
+	const from = startOfWeek(first, weekStartsOn);
+	const to = startOfWeek(last, weekStartsOn);
+	// `to` starts the last row, so the grid runs to that day + 6.
 	const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 7;
 	return dayRange(from, days);
 }

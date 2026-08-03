@@ -21,6 +21,28 @@ class Profile(models.Model):
         upload_to='avatars/', blank=True, null=True, validators=[validate_avatar_file]
     )
     preferred_locale = models.CharField(max_length=8, default='en')
+
+    # How dates and times are DRAWN — the calendar views, and every clock this app prints. Real
+    # stored preferences rather than whatever the interface language happens to imply, because the
+    # two are genuinely independent: plenty of people read the English interface and still expect
+    # 16:00, and `Intl`'s own per-locale default hands an English reader "4:00 PM" whether they
+    # wanted it or not. That WAS the behaviour before these fields existed, and it was nobody's
+    # choice.
+    #
+    # 24-hour and Monday are the defaults deliberately. Both are what this app's own markets (Poland,
+    # Ukraine, the EU generally) use, and both are what the rest of the stack already speaks —
+    # `AvailabilityRule` stores a 24-hour `TimeField` and numbers weekdays from Monday, matching
+    # Python's own `date.weekday()` — so the default costs no conversion anywhere. The other two are
+    # a real setting rather than an inference, because guessing them from a locale is how somebody
+    # ends up looking at the wrong one with no way to say so.
+    TIME_FORMAT_CHOICES = [('24h', '24-hour'), ('12h', '12-hour (AM/PM)')]
+    time_format = models.CharField(max_length=3, choices=TIME_FORMAT_CHOICES, default='24h')
+
+    # Stored as a name rather than as `Date.getDay()`'s 0/1: a row stays readable, and the frontend's
+    # own numbering convention stays the frontend's business rather than being baked into the column.
+    WEEK_START_CHOICES = [('monday', 'Monday'), ('sunday', 'Sunday')]
+    week_starts_on = models.CharField(max_length=8, choices=WEEK_START_CHOICES, default='monday')
+
     # A short self-description. Always public when set — like `display_name`, it is something the
     # account holder actively wrote to be read, so `show_profile_publicly` (which withholds info a
     # visitor never chose to publish, e.g. the joined date) does not gate it.

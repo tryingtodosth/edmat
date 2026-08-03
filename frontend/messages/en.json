@@ -1032,5 +1032,11 @@
 	"booking_calendar_legend": "Shaded bands are the hours you publish. Blocks on them are sessions — amber is waiting for your answer, green is confirmed, grey is done.",
 	"booking_calendar_emptyWeek": "Nothing on this week.",
 	"booking_calendar_dayFree": "{count} free",
-	"booking_calendar_daySessions": "{count} sessions"
+	"booking_calendar_daySessions": "{count} sessions",
+	"settings_datesHeading": "Dates and times",
+	"settings_timeFormat": "Clock",
+	"settings_timeFormat_24h": "24-hour (16:00)",
+	"settings_timeFormat_12h": "12-hour (4:00 PM)",
+	"settings_weekStartsOn": "Weeks start on",
+	"settings_datesHint": "These change how calendars and times are shown to you. They are separate from the interface language — reading English does not have to mean a 12-hour clock."
 }

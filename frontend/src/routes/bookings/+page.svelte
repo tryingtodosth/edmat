@@ -36,6 +36,8 @@
 	import { getMySchedule } from '$lib/services/booking';
 	import { getMyServices } from '$lib/services/tutoring';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
+	import { formatClock, formatDateTime } from '$lib/utils/datetime';
 	import CalendarMonth from '$lib/components/booking/CalendarMonth.svelte';
 	import CalendarWeek from '$lib/components/booking/CalendarWeek.svelte';
 	import ViewSwitcher from '$lib/components/booking/ViewSwitcher.svelte';
@@ -47,6 +49,7 @@
 		isoDate,
 		monthGridDays,
 		monthOf,
+		shiftDays,
 		shiftMonth,
 		startOfWeek
 	} from '$lib/components/booking/calendar';
@@ -62,9 +65,11 @@
 	let loading = $state(true);
 	let actionError = $state('');
 
-	// The weekday vocabulary is Monday-first and 0-based, matching Python's `date.weekday()`, which
+	// The stored weekday VALUE is always Monday-based 0-6, matching Python's `date.weekday()`, which
 	// is what the backend compares a rule against — see AvailabilityRule (types/booking.ts) for why
 	// the wire format follows the side doing the arithmetic rather than JS's Sunday-first `getDay()`.
+	// Only the ORDER the options are offered in follows the viewer's own week-start preference: a
+	// Sunday-first reader picking "Sunday" must still store 6, or the rule would land on Monday.
 	const WEEKDAYS = $derived([
 		m.booking_weekday_monday(),
 		m.booking_weekday_tuesday(),
@@ -74,6 +79,10 @@
 		m.booking_weekday_saturday(),
 		m.booking_weekday_sunday()
 	]);
+	/** The 0-6 values in the viewer's own week order — [0..6] Monday-first, [6, 0..5] Sunday-first. */
+	let weekdayOrder = $derived(
+		displayPrefs.weekStartsOn === 0 ? [6, 0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5, 6]
+	);
 
 	let newRule = $state({ weekday: 0, startTime: '14:00', endTime: '16:00', serviceId: '' });
 	let newException = $state({
@@ -129,15 +138,9 @@
 		load();
 	});
 
-	function formatWhen(iso: string): string {
-		return new Intl.DateTimeFormat(getLocale(), {
-			weekday: 'short',
-			day: 'numeric',
-			month: 'short',
-			hour: '2-digit',
-			minute: '2-digit'
-		}).format(new Date(iso));
-	}
+	// Through the shared helper rather than Intl's own per-locale default, which would hand an English
+	// reader 12-hour whether they asked for it or not.
+	const formatWhen = formatDateTime;
 
 	const STATUS_LABEL: Record<Booking['status'], () => string> = {
 		requested: () => m.booking_status_requested(),
@@ -219,14 +222,17 @@
 
 	type CalendarView = 'week' | 'month';
 	let calendarView = $state<CalendarView>('week');
-	let calendarAnchor = $state(isoDate(startOfWeek(new Date())));
+	/** The day being looked at, not the first day of the range — see BookingPanel's own note. Storing
+	 * the focus and deriving the range is what makes the week follow the viewer's week-start
+	 * preference once `authStore` resolves, rather than freezing whatever the default was at mount. */
+	let calendarFocus = $state(isoDate(new Date()));
 	let schedule = $state<TutorSchedule | undefined>(undefined);
 	let scheduleFailed = $state(false);
 
 	let calendarDays = $derived(
 		calendarView === 'month'
-			? monthGridDays(monthOf(calendarAnchor))
-			: dayRange(fromIsoDate(calendarAnchor), 7)
+			? monthGridDays(monthOf(calendarFocus), displayPrefs.weekStartsOn)
+			: dayRange(startOfWeek(fromIsoDate(calendarFocus), displayPrefs.weekStartsOn), 7)
 	);
 
 	async function loadSchedule() {
@@ -315,7 +321,7 @@
 	let calendarPeriodLabel = $derived(
 		calendarView === 'month'
 			? new Intl.DateTimeFormat(getLocale(), { month: 'long', year: 'numeric' }).format(
-					fromIsoDate(`${monthOf(calendarAnchor)}-01`)
+					fromIsoDate(`${monthOf(calendarFocus)}-01`)
 				)
 			: `${formatShortDay(calendarDays[0])} – ${formatShortDay(calendarDays[calendarDays.length - 1])}`
 	);
@@ -327,25 +333,16 @@
 	}
 
 	function stepCalendar(direction: number) {
-		if (calendarView === 'month') {
-			calendarAnchor = `${shiftMonth(monthOf(calendarAnchor), direction)}-01`;
-		} else {
-			const from = fromIsoDate(calendarAnchor);
-			calendarAnchor = isoDate(
-				new Date(from.getFullYear(), from.getMonth(), from.getDate() + direction * 7)
-			);
-		}
+		calendarFocus =
+			calendarView === 'month'
+				? `${shiftMonth(monthOf(calendarFocus), direction)}-01`
+				: isoDate(shiftDays(fromIsoDate(calendarFocus), direction * 7));
 	}
 
+	// No re-anchoring needed: a focus DAY reads correctly as both "the week of the 12th" and "the
+	// month containing the 12th".
 	function changeCalendarView(next: string) {
-		const wanted = next as CalendarView;
-		// Re-anchored into the other view's own units, so switching keeps you where you were looking
-		// rather than snapping back to today.
-		calendarAnchor =
-			wanted === 'month'
-				? `${monthOf(calendarAnchor)}-01`
-				: isoDate(startOfWeek(fromIsoDate(calendarAnchor)));
-		calendarView = wanted;
+		calendarView = next as CalendarView;
 	}
 
 	let pendingCount = $derived(incoming.filter((b) => b.status === 'requested').length);
@@ -487,11 +484,7 @@
 					onchange={changeCalendarView}
 					onprevious={() => stepCalendar(-1)}
 					onnext={() => stepCalendar(1)}
-					ontoday={() =>
-						(calendarAnchor =
-							calendarView === 'month'
-								? `${monthOf(isoDate(new Date()))}-01`
-								: isoDate(startOfWeek(new Date())))}
+					ontoday={() => (calendarFocus = isoDate(new Date()))}
 					periodLabel={calendarPeriodLabel}
 				/>
 				{#if scheduleFailed}
@@ -507,11 +500,11 @@
 					<p class="muted legend">{m.booking_calendar_legend()}</p>
 				{:else}
 					<CalendarMonth
-						month={monthOf(calendarAnchor)}
+						month={monthOf(calendarFocus)}
 						days={calendarMonthDays}
 						cellLabel={(day) => m.booking_calendar_daySessions({ count: day.count })}
 						onselect={(date) => {
-							calendarAnchor = isoDate(startOfWeek(fromIsoDate(date)));
+							calendarFocus = date;
 							calendarView = 'week';
 						}}
 					/>
@@ -530,7 +523,7 @@
 							<li>
 								<span>
 									{WEEKDAYS[rule.weekday]}
-									{rule.startTime}–{rule.endTime}
+									{formatClock(rule.startTime)}–{formatClock(rule.endTime)}
 									{#if rule.serviceId}
 										<em>({serviceTitle(rule.serviceId) || m.booking_oneListingOnly()})</em>
 									{/if}
@@ -547,8 +540,8 @@
 					<label>
 						<span>{m.booking_field_weekday()}</span>
 						<select bind:value={newRule.weekday}>
-							{#each WEEKDAYS as label, index (label)}
-								<option value={index}>{label}</option>
+							{#each weekdayOrder as day (day)}
+								<option value={day}>{WEEKDAYS[day]}</option>
 							{/each}
 						</select>
 					</label>
@@ -589,8 +582,8 @@
 							<li>
 								<span>
 									{exception.date}
-									{#if exception.startTime}
-										{exception.startTime}–{exception.endTime}
+									{#if exception.startTime && exception.endTime}
+										{formatClock(exception.startTime)}–{formatClock(exception.endTime)}
 									{:else}
 										<em>{m.booking_allDay()}</em>
 									{/if}

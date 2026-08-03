@@ -45,7 +45,9 @@ decides PER OFFERING whether the availability students see is their real free ti
 (`derived`) or a fixed published window that keeps showing regardless (`declared`) — two genuinely
 different promises, both stated in words on screen so nobody mistakes one for the other. Availability
 then gained the two views people already know — a week against a time axis and a month at a glance,
-on both sides of the feature. 559 tests total, all passing, see Section 17U.**
+on both sides of the feature — 24-hour and Monday-first by default, with 12-hour and Sunday as real
+settings rather than whatever the interface language implies. 564 tests total, all passing, see
+Section 17U.**
 This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
@@ -4483,6 +4485,83 @@ the list view, which is already offered beside it. There is no drag-to-create or
 availability is still edited through the forms below the calendar, and the calendar only shows. And
 the month view cannot show a day's times at all by design, so a day with six sessions and a day with
 one differ by a number rather than by shape.
+
+### 24-hour and Monday by default; 12-hour and Sunday in Settings (✅ built)
+
+The calendars were formatting times through `Intl` with nothing but the interface locale, which for
+`en` means a 12-hour clock and — had anything asked — a Sunday-first week. Nobody chose that. It was
+`Intl`'s default leaking through as if it were a decision, and it was wrong for most of the people
+this app is built for.
+
+**Two real stored preferences on `Profile`**, `time_format` (`24h`/`12h`) and `week_starts_on`
+(`monday`/`sunday`), **defaulting to 24-hour and Monday**, with both offered in Settings under their
+own "Dates and times" section.
+
+- **They are separate from the interface language, deliberately.** Reading the English interface is
+  not a statement about wanting a 12-hour clock, and letting the locale decide is exactly how somebody
+  ends up looking at the wrong one with no way to say so. The Settings copy says this out loud rather
+  than leaving it to be discovered.
+- **The defaults cost nothing to hold**: they are what this app's own markets (PL, UA, the EU) use,
+  and what the rest of the stack already speaks — `AvailabilityRule` stores a 24-hour `TimeField` and
+  numbers weekdays from Monday, matching Python's `date.weekday()`. So the default needs no conversion
+  anywhere, and the other two are a real choice rather than an inference.
+- **Stored as names, not numbers** (`'monday'`, not `1`): the row stays readable, and the frontend's
+  own `Date.getDay()` numbering stays the frontend's business rather than being baked into a column.
+  `displayPrefs.weekStartsOn` converts once.
+- **Not on the public profile.** Not because a clock preference is sensitive, but because a stranger's
+  settings are not a public endpoint's business — the same line `PublicProfileSerializer` already draws
+  around the notification preferences.
+- **A signed-out visitor gets the same defaults**, which matters because most people looking at a
+  public tutoring listing are signed out — they see the app's 24-hour Monday-first calendar rather
+  than whatever their browser's language implies.
+
+**Where the preference is read.** `state/displayPrefs.svelte.ts` holds it and is read directly by the
+components that draw a clock, the way `themeStore` already is, rather than threaded through props from
+every page. The distinction worth keeping: the calendar components stay free of any **domain** import
+(they still know nothing about bookings or services), while chrome this global is fetched where it is
+needed. The geometry in `calendar.ts` takes `weekStartsOn` as a **parameter** instead, defaulting to
+Monday, so that module stays pure and importless.
+
+`lib/utils/datetime.ts` holds the formatters — `formatTimeOfDay`, `formatClock` (for a rule's bare
+`'HH:MM'`), `formatHourMark`, `formatDateTime`, `weekdayNames`. They live outside the rune module
+because they build throwaway `Date`s and `svelte/prefer-svelte-reactivity` refuses a mutable Date in a
+`.svelte.ts` file. That rule is right, and the split it forced is the better shape: the setting in one
+file, the rendering in another. Two smaller details inside them: 24-hour uses `hourCycle: 'h23'` rather
+than `hour12: false`, which in some locales produces the h24 cycle and prints midnight as "24:00"; and
+an hour axis drops the minutes in 12-hour mode ("4 PM", not "4:00 PM"), since an axis label is a marker
+and the minutes are always zero.
+
+**The weekday `<select>` on the availability form re-orders but does not re-number.** The stored value
+stays Monday-based 0–6, because that is what the backend compares a rule against; only the order the
+options are offered in follows the preference. A Sunday-first reader picking "Sunday" must still store
+6, or the rule would quietly land on Monday.
+
+**A real bug this surfaced, found in a browser rather than by reading the code.** Both calendars stored
+the first day of the visible range in `$state`, computed once at mount from `startOfWeek(today,
+displayPrefs.weekStartsOn)`. `authStore` loads asynchronously, so at mount the preference had not
+resolved and the default Monday was baked in — while the month grid, which was `$derived`, re-ordered
+correctly. The header and the grid beside it therefore disagreed for anybody whose saved setting was
+Sunday. Fixed at the root by storing the **focused day** and deriving the range from it, which also
+deleted the re-anchoring arithmetic that switching views used to need: "the week of the 12th" and "the
+month containing the 12th" are the same focus read two ways. (A second, duller bug went with it: a
+`formatClock` edit to the published-rule row had silently not applied, so that one line stayed 24-hour
+while everything around it switched. The browser check caught it; `svelte-check` could not have.)
+
+**Verified**: `e2e/booking.mjs` grew to **51 checks**, zero console/page errors. In English, with
+nothing set, the axis is 24-hour and the week starts Monday — the point, since `Intl` would have picked
+neither. Settings offers both as real choices; switching flips the axis to AM/PM, moves the week to
+Sunday-first, re-orders the month grid to match, carries the published rule's own times with it, and
+**survives a hard reload**. The script resets the account to the defaults at the start of a run and
+again afterwards, or a previous run's setting would quietly become the "default" the first check
+asserts against. **564 backend tests** (5 new, up from 559), including that the default does not follow
+the interface language, that an out-of-range value is refused, and that neither field appears on
+somebody else's public profile. Both states were also inspected as real screenshots.
+`classroom.mjs` (44), `classroom-overhaul.mjs` (29), `material-claims.mjs` (14) and
+`profile-editing.mjs` (8) all re-run clean. `npm run check`: 0 errors, 0 warnings.
+
+**Left open**: no per-account timezone still (see above) — these two say how a time is *drawn*, not
+which clock it is drawn from. And the preference is account-wide only: a signed-out visitor cannot
+choose, since there is nowhere to keep the answer.
 
 ### Left open, not built
 

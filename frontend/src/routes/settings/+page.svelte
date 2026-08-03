@@ -21,6 +21,10 @@
 	let notifyOnContentAction = $state(true);
 	let notifyOnCourseActivity = $state(true);
 	let notifyOnBooking = $state(true);
+	// Display preferences, with this app's own defaults rather than whatever the browser's locale
+	// would pick — see state/displayPrefs.svelte.ts for why those two are not the same question.
+	let timeFormat = $state<'24h' | '12h'>('24h');
+	let weekStartsOn = $state<'monday' | 'sunday'>('monday');
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, course-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
@@ -78,6 +82,8 @@
 		notifyOnContentAction = authStore.user.notifyOnContentAction ?? true;
 		notifyOnCourseActivity = authStore.user.notifyOnCourseActivity ?? true;
 		notifyOnBooking = authStore.user.notifyOnBooking ?? true;
+		timeFormat = authStore.user.timeFormat ?? '24h';
+		weekStartsOn = authStore.user.weekStartsOn ?? 'monday';
 		offersTutoring = authStore.user.offersTutoring;
 		tutoringNote = authStore.user.tutoringNote;
 		// Mutate the existing SvelteSet in place, not a reassignment — `mutedTypes` is a plain `let`
@@ -102,6 +108,8 @@
 			notifyOnContentAction,
 			notifyOnCourseActivity,
 			notifyOnBooking,
+			timeFormat,
+			weekStartsOn,
 			mutedNotificationTypes: Array.from(mutedTypes),
 			offersTutoring,
 			tutoringNote
@@ -239,6 +247,29 @@
 						<input type="text" bind:value={tutoringNote} maxlength="200" />
 					</label>
 				{/if}
+			</section>
+
+			<!-- Its own section rather than folded in beside the interface language, because they are
+			     genuinely different questions: reading the English interface is not a statement about
+			     wanting a 12-hour clock, and letting the locale decide is how somebody ends up looking
+			     at the wrong one with no way to say so. -->
+			<section class="field-group">
+				<h2>{m.settings_datesHeading()}</h2>
+				<label>
+					<span>{m.settings_timeFormat()}</span>
+					<select bind:value={timeFormat}>
+						<option value="24h">{m.settings_timeFormat_24h()}</option>
+						<option value="12h">{m.settings_timeFormat_12h()}</option>
+					</select>
+				</label>
+				<label>
+					<span>{m.settings_weekStartsOn()}</span>
+					<select bind:value={weekStartsOn}>
+						<option value="monday">{m.booking_weekday_monday()}</option>
+						<option value="sunday">{m.booking_weekday_sunday()}</option>
+					</select>
+				</label>
+				<p class="field-hint">{m.settings_datesHint()}</p>
 			</section>
 
 			<section class="field-group">

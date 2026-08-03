@@ -38,6 +38,12 @@ export interface User {
 	// includes these at all (accounts/serializers.py's PublicProfileSerializer deliberately excludes
 	// them), so they stay undefined when resolving someone else.
 	showProfilePublicly?: boolean;
+	/** How this account wants clocks and calendars drawn. Real stored settings rather than something
+	 * inferred from `preferredLocale`: the interface language is not a statement about either, and
+	 * Intl's own per-locale default would hand an English reader 12-hour and a Sunday-first week
+	 * whether they asked for it or not. Defaults live in state/displayPrefs.svelte.ts. */
+	timeFormat?: '24h' | '12h';
+	weekStartsOn?: 'monday' | 'sunday';
 	notifyOnCommentReply?: boolean;
 	notifyOnModerationDecision?: boolean;
 	notifyOnContentAction?: boolean;

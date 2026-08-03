@@ -1032,5 +1032,11 @@
 	"booking_calendar_legend": "Zacieniowane pasy to godziny, które publikujesz. Bloki na nich to zajęcia — pomarańczowe czekają na Twoją odpowiedź, zielone są potwierdzone, szare już się odbyły.",
 	"booking_calendar_emptyWeek": "W tym tygodniu nic nie ma.",
 	"booking_calendar_dayFree": "wolnych terminów: {count}",
-	"booking_calendar_daySessions": "zajęć: {count}"
+	"booking_calendar_daySessions": "zajęć: {count}",
+	"settings_datesHeading": "Daty i godziny",
+	"settings_timeFormat": "Zegar",
+	"settings_timeFormat_24h": "24-godzinny (16:00)",
+	"settings_timeFormat_12h": "12-godzinny (4:00 PM)",
+	"settings_weekStartsOn": "Tydzień zaczyna się od",
+	"settings_datesHint": "To zmienia sposób, w jaki widzisz kalendarze i godziny. Jest niezależne od języka interfejsu — czytanie po angielsku nie musi oznaczać zegara 12-godzinnego."
 }

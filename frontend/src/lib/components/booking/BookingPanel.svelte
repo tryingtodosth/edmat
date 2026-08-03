@@ -21,6 +21,8 @@
 		requestBooking
 	} from '$lib/services/booking';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
+	import { formatTimeOfDay } from '$lib/utils/datetime';
 	import CalendarMonth from './CalendarMonth.svelte';
 	import CalendarWeek from './CalendarWeek.svelte';
 	import ViewSwitcher from './ViewSwitcher.svelte';
@@ -32,6 +34,7 @@
 		isoDate,
 		monthGridDays,
 		monthOf,
+		shiftDays,
 		shiftMonth,
 		startOfWeek
 	} from './calendar';
@@ -40,10 +43,16 @@
 
 	type View = 'list' | 'week' | 'month';
 	let view = $state<View>('list');
-	/** The first day of the range on screen — a Monday in list/week, the 1st in month. One anchor for
-	 * all three views, so switching between them keeps you where you were rather than snapping back
-	 * to today. */
-	let anchor = $state(isoDate(startOfWeek(new Date())));
+	/** The day being looked at — NOT the first day of the visible range.
+	 *
+	 * Storing the focus and DERIVING the range from it, rather than storing the range's first day, is
+	 * what makes this correct in two places it was not: switching views keeps you on the same day for
+	 * free (no re-anchoring arithmetic at all), and the range follows the viewer's week-start
+	 * preference whenever that resolves. The bug the second one fixes was real and found in a browser:
+	 * `authStore` loads asynchronously, so a first day computed once at mount used the DEFAULT
+	 * Monday even for somebody whose saved setting was Sunday, and the header then disagreed with the
+	 * month grid beside it, which had always been derived. */
+	let focus = $state(isoDate(new Date()));
 
 	let availability = $state<ServiceAvailability | undefined>(undefined);
 	let loading = $state(true);
@@ -61,7 +70,9 @@
 	/** The days the current view needs. A month asks for the whole grid, including the spill-over days
 	 * from the neighbouring months, so those cells are honest rather than blank by omission. */
 	let visibleDays = $derived(
-		view === 'month' ? monthGridDays(monthOf(anchor)) : dayRange(fromIsoDate(anchor), 7)
+		view === 'month'
+			? monthGridDays(monthOf(focus), displayPrefs.weekStartsOn)
+			: dayRange(startOfWeek(fromIsoDate(focus), displayPrefs.weekStartsOn), 7)
 	);
 
 	/** How far ahead the backend will answer (its own MAX_HORIZON_DAYS). Paging past it would show
@@ -140,11 +151,10 @@
 		}).format(fromIsoDate(iso));
 	}
 
-	function formatTime(iso: string): string {
-		return new Intl.DateTimeFormat(getLocale(), { hour: '2-digit', minute: '2-digit' }).format(
-			new Date(iso)
-		);
-	}
+	// Through the shared helper, not Intl's own per-locale default — that default hands an English
+	// reader 12-hour whether they asked for it or not, which is exactly what the preference exists to
+	// stop being decided for them.
+	const formatTime = formatTimeOfDay;
 
 	function formatShort(iso: string): string {
 		return new Intl.DateTimeFormat(getLocale(), { day: 'numeric', month: 'short' }).format(
@@ -155,42 +165,34 @@
 	let periodLabel = $derived(
 		view === 'month'
 			? new Intl.DateTimeFormat(getLocale(), { month: 'long', year: 'numeric' }).format(
-					fromIsoDate(`${monthOf(anchor)}-01`)
+					fromIsoDate(`${monthOf(focus)}-01`)
 				)
 			: `${formatShort(visibleDays[0])} – ${formatShort(visibleDays[visibleDays.length - 1])}`
 	);
 
 	function step(direction: number) {
-		if (view === 'month') {
-			anchor = `${shiftMonth(monthOf(anchor), direction)}-01`;
-		} else {
-			const from = fromIsoDate(anchor);
-			anchor = isoDate(
-				new Date(from.getFullYear(), from.getMonth(), from.getDate() + direction * 7)
-			);
-		}
+		focus =
+			view === 'month'
+				? `${shiftMonth(monthOf(focus), direction)}-01`
+				: isoDate(shiftDays(fromIsoDate(focus), direction * 7));
 		selectedSlot = undefined;
 	}
 
 	function goToday() {
-		anchor =
-			view === 'month' ? `${monthOf(isoDate(new Date()))}-01` : isoDate(startOfWeek(new Date()));
+		focus = isoDate(new Date());
 	}
 
+	// Switching views needs no re-anchoring at all now that the focus is a day rather than a range:
+	// "the week of the 12th" and "the month containing the 12th" are the same focus, read two ways.
 	function changeView(next: string) {
-		const wanted = next as View;
-		// Switching re-anchors to the same moment in the other view's own units, so "the week of the
-		// 12th" becomes "the month containing the 12th" and back, rather than jumping to today.
-		if (wanted === 'month' && view !== 'month') anchor = `${monthOf(anchor)}-01`;
-		if (wanted !== 'month' && view === 'month') anchor = isoDate(startOfWeek(fromIsoDate(anchor)));
-		view = wanted;
+		view = next as View;
 		selectedSlot = undefined;
 	}
 
 	/** Clicking a day in the month view opens that week — the ordinary calendar gesture, and the only
 	 * way a month cell can lead anywhere useful given it deliberately shows counts rather than times. */
 	function openDay(date: string) {
-		anchor = isoDate(startOfWeek(fromIsoDate(date)));
+		focus = date;
 		view = 'week';
 	}
 
@@ -295,7 +297,7 @@
 			/>
 		{:else}
 			<CalendarMonth
-				month={monthOf(anchor)}
+				month={monthOf(focus)}
 				days={monthDays}
 				onselect={openDay}
 				cellLabel={(day) => m.booking_calendar_dayFree({ count: day.count })}
