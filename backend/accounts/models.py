@@ -48,6 +48,12 @@ class Profile(models.Model):
     # types — somebody who does not want course traffic does not want any of it, and the per-type
     # mute list below already gives finer control than a second boolean would.
     notify_on_course_activity = models.BooleanField(default=True)
+    # Booking a session with a tutor (booking/). One coarse category, for the same reason course
+    # activity has one: a booking's four events are two people having one conversation, and somebody
+    # who wants none of it wants none of it. Worth more thought before switching off than the others,
+    # though — a tutor who mutes this stops hearing that anybody has asked for an hour of their time,
+    # which the Settings copy says out loud rather than leaving to be discovered.
+    notify_on_booking = models.BooleanField(default=True)
 
     # Finer-grained than the three coarse booleans above, layered on TOP of them rather than
     # replacing them: `notify()` only ever reaches this check once the notification's own coarse

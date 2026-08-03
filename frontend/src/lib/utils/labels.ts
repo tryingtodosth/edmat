@@ -153,6 +153,7 @@ export type NotificationPreferenceCategory =
 	| 'notifyOnModerationDecision'
 	| 'notifyOnContentAction'
 	| 'notifyOnCourseActivity'
+	| 'notifyOnBooking'
 	| null;
 
 export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPreferenceCategory> =
@@ -175,7 +176,14 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		courseEnrollmentDeclined: 'notifyOnCourseActivity',
 		courseRemoved: 'notifyOnCourseActivity',
 		courseNewLesson: 'notifyOnCourseActivity',
-		courseNewPost: 'notifyOnCourseActivity'
+		courseNewPost: 'notifyOnCourseActivity',
+		// All four share one category, on the course types' own reasoning. This is the one worth
+		// reading the coarse label carefully before switching off: a tutor who mutes it stops hearing
+		// that anybody has asked for an hour of their time.
+		bookingRequested: 'notifyOnBooking',
+		bookingConfirmed: 'notifyOnBooking',
+		bookingDeclined: 'notifyOnBooking',
+		bookingCancelled: 'notifyOnBooking'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -199,7 +207,11 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	courseEnrollmentDeclined: m.notifPref_courseEnrollmentDeclined,
 	courseRemoved: m.notifPref_courseRemoved,
 	courseNewLesson: m.notifPref_courseNewLesson,
-	courseNewPost: m.notifPref_courseNewPost
+	courseNewPost: m.notifPref_courseNewPost,
+	bookingRequested: m.notifPref_bookingRequested,
+	bookingConfirmed: m.notifPref_bookingConfirmed,
+	bookingDeclined: m.notifPref_bookingDeclined,
+	bookingCancelled: m.notifPref_bookingCancelled
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)

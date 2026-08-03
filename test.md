@@ -4,8 +4,8 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 493 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 137 checks across 5 scripts |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 550 |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 165 checks across 6 scripts |
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
@@ -57,6 +57,7 @@ inherit from it rather than repeating the line.
 | App | Focus |
 |---|---|
 | `classroom` (86) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings, staff roles, contributions, chapters, invite links |
+| `booking` (57) | Availability arithmetic, the two availability modes against each other, the booking lifecycle, notifications, listing deletion |
 | `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
 | `accounts` profile extras (16) | Experience, skills, the derived activity feed, and the demo-content seed |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
@@ -108,6 +109,36 @@ inherit from it rather than repeating the line.
   the row; the preview is readable logged out and says little; an unknown token is a 404 rather than a
   description; following your own link does not demote you.
 
+#### `booking` in more detail (the two availability modes are the whole point)
+
+- **AvailabilityComputationTests** — a weekly rule becomes back-to-back sessions; a window too short to
+  fit one offers nothing rather than a short session; every day in the range comes back, including the
+  empty ones, so "nothing on Wednesday" is distinguishable from "Wednesday was not asked about"; a rule
+  pinned to one listing does not leak into another while a general one applies to all; a block cuts a
+  hole in the *middle* of a window rather than trimming an edge; an all-day block clears the day; an
+  opening adds hours the weekly pattern never had; a block on the same day beats an opening; overlapping
+  rules do not offer one hour twice; the past is never offered.
+- **ModeTests** — `derived` removes a taken hour from what the next person sees and `declared` does not,
+  against the *same* calendar; a **requested** booking already holds a `derived` slot, not just a
+  confirmed one; declining gives the hour back; and an hour taken through one listing is taken on all of
+  them, because a tutor is one person.
+- **RequestTests** — a request starts as a request in both modes; the end time is the server's to decide;
+  a time the tutor never offered is refused; a second request for the same hour is refused in `derived`
+  and **accepted** in `declared`, which is the mode working rather than a hole in it; a paused listing
+  takes no bookings; nobody books themselves; the past is refused; and booking needs an account.
+- **LifecycleTests** — only the tutor confirms; a third party gets a 404 rather than a 403; a repeated
+  transition is a 409 rather than a 400; a decline keeps the reason; either party may cancel and the row
+  records which; **a tutor cannot confirm two sessions at the same time even in `declared` mode**; a
+  session cannot be completed before it has happened; the tutor is told how many other requests contest
+  a slot and **a student never is**; the list splits by which side you are on.
+- **NotificationTests** — the request reaches the tutor with the time, the answer reaches the student, a
+  decline carries the reason, a cancellation reaches the other party and not the one who did it, and
+  turning the category off stops the row being created at all.
+- **ListingDeletionTests** — a listing with an upcoming booking refuses to be deleted, pausing is offered
+  instead and leaves the booking alone, and once the bookings are settled the delete goes through.
+- **KillSwitchTests** — the `tutoring` flag hides availability and bookings alike, while a moderator
+  keeps access.
+
 ---
 
 ## 2. Browser tests
@@ -153,6 +184,7 @@ node e2e/education-auth.mjs
 node e2e/material-claims.mjs
 node e2e/classroom-overhaul.mjs
 node e2e/profile-editing.mjs
+node e2e/booking.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -204,6 +236,30 @@ a material, is told it is waiting, and it stays invisible to everybody else unti
 not the owner — approves it. Then an invite link: readable logged out without leaking anything else,
 joining straight past the approval queue, and refused once revoked.
 
+**`e2e/booking.mjs` (28 checks)** — three people in three contexts, because the entire feature is
+about the same grid of buttons meaning two different things. A tutor publishes one 14:00–17:00 Tuesday
+rule through the real form (having first been told, correctly, that nobody can book them without one)
+and it becomes three one-hour slots. The same window is captioned differently on a `derived` and a
+`declared` listing. A student requests an hour and is told it is a **request**, not an appointment. That
+hour then vanishes from the derived listing and stays on the declared one; a second person asks for it
+anyway and is accepted. The tutor is warned the hour is contested, confirms one, is **refused** on the
+clashing one in its own words, and declines it. Each student sees their own answer, neither is shown the
+tutor's calendar, and the decline arrives as a notification. A whole-day block empties a Tuesday the
+weekly rule would otherwise fill — read back from the public endpoint with no account. Deleting a listing
+with a live booking is refused, naming pausing as the alternative.
+
+Two things about this script specifically, both deliberate:
+
+- **It signs in as the seeded demo users rather than registering.** Registration is rate-limited per IP,
+  and a script that registers three people exhausts it on repeated runs — at which point the whole run
+  fails in a way that looks exactly like a regression. The price is that those accounts carry state
+  between runs, so the script starts by clearing the tutor's rules and exceptions and cancelling their
+  live bookings **through the real endpoints**. It needs `password123` (the `seed_demo_users` password),
+  overridable with `E2E_DEMO_PASSWORD`.
+- **It ignores exactly one console error**: Chromium logs every non-2xx fetch regardless of whether the
+  app handled it, and this run deliberately provokes a `409` by confirming a clashing session. Only that
+  status is ignored; a 500 or a 403 still fails the run.
+
 **`e2e/material-claims.mjs` (14 checks)** — a material card previews only its top few coverage and
 requirement claims (the real corpus has materials with 30), so the "+N more" count beside them is the
 only route to the rest from a grid — and it was an inert `<span>`. Pins that it is a real button with
@@ -221,7 +277,14 @@ works from the keyboard.
 - **Repeated runs will eventually hit `429 Too Many Requests`** on registration — the auth throttle
   (`accounts/throttles.py`) is real and doing its job. The throttle history lives in the process
   cache, so **restarting the backend clears it**. A run that fails with "the panel did not render"
-  right after several earlier runs is almost always this, not a regression.
+  right after several earlier runs is almost always this, not a regression. `e2e/booking.mjs` sidesteps
+  it entirely by signing in as the seeded demo users instead; the older scripts still register.
+- **A long-lived dev server eventually starves the browser.** After a great many full-page navigations
+  in one session, Chromium starts failing dynamic imports with `net::ERR_INSUFFICIENT_RESOURCES`; the
+  page then renders its server-side HTML and never hydrates, so it looks completely broken while making
+  no API calls at all. **Restarting the Vite dev server fixes it.** `e2e/booking.mjs` also opens a fresh
+  tab per person between sections (`renew()`) for the same reason — auth lives in the browser context,
+  not the tab, so nobody is signed out by it.
 
 ---
 

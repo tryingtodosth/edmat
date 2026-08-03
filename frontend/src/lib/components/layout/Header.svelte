@@ -60,6 +60,12 @@
 			{#if authStore.isAuthenticated && (featureFlagsStore.isEnabled('tutoring') || authStore.isModerator)}
 				<a href={resolve('/services/watchlist')}>{m.nav_watchlist()}</a>
 			{/if}
+			<!-- Behind the same `tutoring` flag as the listings themselves, because booking is part of
+			     tutoring rather than a feature of its own — the backend hides it behind exactly the
+			     same gate, so a link surviving the kill switch would only lead to a 403. -->
+			{#if authStore.isAuthenticated && (featureFlagsStore.isEnabled('tutoring') || authStore.isModerator)}
+				<a href={resolve('/bookings')}>{m.nav_bookings()}</a>
+			{/if}
 			{#if authStore.isAuthenticated && (featureFlagsStore.isEnabled('messaging') || authStore.isModerator)}
 				<a href={resolve('/messages')}>
 					{m.nav_messages()}

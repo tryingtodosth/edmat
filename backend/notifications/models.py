@@ -55,6 +55,15 @@ NOTIFICATION_TYPES = [
     ('course_contribution_rejected', 'Your contribution was not accepted'),
     ('course_staff_added', 'You were made a member of a course team'),
     ('course_invite_used', 'Somebody used your invite link'),
+    # Booking a session with a tutor (booking/). Four types, split by recipient the same way the
+    # course ones are: the tutor gets the request, the student gets the answer, and either can be the
+    # one told about a cancellation. `booking_cancelled` deliberately has no direction in its name
+    # because it genuinely goes both ways — `Booking.cancelled_by` is what says which, and the note
+    # carries the session's own time, so one type is enough.
+    ('booking_requested', 'Somebody asked to book a session with you'),
+    ('booking_confirmed', 'Your booking was confirmed'),
+    ('booking_declined', 'Your booking request was declined'),
+    ('booking_cancelled', 'A booking was cancelled'),
 ]
 
 

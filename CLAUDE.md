@@ -40,6 +40,11 @@ rate limiting in the next, alongside author/source-link provenance on material s
 **Tutor offers then gained a real online/in-person/hybrid distinction with OpenStreetMap-backed
 locations — a Nominatim address search and a Leaflet map picker, plus a "within N km" filter —
 337 tests total, all passing, see Section 17R.**
+**Those offers can now be booked: a tutor publishes weekly hours plus one-off blocks and openings, and
+decides PER OFFERING whether the availability students see is their real free time minus what is taken
+(`derived`) or a fixed published window that keeps showing regardless (`declared`) — two genuinely
+different promises, both stated in words on screen so nobody mistakes one for the other. 550 tests
+total, all passing, see Section 17U.**
 This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
@@ -4190,6 +4195,244 @@ a 500 rather than a 400. Fixed in the serializer.
 the demo login working, Piotr's pending request waiting with its note, a profile showing experience,
 skills with their evidence, and an activity feed that filters by tag and re-sorts. 458 backend tests
 (16 new), zero console errors.
+
+## 17U. Feature: booking sessions with a tutor (✅ built, full stack)
+
+A tutor can publish when they teach, and a student can ask for an hour of it. A new Django app,
+`booking/`, plus `/bookings` on the frontend and a booking panel on every tutoring listing.
+
+It attaches to `services.Service` — a tutoring **offering** — rather than inventing a second,
+parallel notion of "a thing you can book". A Service already carried the provider, the courses, the
+rate and the delivery mode; what it had no answer to was *when*.
+
+### The one decision everything else follows from
+
+A tutor chooses, **per offering**, how the availability a student sees is computed. It is a real
+stored field (`Service.availability_mode`) rather than behaviour inferred from anything, because the
+two answers are two different promises to the student and the student is entitled to know which one
+they are looking at:
+
+| Mode | What a slot on screen means |
+|---|---|
+| `derived` | Declared hours **minus** everything already taken — bookings made here, plus any other appointment the tutor recorded as a block. Booking an hour removes it from what the next person sees. |
+| `declared` | A published window that keeps showing **whole** even once part of it is spoken for. Several people can legitimately ask for the same hour. |
+
+`declared` is not `derived` done badly. Plenty of tutors advertise "2–4pm, ask me" and triage the
+clashes themselves, and a system that could only express the tidy version would be telling those
+people they are holding it wrong. What it must not do is let a student *mistake* one for the other,
+so the mode is stated in words above the grid in both cases — including the good one, since a notice
+that only ever appears when something is qualified teaches people to distrust its absence.
+
+**The default is `derived`**, and that is the mode that cannot mislead: it shows less than it might,
+where `declared` can show an hour that is gone. Advertising over-subscribed hours stays available as
+something you turn on having read what it means. Every listing that predates the field gets
+`derived`, which for a tutor who has declared no hours at all shows nothing either way — so the
+default cannot retroactively publish availability nobody claimed.
+
+### What a request means in each mode, decided rather than left to fall out
+
+**Every booking starts as a request, and needs the tutor's confirmation, in BOTH modes.** Nothing in
+this app ever writes a confirmed booking directly. A stranger should not be able to put an
+appointment in somebody's calendar, and a tutor should be free to refuse a particular student without
+having to undo something they never agreed to. **The mode changes what is shown and what is refused,
+never who decides** — which is exactly what stops `declared` from being a hole.
+
+The two modes then meet in **one** function. `is_offered_slot()` asks whether a requested time is
+genuinely one of the slots the listing is publishing *right now*, using the same computation the
+browse endpoint uses, and both modes' entire booking semantics fall out of that one subtraction:
+
+- in `derived`, a slot somebody has already asked for is not in the published list, so the second
+  request is **refused** ("that slot is no longer available");
+- in `declared`, the same slot **is** still in the list, so the second request is **accepted**, and
+  the tutor sorts it out.
+
+Deliberately the same function rather than a separate "does this look reasonable" check, so a student
+also cannot request 03:00 on a Sunday just because they can craft the POST.
+
+**A `requested` booking holds a `derived` slot, not just a `confirmed` one** (`BLOCKING_STATUSES`).
+That is a real choice with a real cost — the first person to ask holds the hour until the tutor
+answers — but the alternative is a slot shown as free, requested by four people, disappointing three.
+That would defeat the entire promise of the mode. The cost is named in "Left open": there is no
+expiry on an unanswered request.
+
+**Confirming two overlapping bookings is refused in both modes.** `declared` is a statement about
+what is *published*, not a claim to be in two places at once; a Booking has exactly one student, so
+allowing it would be silently pretending group sessions exist. It matters in `derived` too, despite
+the request path already refusing overlaps there, because a tutor can switch an offering from
+`declared` to `derived` after the requests have landed.
+
+**Confirming one request does not auto-decline the others.** The tutor may want to counter-offer, or
+may know the other two are the same study group. What they must not have to do is decide blind, so a
+contested request carries a count of what it clashes with — **tutor-only**, since that count is a
+window onto their whole calendar across every listing they run, which is precisely what `declared`
+mode exists to keep private. For a student it is always 0.
+
+For the same reason, a `declared` calendar does **not** return taken slots flagged as taken. Doing so
+would leak the tutor's real load to anybody who opened the page and half-defeat the mode. What the
+student gets instead is the mode said plainly.
+
+### Whose calendar is it — the model shape
+
+**Availability rules belong to the tutor, with an optional narrowing to one offering.** A person has
+one calendar; a tutor with three listings who had to re-declare Tuesday afternoon three times would
+be maintaining three copies of one fact, and the copies would drift, so "when is this person free"
+would depend on which listing you asked. `AvailabilityRule.service` being nullable keeps the narrower
+case anyway ("I only teach Analiza on Thursday evenings").
+
+**Busy time is always computed tutor-wide, across every listing.** An hour booked through the physics
+listing is not available through the maths one. Scoping it per listing would produce exactly that
+double-booking while each listing looked internally consistent.
+
+**`AvailabilityException` has two kinds, not an `is_blocked` boolean.** `block` is "not that Tuesday"
+— a conference, a dentist, an exam they are sitting themselves, i.e. the "any other appointments they
+have recorded" half of the brief — while `open` is "and also this one Saturday", which no amount of
+blocking can express. Openings are added *before* blocks are subtracted, so "I'm away that day" wins
+over "and also this Saturday" rather than the two quietly disagreeing. All-day means the whole day and
+is only meaningful for a block; an all-day *opening* would be a claim to be free from midnight to
+midnight, so it is refused.
+
+**`Booking.ends_at` is stored, not derived** from `Service.session_minutes` on read: a tutor who later
+changes their session length from 60 to 90 minutes has not thereby lengthened every appointment
+already in their calendar. `Booking.tutor` is denormalized from `service.provider` and load-bearing
+rather than convenient — every busy-time query is tutor-wide, and routing it through
+`service__provider` would make the one query the whole feature depends on a join a new call site can
+forget.
+
+**Five statuses, not three** (`requested → confirmed/declined → cancelled/completed`). `declined` is
+the tutor's answer to a request; `cancelled` is either party walking away from something already
+agreed, with `cancelled_by` recording which — the distinction each party actually wants when they look
+back at it. `complete` is refused before the session has ended (a completed booking for an hour still
+in the future is a claim about something that has not happened) and is never automatic on the clock
+passing, because plenty of confirmed sessions do not happen and marking them complete would turn a
+record of what took place into a record of what was scheduled.
+
+### The API, and where the seams are
+
+`BookingViewSet` is a `ReadOnlyModelViewSet` plus four explicit actions rather than a `ModelViewSet`:
+a booking is never edited as a bag of fields, every change to one is a specific act by a specific
+party with its own rules, and a generic PATCH would be a way to write `status='confirmed'` straight
+past all of them. A third party gets a **404** (queryset scoping, matching this app's convention for a
+private conversation); the wrong one of the two parties gets a **403**, because pretending it does not
+exist is a lie they can disprove by reading it; a wrong-status transition gets a **409**, because
+nothing about the request was malformed — the world moved.
+
+`GET /api/services/{id}/availability/` lives in the booking app despite its `services/` URL: the URL
+says what the availability is *of*, the code belongs with what computes it. An `@action` on
+`ServiceViewSet` would have made services import booking, which already imports it back. It is public,
+like the listing itself, and returns `availability_mode`, `session_minutes` and — its own flag rather
+than inferred — `has_schedule`, because a fully-booked fortnight and a schedule nobody ever wrote look
+identical from an empty day list and want completely different words on screen.
+
+**Booking hides behind the existing `tutoring` kill switch**, not a flag of its own. Turning tutoring
+off already takes the listings away; leaving their booking endpoints live would let a stale tab write
+appointments against a feature that is supposed to be gone.
+
+**Deleting a listing that still has an upcoming booking is refused (409).** `Booking.service` cascades,
+so the delete would take real, agreed appointments with it, silently, from the student's side as well.
+A listing is an offer; a booking is an agreement; withdrawing the first is not the same act as standing
+somebody up. Pausing is offered instead and already existed (`is_active`) — it removes the listing from
+every browse and refuses new bookings while leaving the agreed ones intact. This is the one place the
+services→booking dependency runs backwards, so the import is local and commented as such.
+
+### Notifications
+
+Four types (`booking_requested/confirmed/declined/cancelled`), split by recipient the same way the
+course ones are: the tutor gets the request, the student gets the answer, either can be the one told
+about a cancellation. One `cancelled` type for both directions, because `cancelled_by` already records
+which side it was. All four sit under one new coarse preference (`Profile.notify_on_booking`) — and the
+settings copy names the consequence out loud, because a tutor who mutes this stops hearing that anybody
+has asked for an hour of their time.
+
+**No `Notification` FK to `Booking`, deliberately.** The existing `exercise`/`material`/`taught_course`
+columns exist because each has a real page to open. A booking does not: there is no per-booking route,
+and both parties' destination is the same schedule page, which is also where the request is acted on.
+`NotificationCard.svelte` routes the four types there by type, which is simpler than a fifth nullable
+column that would always point at one URL.
+
+### Frontend
+
+- **`/bookings`** — one page, three tabs, because they are three views of one calendar rather than
+  three features: splitting them across routes would mean a tutor answering a request has to leave the
+  page to check whether they had already blocked that afternoon. Requests for me / My bookings / My
+  availability. Neither side is gated behind a role, since most accounts here are both a tutor and a
+  student — the same reasoning messaging's single inbox already follows.
+- **`BookingPanel.svelte`** on `/services/[id]`, above reviews and discussion: somebody who has read
+  the card and the map is deciding whether they can get an hour, and that comes before what other
+  people thought.
+- The success message says **"Request sent — the tutor still has to confirm it"**, never "booked".
+  Telling somebody they have an appointment when what they have is a question would be the single most
+  misleading sentence this feature could say.
+- `ServiceForm` gained the mode as two radios with a sentence each rather than a select: the difference
+  between them is a paragraph, not a word, and a tutor picking `declared` should be reading what it
+  means at the moment they pick it.
+- Full i18n parity — every new string in both `en.json` and `pl.json` (1018 keys each, verified
+  key-set-identical programmatically).
+
+### Two real bugs, both found by driving a browser rather than by reading the code
+
+1. **A refusal explained itself and then wiped the explanation.** `/bookings`'s `load()` cleared
+   `actionError` on entry, and the 409 path set the message *then* reloaded to show the world as it now
+   was — so the tutor saw the list rearrange itself with no word about why their click had not worked.
+   `load()` no longer clears it; callers clear it before acting, which is when it stops being true.
+2. **A repeatable script needed a reset the API could actually perform.** The e2e script signs in as
+   the seeded demo users rather than registering (registration is rate-limited per IP, and a script
+   that registers three people exhausts it on repeated runs — at which point the whole run fails in a
+   way that looks exactly like a regression). That made the accounts stateful, so the script now starts
+   by clearing the tutor's rules and exceptions and cancelling their live bookings *through the real
+   endpoints*. A script that had to reach into the database to set itself up would not be exercising
+   the same system a person uses.
+
+### Verified
+
+**Backend: 550 tests, all passing** (57 new in `booking/tests.py`, up from 493). The slot arithmetic is
+pinned directly — back-to-back sessions, a window too short to fit one, a block cutting a hole in the
+middle rather than trimming an edge, an all-day block, an opening the weekly pattern never had, a block
+beating an opening on the same day, overlapping rules not offering one hour twice, and the past never
+offered. Then the modes against each other, on the same calendar: `derived` removes a taken hour,
+`declared` does not, a *requested* booking already holds a derived slot, a declined one gives it back,
+and an hour taken through one listing is taken on all of them.
+
+**Browser: `e2e/booking.mjs`, 28 checks, zero console/page errors**, three people in three contexts
+against the real servers. The same published window is captioned differently in the two modes; three
+one-hour slots come out of one 14:00–17:00 rule; the student is told it is a request; the hour then
+vanishes from the derived listing and stays on the declared one; a second person asks for it anyway and
+is accepted; the tutor is warned the hour is contested, confirms one, is **refused** on the clashing one
+in its own words, declines it; each student sees their own answer and neither is shown the tutor's
+calendar; a whole-day block empties a Tuesday the weekly rule would otherwise fill, read back from the
+public endpoint with no account; and deleting a listing with a live booking is refused, naming pausing
+as the alternative.
+
+**Regression:** `classroom.mjs` (44), `classroom-overhaul.mjs` (29), `material-claims.mjs` (14) and
+`profile-editing.mjs` (8) all re-run clean, zero console/page errors. `npm run check`: 0 errors, 0
+warnings. `npm run build`: clean. `manage.py check` and `makemigrations --check --dry-run` both clean.
+
+### Left open, not built
+
+- **No expiry on an unanswered request.** A `derived` slot is held by whoever asked first until the
+  tutor answers, so an unattended tutor's calendar can be squatted. A real version wants a lease, or a
+  tutor-configurable auto-decline.
+- **No timezone per tutor.** Rules are interpreted in the project timezone (`settings.TIME_ZONE`, UTC).
+  A tutor abroad would be publishing hours in the wrong one. Nothing in this app has ever had a
+  timezone field, and guessing one from the browser would be worse than not having it.
+- **No auto-confirm option**, even for `derived` where the slot was provably free. Defensible either
+  way; deciding it belongs with a real tutor asking for it.
+- **No rescheduling.** A booking is cancelled and a new one requested; there is no "move this to
+  Thursday" that keeps the thread.
+- **No calendar export or import** — no `.ics` feed, and no way to have an external calendar's busy
+  time subtracted. The `block` exception is the manual stand-in for exactly that, which is honest but
+  is data entry.
+- **Slots step by the session length**, so a 90-minute session inside a 14:00–17:00 window offers
+  14:00 and 15:30 and drops the tail. A sliding grid would offer four times as many slots for the same
+  hours and booking any one would silently invalidate its neighbours, which is worse for a student to
+  run into; a real answer is per-listing granularity, which nobody has asked for yet.
+- **No cancellation window or no-show handling.** Either party can cancel a confirmed session one
+  minute before it starts, with no consequence recorded anywhere.
+- **A booking has no discussion of its own.** The student's note and the tutor's reply are one field
+  each; anything further goes through the existing messaging.
+- **Nothing connects a completed session to money.** This app has no payment processing anywhere
+  (`Service.hourly_rate` has always been display-only), and a booking does not change that.
+- **No moderation or reporting surface for a booking**, matching the gap Section 17P already names for
+  Service listings and messages.
 
 ---
 

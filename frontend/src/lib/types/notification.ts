@@ -24,7 +24,15 @@ export type NotificationType =
 	| 'courseEnrollmentDeclined'
 	| 'courseRemoved'
 	| 'courseNewLesson'
-	| 'courseNewPost';
+	| 'courseNewPost'
+	// Booking a session with a tutor (booking/). Four types, split by recipient: the tutor gets the
+	// request, the student gets the answer, and either can be the one told about a cancellation.
+	// `bookingCancelled` covers both directions on purpose — the row already records which side did
+	// it, so a second type would only duplicate that.
+	| 'bookingRequested'
+	| 'bookingConfirmed'
+	| 'bookingDeclined'
+	| 'bookingCancelled';
 
 export interface Notification {
 	id: string;

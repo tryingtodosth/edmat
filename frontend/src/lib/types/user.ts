@@ -42,6 +42,7 @@ export interface User {
 	notifyOnModerationDecision?: boolean;
 	notifyOnContentAction?: boolean;
 	notifyOnCourseActivity?: boolean;
+	notifyOnBooking?: boolean;
 	// Finer-grained than the three notifyOn* booleans above, layered on TOP of them — a type in
 	// here is suppressed even when its own coarse category is otherwise on (see
 	// accounts/models.py's Profile.muted_notification_types for the full reasoning). Same

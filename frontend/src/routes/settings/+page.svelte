@@ -20,6 +20,7 @@
 	let notifyOnModerationDecision = $state(true);
 	let notifyOnContentAction = $state(true);
 	let notifyOnCourseActivity = $state(true);
+	let notifyOnBooking = $state(true);
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, course-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
@@ -50,6 +51,9 @@
 	const courseActivityTypes = (
 		Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]
 	).filter((t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnCourseActivity');
+	const bookingTypes = (Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]).filter(
+		(t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnBooking'
+	);
 
 	function toggleMuted(type: NotificationType) {
 		if (mutedTypes.has(type)) {
@@ -73,6 +77,7 @@
 		notifyOnModerationDecision = authStore.user.notifyOnModerationDecision ?? true;
 		notifyOnContentAction = authStore.user.notifyOnContentAction ?? true;
 		notifyOnCourseActivity = authStore.user.notifyOnCourseActivity ?? true;
+		notifyOnBooking = authStore.user.notifyOnBooking ?? true;
 		offersTutoring = authStore.user.offersTutoring;
 		tutoringNote = authStore.user.tutoringNote;
 		// Mutate the existing SvelteSet in place, not a reassignment — `mutedTypes` is a plain `let`
@@ -96,6 +101,7 @@
 			notifyOnModerationDecision,
 			notifyOnContentAction,
 			notifyOnCourseActivity,
+			notifyOnBooking,
 			mutedNotificationTypes: Array.from(mutedTypes),
 			offersTutoring,
 			tutoringNote
@@ -268,6 +274,29 @@
 				{#if notifyOnCourseActivity}
 					<ul class="fine-tune">
 						{#each courseActivityTypes as type (type)}
+							<li>
+								<label class="checkbox checkbox--sub">
+									<input
+										type="checkbox"
+										checked={!mutedTypes.has(type)}
+										onchange={() => toggleMuted(type)}
+									/>
+									<span>{NOTIFICATION_TYPE_LABELS[type]?.()}</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<!-- Its own coarse category, and the copy names the consequence rather than leaving it to
+				     be discovered: a tutor who turns this off stops being told that anybody has asked for
+				     an hour of their time. -->
+				<label class="checkbox">
+					<input type="checkbox" bind:checked={notifyOnBooking} />
+					<span>{m.settings_notifyOnBooking()}</span>
+				</label>
+				{#if notifyOnBooking}
+					<ul class="fine-tune">
+						{#each bookingTypes as type (type)}
 							<li>
 								<label class="checkbox checkbox--sub">
 									<input

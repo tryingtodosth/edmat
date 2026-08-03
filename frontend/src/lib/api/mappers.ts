@@ -11,6 +11,9 @@
 // beyond "stable and unique," which a PK-as-string already is.
 
 import type {
+	AvailabilityException,
+	AvailabilityRule,
+	Booking,
 	Comment,
 	CommentTargetType,
 	Course,
@@ -40,6 +43,7 @@ import type {
 	ResolvedExercise,
 	Review,
 	Service,
+	ServiceAvailability,
 	ServiceReview,
 	ServiceWatch,
 	Subtopic,
@@ -792,7 +796,11 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	course_enrollment_declined: 'courseEnrollmentDeclined',
 	course_removed: 'courseRemoved',
 	course_new_lesson: 'courseNewLesson',
-	course_new_post: 'courseNewPost'
+	course_new_post: 'courseNewPost',
+	booking_requested: 'bookingRequested',
+	booking_confirmed: 'bookingConfirmed',
+	booking_declined: 'bookingDeclined',
+	booking_cancelled: 'bookingCancelled'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -820,6 +828,7 @@ export interface RawProfile {
 	notify_on_moderation_decision?: boolean;
 	notify_on_content_action?: boolean;
 	notify_on_course_activity?: boolean;
+	notify_on_booking?: boolean;
 	muted_notification_types?: string[]; // snake_case type strings — converted below
 	donation_links?: RawDonationLink[];
 	// Always present on BOTH /auth/me/ and /users/{id}/ — accounts/serializers.py's
@@ -850,6 +859,7 @@ export function mapUser(json: RawProfile): User {
 		notifyOnModerationDecision: json.notify_on_moderation_decision,
 		notifyOnContentAction: json.notify_on_content_action,
 		notifyOnCourseActivity: json.notify_on_course_activity,
+		notifyOnBooking: json.notify_on_booking,
 		mutedNotificationTypes: json.muted_notification_types
 			?.map((t) => NOTIFICATION_TYPE_MAP[t])
 			.filter((t): t is Notification['type'] => t !== undefined)
@@ -980,6 +990,8 @@ export interface RawService {
 	location_label: string;
 	location_lat: string | null; // DRF DecimalField -> string, same as hourly_rate above
 	location_lon: string | null;
+	availability_mode: string;
+	session_minutes: number;
 	average_rating: number | null;
 	review_count: number;
 	created_at: string;
@@ -1010,10 +1022,115 @@ export function mapService(json: RawService): Service {
 						lon: Number(json.location_lon)
 					}
 				: undefined,
+		// Anything unrecognised falls back to `derived`, matching the backend default and the safer
+		// of the two: `derived` shows less than it might, whereas a wrongly-assumed `declared` would
+		// tell a student an hour is on offer when it has already gone.
+		availabilityMode: json.availability_mode === 'declared' ? 'declared' : 'derived',
+		sessionMinutes: json.session_minutes ?? 60,
 		averageRating: json.average_rating,
 		reviewCount: json.review_count,
 		createdAt: json.created_at,
 		updatedAt: json.updated_at
+	};
+}
+
+// ---- booking ----------------------------------------------------------------------------------
+
+export interface RawAvailabilityRule {
+	id: number;
+	service: number | null;
+	weekday: number;
+	start_time: string;
+	end_time: string;
+}
+
+export function mapAvailabilityRule(json: RawAvailabilityRule): AvailabilityRule {
+	return {
+		id: String(json.id),
+		serviceId: json.service !== null ? String(json.service) : undefined,
+		weekday: json.weekday,
+		// Django serializes a TimeField as 'HH:MM:SS'. Every input and label in this feature works in
+		// 'HH:MM', so the seconds are dropped once here rather than at each of those sites.
+		startTime: json.start_time.slice(0, 5),
+		endTime: json.end_time.slice(0, 5)
+	};
+}
+
+export interface RawAvailabilityException {
+	id: number;
+	date: string;
+	kind: string;
+	start_time: string | null;
+	end_time: string | null;
+	note: string;
+}
+
+export function mapAvailabilityException(json: RawAvailabilityException): AvailabilityException {
+	return {
+		id: String(json.id),
+		date: json.date,
+		kind: json.kind === 'open' ? 'open' : 'block',
+		startTime: json.start_time ? json.start_time.slice(0, 5) : undefined,
+		endTime: json.end_time ? json.end_time.slice(0, 5) : undefined,
+		note: json.note ?? ''
+	};
+}
+
+export interface RawServiceAvailability {
+	service: number;
+	availability_mode: string;
+	session_minutes: number;
+	has_schedule: boolean;
+	days: { date: string; slots: { start: string; end: string }[] }[];
+}
+
+export function mapServiceAvailability(json: RawServiceAvailability): ServiceAvailability {
+	return {
+		serviceId: String(json.service),
+		mode: json.availability_mode === 'declared' ? 'declared' : 'derived',
+		sessionMinutes: json.session_minutes,
+		hasSchedule: json.has_schedule,
+		days: json.days.map((day) => ({ date: day.date, slots: day.slots }))
+	};
+}
+
+export interface RawBooking {
+	id: number;
+	service: number;
+	service_title: string;
+	availability_mode: string;
+	tutor: number;
+	tutor_display_name: string;
+	student: number;
+	student_display_name: string;
+	starts_at: string;
+	ends_at: string;
+	status: string;
+	student_note: string;
+	tutor_note: string;
+	cancelled_by: number | null;
+	overlapping_count: number;
+	created_at: string;
+}
+
+export function mapBooking(json: RawBooking): Booking {
+	return {
+		id: String(json.id),
+		serviceId: String(json.service),
+		serviceTitle: json.service_title,
+		availabilityMode: json.availability_mode === 'declared' ? 'declared' : 'derived',
+		tutorId: String(json.tutor),
+		tutorDisplayName: json.tutor_display_name,
+		studentId: String(json.student),
+		studentDisplayName: json.student_display_name,
+		startsAt: json.starts_at,
+		endsAt: json.ends_at,
+		status: json.status as Booking['status'],
+		studentNote: json.student_note ?? '',
+		tutorNote: json.tutor_note ?? '',
+		cancelledById: json.cancelled_by !== null ? String(json.cancelled_by) : undefined,
+		overlappingCount: json.overlapping_count ?? 0,
+		createdAt: json.created_at
 	};
 }
 

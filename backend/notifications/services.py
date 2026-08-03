@@ -37,6 +37,12 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'course_removed': 'notify_on_course_activity',
     'course_new_lesson': 'notify_on_course_activity',
     'course_new_post': 'notify_on_course_activity',
+    # Booking (booking/). One coarse category for all four, on the course types' own reasoning — see
+    # Profile.notify_on_booking for why this is the one worth thinking twice about before muting.
+    'booking_requested': 'notify_on_booking',
+    'booking_confirmed': 'notify_on_booking',
+    'booking_declined': 'notify_on_booking',
+    'booking_cancelled': 'notify_on_booking',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile

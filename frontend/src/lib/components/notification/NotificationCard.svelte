@@ -61,8 +61,34 @@
 			m.notification_courseNewPost({
 				actor: notification.actorDisplayName || m.notification_someone(),
 				title: notification.targetLabel
+			}),
+		// `note` carries the session's own date and time (and, for a decline, the tutor's reason) and
+		// renders on its own line below — so these say what happened rather than repeating when, the
+		// same restraint every other type here already follows for its own note.
+		bookingRequested: () =>
+			m.notification_bookingRequested({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		bookingConfirmed: () => m.notification_bookingConfirmed({ title: notification.targetLabel }),
+		bookingDeclined: () => m.notification_bookingDeclined({ title: notification.targetLabel }),
+		bookingCancelled: () =>
+			m.notification_bookingCancelled({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
 			})
 	};
+
+	// A booking has no page of its own, and deliberately so: both parties' destination is the same
+	// schedule page, which is also where the request is actually acted on. Routing by type here is a
+	// genuinely simpler answer than a fifth nullable FK on Notification that would always point at
+	// the same URL — see backend/booking/services.py's own note.
+	const BOOKING_TYPES = new Set<Notification['type']>([
+		'bookingRequested',
+		'bookingConfirmed',
+		'bookingDeclined',
+		'bookingCancelled'
+	]);
 
 	let message = $derived(MESSAGE_BY_TYPE[notification.type]());
 	// ✅ Phase 4 — a newTaggedContent notification can target a Material instead of an Exercise;
@@ -71,13 +97,15 @@
 	// submission has no exercise to link to" case still correctly uses below. Now resolves to the
 	// real material detail page (materials/[id]/+page.svelte) instead.
 	let href = $derived(
-		notification.exerciseId
-			? resolve('/exercises/[id]', { id: notification.exerciseId })
-			: notification.materialId
-				? resolve('/materials/[id]', { id: notification.materialId })
-				: notification.taughtCourseId
-					? resolve('/classroom/[id]', { id: notification.taughtCourseId })
-					: undefined
+		BOOKING_TYPES.has(notification.type)
+			? resolve('/bookings')
+			: notification.exerciseId
+				? resolve('/exercises/[id]', { id: notification.exerciseId })
+				: notification.materialId
+					? resolve('/materials/[id]', { id: notification.materialId })
+					: notification.taughtCourseId
+						? resolve('/classroom/[id]', { id: notification.taughtCourseId })
+						: undefined
 	);
 
 	function handleClick() {
