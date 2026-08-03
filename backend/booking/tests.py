@@ -266,6 +266,99 @@ class ModeTests(ApiTestCase):
         self.assertEqual(starts, [self.at(tuesday, 15)])
 
 
+class MyScheduleTests(ApiTestCase):
+    """The tutor's own calendar. Every test here pins a way it differs from the student-facing
+    availability endpoint — those differences are the whole reason it exists separately."""
+
+    def setUp(self):
+        super().setUp()
+        self.tuesday = self.next_weekday(1)
+        self.rule(1, 14, 18)
+        self.service = self.make_service()
+
+    def get(self, user, **params):
+        query = '&'.join(f'{key}={value}' for key, value in params.items())
+        return self.as_(user).get(f'/api/my-schedule/{"?" + query if query else ""}')
+
+    def day(self, response, day):
+        return next(d for d in response.data['days'] if d['date'] == day.isoformat())
+
+    def one_day(self, user, day):
+        return self.get(user, **{'from': day.isoformat(), 'to': day.isoformat()})
+
+    def test_a_booked_hour_stays_inside_its_window_rather_than_being_cut_out_of_it(self):
+        """The one thing a calendar must not do. The student-facing endpoint subtracts a taken hour;
+        here the window stays whole and the booking is drawn on top of it."""
+        self.book(self.service, self.tuesday, 15, status='confirmed')
+
+        response = self.one_day(self.tutor, self.tuesday)
+        windows = self.day(response, self.tuesday)['windows']
+        self.assertEqual(len(windows), 1)
+        self.assertTrue(windows[0]['start'].startswith(f'{self.tuesday.isoformat()}T14:00'))
+        self.assertEqual(len(response.data['bookings']), 1)
+
+    def test_windows_are_not_sliced_into_sessions(self):
+        """Session length belongs to one offering and this view spans all of them, so a 14:00-18:00
+        rule is one four-hour window here rather than four bookable hours."""
+        response = self.one_day(self.tutor, self.tuesday)
+        self.assertEqual(len(self.day(response, self.tuesday)['windows']), 1)
+
+    def test_rules_pinned_to_different_listings_all_appear(self):
+        """"When might I be working" spans every listing — which one an hour was published under is a
+        question for the rules list, not for the calendar."""
+        other = self.make_service(title='Physics')
+        self.rule(2, 9, 11, service=other)
+        wednesday = self.next_weekday(2)
+
+        response = self.one_day(self.tutor, wednesday)
+        self.assertEqual(len(self.day(response, wednesday)['windows']), 1)
+
+    def test_the_past_is_not_hidden(self):
+        last_time = self.tuesday - timedelta(days=14)
+        response = self.one_day(self.tutor, last_time)
+        self.assertEqual(len(self.day(response, last_time)['windows']), 1)
+
+    def test_a_blocked_day_has_no_window_at_all(self):
+        AvailabilityException.objects.create(tutor=self.tutor, date=self.tuesday, kind='block')
+        response = self.one_day(self.tutor, self.tuesday)
+        self.assertEqual(self.day(response, self.tuesday)['windows'], [])
+
+    def test_both_sides_of_the_caller_show_up_in_one_calendar(self):
+        """Somebody who teaches on Tuesday and takes a lesson on Thursday has one week, not two."""
+        self.book(self.service, self.tuesday, 14, status='confirmed')
+        theirs = self.make_service(provider=self.student, title='Their listing')
+        Booking.objects.create(
+            service=theirs,
+            tutor=self.student,
+            student=self.tutor,
+            starts_at=self.at(self.tuesday, 20),
+            ends_at=self.at(self.tuesday, 21),
+            status='confirmed',
+        )
+
+        response = self.one_day(self.tutor, self.tuesday)
+        self.assertEqual(len(response.data['bookings']), 2)
+
+    def test_nobody_else_is_in_it(self):
+        self.book(self.service, self.tuesday, 14, status='confirmed')
+        response = self.one_day(self.other, self.tuesday)
+        self.assertEqual(response.data['bookings'], [])
+        self.assertEqual(self.day(response, self.tuesday)['windows'], [])
+
+    def test_it_needs_an_account(self):
+        self.assertEqual(self.client.get('/api/my-schedule/').status_code, 401)
+
+    def test_an_absurd_span_is_trimmed_rather_than_rendered(self):
+        response = self.get(
+            self.tutor,
+            **{
+                'from': self.tuesday.isoformat(),
+                'to': (self.tuesday + timedelta(days=900)).isoformat(),
+            },
+        )
+        self.assertLessEqual(len(response.data['days']), 91)
+
+
 class AvailabilityEndpointTests(ApiTestCase):
     def test_availability_is_public_and_says_which_mode_produced_it(self):
         service = self.make_service(availability_mode='declared')

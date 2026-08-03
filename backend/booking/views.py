@@ -1,4 +1,4 @@
-from datetime import date as date_cls, timedelta
+from datetime import date as date_cls, datetime, time, timedelta
 
 from django.db.models import Q
 from django.utils import timezone
@@ -16,6 +16,7 @@ from .availability import (
     conflicting_confirmed,
     overlapping_open,
     slots_for_service,
+    windows_for_tutor,
 )
 from .models import OPEN_STATUSES, AvailabilityException, AvailabilityRule, Booking
 from .serializers import (
@@ -102,6 +103,78 @@ class ServiceAvailabilityView(APIView):
                     }
                     for day in days
                 ],
+            }
+        )
+
+
+class MyScheduleView(APIView):
+    """`GET /api/my-schedule/?from=&to=` — the caller's own calendar: published windows, and the
+    bookings sitting inside them.
+
+    A separate endpoint from `/services/{id}/availability/` rather than a flag on it, because the two
+    answer genuinely different questions. That one asks "what can I book on this offering", so it is
+    scoped to one listing, sliced into that listing's session length, and has the taken hours already
+    removed. This asks "what does my week look like", which spans every listing, has no single
+    session length to slice by, and must show the bookings rather than subtract them — a calendar
+    with the appointments cut out of it is the one thing a calendar must not be.
+
+    It also does not hide the past: somebody looking back at last week wants last week.
+
+    Both parties' bookings come back, not only the ones where the caller is the tutor. Somebody who
+    teaches on Tuesday and takes a lesson on Thursday has one week, not two, and a calendar showing
+    half of it would be worse than useless for deciding whether Thursday is free.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, _TutoringFeatureGate]
+
+    def get(self, request):
+        today = timezone.localdate()
+        start_day = _parse_day(request.query_params.get('from'), today)
+        end_day = _parse_day(
+            request.query_params.get('to'), start_day + timedelta(days=DEFAULT_HORIZON_DAYS - 1)
+        )
+        # Bounded by SPAN here rather than clamped to a horizon from today, unlike the public
+        # endpoint: this one may legitimately look backwards, so "no more than 90 days at a time" is
+        # the honest limit, not "nothing past today + 90".
+        if (end_day - start_day).days > MAX_HORIZON_DAYS:
+            end_day = start_day + timedelta(days=MAX_HORIZON_DAYS)
+
+        windows = windows_for_tutor(request.user, start_day, end_day)
+
+        tz = timezone.get_default_timezone()
+        span_start = timezone.make_aware(datetime.combine(start_day, time.min), tz)
+        span_end = timezone.make_aware(
+            datetime.combine(end_day + timedelta(days=1), time.min), tz
+        )
+        bookings = (
+            Booking.objects.filter(Q(tutor=request.user) | Q(student=request.user))
+            .filter(starts_at__lt=span_end, ends_at__gt=span_start)
+            .select_related('service', 'tutor', 'student', 'tutor__profile', 'student__profile')
+        )
+        # `as_tutor` is decided per row, not per request: one week can hold both a lesson somebody
+        # booked with you and one you booked with somebody else, and only the first kind may carry a
+        # clash count (BookingSerializer.get_overlapping_count).
+        serialized = [
+            BookingSerializer(
+                booking,
+                context={'request': request, 'as_tutor': booking.tutor_id == request.user.pk},
+            ).data
+            for booking in bookings
+        ]
+
+        return Response(
+            {
+                'days': [
+                    {
+                        'date': day.isoformat(),
+                        'windows': [
+                            {'start': window.start.isoformat(), 'end': window.end.isoformat()}
+                            for window in day_windows
+                        ],
+                    }
+                    for day, day_windows in sorted(windows.items())
+                ],
+                'bookings': serialized,
             }
         )
 

@@ -4,8 +4,8 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 550 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 165 checks across 6 scripts |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 559 |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 179 checks across 6 scripts |
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
@@ -57,7 +57,7 @@ inherit from it rather than repeating the line.
 | App | Focus |
 |---|---|
 | `classroom` (86) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings, staff roles, contributions, chapters, invite links |
-| `booking` (57) | Availability arithmetic, the two availability modes against each other, the booking lifecycle, notifications, listing deletion |
+| `booking` (66) | Availability arithmetic, the two availability modes against each other, the booking lifecycle, notifications, listing deletion, the tutor's own calendar |
 | `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
 | `accounts` profile extras (16) | Experience, skills, the derived activity feed, and the demo-content seed |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
@@ -136,6 +136,12 @@ inherit from it rather than repeating the line.
   turning the category off stops the row being created at all.
 - **ListingDeletionTests** — a listing with an upcoming booking refuses to be deleted, pausing is offered
   instead and leaves the booking alone, and once the bookings are settled the delete goes through.
+- **MyScheduleTests** — the tutor's own calendar, and every test is a way it differs from the
+  student-facing endpoint, which is why it exists separately: a booked hour stays **inside** its window
+  rather than being cut out of it, windows are not sliced into sessions, rules pinned to different
+  listings all appear, the past is not hidden, a blocked day has no window at all, both sides of the
+  caller's account land in one calendar, nobody else's does, it needs an account, and an absurd span is
+  trimmed rather than rendered.
 - **KillSwitchTests** — the `tutoring` flag hides availability and bookings alike, while a moderator
   keeps access.
 
@@ -236,7 +242,7 @@ a material, is told it is waiting, and it stays invisible to everybody else unti
 not the owner — approves it. Then an invite link: readable logged out without leaking anything else,
 joining straight past the approval queue, and refused once revoked.
 
-**`e2e/booking.mjs` (28 checks)** — three people in three contexts, because the entire feature is
+**`e2e/booking.mjs` (42 checks)** — three people in three contexts, because the entire feature is
 about the same grid of buttons meaning two different things. A tutor publishes one 14:00–17:00 Tuesday
 rule through the real form (having first been told, correctly, that nobody can book them without one)
 and it becomes three one-hour slots. The same window is captioned differently on a `derived` and a
@@ -247,6 +253,12 @@ clashing one in its own words, and declines it. Each student sees their own answ
 tutor's calendar, and the decline arrives as a notification. A whole-day block empties a Tuesday the
 weekly rule would otherwise fill — read back from the public endpoint with no account. Deleting a listing
 with a live booking is refused, naming pausing as the alternative.
+
+Then the same availability in the other two views: the week grid renders an hour axis and seven columns
+holding exactly the slots the list showed, as real pressable buttons; the month grid is whole weeks and
+marks the days with free times; clicking a day opens its week. And the tutor's own calendar draws
+published hours as background bands with the confirmed session **on** them and the declined one absent
+— the difference between this endpoint and the student-facing one, made visible.
 
 Two things about this script specifically, both deliberate:
 

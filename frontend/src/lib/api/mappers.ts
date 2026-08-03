@@ -48,6 +48,7 @@ import type {
 	ServiceWatch,
 	Subtopic,
 	TagFollowState,
+	TutorSchedule,
 	Topic,
 	User
 } from '$lib/types';
@@ -1111,6 +1112,18 @@ export interface RawBooking {
 	cancelled_by: number | null;
 	overlapping_count: number;
 	created_at: string;
+}
+
+export interface RawTutorSchedule {
+	days: { date: string; windows: { start: string; end: string }[] }[];
+	bookings: RawBooking[];
+}
+
+export function mapTutorSchedule(json: RawTutorSchedule): TutorSchedule {
+	return {
+		days: json.days.map((day) => ({ date: day.date, windows: day.windows })),
+		bookings: json.bookings.map(mapBooking)
+	};
 }
 
 export function mapBooking(json: RawBooking): Booking {

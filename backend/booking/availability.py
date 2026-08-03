@@ -104,16 +104,17 @@ def _subtract(base: list[Interval], cuts: list[Interval]) -> list[Interval]:
     return result
 
 
-def _rule_windows(service, days: list[date_cls]) -> dict[date_cls, list[Interval]]:
+def _rule_windows(tutor, days: list[date_cls], *, service=None) -> dict[date_cls, list[Interval]]:
     """The weekly pattern, expanded over the requested days.
 
-    Rules with no `service` are the tutor's general schedule; rules pinned to this service narrow it
-    to this offering. A rule pinned to a *different* listing is correctly absent — that is the whole
-    point of pinning one.
+    `service=None` means every rule this tutor has, whichever listing it was written for — the shape
+    the tutor's OWN calendar needs, where "when might I be working" is the question and which listing
+    an hour was published under is not. With a service, rules pinned to a DIFFERENT listing are
+    correctly absent, which is the whole point of pinning one.
     """
-    rules = AvailabilityRule.objects.filter(tutor=service.provider).filter(
-        Q(service__isnull=True) | Q(service=service)
-    )
+    rules = AvailabilityRule.objects.filter(tutor=tutor)
+    if service is not None:
+        rules = rules.filter(Q(service__isnull=True) | Q(service=service))
     by_weekday: dict[int, list[AvailabilityRule]] = {}
     for rule in rules:
         by_weekday.setdefault(rule.weekday, []).append(rule)
@@ -127,7 +128,7 @@ def _rule_windows(service, days: list[date_cls]) -> dict[date_cls, list[Interval
     return windows
 
 
-def _apply_exceptions(service, windows: dict[date_cls, list[Interval]]) -> None:
+def _apply_exceptions(tutor, windows: dict[date_cls, list[Interval]]) -> None:
     """One-off openings added, one-off blocks removed. Mutates `windows` in place.
 
     Exceptions are tutor-wide with no per-service narrowing, unlike rules. A dentist appointment is
@@ -142,7 +143,7 @@ def _apply_exceptions(service, windows: dict[date_cls, list[Interval]]) -> None:
         return
     days = list(windows)
     exceptions = AvailabilityException.objects.filter(
-        tutor=service.provider, date__gte=min(days), date__lte=max(days)
+        tutor=tutor, date__gte=min(days), date__lte=max(days)
     )
     blocks: dict[date_cls, list[Interval]] = {}
     for exception in exceptions:
@@ -169,7 +170,7 @@ def _apply_exceptions(service, windows: dict[date_cls, list[Interval]]) -> None:
         windows[day] = _subtract(merged, blocks.get(day, []))
 
 
-def _busy_intervals(service, start: datetime, end: datetime) -> list[Interval]:
+def _busy_intervals(tutor, start: datetime, end: datetime) -> list[Interval]:
     """Everything already spoken for in the tutor's calendar, across **every** listing they run.
 
     Not scoped to this service on purpose: an hour a student booked through the tutor's physics
@@ -177,7 +178,7 @@ def _busy_intervals(service, start: datetime, end: datetime) -> list[Interval]:
     double-booking while every individual listing looked internally consistent.
     """
     bookings = Booking.objects.filter(
-        tutor=service.provider,
+        tutor=tutor,
         status__in=BLOCKING_STATUSES,
         starts_at__lt=end,
         ends_at__gt=start,
@@ -217,8 +218,8 @@ def slots_for_service(service, start_day: date_cls, end_day: date_cls, *, now=No
         return []
     days = [start_day + timedelta(days=offset) for offset in range((end_day - start_day).days + 1)]
 
-    windows = _rule_windows(service, days)
-    _apply_exceptions(service, windows)
+    windows = _rule_windows(service.provider, days, service=service)
+    _apply_exceptions(service.provider, windows)
 
     # The one place the two modes diverge. A `declared` listing keeps publishing its window whether or
     # not somebody already has half of it — that is what the tutor asked for by choosing that mode.
@@ -232,7 +233,7 @@ def slots_for_service(service, start_day: date_cls, end_day: date_cls, *, now=No
     if service.availability_mode == 'derived':
         span_start = _aware(days[0], time.min)
         span_end = _aware(days[-1] + timedelta(days=1), time.min)
-        busy = _merge(_busy_intervals(service, span_start, span_end))
+        busy = _merge(_busy_intervals(service.provider, span_start, span_end))
         for day in days:
             windows[day] = _subtract(windows[day], busy)
 
@@ -245,6 +246,26 @@ def _slice_all(windows: list[Interval], session: timedelta, now: datetime) -> li
     for window in windows:
         slots.extend(_slice(window, session, now))
     return slots
+
+
+def windows_for_tutor(tutor, start_day: date_cls, end_day: date_cls) -> dict[date_cls, list[Interval]]:
+    """The tutor's own published availability, day by day, across every listing they run.
+
+    Three things it deliberately does NOT do, all of which the student-facing `slots_for_service`
+    does:
+
+    * it does not subtract bookings — a tutor's calendar shows the booking sitting *inside* the
+      window it occupies, which is the whole point of looking at a calendar rather than a list;
+    * it does not slice windows into sessions — session length is a property of one offering, and
+      this view spans all of them;
+    * it does not drop the past — somebody looking at last week wants to see last week.
+    """
+    if end_day < start_day:
+        return {}
+    days = [start_day + timedelta(days=offset) for offset in range((end_day - start_day).days + 1)]
+    windows = _rule_windows(tutor, days)
+    _apply_exceptions(tutor, windows)
+    return windows
 
 
 def is_offered_slot(service, starts_at: datetime, *, now=None) -> bool:

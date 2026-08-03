@@ -7,7 +7,8 @@ import type {
 	AvailabilityExceptionKind,
 	AvailabilityRule,
 	Booking,
-	ServiceAvailability
+	ServiceAvailability,
+	TutorSchedule
 } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
 import {
@@ -15,10 +16,12 @@ import {
 	mapAvailabilityRule,
 	mapBooking,
 	mapServiceAvailability,
+	mapTutorSchedule,
 	type RawAvailabilityException,
 	type RawAvailabilityRule,
 	type RawBooking,
-	type RawServiceAvailability
+	type RawServiceAvailability,
+	type RawTutorSchedule
 } from '$lib/api/mappers';
 
 /** What a student is shown for one offering. Public — a student comparing tutors should not have to
@@ -38,6 +41,15 @@ export async function getServiceAvailability(
 		`/services/${encodeURIComponent(serviceId)}/availability/${query ? `?${query}` : ''}`
 	);
 	return mapServiceAvailability(raw);
+}
+
+/** The caller's own calendar over a date range — published windows, plus the bookings sitting inside
+ * them, from both sides of their account. A separate endpoint from the availability above because
+ * the two answer genuinely different questions; see the backend's `MyScheduleView` for the reasoning. */
+export async function getMySchedule(from: string, to: string): Promise<TutorSchedule> {
+	const search = new URLSearchParams({ from, to });
+	const raw = await apiClient.get<RawTutorSchedule>(`/my-schedule/?${search.toString()}`);
+	return mapTutorSchedule(raw);
 }
 
 export async function getAvailabilityRules(): Promise<AvailabilityRule[]> {

@@ -10,7 +10,13 @@
 	// Most accounts here are both a tutor and a student (the same reasoning messaging's own single
 	// inbox already follows), so neither side is hidden behind a role the account has to hold.
 	import { resolve } from '$app/paths';
-	import type { AvailabilityException, AvailabilityRule, Booking, Service } from '$lib/types';
+	import type {
+		AvailabilityException,
+		AvailabilityRule,
+		Booking,
+		Service,
+		TutorSchedule
+	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import {
@@ -27,8 +33,23 @@
 		getAvailabilityRules,
 		getBookings
 	} from '$lib/services/booking';
+	import { getMySchedule } from '$lib/services/booking';
 	import { getMyServices } from '$lib/services/tutoring';
 	import { authStore } from '$lib/state/auth.svelte';
+	import CalendarMonth from '$lib/components/booking/CalendarMonth.svelte';
+	import CalendarWeek from '$lib/components/booking/CalendarWeek.svelte';
+	import ViewSwitcher from '$lib/components/booking/ViewSwitcher.svelte';
+	import {
+		type CalendarEntry,
+		type CalendarMonthDay,
+		dayRange,
+		fromIsoDate,
+		isoDate,
+		monthGridDays,
+		monthOf,
+		shiftMonth,
+		startOfWeek
+	} from '$lib/components/booking/calendar';
 
 	type Tab = 'incoming' | 'mine' | 'availability';
 	let tab = $state<Tab>('incoming');
@@ -189,6 +210,144 @@
 		exceptions = await getAvailabilityExceptions(todayIso());
 	}
 
+	// ---- the calendar over the tutor's own schedule -------------------------------------------
+	//
+	// Read from its own endpoint rather than assembled here out of `rules` + `exceptions` + `incoming`.
+	// Expanding a weekly rule over real dates, adding one-off openings and then subtracting blocks is
+	// exactly the arithmetic booking/availability.py exists to own, and a second implementation of it
+	// in the browser is how the calendar and the slots a student is offered start disagreeing.
+
+	type CalendarView = 'week' | 'month';
+	let calendarView = $state<CalendarView>('week');
+	let calendarAnchor = $state(isoDate(startOfWeek(new Date())));
+	let schedule = $state<TutorSchedule | undefined>(undefined);
+	let scheduleFailed = $state(false);
+
+	let calendarDays = $derived(
+		calendarView === 'month'
+			? monthGridDays(monthOf(calendarAnchor))
+			: dayRange(fromIsoDate(calendarAnchor), 7)
+	);
+
+	async function loadSchedule() {
+		scheduleFailed = false;
+		try {
+			schedule = await getMySchedule(calendarDays[0], calendarDays[calendarDays.length - 1]);
+		} catch {
+			scheduleFailed = true;
+		}
+	}
+
+	// Only fetches while the calendar is actually on screen, and only when the range changes — the
+	// same range-keyed guard the student-facing panel uses, for the same reason a bare $effect would
+	// refetch on every keystroke in the forms below.
+	let scheduleLoadedFor = $state<string | undefined>(undefined);
+	$effect(() => {
+		if (!authStore.isAuthenticated || tab !== 'availability') return;
+		const range = `${calendarDays[0]}..${calendarDays[calendarDays.length - 1]}`;
+		if (range === scheduleLoadedFor) return;
+		scheduleLoadedFor = range;
+		loadSchedule();
+	});
+
+	/** Which statuses belong on a calendar at all.
+	 *
+	 * A declined or cancelled session is not an appointment, and drawing it would fill the week with
+	 * blocks nobody is going to attend. A completed one stays, because looking back at what you
+	 * actually taught last week is half of why anybody opens a calendar. */
+	const ON_CALENDAR: Booking['status'][] = ['requested', 'confirmed', 'completed'];
+	const TONE_FOR_STATUS: Record<string, CalendarEntry['tone']> = {
+		requested: 'requested',
+		confirmed: 'confirmed',
+		completed: 'settled'
+	};
+
+	let calendarEntries = $derived<CalendarEntry[]>([
+		// Published hours first, as background bands — the point of the tutor's own calendar is seeing
+		// each booking sitting INSIDE the window it occupies, which is exactly what the student-facing
+		// endpoint (correctly) subtracts away.
+		...(schedule?.days ?? []).flatMap((day) =>
+			day.windows.map((window) => ({
+				id: `window-${day.date}-${window.start}`,
+				date: day.date,
+				start: window.start,
+				end: window.end,
+				label: m.booking_calendar_published(),
+				tone: 'window' as const
+			}))
+		),
+		...(schedule?.bookings ?? [])
+			.filter((booking) => ON_CALENDAR.includes(booking.status))
+			.map((booking) => ({
+				id: booking.id,
+				date: booking.startsAt.slice(0, 10),
+				start: booking.startsAt,
+				end: booking.endsAt,
+				// Whichever party is not you — a calendar row saying your own name would be useless, and
+				// this page shows both the lessons you teach and the ones you take.
+				label:
+					booking.tutorId === authStore.user?.id
+						? booking.studentDisplayName
+						: booking.tutorDisplayName,
+				sublabel: booking.serviceTitle,
+				tone: TONE_FOR_STATUS[booking.status] ?? 'confirmed'
+			}))
+	]);
+
+	let calendarMonthDays = $derived<CalendarMonthDay[]>(
+		(schedule?.days ?? []).map((day) => {
+			const onDay = (schedule?.bookings ?? []).filter(
+				(booking) =>
+					booking.startsAt.slice(0, 10) === day.date && ON_CALENDAR.includes(booking.status)
+			);
+			return {
+				date: day.date,
+				count: onDay.length,
+				// A pending request is the thing on that day that needs you, so it wins the colour.
+				tone: onDay.some((booking) => booking.status === 'requested') ? 'requested' : 'confirmed',
+				// Published hours with nothing booked into them yet: a dot rather than a number, since
+				// it is a different fact from the count beside it.
+				marked: day.windows.length > 0
+			};
+		})
+	);
+
+	let calendarPeriodLabel = $derived(
+		calendarView === 'month'
+			? new Intl.DateTimeFormat(getLocale(), { month: 'long', year: 'numeric' }).format(
+					fromIsoDate(`${monthOf(calendarAnchor)}-01`)
+				)
+			: `${formatShortDay(calendarDays[0])} – ${formatShortDay(calendarDays[calendarDays.length - 1])}`
+	);
+
+	function formatShortDay(iso: string): string {
+		return new Intl.DateTimeFormat(getLocale(), { day: 'numeric', month: 'short' }).format(
+			fromIsoDate(iso)
+		);
+	}
+
+	function stepCalendar(direction: number) {
+		if (calendarView === 'month') {
+			calendarAnchor = `${shiftMonth(monthOf(calendarAnchor), direction)}-01`;
+		} else {
+			const from = fromIsoDate(calendarAnchor);
+			calendarAnchor = isoDate(
+				new Date(from.getFullYear(), from.getMonth(), from.getDate() + direction * 7)
+			);
+		}
+	}
+
+	function changeCalendarView(next: string) {
+		const wanted = next as CalendarView;
+		// Re-anchored into the other view's own units, so switching keeps you where you were looking
+		// rather than snapping back to today.
+		calendarAnchor =
+			wanted === 'month'
+				? `${monthOf(calendarAnchor)}-01`
+				: isoDate(startOfWeek(fromIsoDate(calendarAnchor)));
+		calendarView = wanted;
+	}
+
 	let pendingCount = $derived(incoming.filter((b) => b.status === 'requested').length);
 	function serviceTitle(id?: string): string {
 		return myServices.find((s) => s.id === id)?.title ?? '';
@@ -312,6 +471,54 @@
 				</ul>
 			{/if}
 		{:else}
+			<!-- The calendar comes first, and the two editors below it are what produce it: a tutor
+			     opening this tab wants to see the shape of their week before deciding whether to change
+			     a rule. Week and month only — there is no list view here, because the rules and
+			     exceptions listed underneath already ARE the list, and offering a third rendering of
+			     the same facts on the same screen would be noise. -->
+			<section class="panel">
+				<h2>{m.booking_calendar_heading()}</h2>
+				<ViewSwitcher
+					value={calendarView}
+					options={[
+						{ value: 'week', label: m.booking_view_week() },
+						{ value: 'month', label: m.booking_view_month() }
+					]}
+					onchange={changeCalendarView}
+					onprevious={() => stepCalendar(-1)}
+					onnext={() => stepCalendar(1)}
+					ontoday={() =>
+						(calendarAnchor =
+							calendarView === 'month'
+								? `${monthOf(isoDate(new Date()))}-01`
+								: isoDate(startOfWeek(new Date())))}
+					periodLabel={calendarPeriodLabel}
+				/>
+				{#if scheduleFailed}
+					<p class="error">{m.booking_loadFailed()}</p>
+				{:else if !schedule}
+					<p class="muted">{m.common_loading()}</p>
+				{:else if calendarView === 'week'}
+					<CalendarWeek
+						days={calendarDays}
+						entries={calendarEntries}
+						emptyLabel={m.booking_calendar_emptyWeek()}
+					/>
+					<p class="muted legend">{m.booking_calendar_legend()}</p>
+				{:else}
+					<CalendarMonth
+						month={monthOf(calendarAnchor)}
+						days={calendarMonthDays}
+						cellLabel={(day) => m.booking_calendar_daySessions({ count: day.count })}
+						onselect={(date) => {
+							calendarAnchor = isoDate(startOfWeek(fromIsoDate(date)));
+							calendarView = 'week';
+						}}
+					/>
+					<p class="muted">{m.booking_calendar_monthHint()}</p>
+				{/if}
+			</section>
+
 			<section class="panel">
 				<h2>{m.booking_weeklyHours()}</h2>
 				<p class="muted">{m.booking_weeklyHoursHint()}</p>
@@ -620,5 +827,8 @@
 	.error {
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 		align-self: flex-start;
+	}
+	.legend {
+		font-size: var(--font-size-xs);
 	}
 </style>

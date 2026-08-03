@@ -1016,5 +1016,21 @@
 	"booking_weekday_thursday": "Thursday",
 	"booking_weekday_friday": "Friday",
 	"booking_weekday_saturday": "Saturday",
-	"booking_weekday_sunday": "Sunday"
+	"booking_weekday_sunday": "Sunday",
+	"booking_view_list": "List",
+	"booking_view_week": "Week",
+	"booking_view_month": "Month",
+	"booking_previousPeriod": "Show the previous period",
+	"booking_nextPeriod": "Show the next period",
+	"booking_today": "Today",
+	"booking_calendar_heading": "Your calendar",
+	"booking_calendar_viewLabel": "Choose a view",
+	"booking_calendar_monthLabel": "Month",
+	"booking_calendar_monthHint": "Pick a day to open its week.",
+	"booking_calendar_scrollHint": "Scroll sideways to see the rest of the week.",
+	"booking_calendar_published": "Published hours",
+	"booking_calendar_legend": "Shaded bands are the hours you publish. Blocks on them are sessions — amber is waiting for your answer, green is confirmed, grey is done.",
+	"booking_calendar_emptyWeek": "Nothing on this week.",
+	"booking_calendar_dayFree": "{count} free",
+	"booking_calendar_daySessions": "{count} sessions"
 }

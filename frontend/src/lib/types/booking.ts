@@ -94,3 +94,24 @@ export interface Booking {
 	overlappingCount: number;
 	createdAt: string;
 }
+
+/** The caller's OWN calendar — every listing they run and every lesson they take, in one picture.
+ *
+ * Three things it deliberately differs from `ServiceAvailability` in, which is why it is a separate
+ * shape and a separate endpoint rather than a flag on that one: the windows are NOT sliced into
+ * sessions (session length belongs to one offering and this spans all of them), the bookings are NOT
+ * subtracted but returned alongside (a calendar with the appointments cut out of it is the one thing
+ * a calendar must not be), and the past is not hidden.
+ */
+export interface TutorScheduleDay {
+	date: string; // 'YYYY-MM-DD'
+	/** Published availability, after one-off blocks and openings. Whole windows, not slots. */
+	windows: BookingSlot[];
+}
+
+export interface TutorSchedule {
+	days: TutorScheduleDay[];
+	/** Both sides of the caller: somebody who teaches on Tuesday and takes a lesson on Thursday has
+	 * one week, not two. */
+	bookings: Booking[];
+}

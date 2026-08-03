@@ -1016,5 +1016,21 @@
 	"booking_weekday_thursday": "Czwartek",
 	"booking_weekday_friday": "Piątek",
 	"booking_weekday_saturday": "Sobota",
-	"booking_weekday_sunday": "Niedziela"
+	"booking_weekday_sunday": "Niedziela",
+	"booking_view_list": "Lista",
+	"booking_view_week": "Tydzień",
+	"booking_view_month": "Miesiąc",
+	"booking_previousPeriod": "Pokaż poprzedni okres",
+	"booking_nextPeriod": "Pokaż następny okres",
+	"booking_today": "Dziś",
+	"booking_calendar_heading": "Twój kalendarz",
+	"booking_calendar_viewLabel": "Wybierz widok",
+	"booking_calendar_monthLabel": "Miesiąc",
+	"booking_calendar_monthHint": "Wybierz dzień, żeby otworzyć jego tydzień.",
+	"booking_calendar_scrollHint": "Przewiń w bok, żeby zobaczyć resztę tygodnia.",
+	"booking_calendar_published": "Opublikowane godziny",
+	"booking_calendar_legend": "Zacieniowane pasy to godziny, które publikujesz. Bloki na nich to zajęcia — pomarańczowe czekają na Twoją odpowiedź, zielone są potwierdzone, szare już się odbyły.",
+	"booking_calendar_emptyWeek": "W tym tygodniu nic nie ma.",
+	"booking_calendar_dayFree": "wolnych terminów: {count}",
+	"booking_calendar_daySessions": "zajęć: {count}"
 }

@@ -450,7 +450,96 @@ check(
 	JSON.stringify(anonBody.days[0])
 );
 
-console.log('\n[10] A listing with a live booking refuses to be deleted');
+console.log('\n[10] The same availability, seen as a week grid and a month');
+studentPage = await renew(studentPage);
+await goto(studentPage, `/services/${declaredId}`);
+await pageToSlots(studentPage);
+const listSlots = await studentPage.locator('.slot').count();
+
+// Week: the same three hours, now as blocks against a time axis rather than chips in a list.
+await studentPage.locator('[role="tablist"] button', { hasText: /^Week$/ }).click();
+await settle(studentPage, 1500);
+check('the week grid renders an hour axis', (await studentPage.locator('.week__hour').count()) > 0);
+check(
+	'with seven day columns',
+	(await studentPage.locator('.week__column').count()) === 7,
+	String(await studentPage.locator('.week__column').count())
+);
+const weekBlocks = await studentPage.locator('.week__entry').count();
+check(
+	'and exactly the slots the list showed, as blocks',
+	weekBlocks === listSlots,
+	`${weekBlocks} vs ${listSlots}`
+);
+// The blocks are real buttons for a signed-in student — a slot you cannot reach from the keyboard is
+// not a booking control.
+check(
+	'the blocks are pressable, not decorative',
+	(await studentPage.locator('button.week__entry').count()) === weekBlocks
+);
+
+// Month: a summary, one cell per day, with the count on the days that have something.
+await studentPage.locator('[role="tablist"] button', { hasText: /^Month$/ }).click();
+await settle(studentPage, 1800);
+const cells = await studentPage.locator('.month__cell').count();
+check('the month grid is whole weeks', cells % 7 === 0 && cells >= 28, String(cells));
+check(
+	'and marks the days that have free times',
+	(await studentPage.locator('.month__count').count()) > 0
+);
+const monthLabel = await studentPage.locator('.switcher__label').innerText();
+check('the period label names the month', /\d{4}/.test(monthLabel), monthLabel);
+
+// Clicking a day is the ordinary calendar gesture: it opens that day's week.
+await studentPage
+	.locator('.month__cell', { has: studentPage.locator('.month__count') })
+	.first()
+	.click();
+await settle(studentPage, 1600);
+check(
+	'clicking a day opens its week',
+	(await studentPage.locator('.week__column').count()) === 7 &&
+		(await studentPage.locator('.week__entry').count()) > 0
+);
+
+console.log('\n[11] The tutor’s own calendar shows bookings inside published hours');
+tutorPage = await renew(tutorPage);
+await goto(tutorPage, '/bookings');
+await tutorPage.getByRole('button', { name: /My availability/i }).click();
+await settle(tutorPage, 1800);
+check(
+	'the published hours render as background bands',
+	(await tutorPage.locator('.week__band').count()) > 0,
+	String(await tutorPage.locator('.week__band').count())
+);
+// The confirmed session from step [6] sits ON the band rather than being cut out of it — the whole
+// difference between this endpoint and the student-facing one.
+const tutorBlocks = await tutorPage.locator('.week__entry').allInnerTexts();
+check(
+	'and the confirmed session is drawn on top of them',
+	tutorBlocks.some((text) => /Ola/i.test(text)),
+	JSON.stringify(tutorBlocks)
+);
+check(
+	'a declined session is not drawn at all',
+	!tutorBlocks.some((text) => /Bartek/i.test(text)),
+	JSON.stringify(tutorBlocks)
+);
+check(
+	'the tutor calendar offers no list view — the editors below already are one',
+	(await tutorPage.locator('.panel [role="tablist"] button').count()) === 2
+);
+
+await tutorPage.locator('.panel [role="tablist"] button', { hasText: /^Month$/ }).click();
+await settle(tutorPage, 1800);
+check('its month view counts sessions', (await tutorPage.locator('.month__count').count()) > 0);
+check(
+	'and dots the days that only have published hours',
+	(await tutorPage.locator('.month__dot').count()) > 0,
+	String(await tutorPage.locator('.month__dot').count())
+);
+
+console.log('\n[12] A listing with a live booking refuses to be deleted');
 const deletion = await api(tutorToken, `/services/${derivedId}/`, { method: 'DELETE' });
 check('deleting is refused with a conflict', deletion.status === 409, String(deletion.status));
 check(

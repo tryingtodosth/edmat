@@ -43,8 +43,9 @@ locations — a Nominatim address search and a Leaflet map picker, plus a "withi
 **Those offers can now be booked: a tutor publishes weekly hours plus one-off blocks and openings, and
 decides PER OFFERING whether the availability students see is their real free time minus what is taken
 (`derived`) or a fixed published window that keeps showing regardless (`declared`) — two genuinely
-different promises, both stated in words on screen so nobody mistakes one for the other. 550 tests
-total, all passing, see Section 17U.**
+different promises, both stated in words on screen so nobody mistakes one for the other. Availability
+then gained the two views people already know — a week against a time axis and a month at a glance,
+on both sides of the feature. 559 tests total, all passing, see Section 17U.**
 This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
@@ -4405,6 +4406,83 @@ as the alternative.
 **Regression:** `classroom.mjs` (44), `classroom-overhaul.mjs` (29), `material-claims.mjs` (14) and
 `profile-editing.mjs` (8) all re-run clean, zero console/page errors. `npm run check`: 0 errors, 0
 warnings. `npm run build`: clean. `manage.py check` and `makemigrations --check --dry-run` both clean.
+
+### Week and month views (✅ built, a follow-up pass)
+
+The first build showed availability as a list of days with a row of time chips. That reads well for
+"what's free this week" and answers nothing else. Two more views were added, both the shapes people
+already know from every calendar they use, and both driven from the same data as the list.
+
+**Three shared, domain-free pieces** (`lib/components/booking/`): `calendar.ts` (the geometry and the
+`CalendarEntry`/`CalendarMonthDay` shapes), `CalendarWeek.svelte` and `CalendarMonth.svelte`, plus a
+small `ViewSwitcher`. None of them imports `Booking`, `Service` or anything else from this domain —
+each caller resolves its own objects into entries first, which is what lets one grid serve a student
+choosing an hour and a tutor looking at their week. Same "dumb component, pure props in" contract the
+project's other shared pieces already follow.
+
+- **Week** is a real time axis: block height is duration, so a 30-minute session and a two-hour one
+  are visibly different, and **overlapping entries are laid out side by side in lanes** rather than
+  stacked. That is not a nicety — overlaps are `declared` mode working as designed, and stacking them
+  would hide exactly the clash the tutor opened the calendar to see. Lanes are computed per *cluster*,
+  so two overlapping entries in the morning do not make an unrelated afternoon one half-width.
+- **Month** is deliberately a **summary, not a miniature week**: a cell carries a count and a tone,
+  and clicking it opens that day's week. A month grid trying to show every session's time would be
+  illegible at that size, and the question it exists to answer — "which day should I look at?" — is a
+  different one. Every cell is a button, including the empty ones, because "is anything happening on
+  the 14th?" is a real question and a grid that only let you click the busy days would refuse it.
+- **The hour range is fitted to the content**, padded an hour each side and floored to whole hours,
+  with a minimum span — a day drawn from midnight would make a two-hour afternoon window an unreadable
+  sliver.
+- Monday-first throughout, matching both locales and the backend's own `date.weekday()` numbering, so
+  nothing converts between two week shapes. Weekday names come from `Intl` off a real week rather than
+  seven message keys, so they arrive translated and abbreviated the way each locale abbreviates.
+
+**One new endpoint, `GET /api/my-schedule/`**, because the tutor's calendar and a student's slot list
+are genuinely different questions. The student-facing one is scoped to a listing, sliced into that
+listing's session length, and has the taken hours removed. This one spans **every** listing, has no
+single session length to slice by, does not hide the past, and — the point — **returns the bookings
+alongside the windows instead of subtracting them**, so each session is drawn sitting inside the hours
+it occupies. A calendar with the appointments cut out of it is the one thing a calendar must not be.
+It returns both sides of the caller's account, since somebody who teaches on Tuesday and takes a
+lesson on Thursday has one week, not two.
+
+The tutor's calendar is **read from that endpoint rather than assembled in the browser** from the
+rules and exceptions already on the page. Expanding a weekly rule over real dates, adding openings and
+then subtracting blocks is exactly the arithmetic `booking/availability.py` exists to own, and a
+second implementation of it client-side is how the calendar and the slots a student is offered start
+disagreeing. `_rule_windows`/`_apply_exceptions` were widened to take a tutor plus an optional service
+scope so both callers share one implementation.
+
+Two smaller decisions worth naming: **declined and cancelled sessions are not drawn** (they are not
+appointments, and drawing them would fill the week with blocks nobody will attend) while completed
+ones are, because looking back at what you actually taught is half of why anybody opens a calendar;
+and the month view **dots** days that have published hours but no sessions, rather than folding them
+into the count — a number that sometimes means sessions and sometimes means hours is a number nobody
+can read.
+
+**A real rendering bug, found by looking at a screenshot rather than at the assertions**, which all
+passed: the hour labels were positioned by an `nth-child` rule in the stylesheet that had to be kept
+in step with the row height by hand, and centred on their own line — so the first label was pulled
+half-way out of the top of the grid and clipped, and the last sat on the bottom edge. Both the labels
+and the lines now come from one `linePosition()` function, and the label sits just under its line, the
+way a paper timetable reads.
+
+**Verified**: `e2e/booking.mjs` grew to **42 checks** (from 28), still zero console/page errors —
+the week grid renders an hour axis and seven columns with exactly the slots the list showed, as real
+pressable buttons; the month grid is whole weeks and marks the days with free times; clicking a day
+opens its week; the tutor's own calendar draws published hours as bands with the confirmed session on
+top of them and the declined one absent; and its month view counts sessions while dotting the days
+that only have hours. **559 backend tests** (9 new for `my-schedule`, up from 550). Both views were
+also inspected as real screenshots, which is what caught the axis bug. `classroom.mjs` (44),
+`classroom-overhaul.mjs` (29), `material-claims.mjs` (14) and `profile-editing.mjs` (8) all re-run
+clean. `npm run check`: 0 errors, 0 warnings. `npm run build`: clean.
+
+**Left open here too**: the week grid scrolls sideways on a narrow screen rather than reflowing —
+seven columns against a time axis genuinely need the width, and collapsing them would just reproduce
+the list view, which is already offered beside it. There is no drag-to-create or drag-to-move:
+availability is still edited through the forms below the calendar, and the calendar only shows. And
+the month view cannot show a day's times at all by design, so a day with six sessions and a day with
+one differ by a number rather than by shape.
 
 ### Left open, not built
 
