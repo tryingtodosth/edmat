@@ -901,5 +901,7 @@
 	"exercise_contributorsHeading": "Współtwórcy:",
 	"exercise_role_submitted": "zgłoszenie",
 	"exercise_role_translated": "tłumaczenie na {locale}",
-	"exercise_role_reviewed": "korekta {locale}"
+	"exercise_role_reviewed": "korekta {locale}",
+	"profile_activity_moreTags": "+{count} więcej",
+	"profile_activity_fewerTags": "Pokaż mniej"
 }

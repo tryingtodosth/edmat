@@ -6,6 +6,7 @@
 	// here lately. Merging them would make each harder to read than either alone.
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import { getUserActivity, getUserExtras } from '$lib/services/profileExtras';
 	import type {
 		ActivityFeed,
@@ -19,6 +20,13 @@
 	let experience = $state<ExperienceEntry[]>([]);
 	let skills = $state<SkillEntry[]>([]);
 	let feed = $state<ActivityFeed>({ items: [], tags: [], kinds: [] });
+
+	/** How many tags a single feed row prints before it starts counting instead. */
+	const TAGS_PER_ROW = 3;
+	/** How many filter chips show before the rest go behind a toggle. Somebody with a broad history
+	 * had twenty-five of these, which pushed the feed they belong to off the screen. */
+	const TAGS_IN_FILTER = 10;
+	let showAllTags = $state(false);
 	let loading = $state(true);
 
 	// The three controls. Deliberately plain client-side state over an already-fetched list: at a
@@ -177,7 +185,7 @@
 					>
 						{m.profile_activity_allTags()}
 					</button>
-					{#each feed.tags as tag (tag)}
+					{#each showAllTags ? feed.tags : feed.tags.slice(0, TAGS_IN_FILTER) as tag (tag)}
 						<button
 							type="button"
 							class="tag"
@@ -187,6 +195,17 @@
 							#{tag}
 						</button>
 					{/each}
+					{#if feed.tags.length > TAGS_IN_FILTER}
+						<button
+							type="button"
+							class="tag tag--toggle"
+							onclick={() => (showAllTags = !showAllTags)}
+						>
+							{showAllTags
+								? m.profile_activity_fewerTags()
+								: m.profile_activity_moreTags({ count: feed.tags.length - TAGS_IN_FILTER })}
+						</button>
+					{/if}
 				</div>
 			{/if}
 
@@ -198,16 +217,33 @@
 						{@const href = hrefFor(item)}
 						<li>
 							<span class="kind">{KIND_LABEL_OF(item.kind)}</span>
-							{#if href}
-								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- href already comes from resolve() in hrefFor(); the rule cannot see through the helper -->
-								<a {href}>{item.title}</a>
-							{:else}
-								<span>{item.title}</span>
-							{/if}
-							{#if item.rating}<span class="meta"> · {item.rating}★</span>{/if}
-							{#if item.tags.length > 0}
-								<span class="meta"> · {item.tags.map((t) => `#${t}`).join(' ')}</span>
-							{/if}
+							<div class="row">
+								<!-- MathTitle, not plain text: an exercise's title is written with inline LaTeX
+								     (`\(\ell^p\)`), and printing it raw put backslashes and braces in the feed
+								     where the same title renders properly two sections further down. -->
+								{#if href}
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- href already comes from resolve() in hrefFor(); the rule cannot see through the helper -->
+									<a {href}><MathTitle text={item.title} /></a>
+								{:else}
+									<span class="title"><MathTitle text={item.title} /></span>
+								{/if}
+
+								{#if item.rating || item.tags.length > 0}
+									<p class="meta">
+										{#if item.rating}<span class="rating">{item.rating}★</span>{/if}
+										<!-- Capped rather than printed in full: several of these rows carry eight or
+										     nine tags, and at full length the tags were longer than the thing they
+										     described and ran together into one grey block. The count keeps the
+										     total honest instead of silently hiding it. -->
+										{#each item.tags.slice(0, TAGS_PER_ROW) as tag (tag)}
+											<span class="tag">#{tag}</span>
+										{/each}
+										{#if item.tags.length > TAGS_PER_ROW}
+											<span class="tag tag--more">+{item.tags.length - TAGS_PER_ROW}</span>
+										{/if}
+									</p>
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -218,6 +254,11 @@
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
+
+	section {
+		@include mix.card-surface;
+		padding: var(--space-4);
+	}
 
 	h2 {
 		font-size: var(--font-size-md);
@@ -326,5 +367,42 @@
 	}
 	.feed li {
 		font-size: var(--font-size-sm);
+		display: flex;
+		gap: var(--space-2);
+		align-items: baseline;
+		padding: var(--space-1) 0;
+		border-bottom: 1px solid var(--border-color);
+	}
+	.feed li:last-child {
+		border-bottom: none;
+	}
+	.feed .row {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+	}
+	.feed .title {
+		color: var(--text-primary);
+	}
+	.feed .meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+		align-items: baseline;
+	}
+	.feed .rating {
+		color: var(--accent);
+		font-weight: 600;
+	}
+	.feed .tag {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		background: var(--bg-surface-alt);
+		border-radius: var(--radius-sm);
+		padding: 0 var(--space-1);
+	}
+	.feed .tag--more {
+		font-weight: 600;
 	}
 </style>

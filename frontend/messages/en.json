@@ -901,5 +901,7 @@
 	"exercise_contributorsHeading": "Contributors:",
 	"exercise_role_submitted": "submitted",
 	"exercise_role_translated": "translated to {locale}",
-	"exercise_role_reviewed": "reviewed {locale}"
+	"exercise_role_reviewed": "reviewed {locale}",
+	"profile_activity_moreTags": "+{count} more",
+	"profile_activity_fewerTags": "Show fewer"
 }

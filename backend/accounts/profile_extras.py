@@ -19,6 +19,19 @@ from rest_framework.views import APIView
 from .models import ExperienceEntry, Profile, SkillEntry
 
 
+def _exercise_title(exercise) -> str:
+    """The short human label for an exercise, or its slug.
+
+    An exercise has no title of its own — titles live on its translations — so this reads the first
+    one it has. Deliberately not the statement: that is Markdown-with-LaTeX source, and putting any
+    slice of it in a feed shows raw markup rather than words.
+    """
+    if not exercise:
+        return ''
+    translation = next(iter(exercise.translations.all()), None)
+    return (translation.title if translation else '') or exercise.slug
+
+
 class ExperienceSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExperienceEntry
@@ -137,7 +150,13 @@ class UserActivityView(APIView):
             items.append(
                 {
                     'kind': 'exercise',
-                    'title': translation.statement[:120] if translation else exercise.slug,
+                    # The translation's own title, not the first 120 characters of its statement.
+                    # A statement is Markdown-with-LaTeX source, so slicing it dumped raw `<p>` and
+                    # `\(\mathbb{R}^2\)` into the feed as literal text — every exercise row on a
+                    # profile was a wall of unrendered markup. Truncating it was also cutting mid-tag
+                    # and mid-formula, so there was no rendering it safely either; the title is the
+                    # short human label that already exists for exactly this purpose.
+                    'title': (translation.title if translation else '') or exercise.slug,
                     'exercise_id': exercise.pk,
                     'tags': [t.slug for t in exercise.tags.all()],
                     'created_at': None,
@@ -147,12 +166,16 @@ class UserActivityView(APIView):
         for review in (
             Review.objects.filter(author_id=pk, is_removed=False)
             .select_related('exercise')
-            .prefetch_related('exercise__tags')[:50]
+            # `exercise__translations` too, or naming each reviewed exercise costs a query apiece.
+            .prefetch_related('exercise__tags', 'exercise__translations')[:50]
         ):
             items.append(
                 {
                     'kind': 'review',
-                    'title': review.body[:120] or f'{review.rating}★',
+                    # What was reviewed, rather than the review's own prose: the feed already shows
+                    # the rating and the kind, so repeating the body here duplicated the "Reviews
+                    # written" section further down the same page word for word.
+                    'title': _exercise_title(review.exercise) or f'{review.rating}★',
                     'exercise_id': review.exercise_id,
                     'rating': review.rating,
                     'tags': [t.slug for t in review.exercise.tags.all()],
