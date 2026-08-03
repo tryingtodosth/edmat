@@ -5,7 +5,7 @@ Two suites, deliberately different in kind:
 | | What it is | Where | Count |
 |---|---|---|---|
 | **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 458 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 86 checks across 2 scripts |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 100 checks across 3 scripts |
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
@@ -131,6 +131,7 @@ npx vite dev --mode e2e --port 5183 --strictPort
 cd frontend
 node e2e/classroom.mjs
 node e2e/education-auth.mjs
+node e2e/material-claims.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -168,6 +169,14 @@ offered and labelled drafts, each modal describing its own provider's real quirk
 repository link, Escape closing it, the school picker distinguishing a university that runs USOS from
 one that does not, **no session created by any of it**, then connect → transfer diploma/grades →
 consent one field at a time → un-publish → delete.
+
+**`e2e/material-claims.mjs` (14 checks)** — a material card previews only its top few coverage and
+requirement claims (the real corpus has materials with 30), so the "+N more" count beside them is the
+only route to the rest from a grid — and it was an inert `<span>`. Pins that it is a real button with
+an accessible name, that it opens a modal holding **every** claim rather than only the hidden
+remainder, in the same sort order the card established, that drilling into one claim and closing it
+returns to the list rather than the card, that two modals are never stacked, and that the whole path
+works from the keyboard.
 
 ### Two things worth knowing before you debug a failure
 

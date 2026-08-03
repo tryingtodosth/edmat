@@ -187,6 +187,7 @@
 	"material_coversLabel": "Covers:",
 	"material_requiresLabel": "Requires:",
 	"material_moreCount": "+{count} more",
+	"material_moreCountLabel": "Show all — {count} more not shown here",
 	"material_coversHeading": "What it covers",
 	"material_coversEmpty": "No coverage claims yet.",
 	"material_requiresHeading": "What's required",

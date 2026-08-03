@@ -187,6 +187,7 @@
 	"material_coversLabel": "Obejmuje:",
 	"material_requiresLabel": "Wymaga:",
 	"material_moreCount": "+{count} więcej",
+	"material_moreCountLabel": "Pokaż wszystkie — {count} nie jest tu widocznych",
 	"material_coversHeading": "Co obejmuje",
 	"material_coversEmpty": "Brak jeszcze zgłoszonego zakresu.",
 	"material_requiresHeading": "Co jest wymagane",
