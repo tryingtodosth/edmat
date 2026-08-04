@@ -5072,6 +5072,43 @@ kills the replacement — kill by the PID holding the port instead.
 
 ---
 
+## 17X. `/levels` — the trust system, described where readers are (✅ built)
+
+The REP/SKILL/ENERGY design has lived in LAUNCHCHECKLIST.md since it was written, which is the right
+home for a design brief and the wrong one for the people the rules would apply to. `/levels` is that
+document written for a reader: two ladders, seven capability tiers, five mod levels, vote weight,
+energy costs, REP events, the promotion/demotion rules, and appeals.
+
+**The page's real job is the distinction between designed and live**, so it is a badge on every heading
+rather than a caveat somebody skims. Eight sections carry *Designed, not built*; exactly one carries
+*Live today*, and it is checked against the code rather than the brief — the single staff flag, the one
+contributor flag, `NodeGovernor`, and the real throttle rates out of `DEFAULT_THROTTLE_RATES`, including
+the honest note that they are per-process counters. A page that let somebody believe they had a tier
+would be worse than no page.
+
+**Text lives in `lib/content/levels.ts`, per locale — deliberately widening the exception
+`content/privacy.ts` opened** rather than letting it drift. That file's argument was that a document has
+to be readable and reviewable AS A DOCUMENT, not as ~50 keys interleaved with button labels in
+`en.json`; nine tables and forty paragraphs are the same shape of content, and the rule's actual
+purpose — no string is ever English-only — still holds exactly, since both locales live in the one file
+and a third cannot be added without adding all of it. If the file and LAUNCHCHECKLIST.md ever disagree,
+**the checklist is the source and the page is the stale copy**; the module says so at the top.
+
+Linked from the footer beside the privacy policy — both are standing explanations of how the site
+treats you, wanted occasionally and never mid-task — not from the navbar.
+
+**Verified in a browser**: both locales render fully translated with 8 tables and exactly one live
+badge, the footer link navigates, zero console/page errors. `npm run check` 0 errors 0 warnings; build
+clean. One ordering bug found by looking at the screenshot rather than by any assertion: bullets
+rendered *after* the table in the only section that has both, so the line introducing the rate-limit
+table sat underneath it. Bullets now precede tables everywhere.
+
+**Left open**: nothing on the page is personalised — it cannot say what tier *you* hold, because no
+tier exists to hold. When the system is built, the natural next step is a panel on `/settings` showing
+your own standing against these tables.
+
+---
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

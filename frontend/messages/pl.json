@@ -617,6 +617,7 @@
 	"settings_offersTutoringHint": "Widoczne jako odznaka na Twoim publicznym profilu, razem z notatką poniżej. Aby utworzyć pełniejszą ofertę powiązaną z przedmiotem, którą odwiedzający mogą przeglądać i filtrować, dodaj ją w zakładce „Oferty korepetycji”.",
 	"settings_tutoringNote": "Notatka",
 	"footer_privacy": "Polityka prywatności",
+	"footer_levels": "Poziomy i ograniczenia",
 	"privacy_metaTitle": "Polityka prywatności",
 	"auth_providers_divider": "albo",
 	"auth_providers_intro": "Te sposoby logowania to szkice. Kliknięcie pokazuje, na jakim etapie jest połączenie i czego jeszcze brakuje.",

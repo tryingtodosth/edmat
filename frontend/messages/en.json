@@ -617,6 +617,7 @@
 	"settings_offersTutoringHint": "Shown as a badge on your public profile, alongside your note below. For a fuller, course-scoped listing visitors can browse and filter, create one under \"Tutoring listings\".",
 	"settings_tutoringNote": "Note",
 	"footer_privacy": "Privacy policy",
+	"footer_levels": "Levels and limits",
 	"privacy_metaTitle": "Privacy policy",
 	"auth_providers_divider": "or",
 	"auth_providers_intro": "These sign-in methods are drafts. Opening one shows exactly how far it is and what is still missing.",
