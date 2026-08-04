@@ -309,6 +309,12 @@
 		border-color: var(--status-success);
 		color: var(--status-success);
 	}
+	.week__entry--event {
+		background: var(--bg-surface);
+		border-style: dashed;
+		border-color: var(--accent);
+		color: var(--accent);
+	}
 	.week__entry--settled {
 		background: var(--bg-surface-alt);
 		border-color: var(--border-color);

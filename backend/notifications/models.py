@@ -64,6 +64,13 @@ NOTIFICATION_TYPES = [
     ('booking_confirmed', 'Your booking was confirmed'),
     ('booking_declined', 'Your booking request was declined'),
     ('booking_cancelled', 'A booking was cancelled'),
+    # One-off events (events/). Three types, and the set is deliberately small: a host is told when
+    # somebody says they are coming, and everybody holding a seat is told when the event moves or is
+    # called off. A decline is deliberately NOT a type — see events/services.py for why telling a
+    # host about every "no" would make hosting a well-attended event unpleasant.
+    ('event_attendance', 'Somebody is coming to your event'),
+    ('event_updated', 'An event you are going to has changed'),
+    ('event_cancelled', 'An event you were going to was called off'),
 ]
 
 
@@ -91,6 +98,12 @@ class Notification(models.Model):
     # markedly less useful than one you can.
     taught_course = models.ForeignKey(
         'classroom.TaughtCourse', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    # Same nullable/SET_NULL shape and the same reason as `taught_course` above: an event
+    # notification has none of the three targets above to link through, and a notification you
+    # cannot click is markedly less useful than one you can.
+    event = models.ForeignKey(
+        'events.Event', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
     # A moderator's own review_note/resolved_note, or a comment reply's own short preview — whatever
     # extra context that event type actually has, blank when it doesn't.

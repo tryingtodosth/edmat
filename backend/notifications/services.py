@@ -43,6 +43,13 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'booking_confirmed': 'notify_on_booking',
     'booking_declined': 'notify_on_booking',
     'booking_cancelled': 'notify_on_booking',
+    # Events (events/). Their own coarse category rather than riding on `notify_on_course_activity`:
+    # a category called "course activity" that silently also governs events would be a setting whose
+    # label lies, and somebody who runs no courses but goes to talks would have to guess which switch
+    # theirs is under.
+    'event_attendance': 'notify_on_event',
+    'event_updated': 'notify_on_event',
+    'event_cancelled': 'notify_on_event',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile
@@ -81,6 +88,7 @@ def notify(
     exercise=None,
     material=None,
     taught_course=None,
+    event=None,
     note: str = '',
 ):
     """Creates one Notification, or silently no-ops when there's genuinely nothing to notify:
@@ -127,6 +135,7 @@ def notify(
         exercise=exercise,
         material=material,
         taught_course=taught_course,
+        event=event,
         note=(note or '')[:500],
     )
 

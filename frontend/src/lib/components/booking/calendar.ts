@@ -12,7 +12,12 @@
  * published availability drawn BEHIND everything else, so a booking can sit visibly inside the hours
  * it occupies. Mapping a status to a tone at the call site is what lets one grid serve a student
  * looking at bookable slots and a tutor looking at their week. */
-export type CalendarTone = 'window' | 'free' | 'requested' | 'confirmed' | 'settled';
+// `event` is its own tone rather than a reuse of `confirmed`, because a one-off event on a tutor's
+// calendar is a genuinely different kind of thing from a booked lesson: nobody paid for it, nobody
+// is waiting on the tutor to confirm it, and — the load-bearing difference — it does NOT remove the
+// hour from what students are offered (see backend `MyScheduleView`). Drawing it in the same green
+// as a confirmed session would say the opposite of all three.
+export type CalendarTone = 'window' | 'free' | 'requested' | 'confirmed' | 'settled' | 'event';
 
 /** Tones drawn as a background band rather than a block: full width, behind the rest, never
  * interactive. One definition so the layout and the styling cannot disagree about which is which. */

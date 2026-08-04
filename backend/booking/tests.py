@@ -78,6 +78,22 @@ class ApiTestCase(TestCase):
             end_time=time(end_hour),
         )
 
+    def host_event(self, day, hour, *, minutes=60, host=None, status='published'):
+        """An event on the tutor's own calendar. Imported inside the method rather than at module
+        scope so the booking suite does not gain a hard import of the events app just to define its
+        fixtures."""
+        from events.models import Event
+
+        return Event.objects.create(
+            host=host or self.tutor,
+            title='Warsztat',
+            status=status,
+            starts_at=self.at(day, hour),
+            duration_minutes=minutes,
+            location_kind='onsite',
+            location_text='sala 4070',
+        )
+
     def book(self, service, day, hour, *, status='requested', student=None):
         starts = self.at(day, hour)
         return Booking.objects.create(
@@ -230,6 +246,111 @@ class ModeTests(ApiTestCase):
         self.assertEqual(
             starts, [self.at(tuesday, 14), self.at(tuesday, 15), self.at(tuesday, 16)]
         )
+
+    def test_an_event_the_tutor_is_HOSTING_takes_the_hour_out_of_derived_availability(self):
+        """Hosting is a commitment to people who will physically turn up expecting you — exactly as
+        binding as a confirmed booking. A tutor bookable during a workshop they are running would be
+        double-booked by the app rather than by their own mistake."""
+        service = self.make_service(availability_mode='derived')
+        tuesday = self.next_weekday(1)
+        self.rule(1, 14, 17)
+        self.host_event(tuesday, 15)
+
+        starts = [s.start for s in slots_for_service(service, tuesday, tuesday)[0].slots]
+        self.assertEqual(starts, [self.at(tuesday, 14), self.at(tuesday, 16)])
+
+    def test_an_event_the_tutor_is_only_ATTENDING_does_not(self):
+        """The other half of the decision, and the reason it is a decision at all. Saying you are
+        going to something is a statement this app lets you take back with one click, telling nobody —
+        so treating it as a withdrawal of bookable hours would mean an RSVP silently costing somebody
+        income they never agreed to give up. It is still drawn on their own calendar, so a tutor who
+        does want the evening can block it with the one-off exception mechanism that already exists.
+        """
+        from events.models import EventAttendance
+
+        service = self.make_service(availability_mode='derived')
+        tuesday = self.next_weekday(1)
+        self.rule(1, 14, 17)
+        somebody_elses = self.host_event(tuesday, 15, host=self.other)
+        EventAttendance.objects.create(
+            event=somebody_elses, attendee=self.tutor, status='going'
+        )
+
+        starts = [s.start for s in slots_for_service(service, tuesday, tuesday)[0].slots]
+        self.assertEqual(
+            starts, [self.at(tuesday, 14), self.at(tuesday, 15), self.at(tuesday, 16)]
+        )
+
+    def test_a_declared_listing_keeps_publishing_through_a_hosted_event_too(self):
+        """`declared` means "this window keeps showing whatever else is true", and an event is one
+        more thing that is true. The two modes still meet in exactly one subtraction."""
+        service = self.make_service(availability_mode='declared')
+        tuesday = self.next_weekday(1)
+        self.rule(1, 14, 17)
+        self.host_event(tuesday, 15)
+
+        starts = [s.start for s in slots_for_service(service, tuesday, tuesday)[0].slots]
+        self.assertEqual(
+            starts, [self.at(tuesday, 14), self.at(tuesday, 15), self.at(tuesday, 16)]
+        )
+
+    def test_a_draft_or_cancelled_event_blocks_nothing(self):
+        """A draft was never announced. A cancellation is the hour being given back — continuing to
+        withhold it would be the app disagreeing with the notification it just sent."""
+        service = self.make_service(availability_mode='derived')
+        tuesday = self.next_weekday(1)
+        self.rule(1, 14, 17)
+        self.host_event(tuesday, 14, status='draft')
+        self.host_event(tuesday, 15, status='cancelled')
+
+        starts = [s.start for s in slots_for_service(service, tuesday, tuesday)[0].slots]
+        self.assertEqual(
+            starts, [self.at(tuesday, 14), self.at(tuesday, 15), self.at(tuesday, 16)]
+        )
+
+    def test_a_longer_event_swallows_every_slot_it_covers(self):
+        """The subtraction is interval arithmetic, not slot matching — a 150-minute workshop starting
+        at 14:00 is not three separate one-hour clashes to be found individually."""
+        service = self.make_service(availability_mode='derived')
+        tuesday = self.next_weekday(1)
+        self.rule(1, 14, 17)
+        self.host_event(tuesday, 14, minutes=150)
+
+        self.assertEqual(slots_for_service(service, tuesday, tuesday)[0].slots, [])
+
+    def test_the_events_kill_switch_gives_the_hours_back(self):
+        """The harder half of the call, stated as a test so nobody has to guess. With events off the
+        tutor cannot see the event anywhere, so an hour missing from their published availability
+        would be unexplainable from inside the app — and a kill switch whose side effects outlive it
+        is not a kill switch. Nothing is lost: the hour goes again when the flag returns."""
+        from moderation.models import FeatureFlag
+
+        service = self.make_service(availability_mode='derived')
+        tuesday = self.next_weekday(1)
+        self.rule(1, 14, 17)
+        self.host_event(tuesday, 15)
+        FeatureFlag.objects.update_or_create(key='events', defaults={'is_enabled': False})
+
+        starts = [s.start for s in slots_for_service(service, tuesday, tuesday)[0].slots]
+        self.assertEqual(
+            starts, [self.at(tuesday, 14), self.at(tuesday, 15), self.at(tuesday, 16)]
+        )
+
+    def test_a_student_cannot_book_the_hour_a_hosted_event_took(self):
+        """The request-time gate reads the same function the browse endpoint does, so this follows —
+        but it is the consequence that actually matters, and asserting it means a future refactor
+        that split those two apart would be caught here rather than in production."""
+        service = self.make_service(availability_mode='derived')
+        tuesday = self.next_weekday(1)
+        self.rule(1, 14, 17)
+        self.host_event(tuesday, 15)
+
+        response = self.as_(self.student).post(
+            '/api/bookings/',
+            {'service': service.pk, 'starts_at': self.at(tuesday, 15).isoformat()},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_derived_holds_a_slot_from_the_moment_it_is_requested_not_confirmed(self):
         """The whole promise of `derived` is that what you see is bookable — a slot four people can

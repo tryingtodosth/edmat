@@ -297,6 +297,22 @@
 						: booking.tutorDisplayName,
 				sublabel: booking.serviceTitle,
 				tone: TONE_FOR_STATUS[booking.status] ?? 'confirmed'
+			})),
+		// Events the caller is running or going to. On the calendar because an evening spent running a
+		// workshop is gone whether or not anybody paid for it — the same reason both sides of the
+		// caller's bookings are here. Drawn in its own tone (dashed, not the confirmed green) because
+		// an event does NOT take the hour off what students are offered; the clash is shown, and the
+		// tutor decides. See backend `MyScheduleView` for that decision in full.
+		...(schedule?.events ?? [])
+			.filter((event) => event.status !== 'cancelled')
+			.map((event) => ({
+				id: `event-${event.id}`,
+				date: event.startsAt.slice(0, 10),
+				start: event.startsAt,
+				end: event.endsAt,
+				label: event.title,
+				sublabel: event.isHost ? m.events_scheduleHosting() : m.events_scheduleGoing(),
+				tone: 'event' as const
 			}))
 	]);
 
@@ -306,9 +322,14 @@
 				(booking) =>
 					booking.startsAt.slice(0, 10) === day.date && ON_CALENDAR.includes(booking.status)
 			);
+			// Counted alongside bookings rather than in a separate number: the month grid answers "is
+			// anything on that day", and an event is something on that day.
+			const eventsOnDay = (schedule?.events ?? []).filter(
+				(event) => event.startsAt.slice(0, 10) === day.date && event.status !== 'cancelled'
+			);
 			return {
 				date: day.date,
-				count: onDay.length,
+				count: onDay.length + eventsOnDay.length,
 				// A pending request is the thing on that day that needs you, so it wins the colour.
 				tone: onDay.some((booking) => booking.status === 'requested') ? 'requested' : 'confirmed',
 				// Published hours with nothing booked into them yet: a dot rather than a number, since

@@ -76,6 +76,12 @@ class Profile(models.Model):
     # though — a tutor who mutes this stops hearing that anybody has asked for an hour of their time,
     # which the Settings copy says out loud rather than leaving to be discovered.
     notify_on_booking = models.BooleanField(default=True)
+    # Events (events/). Its own switch rather than a share of `notify_on_course_activity`, because
+    # the two describe different things to the person reading the label — and because the volume is
+    # different in kind: a course announces every lesson, where an event only ever speaks when
+    # somebody joins it, when it moves, or when it is called off. All three are things you would want
+    # to hear about even having muted a great deal else, which is why this defaults on.
+    notify_on_event = models.BooleanField(default=True)
 
     # Finer-grained than the three coarse booleans above, layered on TOP of them rather than
     # replacing them: `notify()` only ever reaches this check once the notification's own coarse

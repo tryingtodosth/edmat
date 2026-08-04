@@ -1,5 +1,5 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 6 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 7 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
 //
 // `material_uploads_verified_only` is the one DIFFERENTLY-SHAPED exception in this set — every
@@ -14,6 +14,7 @@ export type FeatureFlagKey =
 	| 'messaging'
 	| 'exercise_submissions'
 	| 'material_submissions'
+	| 'events'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

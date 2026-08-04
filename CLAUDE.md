@@ -48,6 +48,13 @@ then gained the two views people already know — a week against a time axis and
 on both sides of the feature — 24-hour and Monday-first by default, with 12-hour and Sunday as real
 settings rather than whatever the interface language implies. 564 tests total, all passing, see
 Section 17U.**
+**Then: one-off events (a guest lecture, a workshop, an exam-prep meetup) as their own `events` app —
+deliberately neither a course nor a booking, with attendance, capacity, a private-to-attendees roster,
+its own kill switch that removes every LINK to the feature as well as the pages behind it, and a real
+decision recorded about whether they occupy a tutor's schedule (they appear on it; they never withdraw
+hours students are offered). Shipped alongside a navbar rebuilt from a flat row of ten links into three
+groups — browse, one "Add…" menu, one account menu — and a homepage that is now five tabs rather than
+exercises alone. 624 tests total, all passing, see Section 17V.**
 This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
@@ -4593,6 +4600,393 @@ choose, since there is nowhere to keep the answer.
 
 ---
 
+## 17V. Feature: one-off events, a rebuilt navbar, and homepage tabs (✅ built, full stack)
+
+Three pieces of work that shipped together because two of them exist to make the third reachable: a
+new `events` Django app, a navbar reorganised from a flat row of ten links into three groups, and a
+homepage that finally acknowledges the four kinds of content this site holds besides exercises.
+
+### 17V.1 Events — what an event is, and what it deliberately is not
+
+An **event** is a one-off happening somebody organises and other people turn up to: a guest lecture, a
+workshop, a study session, an exam-prep meetup.
+
+EdMat already had two models that put a person in a room with other people at a time, and an event is
+neither of them. Getting this wrong in either direction would have been the expensive mistake, so it
+is written out in `events/models.py`'s own module docstring as well:
+
+- **`classroom.TaughtCourse`** is something taught *over time* to a group who sign up for it. It has a
+  roster, chapters, lessons, contributions, staff, and an enrolment lifecycle in which a request can be
+  pending, approved, declined or revoked. A guest lecture on Thursday has none of that. Modelling one
+  as a course with a single lesson would mean every one of those fields exists and means nothing, and
+  every read site would then have to defend against a "course" that is really an evening.
+- **`booking.Booking`** is one person's hour with one tutor, negotiated: requested, then confirmed or
+  declined. An event is the opposite shape — it is published first and *many* people answer it, and
+  nobody approves anybody. There is no counterparty to negotiate with.
+
+So it is its own small app, and deliberately smaller than either. Everything it needs that already
+exists is reused rather than rebuilt: the taxonomy for discovery (the same `subjects`/`field` pair
+`TaughtCourse` and `Service` both use), `notifications.notify()` for telling people, and the
+`FeatureFlag` kill switch.
+
+**The model, and the choices inside it**
+
+- **`status`: draft / published / cancelled.** Three values rather than two booleans, for the reason
+  `TaughtCourse.status` already records: two booleans make an illegal state representable. `cancelled`
+  is a *state*, not a deletion, and that is load-bearing — people arranged their week around this, so
+  the row has to survive long enough to tell them, and the event has to stay readable afterwards so
+  somebody who missed the notification does not turn up to an empty room.
+- **A start instant plus a duration**, not a start and an end. Two datetimes make an event that ends
+  before it begins representable and would need validating at every write; a duration cannot be
+  negative in the first place, and "90 minutes" is also what a host actually knows while writing the
+  announcement. `ends_at` is derived.
+- **`location_kind`: onsite / online / hybrid**, rather than a nullable URL. A hybrid event with only a
+  link set reads as online-only to somebody who would have come in person, and `clean()` requires the
+  place and/or the link that the chosen kind actually implies — in the model, so the admin and any seed
+  command are held to it too, not only the API.
+- **`capacity = 0` means no limit**, which is genuinely different from a limit that happens to be
+  large. The same convention and default as `TaughtCourse.capacity`.
+- **`EventAttendance` stores "no" as a real row**, not as the absence of one, for two reasons that are
+  not the same. First, capacity: somebody who said they were coming and changed their mind must give
+  the seat back, and with one row per person (enforced by a unique constraint, not by whichever view
+  happens to write it) that is a status change on a row that already exists — so nobody can hold two
+  seats and no counting code has to reconcile a delete against a create. Second, "I answered no" and
+  "I never answered" are different states, and a host's view of the event is more honest when it can
+  tell them apart.
+- **The host does not attend their own event.** They are running it, and counting them would make an
+  empty event report one attendee.
+
+**The API** (`/api/events/`) follows the split this codebase already uses everywhere: anyone may read
+what is published, only the host may change it, and the scoping happens in the queryset rather than in
+after-the-fact checks — so somebody poking at another person's draft gets a 404, which is also the
+honest answer, since for them it does not exist.
+
+Two things about `get_queryset` worth recording, because the first was a real bug found by a test:
+
+- **Visibility and browse filters are separate layers.** DRF's `get_object` reads the same queryset, so
+  a filter meant for the list also narrows what is reachable by id. That is right for visibility and
+  wrong for browsing: with `when=upcoming` applied unconditionally, `GET /api/events/{id}/` for a talk
+  that happened last week answered **404**, and so did any attempt to answer one. Caught by
+  `AttendanceTests.test_a_past_event_cannot_be_answered`, which expected the honest refusal ("this
+  already happened") and got "no such event". Visibility now always applies; browse filters only on
+  `list`.
+- **A cancelled event leaves the browse list but stays readable.** Found by *looking at the rendered
+  page*, not by an assertion: three cancelled events sat at the top of "Coming up", each one an
+  invitation to click through to something that is not happening. It is now excluded from the browse
+  listing only — it still resolves at its own URL (so the link in the cancellation notification works)
+  and still appears under "I am going to these" and "I am running these".
+
+**Attendance is one endpoint, not two.** `POST /events/{id}/attend/` takes `{status}`, because there is
+one row and it has a value; an `attend`/`unattend` pair would leave a client having to know which one
+applies from state it might be holding stale. The capacity check is re-run against the database on
+every call rather than trusted from the `can_respond` the client was last shown — two people answering
+a one-seat event at the same moment both saw a free seat. Somebody who already holds a seat is
+deliberately exempt from the cap, or a full event would refuse to let one of its own attendees decline,
+which is the one answer a full event most wants to hear.
+
+**The roster is private, but not as private as a course's.** A course roster is staff-and-participants
+only. For an event, "is anybody else going" is half of why somebody opens the page at all, so people
+who *are* going see each other; strangers get a 403. The host additionally sees the declines, which
+nobody else does — a decline is between the person who made it and the person running the event.
+
+**Notifications: three types, and a deliberate silence.** The host is told when somebody says they are
+coming; everybody holding a seat is told when the event moves or is called off. A **decline is not a
+notification** — it is information the host can see on the event itself, and a bell for every "no"
+would make hosting a well-attended event unpleasant. A change of mind does not re-notify either. Only
+the time and the place count as "changed": a corrected typo in a description does not put a badge on
+forty people's bell, which is how a bell gets ignored. `Notification` gained a nullable `event` FK on
+the same shape and reasoning as `taught_course` before it, and `Profile.notify_on_event` is its own
+coarse category rather than a share of `notify_on_course_activity` — a switch labelled "courses" that
+silently also governed events would be a setting whose label lies.
+
+### 17V.2 Events and the tutor's calendar — two questions, two different answers
+
+This had to be decided explicitly, so both halves are recorded, along with the asymmetry inside the
+second one.
+
+**Question one: do events appear on `/api/my-schedule/`? Yes.** That endpoint answers "what does my week
+look like", and it already carries *both* sides of the caller's bookings because somebody who teaches on
+Tuesday and takes a lesson on Thursday has one week, not two. An evening spent running a workshop is
+gone in exactly the same way, so a calendar omitting it would be answering its own question wrongly.
+Hosting and going both appear. Drafts do not (nothing was announced, so the evening is not spoken for)
+and neither do cancellations (it *was* a commitment and is not one any more — leaving it there would go
+on saying the Thursday is taken after the very notification saying it is not). This endpoint still never
+*subtracts*: `windows_for_tutor` is untouched, the published bands are drawn whole, and the event is
+drawn on top of them, because a calendar with the appointments cut out of it is the one thing a calendar
+must not be. Events get **their own tone** there — dashed, in the accent colour — rather than reusing
+the confirmed-booking green.
+
+**Question two: does an event also remove the hour from what students are OFFERED? Hosting does;
+attending does not.** This lives in `availability._event_intervals`, feeding the same `_busy_intervals`
+that confirmed and requested bookings already feed, so `derived` mode subtracts it, `declared` mode
+ignores it, and the two modes still meet in exactly one subtraction rather than growing a second code
+path. Because `is_offered_slot` is deliberately the *same* function the browse endpoint uses, a student
+also cannot request the hour, not merely fail to see it.
+
+The asymmetry is the whole decision:
+
+- **Hosting is a commitment to other people who will physically turn up expecting you.** It is exactly
+  as binding as a confirmed booking, and a tutor who could still be booked during a workshop they are
+  running would have been double-booked *by the app* rather than by their own mistake.
+- **Attending is a statement this app lets you take back with one click, telling nobody when you do.**
+  Treating it as a withdrawal of bookable hours would mean an RSVP silently costing somebody income they
+  never agreed to give up — and on a 200-person lecture that would happen to every tutor in the room.
+  The clash is still *shown*, since both kinds are drawn on the tutor's own calendar, so somebody who
+  does want the evening free can block it with the one-off exception mechanism that exists for exactly
+  this. The difference is between the app deciding and the app informing.
+
+Two consequences worth stating plainly. **A cancelled or draft event blocks nothing**, on the same
+reasoning as above. And **the `events` kill switch is honoured here too**, which is the harder half: with
+events off, a live event stops protecting its host's evening. That is still the right way round, because
+with the feature down the tutor cannot see the event *anywhere* — not on their calendar, not on the
+event page — so an hour missing from their published availability would be unexplainable from inside the
+app, and a kill switch whose side effects outlive it is not a kill switch. The hour goes again the
+moment the flag returns.
+
+It also means `/api/my-schedule/` and `/services/{id}/availability/` will disagree about a hosted
+event's hour, deliberately: the first shows a tutor their real Tuesday, the second shows a student what
+can be booked.
+
+### 17V.3 The kill switch, including every link that points at the feature
+
+`events` is a new `FeatureFlag`, seeded on by a data migration alongside the existing five, and gating
+the whole `/api/events/` surface through the standard `feature_gate('events')` — every action, not
+just writes, with real staff bypassing it as they do everywhere else.
+
+The explicit requirement here was that pulling the switch removes the **links** too, not only the pages
+behind them, since a killed feature that still shows its buttons has not been hidden, only made to fail
+somewhere less useful. So, with the flag off, for a non-staff visitor:
+
+- the **Events nav link** is gone;
+- the **homepage Events tab** is not rendered at all (a tab that opens onto "this feature is
+  unavailable" is a link to a dead end);
+- **"Host an event" disappears from the "Add…" menu** — and the menu's own trigger disappears entirely
+  if every item under it is gone, because an empty menu invites a click and then explains nothing;
+- `/events` and `/events/[id]` render the shared `FeatureGate` notice rather than the real page;
+- and **`/api/my-schedule/` returns an empty `events` list while continuing to work**, since it is a
+  *tutoring* endpoint and must not break — a killed feature leaking through a neighbouring endpoint is
+  exactly the hole a kill switch is meant not to have.
+
+All eight of those are pinned by the browser script, and the flag is turned back on at the end of it.
+
+### 17V.4 The navbar, rebuilt
+
+The bar had grown one link per feature — browse, materials, my set, submit exercise, submit material,
+courses, tutoring, watchlist, schedule, messages, moderation — every one competing for the same
+attention and wrapping onto a second line before a laptop was even narrow. The rebuild removes nothing;
+it sorts what was there by what each link is **for**:
+
+- **Browsing stays in the nav**, because that is what a nav is: places to go and look at things.
+- **Making collapses into one "Add…" popover.** Five of the old links were create flows sharing a
+  single question ("I want to make something") that the bar was asking five times: submit an exercise,
+  submit a material, create a course, offer tutoring, and now host an event.
+- **You collapses into the account button**, which was already there carrying the person's name and did
+  nothing except link to Settings, while Log out sat beside it as a separate control and My Set sat
+  over in the nav. It now holds **Profile** (new — `/users/<own id>`, which the app had no navigation to
+  at all), My Set, My schedule, Settings and Log out.
+- **Messages moved into the action area as an icon-only SVG button** with a real `aria-label` and its
+  unread badge intact. It and the notification bell are siblings — both inboxes, both with an unread
+  count — and one being a word in the nav while the other was an icon on the right was an accident of
+  the order they were built in rather than a distinction.
+
+**One shared popover primitive, not three ad-hoc dropdowns.** `MeatballsMenu` already owned exactly the
+behaviour that is easy to get subtly wrong (open, Escape, click-outside, return focus to the trigger) —
+but it owned it *for a "⋯" button holding a list of callbacks*. The navbar needs two panels that are
+neither: one holds links, the other is triggered by a person's name. Widening `MeatballsMenu` to take
+either items or children and either a label or a trigger snippet would have produced a component that
+is really two components sharing a file. So the behaviour moved into `shared/Popover.svelte` and
+`MeatballsMenu` keeps its own implementation deliberately — it is used in a dozen places, it works, and
+rewriting a tested component onto a new primitive is real risk for no user-visible payoff. The
+duplication is about twenty lines and is named in both files so nobody has to rediscover that it was a
+choice.
+
+Two details worth keeping: the panel's `children` snippet receives a `close` callback, because a link
+that navigates and leaves the popover hanging over the new page is a real bug under client-side routing
+(the component is not torn down by the navigation); and focus returns to the trigger on **Escape only**,
+never on a click-away, since somebody who clicked elsewhere has already said where they want to be.
+
+**On a phone the same content becomes one row and a drawer.** Three rules drove that, and each shows up
+in the markup rather than only in the styles:
+
+1. **One row.** The bar is the brand and nothing else; everything that lives across the top on a desktop
+   lives in the drawer instead. Before this, the nav collapsed behind a toggle while the action row
+   stayed and wrapped — so the "one row" was frequently three.
+2. **It gets out of the way.** Scrolling down tucks the bar away; scrolling up brings it back at once. A
+   sticky bar on a 390px-tall reading surface is a real cost, and the gesture people make to get it back
+   is exactly the one that returns it. The measurement runs once per animation frame (`scroll` fires far
+   more often than the screen redraws, and reading `scrollY` in the handler is a layout read on every
+   one), with a 6px deadband — without it, the sub-pixel jitter a phone produces while a finger rests on
+   the screen flickers the bar in and out — and the bar is always out within 72px of the top, so a page
+   restored mid-article never opens with no bar and no obvious reason.
+3. **The menu button never goes anywhere.** It is rendered **outside `<header>`**, which is the
+   requirement rather than a layout preference: the header is the thing that slides away, so a button
+   inside it would slide away too, and this is the one control that has to survive the bar hiding,
+   because it is what brings the bar's contents back. It sits level with the bar while the bar is there
+   and stays exactly where it is once the bar has gone, so it never appears to move.
+
+**The item lists are snippets rendered by both surfaces.** The browse links, the create actions and the
+account items each exist once and are rendered into both the desktop popovers and the drawer, so a
+feature flag can never hide an entry in one place and leave it in the other — which is precisely the bug
+a second hand-maintained mobile menu would eventually grow.
+
+**The drawer is not a popover-in-a-popover.** Inside it, the create and account groups are flat sections
+under headings rather than nested menus, and Messages and Notifications are plain links carrying their
+unread counts as text rather than the desktop bell and envelope, both of which open popovers of their
+own. A popover inside a drawer is a worse interaction than simply going to the inbox, and the counts —
+the only reason those two are worth surfacing at all — come along either way. Targets are 44px, which is
+the size a thumb actually hits.
+
+Drawer mechanics: Escape closes it and returns focus to the toggle, the scrim closes it, background
+scroll is locked (on a phone the drawer is most of the screen, and a page scrolling behind it is how
+somebody loses their place in an article by opening a menu), every link inside closes it, and a route
+change from *anywhere* — including the browser's own back button, which no click handler sees — closes
+it too. It is moved off-canvas rather than unmounted so it slides, and `visibility: hidden` is what keeps
+it out of the tab order while it is off-screen: a translated element is still focusable, and a hidden
+drawer full of reachable links is a real keyboard trap. The scrim is a real `<button>` rather than a
+`<div>` with a click handler, so it is interactive by construction rather than by assertion — kept out
+of the tab order and hidden from the accessibility tree, since a keyboard user already has Escape and
+the ✕ and a third unlabelled route would be noise. Anybody who has asked for less motion gets the same
+behaviour with none of it.
+
+**A real bug, caught by looking at a screenshot rather than by any assertion:** the drawer opened and shut
+again in the same frame, so the page looked exactly as though the menu button did nothing. The
+route-change effect read `drawerOpen` to decide whether to close, which made the effect *depend* on it —
+so setting it to `true` re-ran the very effect whose job was to close it. `untrack` around that read is
+load-bearing; the dependency the effect is supposed to have is the pathname and nothing else.
+
+**My Set is the one entry that lives in two places, conditionally.** It is in the account menu for
+anybody signed in, and stays in the nav for a guest — who has no account menu, and whose set is the
+more fragile of the two, since it exists only in that browser until they make an account.
+
+**Found by looking at a screenshot rather than by an assertion:** the account trigger was a person's own
+name sitting in a row of icons, which reads as a label rather than as something to press. It gained a
+chevron that rotates on open.
+
+### 17V.5 Homepage tabs
+
+The homepage was exercises and nothing else — top-rated and recent — with no acknowledgement on the
+front page that this site also holds materials, courses somebody runs, people offering tutoring, or
+events. It is now five tabs: **Exercises, Materials, Courses, Tutoring, Events.**
+
+- **Each tab renders that feature's own card component** (`ExerciseCard`, `MaterialCard`, `CourseCard`,
+  `ServiceCard`, `EventCard`) rather than a homepage-specific summary card. A course on the homepage
+  should look like a course, and a second card component per kind is a second place to fix every time
+  one of them changes.
+- **The selected tab is in the URL** (`?tab=`), not in component state. Three things follow and all
+  three were the point: a reload keeps you where you were, the back button steps between tabs the way a
+  person expects, and somebody can send a link to the Events tab. A query parameter rather than five
+  routes, because these are five views of one page; and a real `goto` rather than `replaceState`, which
+  would have taken the back button away again.
+- **Data is fetched per tab, once, and kept.** Loading all five on first paint would make the homepage
+  five round trips slow for a visitor who only ever looks at one; re-fetching on every switch would make
+  going back and forth flicker.
+- **Real ARIA tab semantics**, including the part usually skipped: a roving `tabindex`, `aria-selected`,
+  `aria-controls`/`aria-labelledby` wiring the panel to its tab, and Left/Right/Home/End moving between
+  tabs with focus following selection. A `role="tablist"` that does not answer arrow keys is a promise
+  to a screen-reader user that the page then breaks.
+- **Tabs are gated by the same flags their features are.** A killed feature's tab is not rendered, and
+  an unknown or now-hidden `?tab=` falls back to Exercises rather than rendering nothing, so a stale
+  link still lands somewhere real.
+
+### 17V.6 Verified
+
+**Backend — `events/tests.py` (60 tests) plus seven new ones in `booking/tests.py`, and the whole suite
+re-run.** The suite pins refusals rather
+than happy paths, on `classroom/tests.py`'s own reasoning: a draft invisible to strangers and 404 on its
+own URL; a cancelled event readable but out of the browse list while staying in the lists of the people
+it concerns; `mine=hosting` vs `mine=attending`; every location-kind validation, including a **partial
+edit validated against the fields it is not changing** (switching an onsite event to online while
+sending no URL must fail on the URL it does not have); cancelling refused as a PATCH and offered only as
+its own action; un-cancelling refused; deleting refused once people are coming, naming cancelling as the
+alternative; the seat given back on a change of mind; a full event still accepting a decline; the block
+reason told to the person it applies to; the private roster in all four of its cases; every notification
+including the two deliberate silences; the kill switch across anonymous / signed-in / host / write /
+staff; and the schedule integration. The availability half is pinned in `booking/tests.py`, next to the mode
+arithmetic it belongs to: a hosted event removes the hour from a `derived` listing and an attended one
+does not; a `declared` listing keeps publishing through both; a draft and a cancellation block nothing;
+a 150-minute workshop swallows every slot it covers (the subtraction is interval arithmetic, not slot
+matching); the kill switch gives the hours back; and a student is refused at request time, not merely
+shown a shorter list — asserted separately so a future refactor that split the browse check from the
+request-time gate would be caught here rather than in production.
+
+**Browser — `frontend/e2e/events-and-nav.mjs`, 92 checks, zero console/page errors**, five browser
+contexts against the real servers. It drives the whole loop: the Add menu opening, offering all five
+create actions, closing on Escape and returning focus; the account menu holding all five entries with
+Profile resolving to the signed-in person's own id; Messages rendering as an SVG with no text and a real
+accessible name; five tabs with the panel correctly wired, the tab surviving a reload, the back button
+stepping between tabs and arrow keys moving between them; creating an event through the real form and
+landing on its own page; a second person answering, the count moving, and *answering* being what unlocks
+the roster they could not see a moment earlier; the host's notification linking to the event; capacity
+refusing a third person, the seat-holder still able to decline, and the freed seat being offered on;
+the event appearing on the events page, the homepage tab via a shared link, and the host's own calendar
+labelled "Running"; cancelling telling the person who was coming while the event stays readable; the
+kill switch removing the nav link, the tab, the menu item, the page and the API while leaving
+`/my-schedule/` working and empty, with a moderator keeping access throughout; both locales; and the
+phone navbar in a 390×844 context — the bar down to a single row with neither the desktop nav nor the
+action row on it, the drawer holding the browse links, the create actions, the account items and
+Messages, Escape closing it and returning focus, **the bar tucking away on scroll down while the menu
+button stays within a pixel of where it was**, the bar returning on scroll up, and a drawer link both
+navigating and closing the drawer behind it.
+
+One real application bug came out of this that no assertion would have found — the drawer opening and
+closing in the same frame, see 17V.4 — and three bugs in the script itself are worth recording because
+each cost a real run: fields addressed by
+position rather than by label (filling "One-line summary" where "Place" was meant, leaving a required
+field empty so the browser silently refused to submit — which reads exactly like a broken create flow);
+`kasia` being the one seeded staff account rather than `julia`, so the flag PATCH 403'd; and Paraglide
+here having **no URL strategy configured**, so `/pl/events` is not a locale URL at all and the language
+is chosen through the picker. A fourth was the test being right and the assertion wrong: the "does the
+kill switch leak" check was being asked of the moderator, who bypasses every flag by design.
+
+**Regression — all six pre-existing scripts re-run, 188 checks, zero regressions:** booking 51,
+classroom 44, classroom-overhaul 29, education-auth 42, material-claims 14, profile-editing 8. Two runs
+hit the documented Vite/Chromium resource-exhaustion artifact (a navigation timing out after a long
+chain of full page loads) and passed on a re-run against a fresh dev server; `education-auth.mjs`
+carries a **pre-existing hardcoded `127.0.0.1:8011`** and must be run against the port `test.md`
+documents, which is unrelated to this work.
+
+`npm run check`: 0 errors, 0 warnings. `npm run build`: clean. `makemigrations --check`: no pending
+changes.
+
+### 17V.7 Left open, not built
+
+- **No editing an event after it exists.** `EventWriteSerializer` and `PATCH` both work and are tested,
+  and the time/place-change notification depends on them, but there is no `/events/[id]/edit` page — a
+  host changes the room through the API or not at all. The most obvious next thing.
+- **No subject picker on the event form.** The model carries `subjects` (M2M) and the API accepts slugs,
+  but the form only offers `field`. This matches `CourseForm`, which has the same gap for the same
+  reason, and it means subject-scoped discovery works over the API before it works from the UI.
+- **No recurrence.** Every event is a single occurrence; a weekly reading group is five events. Adding a
+  rule would mean deciding whether attendance is per-occurrence, which is a real design question rather
+  than a field.
+- **No reminder before it starts.** Somebody who said they are coming is told if it moves or is called
+  off, and never told "this is tomorrow" — that needs scheduled work (cron or a task queue), which this
+  project has nowhere to run yet.
+- **No comments on an event.** The generic `Comment` is right there and `classroom` shows how to wire
+  it; it was left out to keep this pass honest rather than broad.
+- **No moderation or reporting surface for an event**, matching the gap Section 17P names for Service
+  listings and 17U for bookings.
+- **No waiting list.** A full event simply refuses, and the seat freed by a change of mind goes to
+  whoever asks next rather than to whoever asked first.
+- **Attendance has no check-in**, so nothing records who actually turned up as opposed to who said they
+  would.
+- **The homepage tabs show six items each with no pagination**, and "See all" is the only route to the
+  rest.
+- **`MeatballsMenu` still duplicates `Popover`'s open/close behaviour**, deliberately — see 17V.4.
+- **The drawer does not trap focus.** Escape, the scrim, the ✕ and every link close it, and it is kept
+  out of the tab order while off-screen, but tabbing past the last item walks into the page behind it. A
+  real focus trap is the honest next step; `inert` on the rest of the document is the modern way to get
+  it and would want testing across the browsers this project actually supports.
+- **Attending an event still does not block bookable time**, by decision rather than omission (17V.2) —
+  but there is no one-click "block this evening" on the event itself either, so somebody who wants that
+  has to go and write an availability exception by hand.
+- **Nothing warns a host that they are publishing an event over their own bookable hours**, or over a
+  session somebody has already booked. The subtraction happens quietly and only affects hours nobody has
+  taken yet; an existing confirmed booking is left exactly where it is, and the host finds out by looking
+  at their own calendar.
+
+---
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this
@@ -4719,6 +5113,7 @@ choose, since there is nowhere to keep the answer.
 | kierunek | field |
 | przedmiot | course (`taxonomy.Course`) — a university subject |
 | kurs (prowadzony przez użytkownika) | taught course (`classroom.TaughtCourse`) — something a person runs and others join |
+| wydarzenie | event (`events.Event`) — a one-off happening people turn up to, distinct from both a taught course and a booking |
 | dział / temat | topic |
 | zadanie | exercise |
 | materiał (dydaktyczny) | material |

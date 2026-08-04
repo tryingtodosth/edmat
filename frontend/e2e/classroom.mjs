@@ -73,8 +73,13 @@ const stranger = await person('stranger');
 console.log('\n[1] Anyone can browse, and the nav offers it');
 await goto(stranger, '/');
 check(
+	// `:visible`, because the navbar rebuild put the same links in two places in the DOM: the desktop
+	// bar and the phone drawer. Exactly one of the two is ever rendered — the other is `display: none`
+	// at that breakpoint, so it is out of the accessibility tree as well as off the screen — but a
+	// plain `.count()` sees both. What this check has always meant is "a visitor is offered the link",
+	// which is a question about what is visible.
 	'the nav links to courses',
-	(await stranger.locator('nav a[href$="/classroom"]').count()) === 1
+	(await stranger.locator('nav a[href$="/classroom"]:visible').count()) === 1
 );
 await goto(stranger, '/classroom');
 check('the browse page renders', (await stranger.locator('h1').innerText()).length > 0);

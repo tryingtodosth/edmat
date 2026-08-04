@@ -8,6 +8,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     exercise_id = serializers.PrimaryKeyRelatedField(source='exercise', read_only=True)
     material_id = serializers.PrimaryKeyRelatedField(source='material', read_only=True)
     taught_course_id = serializers.PrimaryKeyRelatedField(source='taught_course', read_only=True)
+    event_id = serializers.PrimaryKeyRelatedField(source='event', read_only=True)
 
     class Meta:
         model = Notification
@@ -20,6 +21,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             'exercise_id',
             'material_id',
             'taught_course_id',
+            'event_id',
             'note',
             'is_read',
             'created_at',

@@ -32,7 +32,13 @@ export type NotificationType =
 	| 'bookingRequested'
 	| 'bookingConfirmed'
 	| 'bookingDeclined'
-	| 'bookingCancelled';
+	| 'bookingCancelled'
+	// One-off events (events/). Three, and the set is deliberately small: the host is told when
+	// somebody says they are coming, and the people holding a seat are told when it moves or is
+	// called off. A decline is not a type — see the backend's own note on why.
+	| 'eventAttendance'
+	| 'eventUpdated'
+	| 'eventCancelled';
 
 export interface Notification {
 	id: string;
@@ -43,6 +49,7 @@ export interface Notification {
 	exerciseId?: string; // absent when there's nowhere real to link (e.g. a rejected submission)
 	materialId?: string; // set instead of exerciseId when a newTaggedContent notification targets a Material
 	taughtCourseId?: string; // set for the course types, which have neither an exercise nor a material
+	eventId?: string; // set for the event types, which have none of the three above
 	note: string;
 	isRead: boolean;
 	createdAt: string;

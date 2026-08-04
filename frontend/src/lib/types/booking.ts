@@ -1,3 +1,5 @@
+import type { ScheduleEvent } from './event';
+
 // Booking a session with a tutor — see backend/booking/models.py's own module doc comment for the
 // full design reasoning. The one thing worth repeating here, because it governs how every screen in
 // this feature has to read: a tutor decides PER OFFERING (`Service.availabilityMode`) how the
@@ -114,4 +116,8 @@ export interface TutorSchedule {
 	/** Both sides of the caller: somebody who teaches on Tuesday and takes a lesson on Thursday has
 	 * one week, not two. */
 	bookings: Booking[];
+	/** Events the caller is hosting or going to, on the same reasoning: an evening spent running a
+	 * workshop is gone whether or not anybody paid for it. Deliberately shown ALONGSIDE the published
+	 * windows rather than subtracted from them — see the backend's `MyScheduleView`. */
+	events: ScheduleEvent[];
 }

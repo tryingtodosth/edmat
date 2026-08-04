@@ -154,6 +154,7 @@ export type NotificationPreferenceCategory =
 	| 'notifyOnContentAction'
 	| 'notifyOnCourseActivity'
 	| 'notifyOnBooking'
+	| 'notifyOnEvent'
 	| null;
 
 export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPreferenceCategory> =
@@ -183,7 +184,12 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		bookingRequested: 'notifyOnBooking',
 		bookingConfirmed: 'notifyOnBooking',
 		bookingDeclined: 'notifyOnBooking',
-		bookingCancelled: 'notifyOnBooking'
+		bookingCancelled: 'notifyOnBooking',
+		// Their own category rather than a share of `notifyOnCourseActivity`: a switch labelled
+		// "courses" that also governed events would be a setting whose label lies.
+		eventAttendance: 'notifyOnEvent',
+		eventUpdated: 'notifyOnEvent',
+		eventCancelled: 'notifyOnEvent'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -211,7 +217,10 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	bookingRequested: m.notifPref_bookingRequested,
 	bookingConfirmed: m.notifPref_bookingConfirmed,
 	bookingDeclined: m.notifPref_bookingDeclined,
-	bookingCancelled: m.notifPref_bookingCancelled
+	bookingCancelled: m.notifPref_bookingCancelled,
+	eventAttendance: m.notifPref_eventAttendance,
+	eventUpdated: m.notifPref_eventUpdated,
+	eventCancelled: m.notifPref_eventCancelled
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
@@ -223,5 +232,6 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	messaging: m.featureFlags_label_messaging,
 	exercise_submissions: m.featureFlags_label_exerciseSubmissions,
 	material_submissions: m.featureFlags_label_materialSubmissions,
+	events: m.featureFlags_label_events,
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };

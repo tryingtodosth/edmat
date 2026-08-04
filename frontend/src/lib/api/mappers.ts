@@ -42,6 +42,7 @@ import type {
 	ReportKind,
 	ResolvedExercise,
 	Review,
+	ScheduleEvent,
 	Service,
 	ServiceAvailability,
 	ServiceReview,
@@ -801,7 +802,10 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	booking_requested: 'bookingRequested',
 	booking_confirmed: 'bookingConfirmed',
 	booking_declined: 'bookingDeclined',
-	booking_cancelled: 'bookingCancelled'
+	booking_cancelled: 'bookingCancelled',
+	event_attendance: 'eventAttendance',
+	event_updated: 'eventUpdated',
+	event_cancelled: 'eventCancelled'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -832,6 +836,7 @@ export interface RawProfile {
 	notify_on_content_action?: boolean;
 	notify_on_course_activity?: boolean;
 	notify_on_booking?: boolean;
+	notify_on_event?: boolean;
 	muted_notification_types?: string[]; // snake_case type strings — converted below
 	donation_links?: RawDonationLink[];
 	// Always present on BOTH /auth/me/ and /users/{id}/ — accounts/serializers.py's
@@ -867,6 +872,7 @@ export function mapUser(json: RawProfile): User {
 		weekStartsOn: json.week_starts_on === 'sunday' ? 'sunday' : 'monday',
 		notifyOnCourseActivity: json.notify_on_course_activity,
 		notifyOnBooking: json.notify_on_booking,
+		notifyOnEvent: json.notify_on_event,
 		mutedNotificationTypes: json.muted_notification_types
 			?.map((t) => NOTIFICATION_TYPE_MAP[t])
 			.filter((t): t is Notification['type'] => t !== undefined)
@@ -941,6 +947,7 @@ export interface RawNotification {
 	exercise_id: number | null;
 	material_id: number | null;
 	taught_course_id: number | null;
+	event_id: number | null;
 	note: string;
 	is_read: boolean;
 	created_at: string;
@@ -958,6 +965,10 @@ export function mapNotification(json: RawNotification): Notification {
 		taughtCourseId:
 			json.taught_course_id !== null && json.taught_course_id !== undefined
 				? String(json.taught_course_id)
+				: undefined,
+		eventId:
+			json.event_id !== null && json.event_id !== undefined
+				? String(json.event_id)
 				: undefined,
 		note: json.note,
 		isRead: json.is_read,
@@ -1123,12 +1134,33 @@ export interface RawBooking {
 export interface RawTutorSchedule {
 	days: { date: string; windows: { start: string; end: string }[] }[];
 	bookings: RawBooking[];
+	// Added when events started feeding this endpoint. Optional on the wire, and defaulted below, so
+	// a frontend deployed ahead of the backend renders a calendar without events rather than throwing
+	// on `undefined.map`.
+	events?: {
+		id: number;
+		title: string;
+		starts_at: string;
+		ends_at: string;
+		status: string;
+		location_kind: string;
+		is_host: boolean;
+	}[];
 }
 
 export function mapTutorSchedule(json: RawTutorSchedule): TutorSchedule {
 	return {
 		days: json.days.map((day) => ({ date: day.date, windows: day.windows })),
-		bookings: json.bookings.map(mapBooking)
+		bookings: json.bookings.map(mapBooking),
+		events: (json.events ?? []).map((event) => ({
+			id: String(event.id),
+			title: event.title,
+			startsAt: event.starts_at,
+			endsAt: event.ends_at,
+			status: event.status as ScheduleEvent['status'],
+			locationKind: event.location_kind as ScheduleEvent['locationKind'],
+			isHost: event.is_host
+		}))
 	};
 }
 

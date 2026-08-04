@@ -7,7 +7,7 @@ endpoint and the "is this a slot you actually offered?" check at request time mu
 independent implementations of that agreement is exactly how a booking system starts accepting
 appointments at 3am.
 
-**The two modes meet in one place, and only one place** — `_busy_windows` is consulted for a
+**The two modes meet in one place, and only one place** — `_busy_intervals` is consulted for a
 `derived` service and skipped for a `declared` one. Everything else (rules, exceptions, slicing,
 dropping slots in the past) is identical. That is on purpose: the difference between the two modes
 should be one subtraction, not two parallel code paths that can grow apart.
@@ -171,11 +171,14 @@ def _apply_exceptions(tutor, windows: dict[date_cls, list[Interval]]) -> None:
 
 
 def _busy_intervals(tutor, start: datetime, end: datetime) -> list[Interval]:
-    """Everything already spoken for in the tutor's calendar, across **every** listing they run.
+    """Everything already spoken for in the tutor's calendar, across **every** listing they run —
+    and, since events exist, every event they are running too.
 
     Not scoped to this service on purpose: an hour a student booked through the tutor's physics
     listing is not available through their maths one, and scoping this would produce exactly that
-    double-booking while every individual listing looked internally consistent.
+    double-booking while every individual listing looked internally consistent. An event is the same
+    argument one step further out: a workshop somebody is running at 18:00 on Tuesday is not an hour
+    they can also teach in, whichever listing the student is looking at.
     """
     bookings = Booking.objects.filter(
         tutor=tutor,
@@ -183,7 +186,46 @@ def _busy_intervals(tutor, start: datetime, end: datetime) -> list[Interval]:
         starts_at__lt=end,
         ends_at__gt=start,
     )
-    return [Interval(b.starts_at, b.ends_at) for b in bookings]
+    return [Interval(b.starts_at, b.ends_at) for b in bookings] + _event_intervals(tutor, start, end)
+
+
+def _event_intervals(tutor, start: datetime, end: datetime) -> list[Interval]:
+    """Events that genuinely occupy this person's time.
+
+    **Hosting blocks; attending does not, and the asymmetry is the whole decision.** Hosting is a
+    commitment to other people who will physically turn up expecting you — it is exactly as binding
+    as a confirmed booking, and a tutor who could be booked during a workshop they are running would
+    be double-booked by the app rather than by their own mistake. Saying you are going to something
+    is a different kind of statement: this app lets you take it back with one click and tells nobody
+    when you do, so treating it as a withdrawal of bookable hours would mean an RSVP silently costing
+    somebody income they never agreed to give up. The clash is still *shown* either way — both kinds
+    are drawn on `/api/my-schedule/` — so a tutor who does want to keep an evening free for a talk
+    they are attending can block it themselves with the one-off exception mechanism that already
+    exists for exactly this.
+
+    **A cancelled or draft event blocks nothing.** A draft was never announced, and a cancellation is
+    the hour being given back — continuing to withhold it would be the app disagreeing with the
+    notification it just sent.
+
+    **The `events` kill switch is honoured here too**, so a moderator turning events off restores the
+    hours rather than leaving an invisible subtraction behind. That is the harder half of the call:
+    it means a live event stops protecting its host's evening while the feature is down. It is still
+    the right way round, because with the feature off the tutor cannot see the event *anywhere* — not
+    on their calendar, not on the event page — so an hour vanishing from their published availability
+    would be unexplainable from inside the app, and a kill switch whose side effects outlive it is not
+    a kill switch. Nothing is lost silently: the hour reappears the moment the flag goes back on.
+    """
+    from events.models import Event
+    from moderation.services import is_feature_enabled
+
+    if not is_feature_enabled('events'):
+        return []
+    hosted = Event.objects.filter(host=tutor, status='published', starts_at__lt=end)
+    # `ends_at` is derived from a duration rather than stored (events/models.py), so the lower bound
+    # is applied in Python. The `starts_at__lt` bound above already cut this to a handful of rows.
+    return [
+        Interval(event.starts_at, event.ends_at) for event in hosted if event.ends_at > start
+    ]
 
 
 def _slice(window: Interval, session: timedelta, not_before: datetime) -> list[Interval]:

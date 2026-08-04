@@ -93,6 +93,10 @@ INSTALLED_APPS = [
     # Booking sessions with a tutor — attaches to `services.Service` rather than being a marketplace
     # of its own, and hides behind the same `tutoring` feature flag. See booking/models.py.
     'booking',
+    # One-off happenings people organise — a guest lecture, a workshop, an exam-prep meetup.
+    # Deliberately its own app rather than a variant of classroom or booking; see events/models.py
+    # for why neither of those is the same shape.
+    'events',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting

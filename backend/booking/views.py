@@ -7,7 +7,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from events.models import ATTENDING_STATUSES, Event
 from moderation.permissions import feature_gate
+from moderation.services import is_feature_enabled
 from services.models import Service
 
 from .availability import (
@@ -123,6 +125,29 @@ class MyScheduleView(APIView):
     Both parties' bookings come back, not only the ones where the caller is the tutor. Somebody who
     teaches on Tuesday and takes a lesson on Thursday has one week, not two, and a calendar showing
     half of it would be worse than useless for deciding whether Thursday is free.
+
+    **Events are in here too, and that was a real decision rather than an obvious one.** An event
+    (events/) is somebody's Thursday evening exactly as much as a lesson is, so a "what does my week
+    look like" endpoint that omitted the workshop the caller is running would be answering its own
+    question wrongly — the same reasoning that already put *both* sides of the caller's bookings in
+    one response. Hosting and going are both included, and for the same reason: the hour is gone
+    either way.
+
+    What appears here is *everything*, including the events that do not block anything: this endpoint
+    still never subtracts, because a calendar with the appointments cut out of it is the one thing a
+    calendar must not be. `windows_for_tutor` is untouched, so the published bands are drawn whole and
+    the event is drawn on top of them.
+
+    Whether an event also removes the hour from what students are OFFERED is a separate question, and
+    it is answered separately, in `availability._event_intervals`: **hosting removes it, attending does
+    not.** See that function for the reasoning. The consequence to know here is that this response and
+    `/services/{id}/availability/` will disagree about a hosted event's hour — deliberately. This one
+    shows the tutor their real Tuesday; that one shows a student what can be booked.
+
+    The `events` kill switch is honoured separately from `tutoring`: with events off, this endpoint
+    still works — it is a tutoring endpoint — but the events list comes back empty, because a killed
+    feature leaking through a neighbouring endpoint is exactly the hole a kill switch is meant not to
+    have. Staff bypass it here the same way `feature_gate` lets them bypass it everywhere else.
     """
 
     permission_classes = [permissions.IsAuthenticated, _TutoringFeatureGate]
@@ -175,8 +200,51 @@ class MyScheduleView(APIView):
                     for day, day_windows in sorted(windows.items())
                 ],
                 'bookings': serialized,
+                'events': self._events(request.user, span_start, span_end),
             }
         )
+
+    def _events(self, user, span_start, span_end):
+        """The caller's own events inside the span — the ones they host, and the ones they said they
+        were going to. See this view's own docstring for why they are here and what they do not do.
+
+        A deliberately thin projection rather than the full `EventSerializer`: a calendar needs a
+        title, a time and a way to click through, and the rest of that serializer's payload (every
+        `can_respond`/`seats_left` field, resolved per row) would be work done to render nothing.
+        """
+        if not is_feature_enabled('events') and not user.is_staff:
+            return []
+        rows = (
+            Event.objects.filter(Q(host=user) | Q(attendances__attendee=user, attendances__status__in=ATTENDING_STATUSES))
+            # Drafts and cancellations are both excluded, for opposite reasons. A draft is not a
+            # commitment — nothing has been announced, so the evening is not spoken for yet. A
+            # cancelled event is the reverse: it WAS a commitment and is not one any more, so leaving
+            # it on the calendar would go on telling somebody their Thursday is taken after the very
+            # notification saying it is not.
+            .exclude(status__in=('draft', 'cancelled'))
+            .filter(starts_at__lt=span_end)
+            .distinct()
+            .order_by('starts_at')
+        )
+        out = []
+        for event in rows:
+            # Filtered here rather than in SQL because `ends_at` is derived from a duration rather
+            # than stored (see events/models.py) — the `starts_at__lt` bound above already cut the
+            # set down to something small enough that this costs nothing real.
+            if event.ends_at <= span_start:
+                continue
+            out.append(
+                {
+                    'id': event.pk,
+                    'title': event.title,
+                    'starts_at': event.starts_at.isoformat(),
+                    'ends_at': event.ends_at.isoformat(),
+                    'status': event.status,
+                    'location_kind': event.location_kind,
+                    'is_host': event.host_id == user.pk,
+                }
+            )
+        return out
 
 
 class AvailabilityRuleViewSet(viewsets.ModelViewSet):

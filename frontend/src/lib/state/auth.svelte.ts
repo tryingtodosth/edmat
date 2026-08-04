@@ -133,6 +133,7 @@ export const authStore = {
 			notifyOnContentAction: boolean;
 			notifyOnCourseActivity: boolean;
 			notifyOnBooking: boolean;
+			notifyOnEvent: boolean;
 			mutedNotificationTypes: NotificationType[];
 			offersTutoring: boolean;
 			tutoringNote: string;
@@ -153,6 +154,7 @@ export const authStore = {
 		if (patch.notifyOnCourseActivity !== undefined)
 			body.notify_on_course_activity = patch.notifyOnCourseActivity;
 		if (patch.notifyOnBooking !== undefined) body.notify_on_booking = patch.notifyOnBooking;
+		if (patch.notifyOnEvent !== undefined) body.notify_on_event = patch.notifyOnEvent;
 		if (patch.notifyOnContentAction !== undefined)
 			body.notify_on_content_action = patch.notifyOnContentAction;
 		if (patch.mutedNotificationTypes !== undefined) {

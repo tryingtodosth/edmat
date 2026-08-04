@@ -4,8 +4,8 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 564 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 188 checks across 6 scripts |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 631 |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 280 checks across 7 scripts |
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
@@ -57,7 +57,8 @@ inherit from it rather than repeating the line.
 | App | Focus |
 |---|---|
 | `classroom` (86) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings, staff roles, contributions, chapters, invite links |
-| `booking` (66) | Availability arithmetic, the two availability modes against each other, the booking lifecycle, notifications, listing deletion, the tutor's own calendar |
+| `booking` (73) | Availability arithmetic, the two availability modes against each other, what a hosted event does to them, the booking lifecycle, notifications, listing deletion, the tutor's own calendar |
+| `events` (60) | Visibility and drafts, authoring and location validation, attendance and capacity, the private roster, notifications (including the deliberate silences), the kill switch, and the schedule integration |
 | `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
 | `accounts` profile extras (21) | Experience, skills, the derived activity feed, the demo-content seed, and the clock/week-start display preferences |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
@@ -118,7 +119,14 @@ inherit from it rather than repeating the line.
   hole in the *middle* of a window rather than trimming an edge; an all-day block clears the day; an
   opening adds hours the weekly pattern never had; a block on the same day beats an opening; overlapping
   rules do not offer one hour twice; the past is never offered.
-- **ModeTests** — `derived` removes a taken hour from what the next person sees and `declared` does not,
+- **ModeTests** — also where events meet availability, because it is the same subtraction: **an event the
+  tutor is HOSTING takes the hour out of a `derived` listing and one they are only ATTENDING does not**
+  (hosting is a commitment to people who will turn up; attending is a one-click statement this app lets
+  you take back, so treating it as a withdrawal of bookable hours would mean an RSVP silently costing
+  somebody income); a `declared` listing keeps publishing through both; a draft and a cancellation block
+  nothing; a 150-minute workshop swallows every slot it covers; the `events` kill switch gives the hours
+  back; and a student is refused at *request* time as well as shown a shorter list. Then: `derived`
+  removes a taken hour from what the next person sees and `declared` does not,
   against the *same* calendar; a **requested** booking already holds a `derived` slot, not just a
   confirmed one; declining gives the hour back; and an hour taken through one listing is taken on all of
   them, because a tutor is one person.
@@ -144,6 +152,41 @@ inherit from it rather than repeating the line.
   trimmed rather than rendered.
 - **KillSwitchTests** — the `tutoring` flag hides availability and bookings alike, while a moderator
   keeps access.
+
+#### `events` in more detail (the newest)
+
+- **VisibilityTests** — a draft is invisible to everybody but its host, and 404s on its own URL rather
+  than 403ing, because for a stranger it does not exist; a published event is readable with no account;
+  a **cancelled event stays readable but leaves the browse list**, while staying in the lists of the
+  people it concerns — both halves matter and they pull in opposite directions; `upcoming` is the
+  default and `past` is reachable; discovery by subject and by field; `mine=hosting` and
+  `mine=attending` are different lists, and declining takes an event off the second one.
+- **AuthoringTests** — the creator becomes the host regardless of what was posted; creating answers with
+  the READ shape, because the client needs an id and the derived fields to navigate; onsite needs a
+  place, online needs a link, hybrid needs both; **a partial edit is validated against the fields it is
+  not changing**, so switching an event to online while sending no URL fails on the URL it does not
+  have; cancelling cannot be smuggled in as a PATCH and a cancelled event cannot be reopened; a draft
+  nobody is coming to can be deleted, and an event people are coming to refuses, naming cancelling as
+  the alternative.
+- **AttendanceTests** — answering twice updates one row rather than making a second; changing your mind
+  gives the seat back and the next person gets it; a full event still lets somebody holding a seat
+  decline, which is the one answer a full event most wants; the host neither attends nor is counted; the
+  past and a cancellation both refuse, each in its own words; and the block reason is told to the person
+  it applies to rather than left to be discovered by trying.
+- **RosterTests** — not public, and not readable by somebody who is not going; but the people who ARE
+  going see each other, unlike a course roster, because "is anybody else going" is half of why somebody
+  opens an event; only the host sees the declines.
+- **NotificationTests** — the host is told when somebody is coming; **a decline is deliberately silent**
+  and **a change of mind does not notify again**; cancelling reaches everybody holding a seat and nobody
+  else; moving the time or the room tells them, and **fixing a typo in the description tells nobody**;
+  turning the category off stops the row being created at all.
+- **KillSwitchTests** — the `events` flag hides every action, including reads and including from the
+  host of an existing event, while a moderator keeps access.
+- **ScheduleTests** — events you host and events you are going to are both on `/api/my-schedule/`; ones
+  you declined, somebody else's, your own drafts and cancelled ones are not; the kill switch empties the
+  list **without breaking the endpoint**, because that is a tutoring endpoint; and an event sitting on a
+  published window does not consume it, which is the load-bearing half of the decision to put events on
+  that calendar at all.
 
 ---
 
@@ -191,6 +234,7 @@ node e2e/material-claims.mjs
 node e2e/classroom-overhaul.mjs
 node e2e/profile-editing.mjs
 node e2e/booking.mjs
+node e2e/events-and-nav.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -279,6 +323,36 @@ Two things about this script specifically, both deliberate:
   app handled it, and this run deliberately provokes a `409` by confirming a clashing session. Only that
   status is ignored; a 500 or a 403 still fails the run.
 
+**`e2e/events-and-nav.mjs` (92 checks)** — the three things that shipped together, in five browser
+contexts. The navbar: one "Add…" trigger holding all five create actions, closing on Escape and handing
+focus back; the account button opening a menu of Profile / My Set / My schedule / Settings / Log out,
+with Profile resolving to the signed-in person's own id; Messages rendering as an SVG with no text and
+a real accessible name. The homepage: five tabs, the panel wired to the tab that owns it, the choice
+surviving a reload, the back button stepping between tabs, and arrow keys moving between them. Then a
+whole event: created through the real form, answered by a second person — and *answering* is what
+unlocks the roster they could not see a moment earlier — the host notified with a link that resolves,
+capacity refusing a third person while the seat-holder can still decline and the freed seat is offered
+on, the event appearing on the events page, on the homepage tab via a shared link, and on the host's own
+calendar labelled "Running", then cancelled, which tells the person who was coming while the event stays
+readable. Finally the kill switch, which is the part it was written to prove: with the flag off the nav
+link, the homepage tab, the "Add…" entry, the page and the API are all gone, `/api/my-schedule/` keeps
+working with an empty events list, and a moderator still sees everything. Last, the phone navbar in its
+own 390×844 context: the bar down to one row with neither the desktop nav nor the action row on it, the
+drawer holding the browse links, the create actions, the account items and Messages, Escape closing it
+and handing focus back, **the bar tucking away on scroll down while the menu button stays within a pixel
+of where it was**, the bar returning on scroll up, and a drawer link both navigating and closing the
+drawer behind it.
+
+Two things about this script specifically:
+
+- **It seats three of its four people with an already-issued token** rather than driving the login form
+  four times. `POST /auth/login/` is throttled at 10/min per IP, and four browser logins plus four API
+  tokens is over budget before a single retry — at which point the run fails with "could not sign in"
+  and looks exactly like a broken login. The form itself is still exercised for real, once. The token is
+  what the app itself persists, so this is the same state a real login leaves behind, not a bypass.
+- **Kasia is the moderator**, not Julia — `seed_demo_users` seats exactly one `is_staff` account, and
+  pulling a feature flag is `IsAdminUser`.
+
 **`e2e/material-claims.mjs` (14 checks)** — a material card previews only its top few coverage and
 requirement claims (the real corpus has materials with 30), so the "+N more" count beside them is the
 only route to the rest from a grid — and it was an inert `<span>`. Pins that it is a real button with
@@ -298,6 +372,9 @@ works from the keyboard.
   cache, so **restarting the backend clears it**. A run that fails with "the panel did not render"
   right after several earlier runs is almost always this, not a regression. `e2e/booking.mjs` sidesteps
   it entirely by signing in as the seeded demo users instead; the older scripts still register.
+- **`e2e/education-auth.mjs` has a hardcoded `http://127.0.0.1:8011`** in one `page.evaluate`, so it
+  only runs against the port this document specifies — pointing everything at 8000 makes it fail with
+  `TypeError: Failed to fetch` partway through, which is a wrong port rather than a regression.
 - **A long-lived dev server eventually starves the browser.** After a great many full-page navigations
   in one session, Chromium starts failing dynamic imports with `net::ERR_INSUFFICIENT_RESOURCES`; the
   page then renders its server-side HTML and never hydrates, so it looks completely broken while making

@@ -72,6 +72,13 @@
 			}),
 		bookingConfirmed: () => m.notification_bookingConfirmed({ title: notification.targetLabel }),
 		bookingDeclined: () => m.notification_bookingDeclined({ title: notification.targetLabel }),
+		eventAttendance: () =>
+			m.notification_eventAttendance({
+				actor: notification.actorDisplayName,
+				title: notification.targetLabel
+			}),
+		eventUpdated: () => m.notification_eventUpdated({ title: notification.targetLabel }),
+		eventCancelled: () => m.notification_eventCancelled({ title: notification.targetLabel }),
 		bookingCancelled: () =>
 			m.notification_bookingCancelled({
 				actor: notification.actorDisplayName || m.notification_someone(),
@@ -99,7 +106,12 @@
 	let href = $derived(
 		BOOKING_TYPES.has(notification.type)
 			? resolve('/bookings')
-			: notification.exerciseId
+			: // An event, unlike a booking, DOES have a page of its own — and it is the page carrying
+				// the new time or the cancellation notice, so it is where somebody clicking a
+				// notification about one wants to land.
+				notification.eventId
+				? resolve('/events/[id]', { id: notification.eventId })
+				: notification.exerciseId
 				? resolve('/exercises/[id]', { id: notification.exerciseId })
 				: notification.materialId
 					? resolve('/materials/[id]', { id: notification.materialId })

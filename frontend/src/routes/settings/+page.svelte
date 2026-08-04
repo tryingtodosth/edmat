@@ -21,6 +21,7 @@
 	let notifyOnContentAction = $state(true);
 	let notifyOnCourseActivity = $state(true);
 	let notifyOnBooking = $state(true);
+	let notifyOnEvent = $state(true);
 	// Display preferences, with this app's own defaults rather than whatever the browser's locale
 	// would pick — see state/displayPrefs.svelte.ts for why those two are not the same question.
 	let timeFormat = $state<'24h' | '12h'>('24h');
@@ -55,6 +56,9 @@
 	const courseActivityTypes = (
 		Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]
 	).filter((t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnCourseActivity');
+	const eventTypes = (Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]).filter(
+		(t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnEvent'
+	);
 	const bookingTypes = (Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]).filter(
 		(t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnBooking'
 	);
@@ -82,6 +86,7 @@
 		notifyOnContentAction = authStore.user.notifyOnContentAction ?? true;
 		notifyOnCourseActivity = authStore.user.notifyOnCourseActivity ?? true;
 		notifyOnBooking = authStore.user.notifyOnBooking ?? true;
+		notifyOnEvent = authStore.user.notifyOnEvent ?? true;
 		timeFormat = authStore.user.timeFormat ?? '24h';
 		weekStartsOn = authStore.user.weekStartsOn ?? 'monday';
 		offersTutoring = authStore.user.offersTutoring;
@@ -108,6 +113,7 @@
 			notifyOnContentAction,
 			notifyOnCourseActivity,
 			notifyOnBooking,
+			notifyOnEvent,
 			timeFormat,
 			weekStartsOn,
 			mutedNotificationTypes: Array.from(mutedTypes),
@@ -328,6 +334,29 @@
 				{#if notifyOnBooking}
 					<ul class="fine-tune">
 						{#each bookingTypes as type (type)}
+							<li>
+								<label class="checkbox checkbox--sub">
+									<input
+										type="checkbox"
+										checked={!mutedTypes.has(type)}
+										onchange={() => toggleMuted(type)}
+									/>
+									<span>{NOTIFICATION_TYPE_LABELS[type]?.()}</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<!-- Events get their own coarse category rather than sharing the courses one: the two are
+				     different things to the person reading the label, and somebody who runs no courses but
+				     goes to talks should not have to guess which switch theirs is under. -->
+				<label class="checkbox">
+					<input type="checkbox" bind:checked={notifyOnEvent} />
+					<span>{m.settings_notifyOnEvent()}</span>
+				</label>
+				{#if notifyOnEvent}
+					<ul class="fine-tune">
+						{#each eventTypes as type (type)}
 							<li>
 								<label class="checkbox checkbox--sub">
 									<input
