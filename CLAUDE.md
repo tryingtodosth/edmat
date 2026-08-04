@@ -4950,12 +4950,11 @@ changes.
 
 ### 17V.7 Left open, not built
 
-- **No editing an event after it exists.** `EventWriteSerializer` and `PATCH` both work and are tested,
-  and the time/place-change notification depends on them, but there is no `/events/[id]/edit` page — a
-  host changes the room through the API or not at all. The most obvious next thing.
-- **No subject picker on the event form.** The model carries `subjects` (M2M) and the API accepts slugs,
-  but the form only offers `field`. This matches `CourseForm`, which has the same gap for the same
-  reason, and it means subject-scoped discovery works over the API before it works from the UI.
+**Six of the entries below were closed in a follow-up pass — see 17W.** What remains here needs a
+product decision or infrastructure this project does not have, rather than an afternoon.
+
+- ~~**No editing an event after it exists.**~~ **Built — 17W.1.**
+- ~~**No subject picker on the event form.**~~ **Built — 17W.2.** `CourseForm` still has the gap.
 - **No recurrence.** Every event is a single occurrence; a weekly reading group is five events. Adding a
   rule would mean deciding whether attendance is per-occurrence, which is a real design question rather
   than a field.
@@ -4973,17 +4972,103 @@ changes.
 - **The homepage tabs show six items each with no pagination**, and "See all" is the only route to the
   rest.
 - **`MeatballsMenu` still duplicates `Popover`'s open/close behaviour**, deliberately — see 17V.4.
-- **The drawer does not trap focus.** Escape, the scrim, the ✕ and every link close it, and it is kept
-  out of the tab order while off-screen, but tabbing past the last item walks into the page behind it. A
-  real focus trap is the honest next step; `inert` on the rest of the document is the modern way to get
-  it and would want testing across the browsers this project actually supports.
-- **Attending an event still does not block bookable time**, by decision rather than omission (17V.2) —
-  but there is no one-click "block this evening" on the event itself either, so somebody who wants that
-  has to go and write an availability exception by hand.
-- **Nothing warns a host that they are publishing an event over their own bookable hours**, or over a
-  session somebody has already booked. The subtraction happens quietly and only affects hours nobody has
-  taken yet; an existing confirmed booking is left exactly where it is, and the host finds out by looking
-  at their own calendar.
+- ~~**The drawer does not trap focus.**~~ **Built — 17W.3.**
+- **Attending an event still does not block bookable time**, by decision rather than omission (17V.2).
+  The missing escape hatch beside it is now built — 17W.4.
+- ~~**Nothing warns a host that they are publishing an event over their own bookable hours**~~ —
+  **Built — 17W.5.**
+
+---
+
+## 17W. Closing the real defects on that list (✅ built)
+
+Six entries from 17V.7. The other seven stay open on purpose: recurrence and a waiting list are design
+questions (is attendance per-occurrence? is a freed seat first-come or first-asked?), reminders need
+scheduled work this project has nowhere to run, and comments/moderation/check-in are scope rather than
+defects.
+
+### 17W.1 Editing an event
+
+`/events/[id]/edit`, the same shape as `classroom/[id]/edit`: load, refuse in a sentence, otherwise hand
+the record to the shared `EventForm` — which was already written for both jobs and needed no change.
+The API, the serializer and the "this has moved" notification all existed and were tested; only the page
+was missing.
+
+**A cancelled event is refused here rather than allowed to fail on save.** The form always sends a
+status and `validate_status` refuses to reopen a cancelled event, so that form could only ever be
+rejected. Same reasoning the classroom page states for a course that is not yours.
+
+### 17W.2 Subjects on the event form
+
+A checkbox group, not `<select multiple>`: multi-select needs a modifier key most people do not know
+they are holding, and at this catalogue's size the whole list fits on screen.
+
+**Narrowed to the chosen field**, because a subject belongs to one, and **changing the field drops
+subjects that no longer belong to it** — the same reasoning that already blanks `locationText` when the
+location kind changes: a value the form no longer offers is one nobody can see and every later edit
+silently preserves. Done in the change handler rather than an `$effect`, because an effect that both
+reads and writes `subjectSlugs` re-runs itself — the exact shape of the drawer bug in 17V.4, and
+reaching for `untrack` to fix a loop that need not exist is the wrong trade.
+
+### 17W.3 The drawer traps focus
+
+A keydown cycle rather than `inert`. `inert` is the tidier idea and would also take the background out
+of the accessibility tree, but from inside `Header.svelte` "the rest of the document" means iterating
+the body's children and skipping our own three elements — a DOM-wide side effect to undo on every exit
+path including teardown. This stays inside the component and needs no cleanup.
+
+**The toggle button leads the cycle deliberately.** It is the drawer's ✕ while the drawer is open and it
+lives outside `<header>` (17V.4), so a trap scoped to the drawer alone would put the close button out of
+a keyboard's reach — a worse bug than the leak being fixed.
+
+### 17W.4 One click to keep the hours
+
+Attending still does not withdraw bookable time; that decision stands and 17V.2 explains it. What was
+missing was the way out for somebody who *does* want the evening held, which was "go and write an
+availability exception by hand". Now a button on the event, writing a real `AvailabilityException`
+whose note names the event — because an unexplained hole in a schedule six weeks later is one somebody
+deletes.
+
+### 17W.5 The clash warning
+
+Hosting removes the hours from anything still bookable, but it never moves a session somebody has
+already booked — so a host could be double-booked and find out only by looking at their own calendar.
+Two different warnings, because they are different problems: a **live booking** over those hours (shown
+to host and attendee alike, since either can be the one who has to sort it out) and **hours still
+published as bookable** (host only — for anybody else the subtraction never happens). Styled as a
+warning, not an error: nothing has gone wrong and nothing is refused.
+
+`my-schedule` never subtracts, by design, so its windows are the raw published bands and this overlap
+check sees what the tutor sees.
+
+### 17W.6 The hardcoded port in `education-auth.mjs`
+
+It reached the API through a literal `127.0.0.1:8011`, making it the only script here that could not be
+pointed at another backend. Now `E2E_API` like every sibling, and the call moved to Node so it does not
+depend on CORS — the reasoning `classroom-overhaul.mjs` already records.
+
+**Worth knowing: the sibling scripts default to `:8000` while `test.md` documents `:8011`,** so most of
+them need `E2E_API` set explicitly. That mismatch is pre-existing and untouched here.
+
+### 17W.7 Verified
+
+`e2e/known-issues.mjs` — **23 checks, zero console/page errors**, plus screenshots actually looked at.
+Real runs: the subjects group renders four subjects and the one ticked at creation is still ticked when
+the edit form reloads; a non-host is refused in words with no form rendered; the "keep these hours free"
+button writes a real `AvailabilityException` **read back from the API**, so a button that only flipped a
+flag on the page would fail; focus survives 40 Tabs and 20 Shift-Tabs inside the drawer, Escape closes
+it and focus returns to the button that opened it.
+
+All seven pre-existing scripts re-run: **280 checks, zero regressions** (events-and-nav 92, booking 51,
+classroom 44, classroom-overhaul 29, education-auth 42, material-claims 14, profile-editing 8).
+**303 browser checks in total.** `npm run check` 0 errors 0 warnings; `npm run build` clean. No backend
+file was touched.
+
+**One trap worth recording, hit three times in this pass**: `register` is throttled at **10/hour in a
+per-process `LocMemCache`**, so a long e2e session exhausts it and every later script fails in ways that
+look exactly like a code regression (a page with no menus, a form that will not submit). Restarting the
+backend process clears it. `pkill -f "manage.py runserver …"` also matches the shell issuing it and
+kills the replacement — kill by the PID holding the port instead.
 
 ---
 

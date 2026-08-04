@@ -119,8 +119,64 @@
 		});
 	});
 
+	// ---- the focus trap --------------------------------------------------------------------------
+	// Without this, tabbing past the last item in an open drawer walks into the page behind it: the
+	// links there are still focusable, so a keyboard user ends up driving a page they cannot see while
+	// a full-screen panel sits over it.
+	//
+	// A keydown cycle rather than `inert` on the rest of the document. `inert` is the tidier idea and
+	// would also take the background out of the accessibility tree, but from inside this component
+	// "the rest of the document" means iterating the body's children and skipping our own three
+	// elements — a DOM-wide side effect to undo correctly on every exit path, including teardown.
+	// This stays inside the component and needs nothing cleaned up.
+	const FOCUSABLE =
+		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+	function drawerFocusables(): HTMLElement[] {
+		if (!drawerEl) return [];
+		return Array.from(drawerEl.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+			// Anything genuinely not rendered — a section behind an `{#if}`, or the whole drawer on a
+			// desktop, where it is `display: none` — has no boxes and must not be a stop on the way round.
+			(el) => el.getClientRects().length > 0
+		);
+	}
+
+	function trapFocus(event: KeyboardEvent) {
+		// The toggle button leads the loop deliberately. It is the drawer's ✕ while the drawer is open,
+		// and it lives OUTSIDE the drawer element (it has to — see the comment at its markup), so a trap
+		// scoped to the drawer alone would put the close button out of a keyboard's reach, which is a
+		// worse bug than the one being fixed.
+		const items = [toggleEl, ...drawerFocusables()].filter((el): el is HTMLElement => el !== null);
+		if (items.length === 0) return;
+
+		const first = items[0];
+		const last = items[items.length - 1];
+		const active = document.activeElement as HTMLElement | null;
+
+		// Focus sitting outside the loop is the normal state immediately after opening: `openDrawer`
+		// puts it on the drawer container itself, which is `tabindex="-1"` and so is not a stop. Send it
+		// to whichever end the direction implies instead of letting the browser carry on into the page.
+		if (!active || !items.includes(active)) {
+			event.preventDefault();
+			(event.shiftKey ? last : first).focus();
+			return;
+		}
+		if (event.shiftKey && active === first) {
+			event.preventDefault();
+			last.focus();
+		} else if (!event.shiftKey && active === last) {
+			event.preventDefault();
+			first.focus();
+		}
+	}
+
 	function onWindowKeydown(event: KeyboardEvent) {
-		if (drawerOpen && event.key === 'Escape') closeDrawer();
+		if (!drawerOpen) return;
+		if (event.key === 'Escape') {
+			closeDrawer();
+			return;
+		}
+		if (event.key === 'Tab') trapFocus(event);
 	}
 
 	// ---- hide on scroll down, reveal on scroll up -------------------------------------------------

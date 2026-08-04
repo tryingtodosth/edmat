@@ -24,6 +24,10 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
+// The API origin, overridable like every other script here. It used to be written into the one call
+// below as a literal, which quietly made this the only script that could not be pointed at a backend
+// on a different port: it kept talking to 8011 however it was invoked.
+const API = process.env.E2E_API ?? 'http://127.0.0.1:8011/api';
 let pass = 0;
 let fail = 0;
 const errors = [];
@@ -174,12 +178,16 @@ check('a transcript came across', /Course results:/i.test(panel));
 check('a weighted average is computed', /Weighted average:/.test(panel));
 
 console.log('\n[9] Transferring is not publishing');
-const userId = await page.evaluate(async () => {
-	const res = await fetch('http://127.0.0.1:8011/api/auth/me/', {
-		headers: { Authorization: `Token ${localStorage.getItem('edmat-auth-token')}` }
-	});
-	return (await res.json()).id;
-});
+// The token is read from the page, but the call itself is made from Node — the same reasoning
+// classroom-overhaul.mjs records: the frontend talks to a different origin, so an in-page fetch
+// depends on CORS being configured for it, and fails as a JSON parse error rather than as a
+// recognisable network refusal when it is not.
+const authToken = await page.evaluate(() => localStorage.getItem('edmat-auth-token'));
+const userId = await fetch(`${API}/auth/me/`, {
+	headers: { Authorization: `Token ${authToken}` }
+})
+	.then((res) => res.json())
+	.then((body) => body.id);
 await goto(`/users/${userId}`);
 let profile = await page.locator('main').innerText();
 check(

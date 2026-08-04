@@ -11,6 +11,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import { cancelEvent, getEvent, getEventAttendees, respondToEvent } from '$lib/services/events';
+	import { createAvailabilityException, getMySchedule } from '$lib/services/booking';
 	import { authStore } from '$lib/state/auth.svelte';
 	import type { EdmatEvent, EventAttendee } from '$lib/types/event';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
@@ -51,6 +52,7 @@
 		try {
 			event = await getEvent(page.params.id!);
 			await loadAttendees(event.id);
+			await checkClash(event);
 		} catch {
 			failed = true;
 		} finally {
@@ -83,6 +85,84 @@
 			actionError = e instanceof Error ? e.message : m.common_error_generic();
 		} finally {
 			busy = false;
+		}
+	}
+
+	// ---- clashes with the reader's own calendar ------------------------------------------------
+	// Hosting an event removes those hours from anything still bookable (booking/availability.py), and
+	// that subtraction is silent by design: it only ever affects hours nobody has taken. What it
+	// deliberately does NOT do is move a session somebody has already booked and paid attention to.
+	// So a host can end up double-booked with no warning anywhere, and the only person who can fix it
+	// is the one who never found out. This says it on the page.
+	let clash = $state<{ kind: 'booking' | 'availability'; count: number } | null>(null);
+	// A one-click "keep this evening free" for somebody ATTENDING. Attending does not withdraw
+	// bookable hours — that decision stands, and it is the right one (booking/availability.py) — but
+	// the escape hatch for somebody who does want the evening held was "go and write an availability
+	// exception by hand", which nobody will do.
+	let blocking = $state(false);
+	let blocked = $state(false);
+
+	const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string) =>
+		new Date(aStart) < new Date(bEnd) && new Date(bStart) < new Date(aEnd);
+
+	/** Only ever asked for an event that has not happened yet: a clash with a past evening is not a
+	 * problem anybody can still act on, and the warning would be noise on every old page. */
+	async function checkClash(current: EdmatEvent) {
+		if (!authStore.isAuthenticated || current.isPast || current.status === 'cancelled') return;
+		// Start day THROUGH end day, not just the start: an event running to 00:30 has an hour of itself
+		// on a date the first query would never look at.
+		try {
+			const schedule = await getMySchedule(
+				current.startsAt.slice(0, 10),
+				current.endsAt.slice(0, 10)
+			);
+			// A live booking only. A declined or cancelled request is not a commitment, and a completed
+			// one is in the past by definition.
+			const live = schedule.bookings.filter(
+				(b) =>
+					(b.status === 'confirmed' || b.status === 'requested') &&
+					overlaps(current.startsAt, current.endsAt, b.startsAt, b.endsAt)
+			);
+			if (live.length > 0) {
+				clash = { kind: 'booking', count: live.length };
+				return;
+			}
+			// Published hours are the softer case, and only worth raising to the host — for anybody else
+			// the subtraction never happens at all, so there is nothing to warn about.
+			if (!current.isHost) return;
+			const stillOffered = schedule.days
+				.flatMap((d) => d.windows)
+				.some((w) => overlaps(current.startsAt, current.endsAt, w.start, w.end));
+			if (stillOffered) clash = { kind: 'availability', count: 0 };
+		} catch {
+			// Somebody who runs no tutoring at all has no schedule to read, and a failure here must not
+			// break the page they actually came for.
+		}
+	}
+
+	async function holdTheEvening() {
+		if (!event) return;
+		blocking = true;
+		actionError = '';
+		try {
+			const start = new Date(event.startsAt);
+			const end = new Date(event.endsAt);
+			const hhmm = (d: Date) =>
+				`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+			await createAvailabilityException({
+				date: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+				kind: 'block',
+				startTime: hhmm(start),
+				endTime: hhmm(end),
+				// The note is what makes this reversible six weeks later: an unexplained hole in a
+				// schedule is one somebody deletes.
+				note: m.events_holdNote({ title: event.title })
+			});
+			blocked = true;
+		} catch (e) {
+			actionError = e instanceof Error ? e.message : m.common_error_generic();
+		} finally {
+			blocking = false;
 		}
 	}
 
@@ -169,6 +249,9 @@
 					<p class="mine">{m.events_youAreHosting()}</p>
 					<div class="host-actions">
 						{#if event.status !== 'cancelled'}
+							<a class="edit" href={resolve('/events/[id]/edit', { id: event.id })}>
+								{m.events_edit()}
+							</a>
 							<button type="button" class="danger" disabled={busy} onclick={callOff}>
 								{m.events_cancel()}
 							</button>
@@ -177,6 +260,25 @@
 				{:else}
 					{#if event.myAttendance === 'going'}
 						<p class="mine">{m.events_youAreGoing()}</p>
+						<!-- Saying you are coming deliberately does NOT withdraw your bookable hours
+						     (booking/availability.py explains why an RSVP must not quietly cost somebody
+						     income). This is the escape hatch for the person who does want them held, so
+						     that it is one click rather than a hand-written availability exception. -->
+						{#if !event.isPast && event.status !== 'cancelled'}
+							{#if blocked}
+								<p class="held" role="status">{m.events_holdDone()}</p>
+							{:else}
+								<button
+									type="button"
+									class="secondary"
+									disabled={blocking}
+									onclick={holdTheEvening}
+								>
+									{blocking ? m.common_loading() : m.events_holdEvening()}
+								</button>
+								<small class="hint">{m.events_holdHint()}</small>
+							{/if}
+						{/if}
 					{:else if event.myAttendance === 'not_going'}
 						<p class="mine">{m.events_youAreNotGoing()}</p>
 					{/if}
@@ -213,6 +315,19 @@
 							<a href={resolve('/login')}>{m.nav_login()}</a>
 						{/if}
 					{/if}
+				{/if}
+
+				<!-- Outside the host/attendee split on purpose: a booking already sitting on these hours
+				     is worth knowing about whichever side of the event you are on, and only the person
+				     reading can resolve it. Hosting removes the hours from anything still bookable
+				     (booking/availability.py), but it deliberately never moves a session somebody has
+				     already booked — so this is the one collision nothing else in the app reports. -->
+				{#if clash}
+					<p class="clash" role="status">
+						{clash.kind === 'booking'
+							? m.events_clash_booking({ count: clash.count })
+							: m.events_clash_availability()}
+					</p>
 				{/if}
 
 				{#if actionError}
@@ -335,9 +450,27 @@
 		color: var(--accent);
 	}
 	.blocked,
+	.hint,
 	.status {
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
+	}
+	.edit {
+		@include mix.button-secondary;
+		text-decoration: none;
+	}
+	.held {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	// A warning, not an error: nothing has gone wrong and nothing is refused — the reader is being
+	// told about a collision only they can weigh up.
+	.clash {
+		@include mix.card-surface;
+		padding: var(--space-3);
+		font-size: var(--font-size-sm);
+		border-color: var(--status-warning, #b7791f);
+		color: var(--status-warning, #b7791f);
 	}
 	.error {
 		color: var(--status-danger, #c0392b);

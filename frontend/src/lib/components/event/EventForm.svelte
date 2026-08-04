@@ -3,8 +3,8 @@
 	// drift the moment one gained a field. Same shape `CourseForm` establishes.
 	import { onMount, untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getFields } from '$lib/services/taxonomy';
-	import type { Field } from '$lib/types/taxonomy';
+	import { getAllCourses, getFields } from '$lib/services/taxonomy';
+	import type { Course, Field } from '$lib/types/taxonomy';
 	import type { EdmatEvent, EventDraft, EventLocationKind } from '$lib/types/event';
 
 	let {
@@ -34,6 +34,9 @@
 	let onlineUrl = $state(untrack(() => initial?.onlineUrl ?? ''));
 	let capacity = $state(untrack(() => initial?.capacity ?? 0));
 	let fieldSlug = $state(untrack(() => initial?.fieldSlug ?? ''));
+	// The API has always accepted these; only the form was missing them, so subject-scoped discovery
+	// worked over HTTP before it worked from the UI.
+	let subjectSlugs = $state<string[]>(untrack(() => [...(initial?.subjectSlugs ?? [])]));
 	// Publishing is a checkbox rather than a status dropdown, because "draft" and "published" are the
 	// only two a person can choose between here (cancelling has its own button, on the event itself)
 	// and a two-value dropdown is a checkbox that takes an extra click. An event being edited that is
@@ -42,14 +45,41 @@
 	let publishNow = $state(untrack(() => (initial ? initial.status === 'published' : true)));
 
 	let fields = $state<Field[]>([]);
+	let courses = $state<Course[]>([]);
 	onMount(async () => {
 		try {
-			fields = await getFields();
+			[fields, courses] = await Promise.all([getFields(), getAllCourses()]);
 		} catch {
 			// A taxonomy that will not load should not stop somebody announcing an event. The select
-			// simply stays at "None", which is a legitimate value.
+			// simply stays at "None", which is a legitimate value, and the subject list stays empty.
 		}
 	});
+
+	// Narrowed to the chosen field, because a subject belongs to one and offering every subject in the
+	// catalogue under a field they cannot belong to invites a combination discovery will never match.
+	let subjectChoices = $derived(
+		fieldSlug ? courses.filter((c) => c.fieldId === fieldSlug) : courses
+	);
+
+	function toggleSubject(slug: string) {
+		subjectSlugs = subjectSlugs.includes(slug)
+			? subjectSlugs.filter((s) => s !== slug)
+			: [...subjectSlugs, slug];
+	}
+
+	/** Changing the field drops subjects that no longer belong to it — the same reasoning that blanks
+	 * `locationText` when the location kind changes: leaving a value the form no longer offers means
+	 * submitting something nobody can see, and it would silently survive every later edit.
+	 *
+	 * Done in the change handler rather than an `$effect` on purpose. An effect that both reads and
+	 * writes `subjectSlugs` re-runs itself, which is the exact shape of the drawer bug recorded in
+	 * `Header.svelte` — reaching for `untrack` to fix a loop that need not exist is the wrong trade
+	 * when a user action is what genuinely causes the change. */
+	function onFieldChange() {
+		if (!fieldSlug) return;
+		const allowed = new Set(courses.filter((c) => c.fieldId === fieldSlug).map((c) => c.id));
+		subjectSlugs = subjectSlugs.filter((slug) => allowed.has(slug));
+	}
 
 	/** ISO → the local "YYYY-MM-DDTHH:mm" the input wants. Built by hand rather than with
 	 * `toISOString().slice(0,16)`, which would silently shift the value into UTC and show somebody a
@@ -85,6 +115,7 @@
 			onlineUrl: needsLink ? onlineUrl.trim() : '',
 			capacity: Number(capacity) || 0,
 			fieldSlug: fieldSlug || null,
+			subjectSlugs,
 			status: publishNow ? 'published' : 'draft'
 		});
 	}
@@ -149,7 +180,7 @@
 		</label>
 		<label class="field">
 			<span>{m.events_form_field()}</span>
-			<select bind:value={fieldSlug}>
+			<select bind:value={fieldSlug} onchange={onFieldChange}>
 				<option value="">{m.events_form_none()}</option>
 				{#each fields as field (field.id)}
 					<option value={field.id}>{field.name}</option>
@@ -157,6 +188,29 @@
 			</select>
 		</label>
 	</div>
+
+	<!-- A checkbox group rather than `<select multiple>`: multi-select is a control most people do not
+	     know they have to hold a modifier key for, and at this catalogue's size the whole list fits. -->
+	<fieldset class="subjects">
+		<legend>{m.events_form_subjects()}</legend>
+		{#if subjectChoices.length === 0}
+			<p class="empty">{m.events_form_subjectsEmpty()}</p>
+		{:else}
+			<div class="subjects__list">
+				{#each subjectChoices as course (course.id)}
+					<label class="check">
+						<input
+							type="checkbox"
+							checked={subjectSlugs.includes(course.id)}
+							onchange={() => toggleSubject(course.id)}
+						/>
+						<span>{course.name}</span>
+					</label>
+				{/each}
+			</div>
+		{/if}
+		<small>{m.events_form_subjectsHint()}</small>
+	</fieldset>
 
 	<label class="check">
 		<input type="checkbox" bind:checked={publishNow} />
@@ -217,6 +271,29 @@
 		align-items: center;
 		gap: var(--space-2);
 		font-size: var(--font-size-sm);
+	}
+	.subjects {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: var(--space-3);
+		legend {
+			font-size: var(--font-size-sm);
+			font-weight: 600;
+			padding: 0 var(--space-1);
+		}
+		small,
+		.empty {
+			font-size: var(--font-size-xs);
+			color: var(--text-secondary);
+		}
+	}
+	.subjects__list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2) var(--space-4);
 	}
 	.error {
 		color: var(--status-danger, #c0392b);

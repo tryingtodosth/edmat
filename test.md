@@ -235,6 +235,7 @@ node e2e/classroom-overhaul.mjs
 node e2e/profile-editing.mjs
 node e2e/booking.mjs
 node e2e/events-and-nav.mjs
+node e2e/known-issues.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -353,6 +354,21 @@ Two things about this script specifically:
 - **Kasia is the moderator**, not Julia — `seed_demo_users` seats exactly one `is_staff` account, and
   pulling a feature flag is `IsAdminUser`.
 
+**`e2e/known-issues.mjs` (23 checks)** — the six entries from CLAUDE.md §17V.7 that were real defects
+rather than deliberate scope cuts (see §17W). The event form offering subjects at all, and the one
+ticked at creation still ticked when the edit form reloads; the edit page itself, refusing a non-host
+in words with no form rendered; the host warned that the hours are still published as bookable, styled
+as a warning rather than an error; and the "keep these hours free" button, checked by **reading the
+stored `AvailabilityException` back from the API** rather than by trusting the confirmation sentence,
+so a button that only flipped a flag on the page would fail here. Then the drawer's focus trap on a
+390×844 phone: focus held through 40 Tabs and 20 Shift-Tabs, Escape still closing it, focus returning
+to the button that opened it.
+
+It **filters one console error on purpose** — the attendee roster is private until you are on it, so
+opening an event you have not answered yet really does log a 403, which the page swallows by design.
+The filter is narrowed to a failed resource load with that exact status, so a 403 raised anywhere else
+still fails the run.
+
 **`e2e/material-claims.mjs` (14 checks)** — a material card previews only its top few coverage and
 requirement claims (the real corpus has materials with 30), so the "+N more" count beside them is the
 only route to the rest from a grid — and it was an inert `<span>`. Pins that it is a real button with
@@ -372,9 +388,12 @@ works from the keyboard.
   cache, so **restarting the backend clears it**. A run that fails with "the panel did not render"
   right after several earlier runs is almost always this, not a regression. `e2e/booking.mjs` sidesteps
   it entirely by signing in as the seeded demo users instead; the older scripts still register.
-- **`e2e/education-auth.mjs` has a hardcoded `http://127.0.0.1:8011`** in one `page.evaluate`, so it
-  only runs against the port this document specifies — pointing everything at 8000 makes it fail with
-  `TypeError: Failed to fetch` partway through, which is a wrong port rather than a regression.
+- **Most scripts default `E2E_API` to `:8000` while this document specifies `:8011`,** so running them
+  on the documented ports needs `E2E_API=http://127.0.0.1:8011/api` in the environment. Without it they
+  fail immediately with `connect ECONNREFUSED 127.0.0.1:8000`, which is a wrong port rather than a
+  regression. (`e2e/education-auth.mjs` used to hardcode `:8011` in one `page.evaluate` and so could not
+  be pointed anywhere else at all; it now reads `E2E_API` like the rest, defaulting to `:8011`, and makes
+  the call from Node so it does not depend on CORS.)
 - **A long-lived dev server eventually starves the browser.** After a great many full-page navigations
   in one session, Chromium starts failing dynamic imports with `net::ERR_INSUFFICIENT_RESOURCES`; the
   page then renders its server-side HTML and never hydrates, so it looks completely broken while making
