@@ -5094,13 +5094,17 @@ purpose — no string is ever English-only — still holds exactly, since both l
 and a third cannot be added without adding all of it. If the file and LAUNCHCHECKLIST.md ever disagree,
 **the checklist is the source and the page is the stale copy**; the module says so at the top.
 
-**Reachable from two places, and the second one is the load-bearing one.** The footer, beside the
-privacy policy — both are standing explanations of how the site treats you, wanted occasionally and
-never mid-task. And `/settings`, directly under the role badges in the Profile card, because those three
-badges (moderator / verified contributor / member) ARE the whole of what standing means here today, and
-this is the page where somebody looks to find out what theirs is. The line reads "these badges are all
-the standing EdMat has today; what they are meant to become —", so the link answers the question the
-badges raise rather than sitting there as an unrelated help link. Not in the navbar either way.
+**Reachable from three places, and two of them are attached to a badge rather than sitting in a menu.**
+The footer, beside the privacy policy — both are standing explanations of how the site treats you,
+wanted occasionally and never mid-task. `/settings`, directly under the role badges in the Profile card,
+worded about your own standing: "these badges are all the standing EdMat has today; what they are meant
+to become —". And `/users/[id]`, inside the badge row itself as a caption reading "What these badges
+mean", worded for somebody looking at SOMEBODY ELSE'S profile — the common case there, and the one where
+"what does Verified contributor actually mean?" is a real question. Not in the navbar in any case: this
+is something you want at the moment a badge raises the question, not something you go looking for.
+
+The public-profile link is suppressed when the badge row renders nothing at all (a private profile with
+no roles), since a caption explaining badges that are not there explains nothing.
 
 **Verified in a browser**: both locales render fully translated with 8 tables and exactly one live
 badge, the footer link navigates, zero console/page errors. `npm run check` 0 errors 0 warnings; build

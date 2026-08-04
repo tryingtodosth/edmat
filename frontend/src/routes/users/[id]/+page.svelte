@@ -30,6 +30,19 @@
 	import type { PublicEducation } from '$lib/types/identity';
 
 	let user = $state<User | undefined>(undefined);
+
+	/** Whether the badge row actually renders anything — the same four conditions the markup uses. A
+	 * private profile with no roles renders an empty `.roles`, and hanging "what these badges mean" off
+	 * a row with no badges in it would be explaining nothing. */
+	const hasBadges = $derived(
+		Boolean(
+			user &&
+			(user.isModerator ||
+				user.isVerifiedContributor ||
+				user.offersTutoring ||
+				user.isProfilePublic)
+		)
+	);
 	let loading = $state(true);
 	let notFound = $state(false);
 
@@ -163,6 +176,14 @@
 				{/if}
 				{#if !user.isModerator && !user.isVerifiedContributor && !user.offersTutoring && user.isProfilePublic}
 					<span class="badge badge--neutral">{m.settings_role_member()}</span>
+				{/if}
+				<!-- In the badge row itself rather than below it, so it reads as a caption on the badges
+				     and not as a second thing to click. Worded for somebody looking at SOMEBODY ELSE'S
+				     profile, which is the common case here and the one where "what does Verified
+				     contributor actually mean?" is a real question — the same link on /settings asks it
+				     the other way round, about your own. -->
+				{#if hasBadges}
+					<a class="badge-help" href={resolve('/levels')}>{m.profile_levelsHint()}</a>
 				{/if}
 			</div>
 
@@ -305,6 +326,25 @@
 	.roles {
 		display: flex;
 		gap: var(--space-1);
+		// Wraps rather than squeezing the link onto the badge line: three badges plus a caption does not
+		// fit a phone, and a badge row that scrolls sideways would hide the badges themselves.
+		flex-wrap: wrap;
+		align-items: center;
+	}
+	.badge-help {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		margin-left: var(--space-1);
+		// Underlined explicitly. The global reset sets `text-decoration: none` on every anchor, which
+		// is fine where colour, weight or a button shape already says "clickable" — here it left a
+		// small grey caption that gave a reader no reason to think it could be followed at all, which
+		// was visible the moment the row was looked at rather than in any assertion.
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.badge {
 		@include mix.status-pill(var(--accent), var(--accent-soft));
