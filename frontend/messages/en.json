@@ -618,6 +618,7 @@
 	"settings_tutoringNote": "Note",
 	"footer_privacy": "Privacy policy",
 	"footer_levels": "Levels and limits",
+	"settings_levelsHint": "These badges are all the standing EdMat has today. What they are meant to become:",
 	"privacy_metaTitle": "Privacy policy",
 	"auth_providers_divider": "or",
 	"auth_providers_intro": "These sign-in methods are drafts. Opening one shows exactly how far it is and what is still missing.",

@@ -193,6 +193,14 @@
 					<span class="badge badge--neutral">{m.settings_role_member()}</span>
 				{/if}
 			</div>
+			<!-- Directly under the badges, because these three ARE the whole of what standing means here
+			     today — one staff flag and one contributor flag, with nothing in between — and /levels is
+			     where that is said out loud along with what is meant to replace it. Anywhere else on this
+			     page it would read as an unrelated help link. -->
+			<p class="levels-note">
+				{m.settings_levelsHint()}
+				<a href={resolve('/levels')}>{m.footer_levels()}</a>
+			</p>
 			<a class="view-public" href={resolve('/users/[id]', { id: user.id })}>
 				{m.profile_viewPublic()}
 			</a>
@@ -526,6 +534,16 @@
 		font-size: var(--font-size-sm);
 		font-weight: 600;
 		color: var(--accent);
+	}
+	.levels-note {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		line-height: 1.5;
+
+		a {
+			color: var(--accent);
+			font-weight: 600;
+		}
 	}
 	.edit-form {
 		gap: var(--space-4);

@@ -5094,8 +5094,13 @@ purpose — no string is ever English-only — still holds exactly, since both l
 and a third cannot be added without adding all of it. If the file and LAUNCHCHECKLIST.md ever disagree,
 **the checklist is the source and the page is the stale copy**; the module says so at the top.
 
-Linked from the footer beside the privacy policy — both are standing explanations of how the site
-treats you, wanted occasionally and never mid-task — not from the navbar.
+**Reachable from two places, and the second one is the load-bearing one.** The footer, beside the
+privacy policy — both are standing explanations of how the site treats you, wanted occasionally and
+never mid-task. And `/settings`, directly under the role badges in the Profile card, because those three
+badges (moderator / verified contributor / member) ARE the whole of what standing means here today, and
+this is the page where somebody looks to find out what theirs is. The line reads "these badges are all
+the standing EdMat has today; what they are meant to become —", so the link answers the question the
+badges raise rather than sitting there as an unrelated help link. Not in the navbar either way.
 
 **Verified in a browser**: both locales render fully translated with 8 tables and exactly one live
 badge, the footer link navigates, zero console/page errors. `npm run check` 0 errors 0 warnings; build
@@ -5104,8 +5109,9 @@ rendered *after* the table in the only section that has both, so the line introd
 table sat underneath it. Bullets now precede tables everywhere.
 
 **Left open**: nothing on the page is personalised — it cannot say what tier *you* hold, because no
-tier exists to hold. When the system is built, the natural next step is a panel on `/settings` showing
-your own standing against these tables.
+tier exists to hold. `/settings` links to it but shows no standing of its own beyond the two existing
+flags; turning that link into a real panel — your REP, your SKILL per field, your energy, read against
+these tables — is what there is to build once the system behind it exists.
 
 ---
 
