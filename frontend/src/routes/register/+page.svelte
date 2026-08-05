@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getLocale } from '$lib/paraglide/runtime';
+	import { getLocale, setLocale } from '$lib/paraglide/runtime';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
@@ -34,7 +34,31 @@
 			// from the very first authenticated render rather than depending on incidental timing.
 			notificationStore.refresh();
 			messagesStore.refresh();
-			goto(resolve('/'));
+			// Actually APPLY the language that was just chosen. The value was already being saved
+			// server-side on `Profile.preferred_locale`, but nothing ever acted on it — not here,
+			// and not on login or app boot either — so the "Preferred interface language" field
+			// was, from the user's point of view, a control that did nothing whatsoever: pick
+			// Polish, register, and the interface stays in English. `setLocale` is the same
+			// function `LocaleSwitcher.svelte` already uses, so this is the identical code path a
+			// manual switch takes, not a second mechanism.
+			//
+			// `reload: false` plus an explicit full-page navigation, rather than a bare
+			// `setLocale(preferredLocale)`. Left to its default, `setLocale` reloads the CURRENT
+			// page to apply the change — which would strand a brand-new account back on
+			// `/register` instead of landing them on the home page. Disabling that and navigating
+			// ourselves gets both halves right, and it is a real document load rather than
+			// `goto`, so every compiled Paraglide message is re-evaluated under the new locale
+			// (the messages are read at call time and would not otherwise re-run on a
+			// client-side navigation).
+			//
+			// Only a genuinely different locale does this; picking the language the interface is
+			// already in takes the ordinary client-side `goto` and skips a pointless full reload.
+			if (preferredLocale !== getLocale()) {
+				setLocale(preferredLocale, { reload: false });
+				window.location.href = resolve('/');
+			} else {
+				goto(resolve('/'));
+			}
 		} else if (result.error === 'emailTaken') {
 			error = 'emailTaken';
 		} else {

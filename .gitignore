@@ -51,3 +51,7 @@ Thumbs.db
 # Activity-log shards (telemetry app). Real personal data under a retention policy —
 # never in git, and backed up separately from the main database.
 backend/logdata/
+
+# Shared on-disk cache (config/settings.py's CACHES). Holds rate-limit counters and cached
+# geocoding results — pure runtime state, regenerated on demand, never worth committing.
+backend/cachedata/

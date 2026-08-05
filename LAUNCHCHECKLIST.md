@@ -1,11 +1,18 @@
 # EdMat — Launch Checklist
 
 Everything below is grounded in the actual current state of this codebase (checked directly, not
-guessed) as of the end of Phase 3 — see [`CLAUDE.md`](./CLAUDE.md) for the full build history.
-**Nothing here has been done yet.** This is a prototype that works correctly for local development;
-it is not configured, secured, or populated the way a public site needs to be.
+guessed) — see [`CLAUDE.md`](./CLAUDE.md) for the full build history.
 
 Grouped by how bad it is to skip. Nothing in "Blockers" should be skipped.
+
+> **⚠️ This file was significantly out of date and has been corrected.** It previously opened with
+> "Nothing here has been done yet," written at the end of Phase 3 and never revised, while most of
+> the 🔴 Blockers had in fact been done in the meantime (the environment-driven `SECRET_KEY`/
+> `DEBUG`/`ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS`, the TLS settings behind `EDMAT_HTTPS_READY`, real
+> DRF throttling, `credentials: 'omit'`). A stale checklist is worse than no checklist — it sends
+> you to re-do finished work while genuinely open items sit unread — so each item below now says
+> what is actually true, verified against the code rather than carried forward. See
+> **"Pre-deploy security pass"** below for what a recent audit found and fixed.
 
 ---
 
@@ -62,12 +69,17 @@ nothing here gets lost or re-diagnosed from scratch later.
   sent that cookie along with the SPA's Token-auth-only requests, and DRF's `SessionAuthentication`
   enforced CSRF against the SPA's own `apiClient`, which never sends a CSRF header by design.
   Immediate workaround given: log out of `/admin/` in that browser, or test in a private window.
-  **Permanent fix recommended, not confirmed applied:** add `credentials: 'omit'` to the `fetch()`
-  call in `frontend/src/lib/api/client.ts` so the SPA never sends cookies at all (it's Token-only by
-  design — removes this whole class of bug, including for any future admin testing signup in the
-  same browser they use for `/admin/`).
-- [ ] **New bug — the registration form's "Preferred interface language" field has no effect on the
-  interface, ever.** Confirmed by direct code read, not guessed: `routes/register/+page.svelte`'s
+  **✅ The permanent fix IS applied** — `frontend/src/lib/api/client.ts` line 61 passes
+  `credentials: 'omit'`, so the SPA never sends cookies at all (it is Token-only by design).
+  Verified directly; this item had been left marked unconfirmed. The browsable-API change in the
+  pre-deploy pass below removes the other half of this interaction in production.
+- [x] **✅ FIXED — the registration form's "Preferred interface language" field had no effect on the
+  interface, ever.** `register/+page.svelte` now calls `setLocale(preferredLocale, { reload: false })`
+  on a successful registration, followed by a full-page navigation to `/` (a bare `setLocale` would
+  reload the *current* page, stranding a brand-new account back on `/register`; a `goto` would not
+  re-evaluate the compiled messages). The remaining half — applying a *returning* user's stored
+  `preferred_locale` on login or app boot — is deliberately left open as a product decision, see the
+  pre-deploy section below. Original diagnosis, kept for context: Confirmed by direct code read, not guessed: `routes/register/+page.svelte`'s
   `handleSubmit()` sends `preferredLocale` to the backend (`authStore.register(...)`, saved
   correctly on `Profile.preferred_locale` server-side) and then just `goto(resolve('/'))` — it never
   calls Paraglide's `setLocale(preferredLocale)` (`$lib/paraglide/runtime`, the same function
@@ -82,31 +94,39 @@ nothing here gets lost or re-diagnosed from scratch later.
 
 ## 🔴 Blockers — the site is actively unsafe or broken for real users without these
 
-- [ ] **Rotate `SECRET_KEY`.** `backend/config/settings.py` currently hardcodes
-  `'django-insecure-x#=tushw$te2p$ti6@wo5(6o40kvc+k_n6s7x212pn9c0p_9-s'` directly in the file — the
-  literal key Django's own scaffolding generated, never replaced. Generate a real one and load it
-  from an environment variable, never commit it to the file. (`manage.py check --deploy` flags this
-  as `security.W009` right now.)
-- [ ] **Set `DEBUG = False`.** Still `True` (`config/settings.py`). With `DEBUG = True`, an
-  unhandled exception shows a full traceback — including your `SECRET_KEY`, database queries, and
-  local file paths — to anyone who triggers one. (`security.W018`)
-- [ ] **Set real `ALLOWED_HOSTS`.** Currently `[]` (`config/settings.py`) — Django will refuse to
-  serve ANY request once `DEBUG = False` until this lists your real domain(s). (`security.W020`)
+- [x] **Rotate `SECRET_KEY`** — **mechanism done, the value itself is still yours to generate.**
+  `config/settings.py` reads `DJANGO_SECRET_KEY` from the environment; the committed
+  `django-insecure-…` literal survives only as a local-dev fallback. **Newly hardened:** settings
+  now *refuse to start* if `DEBUG=False` and that fallback is still in effect, so a missing
+  environment can no longer bring the site up silently signing sessions with a key published in
+  this repo. Still to do on the box: actually generate the key and export it in
+  `/etc/apache2/envvars`.
+- [x] **Set `DEBUG = False`** — **mechanism done.** Read from `DJANGO_DEBUG`, defaulting to `True`
+  for local dev. **Newly hardened:** `DEBUG=True` together with a non-empty `ALLOWED_HOSTS` now
+  refuses to start, since that combination only occurs when a production environment is
+  half-applied — precisely the state that would publish tracebacks on a public domain.
+- [x] **Set real `ALLOWED_HOSTS`** — **mechanism done.** Read from `DJANGO_ALLOWED_HOSTS`;
+  `DEPLOYMENT.md` already exports the real domains. `CSRF_TRUSTED_ORIGINS` is env-driven too.
 - [ ] **Switch off SQLite for anything with real users.** `config/settings.py`'s `DATABASES` points
   at a single `db.sqlite3` file — fine for one developer, not for concurrent writes at any real
   traffic, and it lives on local disk with no replication. Move to PostgreSQL (CLAUDE.md's own
   Section 13 already flagged this as the intended production choice, never acted on).
-- [ ] **Turn on HTTPS enforcement.** None of `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`,
-  `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS` are set (`security.W004`/`W008`/`W012`/`W016`, all
-  live warnings right now). Without these, session and CSRF cookies will happily travel over plain
-  HTTP if a visitor's connection ever downgrades.
-- [ ] **Update `CORS_ALLOWED_ORIGINS`.** Hardcoded to
-  `localhost:5173`/`5174`/`127.0.0.1:5173`/`5174` only (`config/settings.py`) — swap for the real
-  frontend domain(s), over HTTPS, or every API request from the deployed frontend will be silently
-  rejected by the browser.
-- [ ] **Update `PUBLIC_API_BASE_URL`.** `frontend/.env` points at `http://localhost:8000/api` — the
-  deployed frontend needs this set to the real backend URL at build time (it's baked in at build,
-  not read at runtime — `$env/static/public`).
+- [x] **Turn on HTTPS enforcement** — **done, gated behind `EDMAT_HTTPS_READY=true`.**
+  `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE` and the HSTS trio all switch
+  on together when that variable is set, deliberately *not* unconditionally: enabling the redirect
+  before certbot has issued a certificate would send every request to an HTTPS port nothing is
+  listening on, taking the site down. `check --deploy` is clean with it on. Flip it after TLS is
+  verified end-to-end.
+- [x] **Update `CORS_ALLOWED_ORIGINS`** — **done, and largely moot.** `DJANGO_CORS_ALLOWED_ORIGINS`
+  extends the dev list. Worth understanding rather than just ticking: the real vhost serves the
+  built frontend and the API from the *same origin*, and `frontend/.env` in the deployment copies
+  uses a relative `/api`, so production requests are same-origin and need no CORS header at all.
+- [ ] **Update `PUBLIC_API_BASE_URL`** — **correct in the deployment copies, still wrong in this
+  repo.** `FUW/CURRENTLY/frontend/.env` and `FUW/NEW/frontend/.env` both correctly use a relative
+  `/api`. The repo's own `frontend/.env` still says `http://localhost:8000/api`, which is right for
+  local dev and catastrophic if the production bundle is ever built from this tree — the value is
+  baked in at build time (`$env/static/public`), so the deployed site would call `localhost` from
+  every visitor's browser. **Check which tree you build from before shipping.**
 - [ ] **Remove or rotate the `admin` / `admin12345` superuser.** I created this account during
   Phase 2/3 verification for convenience (see `README.md`'s "For your eyes only" section) — it is a
   real superuser with a trivially guessable password sitting in the database right now.
@@ -120,6 +140,82 @@ nothing here gets lost or re-diagnosed from scratch later.
   exercises, a handful of test reviews/comments/edit-suggestions/translations, 5 throwaway
   registered accounts). None of it is malicious, but none of it belongs in a launched product either.
 
+## 🔵 Pre-deploy security pass — findings, and what is left for you
+
+A full pre-deploy audit of the current tree. Everything marked `[x]` is fixed in code and covered by
+the test suite (357 passing); everything marked `[ ]` genuinely needs a human, and most of it needs
+access to the server rather than to this repository.
+
+**Fixed in this pass:**
+
+- [x] **The `X-Forwarded-For` throttle bypass** — see the rate-limiting entry above. The single most
+  serious finding: all per-IP rate limiting was defeatable with one forged header, and the same
+  header set the IP recorded in the audit log, so log entries could be attributed to an address of
+  the caller's choosing.
+- [x] **Settings failed open.** A missing `/etc/apache2/envvars` brought the site up publicly with
+  `DEBUG=True` and the committed secret key. Both dangerous combinations now refuse to boot.
+- [x] **The DRF browsable API was served in production.** No `DEFAULT_RENDERER_CLASSES` meant
+  `BrowsableAPIRenderer` rendered an HTML explorer of the entire API to any browser, and was the
+  one place `SessionAuthentication` + CSRF were reachable from an ordinary browser session. Now
+  JSON-only unless `DEBUG`.
+- [x] **`.docx`/`.odt` uploads accepted any zip file.** Both are genuinely zip archives, so the MIME
+  whitelist had to allow `application/zip` — which meant any archive renamed `.docx` passed. Now
+  also checks for the member each format's specification requires.
+- [x] **Deleting a user in the Django admin silently destroyed other people's content.** The bulk
+  delete action is removed and a `Deactivate` action added — `is_active=False` blocks login without
+  touching a single review, comment or study set. See `accounts/admin.py` for the full reasoning.
+- [x] **Unmigrated telemetry log shards were completely silent.** `manage.py migrate` does *not*
+  create the telemetry tables (`LogShardRouter.allow_migrate` confines them to the shard databases),
+  and `RequestLogMiddleware` swallows every write failure by design — so forgetting
+  `migrate_log_shards` produced a site that worked perfectly while recording no audit trail at all.
+  `manage.py check --deploy` now fails loudly with the exact command to run.
+- [x] **Registration's language selector did nothing.** The value was saved to
+  `Profile.preferred_locale` and never applied. Now applied on successful registration.
+
+**Left for you — these need the server, or a decision:**
+
+- [ ] **Security headers on everything Apache serves.** Django's `SecurityMiddleware` only covers
+  responses Django generates — i.e. `/api/` and `/admin/`. The SPA's own HTML, `/static/` and
+  `/media/` are served directly by Apache and currently carry no `X-Content-Type-Options`, no
+  `X-Frame-Options`/CSP `frame-ancestors`, and no `Referrer-Policy`. So the actual application has
+  no clickjacking protection, and user-uploaded files are served same-origin without `nosniff`. Add
+  to the vhost (`a2enmod headers` first):
+  ```apache
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  # Uploaded files: never let a browser render one inline in this origin.
+  <Location /media/>
+      Header always set Content-Disposition "attachment"
+      Header always set Content-Security-Policy "sandbox"
+  </Location>
+  ```
+- [ ] **The `admin` / `admin12345` superuser is real and live.** Confirmed by checking the password
+  hash directly, not inferred. Delete it or change the password on the deployed database — the local
+  `db.sqlite3` is not the one serving traffic.
+- [ ] **Five demo accounts still share `password123`**, one of them (`u-kasia`) a moderator, with
+  the password printed on the login page. Plus leftover test accounts (`student1`,
+  `realuser-abc123`, three `verify-*`) and 12 auth tokens that never expire.
+- [ ] **The deploy configuration is not in version control at all.** `FUW/` — both the Apache vhost
+  and `DEPLOYMENT.md` — is untracked (`git ls-files FUW` returns nothing). The one part of this
+  system that must be reproducible exists only as loose files on one machine. Worth committing, with
+  secrets kept in `envvars` where they already are.
+- [ ] **`FUW/NEW` is a stale snapshot.** Dated 30 Jul against a 31 Jul tree, and missing the entire
+  `telemetry` app — its middleware, its `DATABASES` entries, and the log-shard config. Deploying it
+  ships code older than this repo; deploying this repo leaves you without a vhost or runbook.
+  Reconcile the two before shipping, and re-run `migrate_log_shards` on the box afterward.
+- [ ] **`pip-audit` has never been run.** It could not be installed here (this sandbox has no
+  `ensurepip`). Run it on the server. The frontend side is genuinely clean: all 5 `npm audit`
+  findings are build-time only (eslint/postcss/`@sveltejs/kit`-under-`adapter-static`) and none
+  reach the shipped bundle.
+- [ ] **Registration allows account enumeration.** Distinct "username taken" / "email already
+  registered" errors let an attacker confirm whether an address has an account. Mitigated by the
+  `register` throttle now that the bypass above is closed, but still a real disclosure — worth a
+  deliberate decision rather than leaving it unnoticed.
+- [ ] **Decide whether a returning user's stored `preferred_locale` should be applied on login.**
+  Deliberately *not* changed in this pass: doing so would silently override a language the visitor
+  had chosen with the switcher during that session, which is a product call, not a bug fix.
+
 ## 🟠 Missing functionality that real users will hit immediately
 
 - [ ] **Password reset doesn't actually work.** `accounts/views.py`'s `PasswordResetView` is a
@@ -132,9 +228,19 @@ nothing here gets lost or re-diagnosed from scratch later.
 - [ ] **No email verification on registration.** `RegisterSerializer` creates a real, immediately-
   usable account from any email address with no confirmation step — nothing stops someone
   registering `notreal@fake.invalid` or impersonating someone else's address in a review/comment.
-- [ ] **No rate limiting anywhere.** DRF's throttle settings are unset (`config/settings.py` has no
-  `DEFAULT_THROTTLE_CLASSES`/`DEFAULT_THROTTLE_RATES`). `/api/auth/login/`, `/api/auth/register/`,
-  and every write endpoint (reviews, comments, submissions) can be hit as fast as a script wants.
+- [x] **Rate limiting** — **done (Section 17Q), and a real bypass in it has since been found and
+  fixed.** Global `anon`/`user` backstops plus scoped `login`/`login_username`/`register`/
+  `password_reset`/`avatar`/`geocode` rates all exist. The bypass: `NUM_PROXIES` was `1`, but the
+  real vhost runs Django under embedded mod_wsgi rather than a reverse proxy, so DRF was keying
+  throttles on a client-supplied `X-Forwarded-For` — rotating it gave a fresh budget per request
+  and the login limit never engaged. Measured, not theorised: 15 forged attempts all returned 401
+  where an honest client saw 429 after 10. Fixed by defaulting `EDMAT_NUM_PROXIES` to `0`, with a
+  regression test that fails if it is set back to `1`.
+- [x] **Throttle counters are now shared across worker processes.** With no `CACHES` configured,
+  Django fell back to per-process `LocMemCache`, so each of the vhost's `processes=2` workers kept
+  its own counters and every rate was effectively doubled. Now a `FileBasedCache` on local disk.
+  Move to Redis/Memcached if this ever runs on more than one machine — a file cache is shared
+  per-host, not per-cluster.
 - [ ] **No bot/spam protection on registration or submission forms** (no CAPTCHA, no honeypot,
   nothing) — a public, unauthenticated `/register` plus a moderation queue that trusts every
   submitted exercise/review/comment as coming from a real person is an open invitation for spam once

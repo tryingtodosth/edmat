@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -39,9 +41,8 @@ def _split_env_list(name: str, default: tuple[str, ...] = ()) -> list[str]:
 # literal key `django-admin startproject` originally generated — fine for local dev (never
 # reachable from outside this machine), never acceptable for a real deployment, which is exactly
 # why this is read from the environment rather than hardcoded unconditionally.
-SECRET_KEY = os.environ.get(
-    'DJANGO_SECRET_KEY', 'django-insecure-x#=tushw$te2p$ti6@wo5(6o40kvc+k_n6s7x212pn9c0p_9-s'
-)
+INSECURE_DEV_SECRET_KEY = 'django-insecure-x#=tushw$te2p$ti6@wo5(6o40kvc+k_n6s7x212pn9c0p_9-s'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', INSECURE_DEV_SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production! Also read from the environment —
 # defaults to True (the historical dev behavior) so nothing changes for local `manage.py runserver`
@@ -50,11 +51,55 @@ SECRET_KEY = os.environ.get(
 # is True).
 DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
+# --- Fail loudly rather than fail open ----------------------------------------------------------
+#
+# Every production setting in this file is read from the environment, which is the right design —
+# but it means the whole security posture rests on `/etc/apache2/envvars` actually being sourced.
+# The failure mode if it isn't is silent and severe: `DJANGO_DEBUG` unset defaults to `True` and
+# `DJANGO_SECRET_KEY` unset falls back to the key committed a few lines above, so a typo in that
+# file, an `apache2ctl` invocation that doesn't source it, or a mod_wsgi daemon started without the
+# environment would bring the SITE UP — publicly, on the real domain — serving full tracebacks
+# (with settings, queries and paths in them) and signing sessions/CSRF tokens with a key published
+# in this repository. Nothing would look wrong; it would just quietly be a different, far weaker
+# site than the one that was deployed.
+#
+# So the two genuinely dangerous combinations refuse to boot at all. A `mod_wsgi` process that
+# raises here returns 500 for every request, which is loud, obvious, immediately diagnosable from
+# the Apache error log, and — the actual point — strictly safer than serving the site insecurely.
+# Local dev is completely unaffected: it sets neither variable, keeps DEBUG=True, and never reaches
+# either branch.
+if not DEBUG and SECRET_KEY == INSECURE_DEV_SECRET_KEY:
+    raise ImproperlyConfigured(
+        'DJANGO_SECRET_KEY is not set, so SECRET_KEY fell back to the insecure development key '
+        'that is committed to this repository — with DEBUG=False this is a real deployment, and '
+        'that key is public. Refusing to start. Generate one with '
+        '`python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"` '
+        'and export DJANGO_SECRET_KEY in /etc/apache2/envvars (see deploy/DEPLOYMENT.md step 6).'
+    )
+
+# The mirror-image check (DEBUG=True together with a real ALLOWED_HOSTS) lives just below
+# ALLOWED_HOSTS itself, since it can't run until that setting has actually been read.
+
 # Empty by default (Django's own documented behavior: DEBUG=True + ALLOWED_HOSTS=[] implicitly
 # allows localhost/127.0.0.1, exactly what local dev needs) — a real deployment sets
 # `DJANGO_ALLOWED_HOSTS=edmat.net,www.edmat.net,webek4.fuw.edu.pl` (or whatever the real domain(s)
 # are) in /etc/apache2/envvars instead of this being hardcoded into a file every environment shares.
 ALLOWED_HOSTS = _split_env_list('DJANGO_ALLOWED_HOSTS')
+
+# The mirror image of the SECRET_KEY guard above: a real deployment that reached this file with
+# only PART of its environment. `DEBUG=True` is correct and normal for local dev, where
+# ALLOWED_HOSTS is empty and Django implicitly serves localhost only — that case is untouched. But
+# DEBUG=True *together with* a real ALLOWED_HOSTS entry means someone set the hosts and not the
+# debug flag, a half-applied production environment, which is precisely the state that would
+# publish full tracebacks (SECRET_KEY, SQL, local paths) to anyone able to trigger an error on a
+# public domain. Refuse to start instead.
+if DEBUG and ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        f'DEBUG is True but DJANGO_ALLOWED_HOSTS is set to {ALLOWED_HOSTS!r}. That combination '
+        'only happens when a production environment is half-applied, and it would serve full '
+        'tracebacks — including SECRET_KEY and SQL — to anyone who can trigger an error on a '
+        'public domain. Refusing to start. Set DJANGO_DEBUG=False in /etc/apache2/envvars.'
+    )
 
 # Empty by default — CSRF_TRUSTED_ORIGINS only matters once a real Host-header-spoofing-resistant
 # origin check is needed (Django 4+, distinct from ALLOWED_HOSTS), which local dev over plain HTTP
@@ -189,7 +234,26 @@ DATABASES = {
 # How many reverse proxies sit in front of Django. Mirrors DRF's `NUM_PROXIES` below and is read by
 # `telemetry.middleware.client_ip` for the same reason: only the rightmost `X-Forwarded-For` entries
 # were written by our own Apache, everything to the left of them came from the caller.
-EDMAT_TRUSTED_PROXY_HOPS = int(os.environ.get('EDMAT_NUM_PROXIES', '1'))
+#
+# **Defaults to 0 — "trust nothing the caller sent, use REMOTE_ADDR" — and that default is
+# load-bearing, not conservative boilerplate.** This was `1` until a real, reproduced bypass proved
+# it wrong for the deployment this project actually has. `1` is only correct when a reverse proxy
+# genuinely sits in front of Django and APPENDS its own value to `X-Forwarded-For`, which was true
+# of the original stage-1 setup (Apache `ProxyPass` -> `runserver` on :8000, the arrangement the
+# LAUNCHCHECKLIST's own first-deployment section describes). The real vhost
+# (deploy/apache/edmat.conf) serves Django through **embedded mod_wsgi instead** — there is no
+# proxy hop at all, Apache never writes an `X-Forwarded-For` header, and `REMOTE_ADDR` is already
+# the true client. With hops=1, DRF and `client_ip` therefore read the rightmost entry of a header
+# ONLY the caller could have set, so anyone could mint a fresh throttle bucket per request simply
+# by rotating `X-Forwarded-For`. Measured directly against this codebase, not reasoned about: 15
+# login attempts with a rotating forged header all returned 401 (zero throttling), against
+# 10x401-then-429 for an honest client sending no header at all. It also let a caller forge the IP
+# written into the audit log, which is worse than a missing log because it is a confident lie.
+#
+# Raise this to the real number of proxies ONLY if one is genuinely added in front of Django (a
+# CDN, a load balancer, a re-introduced `ProxyPass`). Setting it above the real hop count re-opens
+# exactly the bypass above, since the "trusted" entry it steps back to is then one the caller wrote.
+EDMAT_TRUSTED_PROXY_HOPS = int(os.environ.get('EDMAT_NUM_PROXIES', '0'))
 
 LOG_SHARD_SIZE = int(os.environ.get('EDMAT_LOG_SHARD_SIZE', '1000'))
 LOG_SHARD_COUNT = int(os.environ.get('EDMAT_LOG_SHARD_COUNT', '8'))
@@ -213,6 +277,34 @@ for _shard_index in range(LOG_SHARD_COUNT):
 DATABASES[LOG_ANON_SHARD] = _log_shard_db(LOG_ANON_SHARD)
 
 DATABASE_ROUTERS = ['telemetry.routers.LogShardRouter']
+
+
+# --- Cache: shared across processes, because the rate limits depend on it ------------------------
+#
+# This is a security setting wearing a performance setting's clothes. DRF counts every throttle
+# through Django's cache, and with no `CACHES` configured at all Django falls back to `LocMemCache`
+# — which is per-PROCESS, not shared. The real vhost runs `WSGIDaemonProcess ... processes=2`, so
+# each worker would keep its own independent counters and every rate below would in practice be
+# double what it says: `login: 10/min` would allow 20, and it would grow with any future worker
+# count. That silently weakens the exact limits that exist to stop password guessing.
+#
+# `FileBasedCache` fixes it without adding an infrastructure dependency: a single directory on
+# local disk, shared by every worker on the box, so one counter per key regardless of which process
+# handles the request. Redis/Memcached would be the conventional answer and remain the right move
+# if this ever runs on more than one machine (a file cache is shared per-host, not per-cluster) —
+# but neither is installed here, and adding a whole daemon to make a throttle counter correct on a
+# single-box deployment is a poor trade. `MAX_ENTRIES`/`CULL_FREQUENCY` are raised well above
+# Django's 300-entry default specifically because throttle keys are numerous and short-lived: at
+# the default, culling could evict a live counter and hand an attacker a fresh budget, which would
+# reintroduce the very bypass this is here to close.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': os.environ.get('EDMAT_CACHE_DIR', str(BASE_DIR / 'cachedata')),
+        'TIMEOUT': 300,
+        'OPTIONS': {'MAX_ENTRIES': 10000, 'CULL_FREQUENCY': 4},
+    }
+}
 
 
 # Password validation
@@ -301,6 +393,29 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
+    # JSON only in production; the browsable API is a DEVELOPMENT tool and stays one.
+    #
+    # Left unset, DRF enables `BrowsableAPIRenderer` unconditionally, which serves a full, rendered
+    # HTML explorer for every endpoint to anyone who visits `/api/...` in a browser (that renderer
+    # is selected by content negotiation on `Accept: text/html`, which is exactly what a browser
+    # sends). On a public deployment that is a real, if unglamorous, problem: it publishes the
+    # complete endpoint surface, every serializer's field names and types, and each view's own
+    # docstrings; it renders write forms against endpoints the visitor may not be able to use; and
+    # it is the one place `SessionAuthentication` and its CSRF enforcement are reachable from an
+    # ordinary browser session, which is precisely the interaction that produced the registration
+    # CSRF bug the LAUNCHCHECKLIST's own first-deployment section records. None of that is needed
+    # by the real client: the SvelteKit frontend speaks JSON exclusively.
+    #
+    # Gated on DEBUG rather than removed outright so local development keeps the browsable API,
+    # which is genuinely useful there and has been used throughout this project's own verification.
+    'DEFAULT_RENDERER_CLASSES': (
+        [
+            'rest_framework.renderers.JSONRenderer',
+            'rest_framework.renderers.BrowsableAPIRenderer',
+        ]
+        if DEBUG
+        else ['rest_framework.renderers.JSONRenderer']
+    ),
     # Phase 3 — deliberately no default pagination. Every real list endpoint the frontend actually
     # calls is already bounded by construction (course-scoped exercise/material lists, a `limit=`
     # top-rated/recent query, a moderator's own pending queue, one user's own exercise sets) — none
@@ -324,15 +439,15 @@ REST_FRAMEWORK = {
     # multiplying every rate below by the worker count. Correct as-is for this prototype's
     # single-process dev server; a real deployment needs a shared cache (Redis/Memcached) before
     # these numbers mean what they say.
-    # Behind Apache's `ProxyPass`, `REMOTE_ADDR` is always the proxy, so DRF reads
-    # `X-Forwarded-For` instead. Left unset, it uses the WHOLE header — and since Apache APPENDS to
-    # any header the client already sent, a caller supplying their own `X-Forwarded-For: <random>`
-    # gets `<random>, <their real ip>` and therefore a brand-new throttle bucket on every request.
-    # That silently defeated the per-IP `login` limit below. `1` means "trust exactly one hop" — the
-    # rightmost entry, the only one Apache itself wrote — so the value is no longer client-supplied.
-    # It must match the real number of reverse proxies in front of Django; raise it only if another
-    # one is genuinely added.
-    'NUM_PROXIES': int(os.environ.get('EDMAT_NUM_PROXIES', '1')),
+    # Left unset, DRF uses the WHOLE `X-Forwarded-For` header as the throttle key, so a caller
+    # supplying their own gets a brand-new bucket on every request. `NUM_PROXIES` is what stops
+    # that — but ONLY when it matches the real number of proxies, which for this deployment is
+    # zero: the real vhost runs Django under embedded mod_wsgi, not behind a `ProxyPass`, so
+    # nothing ever appends a trustworthy rightmost entry and `REMOTE_ADDR` is already the true
+    # caller. `0` tells DRF to use `REMOTE_ADDR` and ignore the header entirely. See the full
+    # writeup on `EDMAT_TRUSTED_PROXY_HOPS` above, including the measured bypass that a value of
+    # `1` allowed here; both settings read the same env var so they can never disagree.
+    'NUM_PROXIES': EDMAT_TRUSTED_PROXY_HOPS,
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',

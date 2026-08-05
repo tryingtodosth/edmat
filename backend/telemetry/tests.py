@@ -91,21 +91,38 @@ class ClientIpTests(TestCase):
         def __init__(self, **meta):
             self.META = meta
 
-    def test_rightmost_forwarded_entry_wins(self):
-        """Apache APPENDS to any X-Forwarded-For the client already sent, so the leftmost entries
-        are attacker-controlled and only the rightmost was written by our own infrastructure."""
+    def test_forwarded_header_is_ignored_at_the_default_zero_hops(self):
+        """The default is 0 hops, and X-Forwarded-For must then be ignored COMPLETELY.
+
+        This is the real deployment's configuration: Apache runs Django under embedded mod_wsgi,
+        not behind a `ProxyPass`, so nothing appends a trustworthy entry to this header and every
+        value in it — including the rightmost — is whatever the caller chose to send. Honouring any
+        part of it would let a caller forge the address recorded in the audit log, and (through
+        DRF's matching `NUM_PROXIES`) mint an unlimited number of throttle buckets.
+        """
+        request = self._Request(
+            HTTP_X_FORWARDED_FOR='1.2.3.4, 203.0.113.9', REMOTE_ADDR='198.51.100.7'
+        )
+        self.assertEqual(client_ip(request), '198.51.100.7')
+
+    def test_a_lone_spoofed_entry_is_ignored_too(self):
+        """The single-entry case is the one most likely to look trustworthy, and isn't."""
+        request = self._Request(HTTP_X_FORWARDED_FOR='9.9.9.9', REMOTE_ADDR='198.51.100.7')
+        self.assertEqual(client_ip(request), '198.51.100.7')
+
+    @override_settings(EDMAT_TRUSTED_PROXY_HOPS=1)
+    def test_rightmost_forwarded_entry_wins_when_a_proxy_really_exists(self):
+        """With a genuine proxy in front, the rightmost entry is the one IT wrote.
+
+        Kept as a real test because the hop-counting logic still has to be correct for the day a
+        CDN or load balancer is genuinely added — it is the DEFAULT that changed, not the
+        behaviour at a given hop count. A proxy appends to whatever the caller sent, so the
+        leftmost entries stay attacker-controlled and only the rightmost is trustworthy.
+        """
         request = self._Request(
             HTTP_X_FORWARDED_FOR='1.2.3.4, 203.0.113.9', REMOTE_ADDR='127.0.0.1'
         )
         self.assertEqual(client_ip(request), '203.0.113.9')
-
-    def test_spoofed_header_cannot_impersonate_another_address(self):
-        request = self._Request(
-            HTTP_X_FORWARDED_FOR='9.9.9.9', REMOTE_ADDR='127.0.0.1'
-        )
-        # Only one hop present, so that IS the value Apache wrote — the spoof would have to sit to
-        # its left, where it is ignored.
-        self.assertEqual(client_ip(request), '9.9.9.9')
 
     def test_falls_back_to_remote_addr_without_a_proxy(self):
         self.assertEqual(client_ip(self._Request(REMOTE_ADDR='198.51.100.4')), '198.51.100.4')

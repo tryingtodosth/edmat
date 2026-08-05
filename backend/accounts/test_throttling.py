@@ -93,6 +93,54 @@ class LoginIpThrottleTests(ThrottleTestCase):
         self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
 
+class ForgedForwardedForTests(ThrottleTestCase):
+    """A forged `X-Forwarded-For` must not buy a fresh per-IP throttle budget.
+
+    This is a regression test for a real, measured bypass, not a hypothetical. `NUM_PROXIES` was
+    `1` on the assumption that Apache reverse-proxies Django and appends its own trustworthy entry
+    to this header. The real vhost serves Django through embedded mod_wsgi instead — there is no
+    proxy, Apache writes no such header, and `REMOTE_ADDR` is already the true caller — so DRF was
+    keying its throttle on a value only the caller could have set. Rotating the header per request
+    therefore produced a brand-new bucket every time and the per-IP login limit never engaged at
+    all: 15 forged attempts all returned 401 where an honest client saw 429 after 10.
+
+    The fix is the `EDMAT_NUM_PROXIES` default of 0. This test pins the consequence rather than the
+    setting, so it keeps holding if the plumbing is ever refactored.
+    """
+
+    RATES = {'login': '3/min', 'login_username': '100/hour'}
+
+    def setUp(self):
+        super().setUp()
+        User.objects.create_user('spoofed', 'spoofed@example.com', 'right-password')
+        self.url = reverse('auth-login')
+
+    def _attempt(self, forwarded_for):
+        return self.client.post(
+            self.url,
+            {'username': 'spoofed@example.com', 'password': 'wrong-password'},
+            format='json',
+            HTTP_X_FORWARDED_FOR=forwarded_for,
+        )
+
+    def test_rotating_a_forged_header_does_not_reset_the_per_ip_budget(self):
+        for i in range(3):
+            self.assertEqual(
+                self._attempt(f'10.0.0.{i}').status_code,
+                status.HTTP_401_UNAUTHORIZED,
+                msg=f'attempt {i + 1} should still be allowed through',
+            )
+
+        # A fourth, from a brand-new forged address. Under the old NUM_PROXIES=1 this was a fresh
+        # bucket and came back 401; the caller's header is now ignored entirely, so the real
+        # REMOTE_ADDR (unchanged throughout) is still over its limit.
+        self.assertEqual(
+            self._attempt('10.0.0.99').status_code,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            msg='a forged X-Forwarded-For must not mint a new throttle bucket',
+        )
+
+
 class LoginUsernameThrottleTests(ThrottleTestCase):
     """The credential-stuffing case: guessing one account's password from a large pool of IPs never
     trips any single IP's own counter, which is why the per-IP throttle is set absurdly high here —
