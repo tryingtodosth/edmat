@@ -4147,9 +4147,14 @@ will read it.
 
 ### Follow-up: a one-command install, and demo content to install (✅ built)
 
-`setup.sh`, `run.sh`, `MARYSIA.md` — for handing the project to somebody on Ubuntu with nothing
-installed. `MARYSIA.md` is in Polish, because the person it is written for reads Polish and a setup
-guide is exactly the wrong place to make somebody translate as they go.
+`setup.sh`, `run.sh` — for handing the project to somebody on Ubuntu with nothing installed.
+
+> **`MARYSIA.md` was deleted (Aug 2026) and is no longer part of this repo.** It was a Polish-language
+> walkthrough of these two scripts, written that way because the person it was for reads Polish and a
+> setup guide is exactly the wrong place to make somebody translate as they go. **The scripts
+> themselves are untouched and still work** — only the prose wrapper is gone, and README.md now
+> describes the two commands directly instead of linking to it. Recover it from history
+> (`git show c3e852f^:MARYSIA.md`) if that audience comes back.
 
 **The two files are split on purpose**: `setup.sh` builds, `run.sh` starts. Re-running the build
 should never kill a running site, and starting should never rebuild.
@@ -4201,7 +4206,8 @@ a 500 rather than a 400. Fixed in the serializer.
 
 **Verified on a genuinely clean copy** (`git write-tree` → `git archive` → no `.venv`, no
 `node_modules`, no database): `setup.sh` ran end to end, `run.sh` started both halves, and a
-17-check browser pass confirmed every promise `MARYSIA.md` makes — courses listed, the draft hidden,
+17-check browser pass confirmed every promise `MARYSIA.md` made (that file has since been deleted —
+see the note above; the scripts it described are unchanged) — courses listed, the draft hidden,
 the demo login working, Piotr's pending request waiting with its note, a profile showing experience,
 skills with their evidence, and an activity feed that filters by tag and re-sorts. 458 backend tests
 (16 new), zero console errors.
