@@ -9,17 +9,36 @@ Uses Django's own `TestCase` + DRF's `APIClient`, both already dependencies — 
 matching this project's own "every runtime dependency is a flagged decision" discipline.
 """
 
+import os
+import shutil
+import tempfile
+
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+# The throttle base class lives in accounts/ because that is where this project first hit the
+# class-attribute trap it encodes (see its own docstring); imported rather than copied, so a future
+# correction to that setup reaches every throttle test at once.
+from accounts.test_throttling import ThrottleTestCase
 from community.models import Comment
 from exercises.models import Exercise, ExerciseTranslation
 from moderation.models import ContentView, FeatureFlag, NodeGovernor, Report
 from moderation.services import governed_course_ids, is_feature_enabled, is_governor_of_course
 from taxonomy.models import Field
-from testing.factories import make_course, make_exercise, make_material, make_topic, make_user, make_viewer
+from testing.factories import (
+    make_course,
+    make_exercise,
+    make_material,
+    make_topic,
+    make_user,
+    make_viewer,
+    pdf_bytes,
+)
 
 
 class TranslationApprovalTests(APITestCase):
@@ -249,6 +268,41 @@ class SubmissionApprovalTests(APITestCase):
         self.assertEqual(len(numbers), len(set(numbers)), 'exercise numbers must all be distinct')
 
 
+class _TempMediaRootMixin:
+    """Redirects `MEDIA_ROOT` at a temporary directory for the whole class, and empties it after.
+
+    **A real, pre-existing leak, not only a convenience for the new tests below.** Every class that
+    posts a material upload stores genuine bytes, and none of them redirected `MEDIA_ROOT` — so
+    running the suite wrote dozens of scratch PDFs into the live `backend/media/material_submissions/`
+    tree, next to actual user uploads, and left them there. Found by listing that directory after a
+    run rather than reasoned about, which is exactly how `accounts/test_throttling.py` records
+    catching the identical mistake with avatars; the fix that landed there is applied here to every
+    upload-storing class, not just the ones added alongside this mixin.
+
+    It is also what makes the reclaim tests mean anything: "was the file actually deleted?" has to be
+    asked of a directory the test owns, or it is a question about the deployment's media tree.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._media_root = tempfile.mkdtemp(prefix='edmat-material-test-')
+        cls._media_override = override_settings(MEDIA_ROOT=cls._media_root)
+        cls._media_override.enable()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls._media_override.disable()
+        shutil.rmtree(cls._media_root, ignore_errors=True)
+
+    def stored_file_count(self):
+        submissions_dir = os.path.join(self._media_root, 'material_submissions')
+        if not os.path.isdir(submissions_dir):
+            return 0
+        return len(os.listdir(submissions_dir))
+
+
 class MaterialSubmissionValidatorTests(APITestCase):
     """`materials/validators.py`'s own content-type sniffing and size cap — "exams, tests, etc.
     should be accepted... but also scanned and kept safe." Each real-content-type case here was
@@ -338,11 +392,19 @@ class MaterialSubmissionValidatorTests(APITestCase):
         self.assertTrue(outcome.detail)
 
 
-class MaterialSubmissionApiTests(APITestCase):
+class MaterialSubmissionApiTests(_TempMediaRootMixin, APITestCase):
     """`POST /api/material-submissions/` — the real, multipart upload endpoint itself (as opposed
     to the validators it calls, covered above)."""
 
     def setUp(self):
+        # Uploading is throttled per account now (`material_submission`, 20/hour, wired onto
+        # `create` alone), and DRF counts through Django's cache — which, unlike the database, is
+        # NOT rolled back between tests. SQLite hands out the same primary keys again after each
+        # rollback, so every test in this class authenticates as the same numeric ident and would
+        # otherwise share one budget across the whole class, eventually handing a later test a 429
+        # that has nothing to do with what it is testing. Same trap accounts/test_throttling.py
+        # documents, met from the other direction: by tests that never meant to involve throttling.
+        cache.clear()
         self.course = make_course(slug='uw-material-submission-course')
         self.student = make_user('matsub_student')
         self.other_student = make_user('matsub_other_student')
@@ -531,13 +593,15 @@ class MaterialSubmissionApiTests(APITestCase):
         self.assertEqual(MaterialSubmission.objects.count(), 0)  # the failed submission was cleaned up, not left dangling
 
 
-class MaterialUploadVerifiedContributorGateTests(APITestCase):
+class MaterialUploadVerifiedContributorGateTests(_TempMediaRootMixin, APITestCase):
     """The `material_uploads_verified_only` flag — a NARROWER, differently-shaped restriction from
     the blanket `material_submissions` kill switch (which stays entirely untouched and unrelated
     here): when turned ON, only a verified contributor (or real staff) may submit a NEW upload,
     while an ordinary authenticated user can still list/retrieve their own past submissions."""
 
     def setUp(self):
+        # See MaterialSubmissionApiTests.setUp for why the throttle cache is cleared here.
+        cache.clear()
         self.course = make_course(slug='uw-verified-gate-course')
         self.plain_user = make_user('gate_plain_user')
         self.verified_user = make_user('gate_verified_user', is_verified_contributor=True)
@@ -612,7 +676,7 @@ class MaterialUploadVerifiedContributorGateTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class MaterialSubmissionApprovalTests(APITestCase):
+class MaterialSubmissionApprovalTests(_TempMediaRootMixin, APITestCase):
     """Approve/reject via the shared ModerationActionView, the same real endpoint every other kind
     (submission/edit/translation) already goes through — `_apply_material_submission`'s own real
     behavior (a new, published Material + MaterialTranslation) is what's under test here, not the
@@ -841,6 +905,357 @@ class MaterialSubmissionApprovalTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class MaterialSubmissionStorageQuotaTests(_TempMediaRootMixin, APITestCase):
+    """`Profile.material_upload_quota_bytes`, enforced on the real upload endpoint.
+
+    The gap this closes: `TaughtCourse.upload_quota_bytes` was the only storage limit in this app
+    and it is checked in exactly one place (the course-content path, classroom/views.py), so
+    `POST /api/material-submissions/` — the main upload route, behind /submit-material — was bounded
+    only by the 25MB per-FILE cap and had no aggregate limit of any kind.
+
+    The arithmetic itself is pinned in accounts/tests.py (`ProfileMaterialUploadQuotaTests`); what
+    is under test here is the endpoint's own behaviour: what it accepts, what it refuses, and what
+    it leaves on disk when it refuses.
+    """
+
+    def setUp(self):
+        # See MaterialSubmissionApiTests.setUp — these tests upload several times each, so they are
+        # exactly the ones that would otherwise exhaust a shared budget partway through the class
+        # and start reporting a 429 where a quota decision was under test.
+        cache.clear()
+        self.course = make_course(slug='uw-upload-quota-course')
+        self.student = make_user('upload_quota_student')
+        self.client.force_authenticate(self.student)
+
+    def _set_allowance(self, quota_bytes, user=None):
+        profile = (user or self.student).profile
+        profile.material_upload_quota_bytes = quota_bytes
+        profile.save(update_fields=['material_upload_quota_bytes'])
+
+    def _upload(self, size, *, title='A submitted practice test'):
+        return self.client.post(
+            '/api/material-submissions/',
+            {
+                'course': self.course.slug,
+                'type': 'practice_test',
+                'title': title,
+                'locale': 'en',
+                'file': SimpleUploadedFile('practice.pdf', pdf_bytes(size)),
+            },
+            format='multipart',
+        )
+
+    def test_the_default_allowance_changes_nothing_for_anybody(self):
+        """The whole point of defaulting to 0/uncapped: an account nobody has configured behaves
+        exactly as it did before this field existed. Worth its own test rather than left implied by
+        the other cases passing — a wrong default would be the one failure that inconveniences every
+        real user at once."""
+        for i in range(3):
+            self.assertEqual(self._upload(200_000, title=f'Upload {i}').status_code, status.HTTP_201_CREATED)
+
+        self.assertIsNone(self.student.profile.material_upload_bytes_left)
+
+    def test_an_upload_that_fits_is_accepted(self):
+        self._set_allowance(50_000)
+
+        response = self._upload(20_000)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_an_upload_that_would_overrun_the_allowance_is_refused(self):
+        from moderation.models import MaterialSubmission
+
+        self._set_allowance(30_000)
+        self.assertEqual(self._upload(20_000, title='First').status_code, status.HTTP_201_CREATED)
+
+        response = self._upload(20_000, title='Second')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('file', response.data)
+        self.assertEqual(MaterialSubmission.objects.filter(title='Second').count(), 0)
+
+    def test_a_refused_upload_leaves_nothing_on_disk(self):
+        """The check runs before `serializer.save()`, which is what writes the file. Refusing
+        afterwards would mean storing bytes only to unlink them — the exact disk pressure the quota
+        exists to prevent — and would orphan a real file if the unlink ever failed."""
+        self._set_allowance(10_000)
+
+        response = self._upload(20_000)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.stored_file_count(), 0)
+
+    def test_the_incoming_file_is_weighed_too_not_only_what_is_already_stored(self):
+        """An account sitting just under its allowance must refuse what would take it over rather
+        than accepting it and going over silently — the same rule the course-side check states, and
+        the boundary is where a quota is either right or off by one file."""
+        self._set_allowance(10_000)
+
+        exact_fit = self._upload(10_000, title='Exactly the allowance')
+        self.assertEqual(exact_fit.status_code, status.HTTP_201_CREATED)
+
+        # Nothing is left, so even the smallest possible upload has to be refused now.
+        self.assertEqual(self._upload(100, title='One more').status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_one_accounts_uploads_do_not_spend_anothers_allowance(self):
+        other = make_user('upload_quota_other_student')
+        self._set_allowance(30_000)
+        self._set_allowance(30_000, user=other)
+
+        self.client.force_authenticate(other)
+        self.assertEqual(self._upload(25_000, title="Other's").status_code, status.HTTP_201_CREATED)
+
+        self.client.force_authenticate(self.student)
+        self.assertEqual(self._upload(25_000, title='Mine').status_code, status.HTTP_201_CREATED)
+
+    def test_rejecting_an_earlier_upload_gives_its_room_back(self):
+        """The end-to-end consequence of reclaiming a rejected file: a moderator's rejection is what
+        makes the allowance mean "what you are storing" rather than "what you have ever sent". Runs
+        through the real endpoints on both halves rather than editing rows directly."""
+        from moderation.models import MaterialSubmission
+
+        self._set_allowance(30_000)
+        self.assertEqual(self._upload(25_000, title='Filled it').status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self._upload(25_000, title='Refused').status_code, status.HTTP_400_BAD_REQUEST)
+
+        moderator = make_user('upload_quota_mod', is_staff=True)
+        first = MaterialSubmission.objects.get(title='Filled it')
+        self.client.force_authenticate(moderator)
+        rejection = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'material', 'pk': first.pk, 'decision': 'reject'},
+            ),
+            {'review_note': 'Not this course.'},
+            format='json',
+        )
+        self.assertEqual(rejection.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(self.student)
+        self.assertEqual(self._upload(25_000, title='Room again').status_code, status.HTTP_201_CREATED)
+
+
+class RejectedMaterialFileReclaimTests(_TempMediaRootMixin, APITestCase):
+    """Rejecting a material submission drops its stored blob and keeps everything else.
+
+    The tension this resolves is written out in full on `_reclaim_rejected_material_file`
+    (moderation/views.py): CLAUDE.md's own non-functional requirements forbid silent data loss on
+    moderation, and nothing here had ever deleted a `MaterialSubmission.file`, so a rejected 25MB
+    upload sat on a shared filesystem permanently for a file no reader could ever be shown. These
+    tests pin both halves — the bytes really go, and the record of what was rejected and why really
+    stays — because a future change that quietly drops either one would look like a passing suite.
+    """
+
+    def setUp(self):
+        self.course = make_course(slug='uw-reclaim-course')
+        self.student = make_user('reclaim_student')
+        self.moderator = make_user('reclaim_mod', is_staff=True)
+
+    def _submit(self, size=4096, **overrides):
+        from moderation.models import MaterialSubmission
+
+        defaults = {
+            'course': self.course,
+            'submitted_by': self.student,
+            'type': 'exam_collection',
+            'title': 'A submitted exam collection',
+            'description': 'Three past exams.',
+            'locale': 'en',
+            'file': SimpleUploadedFile('exams.pdf', pdf_bytes(size)),
+        }
+        defaults.update(overrides)
+        return MaterialSubmission.objects.create(**defaults)
+
+    def _decide(self, submission, decision, note=''):
+        self.client.force_authenticate(self.moderator)
+        return self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'material', 'pk': submission.pk, 'decision': decision},
+            ),
+            {'review_note': note},
+            format='json',
+        )
+
+    def test_rejecting_removes_the_stored_bytes(self):
+        submission = self._submit()
+        path = submission.file.path
+        self.assertTrue(os.path.exists(path))
+
+        response = self._decide(submission, 'reject', note='Wrong course.')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(os.path.exists(path))
+        submission.refresh_from_db()
+        self.assertFalse(submission.file)
+
+    def test_rejecting_keeps_the_row_and_everything_that_says_what_was_rejected(self):
+        """This is the requirement the reclaim had to be built around, not against: "rejecting a
+        submission should keep a record of what was rejected and why, not just delete it". The blob
+        is not the record — the title, the description, the declared provenance, the recorded scan
+        outcome, the reviewer and the note are."""
+        from moderation.models import MaterialSubmission
+
+        submission = self._submit(
+            author='dr hab. Anna Kowalska',
+            source_url='https://example.edu/handout.pdf',
+            requirements=['English B2+'],
+        )
+
+        self._decide(submission, 'reject', note='Copyright unclear.')
+
+        kept = MaterialSubmission.objects.get(pk=submission.pk)
+        self.assertEqual(kept.status, 'rejected')
+        self.assertEqual(kept.title, 'A submitted exam collection')
+        self.assertEqual(kept.description, 'Three past exams.')
+        self.assertEqual(kept.author, 'dr hab. Anna Kowalska')
+        self.assertEqual(kept.source_url, 'https://example.edu/handout.pdf')
+        self.assertEqual(kept.requirements, ['English B2+'])
+        self.assertEqual(kept.review_note, 'Copyright unclear.')
+        self.assertEqual(kept.reviewed_by, self.moderator)
+        self.assertEqual(kept.submitted_by, self.student)
+
+    def test_the_reclaim_is_recorded_rather_than_left_looking_like_a_file_that_never_existed(self):
+        """Without these two columns a reclaimed submission is indistinguishable from one that
+        somehow never had a file, and "where did the PDF go?" has no answer anywhere. The size in
+        particular survives nowhere else once the bytes are gone."""
+        submission = self._submit(size=7000)
+
+        self._decide(submission, 'reject')
+
+        submission.refresh_from_db()
+        self.assertIsNotNone(submission.file_reclaimed_at)
+        self.assertEqual(submission.reclaimed_file_bytes, 7000)
+
+    def test_the_rejection_response_says_the_file_was_reclaimed(self):
+        """The moderator who just clicked Reject is handed this body; a `file` that has silently
+        become null with nothing to explain it reads as a bug rather than as the intended outcome."""
+        submission = self._submit(size=5000)
+
+        response = self._decide(submission, 'reject')
+
+        self.assertIsNotNone(response.data['file_reclaimed_at'])
+        self.assertEqual(response.data['reclaimed_file_bytes'], 5000)
+
+    def test_approving_leaves_the_file_completely_alone(self):
+        """The published `Material` is handed the SAME stored path (`_apply_material_submission`
+        copies the reference, never the bytes), so reclaiming on approval would delete a live
+        material's file out from under it."""
+        submission = self._submit()
+        path = submission.file.path
+
+        response = self._decide(submission, 'approve')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        submission.refresh_from_db()
+        self.assertTrue(os.path.exists(path))
+        self.assertIsNone(submission.file_reclaimed_at)
+        self.assertEqual(submission.resulting_material.file.name, submission.file.name)
+
+    def test_the_reclaim_refuses_to_touch_a_submission_that_became_a_material(self):
+        """The claim step already guarantees a rejected row was `pending` and so cannot have a
+        resulting Material — this pins the guard that makes that guarantee not the only thing
+        standing between a wrong call and a published material losing its file."""
+        from moderation.views import _reclaim_rejected_material_file
+
+        submission = self._submit()
+        self._decide(submission, 'approve')
+        submission.refresh_from_db()
+        path = submission.file.path
+
+        _reclaim_rejected_material_file(submission)
+
+        submission.refresh_from_db()
+        self.assertTrue(os.path.exists(path))
+        self.assertTrue(submission.file)
+        self.assertIsNone(submission.file_reclaimed_at)
+
+    def test_rejecting_an_exercise_submission_is_untouched_by_any_of_this(self):
+        """The reclaim is scoped to `kind == 'material'` — an ExerciseSubmission has no file at all,
+        and the shared action must keep behaving exactly as it did for every other kind."""
+        from moderation.models import ExerciseSubmission
+
+        exercise_submission = ExerciseSubmission.objects.create(
+            course=self.course,
+            submitted_by=self.student,
+            payload={'title': 'A submitted exercise', 'statement': 'Prove it.'},
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'submission', 'pk': exercise_submission.pk, 'decision': 'reject'},
+            ),
+            {'review_note': 'Duplicate.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        exercise_submission.refresh_from_db()
+        self.assertEqual(exercise_submission.status, 'rejected')
+
+
+class MaterialSubmissionThrottleTests(_TempMediaRootMixin, ThrottleTestCase):
+    """The `material_submission` throttle scope, wired onto `create` alone.
+
+    Inherits `accounts/test_throttling.py`'s own base rather than repeating its setup, because that
+    class exists to encode a trap this codebase found the hard way and would find again:
+    `SimpleRateThrottle` binds `THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES` as a CLASS
+    attribute at import time, so `override_settings(REST_FRAMEWORK=...)` genuinely does not reach it
+    and a test written that way runs against production rates while appearing to declare its own.
+    `patch.dict` on the shared dict is what works, and the cache has to be cleared between tests or
+    one test's requests spend the next one's budget.
+    """
+
+    RATES = {'material_submission': '2/hour'}
+
+    def setUp(self):
+        super().setUp()
+        self.course = make_course(slug='uw-upload-throttle-course')
+        self.student = make_user('upload_throttle_student')
+        self.client.force_authenticate(self.student)
+
+    def _upload(self, title='Throttled upload'):
+        return self.client.post(
+            '/api/material-submissions/',
+            {
+                'course': self.course.slug,
+                'type': 'practice_test',
+                'title': title,
+                'locale': 'en',
+                'file': SimpleUploadedFile('practice.pdf', pdf_bytes(2000)),
+            },
+            format='multipart',
+        )
+
+    def test_repeated_uploads_are_eventually_throttled(self):
+        for i in range(2):
+            self.assertEqual(
+                self._upload(title=f'Upload {i}').status_code,
+                status.HTTP_201_CREATED,
+                msg=f'upload {i + 1} should still be allowed through',
+            )
+
+        self.assertEqual(self._upload().status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    def test_reading_back_your_own_submissions_is_not_spent_by_the_upload_budget(self):
+        """The scope is deliberately set on `create` alone: listing what you have already sent is an
+        ordinary cheap GET, and having it share a 20/hour budget with 25MB writes would throttle
+        reading for no reason at all — including, at exactly the wrong moment, the read that would
+        show somebody what they had already uploaded."""
+        for i in range(3):
+            self._upload(title=f'Upload {i}')
+        # The upload budget really is spent by this point, or the rest proves nothing.
+        self.assertEqual(self._upload().status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+        for _ in range(4):
+            response = self.client.get('/api/material-submissions/')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(len(response.data), 2)
 
 
 class EditSuggestionApprovalTests(APITestCase):

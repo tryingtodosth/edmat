@@ -3,13 +3,18 @@ formal automated test suite exists" note) — register/login, the auth flow ever
 action in this app depends on.
 """
 
+import shutil
+import tempfile
+
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
-from testing.factories import make_user
+from testing.factories import make_course, make_user, pdf_bytes
 
 User = get_user_model()
 
@@ -135,6 +140,125 @@ class UserReviewsViewTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
+
+
+class ProfileMaterialUploadQuotaTests(APITestCase):
+    """`Profile.material_upload_quota_bytes` and the two properties that make it mean anything —
+    the accounting itself, at the model layer. What the upload endpoint DOES with these numbers is
+    pinned separately (moderation/tests.py's `MaterialSubmissionStorageQuotaTests`); these are the
+    arithmetic, kept here because a wrong sum would fail both places and only one of them would say
+    why.
+
+    `MEDIA_ROOT` is redirected at a temporary directory for the whole class, and that is not
+    incidental tidiness: these tests store real bytes, and without it they would leave scratch PDFs
+    in `backend/media/material_submissions/` alongside genuine uploads — the same mistake
+    `accounts/test_throttling.py` records having actually made once with avatars, found by listing
+    the directory rather than assumed absent.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._media_root = tempfile.mkdtemp(prefix='edmat-quota-test-')
+        cls._media_override = override_settings(MEDIA_ROOT=cls._media_root)
+        cls._media_override.enable()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls._media_override.disable()
+        shutil.rmtree(cls._media_root, ignore_errors=True)
+
+    def setUp(self):
+        self.user = make_user('quota-accounting-user')
+        self.course = make_course(slug='uw-quota-accounting-course')
+
+    def _store(self, size, *, user=None, title='Stored upload'):
+        from moderation.models import MaterialSubmission
+
+        return MaterialSubmission.objects.create(
+            course=self.course,
+            submitted_by=user or self.user,
+            type='exam_collection',
+            title=title,
+            file=SimpleUploadedFile('exam.pdf', pdf_bytes(size)),
+        )
+
+    def test_a_brand_new_profile_is_uncapped(self):
+        """The default is what keeps this change invisible until an administrator acts — 0, read as
+        "no limit" by the same convention `max_courses`/`TaughtCourse.capacity` already use."""
+        self.assertEqual(self.user.profile.material_upload_quota_bytes, 0)
+        self.assertIsNone(self.user.profile.material_upload_bytes_left)
+
+    def test_an_uncapped_profile_reports_no_room_left_however_much_it_stores(self):
+        """`None` means uncapped and is deliberately not `0`, which would read as "full" — the same
+        distinction `TaughtCourse.upload_bytes_left`/`seats_left` already draw."""
+        self._store(4096)
+
+        self.assertIsNone(self.user.profile.material_upload_bytes_left)
+
+    def test_stored_submissions_are_summed_from_real_bytes(self):
+        self._store(1000)
+        self._store(2500)
+
+        self.assertEqual(self.user.profile.material_upload_bytes, 3500)
+
+    def test_somebody_elses_uploads_do_not_count_against_this_account(self):
+        """The quota is per account, so a shared course must not make one person's uploads spend
+        another's allowance."""
+        other = make_user('quota-accounting-other')
+        self._store(5000, user=other)
+        self._store(1200)
+
+        self.assertEqual(self.user.profile.material_upload_bytes, 1200)
+        self.assertEqual(other.profile.material_upload_bytes, 5000)
+
+    def test_a_submission_whose_blob_was_reclaimed_counts_for_nothing(self):
+        """The reject path clears `file` and stamps `file_reclaimed_at` (moderation/views.py's
+        `_reclaim_rejected_material_file`), which is why this sum needs no status filter of its own:
+        a row with no bytes occupies no disk, whatever its status says."""
+        from django.utils import timezone
+
+        submission = self._store(3000)
+        kept = self._store(700, title='Still here')
+
+        submission.file.delete(save=False)
+        submission.file = ''
+        submission.file_reclaimed_at = timezone.now()
+        submission.reclaimed_file_bytes = 3000
+        submission.save(update_fields=['file', 'file_reclaimed_at', 'reclaimed_file_bytes'])
+
+        self.assertEqual(self.user.profile.material_upload_bytes, 700)
+        self.assertTrue(kept.file)
+
+    def test_a_row_whose_file_vanished_from_storage_does_not_break_the_sum(self):
+        """A missing file must not take an upload — or the admin changelist reading the same
+        property — down with it; it occupies nothing, which is the honest reading of "not there"."""
+        import os
+
+        submission = self._store(2000)
+        os.remove(submission.file.path)
+
+        self.assertEqual(self.user.profile.material_upload_bytes, 0)
+
+    def test_room_left_is_the_allowance_minus_what_is_stored(self):
+        profile = self.user.profile
+        profile.material_upload_quota_bytes = 10000
+        profile.save(update_fields=['material_upload_quota_bytes'])
+        self._store(4000)
+
+        self.assertEqual(self.user.profile.material_upload_bytes_left, 6000)
+
+    def test_room_left_floors_at_zero_rather_than_going_negative(self):
+        """An administrator lowering somebody's allowance below what they already store is a real,
+        expected thing to do — it should read as "full", not as a negative number no caller expects.
+        """
+        self._store(9000)
+        profile = self.user.profile
+        profile.material_upload_quota_bytes = 1000
+        profile.save(update_fields=['material_upload_quota_bytes'])
+
+        self.assertEqual(self.user.profile.material_upload_bytes_left, 0)
 
 
 class UserServiceReviewsViewTests(APITestCase):
