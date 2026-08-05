@@ -330,6 +330,25 @@ curl -I http://edmat.net/                            # plain HTTP — expect a 3
 Then open `https://edmat.net/` in a real browser, click through a course/exercise page, confirm the
 padlock shows a valid certificate, and confirm a real login works.
 
+**Then check an AUTHENTICATED request, which none of the above does.** Every curl on this page is
+anonymous, and "a real login works" is not the same test: logging in travels in a POST body and
+succeeds even when token auth is completely broken. It is the request *after* the login that fails.
+
+```bash
+TOKEN=$(curl -s -X POST https://edmat.net/api/auth/login/ -H 'Content-Type: application/json' \
+    -d '{"email":"YOUR_EMAIL","password":"YOUR_PASSWORD"}' \
+    | python3 -c "import sys,json;print(json.load(sys.stdin).get('token',''))")
+curl -s -o /dev/null -w "authenticated me -> %{http_code}\n" \
+    https://edmat.net/api/auth/me/ -H "Authorization: Token $TOKEN"    # expect 200
+```
+
+A **401 here with a valid token** almost always means `WSGIPassAuthorization On` is missing from the
+vhost (see the long note beside it in `apache/edmat.conf`) — mod_wsgi strips the `Authorization`
+header by default. The tell is the response body length: 58 bytes ("Authentication credentials were
+not provided.") means the header never arrived, 27 bytes ("Invalid token.") means it arrived and was
+genuinely rejected. In a browser the same bug presents as "refreshing logs me out", because
+`authStore.init()` clears the session on any `/auth/me/` failure.
+
 ---
 
 ## Left for you, not automated here
