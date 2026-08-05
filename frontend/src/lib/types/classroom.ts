@@ -6,7 +6,12 @@
  * code, where confusing the two would be a real bug.
  */
 
-export type CourseStatus = 'draft' | 'open' | 'running' | 'finished';
+/** Who may see the course at all. Split out of `CourseStatus`, which used to answer this and "how
+ * far along is it" with one value — so `draft` meant hidden while `open`/`running`/`finished` all
+ * silently meant public, and there was no way to say "under way, but unlisted". */
+export type CourseVisibility = 'only_you' | 'private' | 'public';
+/** How far along the course is. Lifecycle only — `draft` moved to `CourseVisibility`. */
+export type CourseStatus = 'open' | 'running' | 'finished';
 export type EnrollmentPolicy = 'open' | 'approval';
 /** Who may READ the thread. Posting is always restricted to the people in the course — "anyone may
  * read" is a reasonable thing for an instructor to want, "anyone may post" is not. */
@@ -135,6 +140,7 @@ export interface TaughtCourse {
 	description: string;
 	subjectSlugs: string[];
 	fieldSlug: string | null;
+	visibility: CourseVisibility;
 	status: CourseStatus;
 	enrollmentPolicy: EnrollmentPolicy;
 	capacity: number;
@@ -198,6 +204,7 @@ export interface TaughtCourseDraft {
 	description: string;
 	subjects: string[];
 	field: string | null;
+	visibility: CourseVisibility;
 	status: CourseStatus;
 	enrollmentPolicy: EnrollmentPolicy;
 	capacity: number;

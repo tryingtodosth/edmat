@@ -59,9 +59,14 @@ class ApiTestCase(TestCase):
         return material
 
     def make_course(self, **kwargs):
+        # `visibility` is spelled out because the model defaults it to `only_you` — a course is
+        # nobody else's to see until its owner says so. Most tests here are about what somebody
+        # OTHER than the instructor can do, so the useful default for a fixture is a published
+        # course; the ones about visibility itself override it.
         defaults = {
             'instructor': self.instructor,
             'title': 'Analiza od zera',
+            'visibility': 'public',
             'status': 'open',
             'enrollment_policy': 'open',
         }
@@ -69,16 +74,49 @@ class ApiTestCase(TestCase):
 
 
 class VisibilityTests(ApiTestCase):
-    def test_a_draft_is_invisible_to_everybody_but_its_instructor(self):
-        draft = self.make_course(status='draft')
+    def test_an_only_you_course_is_invisible_to_everybody_but_its_instructor(self):
+        hidden = self.make_course(visibility='only_you')
         anon = self.client.get('/api/taught-courses/')
-        self.assertNotIn(draft.pk, [c['id'] for c in anon.data])
+        self.assertNotIn(hidden.pk, [c['id'] for c in anon.data])
 
         stranger = self.as_(self.student).get('/api/taught-courses/')
-        self.assertNotIn(draft.pk, [c['id'] for c in stranger.data])
+        self.assertNotIn(hidden.pk, [c['id'] for c in stranger.data])
 
         mine = self.as_(self.instructor).get('/api/taught-courses/')
-        self.assertIn(draft.pk, [c['id'] for c in mine.data])
+        self.assertIn(hidden.pk, [c['id'] for c in mine.data])
+
+    def test_a_private_course_is_unlisted_and_not_reachable_by_guessing_its_id(self):
+        """The whole point of `private`: a link gets you in, counting integers does not.
+
+        The invite token is 256-bit, so the link is the credential. If retrieve-by-id answered for
+        a private course, that credential would be bypassable by anybody willing to walk the id
+        space, and the token would be decoration.
+        """
+        private = self.make_course(visibility='private')
+
+        for client in (self.client, self.as_(self.student)):
+            listing = client.get('/api/taught-courses/')
+            self.assertNotIn(private.pk, [c['id'] for c in listing.data])
+            self.assertEqual(client.get(f'/api/taught-courses/{private.pk}/').status_code, 404)
+
+        # Its own staff still reach it by id, which is how they administer it at all.
+        self.assertEqual(
+            self.as_(self.instructor).get(f'/api/taught-courses/{private.pk}/').status_code, 200
+        )
+
+    def test_a_participant_reaches_a_private_course_they_are_already_in(self):
+        private = self.make_course(visibility='private')
+        Enrollment.objects.create(course=private, participant=self.student, status='active')
+        res = self.as_(self.student).get(f'/api/taught-courses/{private.pk}/')
+        self.assertEqual(res.status_code, 200)
+
+    def test_visibility_and_status_are_independent(self):
+        """The reason for the split: every combination is expressible and none is contradictory."""
+        running_but_private = self.make_course(visibility='private', status='running')
+        self.assertEqual(running_but_private.visibility, 'private')
+        self.assertEqual(running_but_private.status, 'running')
+        self.assertFalse(running_but_private.is_public)
+        self.assertTrue(running_but_private.is_reachable)
 
     def test_a_published_course_is_public_without_an_account(self):
         course = self.make_course()
@@ -282,14 +320,16 @@ class LessonTests(ApiTestCase):
 
 
 class AuthoringTests(ApiTestCase):
-    def test_a_new_course_starts_as_a_draft_even_if_asked_otherwise(self):
-        """Creating is not publishing — but an explicit status is still honoured, since an
-        instructor who deliberately sets 'open' means it."""
+    def test_a_new_course_is_visible_to_nobody_but_its_creator(self):
+        """Creating is still not publishing — that guarantee moved from `status` to `visibility`
+        without weakening. A new course is `only_you`, and its lifecycle starts at `open`, which now
+        says only "taking enrolments once anybody can see it"."""
         res = self.as_(self.instructor).post(
             '/api/taught-courses/', {'title': 'Nowy kurs'}, format='json'
         )
         self.assertEqual(res.status_code, 201)
-        self.assertEqual(res.data['status'], 'draft')
+        self.assertEqual(res.data['visibility'], 'only_you')
+        self.assertEqual(res.data['status'], 'open')
         self.assertTrue(res.data['is_instructor'])
 
     def test_the_creator_becomes_the_instructor_regardless_of_what_was_sent(self):
@@ -710,7 +750,7 @@ class StaffTests(ApiTestCase):
         self.assertEqual(response.data['detail'], 'instructor_cannot_enrol')
 
     def test_a_co_teacher_sees_the_course_in_their_own_teaching_list(self):
-        course = self.make_course(status='draft')
+        course = self.make_course(visibility='only_you')
         CourseStaff.objects.create(course=course, user=self.other, role='assistant')
         mine = self.as_(self.other).get('/api/taught-courses/?mine=teaching')
         self.assertIn(course.pk, [c['id'] for c in mine.data])
@@ -1074,3 +1114,130 @@ class InviteTests(ApiTestCase):
         response = self.as_(self.instructor).post(f'/api/course-invites/{invite["token"]}/accept/')
         self.assertEqual(response.data['detail'], 'already_staff')
         self.assertEqual(self.course.role_of(self.instructor), 'owner')
+
+
+class AccountCourseLimitTests(ApiTestCase):
+    """`Profile.max_courses` — an administrator's cap on how many courses one account owns.
+
+    Enforced in the view rather than the serializer because it is a fact about the CALLER, not the
+    payload: nothing the client sends can make it pass or fail.
+    """
+
+    def _create(self, user, title):
+        return self.as_(user).post('/api/taught-courses/', {'title': title}, format='json')
+
+    def test_zero_means_uncapped(self):
+        """0 is "no limit", not "no courses" — the same convention `capacity` and the upload quota
+        already use, and the default, so nobody is capped by the field merely existing."""
+        self.assertEqual(self.instructor.profile.max_courses, 0)
+        for i in range(3):
+            self.assertEqual(self._create(self.instructor, f'Kurs {i}').status_code, 201)
+
+    def test_creating_past_the_cap_is_refused_and_says_the_numbers(self):
+        profile = self.instructor.profile
+        profile.max_courses = 2
+        profile.save()
+
+        self.assertEqual(self._create(self.instructor, 'Pierwszy').status_code, 201)
+        self.assertEqual(self._create(self.instructor, 'Drugi').status_code, 201)
+
+        refused = self._create(self.instructor, 'Trzeci')
+        self.assertEqual(refused.status_code, 400)
+        # The refusal names both numbers: "you cannot" without "2 of 2" is not actionable.
+        self.assertIn('2 of 2', str(refused.data))
+        self.assertEqual(TaughtCourse.objects.filter(instructor=self.instructor).count(), 2)
+
+    def test_the_cap_is_per_account_and_not_global(self):
+        profile = self.instructor.profile
+        profile.max_courses = 1
+        profile.save()
+
+        self.assertEqual(self._create(self.instructor, 'Mine').status_code, 201)
+        self.assertEqual(self._create(self.instructor, 'One too many').status_code, 400)
+        # Somebody else's uncapped account is untouched by their neighbour's ceiling.
+        self.assertEqual(self._create(self.student, 'Theirs').status_code, 201)
+
+    def test_a_lowered_cap_does_not_delete_what_already_exists(self):
+        """Lowering a ceiling below what somebody already owns stops them creating more; it must not
+        retroactively destroy or hide courses that real people may be enrolled in."""
+        self._create(self.instructor, 'A')
+        self._create(self.instructor, 'B')
+        profile = self.instructor.profile
+        profile.max_courses = 1
+        profile.save()
+
+        self.assertEqual(TaughtCourse.objects.filter(instructor=self.instructor).count(), 2)
+        self.assertEqual(self._create(self.instructor, 'C').status_code, 400)
+
+
+class CourseUploadQuotaTests(ApiTestCase):
+    """`TaughtCourse.upload_quota_bytes` — a cap on the total stored bytes one course holds."""
+
+    def setUp(self):
+        super().setUp()
+        self.course = TaughtCourse.objects.create(
+            instructor=self.instructor,
+            title='Analiza od zera',
+            visibility='public',
+            status='open',
+            contribution_policy='staff',
+        )
+
+    def _material_of_size(self, slug, size):
+        """A material with REAL bytes behind it.
+
+        The shared `make_material` helper stores a bare filename with nothing on disk, which is fine
+        everywhere else in this suite and useless here: the quota is measured with `file.size`, so a
+        file that does not exist weighs nothing.
+        """
+        from django.core.files.base import ContentFile
+
+        material = Material.objects.create(course=self.subject, slug=slug, type='script')
+        material.file.save(f'{slug}.pdf', ContentFile(b'x' * size), save=True)
+        MaterialTranslation.objects.create(material=material, locale='pl', title=slug)
+        return material
+
+    def _add(self, material):
+        return self.as_(self.instructor).post(
+            f'/api/taught-courses/{self.course.pk}/items/',
+            {'material': material.pk},
+            format='json',
+        )
+
+    def test_zero_quota_means_uncapped(self):
+        self.assertEqual(self.course.upload_quota_bytes, 0)
+        self.assertEqual(self._add(self._material_of_size('duzy', 5000)).status_code, 201)
+        self.assertIsNone(self.course.upload_bytes_left)
+
+    def test_uploaded_bytes_counts_what_is_actually_attached(self):
+        self._add(self._material_of_size('a', 1000))
+        self.course.refresh_from_db()
+        self.assertEqual(self.course.uploaded_bytes, 1000)
+
+    def test_a_file_that_would_cross_the_quota_is_refused(self):
+        self.course.upload_quota_bytes = 2500
+        self.course.save()
+
+        self.assertEqual(self._add(self._material_of_size('pierwszy', 2000)).status_code, 201)
+
+        # 2000 + 1000 > 2500, so this one never lands, rather than being accepted and quietly
+        # taking the course over its cap.
+        refused = self._add(self._material_of_size('drugi', 1000))
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.data['detail'], 'upload_quota_exceeded')
+
+        self.course.refresh_from_db()
+        self.assertEqual(self.course.uploaded_bytes, 2000)
+        self.assertEqual(self.course.upload_bytes_left, 500)
+
+    def test_something_that_still_fits_is_accepted(self):
+        self.course.upload_quota_bytes = 2500
+        self.course.save()
+        self._add(self._material_of_size('pierwszy', 2000))
+        self.assertEqual(self._add(self._material_of_size('maly', 400)).status_code, 201)
+
+    def test_a_missing_file_on_disk_does_not_break_the_total(self):
+        """`make_material` stores a name with no bytes behind it, which is exactly what a row whose
+        file has gone missing from storage looks like. Reading the total must not raise on it."""
+        self.course.items.create(material=self.make_material('widmo', 'Widmo'), status='approved')
+        self.assertEqual(self.course.uploaded_bytes, 0)

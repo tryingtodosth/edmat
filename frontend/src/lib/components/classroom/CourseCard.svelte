@@ -6,11 +6,20 @@
 	let { course }: { course: TaughtCourse } = $props();
 
 	const STATUS_LABEL = {
-		draft: () => m.classroom_status_draft(),
 		open: () => m.classroom_status_open(),
 		running: () => m.classroom_status_running(),
 		finished: () => m.classroom_status_finished()
 	};
+
+	// Only shown when the course is NOT public. On a listing everything is public by definition, so a
+	// "Public" badge on every card would be noise; the useful signal is the opposite — an owner
+	// glancing at their own courses needs to see at once which ones nobody else can find yet.
+	const VISIBILITY_LABEL = {
+		only_you: () => m.classroom_visibility_onlyYou(),
+		private: () => m.classroom_visibility_private(),
+		public: () => ''
+	};
+	let visibilityLabel = $derived(VISIBILITY_LABEL[course.visibility]?.() ?? '');
 
 	// "3 of 12 places left" only means something when there is a cap; an uncapped course should say
 	// how many people are in it, not invent a limit to count down from.
@@ -25,6 +34,9 @@
 <a class="course-card" href={`${resolve('/classroom')}/${course.id}`}>
 	<div class="head">
 		<h3>{course.title}</h3>
+		{#if visibilityLabel}
+			<span class="status status--unlisted">{visibilityLabel}</span>
+		{/if}
 		<span class="status status--{course.status}">{STATUS_LABEL[course.status]()}</span>
 	</div>
 	{#if course.summary}
@@ -76,6 +88,11 @@
 	}
 	.status--open {
 		color: var(--accent);
+	}
+	/* Warning-toned, not danger: an unlisted course is a state its owner chose, not a fault. It only
+	   ever renders for somebody who can already see the course, so it reveals nothing. */
+	.status--unlisted {
+		color: var(--status-warning);
 	}
 	.summary,
 	.meta {

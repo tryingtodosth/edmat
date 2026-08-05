@@ -125,7 +125,14 @@ class TaughtCourseSerializer(serializers.ModelSerializer):
             'description',
             'subject_slugs',
             'field_slug',
+            'visibility',
             'status',
+            # Read-only here on purpose: the quota is an administrator's cost control, set in Django
+            # admin, not something a course's own instructor may raise for themselves. Both are sent
+            # so the UI can say "180 MB of 500 MB" rather than only refusing an upload at the point
+            # somebody has already chosen the file.
+            'upload_quota_bytes',
+            'uploaded_bytes',
             'enrollment_policy',
             'capacity',
             'discussion_mode',
@@ -278,6 +285,7 @@ class TaughtCourseWriteSerializer(serializers.ModelSerializer):
             'description',
             'subjects',
             'field',
+            'visibility',
             'status',
             'enrollment_policy',
             'capacity',

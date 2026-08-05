@@ -177,11 +177,12 @@ class SeedDemoContentTests(ApiTestCase):
         call_command('seed_demo_content', verbosity=0)
         self.assertTrue(Enrollment.objects.filter(status='pending').exists())
 
-    def test_it_leaves_a_draft_course_so_visibility_is_demonstrable(self):
+    def test_it_leaves_an_unlisted_course_of_each_kind_so_visibility_is_demonstrable(self):
         from django.core.management import call_command
 
         call_command('seed_demo_content', verbosity=0)
-        self.assertTrue(TaughtCourse.objects.filter(status='draft').exists())
+        self.assertTrue(TaughtCourse.objects.filter(visibility='only_you').exists())
+        self.assertTrue(TaughtCourse.objects.filter(visibility='private').exists())
 
 
 class DisplayPreferenceTests(ApiTestCase):

@@ -404,11 +404,20 @@ class Command(BaseCommand):
                 )
             courses[spec['key']] = course
 
-        # One draft, so "a draft is visible only to its instructor" is something you can actually see.
+        # One of each unlisted visibility, so "only you" and "private" are both things you can
+        # actually see the effect of rather than read about.
         TaughtCourse.objects.update_or_create(
             title='Topologia — szkic',
             instructor=people['zofia'],
-            defaults={'summary': 'Jeszcze nieopublikowany.', 'status': 'draft'},
+            defaults={'summary': 'Jeszcze nieopublikowany.', 'visibility': 'only_you'},
+        )
+        TaughtCourse.objects.update_or_create(
+            title='Seminarium — tylko z linkiem',
+            instructor=people['zofia'],
+            defaults={
+                'summary': 'Niewidoczny na liście; wchodzisz z zaproszenia.',
+                'visibility': 'private',
+            },
         )
         return courses
 

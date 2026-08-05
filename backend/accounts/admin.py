@@ -14,7 +14,18 @@ class DonationLinkInline(admin.TabularInline):
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'display_name', 'preferred_locale', 'is_verified_contributor', 'joined_at']
+    # `max_courses` is editable straight from the changelist: raising or lowering somebody's ceiling
+    # is a one-number decision, and making an administrator open each profile in turn to do it is
+    # how a limit ends up being managed in the database instead.
+    list_display = [
+        'user',
+        'display_name',
+        'preferred_locale',
+        'is_verified_contributor',
+        'max_courses',
+        'joined_at',
+    ]
+    list_editable = ['max_courses']
     list_filter = ['is_verified_contributor', 'preferred_locale']
     inlines = [DonationLinkInline]
 

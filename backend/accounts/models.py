@@ -48,6 +48,18 @@ class Profile(models.Model):
     # visitor never chose to publish, e.g. the joined date) does not gate it.
     bio = models.TextField(max_length=1000, blank=True)
     is_verified_contributor = models.BooleanField(default=False)
+    # How many courses this account may own in total. Counted over every course it owns rather than
+    # only the unfinished ones: "you have 3 of your 5" is a sentence somebody can act on, whereas a
+    # cap that silently frees a slot when a course is marked finished is one people would discover
+    # by accident. 0 means uncapped — the same convention
+    # `TaughtCourse.capacity` and `TaughtCourse.upload_quota_bytes` already use, so "no limit" reads
+    # the same everywhere it appears.
+    #
+    # Uncapped by default, and lowered per account by an administrator in Django admin rather than
+    # earned automatically. The tier ladder on /levels describes a system that would set this from
+    # reputation; none of that is built, and defaulting everyone to a number nothing can yet raise
+    # would cap real people on the strength of a design note.
+    max_courses = models.PositiveSmallIntegerField(default=0)
     joined_at = models.DateTimeField(auto_now_add=True)
 
     # Privacy: whether GET /api/users/{id}/'s own dedicated profile page shows anything beyond a

@@ -22,25 +22,43 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
-# A course's own lifecycle, as its instructor drives it. Deliberately a single field rather than a
-# pair of booleans (`is_published`/`is_finished`): two booleans make an illegal state representable
-# — finished but never published — that every read site would then have to defend against, the same
-# reasoning `Service.delivery_mode` already records for its own three-way choice.
+# These are two different questions, and until now they were one field. `draft` answered "who can
+# see this", while `open`/`running`/`finished` answered "how far along is it" — so an instructor who
+# wanted a course that was under way but unlisted had nothing to pick, and "Running" sitting in a
+# menu of visibility options could not be explained to anybody in a sentence.
+#
+# Split, they are genuinely independent: a private course can be running, a public one can be
+# finished, and a course visible only to its owner can be at any point in its life.
+VISIBILITY_CHOICES = [
+    # Nobody but the people who run it. Every course starts here, so creating one never publishes it.
+    ('only_you', 'Only you'),
+    # Not listed and not searchable, but openable with an invite link and by people the owner adds
+    # directly. `CourseInvite.new_token` is 256-bit, so "unlisted" is a real boundary here and not
+    # an obscurity that a guessable URL would give away.
+    ('private', 'Private — only people you invite'),
+    # Listed in the public course directory, for anyone, account or not.
+    ('public', 'Public — anyone can find it'),
+]
+
+#: Visibilities somebody who is not staff on the course can reach at all, given a link or a place on
+#: the roster.
+REACHABLE_VISIBILITIES = frozenset({'private', 'public'})
+#: The one visibility that appears in the public directory. Deliberately its own name rather than a
+#: reuse of REACHABLE_VISIBILITIES: "can open it when handed a link" and "will be found by someone
+#: browsing" are precisely the distinction `private` exists to draw, and collapsing them into one
+#: set is how a private course would quietly end up listed.
+LISTED_VISIBILITIES = frozenset({'public'})
+
+# How far along the course is — lifecycle only now. There is no `draft` here any more; that was a
+# statement about visibility, and it moved to the field above.
 STATUS_CHOICES = [
-    # Visible only to its instructor. Every course starts here, so nothing is ever published by the
-    # act of creating it.
-    ('draft', 'Draft'),
-    # Listed publicly, and taking enrolments.
     ('open', 'Open for enrolment'),
-    # Listed and running, but closed to new participants. A distinct state from `finished`, because
-    # people are still actively taking part.
+    # Under way, but closed to new participants. A distinct state from `finished`, because people are
+    # still actively taking part.
     ('running', 'Running, enrolment closed'),
     ('finished', 'Finished'),
 ]
 
-#: The states in which a course is visible to anybody other than its instructor. One definition, so
-#: "is this public?" can never drift between the queryset filter and a permission check.
-PUBLIC_STATUSES = frozenset({'open', 'running', 'finished'})
 #: The one state that accepts new participants.
 ENROLLING_STATUSES = frozenset({'open'})
 
@@ -172,13 +190,20 @@ class TaughtCourse(models.Model):
         on_delete=models.SET_NULL,
     )
 
-    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='draft')
+    visibility = models.CharField(
+        max_length=12, choices=VISIBILITY_CHOICES, default='only_you'
+    )
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='open')
     enrollment_policy = models.CharField(
         max_length=12, choices=ENROLLMENT_POLICY_CHOICES, default='open'
     )
     # 0 means no limit, which is genuinely different from "a limit that happens to be large" and is
     # the honest default for a reading group nobody intends to cap.
     capacity = models.PositiveSmallIntegerField(default=0)
+    # Total bytes of material attached to this course, 0 meaning uncapped — the same convention
+    # `capacity` above already uses, so "no limit" reads identically on both. Set by an administrator
+    # rather than by the instructor: it is a cost control on the platform, not a teaching decision.
+    upload_quota_bytes = models.PositiveBigIntegerField(default=0)
 
     language = models.CharField(max_length=8, default='pl')
     starts_on = models.DateField(null=True, blank=True)
@@ -241,7 +266,43 @@ class TaughtCourse(models.Model):
 
     @property
     def is_public(self) -> bool:
-        return self.status in PUBLIC_STATUSES
+        """Listed in the public directory. NOT the same as reachable — see `is_reachable`, which is
+        the one to check when deciding whether a given person may open this course."""
+        return self.visibility in LISTED_VISIBILITIES
+
+    @property
+    def is_reachable(self) -> bool:
+        """Openable by somebody who is not staff on it, given a link or a place on the roster."""
+        return self.visibility in REACHABLE_VISIBILITIES
+
+    @property
+    def uploaded_bytes(self) -> int:
+        """Total size of the material attached to this course.
+
+        Summed live rather than kept as a running total on the row: a stored counter has to be
+        correct after every add, every removal and every failed upload, and this is read on a
+        handful of admin and upload paths rather than on anything hot.
+        """
+        total = 0
+        for item in self.items.select_related('material').all():
+            material_file = getattr(getattr(item, 'material', None), 'file', None)
+            if not material_file:
+                continue
+            try:
+                total += material_file.size
+            except (OSError, ValueError):
+                # A row whose file is missing from storage must not take the whole course page down;
+                # it contributes nothing to the total, which is the honest reading of "not there".
+                continue
+        return total
+
+    @property
+    def upload_bytes_left(self) -> int | None:
+        """None when uncapped — deliberately not 0, which would read as "full", the same distinction
+        `seats_left` already draws for capacity."""
+        if not self.upload_quota_bytes:
+            return None
+        return max(self.upload_quota_bytes - self.uploaded_bytes, 0)
 
     @property
     def active_participant_count(self) -> int:
@@ -359,6 +420,11 @@ class TaughtCourse(models.Model):
         # letting them also occupy a participant seat would double-count them against capacity.
         if self.is_staff_member(user):
             return 'instructor_cannot_enrol'
+        # Checked before `status`, because it is the stronger refusal: a course nobody outside its
+        # staff can even see is not "not open yet", it is not on offer at all. A private course is
+        # deliberately absent from this guard — being handed a link IS how you join one.
+        if not self.is_reachable:
+            return 'not_open'
         if self.status not in ENROLLING_STATUSES:
             return 'not_open'
         existing = self.enrollments.filter(participant=user).first()

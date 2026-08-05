@@ -12,6 +12,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 
 from community.models import Comment
@@ -22,7 +23,7 @@ from notifications.services import notify, notify_course_participants
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
     BLOCKING_ENROLLMENT_STATUSES,
-    PUBLIC_STATUSES,
+    LISTED_VISIBILITIES,
     Chapter,
     CourseInvite,
     CourseItem,
@@ -79,13 +80,26 @@ class TaughtCourseViewSet(viewsets.ModelViewSet):
                 enrollments__status__in=BLOCKING_ENROLLMENT_STATUSES,
             ).distinct()
 
-        # A draft belongs to its instructor alone. Filtering rather than permission-checking means
-        # it is absent from every listing for free, not hidden by a rule each new endpoint would
-        # have to remember.
-        public = qs.filter(status__in=PUBLIC_STATUSES)
+        # Filtering rather than permission-checking means anything you may not see is absent from
+        # every listing for free, instead of being hidden by a rule each new endpoint has to
+        # remember to apply.
+        #
+        # Only PUBLIC courses are listed. A private one is deliberately NOT added here for the sake
+        # of whoever holds its link: this queryset also backs retrieve-by-id, so widening it would
+        # make every private course walkable by counting integers, which is exactly the enumeration
+        # its 256-bit invite token exists to prevent. The link route in is `/course-invites/<token>/`.
+        # People already inside a course reach it by the two clauses below, not by its visibility.
+        visible = qs.filter(visibility__in=LISTED_VISIBILITIES)
         if user.is_authenticated:
-            public = public | qs.filter(staff__user=user)
-        qs = public.distinct()
+            visible = (
+                visible
+                | qs.filter(staff__user=user)
+                | qs.filter(
+                    enrollments__participant=user,
+                    enrollments__status__in=ACTIVE_ENROLLMENT_STATUSES,
+                )
+            )
+        qs = visible.distinct()
 
         subject = self.request.query_params.get('subject')
         if subject:
@@ -103,6 +117,24 @@ class TaughtCourseViewSet(viewsets.ModelViewSet):
         return TaughtCourseSerializer
 
     def perform_create(self, serializer):
+        # An administrator can cap how many courses one account owns (Profile.max_courses, 0 being
+        # uncapped). Checked here rather than in the serializer because it is a fact about the
+        # CALLER, not about the payload — nothing the client sends can make it pass or fail.
+        #
+        # Deliberately not enforced against the admin or a seed command: both go through the model
+        # directly, and an administrator raising somebody's ceiling should never be blocked by it.
+        max_courses = getattr(getattr(self.request.user, 'profile', None), 'max_courses', 0)
+        if max_courses:
+            owned = TaughtCourse.objects.filter(instructor=self.request.user).count()
+            if owned >= max_courses:
+                raise DRFValidationError(
+                    {
+                        'detail': [
+                            'You have reached the number of courses your account may own '
+                            f'({owned} of {max_courses}). Ask an administrator to raise it.'
+                        ]
+                    }
+                )
         # The owner's `CourseStaff` row is created by `TaughtCourse.save` — an invariant of the model
         # rather than of this one code path, since seed commands and the admin create courses too.
         serializer.save(instructor=self.request.user)
@@ -549,6 +581,28 @@ class TaughtCourseViewSet(viewsets.ModelViewSet):
             data=request.data, context={**self.get_serializer_context(), 'course': course}
         )
         write.is_valid(raise_exception=True)
+
+        # An administrator can cap the total bytes of material one course holds
+        # (`TaughtCourse.upload_quota_bytes`, 0 being uncapped). Checked against the file this
+        # request would actually add, so a course sitting just under its quota still refuses a file
+        # that would take it over rather than accepting it and going over silently.
+        #
+        # Exercises are never weighed: they are rows of text, not stored files, and the quota exists
+        # to bound disk.
+        if course.upload_quota_bytes:
+            incoming = write.validated_data.get('material')
+            incoming_file = getattr(incoming, 'file', None)
+            incoming_size = 0
+            if incoming_file:
+                try:
+                    incoming_size = incoming_file.size
+                except (OSError, ValueError):
+                    incoming_size = 0
+            if incoming_size and course.uploaded_bytes + incoming_size > course.upload_quota_bytes:
+                return Response(
+                    {'detail': 'upload_quota_exceeded'}, status=status.HTTP_400_BAD_REQUEST
+                )
+
         needs_approval = course.contribution_needs_approval(request.user)
         try:
             with transaction.atomic():
