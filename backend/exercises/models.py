@@ -190,3 +190,65 @@ class ExerciseTranslation(models.Model):
 
     def __str__(self) -> str:
         return f'{self.exercise} [{self.locale}/{self.status}]'
+
+    def save(self, *args, **kwargs):
+        # Real, server-side sanitization (config/sanitize.py) — the ONE choke point for every write
+        # path (a moderator-approved submission, a direct translation submission, an applied edit
+        # suggestion, the legacy-corpus importer, the Django admin), so nothing has to remember to
+        # call this by hand at each individual call site. See that module's own doc comment for why
+        # this was missing until a security scan of the whole project found the gap.
+        from config.sanitize import sanitize_content
+
+        self.title = sanitize_content(self.title)
+        self.statement = sanitize_content(self.statement)
+        self.hint = sanitize_content(self.hint)
+        self.answer = sanitize_content(self.answer)
+        self.solution = sanitize_content(self.solution)
+        super().save(*args, **kwargs)
+
+
+class ExerciseRequirement(models.Model):
+    """A loose, free-text prerequisite/skill label for actually attempting this exercise — "basic
+    algebra", "epsilon-delta proofs", "a graphing calculator" — the exact same shape and reasoning
+    `materials.models.MaterialRequirement` already establishes for a Material, applied here to
+    Exercise for the first time. Deliberately NOT a fixed vocabulary, matching that same precedent:
+    a requirement is whatever the submitter/community actually typed, not a value chosen from a
+    list this app would have to keep in sync with reality.
+
+    `order` is a plain, user-controlled display order, same convention as `MaterialRequirement.order`.
+    `is_removed` exists for report-flag parity with `MaterialRequirement`/`Tag` — a moderator's own
+    "reports were founded" decision on a reported skill tag, filtered out of ordinary reads rather
+    than a Comment-style tombstone (this row is never threaded/replied-to).
+    """
+
+    exercise = models.ForeignKey(Exercise, related_name='requirements', on_delete=models.CASCADE)
+    label = models.CharField(max_length=200)
+    order = models.PositiveIntegerField(default=0)
+    is_removed = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self) -> str:
+        return f'{self.exercise}: {self.label}'
+
+
+class ExerciseRequirementVote(models.Model):
+    """The exact same "is this claim accurate" weighted signal `materials.models.MaterialRequirementVote`
+    already provides for a Material's own requirement row, just targeting an ExerciseRequirement
+    instead. Weight is computed the same way, at read time, by the same shared
+    `materials/services.py` `_vote_weight`/`_net_vote_weight`/`build_vote_summary` functions — all
+    three are already generic over any object exposing a `.votes` related manager (this model's own
+    `related_name='votes'` is what makes that work without any change to any of the three), reused
+    here rather than a second, independently-drifting copy of the identical math."""
+
+    requirement = models.ForeignKey(ExerciseRequirement, related_name='votes', on_delete=models.CASCADE)
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=[(1, 'Agree'), (-1, 'Disagree')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('requirement', 'voter')]  # one vote per user per requirement
+
+    def __str__(self) -> str:
+        return f'{self.get_value_display()} by {self.voter} on {self.requirement}'

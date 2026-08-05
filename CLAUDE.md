@@ -32,6 +32,14 @@ suites (services/messaging/tests.py) and their entire frontend (browse/create/ma
 send/reply/view messages) were added this pass, see Section 17P** — both features landed on
 separate branches and were merged together locally into one before pushing, then re-verified
 together: **175 tests total, all passing**, migrations clean, frontend check/lint/build all clean.
+**A whole-project security scan then found four real sanitization/validation gaps, all now closed:
+server-side `bleach` sanitization and the `renderContent.ts` SSR bypass in one pass, then avatar
+uploads (a real crop step, plus the file validation `Profile.avatar` had entirely lacked) and auth
+rate limiting in the next, alongside author/source-link provenance on material submissions —
+311 tests total, all passing, see Section 17Q.**
+**Tutor offers then gained a real online/in-person/hybrid distinction with OpenStreetMap-backed
+locations — a Nominatim address search and a Leaflet map picker, plus a "within N km" filter —
+337 tests total, all passing, see Section 17R.**
 This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
@@ -1256,8 +1264,12 @@ throughout.
 - **No `NotificationGroup`-style clustering** — a plain list, deliberately, see the note above.
 - **No donation-link reordering UI** — `order` exists and is honored by the public display, but
   there's no drag-and-drop; a newly-added link just appends after whatever's already there.
-- **No avatar upload UI anywhere** — `Profile.avatar` predates this feature and stays untouched;
-  only its URL-resolution correctness (the missing `context={'request': ...}` fix above) changed.
+- ~~**No avatar upload UI anywhere** — `Profile.avatar` predates this feature and stays untouched;
+  only its URL-resolution correctness (the missing `context={'request': ...}` fix above) changed.~~
+  **✅ Resolved, see Section 17Q** — built with a real crop step, and with the file validation the
+  field had entirely lacked. Worth noting *why* this stayed safe in the meantime: the complete
+  absence of a write path is the only reason a validation-free `ImageField` was never exploitable,
+  which is exactly why the checks had to land in the same change as the feature.
 - **`NOTIFICATION_TYPE_CATEGORY`/`NOTIFICATION_TYPE_LABELS` (frontend) is a hand-maintained mirror
   of the backend's own `NOTIFICATION_TYPES` catalog, not fetched from an endpoint** — a real, if
   small, drift risk flagged in both files' own comments rather than silently left unstated; a
@@ -3276,6 +3288,388 @@ backend suite (138/138) all confirmed clean after every fix, not just at the sta
   `Report`/auto-hide system. A real, if narrow, gap worth naming rather than silently leaving
   unstated, since both are genuinely public-facing, user-generated content.
 
+## 17Q. Security scan follow-through: avatar uploads, auth rate limiting, and material provenance (✅ built)
+
+A whole-project scan for sanitization/validation gaps (file-upload paths, XSS, SQL injection, CORS,
+rate limiting) found four real items. Two were closed in the preceding pass — server-side `bleach`
+sanitization (`config/sanitize.py`, the "sanitize on save too" layer Section 11 always specified but
+never built) and the `renderContent.ts` SSR bypass that returned raw, unsanitized HTML whenever
+`window` was undefined. This section covers the remaining two, plus a related provenance gap.
+
+### 1. `Profile.avatar` had zero file validation — and no way to write to it at all
+
+The field has existed since Phase 2 as a bare `ImageField(upload_to='avatars/')` with **none** of the
+three layers `materials/validators.py` applies to a Material upload. It was never exploitable, for
+the accidental reason Section 17B already recorded as a missing feature: there was no avatar upload
+UI anywhere, and `avatar` is deliberately absent from `ProfileUpdateSerializer`'s writable fields.
+Building the upload is precisely the moment that stops being theoretical, so the validation landed in
+the same change as the feature.
+
+**The core decision: never store the bytes the uploader sent.** `accounts/avatar.py`'s
+`process_avatar` decodes every accepted image and **re-encodes** it from scratch. This is strictly
+stronger than the content-type sniffing a Material upload gets, for a reason worth stating: sniffing
+answers "does this look like a real image?", which a **polyglot** (a valid image whose trailing bytes
+are also a valid archive/script) answers "yes" to as honestly as a genuine photo does. Re-encoding
+does not ask the question — it discards every byte that is not pixel data. A Material upload cannot
+do this (a PDF must stay the submitter's PDF); an avatar can, because nothing about the original file
+is worth keeping once the pixels are extracted. Verified directly: a real image with a PHP payload
+appended survives content sniffing and does **not** survive the re-encode.
+
+Four checks, in the order they must happen:
+
+1. **Byte cap** (5 MB) — cheap, first, before anything decodes.
+2. **Content sniffing** via the same `python-magic`/libmagic binding `materials/validators.py` uses.
+   Kept even though step 4 makes it non-load-bearing for safety, purely for a better error message
+   than Pillow's generic decode failure.
+3. **A decoded-pixel cap** (40 MP), checked against the header's declared dimensions BEFORE any pixel
+   data is read. **This is the check that is easy to miss and the reason a byte limit alone is not
+   enough:** compression ratios are unbounded, so a perfectly valid ~140 KB PNG can declare
+   12000x12000 and decode to gigabytes of resident memory — a real decompression-bomb DoS from a file
+   that passes both checks above. Confirmed with a real such file, not reasoned about. Pillow's own
+   `MAX_IMAGE_PIXELS` defaults to ~89 MP and only *warns* below 2x that, so this module sets its own
+   much lower explicit bound rather than relying on that default.
+4. **Full re-encode** — decode, honor EXIF orientation, centre-crop square, resize, write fresh WebP.
+
+**EXIF is stripped, which is a privacy fix, not only a security one.** A phone photo routinely carries
+GPS coordinates; publishing them alongside a public profile picture leaks where the account holder
+physically was. Re-encoding drops the block by construction (Pillow only writes EXIF when handed it).
+The one tag that must be *honored* before being discarded is `Orientation` — phone photos are often
+stored sideways with a tag saying to rotate, so stripping without applying would silently turn every
+such upload 90°. `ImageOps.exif_transpose` bakes it into the pixels first. Both properties are pinned
+by tests, the orientation one by difference (tagged and untagged input must not produce identical
+output).
+
+**Sizing and format, as real decisions rather than defaults.** 512x512, not the 256 an avatar's
+largest on-screen appearance suggests: 2x/3x device pixel ratios are the norm, so a 128 CSS-pixel
+avatar genuinely needs 384 real pixels, and a 512 WebP is ~13 KB — the headroom costs nothing.
+**Alpha is preserved rather than flattened onto white**, because this app ships a real light/dark
+theme (Section 13) and a flattened logo-style avatar would be a bright rectangle in one of them.
+
+`POST`/`DELETE /api/auth/me/avatar/` (`AvatarView`) is its own endpoint rather than a writable field
+on `ProfileUpdateSerializer` (where `avatar` correctly stays absent): the request is multipart not
+JSON, the upload needs its own tighter throttle scope, and removing an avatar is a genuine file
+delete, not a field set to null. `process_avatar` raises Django's `ValidationError`, which DRF does
+**not** translate into a 400 on its own — an uncaught one is a 500 — so the view translates it
+explicitly into this API's usual `{field: [messages]}` shape, pinned by its own test. The previous
+file is deleted before a replacement is saved: Django's `FileField` does not clean up a replaced
+file, and the random UUID names mean nothing would ever overwrite one, so without this every
+re-upload would orphan its predecessor forever (verified by counting files, not assumed).
+
+**Frontend — a real crop step, so the user picks which square is used.** `svelte-easy-crop` (v5.0.1,
+`svelte: ^5.0.0` peer dependency — a genuine Svelte 5 component, not a Svelte 3/4 package on the
+compatibility layer; chosen over the more widely-used `cropperjs` v2, which is a web-component API
+that would need wiring by hand). It returns the selected region in natural image pixels, which is
+exactly what a single `drawImage` with an explicit source rectangle needs — no manual zoom/pan
+arithmetic. **The client-side crop is a UX affordance, never a security boundary:** the backend
+re-decodes and re-encodes whatever actually arrives, so a caller POSTing straight to the endpoint
+gains nothing by skipping it.
+
+**A real bug found by driving the actual browser, not by review.** The component's first version
+gated on `file.type` — which the browser derives almost entirely from the FILENAME, so a Windows
+executable renamed to `.png` is reported as `image/png` and sailed straight past into an **empty
+cropper**, where the user would drag an invisible selection and only learn anything was wrong when
+Save failed. Caught because the verification script tested the rejection path through the real form
+rather than only via `curl`. Fixed by actually attempting to decode the file: the browser's own image
+decoder answers the question from the bytes, which is the same question libmagic asks server-side and
+the one `file.type` cannot.
+
+### 2. No rate limiting anywhere in the API
+
+Zero DRF throttle classes were configured, so `POST /api/auth/login/` accepted unlimited password
+guesses against any account.
+
+**Two throttles on login, not one, because they stop different attacks.** DRF's `AnonRateThrottle`
+keys on client IP — right for one host hammering the endpoint, and useless against credential
+stuffing, where a leaked list is replayed against one account from a distributed pool and never trips
+any single IP's counter. `LoginUsernameRateThrottle` (`accounts/throttles.py`) keys on the submitted
+identifier instead. Neither subsumes the other, so `LoginView` applies both (set via
+`throttle_classes`, not `throttle_scope`, since `ScopedRateThrottle` supports only one scope per
+view). The identifier is normalized (trimmed, lowercased) so capitalization cannot mint a fresh
+budget, then SHA-256'd so what lands in the cache is a digest rather than a plaintext list of every
+email anyone has tried to log in as.
+
+**The limitation is stated rather than papered over:** an identifier-keyed throttle is itself a DoS
+lever — someone who knows a victim's email can burn that account's budget. Hence the per-username
+rate is deliberately much looser than the per-IP one, sized to stop a systematic search rather than
+to make typos expensive. The real fix is a lockout counting only FAILED attempts and clearing on
+success, which DRF's framework has no notion of — it counts requests, not outcomes. A test pins that
+actual behavior (a correct password still counts toward the limit) rather than leaving a future
+reader to assume otherwise.
+
+Scoped rates elsewhere: `register`, `password_reset`, and `avatar` (the most expensive authenticated
+write in the app — it decodes and re-encodes a real image, so an unbounded rate is a CPU-exhaustion
+lever). `password_reset` has nothing to brute-force *today* — it is still the honest always-200 stub
+Phase 2 shipped — but the moment a real email backend lands it becomes an unauthenticated endpoint
+that sends mail to a caller-chosen address, and the limit is far easier to add now than to remember
+then. The two global backstops (`anon`/`user`) are deliberately loose: this is a browse-heavy app
+where one exercise page fires several requests and the moderation page more than a dozen, so a tight
+global limit would break ordinary reading long before inconveniencing anyone abusive.
+
+**A real deployment caveat, flagged in both `config/settings.py` and `accounts/throttles.py`:** DRF
+throttling counts through Django's cache, and this project configures no `CACHES` at all — so the
+default per-process `LocMemCache` applies and every worker in a multi-process deployment keeps its
+own counter, multiplying every rate by the worker count. Correct for this prototype's single-process
+dev server; a real deployment needs a shared cache before these numbers mean what they say.
+
+**Testing these required finding a real trap.** `SimpleRateThrottle` binds
+`THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES` as a CLASS attribute, evaluated once at import
+time — so `override_settings(REST_FRAMEWORK=...)` genuinely does not reach it, and a test written
+that way runs against production rates while appearing to declare its own. Found the hard way: the
+first version failed because 4 requests understandably did not trip a 10/min limit. `patch.dict` on
+the shared dict every subclass inherits is what actually works. The cache must also be cleared
+between tests, or one test's requests spend the next one's budget and results depend on execution
+order.
+
+### 3. Material submissions had no author or source
+
+Related, and surfaced by the same "what do we actually know about an uploaded file?" question.
+`Material.author` existed (free text — the real corpus's `material.yaml` values are human names like
+a course TA, almost never a platform account); **neither** `Material` nor `MaterialSubmission` had
+any record of where a file came from, and `MaterialSubmission` had no author field at all.
+
+`source_url` (a `URLField`, not free text — provenance nobody can follow is worse than none) is now on
+both models, and `author` on both. Genuinely distinct fields: `author` is WHO wrote it, `source_url`
+is WHERE it came from, and neither answers the other — a TA's own handout has an author and no
+traceable source; an anonymous departmental script has the reverse. Both are optional by design: a
+scan of a paper handout has no URL, and forcing one would produce fabricated provenance, which is the
+exact opposite of the point. All 7 legacy corpus materials are correctly blank (`material.yaml` never
+carried a source), rather than backfilled with invented values.
+
+**Why this matters beyond bookkeeping:** Section 18 item 2 is a still-open ⚠️ on the copyright status
+of transcribed course material — a question that cannot even be investigated for a given file without
+a record of its origin. And the uploader is the *only* person who ever knows: a moderator looking at a
+pending PDF cannot recover its author or source from the bytes, so if the form never asks, the
+information is not merely missing from the record, it is unrecoverable. Hence both are surfaced in the
+moderation queue's Materials tab alongside the file link — the approve/reject click is exactly where
+that judgment gets made, so the evidence belongs in front of the person making it, not only in the
+database. `_apply_material_submission` carries both onto the real `Material` row on approval.
+
+`MaterialCard` now shows both. A real, pre-existing bug fixed in passing: `author` hung off an
+`{:else if}` on `submittedBy`, so a material with both silently showed only the submitter — fine when
+nothing collected an author, wrong now that submissions routinely carry both. The source renders as a
+plain underlined link, deliberately not styled as a button like the download beside it: following a
+provenance link is a secondary, informational action, and equal visual weight would misrepresent what
+the reader is there for. `rel="nofollow"` throughout, since the URL is user-submitted.
+
+The submit form's source field is `type="text" inputmode="url"`, **not** `type="url"` — its native
+validation would reject a perfectly reasonable `example.edu/handout.pdf` typed without a scheme, so
+the form normalizes a missing scheme to `https://` instead of bouncing the whole submission. (This
+also sidesteps the Svelte 5 `bind:value` coercion bug this project has now hit twice, Sections
+17M/17O.)
+
+### Verified end-to-end, live, not assumed from the code
+
+**Backend, direct against the running dev server:** a real 900x600 JPEG carrying genuine GPS
+coordinates, a camera make, and `Orientation=6` uploaded to a 512x512 WebP with zero EXIF, no GPS, no
+ICC profile (13.4 KB); a real Windows PE renamed `.png` rejected with `detected: application/x-dosexec`;
+a real 140 KB / 144-megapixel decompression bomb rejected before decode; anonymous upload 401; a
+re-upload leaving exactly one file on disk; DELETE removing both field and file. Login throttling
+confirmed returning a real 429 with `Retry-After` guidance after the limit. The full material
+provenance round trip — submit with author + source, both visible in the moderator's queue, both
+carried onto the published `Material`, an invalid URL rejected with a real 400.
+
+**Frontend, headless Chromium against the real running app** — 17 checks on the avatar flow (the crop
+panel opening, the cropper rendering the picked image, the zoom slider and a real drag both operable,
+Save firing a real 200, the resulting image genuinely LOADING at `naturalWidth=512` rather than merely
+having an `src`, persistence across a hard reload, the avatar appearing on the public profile,
+removal, and the disguised-executable rejection through the actual form) and 8 on the material form,
+zero console/page errors on both. All scratch data created for verification (test materials,
+submissions, uploaded files) was cleaned up afterward and confirmed removed by direct query — the
+corpus is back to its real 7-material baseline.
+
+**24 new backend tests** (`accounts/test_avatar.py` 17, `accounts/test_throttling.py` 7) plus 5 for
+material provenance in `moderation/tests.py`. `npm run check` (0 errors/0 warnings, 872 files),
+`eslint`, and `npm run build` all clean; `manage.py check` and `makemigrations --check --dry-run`
+clean.
+
+### Left open, not built
+
+- **A failed-attempt lockout** (counting failures, clearing on success) is the real answer to the
+  brute-force problem; DRF's throttling counts requests, not outcomes, so this needs something outside
+  that framework. The current throttles are a genuine, working mitigation, not a complete solution.
+- **No shared cache configured**, so the rates are per-worker in any multi-process deployment — see
+  the caveat above. A real deployment concern, not a code gap.
+- **No identicon/generated placeholder** for an account with no avatar — a plain neutral placeholder
+  renders instead. Inventing a second visual identity for an account is a larger decision than this
+  feature's scope.
+- **No avatar moderation or reporting.** An uploaded profile picture is public, user-generated content
+  and is not wired into the `Report`/auto-hide system the way Exercise/Material/Comment are — the same
+  gap Section 17P already names for Service listings and messages.
+- **`source_url` is not verified to resolve.** Nothing checks that the link is reachable, or that it
+  actually points at the material it claims to; it is a declaration by the uploader, surfaced for a
+  human to weigh, not a validated fact.
+- **No backfill path for the 7 legacy materials**, deliberately — see above; inventing provenance
+  would defeat the purpose of recording it.
+## 17R. Feature: online/in-person tutor offers, with real OpenStreetMap locations (✅ built, full stack)
+
+"Users need to be able to post tutor offers and specify if stationary or virtually (if stationary
+location, so we need to have openmaps connected)." `services.Service` (Section 17P) already had
+everything about a tutoring offer EXCEPT how you attend it — a student could not tell whether a
+listing meant video calls or a room in Warsaw, which is the first thing they need to know.
+
+### `delivery_mode` — one choice field, not two booleans
+
+`online` / `in_person` / `hybrid`. Deliberately a single choice rather than an `is_online` +
+`is_in_person` pair: two booleans make an illegal fourth state representable — neither set, a listing
+nobody can attend — that every read site would then have to defend against. A choice field cannot
+express it at all.
+
+`hybrid` is a real third answer, not a convenience. "Online, or in person if you come to Warsaw" is a
+common offer, and collapsing it into either neighbour loses information a student filters on. It
+therefore matches **both** filters rather than neither — a hybrid tutor genuinely satisfies someone
+who wants to meet in person, and excluding them from both would hide the most flexible listings from
+everyone, which is precisely backwards.
+
+`default='online'` is what makes the migration safe for the listings that already existed: every one
+of them predates the field and made no claim about location, so the only honest default is the mode
+that requires none. Backfilling them as in-person would invent a location none of them declared.
+
+**The mode and the location are kept consistent in both directions**, by
+`ServiceWriteSerializer.validate`: an in-person or hybrid listing without coordinates is rejected, and
+switching a listing back to online-only actively CLEARS its location rather than merely ignoring it.
+The second half matters as much as the first — a stale pin left behind would keep rendering a map for
+a place the tutoring no longer happens, which is worse than showing nothing, because it is wrong
+rather than absent. The validation reads the mode from the *instance* when a PATCH does not supply
+one, so a partial update that touches only the coordinates is still checked against the mode the
+listing already has.
+
+### OpenStreetMap, in two halves: Nominatim (geocoding) and Leaflet (the map)
+
+**Geocoding is proxied through the backend** (`services/geocoding.py`,
+`GET /api/geocode/`), not called from the browser. Calling Nominatim directly from the frontend is
+less code and what most tutorials show; it is also a real violation of its usage policy, which drove
+the whole design:
+
+1. **The policy requires a `User-Agent` identifying the application.** A browser `fetch()` cannot set
+   `User-Agent` at all — it is a forbidden header, silently ignored — so every request would arrive
+   labelled as an ordinary browser. That is exactly the anonymous traffic Nominatim blocks, and being
+   blocked takes the feature down for every user at once.
+2. **The policy caps the whole application at 1 request/second.** A per-browser pattern cannot
+   enforce a global limit: 50 users typing at once is 50 concurrent requests and no client can see
+   the others. A single server-side gate can — `cache.add`, which is atomic, as a 1.1-second mutex.
+3. **The policy asks that results be cached.** Only a shared server-side cache helps; a per-browser
+   cache never benefits the second user searching the same street. Cached for 24h, including empty
+   results — a misspelled address would otherwise cost a real upstream request on every retry.
+
+The endpoint is authenticated-only. Not because addresses are sensitive (they end up on a public
+listing) but because it spends a shared, rate-limited third-party budget on the caller's behalf; an
+anonymous one would let anyone exhaust it for every real user. It has its own `geocode` throttle
+scope for the same reason. **No new dependency** — `urllib.request` from the stdlib rather than
+`requests`, which is not installed and would be a new runtime dependency for two HTTP GETs, the same
+restraint this project already applies to `testing/factories.py` over `factory_boy`.
+
+**Attribution is not optional.** OSM data is ODbL-licensed; the credit string is returned *with* the
+data rather than hardcoded in the UI, so the two cannot drift, and Leaflet renders its own attribution
+into the corner of every map.
+
+**Leaflet over MapLibre GL**, with OSM raster tiles. Leaflet is ~42 KB and raster OSM tiles need no
+API key; MapLibre is WebGL-heavy and expects a vector tile provider, which in practice means signing
+up for one. Nothing here needs vector rendering — this is a pin on a street map.
+
+`LocationMap.svelte` is the single wrapper, with the read-only view and the picker as one component
+(`interactive` toggles whether the pin can move). Three details that are load-bearing rather than
+incidental:
+
+- **Leaflet is imported dynamically inside `onMount`.** It touches `window`/`document` at module
+  scope, so a top-level import executes during SSR and crashes the render — and this project has
+  already taken a Vite dev server down exactly once that way (Section 17P's `/messages` 401).
+  `onMount` never runs on the server, so this is the pattern that actually holds rather than one that
+  merely looks careful.
+- **A `divIcon` instead of Leaflet's default marker.** The default icon loads image files by relative
+  URL, which every bundler rewrites — the single most common Leaflet-with-a-bundler breakage, showing
+  up as a broken-image pin. A CSS-only pin sidesteps the asset question entirely and picks up this
+  app's own theme tokens instead of shipping a foreign blue.
+- **Scroll-zoom and dragging are off for the read-only map.** A reader scrolling past a listing should
+  not have their page scroll swallowed by a map they never asked to interact with.
+
+**The map is on the detail page only, never the browse card.** A Leaflet instance per card means a
+dozen map widgets and a tile-request storm on one page, for information the card's own location line
+already conveys as text.
+
+### `?near=` — what makes a stored location useful rather than decorative
+
+`?near=<lat>,<lon>&radius_km=<n>` filters to tutors within N km. Two stages: a bounding box in SQL
+that discards almost everything cheaply, then an exact haversine pass in Python over what survives.
+This project runs on SQLite with no GIS extension (Section 13), so there is no `ST_Distance` to call
+and a box is genuinely all SQL can express — but the second stage is not merely an optimization: a
+lat/lon box is not a circle, and box-only filtering returns corner results up to ~41% further away
+than asked for. A dedicated test pins exactly that, using a query where a 300 km-distant listing falls
+inside the box but outside the circle. Longitude degrees shrink toward the poles, so the box widens by
+1/cos(latitude), clamped so it cannot become infinite near a pole. A malformed `near=` degrades to
+unfiltered rather than erroring — this is a browse filter, and silently showing everything beats
+failing the whole page.
+
+### Four real bugs, all found by running the thing rather than reading it
+
+1. **Nominatim returns 7+ decimal places; the model stores 6 — and DRF's `DecimalField` REJECTS
+   excess precision rather than rounding it.** So the frontend faithfully echoed a search result back
+   and got a 400 telling it the value it had just been handed was invalid. Fixed in two layers:
+   rounding at the geocoding boundary, and a `CoordinateField` that rounds instead of rejecting, which
+   covers coordinates that did not come from a search (a dragged pin, any other client). The 7th
+   decimal place is ~1 cm.
+2. **The 1-request/second gate fired on a single user doing nothing wrong.** "Search an address, then
+   nudge the pin" is two lookups well under a second apart, and a non-waiting gate turned that into a
+   user-facing "temporarily unavailable". Now waits briefly (bounded, 1.5s) and retries — what a
+   well-behaved Nominatim client does, and what geopy's own RateLimiter does for the same reason. The
+   tradeoff is stated in the code rather than hidden: it holds a worker thread for that bounded window.
+3. **Pausing an in-person listing would have silently deleted its location.** `handleTogglePause`
+   rebuilds the entire draft from the existing listing just to flip one boolean, so anything omitted
+   is actively erased — the listing would have lost its pin and then failed validation for being
+   in-person without one. Caught by the type checker when `ServiceDraft` grew the new fields, which is
+   exactly why that type is exhaustive rather than partial.
+4. **Cache keys containing spaces.** Django's `CacheKeyWarning` flagged that the raw address was going
+   straight into the key. It works on the `LocMemCache` used in development and breaks on memcached —
+   i.e. it would have started failing on the very backend this module's own docstring recommends
+   moving to. Hashed instead, which also bounds the key length.
+
+Two smaller ones worth recording because they cost real time: an `@use` rule inserted below other
+rules (Sass requires it first), and — the genuinely baffling one — **a code comment containing a
+literal HTML style tag.** The Svelte preprocessor scans for that tag textually, matched it inside the
+comment, and truncated the script element there, producing a "script was left open" error pointing at
+a line 25 below. Leaflet's stylesheet is now a side-effect `import` in the script rather than an
+`@use` in the style block, which is what a third-party widget stylesheet actually wants anyway:
+Svelte scopes styles to the component's own markup, and Leaflet's classes live on DOM it generates at
+runtime, so scoping stripped all of them and produced ~170 "unused CSS selector" warnings.
+
+### Verified end-to-end, live
+
+**Backend, against the running dev server:** 22 checks — real Nominatim search and reverse lookups,
+cache hits served in ~9 ms, anonymous access rejected, missing params 400, in-person-without-location
+rejected, coordinates stored and round-tripped, switching to online clearing the pin, hybrid appearing
+under both filters, `near=` including a listing 1 km away and excluding one in Rome, malformed input
+degrading rather than 500ing.
+
+**Frontend, headless Chromium against the real app:** 22 checks — the three mode radios, the picker
+appearing only for in-person/hybrid, **Leaflet genuinely initialising with real OSM tiles loaded**
+(6 tiles, not merely a container present), the attribution rendered on the map, submit correctly
+disabled until a location exists, a real address search returning real results through the proxy,
+choosing one placing the pin and enabling submit, the listing saving with mode + coordinates + label,
+the detail page rendering its own map, and the browse filter including the listing under "in person"
+and excluding it under "online". Zero console/page errors.
+
+**26 new backend tests** (`services/test_location.py`). Nominatim is never actually called in the
+suite — every geocoding test patches `_fetch`, because a suite that hit a public rate-limited service
+would be slow, fail offline, and be exactly the abusive traffic pattern this code exists to avoid.
+All scratch listings created during verification were deleted afterward, confirmed by direct query.
+`npm run check`/`eslint`/`build` clean; `manage.py check` and `makemigrations --check` clean.
+
+### Left open, not built
+
+- **No "near me" UI.** The `?near=` filter is real, tested, and exposed through the service layer, but
+  the browse page currently offers only the format filter — wiring a radius control needs a
+  geolocation prompt or a "search this area" map interaction, which is its own design question rather
+  than a line of markup.
+- **No service-area radius on a listing.** A tutor has one exact point, not "I travel up to 10 km" —
+  so a student searching a small radius may miss a tutor who would happily have come to them.
+- **Only one location per listing.** A tutor teaching at two campuses must create two listings.
+- **The location is not verified.** Nothing checks that a tutor can actually be found where they
+  dropped their pin; it is a claim, shown for a human to weigh, exactly like `Material.source_url`.
+- **Nominatim's public instance has no SLA.** The feature degrades honestly when it is unreachable
+  (the map and any already-saved location still work; only new address *searches* fail, with a
+  distinct "try again" message rather than a misleading "not found") but a real deployment expecting
+  volume should self-host or use a commercial geocoder.
+- **The 1/second gate is per-process** until a shared cache is configured — the same caveat, and the
+  same one-line fix, as the auth throttles in Section 17Q.
 ---
 
 ## 18. Open questions

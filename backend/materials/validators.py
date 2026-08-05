@@ -20,14 +20,20 @@ and kept safe" request). Two, deliberately separate layers, both real:
    deployment that actually runs ClamAV sets `MATERIAL_SCAN_REQUIRED=True` (config/settings.py) to
    make an unreachable scanner a hard rejection instead of a graceful skip; this sandbox's own
    default stays False, matching the same "flag it, don't fake it" discipline CLAUDE.md already
-   applies to the email backend / avatar-upload stubs, rather than pretending a scan happened when
-   it didn't.
+   applies to the email-backend stub, rather than pretending a scan happened when it didn't. (This
+   comment used to also cite an "avatar-upload stub" — that is now a real, validated upload path,
+   `accounts/avatar.py`; it takes a different approach worth knowing about when reading this module,
+   since the two answer different questions: a Material's bytes must be preserved as submitted, so
+   the only options are sniffing and scanning, whereas an avatar is re-encoded from its pixels
+   outright, which discards any payload rather than trying to detect one.)
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+
+import zipfile
 
 import magic
 from django.conf import settings
@@ -58,6 +64,15 @@ ALLOWED_MATERIAL_TYPES: dict[str, set[str]] = {
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     },
     '.odt': {'application/zip', 'application/vnd.oasis.opendocument.text'},
+}
+
+# The member every valid archive of that extension must contain — see the zip-container check in
+# `validate_material_submission_file` for why a MIME sniff alone cannot tell these two apart from
+# an arbitrary renamed zip. `.docx` is OPC/ECMA-376, `.odt` is ODF; both entries are mandated by
+# their own specifications, not conventions that a real file might happen to omit.
+_ZIP_CONTAINER_REQUIRED_MEMBERS: dict[str, set[str]] = {
+    '.docx': {'[Content_Types].xml'},
+    '.odt': {'mimetype'},
 }
 
 # 25MB — generous enough for a real scanned multi-page exam (a stack of photographed pages easily
@@ -103,6 +118,50 @@ def validate_material_submission_file(file_obj) -> None:
             )
             % {'detected': detected_mime, 'ext': ext}
         )
+
+    # The zip-container extensions need one more question asked of them.
+    #
+    # `.docx` and `.odt` are both genuinely zip archives, so `ALLOWED_MATERIAL_TYPES` has to accept
+    # a bare `application/zip` for them — libmagic frequently reports exactly that rather than the
+    # specific Office/OpenDocument MIME string, depending on its database version. The cost of that
+    # necessary looseness is that the check above becomes, for these two extensions only, "is this
+    # a zip file?" — which ANY zip passes, including one holding something else entirely, simply by
+    # being renamed. Every other extension here is pinned to a real content signature and unaffected.
+    #
+    # So look inside. Both formats are fully specified about what a valid archive contains: a
+    # `.docx` must hold `[Content_Types].xml` (OPC, ECMA-376), and an `.odt` must hold `mimetype`
+    # (ODF). Checking the member list is cheap — the zip central directory is an index, so nothing
+    # is decompressed and no member is read — and it distinguishes a real document from an
+    # arbitrary archive without pretending to be full format validation.
+    #
+    # This is deliberately NOT a defence against a malicious document; a genuinely valid `.docx`
+    # can still carry a hostile macro, which is what `scan_for_malware` below is for. It closes the
+    # narrower and more embarrassing gap: a file that was never a document at all being stored and
+    # served as one.
+    if ext in _ZIP_CONTAINER_REQUIRED_MEMBERS:
+        required = _ZIP_CONTAINER_REQUIRED_MEMBERS[ext]
+        file_obj.seek(0)
+        try:
+            with zipfile.ZipFile(file_obj) as archive:
+                names = set(archive.namelist())
+        except (zipfile.BadZipFile, OSError):
+            # Reported as a corrupt archive rather than a rejected type: libmagic already agreed
+            # this looks like a zip, so "it is a zip but unreadable" is the accurate description.
+            raise ValidationError(
+                _('This "%(ext)s" file is a damaged or unreadable archive.') % {'ext': ext}
+            ) from None
+        finally:
+            file_obj.seek(0)
+
+        if not required & names:
+            raise ValidationError(
+                _(
+                    'This "%(ext)s" file is a zip archive, but not a real document — it is '
+                    'missing the %(expected)s entry every valid one contains. It may be a '
+                    'different kind of archive renamed to look like a document.'
+                )
+                % {'ext': ext, 'expected': ' or '.join(sorted(required))}
+            )
 
 
 @dataclass(frozen=True)

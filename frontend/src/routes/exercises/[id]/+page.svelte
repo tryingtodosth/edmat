@@ -4,7 +4,14 @@
 	import type { Comment, Course, ResolvedExercise, Review, Topic, User } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
-	import { getExerciseById } from '$lib/services/exercises';
+	import {
+		castExerciseRequirementVote,
+		DuplicateExerciseRequirementError,
+		getExerciseById,
+		proposeExerciseRequirement,
+		retractExerciseRequirementVote,
+		setExerciseRequirements
+	} from '$lib/services/exercises';
 	import { getCourseById, getTopicsForCourse } from '$lib/services/taxonomy';
 	import { getReviewsForExercise, submitReview } from '$lib/services/reviews';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
@@ -28,6 +35,13 @@
 	import TranslateForm from '$lib/components/submission/TranslateForm.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
+	import ModalShell from '$lib/components/shared/ModalShell.svelte';
+	// Reused from the material/ folder as-is — both components are already fully generic (a plain
+	// label list / a vote-summary + callbacks), matching how `materials.services`'s own
+	// `build_vote_summary`/`clean_requirement_labels` are reused cross-app on the backend rather
+	// than duplicated; not worth a file move for this one additional caller.
+	import RequirementsEditor from '$lib/components/material/RequirementsEditor.svelte';
+	import CoverageVoteWidget from '$lib/components/material/CoverageVoteWidget.svelte';
 
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
 	let course = $state<Course | undefined>(undefined);
@@ -38,6 +52,22 @@
 	let contentLocale = $state('');
 	let loading = $state(true);
 	let notFound = $state(false);
+
+	// "Requires" — the exact same open-propose/governor-only-bulk-edit/open-vote shape the material
+	// detail page's own Requires section already establishes (routes/materials/[id]/+page.svelte),
+	// applied here to Exercise for the first time. `exercise` is this page's own owned state (not a
+	// shared prop the way MaterialCard's own `material` is), so requirement rows are mutated
+	// directly on it — same direct-mutation convention `exercise.tags = ...` already uses below,
+	// rather than porting Material's separate-overlay pattern (which exists there for a different
+	// reason: MaterialCard renders a possibly-shared prop, not owned state).
+	let sortedRequirements = $derived(
+		[...(exercise?.requirements ?? [])].sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
+	);
+	let editingRequirements = $state(false);
+	let requirementsError = $state<string | null>(null);
+	let proposingRequirement = $state(false);
+	let newRequirementLabel = $state('');
+	let proposeRequirementError = $state<string | null>(null);
 
 	let showHint = $state(false);
 	let showAnswer = $state(false);
@@ -120,6 +150,48 @@
 
 	function topicName(topicId: string): string {
 		return topics.find((t) => t.id === topicId)?.name ?? topicId;
+	}
+
+	function applyRequirementUpdate(updated: ResolvedExercise['requirements'][number]) {
+		if (!exercise) return;
+		exercise.requirements = exercise.requirements.map((r) => (r.id === updated.id ? updated : r));
+	}
+
+	async function handleRequirementVote(requirementId: string, value: 1 | -1) {
+		applyRequirementUpdate(await castExerciseRequirementVote(requirementId, value));
+	}
+
+	async function handleRequirementRetract(requirementId: string) {
+		applyRequirementUpdate(await retractExerciseRequirementVote(requirementId));
+	}
+
+	async function handleSaveRequirements(labels: string[]) {
+		if (!exercise) return;
+		requirementsError = null;
+		try {
+			exercise = await setExerciseRequirements(exercise.id, labels);
+			editingRequirements = false;
+		} catch {
+			requirementsError = m.exercise_requirementsSaveError();
+		}
+	}
+
+	async function handleProposeRequirement() {
+		if (!exercise) return;
+		const label = newRequirementLabel.trim();
+		if (!label) return;
+		proposeRequirementError = null;
+		try {
+			const requirement = await proposeExerciseRequirement(exercise.id, label);
+			exercise.requirements = [...exercise.requirements, requirement];
+			newRequirementLabel = '';
+			proposingRequirement = false;
+		} catch (e) {
+			proposeRequirementError =
+				e instanceof DuplicateExerciseRequirementError
+					? m.exercise_requirementAddDuplicate()
+					: m.common_error_generic();
+		}
 	}
 
 	async function handleReviewSubmit(rating: number, body: string) {
@@ -333,6 +405,50 @@
 				</div>
 			{/if}
 
+			<section class="content-section">
+				<div class="claim-group__heading">
+					<h2>{m.exercise_requiresHeading()}</h2>
+					<div class="claim-group__actions">
+						{#if authStore.isAuthenticated}
+							<button
+								type="button"
+								class="add-trigger"
+								onclick={() => ((proposingRequirement = true), (proposeRequirementError = null))}
+							>
+								+ {m.exercise_requirementAddTrigger()}
+							</button>
+						{/if}
+						{#if authStore.canModerate}
+							<button
+								type="button"
+								class="add-trigger"
+								onclick={() => ((editingRequirements = true), (requirementsError = null))}
+							>
+								{m.exercise_requirementsEdit()}
+							</button>
+						{/if}
+					</div>
+				</div>
+				{#if sortedRequirements.length === 0}
+					<p class="status">{m.exercise_requiresEmpty()}</p>
+				{:else}
+					<ul class="requirement-list">
+						{#each sortedRequirements as requirement (requirement.id)}
+							<li class="requirement-row">
+								<span class="requirement-row__label">{requirement.label}</span>
+								<CoverageVoteWidget
+									summary={requirement.voteSummary}
+									question={m.exercise_requirementVoteQuestion}
+									onVote={(value) => handleRequirementVote(requirement.id, value)}
+									onRetract={() => handleRequirementRetract(requirement.id)}
+								/>
+								<ReportButton kind="requirement" objectId={requirement.id} />
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</section>
+
 			<section class="actions no-print">
 				{#if authStore.isAuthenticated}
 					<button type="button" class="link-button" onclick={() => (showEditForm = !showEditForm)}>
@@ -413,6 +529,48 @@
 		</article>
 	{/if}
 </div>
+
+{#if proposingRequirement}
+	<ModalShell title={m.exercise_requirementAddTrigger()} onClose={() => (proposingRequirement = false)}>
+		{#if proposeRequirementError}
+			<p class="add-error">{proposeRequirementError}</p>
+		{/if}
+		<form
+			class="propose-requirement-form"
+			onsubmit={(e) => (e.preventDefault(), handleProposeRequirement())}
+		>
+			<label class="field">
+				<span class="visually-hidden">{m.exercise_requirementsAddPlaceholder()}</span>
+				<input
+					type="text"
+					bind:value={newRequirementLabel}
+					placeholder={m.exercise_requirementsAddPlaceholder()}
+				/>
+			</label>
+			<div class="propose-requirement-form__actions">
+				<button type="button" class="cancel" onclick={() => (proposingRequirement = false)}>
+					{m.common_cancel()}
+				</button>
+				<button type="submit" class="submit" disabled={!newRequirementLabel.trim()}>
+					{m.exercise_requirementsAdd()}
+				</button>
+			</div>
+		</form>
+	</ModalShell>
+{/if}
+
+{#if editingRequirements}
+	<ModalShell title={m.exercise_requirementsModalTitle()} onClose={() => (editingRequirements = false)}>
+		{#if requirementsError}
+			<p class="add-error">{requirementsError}</p>
+		{/if}
+		<RequirementsEditor
+			initial={sortedRequirements.map((r) => r.label)}
+			onSubmit={handleSaveRequirements}
+			onCancel={() => (editingRequirements = false)}
+		/>
+	</ModalShell>
+{/if}
 
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;
@@ -512,6 +670,86 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--text-secondary);
+	}
+	.claim-group__heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+	}
+	.claim-group__actions {
+		display: flex;
+		gap: var(--space-2);
+		flex-shrink: 0;
+	}
+	.status {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	.add-trigger {
+		@include mix.focus-ring;
+		background: none;
+		border: 1px dashed var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: 2px var(--space-2);
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		cursor: pointer;
+		&:hover {
+			color: var(--accent);
+			border-color: var(--accent);
+		}
+	}
+	.add-error {
+		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+	}
+	.propose-requirement-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.propose-requirement-form .field input {
+		@include mix.focus-ring;
+		width: 100%;
+		padding: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-page);
+		color: var(--text-primary);
+	}
+	.visually-hidden {
+		@include mix.visually-hidden;
+	}
+	.propose-requirement-form__actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--space-2);
+	}
+	.propose-requirement-form__actions .cancel {
+		@include mix.button-secondary;
+	}
+	.propose-requirement-form__actions .submit {
+		@include mix.button-primary;
+	}
+	.requirement-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.requirement-row {
+		border-bottom: 1px solid var(--border-color);
+		padding-bottom: var(--space-3);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		&:last-child {
+			border-bottom: none;
+			padding-bottom: 0;
+		}
+	}
+	.requirement-row__label {
+		font-weight: 600;
+		font-size: var(--font-size-sm);
 	}
 	.reveal-toggle {
 		@include mix.button-secondary;

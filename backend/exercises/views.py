@@ -8,19 +8,22 @@ import json
 import random
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Avg, Count, Q
+from django.db import transaction
+from django.db.models import Avg, Count, Max, Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from community.models import Comment, Review
 from community.serializers import CommentSerializer, ReviewSerializer
+from moderation.services import is_governor_of_course
 from notifications.services import label_for_exercise, notify_comment_reply, notify_tag_followers
 
-from .models import Exercise, Tag, TagFollow
+from .models import Exercise, ExerciseRequirement, ExerciseRequirementVote, Tag, TagFollow
 from .serializers import (
     ExerciseDetailSerializer,
     ExerciseListSerializer,
+    ExerciseRequirementSerializer,
     ExerciseTranslationSerializer,
     TagFollowSerializer,
     TagSerializer,
@@ -300,6 +303,92 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         _notify_reply(serializer.instance, exercise)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['post'], url_path='requirements/propose_requirement')
+    def propose_requirement(self, request, pk=None):
+        """POST /api/exercises/{id}/requirements/propose_requirement/ — open to any authenticated
+        user, the exact same "anyone can propose, the community votes" shape
+        `materials.views.MaterialViewSet.propose_requirement` already establishes for a Material,
+        applied here to Exercise for the first time. A single new requirement, not a full-list
+        replace — `requirements` below (governor-only) stays the bulk-reorder/removal power."""
+        from materials.services import clean_requirement_labels, find_duplicate_requirement_label
+
+        exercise = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        label = clean_requirement_labels([request.data.get('label', '')])
+        if not label:
+            return Response({'label': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        label = label[0]
+
+        existing_labels = list(exercise.requirements.values_list('label', flat=True))
+        if find_duplicate_requirement_label([*existing_labels, label]) is not None:
+            return Response(
+                {
+                    'detail': (
+                        'This requirement is already listed for this exercise — '
+                        'vote on the existing one instead of proposing a duplicate.'
+                    )
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        next_order = (exercise.requirements.aggregate(Max('order'))['order__max'] or 0) + 1
+        requirement = ExerciseRequirement.objects.create(
+            exercise=exercise, label=label, order=next_order
+        )
+        return Response(
+            ExerciseRequirementSerializer(requirement, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['put'])
+    def requirements(self, request, pk=None):
+        """PUT /api/exercises/{id}/requirements/ — a governor-only bulk replace of this exercise's
+        own requirement list (reordering, removing, or renaming several at once), mirroring
+        `materials.views.MaterialViewSet.requirements` exactly, including its own concurrency
+        posture: wrapped in `transaction.atomic()` (two fast, adjacent statements against one
+        table — the same low-risk shape that function's own docstring already reasons through, not
+        the multi-statement, cross-table apply sequence CLAUDE.md's own node-governor race notes
+        flag as the real SQLite `atomic()` trap), safe but not perfectly linearizable under genuine
+        concurrent writes — an accepted, documented tradeoff, not a new one invented here.
+
+        Body: `{"requirements": ["basic algebra", "epsilon-delta proofs", ...]}`.
+        """
+        from materials.services import clean_requirement_labels, find_duplicate_requirement_label
+
+        exercise = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        if not (request.user.is_staff or is_governor_of_course(request.user, exercise.course)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        labels = request.data.get('requirements', [])
+        if not isinstance(labels, list):
+            return Response(
+                {'requirements': ['Must be a list of labels.']}, status=status.HTTP_400_BAD_REQUEST
+            )
+        cleaned = clean_requirement_labels(labels)
+        duplicate = find_duplicate_requirement_label(cleaned)
+        if duplicate is not None:
+            return Response(
+                {'requirements': [f'"{duplicate}" appears more than once in this list.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            exercise.requirements.all().delete()
+            ExerciseRequirement.objects.bulk_create(
+                ExerciseRequirement(exercise=exercise, label=label, order=i)
+                for i, label in enumerate(cleaned)
+            )
+
+        # Explicitly the Detail serializer, not `self.get_serializer` — `get_serializer_class`
+        # only returns it for `self.action == 'retrieve'`, and this action's own name isn't that,
+        # so the plain List shape (no `requirements` field at all) would silently come back instead.
+        serializer = ExerciseDetailSerializer(exercise, context={'request': request})
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'])
     def random(self, request):
         """Mirrors frontend/src/lib/services/exercises.ts's getRandomExercise exactly: prefer an
@@ -370,7 +459,45 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             _annotated_exercises()
             .filter(pk__in=ids)
             .select_related('course', 'source')
-            .prefetch_related('translations', 'topics', 'tags', 'source__translations')
+            .prefetch_related(
+                'translations', 'topics', 'tags', 'source__translations', 'requirements__votes__voter__profile'
+            )
         )
         serializer = ExerciseDetailSerializer(qs, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+class ExerciseRequirementViewSet(viewsets.GenericViewSet):
+    """No list/retrieve of its own — a requirement row is always reached through its parent
+    Exercise (embedded via ExerciseDetailSerializer.requirements), mirroring
+    `materials.views.MaterialRequirementViewSet` exactly, including its own reasoning: voting is
+    open to any authenticated user (the community-verification layer for the claim), regardless of
+    who may PROPOSE one in the first place (open) vs. bulk-edit an existing list (governor-only)."""
+
+    queryset = ExerciseRequirement.objects.all()
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    @action(detail=True, methods=['post', 'delete'])
+    def vote(self, request, pk=None):
+        requirement = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.method == 'DELETE':
+            ExerciseRequirementVote.objects.filter(requirement=requirement, voter=request.user).delete()
+        else:
+            try:
+                value = int(request.data.get('value'))
+            except (TypeError, ValueError):
+                value = None
+            if value not in (1, -1):
+                return Response(
+                    {'value': ['Must be 1 (agree) or -1 (disagree).']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            ExerciseRequirementVote.objects.update_or_create(
+                requirement=requirement, voter=request.user, defaults={'value': value}
+            )
+
+        serializer = ExerciseRequirementSerializer(requirement, context={'request': request})
         return Response(serializer.data)

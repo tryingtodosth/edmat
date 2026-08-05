@@ -4,8 +4,15 @@
 	// prop, two modes" shape this app's own submission forms already establish elsewhere.
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import type { Course, Service, ServiceCurrency, ServiceDraft } from '$lib/types';
+	import type {
+		Course,
+		Service,
+		ServiceCurrency,
+		ServiceDeliveryMode,
+		ServiceDraft
+	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
+	import LocationPicker from './LocationPicker.svelte';
 
 	let {
 		initial,
@@ -38,8 +45,17 @@
 	);
 	let currency = $state<ServiceCurrency>(untrack(() => initial?.currency ?? 'PLN'));
 	let isActive = $state(untrack(() => initial?.isActive ?? true));
+	// "Do you teach online, in person, or either?" — see ServiceDeliveryMode (types/service.ts) for
+	// why this is one union rather than two booleans. Defaults to `online`, matching the backend
+	// field's own default and the only honest answer for a listing that has declared nothing.
+	let deliveryMode = $state<ServiceDeliveryMode>(untrack(() => initial?.deliveryMode ?? 'online'));
+	let locationLabel = $state(untrack(() => initial?.location?.label ?? ''));
+	let locationLat = $state<number | null>(untrack(() => initial?.location?.lat ?? null));
+	let locationLon = $state<number | null>(untrack(() => initial?.location?.lon ?? null));
 	let submitting = $state(false);
 	let errorMessage = $state('');
+
+	let needsLocation = $derived(deliveryMode === 'inPerson' || deliveryMode === 'hybrid');
 
 	function toggleCourse(id: string) {
 		if (selectedCourseIds.has(id)) {
@@ -49,7 +65,12 @@
 		}
 	}
 
-	let canSubmit = $derived(Boolean(title.trim()));
+	// A location is genuinely required for in-person/hybrid — the backend rejects it outright
+	// (ServiceWriteSerializer.validate), so blocking submit here turns a round-trip 400 into
+	// immediate, local feedback rather than duplicating the rule as the only place it is enforced.
+	let canSubmit = $derived(
+		Boolean(title.trim()) && (!needsLocation || (locationLat !== null && locationLon !== null))
+	);
 
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
@@ -63,7 +84,14 @@
 				courseIds: Array.from(selectedCourseIds),
 				hourlyRate,
 				currency,
-				isActive
+				isActive,
+				deliveryMode,
+				// Sent as cleared when the mode does not need them, rather than passing whatever is
+				// still sitting in local state — the backend clears its own copy too, and sending a
+				// stale pin here would just be asking it to.
+				locationLabel: needsLocation ? locationLabel : '',
+				locationLat: needsLocation ? locationLat : null,
+				locationLon: needsLocation ? locationLon : null
 			});
 		} catch {
 			errorMessage = m.services_saveFailed();
@@ -122,6 +150,41 @@
 		</label>
 	</div>
 
+	<fieldset class="field mode-field">
+		<legend>{m.services_field_deliveryMode()}</legend>
+		{#each [{ value: 'online', label: m.services_mode_online(), hint: m.services_mode_onlineHint() }, { value: 'inPerson', label: m.services_mode_inPerson(), hint: m.services_mode_inPersonHint() }, { value: 'hybrid', label: m.services_mode_hybrid(), hint: m.services_mode_hybridHint() }] as option (option.value)}
+			<label class="mode-option">
+				<input
+					type="radio"
+					name="delivery-mode"
+					value={option.value}
+					checked={deliveryMode === option.value}
+					onchange={() => (deliveryMode = option.value as ServiceDeliveryMode)}
+				/>
+				<span>
+					{option.label}
+					<small>{option.hint}</small>
+				</span>
+			</label>
+		{/each}
+	</fieldset>
+
+	{#if needsLocation}
+		<div class="field">
+			<span class="field-legend">{m.services_field_location()}</span>
+			<LocationPicker
+				label={locationLabel}
+				lat={locationLat}
+				lon={locationLon}
+				onchange={(loc) => {
+					locationLabel = loc.label;
+					locationLat = loc.lat;
+					locationLon = loc.lon;
+				}}
+			/>
+		</div>
+	{/if}
+
 	{#if initial}
 		<label class="checkbox">
 			<input type="checkbox" bind:checked={isActive} />
@@ -145,6 +208,32 @@
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
+	.mode-field {
+		border: none;
+		padding: 0;
+		margin: 0;
+		legend {
+			padding: 0;
+			font-weight: 600;
+			font-size: var(--font-size-sm);
+		}
+	}
+	.mode-option {
+		display: flex;
+		gap: var(--space-2);
+		align-items: flex-start;
+		padding: var(--space-1) 0;
+		cursor: pointer;
+		small {
+			display: block;
+			color: var(--text-secondary);
+			font-size: var(--font-size-xs);
+		}
+	}
+	.field-legend {
+		font-weight: 600;
+		font-size: var(--font-size-sm);
+	}
 
 	.service-form {
 		display: flex;

@@ -1,15 +1,19 @@
+import math
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from community.models import Comment
 from community.serializers import CommentSerializer
 from moderation.permissions import feature_gate
 from notifications.services import notify_comment_reply
 
-from .models import Service, ServiceReview, ServiceWatch
+from .geocoding import GeocodingUnavailable, reverse as reverse_geocode, search as geocode_search
+from .models import DELIVERY_MODE_CHOICES, IN_PERSON_MODES, Service, ServiceReview, ServiceWatch
 from .serializers import (
     ServiceReviewSerializer,
     ServiceSerializer,
@@ -27,6 +31,20 @@ def _notify_service_reply(comment, service):
     # its own call sites so far only ever being those two). The listing's own title is enough of a
     # label for the notification to read sensibly without one.
     notify_comment_reply(comment, target_label=service.title)
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance. Written out rather than pulled from a library: it is six lines, and
+    `geopy` would be a new runtime dependency for one formula — the same call this project already
+    made for `testing/factories.py` over `factory_boy`."""
+    radius = 6371.0
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon / 2) ** 2
+    )
+    return 2 * radius * math.asin(math.sqrt(a))
 
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -105,7 +123,70 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if provider:
             qs = qs.filter(provider_id=provider)
 
+        # "Show me only tutors I can actually meet in person" / "only online". `hybrid` listings
+        # deliberately match BOTH — a tutor offering either way genuinely satisfies a student
+        # looking for either, and excluding them from both filters would hide the most flexible
+        # listings from everyone, which is the opposite of useful.
+        mode = self.request.query_params.get('delivery_mode')
+        if mode == 'in_person':
+            qs = qs.filter(delivery_mode__in=IN_PERSON_MODES)
+        elif mode == 'online':
+            qs = qs.filter(delivery_mode__in=['online', 'hybrid'])
+
+        qs = self._filter_by_distance(qs)
+
         return qs.distinct()
+
+    def _filter_by_distance(self, qs):
+        """`?near=<lat>,<lon>&radius_km=<n>` — "tutors within N km of me", the thing that makes a
+        stored location useful rather than merely displayed.
+
+        Two stages, on purpose. A bounding box runs in SQL and discards almost everything cheaply;
+        the exact great-circle distance is then computed in Python over what survives. The reason is
+        that this project runs on SQLite with no GIS extension (CLAUDE.md Section 13) — there is no
+        `ST_Distance` to call, and a bounding box is genuinely all SQL can express here. It is also
+        not merely an optimization: a raw lat/lon box is not a circle, so filtering by the box alone
+        would return corner results up to ~41% further away than the radius asked for.
+        """
+        near = self.request.query_params.get('near')
+        if not near:
+            return qs
+        try:
+            lat_str, lon_str = near.split(',')
+            lat, lon = float(lat_str), float(lon_str)
+            radius_km = float(self.request.query_params.get('radius_km') or 25)
+        except (ValueError, TypeError):
+            # A malformed `near=` is ignored rather than 400'd — this is a browse filter, and
+            # silently showing the unfiltered list is friendlier than failing the whole page.
+            return qs
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180) or radius_km <= 0:
+            return qs
+
+        radius_km = min(radius_km, 500)  # a sane ceiling; beyond this the filter means nothing
+
+        lat_delta = radius_km / 111.0
+        # Longitude degrees shrink toward the poles, so the box must widen by 1/cos(latitude) to
+        # still cover the full radius east-west. Clamped because cos() approaches zero at the poles
+        # and would otherwise produce an infinite box.
+        cos_lat = max(math.cos(math.radians(lat)), 0.01)
+        lon_delta = radius_km / (111.0 * cos_lat)
+
+        boxed = qs.filter(
+            location_lat__isnull=False,
+            location_lon__isnull=False,
+            location_lat__gte=lat - lat_delta,
+            location_lat__lte=lat + lat_delta,
+            location_lon__gte=lon - lon_delta,
+            location_lon__lte=lon + lon_delta,
+        )
+
+        within = [
+            service.pk
+            for service in boxed
+            if _haversine_km(lat, lon, float(service.location_lat), float(service.location_lon))
+            <= radius_km
+        ]
+        return qs.filter(pk__in=within)
 
     def perform_create(self, serializer):
         serializer.save(provider=self.request.user)
@@ -216,3 +297,67 @@ class ServiceWatchViewSet(
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+class GeocodeView(APIView):
+    """`GET /api/geocode/?q=<address>` and `?lat=&lon=` — a thin, deliberate proxy in front of
+    Nominatim (OpenStreetMap). See services/geocoding.py for the full reasoning on why this is
+    server-side rather than a direct browser call; the short version is that Nominatim's usage policy
+    requires an identifying `User-Agent` (which browser `fetch()` cannot set at all), a global
+    1 request/second cap (which per-browser calls cannot coordinate), and caching (which only helps
+    when it is shared).
+
+    Authenticated-only. Not because addresses are sensitive — they end up on a public listing — but
+    because this endpoint spends a shared, rate-limited third-party budget on the caller's behalf,
+    and an anonymous one would let anyone exhaust it for every real user. Paired with its own tight
+    throttle scope for the same reason.
+    """
+
+    # Behind the same `tutoring` kill switch as every other endpoint in this app (moderation/
+    # permissions.py). Address lookup exists solely to place a tutoring listing's own pin, so when
+    # tutoring is switched off nothing should be able to reach this — and without the gate it would
+    # stay live, still spending the shared, rate-limited Nominatim budget for a feature that is
+    # supposed to be disabled. Found by grepping this file for endpoints missing the gate rather
+    # than by anything failing.
+    permission_classes = [permissions.IsAuthenticated, _TutoringFeatureGate]
+    throttle_scope = 'geocode'
+
+    def get(self, request):
+        query = (request.query_params.get('q') or '').strip()
+        lat_raw = request.query_params.get('lat')
+        lon_raw = request.query_params.get('lon')
+
+        try:
+            if lat_raw is not None and lon_raw is not None:
+                result = reverse_geocode(float(lat_raw), float(lon_raw))
+                results = [result] if result else []
+            elif query:
+                results = geocode_search(query)
+            else:
+                return Response(
+                    {'detail': 'Provide either q= or lat=&lon=.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        except ValueError:
+            return Response(
+                {'detail': 'lat/lon must be numbers.'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        except GeocodingUnavailable:
+            # 503, deliberately not an empty 200. "The lookup is down, try again" and "that address
+            # does not exist" must not be indistinguishable, or a user will keep retyping a perfectly
+            # valid address wondering why nothing is found.
+            return Response(
+                {'detail': 'Address lookup is temporarily unavailable. Please try again shortly.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                'results': [
+                    {'label': r.label, 'lat': r.lat, 'lon': r.lon} for r in results
+                ],
+                # OSM data is ODbL-licensed and requires credit wherever it is shown. Returned with
+                # the data itself so the UI cannot render results while forgetting the attribution.
+                'attribution': '© OpenStreetMap contributors',
+            }
+        )

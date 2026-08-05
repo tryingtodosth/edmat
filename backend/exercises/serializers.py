@@ -16,7 +16,15 @@ from rest_framework import serializers
 
 from config.i18n_utils import request_locale
 
-from .models import Exercise, ExerciseSource, ExerciseSourceTranslation, ExerciseTranslation, Tag, TagFollow
+from .models import (
+    Exercise,
+    ExerciseRequirement,
+    ExerciseSource,
+    ExerciseSourceTranslation,
+    ExerciseTranslation,
+    Tag,
+    TagFollow,
+)
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -31,6 +39,24 @@ class TagFollowSerializer(serializers.ModelSerializer):
     class Meta:
         model = TagFollow
         fields = ['tag', 'notify']
+
+
+class ExerciseRequirementSerializer(serializers.ModelSerializer):
+    # `vote_summary`/`build_vote_summary` are the SAME shared implementation
+    # `materials.serializers.MaterialRequirementSerializer` already uses (materials/services.py) —
+    # reused directly, not a second, independently-drifting copy of the identical agree/disagree
+    # weighting math, since both models share the exact same `.votes` shape.
+    vote_summary = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExerciseRequirement
+        fields = ['id', 'label', 'order', 'vote_summary']
+
+    def get_vote_summary(self, obj):
+        from materials.services import build_vote_summary
+
+        votes = list(obj.votes.select_related('voter__profile'))
+        return build_vote_summary(votes, self.context.get('request'))
 
 
 def _resolve_exercise_translation(exercise, locale, status='published'):
@@ -155,6 +181,10 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     solution = serializers.SerializerMethodField()
     translated_by = serializers.SerializerMethodField()
     available_locales = serializers.SerializerMethodField()
+    # Detail-only, matching this class's own established "Card is lightweight, Detail resolves the
+    # rest" split (module doc comment above) — a course listing has no reason to pay for resolving
+    # every exercise's own requirement rows when nothing in that view ever reads them.
+    requirements = serializers.SerializerMethodField()
 
     class Meta(ExerciseListSerializer.Meta):
         fields = ExerciseListSerializer.Meta.fields + [
@@ -164,6 +194,7 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
             'solution',
             'translated_by',
             'available_locales',
+            'requirements',
         ]
 
     def get_statement(self, obj):
@@ -185,6 +216,13 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     def get_translated_by(self, obj):
         t = self._translation(obj)
         return t.translated_by_id if t else None
+
+    def get_requirements(self, obj):
+        # Filtered in Python over the `.all()` cache, not `.filter(is_removed=False)` — same
+        # prefetch-cache-preserving reasoning `MaterialSerializer.get_requirements`/`get_tags`
+        # already establish (materials/serializers.py).
+        visible = [r for r in obj.requirements.all() if not r.is_removed]
+        return ExerciseRequirementSerializer(visible, many=True, context=self.context).data
 
     def get_available_locales(self, obj):
         """Every locale with at least one PUBLISHED translation, original locale first — mirrors

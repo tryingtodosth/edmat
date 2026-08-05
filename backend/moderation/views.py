@@ -304,6 +304,18 @@ def _apply_submission(submission, reviewer):
         exercise.tags.set(tags)
         for tag in tags:
             notify_tag_followers(tag, actor=submission.submitted_by, exercise=exercise)
+    # `requirements` — a plain list[str] of skill-tag labels, already cleaned/deduped by
+    # ExerciseSubmissionSerializer.validate_payload at submission time — turned into real,
+    # ordered ExerciseRequirement rows the instant a real Exercise first exists to attach them to,
+    # mirroring `_apply_material_submission`'s own identical handling for MaterialRequirement.
+    requirement_labels = payload.get('requirements', [])
+    if requirement_labels:
+        from exercises.models import ExerciseRequirement
+
+        ExerciseRequirement.objects.bulk_create(
+            ExerciseRequirement(exercise=exercise, label=label, order=i)
+            for i, label in enumerate(requirement_labels)
+        )
     source = payload.get('source') or {}
     if source:
         from exercises.models import ExerciseSource, ExerciseSourceTranslation
@@ -366,7 +378,7 @@ def _apply_material_submission(submission, reviewer):
     `_apply_submission`'s own number-allocation loop already established for a different field."""
     from django.utils.text import slugify
 
-    from materials.models import Material, MaterialRequirement, MaterialTranslation
+    from materials.models import Material, MaterialCoverage, MaterialRequirement, MaterialTranslation
 
     base_slug = slugify(submission.title) or 'material'
     slug = base_slug
@@ -382,6 +394,11 @@ def _apply_material_submission(submission, reviewer):
         file=submission.file,
         published=True,
         submitted_by=submission.submitted_by,
+        # Provenance declared at submission time, carried onto the real row. `author` is the free-text
+        # human name the uploader gave (a TA/professor, almost never a platform account — that's what
+        # `submitted_by` above is), `source_url` is where the file came from.
+        author=submission.author,
+        source_url=submission.source_url,
         price_amount=submission.price_amount,
         price_currency=submission.price_currency or 'PLN',
         estimated_minutes=submission.estimated_minutes,
@@ -398,6 +415,20 @@ def _apply_material_submission(submission, reviewer):
     MaterialRequirement.objects.bulk_create(
         MaterialRequirement(material=material, label=label, order=i)
         for i, label in enumerate(submission.requirements or [])
+    )
+    # Same "no real row to attach to before now" reasoning as `requirements` just above, for the
+    # submission's own initial "Covers" claims (`MaterialSubmissionSerializer.validate_coverage`
+    # already confirmed each `topic_id` really belongs to this submission's own course) — created
+    # with `proposed_by=submission.submitted_by`, the same attribution a post-publish
+    # `MaterialViewSet.coverage` proposal already gets, not left null.
+    MaterialCoverage.objects.bulk_create(
+        MaterialCoverage(
+            material=material,
+            topic_id=entry['topic_id'],
+            level=entry['level'],
+            proposed_by=submission.submitted_by,
+        )
+        for entry in (submission.coverage or [])
     )
     submission.resulting_material = material
     return material

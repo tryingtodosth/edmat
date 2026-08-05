@@ -6,11 +6,9 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
-	import { cookieConsentStore } from '$lib/state/cookieConsent.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
-	import CookieConsentBanner from '$lib/components/layout/CookieConsentBanner.svelte';
 
 	let { children } = $props();
 
@@ -34,9 +32,6 @@
 </script>
 
 <div class="app-shell">
-	{#if cookieConsentStore.needsDecision}
-		<CookieConsentBanner />
-	{/if}
 	<Header />
 	<main class="app-main">
 		{@render children()}

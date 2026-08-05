@@ -509,6 +509,24 @@
 									{m.moderation_forCourse({ course: coursesById[s.courseId]?.name ?? s.courseId })}
 								</p>
 								<p class="excerpt">{s.description.slice(0, 200)}</p>
+								<!-- Provenance, surfaced to the reviewing moderator rather than only stored.
+								     CLAUDE.md Section 18 item 2 is a still-open question about the copyright
+								     status of transcribed course material — that is a judgment the person
+								     clicking Approve is actually making, so where the file came from belongs
+								     in front of them at that moment, not just in the database. -->
+								{#if s.author || s.sourceUrl}
+									<p class="meta submission-provenance">
+										{#if s.author}
+											<span>{m.material_by({ author: s.author })}</span>
+										{/if}
+										{#if s.sourceUrl}
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a user-declared external URL, not an app route resolve() can express -->
+											<a href={s.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">
+												{m.material_source()}
+											</a>
+										{/if}
+									</p>
+								{/if}
 								{#if s.requirements.length > 0 || s.priceAmount !== undefined || s.estimatedMinutes !== undefined}
 									<div class="submission-declared">
 										{#if s.requirements.length > 0}

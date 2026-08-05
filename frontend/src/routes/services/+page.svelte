@@ -16,6 +16,10 @@
 
 	let courses = $state<Course[]>([]);
 	let courseFilter = $state('');
+	// '' means "either" — deliberately not a third `hybrid` value: hybrid is something a tutor
+	// OFFERS, not something a student searches for, and a hybrid listing already matches both of
+	// these (services/views.py's own filter). See ServiceBrowseFilters (tutoring.ts).
+	let modeFilter = $state<'' | 'online' | 'inPerson'>('');
 	let listings = $state<Service[]>([]);
 	let myListings = $state<Service[]>([]);
 	let tab = $state<'browse' | 'mine'>('browse');
@@ -31,7 +35,9 @@
 	async function loadBrowse() {
 		loading = true;
 		try {
-			listings = await getServices(courseFilter || undefined);
+			listings = await getServices(courseFilter || undefined, {
+				deliveryMode: modeFilter || undefined
+			});
 		} catch {
 			// A real, live-found bug (the exact class already documented in
 			// messages/+page.svelte's own comment): getServices() used to always succeed for an
@@ -90,7 +96,17 @@
 			courseIds: service.courseIds,
 			hourlyRate: service.hourlyRate !== null ? String(service.hourlyRate) : '',
 			currency: service.currency,
-			isActive: !service.isActive
+			isActive: !service.isActive,
+			// Carried through explicitly. This helper rebuilds the ENTIRE draft from the existing
+			// listing just to flip one boolean, so anything omitted here is actively erased — for an
+			// in-person listing that would mean pausing it silently deleted its location, and then
+			// failing validation because an in-person listing requires one. Caught by the type
+			// checker when ServiceDraft grew these fields, which is precisely why the draft type is
+			// exhaustive rather than partial.
+			deliveryMode: service.deliveryMode,
+			locationLabel: service.location?.label ?? '',
+			locationLat: service.location?.lat ?? null,
+			locationLon: service.location?.lon ?? null
 		});
 		myListings = myListings.map((s) => (s.id === updated.id ? updated : s));
 	}
@@ -148,15 +164,25 @@
 		{/if}
 
 		{#if tab === 'browse'}
-			<label class="filter">
-				<span>{m.services_filterByCourse()}</span>
-				<select bind:value={courseFilter} onchange={handleCourseFilterChange}>
-					<option value="">{m.services_allCourses()}</option>
-					{#each courses as course (course.id)}
-						<option value={course.id}>{course.name}</option>
-					{/each}
-				</select>
-			</label>
+			<div class="filters">
+				<label class="filter">
+					<span>{m.services_filterByCourse()}</span>
+					<select bind:value={courseFilter} onchange={handleCourseFilterChange}>
+						<option value="">{m.services_allCourses()}</option>
+						{#each courses as course (course.id)}
+							<option value={course.id}>{course.name}</option>
+						{/each}
+					</select>
+				</label>
+				<label class="filter">
+					<span>{m.services_filterByMode()}</span>
+					<select bind:value={modeFilter} onchange={handleCourseFilterChange}>
+						<option value="">{m.services_modeAny()}</option>
+						<option value="online">{m.services_mode_online()}</option>
+						<option value="inPerson">{m.services_mode_inPerson()}</option>
+					</select>
+				</label>
+			</div>
 
 			{#if loading}
 				<p class="empty">{m.common_loading()}</p>
@@ -217,6 +243,11 @@
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
+	.filters {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-3);
+	}
 
 	.page {
 		max-width: 900px;

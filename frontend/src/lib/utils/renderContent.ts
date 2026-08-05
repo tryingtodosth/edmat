@@ -23,7 +23,16 @@
 // as bare paragraph text between two of them (the exact shape a chunk of the real corpus uses, e.g.
 // `uw-matematyka-am2-0049`'s statement: `<p>Niech</p>\n\n\[\nf:\mathbb{R}^n\to\mathbb{R}\n\]\n\n<p>...`).
 
-import DOMPurify from 'dompurify';
+// `isomorphic-dompurify`, not the plain `dompurify` package — a real security-scan finding, fixed:
+// the browser build of `dompurify` needs a real `document`, so this file used to just return the
+// RAW, unsanitized rendered HTML whenever `window` was undefined (a server/Node render). That branch
+// was never actually hit with real content in Phase 1-3's own mocked/client-only data loading, but
+// it's live code, not dead code — the moment a real `load` function is ever added to any route (this
+// app's own architecture notes already flag `adapter-node` as the expected next step), it becomes a
+// genuine, unauthenticated stored-XSS path with zero mitigation. `isomorphic-dompurify` wraps the
+// same DOMPurify API over a real jsdom instance when `window` doesn't exist, so sanitization is now
+// unconditional in every environment — no environment-detection branch needed here at all anymore.
+import DOMPurify from 'isomorphic-dompurify';
 import katex from 'katex';
 import MarkdownIt from 'markdown-it';
 
@@ -52,10 +61,9 @@ function safeKatex(tex: string, displayMode: boolean): string {
 
 /**
  * Renders one content field (an exercise's statement/hint/answer/solution, or a material's
- * description). SSR-safe: DOMPurify's browser build needs `document`, which doesn't exist during a
- * server-side render — this phase never actually SSRs real content (adapter-static SPA fallback,
- * CLAUDE.md Section 13), but the guard is here so this utility is safe to import from anywhere
- * without a caller needing to know that.
+ * description). Sanitized unconditionally, in every environment — `isomorphic-dompurify` (see this
+ * file's own top-of-file note) means there's no longer a browser-vs-server distinction to guard
+ * here at all.
  */
 export function renderContent(source: string | undefined | null): string {
 	if (!source) return '';
@@ -74,7 +82,6 @@ export function renderContent(source: string | undefined | null): string {
 	const html = md.render(protectedSource);
 	const withMath = html.replace(PLACEHOLDER_RE, (_m, i) => renderedSegments[Number(i)]);
 
-	if (typeof window === 'undefined') return withMath;
 	return DOMPurify.sanitize(withMath, { USE_PROFILES: { html: true, svg: true, mathMl: true } });
 }
 
@@ -114,6 +121,5 @@ export function renderTitle(source: string | undefined | null): string {
 		.replace(/>/g, '&gt;');
 	const withMath = escaped.replace(PLACEHOLDER_RE, (_m, i) => renderedSegments[Number(i)]);
 
-	if (typeof window === 'undefined') return withMath;
 	return DOMPurify.sanitize(withMath, { USE_PROFILES: { html: true, svg: true, mathMl: true } });
 }
