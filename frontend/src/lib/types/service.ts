@@ -3,6 +3,8 @@
 // distinct, fuller thing from `User.offersTutoring` (a bare opt-in badge with no structure) — a
 // user can set just that flag, create one or more real Service listings, or both.
 
+import type { AvailabilityMode } from './booking';
+
 export type ServiceCurrency = 'PLN' | 'EUR' | 'USD';
 
 /** How the tutoring actually happens. A single union rather than a pair of `isOnline`/`isInPerson`
@@ -41,6 +43,13 @@ export interface Service {
 	deliveryMode: ServiceDeliveryMode;
 	/** Set only for `inPerson`/`hybrid` listings; `undefined` for online-only ones. */
 	location?: ServiceLocation;
+	/** How the availability shown on this listing is computed — see AvailabilityMode (booking.ts).
+	 * On the offering rather than on the tutor because one person genuinely wants both at once: a
+	 * carefully-managed exam-prep listing where every hour shown is really free, and a general
+	 * "office hours, come and ask" one advertising a standing window they triage by hand. */
+	availabilityMode: AvailabilityMode;
+	/** What one session is, which is what turns a published window into bookable slots. */
+	sessionMinutes: number;
 	averageRating: number | null;
 	reviewCount: number;
 	createdAt: string;
@@ -89,4 +98,10 @@ export interface ServiceDraft {
 	locationLabel: string;
 	locationLat: number | null;
 	locationLon: number | null;
+	availabilityMode: AvailabilityMode;
+	// A string, not a number, for the same reason `hourlyRate` is one: an in-progress form field is
+	// naturally a string the caller parses once at submit time, and `bind:value` on a
+	// `type="number"` input silently hands back a real JS number instead — the exact runtime bug
+	// CLAUDE.md's own ServiceForm note already records having shipped once.
+	sessionMinutes: string;
 }

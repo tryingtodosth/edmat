@@ -149,7 +149,13 @@ export const MATERIAL_SORT_LABELS: Record<MaterialSort, () => string> = {
 // still gets an entry so the settings UI can offer a SEPARATE, standalone "mute this type
 // account-wide" override layered on top of the per-tag choice (Profile.muted_notification_types).
 export type NotificationPreferenceCategory =
-	'notifyOnCommentReply' | 'notifyOnModerationDecision' | 'notifyOnContentAction' | null;
+	| 'notifyOnCommentReply'
+	| 'notifyOnModerationDecision'
+	| 'notifyOnContentAction'
+	| 'notifyOnCourseActivity'
+	| 'notifyOnBooking'
+	| 'notifyOnEvent'
+	| null;
 
 export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPreferenceCategory> =
 	{
@@ -163,7 +169,27 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		contentAutoHidden: 'notifyOnContentAction',
 		contentRestored: 'notifyOnContentAction',
 		contentRemoved: 'notifyOnContentAction',
-		newTaggedContent: null
+		newTaggedContent: null,
+		// All six share one coarse category — somebody who does not want course traffic does not want
+		// any of it — while the per-type list below still allows peeling off one of them.
+		courseEnrollmentRequested: 'notifyOnCourseActivity',
+		courseEnrollmentApproved: 'notifyOnCourseActivity',
+		courseEnrollmentDeclined: 'notifyOnCourseActivity',
+		courseRemoved: 'notifyOnCourseActivity',
+		courseNewLesson: 'notifyOnCourseActivity',
+		courseNewPost: 'notifyOnCourseActivity',
+		// All four share one category, on the course types' own reasoning. This is the one worth
+		// reading the coarse label carefully before switching off: a tutor who mutes it stops hearing
+		// that anybody has asked for an hour of their time.
+		bookingRequested: 'notifyOnBooking',
+		bookingConfirmed: 'notifyOnBooking',
+		bookingDeclined: 'notifyOnBooking',
+		bookingCancelled: 'notifyOnBooking',
+		// Their own category rather than a share of `notifyOnCourseActivity`: a switch labelled
+		// "courses" that also governed events would be a setting whose label lies.
+		eventAttendance: 'notifyOnEvent',
+		eventUpdated: 'notifyOnEvent',
+		eventCancelled: 'notifyOnEvent'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -181,16 +207,31 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	contentAutoHidden: m.notifPref_contentAutoHidden,
 	contentRestored: m.notifPref_contentRestored,
 	contentRemoved: m.notifPref_contentRemoved,
-	newTaggedContent: m.notifPref_newTaggedContent
+	newTaggedContent: m.notifPref_newTaggedContent,
+	courseEnrollmentRequested: m.notifPref_courseEnrollmentRequested,
+	courseEnrollmentApproved: m.notifPref_courseEnrollmentApproved,
+	courseEnrollmentDeclined: m.notifPref_courseEnrollmentDeclined,
+	courseRemoved: m.notifPref_courseRemoved,
+	courseNewLesson: m.notifPref_courseNewLesson,
+	courseNewPost: m.notifPref_courseNewPost,
+	bookingRequested: m.notifPref_bookingRequested,
+	bookingConfirmed: m.notifPref_bookingConfirmed,
+	bookingDeclined: m.notifPref_bookingDeclined,
+	bookingCancelled: m.notifPref_bookingCancelled,
+	eventAttendance: m.notifPref_eventAttendance,
+	eventUpdated: m.notifPref_eventUpdated,
+	eventCancelled: m.notifPref_eventCancelled
 };
 
-// The 4 platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
+// The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
 // — mirrored by hand here, same "small, rarely-changing enum, flag the drift risk rather than fetch
 // a labels endpoint for it" call this codebase already made for DONATION_PLATFORMS/SOURCE_TYPES.
 export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	tutoring: m.featureFlags_label_tutoring,
+	classroom: m.featureFlags_label_classroom,
 	messaging: m.featureFlags_label_messaging,
 	exercise_submissions: m.featureFlags_label_exerciseSubmissions,
 	material_submissions: m.featureFlags_label_materialSubmissions,
+	events: m.featureFlags_label_events,
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };

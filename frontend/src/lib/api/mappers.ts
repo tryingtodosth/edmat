@@ -11,6 +11,9 @@
 // beyond "stable and unique," which a PK-as-string already is.
 
 import type {
+	AvailabilityException,
+	AvailabilityRule,
+	Booking,
 	Comment,
 	CommentTargetType,
 	Course,
@@ -39,11 +42,14 @@ import type {
 	ReportKind,
 	ResolvedExercise,
 	Review,
+	ScheduleEvent,
 	Service,
+	ServiceAvailability,
 	ServiceReview,
 	ServiceWatch,
 	Subtopic,
 	TagFollowState,
+	TutorSchedule,
 	Topic,
 	User
 } from '$lib/types';
@@ -186,6 +192,14 @@ export interface RawExerciseDetail extends RawExerciseCommon {
 	translated_by: number | null;
 	available_locales: string[];
 	requirements: RawExerciseRequirement[];
+	contributors: RawExerciseContributor[];
+}
+
+export interface RawExerciseContributor {
+	id: number;
+	display_name: string;
+	role: 'submitted' | 'translated' | 'reviewed';
+	locale: string | null;
 }
 
 export interface RawExerciseRequirement {
@@ -244,7 +258,11 @@ export function mapResolvedExerciseList(json: RawExerciseCommon): ResolvedExerci
 		solution: '',
 		translatedByUserId: undefined,
 		availableLocales: [],
-		requirements: []
+		// Empty on the list shape for the same reason `requirements` is: a card never credits anybody,
+		// and resolving contributors for all 383 exercises in a course listing would be paid for
+		// nothing. Empty here means "not asked for", not "nobody worked on it".
+		requirements: [],
+		contributors: []
 	};
 }
 
@@ -260,7 +278,15 @@ export function mapResolvedExerciseDetail(json: RawExerciseDetail): ResolvedExer
 		solution: json.solution,
 		translatedByUserId: idOrUndefined(json.translated_by),
 		availableLocales: json.available_locales,
-		requirements: (json.requirements ?? []).map(mapExerciseRequirement)
+		requirements: (json.requirements ?? []).map(mapExerciseRequirement),
+		// Names come resolved from the API rather than as bare ids the page then fetches one by one —
+		// that was a real N+1 over the network on a page that already knows it needs every one.
+		contributors: (json.contributors ?? []).map((c) => ({
+			id: String(c.id),
+			displayName: c.display_name,
+			role: c.role,
+			locale: c.locale ?? undefined
+		}))
 	};
 }
 
@@ -766,7 +792,20 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	content_auto_hidden: 'contentAutoHidden',
 	content_restored: 'contentRestored',
 	content_removed: 'contentRemoved',
-	new_tagged_content: 'newTaggedContent'
+	new_tagged_content: 'newTaggedContent',
+	course_enrollment_requested: 'courseEnrollmentRequested',
+	course_enrollment_approved: 'courseEnrollmentApproved',
+	course_enrollment_declined: 'courseEnrollmentDeclined',
+	course_removed: 'courseRemoved',
+	course_new_lesson: 'courseNewLesson',
+	course_new_post: 'courseNewPost',
+	booking_requested: 'bookingRequested',
+	booking_confirmed: 'bookingConfirmed',
+	booking_declined: 'bookingDeclined',
+	booking_cancelled: 'bookingCancelled',
+	event_attendance: 'eventAttendance',
+	event_updated: 'eventUpdated',
+	event_cancelled: 'eventCancelled'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -781,8 +820,11 @@ export interface RawProfile {
 	username: string;
 	email: string;
 	display_name: string;
+	bio?: string;
 	avatar: string | null;
 	preferred_locale: string;
+	time_format?: string;
+	week_starts_on?: string;
 	is_verified_contributor: boolean;
 	is_moderator: boolean;
 	is_node_governor: boolean;
@@ -792,6 +834,9 @@ export interface RawProfile {
 	notify_on_comment_reply?: boolean;
 	notify_on_moderation_decision?: boolean;
 	notify_on_content_action?: boolean;
+	notify_on_course_activity?: boolean;
+	notify_on_booking?: boolean;
+	notify_on_event?: boolean;
 	muted_notification_types?: string[]; // snake_case type strings — converted below
 	donation_links?: RawDonationLink[];
 	// Always present on BOTH /auth/me/ and /users/{id}/ — accounts/serializers.py's
@@ -804,6 +849,7 @@ export interface RawProfile {
 export function mapUser(json: RawProfile): User {
 	return {
 		id: String(json.id),
+		bio: json.bio,
 		displayName: json.display_name || json.username,
 		email: json.email,
 		avatarUrl: json.avatar ?? undefined,
@@ -820,6 +866,13 @@ export function mapUser(json: RawProfile): User {
 		notifyOnCommentReply: json.notify_on_comment_reply,
 		notifyOnModerationDecision: json.notify_on_moderation_decision,
 		notifyOnContentAction: json.notify_on_content_action,
+		// Anything unrecognised falls back to the app's own defaults rather than to whatever the
+		// browser would pick — same reasoning as the fields themselves.
+		timeFormat: json.time_format === '12h' ? '12h' : '24h',
+		weekStartsOn: json.week_starts_on === 'sunday' ? 'sunday' : 'monday',
+		notifyOnCourseActivity: json.notify_on_course_activity,
+		notifyOnBooking: json.notify_on_booking,
+		notifyOnEvent: json.notify_on_event,
 		mutedNotificationTypes: json.muted_notification_types
 			?.map((t) => NOTIFICATION_TYPE_MAP[t])
 			.filter((t): t is Notification['type'] => t !== undefined)
@@ -893,6 +946,8 @@ export interface RawNotification {
 	target_label: string;
 	exercise_id: number | null;
 	material_id: number | null;
+	taught_course_id: number | null;
+	event_id: number | null;
 	note: string;
 	is_read: boolean;
 	created_at: string;
@@ -907,6 +962,14 @@ export function mapNotification(json: RawNotification): Notification {
 		targetLabel: json.target_label,
 		exerciseId: json.exercise_id !== null ? String(json.exercise_id) : undefined,
 		materialId: json.material_id !== null ? String(json.material_id) : undefined,
+		taughtCourseId:
+			json.taught_course_id !== null && json.taught_course_id !== undefined
+				? String(json.taught_course_id)
+				: undefined,
+		eventId:
+			json.event_id !== null && json.event_id !== undefined
+				? String(json.event_id)
+				: undefined,
 		note: json.note,
 		isRead: json.is_read,
 		createdAt: json.created_at
@@ -945,6 +1008,8 @@ export interface RawService {
 	location_label: string;
 	location_lat: string | null; // DRF DecimalField -> string, same as hourly_rate above
 	location_lon: string | null;
+	availability_mode: string;
+	session_minutes: number;
 	average_rating: number | null;
 	review_count: number;
 	created_at: string;
@@ -975,10 +1040,148 @@ export function mapService(json: RawService): Service {
 						lon: Number(json.location_lon)
 					}
 				: undefined,
+		// Anything unrecognised falls back to `derived`, matching the backend default and the safer
+		// of the two: `derived` shows less than it might, whereas a wrongly-assumed `declared` would
+		// tell a student an hour is on offer when it has already gone.
+		availabilityMode: json.availability_mode === 'declared' ? 'declared' : 'derived',
+		sessionMinutes: json.session_minutes ?? 60,
 		averageRating: json.average_rating,
 		reviewCount: json.review_count,
 		createdAt: json.created_at,
 		updatedAt: json.updated_at
+	};
+}
+
+// ---- booking ----------------------------------------------------------------------------------
+
+export interface RawAvailabilityRule {
+	id: number;
+	service: number | null;
+	weekday: number;
+	start_time: string;
+	end_time: string;
+}
+
+export function mapAvailabilityRule(json: RawAvailabilityRule): AvailabilityRule {
+	return {
+		id: String(json.id),
+		serviceId: json.service !== null ? String(json.service) : undefined,
+		weekday: json.weekday,
+		// Django serializes a TimeField as 'HH:MM:SS'. Every input and label in this feature works in
+		// 'HH:MM', so the seconds are dropped once here rather than at each of those sites.
+		startTime: json.start_time.slice(0, 5),
+		endTime: json.end_time.slice(0, 5)
+	};
+}
+
+export interface RawAvailabilityException {
+	id: number;
+	date: string;
+	kind: string;
+	start_time: string | null;
+	end_time: string | null;
+	note: string;
+}
+
+export function mapAvailabilityException(json: RawAvailabilityException): AvailabilityException {
+	return {
+		id: String(json.id),
+		date: json.date,
+		kind: json.kind === 'open' ? 'open' : 'block',
+		startTime: json.start_time ? json.start_time.slice(0, 5) : undefined,
+		endTime: json.end_time ? json.end_time.slice(0, 5) : undefined,
+		note: json.note ?? ''
+	};
+}
+
+export interface RawServiceAvailability {
+	service: number;
+	availability_mode: string;
+	session_minutes: number;
+	has_schedule: boolean;
+	days: { date: string; slots: { start: string; end: string }[] }[];
+}
+
+export function mapServiceAvailability(json: RawServiceAvailability): ServiceAvailability {
+	return {
+		serviceId: String(json.service),
+		mode: json.availability_mode === 'declared' ? 'declared' : 'derived',
+		sessionMinutes: json.session_minutes,
+		hasSchedule: json.has_schedule,
+		days: json.days.map((day) => ({ date: day.date, slots: day.slots }))
+	};
+}
+
+export interface RawBooking {
+	id: number;
+	service: number;
+	service_title: string;
+	availability_mode: string;
+	tutor: number;
+	tutor_display_name: string;
+	student: number;
+	student_display_name: string;
+	starts_at: string;
+	ends_at: string;
+	status: string;
+	student_note: string;
+	tutor_note: string;
+	cancelled_by: number | null;
+	overlapping_count: number;
+	created_at: string;
+}
+
+export interface RawTutorSchedule {
+	days: { date: string; windows: { start: string; end: string }[] }[];
+	bookings: RawBooking[];
+	// Added when events started feeding this endpoint. Optional on the wire, and defaulted below, so
+	// a frontend deployed ahead of the backend renders a calendar without events rather than throwing
+	// on `undefined.map`.
+	events?: {
+		id: number;
+		title: string;
+		starts_at: string;
+		ends_at: string;
+		status: string;
+		location_kind: string;
+		is_host: boolean;
+	}[];
+}
+
+export function mapTutorSchedule(json: RawTutorSchedule): TutorSchedule {
+	return {
+		days: json.days.map((day) => ({ date: day.date, windows: day.windows })),
+		bookings: json.bookings.map(mapBooking),
+		events: (json.events ?? []).map((event) => ({
+			id: String(event.id),
+			title: event.title,
+			startsAt: event.starts_at,
+			endsAt: event.ends_at,
+			status: event.status as ScheduleEvent['status'],
+			locationKind: event.location_kind as ScheduleEvent['locationKind'],
+			isHost: event.is_host
+		}))
+	};
+}
+
+export function mapBooking(json: RawBooking): Booking {
+	return {
+		id: String(json.id),
+		serviceId: String(json.service),
+		serviceTitle: json.service_title,
+		availabilityMode: json.availability_mode === 'declared' ? 'declared' : 'derived',
+		tutorId: String(json.tutor),
+		tutorDisplayName: json.tutor_display_name,
+		studentId: String(json.student),
+		studentDisplayName: json.student_display_name,
+		startsAt: json.starts_at,
+		endsAt: json.ends_at,
+		status: json.status as Booking['status'],
+		studentNote: json.student_note ?? '',
+		tutorNote: json.tutor_note ?? '',
+		cancelledById: json.cancelled_by !== null ? String(json.cancelled_by) : undefined,
+		overlappingCount: json.overlapping_count ?? 0,
+		createdAt: json.created_at
 	};
 }
 

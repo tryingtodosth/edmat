@@ -19,6 +19,7 @@
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import CoveragePopover from './CoveragePopover.svelte';
+	import ClaimListModal from './ClaimListModal.svelte';
 
 	// linkTitle: true everywhere this card is used as a feed/grid item; false on the material's OWN
 	// detail page, where linking the title back to the very page it's already on would be a
@@ -47,20 +48,26 @@
 	}
 
 	// Sorted by net community vote (highest-agreed-with first) — the whole point of making both
-	// groups votable is that a reader sees the most-vetted claims first, not creation order.
-	let topCoverage = $derived(
-		[...effectiveCoverage]
-			.sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
-			.slice(0, PREVIEW_COUNT)
+	// groups votable is that a reader sees the most-vetted claims first, not creation order. The
+	// full sorted list is derived once and the preview sliced off the front of it, so the "+N more"
+	// modal opens in the SAME order the card's own top few established — a list that silently
+	// reordered itself on expand would read as a different set of claims rather than more of them.
+	let sortedCoverage = $derived(
+		[...effectiveCoverage].sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
 	);
+	let topCoverage = $derived(sortedCoverage.slice(0, PREVIEW_COUNT));
 	let extraCoverageCount = $derived(Math.max(0, material.coverage.length - PREVIEW_COUNT));
 
-	let topRequirements = $derived(
-		[...material.requirements]
-			.sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
-			.slice(0, PREVIEW_COUNT)
+	let sortedRequirements = $derived(
+		[...material.requirements].sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
 	);
+	let topRequirements = $derived(sortedRequirements.slice(0, PREVIEW_COUNT));
 	let extraRequirementCount = $derived(Math.max(0, material.requirements.length - PREVIEW_COUNT));
+
+	// Which group's full list is open, if any. The count next to each group used to be an inert
+	// `<span>` — it named a number ("+27 more") with nothing behind it, which reads as a broken
+	// control rather than a deliberate summary.
+	let openClaimList = $state<'coverage' | 'requirement' | null>(null);
 
 	// Local, session-only overlay — the same subtract-shaped sibling to `coverageOverlay`'s own
 	// pre-existing add-shaped pattern this card already used elsewhere in this app (MaterialCard is
@@ -107,7 +114,14 @@
 				</button>
 			{/each}
 			{#if extraCoverageCount > 0}
-				<span class="claim-more">{m.material_moreCount({ count: extraCoverageCount })}</span>
+				<button
+					type="button"
+					class="claim-more"
+					aria-label={m.material_moreCountLabel({ count: extraCoverageCount })}
+					onclick={() => (openClaimList = 'coverage')}
+				>
+					{m.material_moreCount({ count: extraCoverageCount })}
+				</button>
 			{/if}
 		</div>
 	{/if}
@@ -121,7 +135,14 @@
 				>
 			{/each}
 			{#if extraRequirementCount > 0}
-				<span class="claim-more">{m.material_moreCount({ count: extraRequirementCount })}</span>
+				<button
+					type="button"
+					class="claim-more"
+					aria-label={m.material_moreCountLabel({ count: extraRequirementCount })}
+					onclick={() => (openClaimList = 'requirement')}
+				>
+					{m.material_moreCount({ count: extraRequirementCount })}
+				</button>
 			{/if}
 		</div>
 	{/if}
@@ -208,6 +229,20 @@
 	</div>
 </article>
 
+<!-- Hidden rather than unmounted while a single claim's popover is open, so closing that popover
+     returns to the list it was opened from instead of dumping the reader back to the card — the
+     drill-down and its way back, not two unrelated modals. Never both at once: stacking two
+     backdrops would leave Escape ambiguous about which one it closes. -->
+{#if openClaimList && !openCoverage}
+	<ClaimListModal
+		title={openClaimList === 'coverage' ? m.material_coversHeading() : m.material_requiresHeading()}
+		coverage={openClaimList === 'coverage' ? sortedCoverage : undefined}
+		requirements={openClaimList === 'requirement' ? sortedRequirements : undefined}
+		onSelectCoverage={(id) => (openCoverageId = id)}
+		onClose={() => (openClaimList = null)}
+	/>
+{/if}
+
 {#if openCoverage}
 	<CoveragePopover
 		coverage={openCoverage}
@@ -290,8 +325,20 @@
 		background: var(--accent-soft);
 	}
 	.claim-more {
+		@include mix.focus-ring;
 		color: var(--text-secondary);
 		font-style: italic;
+		background: none;
+		border: none;
+		padding: 0;
+		font-size: inherit;
+		font-family: inherit;
+		cursor: pointer;
+		text-decoration: underline dotted;
+		text-underline-offset: 2px;
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.material-card__tags {
 		display: flex;

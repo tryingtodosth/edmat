@@ -37,6 +37,29 @@ DELIVERY_MODE_CHOICES = [
 # rather than a repeated `in ('in_person', 'hybrid')` scattered across call sites that could drift.
 IN_PERSON_MODES = frozenset({'in_person', 'hybrid'})
 
+# How the availability shown to a student is computed, decided PER OFFERING. See booking/models.py's
+# own module doc comment for the full reasoning; the short version is that both of these are real
+# ways people run a tutoring schedule and neither is the other one done badly.
+#
+# It lives on Service rather than on the tutor because a person genuinely can want both at once: a
+# small, carefully-managed exam-prep offering where every hour shown is really free, and a general
+# "office hours, come and ask" listing advertising a standing window they triage by hand.
+AVAILABILITY_MODE_CHOICES = [
+    # Shown availability = declared hours MINUS everything already taken (bookings through this app,
+    # and one-off blocks the tutor recorded for anything else in their calendar). Booking an hour
+    # removes it from what the next student sees.
+    ('derived', 'Real availability, minus what is already taken'),
+    # The published window keeps showing, whole, even once part of it is spoken for. Deliberate: the
+    # tutor is advertising hours and sorting out the clashes themselves.
+    ('declared', 'A fixed published window, whatever is already taken'),
+]
+
+#: The default, and the choice is not arbitrary: `derived` is the mode that cannot mislead anybody.
+#: A listing that publishes hours it cannot honour is a promise broken in front of the student,
+#: whereas `derived` merely shows less than it might. Advertising over-subscribed hours is a real
+#: thing tutors do, so it stays available — as something you turn on, having read what it means.
+DEFAULT_AVAILABILITY_MODE = 'derived'
+
 
 class Service(models.Model):
     provider = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='services', on_delete=models.CASCADE)
@@ -74,6 +97,19 @@ class Service(models.Model):
     # the precision Nominatim itself returns.
     location_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     location_lon = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
+    # How the availability a student sees is computed for THIS offering — the load-bearing choice
+    # this whole booking feature turns on, and a real stored field rather than behaviour inferred
+    # from whether the tutor happens to have any bookings yet. Every listing that predates the field
+    # gets `derived`, which for a tutor who has declared no hours at all shows nothing either way, so
+    # the default cannot retroactively publish availability nobody claimed.
+    availability_mode = models.CharField(
+        max_length=10, choices=AVAILABILITY_MODE_CHOICES, default=DEFAULT_AVAILABILITY_MODE
+    )
+    # How long one session is, which is what turns a published *window* into bookable *slots*. Per
+    # offering rather than per tutor: an hour of exam cramming and a 30-minute homework check are
+    # genuinely different products, and this is the field that says which one a listing sells.
+    session_minutes = models.PositiveSmallIntegerField(default=60)
 
     @property
     def is_in_person(self) -> bool:

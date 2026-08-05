@@ -284,9 +284,16 @@ GOVERNABLE_NODE_MODELS = {'field': Field, 'course': Course}
 # — a genuine "kill switch" for an entire feature surface, not a per-course moderation tool.
 FEATURE_FLAG_CHOICES = [
     ('tutoring', 'Tutoring/services listings'),
+    ('classroom', 'User-run courses'),
     ('messaging', 'User-to-user messaging'),
     ('exercise_submissions', 'New exercise submissions'),
     ('material_submissions', 'New material uploads'),
+    # One-off events (events/). A plain kill switch like the five above it: with this off, an
+    # ordinary visitor cannot list, read, create or answer an event, the whole `/api/events/` surface
+    # 403s, events stop appearing in `/api/my-schedule/`, and the frontend hides every link that
+    # points at them — the nav entry, the "Add…" menu item, the homepage tab and the profile links.
+    # A killed feature that still shows its buttons is a feature that only breaks louder.
+    ('events', 'One-off events'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

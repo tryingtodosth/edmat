@@ -9,6 +9,7 @@
 	import { materialsUiStore, type MaterialsUiMode } from '$lib/state/materialsUi.svelte';
 	import { NOTIFICATION_TYPE_CATEGORY, NOTIFICATION_TYPE_LABELS } from '$lib/utils/labels';
 	import AvatarEditor from '$lib/components/settings/AvatarEditor.svelte';
+	import EducationPanel from '$lib/components/settings/EducationPanel.svelte';
 	import DonationLinksEditor from '$lib/components/settings/DonationLinksEditor.svelte';
 	import TagFollowsEditor from '$lib/components/settings/TagFollowsEditor.svelte';
 
@@ -18,6 +19,13 @@
 	let notifyOnCommentReply = $state(true);
 	let notifyOnModerationDecision = $state(true);
 	let notifyOnContentAction = $state(true);
+	let notifyOnCourseActivity = $state(true);
+	let notifyOnBooking = $state(true);
+	let notifyOnEvent = $state(true);
+	// Display preferences, with this app's own defaults rather than whatever the browser's locale
+	// would pick — see state/displayPrefs.svelte.ts for why those two are not the same question.
+	let timeFormat = $state<'24h' | '12h'>('24h');
+	let weekStartsOn = $state<'monday' | 'sunday'>('monday');
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, course-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
@@ -45,6 +53,15 @@
 	const contentActionTypes = (Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]).filter(
 		(t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnContentAction'
 	);
+	const courseActivityTypes = (
+		Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]
+	).filter((t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnCourseActivity');
+	const eventTypes = (Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]).filter(
+		(t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnEvent'
+	);
+	const bookingTypes = (Object.keys(NOTIFICATION_TYPE_CATEGORY) as NotificationType[]).filter(
+		(t) => NOTIFICATION_TYPE_CATEGORY[t] === 'notifyOnBooking'
+	);
 
 	function toggleMuted(type: NotificationType) {
 		if (mutedTypes.has(type)) {
@@ -67,6 +84,11 @@
 		notifyOnCommentReply = authStore.user.notifyOnCommentReply ?? true;
 		notifyOnModerationDecision = authStore.user.notifyOnModerationDecision ?? true;
 		notifyOnContentAction = authStore.user.notifyOnContentAction ?? true;
+		notifyOnCourseActivity = authStore.user.notifyOnCourseActivity ?? true;
+		notifyOnBooking = authStore.user.notifyOnBooking ?? true;
+		notifyOnEvent = authStore.user.notifyOnEvent ?? true;
+		timeFormat = authStore.user.timeFormat ?? '24h';
+		weekStartsOn = authStore.user.weekStartsOn ?? 'monday';
 		offersTutoring = authStore.user.offersTutoring;
 		tutoringNote = authStore.user.tutoringNote;
 		// Mutate the existing SvelteSet in place, not a reassignment — `mutedTypes` is a plain `let`
@@ -89,6 +111,11 @@
 			notifyOnCommentReply,
 			notifyOnModerationDecision,
 			notifyOnContentAction,
+			notifyOnCourseActivity,
+			notifyOnBooking,
+			notifyOnEvent,
+			timeFormat,
+			weekStartsOn,
 			mutedNotificationTypes: Array.from(mutedTypes),
 			offersTutoring,
 			tutoringNote
@@ -166,6 +193,14 @@
 					<span class="badge badge--neutral">{m.settings_role_member()}</span>
 				{/if}
 			</div>
+			<!-- Directly under the badges, because these three ARE the whole of what standing means here
+			     today — one staff flag and one contributor flag, with nothing in between — and /levels is
+			     where that is said out loud along with what is meant to replace it. Anywhere else on this
+			     page it would read as an unrelated help link. -->
+			<p class="levels-note">
+				{m.settings_levelsHint()}
+				<a href={resolve('/levels')}>{m.footer_levels()}</a>
+			</p>
 			<a class="view-public" href={resolve('/users/[id]', { id: user.id })}>
 				{m.profile_viewPublic()}
 			</a>
@@ -178,6 +213,13 @@
 		<section class="avatar">
 			<h2>{m.settings_avatarHeading()}</h2>
 			<AvatarEditor />
+		</section>
+
+		<!-- Standalone for the same reason as the avatar above: it saves through its own endpoints
+		     as you go (each consent toggle is its own decision, and batching three of them behind a
+		     Save button would blur exactly the distinction the feature exists to make). -->
+		<section class="education-section">
+			<EducationPanel />
 		</section>
 
 		<form class="edit-form" onsubmit={handleSave}>
@@ -221,6 +263,29 @@
 				{/if}
 			</section>
 
+			<!-- Its own section rather than folded in beside the interface language, because they are
+			     genuinely different questions: reading the English interface is not a statement about
+			     wanting a 12-hour clock, and letting the locale decide is how somebody ends up looking
+			     at the wrong one with no way to say so. -->
+			<section class="field-group">
+				<h2>{m.settings_datesHeading()}</h2>
+				<label>
+					<span>{m.settings_timeFormat()}</span>
+					<select bind:value={timeFormat}>
+						<option value="24h">{m.settings_timeFormat_24h()}</option>
+						<option value="12h">{m.settings_timeFormat_12h()}</option>
+					</select>
+				</label>
+				<label>
+					<span>{m.settings_weekStartsOn()}</span>
+					<select bind:value={weekStartsOn}>
+						<option value="monday">{m.booking_weekday_monday()}</option>
+						<option value="sunday">{m.booking_weekday_sunday()}</option>
+					</select>
+				</label>
+				<p class="field-hint">{m.settings_datesHint()}</p>
+			</section>
+
 			<section class="field-group">
 				<h2>{m.settings_notificationsHeading()}</h2>
 				<label class="checkbox">
@@ -234,6 +299,72 @@
 				{#if notifyOnModerationDecision}
 					<ul class="fine-tune">
 						{#each moderationDecisionTypes as type (type)}
+							<li>
+								<label class="checkbox checkbox--sub">
+									<input
+										type="checkbox"
+										checked={!mutedTypes.has(type)}
+										onchange={() => toggleMuted(type)}
+									/>
+									<span>{NOTIFICATION_TYPE_LABELS[type]?.()}</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<label class="checkbox">
+					<input type="checkbox" bind:checked={notifyOnCourseActivity} />
+					<span>{m.settings_notifyOnCourseActivity()}</span>
+				</label>
+				{#if notifyOnCourseActivity}
+					<ul class="fine-tune">
+						{#each courseActivityTypes as type (type)}
+							<li>
+								<label class="checkbox checkbox--sub">
+									<input
+										type="checkbox"
+										checked={!mutedTypes.has(type)}
+										onchange={() => toggleMuted(type)}
+									/>
+									<span>{NOTIFICATION_TYPE_LABELS[type]?.()}</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<!-- Its own coarse category, and the copy names the consequence rather than leaving it to
+				     be discovered: a tutor who turns this off stops being told that anybody has asked for
+				     an hour of their time. -->
+				<label class="checkbox">
+					<input type="checkbox" bind:checked={notifyOnBooking} />
+					<span>{m.settings_notifyOnBooking()}</span>
+				</label>
+				{#if notifyOnBooking}
+					<ul class="fine-tune">
+						{#each bookingTypes as type (type)}
+							<li>
+								<label class="checkbox checkbox--sub">
+									<input
+										type="checkbox"
+										checked={!mutedTypes.has(type)}
+										onchange={() => toggleMuted(type)}
+									/>
+									<span>{NOTIFICATION_TYPE_LABELS[type]?.()}</span>
+								</label>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<!-- Events get their own coarse category rather than sharing the courses one: the two are
+				     different things to the person reading the label, and somebody who runs no courses but
+				     goes to talks should not have to guess which switch theirs is under. -->
+				<label class="checkbox">
+					<input type="checkbox" bind:checked={notifyOnEvent} />
+					<span>{m.settings_notifyOnEvent()}</span>
+				</label>
+				{#if notifyOnEvent}
+					<ul class="fine-tune">
+						{#each eventTypes as type (type)}
 							<li>
 								<label class="checkbox checkbox--sub">
 									<input
@@ -403,6 +534,16 @@
 		font-size: var(--font-size-sm);
 		font-weight: 600;
 		color: var(--accent);
+	}
+	.levels-note {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		line-height: 1.5;
+
+		a {
+			color: var(--accent);
+			font-weight: 600;
+		}
 	}
 	.edit-form {
 		gap: var(--space-4);

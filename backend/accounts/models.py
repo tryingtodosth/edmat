@@ -21,6 +21,32 @@ class Profile(models.Model):
         upload_to='avatars/', blank=True, null=True, validators=[validate_avatar_file]
     )
     preferred_locale = models.CharField(max_length=8, default='en')
+
+    # How dates and times are DRAWN — the calendar views, and every clock this app prints. Real
+    # stored preferences rather than whatever the interface language happens to imply, because the
+    # two are genuinely independent: plenty of people read the English interface and still expect
+    # 16:00, and `Intl`'s own per-locale default hands an English reader "4:00 PM" whether they
+    # wanted it or not. That WAS the behaviour before these fields existed, and it was nobody's
+    # choice.
+    #
+    # 24-hour and Monday are the defaults deliberately. Both are what this app's own markets (Poland,
+    # Ukraine, the EU generally) use, and both are what the rest of the stack already speaks —
+    # `AvailabilityRule` stores a 24-hour `TimeField` and numbers weekdays from Monday, matching
+    # Python's own `date.weekday()` — so the default costs no conversion anywhere. The other two are
+    # a real setting rather than an inference, because guessing them from a locale is how somebody
+    # ends up looking at the wrong one with no way to say so.
+    TIME_FORMAT_CHOICES = [('24h', '24-hour'), ('12h', '12-hour (AM/PM)')]
+    time_format = models.CharField(max_length=3, choices=TIME_FORMAT_CHOICES, default='24h')
+
+    # Stored as a name rather than as `Date.getDay()`'s 0/1: a row stays readable, and the frontend's
+    # own numbering convention stays the frontend's business rather than being baked into the column.
+    WEEK_START_CHOICES = [('monday', 'Monday'), ('sunday', 'Sunday')]
+    week_starts_on = models.CharField(max_length=8, choices=WEEK_START_CHOICES, default='monday')
+
+    # A short self-description. Always public when set — like `display_name`, it is something the
+    # account holder actively wrote to be read, so `show_profile_publicly` (which withholds info a
+    # visitor never chose to publish, e.g. the joined date) does not gate it.
+    bio = models.TextField(max_length=1000, blank=True)
     is_verified_contributor = models.BooleanField(default=False)
     joined_at = models.DateTimeField(auto_now_add=True)
 
@@ -40,6 +66,22 @@ class Profile(models.Model):
     notify_on_comment_reply = models.BooleanField(default=True)
     notify_on_moderation_decision = models.BooleanField(default=True)
     notify_on_content_action = models.BooleanField(default=True)
+    # Courses run by users (classroom/). One coarse category covering all six course notification
+    # types — somebody who does not want course traffic does not want any of it, and the per-type
+    # mute list below already gives finer control than a second boolean would.
+    notify_on_course_activity = models.BooleanField(default=True)
+    # Booking a session with a tutor (booking/). One coarse category, for the same reason course
+    # activity has one: a booking's four events are two people having one conversation, and somebody
+    # who wants none of it wants none of it. Worth more thought before switching off than the others,
+    # though — a tutor who mutes this stops hearing that anybody has asked for an hour of their time,
+    # which the Settings copy says out loud rather than leaving to be discovered.
+    notify_on_booking = models.BooleanField(default=True)
+    # Events (events/). Its own switch rather than a share of `notify_on_course_activity`, because
+    # the two describe different things to the person reading the label — and because the volume is
+    # different in kind: a course announces every lesson, where an event only ever speaks when
+    # somebody joins it, when it moves, or when it is called off. All three are things you would want
+    # to hear about even having muted a great deal else, which is why this defaults on.
+    notify_on_event = models.BooleanField(default=True)
 
     # Finer-grained than the three coarse booleans above, layered on TOP of them rather than
     # replacing them: `notify()` only ever reaches this check once the notification's own coarse
@@ -115,3 +157,92 @@ class DonationLink(models.Model):
 
     def __str__(self) -> str:
         return f'{self.label or self.get_platform_display()} ({self.profile})'
+
+
+# What somebody has DONE and what they are GOOD AT — two separate lists, because they answer two
+# different questions and mix badly in one. An experience entry is a period with a place attached;
+# a skill is a claim about a subject, and the interesting thing about it is what backs the claim.
+EXPERIENCE_KIND_CHOICES = [
+    ('study', 'Studies'),
+    ('work', 'Work'),
+    ('teaching', 'Teaching'),
+    ('project', 'Project'),
+    ('other', 'Other'),
+]
+
+
+class ExperienceEntry(models.Model):
+    """One line of somebody's history, as they choose to describe it.
+
+    Entirely self-declared and shown as such — nothing here is verified, and it is not pretending to
+    be. That is a different thing from `identity.EducationProfile`, where a claim is backed by an
+    institution's own registry; the two sit next to each other on a profile precisely so the
+    difference is visible.
+    """
+
+    profile = models.ForeignKey(Profile, related_name='experience', on_delete=models.CASCADE)
+    kind = models.CharField(max_length=12, choices=EXPERIENCE_KIND_CHOICES, default='other')
+    title = models.CharField(max_length=200)
+    organisation = models.CharField(max_length=200, blank=True)
+    started_on = models.DateField(null=True, blank=True)
+    # Null means ongoing, which is genuinely different from an unknown end date — the UI says
+    # "present" rather than leaving a dash somebody has to interpret.
+    ended_on = models.DateField(null=True, blank=True)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        # Most recent first, with an explicit `order` available for somebody who wants to override
+        # that on their own profile. Nulls (ongoing) sort to the top, which is where they belong.
+        ordering = ['order', '-started_on', 'id']
+
+    def __str__(self) -> str:
+        return f'{self.title} ({self.profile})'
+
+
+SKILL_LEVEL_CHOICES = [
+    ('learning', 'Learning'),
+    ('comfortable', 'Comfortable'),
+    ('teaching', 'Could teach it'),
+]
+
+# What actually backs the claim — the whole point of the field. A skill anybody can type is worth
+# what typing costs; one the university's own registry attested is not, and a reader deserves to be
+# able to tell them apart at a glance rather than being asked to trust a flat list.
+SKILL_EVIDENCE_CHOICES = [
+    ('self_declared', 'Self-declared'),
+    ('coursework', 'Passed the course here'),
+    ('registry', 'Confirmed by the university registry'),
+]
+
+
+class SkillEntry(models.Model):
+    profile = models.ForeignKey(Profile, related_name='skills', on_delete=models.CASCADE)
+    label = models.CharField(max_length=100)
+    level = models.CharField(max_length=12, choices=SKILL_LEVEL_CHOICES, default='comfortable')
+    evidence = models.CharField(
+        max_length=16, choices=SKILL_EVIDENCE_CHOICES, default='self_declared'
+    )
+    # Optional links into the real taxonomy — what makes a skill more than a word. A skill tied to a
+    # Course can be counted, filtered and matched against the exercises on this site; a free-text one
+    # cannot, which is why both are allowed but only one of them is useful to the rest of the app.
+    # This is also where `identity.standing.skill_seeds` would land once USOS grades are imported for
+    # real: the seeds already compute exactly this shape.
+    course = models.ForeignKey(
+        'taxonomy.Course', null=True, blank=True, related_name='claimed_skills', on_delete=models.SET_NULL
+    )
+    field = models.ForeignKey(
+        'taxonomy.Field', null=True, blank=True, related_name='claimed_skills', on_delete=models.SET_NULL
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'label']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['profile', 'label'], name='unique_skill_label_per_profile'
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.label} ({self.profile})'

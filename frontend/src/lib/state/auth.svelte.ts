@@ -126,9 +126,14 @@ export const authStore = {
 			displayName: string;
 			preferredLocale: string;
 			showProfilePublicly: boolean;
+			timeFormat: '24h' | '12h';
+			weekStartsOn: 'monday' | 'sunday';
 			notifyOnCommentReply: boolean;
 			notifyOnModerationDecision: boolean;
 			notifyOnContentAction: boolean;
+			notifyOnCourseActivity: boolean;
+			notifyOnBooking: boolean;
+			notifyOnEvent: boolean;
 			mutedNotificationTypes: NotificationType[];
 			offersTutoring: boolean;
 			tutoringNote: string;
@@ -139,11 +144,17 @@ export const authStore = {
 		if (patch.preferredLocale !== undefined) body.preferred_locale = patch.preferredLocale;
 		if (patch.showProfilePublicly !== undefined)
 			body.show_profile_publicly = patch.showProfilePublicly;
+		if (patch.timeFormat !== undefined) body.time_format = patch.timeFormat;
+		if (patch.weekStartsOn !== undefined) body.week_starts_on = patch.weekStartsOn;
 		if (patch.notifyOnCommentReply !== undefined)
 			body.notify_on_comment_reply = patch.notifyOnCommentReply;
 		if (patch.notifyOnModerationDecision !== undefined) {
 			body.notify_on_moderation_decision = patch.notifyOnModerationDecision;
 		}
+		if (patch.notifyOnCourseActivity !== undefined)
+			body.notify_on_course_activity = patch.notifyOnCourseActivity;
+		if (patch.notifyOnBooking !== undefined) body.notify_on_booking = patch.notifyOnBooking;
+		if (patch.notifyOnEvent !== undefined) body.notify_on_event = patch.notifyOnEvent;
 		if (patch.notifyOnContentAction !== undefined)
 			body.notify_on_content_action = patch.notifyOnContentAction;
 		if (patch.mutedNotificationTypes !== undefined) {

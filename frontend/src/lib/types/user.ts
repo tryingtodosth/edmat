@@ -4,6 +4,7 @@ import type { NotificationType } from './notification';
 export interface User {
 	id: string;
 	displayName: string;
+	bio?: string;
 	email: string;
 	avatarUrl?: string;
 	joinedAt: string | null; // null only ever appears on a PublicProfile view of a privacy-gated profile
@@ -37,9 +38,18 @@ export interface User {
 	// includes these at all (accounts/serializers.py's PublicProfileSerializer deliberately excludes
 	// them), so they stay undefined when resolving someone else.
 	showProfilePublicly?: boolean;
+	/** How this account wants clocks and calendars drawn. Real stored settings rather than something
+	 * inferred from `preferredLocale`: the interface language is not a statement about either, and
+	 * Intl's own per-locale default would hand an English reader 12-hour and a Sunday-first week
+	 * whether they asked for it or not. Defaults live in state/displayPrefs.svelte.ts. */
+	timeFormat?: '24h' | '12h';
+	weekStartsOn?: 'monday' | 'sunday';
 	notifyOnCommentReply?: boolean;
 	notifyOnModerationDecision?: boolean;
 	notifyOnContentAction?: boolean;
+	notifyOnCourseActivity?: boolean;
+	notifyOnBooking?: boolean;
+	notifyOnEvent?: boolean;
 	// Finer-grained than the three notifyOn* booleans above, layered on TOP of them — a type in
 	// here is suppressed even when its own coarse category is otherwise on (see
 	// accounts/models.py's Profile.muted_notification_types for the full reasoning). Same

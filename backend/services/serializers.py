@@ -66,6 +66,12 @@ class ServiceSerializer(serializers.ModelSerializer):
             'location_label',
             'location_lat',
             'location_lon',
+            # Both read by the booking UI to decide what to SAY about the slots it renders, not just
+            # to render them — see booking/models.py. Exposed on the public read shape because a
+            # student is entitled to know which of the two meanings of "available" they are looking
+            # at before they act on it.
+            'availability_mode',
+            'session_minutes',
             'average_rating',
             'review_count',
             'created_at',
@@ -130,7 +136,18 @@ class ServiceWriteSerializer(serializers.ModelSerializer):
             'location_label',
             'location_lat',
             'location_lon',
+            'availability_mode',
+            'session_minutes',
         ]
+
+    def validate_session_minutes(self, minutes):
+        # A floor and a ceiling, both real rather than defensive. Below 15 minutes a session is not a
+        # tutoring appointment, and the slot grid a published window slices into becomes unreadable;
+        # above 8 hours nothing a weekly rule can express would ever contain one, so it would produce
+        # a listing with permanently empty availability and no visible reason why.
+        if not (15 <= minutes <= 480):
+            raise serializers.ValidationError('A session must be between 15 minutes and 8 hours.')
+        return minutes
 
     def validate_course_slugs(self, slugs):
         courses = list(Course.objects.filter(slug__in=slugs, published=True))
