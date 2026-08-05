@@ -5,6 +5,7 @@
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type {
+		AvailabilityMode,
 		Course,
 		Service,
 		ServiceCurrency,
@@ -52,6 +53,14 @@
 	let locationLabel = $state(untrack(() => initial?.location?.label ?? ''));
 	let locationLat = $state<number | null>(untrack(() => initial?.location?.lat ?? null));
 	let locationLon = $state<number | null>(untrack(() => initial?.location?.lon ?? null));
+	// How the availability students see is computed for THIS listing — the load-bearing choice the
+	// whole booking feature turns on. Presented as two radios with a sentence each rather than a
+	// select, because the difference between them is a paragraph, not a word, and a tutor picking
+	// `declared` should be reading what it means at the moment they pick it.
+	let availabilityMode = $state<AvailabilityMode>(
+		untrack(() => initial?.availabilityMode ?? 'derived')
+	);
+	let sessionMinutes = $state(untrack(() => String(initial?.sessionMinutes ?? 60)));
 	let submitting = $state(false);
 	let errorMessage = $state('');
 
@@ -91,7 +100,9 @@
 				// stale pin here would just be asking it to.
 				locationLabel: needsLocation ? locationLabel : '',
 				locationLat: needsLocation ? locationLat : null,
-				locationLon: needsLocation ? locationLon : null
+				locationLon: needsLocation ? locationLon : null,
+				availabilityMode,
+				sessionMinutes
 			});
 		} catch {
 			errorMessage = m.services_saveFailed();
@@ -185,6 +196,37 @@
 		</div>
 	{/if}
 
+	<fieldset class="field mode-field">
+		<legend>{m.booking_field_availabilityMode()}</legend>
+		<!-- Deliberately spelled out on the form rather than left to a help page: `declared` is a
+		     promise the tutor is making to students about what "available" will mean on their
+		     listing, and nobody should discover which promise they made afterwards. -->
+		{#each [{ value: 'derived', label: m.booking_mode_derived(), hint: m.booking_mode_derivedHint() }, { value: 'declared', label: m.booking_mode_declared(), hint: m.booking_mode_declaredHint() }] as option (option.value)}
+			<label class="mode-option">
+				<input
+					type="radio"
+					name="availability-mode"
+					value={option.value}
+					checked={availabilityMode === option.value}
+					onchange={() => (availabilityMode = option.value as AvailabilityMode)}
+				/>
+				<span>
+					{option.label}
+					<small>{option.hint}</small>
+				</span>
+			</label>
+		{/each}
+	</fieldset>
+
+	<label class="field session-field">
+		<span>{m.booking_field_sessionMinutes()}</span>
+		<!-- type="text", not "number", for the same reason the hourly rate above is: bind:value on a
+		     number input hands back a real JS number, and ServiceDraft keeps this a string until
+		     submit. -->
+		<input type="text" inputmode="numeric" pattern="[0-9]*" bind:value={sessionMinutes} />
+		<small>{m.booking_field_sessionMinutesHint()}</small>
+	</label>
+
 	{#if initial}
 		<label class="checkbox">
 			<input type="checkbox" bind:checked={isActive} />
@@ -233,6 +275,11 @@
 	.field-legend {
 		font-weight: 600;
 		font-size: var(--font-size-sm);
+	}
+	.session-field small {
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
+		font-weight: 400;
 	}
 
 	.service-form {

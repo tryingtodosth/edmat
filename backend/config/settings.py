@@ -133,6 +133,15 @@ INSTALLED_APPS = [
     'services',
     'messaging',
     'telemetry',
+    'identity',
+    'classroom',
+    # Booking sessions with a tutor — attaches to `services.Service` rather than being a marketplace
+    # of its own, and hides behind the same `tutoring` feature flag. See booking/models.py.
+    'booking',
+    # One-off happenings people organise — a guest lecture, a workshop, an exam-prep meetup.
+    # Deliberately its own app rather than a variant of classroom or booking; see events/models.py
+    # for why neither of those is the same shape.
+    'events',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
@@ -526,3 +535,35 @@ if _HTTPS_READY:
     SECURE_HSTS_PRELOAD = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+# --- Identity: sign-in provider drafts and the USOS ground ---------------------------------------
+# Every one of these is deliberately empty. The `identity` app reads them at request time and
+# reports what is missing (identity/providers.py's `blockers_for`, identity/usos.py's `_blockers`),
+# which is what the frontend's connection modal renders — so configuring a real client here is what
+# makes the UI stop describing that provider as a draft, with no copy to edit anywhere.
+#
+# Shape:
+#   EDMAT_OAUTH_CLIENTS = {'google': {'client_id': '...', 'client_secret': '...'}, ...}
+#   EDMAT_USOS_CREDENTIALS = {'uw': {'consumer_key': '...', 'consumer_secret': '...'}, ...}
+#
+# USOS credentials are keyed by school slug because USOS API issues them per institution, by that
+# institution, after a request a person there approves — there is no global key, and pretending
+# otherwise in the config shape would hide the real rollout cost.
+EDMAT_OAUTH_CLIENTS: dict[str, dict[str, str]] = {}
+EDMAT_USOS_CREDENTIALS: dict[str, dict[str, str]] = {}
+
+# The public origin a provider would redirect back to. Until this exists there is no address to
+# register as a callback, which is why it counts as a blocker in its own right.
+EDMAT_OAUTH_REDIRECT_BASE = os.environ.get('EDMAT_OAUTH_REDIRECT_BASE', '')
+
+# Swaps the USOS seam for a stand-in that answers like the real API (respecting granted scopes and
+# per-installation capabilities) so the import, consent and standing paths are genuinely exercised
+# by the test suite rather than merely plausible. Never a way to verify a real person: it talks to
+# no university, and the UI says so wherever it is on.
+EDMAT_USOS_MOCK = os.environ.get('EDMAT_USOS_MOCK', 'false').lower() == 'true'
+
+# Linked from the sign-in connection modal — a draft is only honest if the reader can go and see
+# what is actually planned (LAUNCHCHECKLIST.md §3a).
+EDMAT_REPOSITORY_URL = os.environ.get(
+    'EDMAT_REPOSITORY_URL', 'https://github.com/tryingtodosth/edmat'
+)

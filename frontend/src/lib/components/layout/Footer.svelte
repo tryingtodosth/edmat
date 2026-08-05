@@ -10,7 +10,12 @@
 		<p class="muted">{m.footer_phaseNote()}</p>
 		<!-- With no consent banner, this link is the site's standing disclosure — so it belongs
 		     somewhere permanent and on every page, not behind a dialog. -->
-		<p><a href={resolve('/privacy')}>{m.footer_privacy()}</a></p>
+		<p class="site-footer__links">
+			<a href={resolve('/privacy')}>{m.footer_privacy()}</a>
+			<!-- Beside the privacy link rather than in the navbar: both are standing explanations of how
+			     the site treats you, wanted occasionally and never mid-task. -->
+			<a href={resolve('/levels')}>{m.footer_levels()}</a>
+		</p>
 	</div>
 </footer>
 
@@ -30,5 +35,10 @@
 	}
 	.muted {
 		color: var(--text-secondary);
+	}
+	.site-footer__links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1) var(--space-4);
 	}
 </style>

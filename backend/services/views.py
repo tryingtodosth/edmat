@@ -2,6 +2,7 @@ import math
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.utils import timezone
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -214,6 +215,39 @@ class ServiceViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return self._respond_full(serializer.instance, status.HTTP_200_OK)
+
+    def destroy(self, request, *args, **kwargs):
+        """Refused while somebody still has a live session booked against this listing.
+
+        `Booking.service` cascades, so deleting the listing would take real, agreed appointments with
+        it — silently, and from the student's side as well as the tutor's. The listing is not the
+        appointment, and a tutor withdrawing an offer is not the same act as standing somebody up.
+
+        `Pause` is the answer offered instead, and it already exists (`is_active`): it takes the
+        listing out of every browse and refuses new bookings, while leaving the ones already agreed
+        intact. Once those have been through their own lifecycle — completed, declined or cancelled —
+        the delete goes through.
+
+        The import is local because services and booking each need the other: booking is built on
+        Service, and this one rule is the single place the dependency runs back the other way.
+        """
+        from booking.models import OPEN_STATUSES, Booking
+
+        instance = self.get_object()
+        live = Booking.objects.filter(
+            service=instance, status__in=OPEN_STATUSES, ends_at__gte=timezone.now()
+        ).count()
+        if live:
+            return Response(
+                {
+                    'detail': (
+                        'This listing has upcoming bookings. Pause it instead, or cancel them first.'
+                    ),
+                    'live_bookings': live,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['get', 'post'])
     def comments(self, request, pk=None):

@@ -483,6 +483,20 @@ enrolled person, which of them they are, and what they study. It is a far strong
 - [ ] **Request the narrowest scopes that work.** Identity and enrolment are needed; grades are not,
   and must never be requested. Asking for more than is used is both a privacy failure and a reason
   for the university to refuse the registration.
+  - **Amended, because the two halves of this turned out not to conflict.** A person may now choose
+    to transfer their own diploma and transcript. That does not weaken the rule above — it makes
+    grades a **second, separate authorization** the account holder initiates, never part of the
+    default grant (`identity.usos.BASE_SCOPES` vs `GRADES_SCOPE`). The registration request should
+    say exactly that, since "an optional scope the user asks for" is a very different thing to ask a
+    university for than "a scope we always take".
+
+> **Status: the ground is built, the connection is not — see CLAUDE.md Section 17S.**
+> `backend/identity/` has the models, the consent model, the per-institution seam
+> (`active_connector()` is the one line a real client replaces), the standing calculation, and 36
+> tests exercising all of it through a stand-in connector. What remains is genuinely the two items
+> above: an OAuth 1.0a client, and a consumer key from each university. Also built alongside it:
+> **School/Google/Apple/GitHub sign-in as honest drafts** — each button opens a modal computed from
+> real settings describing what exists and what is missing, and none of them can sign anybody in.
 
 **What connecting grants**, all of it immediate:
 

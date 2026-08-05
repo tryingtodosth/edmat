@@ -1,6 +1,12 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
+from .profile_extras import (
+    ExperienceViewSet,
+    SkillViewSet,
+    UserActivityView,
+    UserProfileExtrasView,
+)
 from .views import (
     AvatarView,
     DonationLinkViewSet,
@@ -16,6 +22,8 @@ from .views import (
 
 router = DefaultRouter()
 router.register('donation-links', DonationLinkViewSet, basename='donation-link')
+router.register('me/experience', ExperienceViewSet, basename='my-experience')
+router.register('me/skills', SkillViewSet, basename='my-skill')
 
 urlpatterns = router.urls + [
     path('auth/register/', RegisterView.as_view(), name='auth-register'),
@@ -25,6 +33,8 @@ urlpatterns = router.urls + [
     path('auth/me/avatar/', AvatarView.as_view(), name='auth-me-avatar'),
     path('auth/password-reset/', PasswordResetView.as_view(), name='auth-password-reset'),
     path('users/<int:pk>/', UserPublicView.as_view(), name='user-public'),
+    path('users/<int:pk>/extras/', UserProfileExtrasView.as_view(), name='user-extras'),
+    path('users/<int:pk>/activity/', UserActivityView.as_view(), name='user-activity'),
     path('users/<int:pk>/reviews/', UserReviewsView.as_view(), name='user-reviews'),
     path(
         'users/<int:pk>/service-reviews/',

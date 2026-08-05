@@ -7,6 +7,7 @@
 	import { resolve } from '$app/paths';
 	import type { Course, Service, ServiceDraft } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
+	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { getAllCourses } from '$lib/services/taxonomy';
 	import { deleteService, getMyServices, getServices, updateService } from '$lib/services/tutoring';
@@ -106,15 +107,32 @@
 			deliveryMode: service.deliveryMode,
 			locationLabel: service.location?.label ?? '',
 			locationLat: service.location?.lat ?? null,
-			locationLon: service.location?.lon ?? null
+			locationLon: service.location?.lon ?? null,
+			// Same reasoning as the location fields above, and the type checker caught exactly this
+			// omission when ServiceDraft grew them: rebuilding the whole draft to flip one boolean
+			// means anything left out is erased, so pausing a listing would otherwise have silently
+			// reset how its availability is computed.
+			availabilityMode: service.availabilityMode,
+			sessionMinutes: String(service.sessionMinutes)
 		});
 		myListings = myListings.map((s) => (s.id === updated.id ? updated : s));
 	}
 
+	let deleteError = $state('');
+
 	async function handleDelete(id: string) {
 		if (!confirm(m.services_deleteConfirm())) return;
-		await deleteService(id);
-		myListings = myListings.filter((s) => s.id !== id);
+		deleteError = '';
+		try {
+			await deleteService(id);
+			myListings = myListings.filter((s) => s.id !== id);
+		} catch (e) {
+			// The backend refuses to delete a listing somebody still has a session booked against — a
+			// listing is an offer, a booking is an agreement, and deleting the first must not silently
+			// take the second with it. Its own message names the alternative (pause), so it is shown
+			// rather than swallowed into a generic failure.
+			deleteError = e instanceof ApiError && e.status === 409 ? e.message : m.services_saveFailed();
+		}
 	}
 
 	async function handleEditSubmit(id: string, draft: ServiceDraft) {
@@ -237,12 +255,25 @@
 					</li>
 				{/each}
 			</ul>
+			{#if deleteError}
+				<p class="delete-error">{deleteError}</p>
+			{/if}
 		{/if}
 	</div>
 </FeatureGate>
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
+	.filters {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-3);
+	}
+
+	.delete-error {
+		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		align-self: flex-start;
+	}
 	.filters {
 		display: flex;
 		flex-wrap: wrap;

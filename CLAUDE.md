@@ -40,6 +40,21 @@ rate limiting in the next, alongside author/source-link provenance on material s
 **Tutor offers then gained a real online/in-person/hybrid distinction with OpenStreetMap-backed
 locations — a Nominatim address search and a Leaflet map picker, plus a "within N km" filter —
 337 tests total, all passing, see Section 17R.**
+**Those offers can now be booked: a tutor publishes weekly hours plus one-off blocks and openings, and
+decides PER OFFERING whether the availability students see is their real free time minus what is taken
+(`derived`) or a fixed published window that keeps showing regardless (`declared`) — two genuinely
+different promises, both stated in words on screen so nobody mistakes one for the other. Availability
+then gained the two views people already know — a week against a time axis and a month at a glance,
+on both sides of the feature — 24-hour and Monday-first by default, with 12-hour and Sunday as real
+settings rather than whatever the interface language implies. 564 tests total, all passing, see
+Section 17U.**
+**Then: one-off events (a guest lecture, a workshop, an exam-prep meetup) as their own `events` app —
+deliberately neither a course nor a booking, with attendance, capacity, a private-to-attendees roster,
+its own kill switch that removes every LINK to the feature as well as the pages behind it, and a real
+decision recorded about whether they occupy a tutor's schedule (they appear on it; they never withdraw
+hours students are offered). Shipped alongside a navbar rebuilt from a flat row of ten links into three
+groups — browse, one "Add…" menu, one account menu — and a homepage that is now five tabs rather than
+exercises alone. 624 tests total, all passing, see Section 17V.**
 This document is the living spec for
 everything that follows: requirements, user stories, data model, and the build plan. It is annotated
 inline with a status legend (below) so it can keep serving as the source of truth as later phases
@@ -1255,6 +1270,129 @@ persisted server-side (not just a local UI state); unchecking the parent categor
 its own sub-list, and re-checking it correctly restored the sub-list with the earlier per-type mute
 still shown, unaffected by the toggle. `npm run check`/`lint` and `manage.py check` all clean
 throughout.
+
+## Courses, overhauled — many admins, contributed content, chapters, invite links (built)
+
+The course feature above shipped with exactly one privileged person, content only its instructor
+could add, no grouping, and no way in except asking. Four things changed, and they interlock.
+
+### Many people run one course (`CourseStaff`)
+
+`TaughtCourse.instructor` stays as the denormalized owner — every existing byline, listing and
+`mine=teaching` filter already reads it — but permissions now come from a real `CourseStaff` row per
+person. **Three roles, not a boolean**, because the useful distinction is not "trusted or not" but
+which job somebody was brought in to do: an `assistant` curates content and acts on participants, an
+`admin` also changes the course itself and its staff, and the `owner` additionally can delete it.
+
+- **The owner row is real data, not an implied special case**, so `role_of()` is one lookup with no
+  "…or the instructor field" branch at every call site. A partial unique index enforces one owner per
+  course in the database rather than in whichever view remembers.
+- **`TaughtCourse.save()` creates it, not the viewset.** The first attempt put it in `perform_create`
+  and 16 existing tests broke — the honest signal that "every course has an owner" is an invariant of
+  the model, since seed commands, fixtures and the admin create courses too. Every one of them would
+  otherwise have produced a course nobody, including its author, had any permission over.
+- **The owner can never be demoted or removed through the API.** A course whose owner a co-admin could
+  evict is a course that can be taken hostage, and it would leave nobody able to grant roles back.
+- **Promoting a participant retires their enrolment**, so one person never counts twice against
+  capacity — the same rule `enrollment_block_reason` already stated for the instructor, now true for
+  every member of staff.
+- Eight scattered `instructor_id == user.pk` checks became `can_administer` / `can_curate` /
+  `is_staff_member`, each picked for what that endpoint actually guards. That scattering is precisely
+  the shape that goes wrong when a second kind of privileged person appears.
+
+### Content can be contributed, and usually waits (`CourseItem`)
+
+One model for two jobs that turn out to be the same job: staff filing content into a chapter, and a
+participant offering something for review, differ only in what `status` starts as. Splitting them
+would mean an approved contribution became a different row, losing who submitted it — the single most
+useful thing to keep.
+
+`contribution_policy` is `staff` / `approval` / `open`, defaulting to **`approval`** because it is the
+only value safe to pick on somebody's behalf: an unattended course neither accepts strangers' uploads
+silently nor silently refuses a participant who has something worth adding.
+
+- **Content is referenced, never copied**, exactly as `Lesson` already does — a corrected exercise
+  stays corrected everywhere and a course never becomes a diverging fork of the corpus.
+- **Staff never queue behind themselves**: approving your own upload is a click that means nothing,
+  and it would make the review queue mostly noise.
+- **A pending item is visible to staff and to its own submitter, and to nobody else.** The submitter
+  half matters: somebody who submits and then cannot find their material assumes it failed.
+- **Every member of staff is notified**, not the owner alone — a queue that notifies one person is a
+  queue that stalls whenever that person is away.
+- A rejection carries a reason. Two partial unique constraints (not one over both columns) stop the
+  same thing being added twice, because NULLs do not compare equal in SQL.
+
+### Chapters, and dates that open them (`Chapter`)
+
+Time-gating lives on the chapter rather than on each item, because that is how a course is actually
+run: "week 3 opens on the 14th" is one decision about a group of things, and setting the same date
+nine times is nine chances to get it wrong.
+
+**A locked chapter still renders** — title, description and unlock date — while its contents do not.
+Hiding it entirely would make a course look shorter than it is, and "there is a week 3 and it opens on
+the 14th" is information a participant should have. Staff read it early, and are still told it is
+shut, because they are the people who have to prepare it. `unlocks_at = NULL` means never gated, which
+is genuinely different from a date that has passed.
+
+Deleting a chapter keeps its content, unfiled — the deletion is a statement about the grouping, not
+about what somebody put in it, which is why `CourseItem.chapter` is `SET_NULL`.
+
+### Invite links (`CourseInvite`)
+
+A token addressed directly (`/api/course-invites/<token>/`), not nested under a course id, because
+somebody holding a link has the token and nothing else — that is what makes it shareable.
+
+- **It bypasses the approval queue** — the sender already made that decision — but **never capacity**.
+  Quietly seating an invited guest over the limit would break the promise the limit makes to everybody
+  already in. The use count is incremented under `select_for_update`, so two people racing for the
+  last use cannot both win.
+- **`owner` is deliberately not an invite role.** Transferring a course is a decision about a named
+  person, never something left lying in a URL.
+- **Revoking is a timestamp, not a delete**, so a dead link keeps its use count and the record of who
+  killed it.
+- The preview is **readable logged out** — telling somebody to sign up without saying what for is how
+  an invite gets ignored — and deliberately thin: a title and who runs it, never the roster or the
+  content, because the token travels through group chats. The page is `noindex`.
+
+### Also this round
+
+The course author's name in the header is now a **link to their profile**. Split into a prefix plus
+the name rather than interpolating one message, since only the name should be the link; safe for both
+locales here because "Run by {name}" and "Prowadzi {name}" both end in the placeholder. The card in
+listings deliberately keeps plain text — the whole card is already an `<a>`, and nesting anchors is
+invalid HTML.
+
+### Verified
+
+**493 backend tests** (86 in `classroom`, up from 51) and **`e2e/classroom-overhaul.mjs`, 29 browser
+checks, zero console/page errors**: a co-admin editing but not deleting, a locked chapter legible to
+both sides, a contribution invisible until **the co-admin** (not the owner) approved it, a link
+previewed logged out then followed into the course, and a revoked link refused. `e2e/classroom.mjs`
+re-run: **44/44, no regressions**. `npm run check`: 0 errors, 0 warnings. `npm run build`: clean.
+
+One diagnosis worth recording: the pre-existing browser script began failing at registration
+mid-session with no code change involved. It was the real per-IP registration throttle, exhausted by
+this session's own runs — the app working as designed. Restarting the API clears the cache it lives
+in. Also, editing files while a browser script runs triggers a Vite HMR reload underneath it and
+produces failures that look like regressions and are not.
+
+### Left open, not built
+
+- **No people search**, so adding staff is by account id from a profile URL. The honest stopgap, but
+  the first thing a real deployment would need.
+- **No content picker**: contributing is likewise by material/exercise id. The submit flow for genuinely
+  new uploads is still the existing `/submit-material`, untouched.
+- **Chapter locking does not reach lesson content.** A material inside a locked chapter is still
+  reachable if staff also attached it to a lesson. That is a configuration somebody chose rather than a
+  bypass, but the two surfaces do not know about each other.
+- **Chapters cannot be reordered or edited in place** from the UI — only created and deleted. `order`
+  and `description` exist on the model and in the API.
+- **No transfer of ownership**, by design for now: the owner row is immutable through the API, so
+  handing a course over needs a real "transfer" action that does not exist yet.
+- **An invite cannot be edited** — no changing its expiry or use count after minting. Revoke and mint
+  another.
+- **Unlock dates have no timezone UI.** The input is the browser's local time and the API stores an
+  aware datetime; a course run across timezones would want to say which one it means.
 
 ### Left open, not built
 
@@ -3670,6 +3808,1315 @@ All scratch listings created during verification were deleted afterward, confirm
   volume should self-host or use a commercial geocoder.
 - **The 1/second gate is per-process** until a shared cache is configured — the same caveat, and the
   same one-line fix, as the auth throttles in Section 17Q.
+## 17S. Feature: sign-in provider drafts, and the USOS ground (✅ built — drafts on the front, real ground behind them)
+
+Two halves of one feature, and they are at deliberately different stages: **four sign-in providers
+(School, Google, Apple, GitHub) as honest drafts**, and **the ground for USOS connections** — real
+models, a real seam, real consent, real tests — which is what turns a sign-in into a verified
+student, a transferred diploma and a transferred transcript, each only if the person wants it.
+
+Everything lives in one new Django app, `backend/identity/`, plus `frontend/src/lib/components/auth/`
+and `frontend/src/lib/components/settings/EducationPanel.svelte`.
+
+### Why the buttons are drafts, and what "draft" means here concretely
+
+The instruction was explicit: clicking a provider button should open a modal describing the current
+state of that connection and linking to the repository. So there is **no mock handshake anywhere** —
+a draft that quietly signed somebody in would be considerably worse than an honest button, and the
+Django suite pins that (`test_no_provider_endpoint_can_authenticate_anybody`).
+
+**The configuration, though, is real.** Every endpoint is the provider's own published URL, every
+scope is one EdMat would genuinely request, and each carries the quirk that actually breaks a first
+integration:
+
+- **Apple** POSTs its response (`response_mode=form_post`) the moment any scope is requested, so a
+  callback route that only accepts GET never runs at all; it sends the user's name **exactly once**,
+  on the first authorization only; and its client secret is a short-lived ES256 JWT that must be
+  regenerated, not a fixed string.
+- **GitHub** is plain OAuth 2.0, so the token carries no identity: `/user` for the profile, and a
+  second call to `/user/emails` because the email there is frequently `null` — and only the entry
+  flagged verified may ever be trusted.
+- **Google** is OIDC, so the `id_token` already carries identity and the userinfo call is a wasted
+  round trip; what the callback owes instead is real token verification.
+- **School** is SAML 2.0 federation in practice, not OAuth — which is why it shares no code with the
+  three above, and is the only one that could ever return `eduPersonAffiliation`, the attribute that
+  actually distinguishes a student from an alumnus from staff.
+
+**What is missing is one thing per provider — a client id and secret** — and the modal computes that
+rather than asserting it. `providers.blockers_for()` reads `settings.EDMAT_OAUTH_CLIENTS`, so
+configuring a real client is what makes the UI stop calling that provider a draft, with **no copy to
+remember to edit anywhere**. That is the whole reason the modal is a fetch rather than a paragraph in
+a Svelte file, and it is tested directly
+(`test_the_state_is_computed_from_settings_not_hardcoded`).
+
+The modal also lists **what a real callback must check** — `state`, single-use code, server-side
+exchange, full `id_token` verification on the OIDC two, and the never-adopt-an-account-on-an-
+unverified-email rule for GitHub. Written down because these are the parts that are easy to skip and
+expensive to skip: none of them is visible in a flow that otherwise appears to work.
+
+### The school picker is load-bearing, not decorative
+
+`identity.School` — 23 institutions seeded by data migration (PL, plus UA/CZ/DE), each with
+`email_domains`, a grade scale, and `usos_base_url`. Matching on a domain is strict — exact domain or
+a subdomain of one — so `@wne.uw.edu.pl` counts and `uw.edu.pl.example.com` does not, since a looser
+rule would let anybody mint a verification badge by registering a hostname.
+
+A blank `usos_base_url` is a **statement, not missing data**: that institution runs no USOS
+installation, so the UI says so instead of offering a button whose only possible outcome is failure.
+Secondary schools are deliberately not enumerated (tens of thousands in this market), so "my school
+is not listed" is a real first-class answer carrying no verification — the honest outcome rather than
+a gap.
+
+### USOS: what specifically blocks a real connection, and it is not code
+
+`identity/usos.py`. USOS API issues credentials **per institution, by that institution, to a named
+application, after a request a human there approves.** There is no global key — twelve universities
+is twelve registrations — and that is encoded in the design (`UsosCredentials` keyed by school slug,
+capabilities probed per installation) rather than discovered later by a client that assumed one.
+
+Three things recorded because a first implementation usually gets them wrong: **it is OAuth 1.0a**
+(HMAC-SHA1, three legs — an OAuth 2 library does not apply, which is exactly why this shares nothing
+with the three consumer providers); **scopes are granular and asked for up front**, so `studies` does
+not include `grades`; and **installations genuinely differ**, so capabilities are probed.
+
+`active_connector()` is the **one line** a real client replaces. The default,
+`UnconfiguredUsosConnector`, verifies nobody — so a half-finished deployment cannot accidentally
+appear to. `MockUsosConnector` (behind `EDMAT_USOS_MOCK`, never on by default) exists so the ground
+is genuinely exercised by the test suite against the same interface a real client will implement,
+rather than being plausible-looking code nobody has run; it respects granted scopes and per-
+installation capabilities, so a UI bug that forgets to request a scope fails there rather than in
+production. There is **no `if mock` branch in any UI**.
+
+**There is deliberately no access-token column.** A real token carrying `offline_access` is a
+long-lived credential to somebody's academic record, and this project ships an unencrypted SQLite
+file. It belongs in an encrypted store keyed by the link row, and adding a plaintext column now would
+be laying exactly the wrong ground.
+
+### Grades: reconciling §3a with what was actually asked for
+
+LAUNCHCHECKLIST §3a says grades "are not [needed], and must never be requested" — because asking for
+more than is used is both a privacy failure and a reason for a university to refuse the registration.
+The requested feature is that a person *may* transfer their diploma and transcript if they want to.
+
+**Both hold, because they are two different authorizations.** `BASE_SCOPES` is what an ordinary
+connection asks for (`studies`); grades are added only by an explicit, separate act by the account
+holder. The registration request to each university should say exactly that — an optional,
+user-initiated scope, not part of the default grant. Attempting an import without it is refused with
+the real reason and the scope name, not a generic failure
+(`test_grades_need_their_own_authorization`).
+
+### Transfer and consent are never the same click
+
+`EducationSharing` is three independent flags that all start `False`, and **a student who connects
+USOS to prove they are a student and never shows a single mark is the case this is shaped around**,
+not an edge case it tolerates. Importing touches no consent flag at all
+(`test_importing_publishes_nothing`), and the public profile renders one field at a time as each is
+allowed (`test_consent_is_granted_one_field_at_a_time`). The gating lives server-side in
+`standing.public_view`, so the frontend cannot leak something by forgetting a condition.
+
+`weighted_average` is ECTS-weighted, because that is how every institution here computes it — an
+unweighted mean across a 30-credit thesis and a 2-credit elective is not an average of anything — and
+it **refuses to mix scales**, returning `None` for a transcript containing ECTS letters rather than
+inventing a mapping onto the Polish 2–5 scale that no registrar would sign.
+
+Changing your declared institution drops every claim it backed; disconnecting USOS falls back to the
+school-email verification rather than to nothing, since that one was never USOS's to grant.
+
+### The "boost" is §3's verification ceiling, implemented rather than reinvented
+
+`identity/standing.py`. LAUNCHCHECKLIST §3 already defines
+`effective_tier = max(usos_tier, min(rep_tier, verification_ceiling))`. Reputation does not exist
+yet, so this module owns **exactly one term** — the ceiling — computed from §3's own ladder. When REP
+lands it supplies the others and this needs no revision.
+
+Four rules it follows:
+
+1. **It is a ceiling on capability, never authority.** §2b is explicit: mod level is never granted by
+   identity. A verified first-year may upload, link, review and comment freely, and may do nothing
+   whatsoever to anybody else's work — asserted directly (`test_connecting_grants_no_authority`).
+2. **It is fully itemised.** `reasons` is the entire computation and the UI renders every line.
+3. **It cannot be earned by typing.** Self-declaring a school is worth one step and no more. An
+   institutional address is **not** counted as verification at all, because EdMat has no
+   email-confirmation flow — a verification obtainable by typing would be worth exactly as much to
+   somebody lying. The UI explains that rather than silently granting nothing
+   (`school_email_eligible`), which is also the sharpest argument yet for building confirmation.
+4. **Capability never depends on publishing.** Skill seeded from a transcript comes from the import,
+   not the consent to display it, so nothing pressures anybody into publishing marks to keep up
+   (`test_publishing_does_not_change_what_you_may_do`).
+
+`CourseGrade.matched_course` is why a transcript is worth more here than a badge: §3a's "seeded SKILL
+from real enrolment". A result in a course the registry names maps onto `taxonomy.Course` directly —
+someone who passed Analiza Matematyczna II has an institutionally-attested claim no amount of
+upvoting establishes as cheaply. Matching is deliberately conservative; an unmatched result is kept
+but never placed, since a wrong match would attach competence to the wrong corner of the site.
+
+### Verified
+
+`backend/identity/tests.py` — **36 tests**. Full backend suite afterwards: **391 tests, OK, zero
+regressions**. `frontend/e2e/education-auth.mjs` — **42 checks in a real browser against both
+servers, zero console/page errors**, covering the part only a browser can confirm: all four drafts
+offered and labelled as drafts on the button itself, each modal describing its own provider's real
+quirk and blockers, the repository link, Escape closing it, the school picker distinguishing a
+university that runs USOS from one that does not, **no session created by any of it**, then the whole
+connect → transfer → consent → un-publish → delete loop. `npm run check`: 0 errors, 0 warnings.
+`npm run build`: clean. Both locales carry all 70 new keys.
+
+### Left open, not built
+
+- **No real redirect for any provider**, and no callback route — the checks it owes are written down
+  rather than implemented.
+- **No account-linking UI**, and no way to unlink.
+- **The `school` provider is SAML in the design and an email-domain check in reality**, which is a
+  genuinely weaker claim and is labelled as one everywhere it appears.
+- **USOS installation URLs are the conventional `usosapi.<host>` form and unverified** — several
+  institutions deviate, so each must be confirmed against the consortium's registry.
+- **Course matching is name-based**, best-effort; a real mapping is per-university course codes.
+- **Transcripts are re-imported wholesale, never diffed** — no history, no "this changed", no
+  re-sync prompt when a link goes stale.
+- **Education data sits in the same SQLite file as everything else.** For a transcript that is a
+  materially worse thing to be casual about than a cart; real storage, a consent audit trail and a
+  GDPR answer belong with the deployment question, not this round.
+
+## 17T. Feature: courses run by users, and taking part in them (✅ built, full stack)
+
+People can now run a course here, and other people can join it. A new Django app, `classroom/`, plus
+`/classroom` on the frontend.
+
+### The name, first, because it is the one decision everything else inherits
+
+`taxonomy.Course` already exists and means a *przedmiot* — a university subject like Analiza
+Matematyczna II, which nobody runs and nobody enrols in. What this adds is the other Polish word, a
+*kurs*: something a person teaches over time to a group who sign up. English collapses the two onto
+one word; the code must not.
+
+`/api/courses/` and the frontend's `/courses/[course]` are both already the taxonomy's, so this is
+not merely a readability preference — the namespace is genuinely occupied. Renaming
+`taxonomy.Course` to `Subject` would be the tidier long-term fix and was rejected as far too much
+collateral for a naming preference: it reaches into migrations, the corpus importer, the API and the
+frontend's routes. So the new thing takes the new name — **model `TaughtCourse`, app `classroom`,
+API `/api/taught-courses/`, route `/classroom`** — and **users never see any of it**: in both
+locales it is simply "Courses" / "Kursy", because a visitor should not pay for an internal
+disambiguation.
+
+### What a course is, and the states that are deliberately not booleans
+
+`status` is one field (`draft → open → running → finished`) rather than `is_published` +
+`is_finished`, for the same reason `Service.delivery_mode` already gives: two booleans make an
+illegal state representable — finished but never published — that every read site would then have to
+defend against.
+
+**A course starts as a draft and is invisible to everyone but its instructor.** Creating something is
+not announcing it. That is enforced by queryset filtering rather than a permission check, so a draft
+is absent from every listing for free instead of being hidden by a rule each new endpoint has to
+remember, and a stranger poking at one gets a 404 — which is also the honest answer, since for them
+it does not exist.
+
+`enrollment_policy` is `open` (anyone, immediately) or `approval` (the instructor decides). Not a
+boolean, so a third policy — an invite code, say — is a value rather than a schema change.
+`capacity = 0` means uncapped, which is genuinely different from a large limit and is the right
+default for a reading group nobody intends to cap.
+
+`Enrollment.status` has five values, and the three endings are separate on purpose: someone who
+**left** may re-join, someone **removed** may not, and a **declined** request is a decision rather
+than an absence. One `inactive` flag would throw away exactly what both parties need to see later.
+One row per person per course, reused across leaving and re-joining, so "am I in this?" stays a
+single lookup with a single answer.
+
+### Why the refusal reason travels to the client
+
+`TaughtCourse.enrollment_block_reason()` returns *why* somebody cannot join — not a boolean — and the
+API passes it through. "This course is full" and "the instructor removed you" are the same refusal to
+a boolean and completely different to a person: one is a matter of waiting, the other is not. The
+frontend has a line for each of the six.
+
+The cap is enforced on **both** paths — joining and the instructor approving — because a limit that
+only holds on one of them is not a limit. Lowering a cap below the people already admitted is refused
+rather than silently leaving the course over capacity or, far worse, dropping somebody already let
+in.
+
+### Lessons: public blurb, participant-only notes
+
+A lesson's title and description are public so somebody can judge whether to join; `participant_notes`
+is the part worth joining for and is blanked for anybody who is not in the course. Blanked rather than
+omitted, so the response shape never changes with the caller and no client has to branch on whether a
+key exists. A **pending** request does not unlock it — asking is not joining.
+
+Lesson content *references* existing exercises and materials rather than copying them, so a corrected
+exercise stays corrected everywhere and nothing here becomes a second, silently diverging copy of the
+corpus.
+
+### The roster is not public
+
+A course roster is a list of real people. Participants see each other; the instructor additionally
+sees pending requests, since acting on them is their job; a stranger browsing the catalogue gets a
+403. The course page still shows a participant *count*, which is what somebody deciding whether to
+join actually needs.
+
+### A kill switch, like every other feature surface here
+
+`FeatureFlag('classroom')`, seeded on, gating every action including reads — the same `feature_gate`
+contract `tutoring` and `messaging` already use, with the same `is_staff` bypass so a moderator can
+still manage what exists while the feature is off.
+
+### Verified
+
+`backend/classroom/tests.py` — **28 tests**, weighted towards the boundaries that fail silently: a
+draft is invisible, a roster is not public, a full course refuses on both paths, a removed person
+cannot walk back in, participant notes stay out of an outsider's response, and the creator becomes
+the instructor regardless of what was posted. Full backend suite afterwards: **419 tests, OK**.
+
+`frontend/e2e/classroom.mjs` — **29 checks in a real browser, three separate accounts in three
+separate contexts, zero console/page errors**: the same page rendering three different things to a
+stranger, a participant and the instructor; the approval flow from both ends including the note the
+applicant wrote; leaving giving the seat back and re-locking the notes; a full course refusing in its
+own words. `npm run check`: 0 errors, 0 warnings. `npm run build`: clean. Both locales carry all 68
+new keys.
+
+One pre-existing test needed updating rather than working around: `moderation`'s own
+`test_list_is_public_and_returns_all_seeded_flags` asserts the exact set of seeded flags, and there is
+now a sixth. That is the intended effect of adding a kill switch, so the expectation was what was
+stale.
+
+
+### Follow-up: discussion, notifications, and a setting for each of them (✅ built)
+
+Three layers of switch, and the reason there are three is that they answer three different
+questions — which is also why none of them could sensibly have been folded into the others.
+
+**Discussion** reuses `community.Comment` through its existing GenericForeignKey, so the thread, the
+tree builder, the report flow and the frontend's `DiscussionThread` all come for free; nothing about
+it is bespoke. `discussion_mode` (`off` / `participants` / `public`) is three values rather than a
+boolean pair for the same reason `status` is one field. **Reading and posting are separate
+questions**: the mode decides who may READ, while posting is always restricted to the people in the
+course. "Anyone may read my course discussion" is a reasonable thing to want; "anyone may post into
+it" is not, and collapsing the two would have made the public mode unusable. Participants-only is the
+default, because the roster is private and lesson notes are participant-only — a discussion that was
+public by default would be the one place a course quietly leaked.
+
+**Notifications** add six types rather than one `course_activity`, because the recipient and the next
+action genuinely differ per event: an instructor gets the request, the applicant gets the answer, and
+a single type would leave the UI unable to say which happened without parsing a label. They carry a
+nullable `Notification.taught_course` FK for the same reason `material` was added earlier — a
+notification you cannot click is markedly less useful than one you can.
+
+Two deliberate silences. **Joining an open course notifies nobody**, since that would be noise
+proportional to the course's popularity and nothing the instructor can act on. And **a pending
+request is never told what is happening inside** — telling somebody not yet admitted about new
+lessons would undo the participants-only rule from the other direction.
+
+**The three switches**, checked at three levels by `notify_course_participants`:
+
+1. the **course's own setting** (`announce_new_lessons` / `announce_new_posts`) — a ten-week seminar
+   posting one lesson a week should announce each; a reading group posting daily should not, and only
+   the instructor knows which they are running;
+2. the **participant's per-course mute** (`Enrollment.notify`), mirroring `TagFollow.notify` exactly —
+   muting one busy course must not cost somebody every other course's notifications, and leaving is
+   far too blunt an instrument for "this thread is noisy";
+3. the **account-wide category** (`Profile.notify_on_course_activity`), which `notify()` applies on
+   its own, plus the existing per-type mute list layered on top of it.
+
+**23 more tests** (51 in `classroom`, 442 across the backend) and **15 more browser checks** (44 in
+`e2e/classroom.mjs`). See `test.md` for what each suite covers and how to run them.
+
+A real bug this round, found by the browser suite rather than by reading: the new copy "The
+discussion is for people taking part in this course" contains the exact phrase an earlier check used
+to detect membership, so a whole-page match began reporting a member as a non-member. The app was
+right and the assertion was ambiguous — now scoped to the section. Recorded because it is the
+failure mode of text assertions generally, and `test.md` says so where somebody writing the next one
+will read it.
+
+### Left open, not built
+
+- ~~**No discussion inside a course.**~~ — built, see above. `community.Comment` already does threaded, reportable
+  discussion for exercises and materials and is the obvious thing to reuse, but it was not wired up
+  here.
+- ~~**No notifications.**~~ — built, see above: six types, three levels of setting.
+- **Subject/field tagging exists in the model and the API but has no picker** — the form preserves
+  whatever is already set rather than offering to change it, so discovery by subject is reachable
+  only through the API today.
+- **Lessons cannot be reordered or edited in place from the UI** (the API supports PATCH); adding and
+  deleting is all the page offers.
+- **Attaching exercises and materials to a lesson is API-only** for the same reason — the picker is
+  its own piece of work, and `My Set` already has one worth borrowing from.
+- **No calendar or reminder anywhere**, despite `scheduled_at` existing.
+- **A price is display-only**, exactly like a tutoring listing's rate: nothing here takes money, and
+  the form says so.
+- **No cap on how many courses one person may run**, and no moderation queue for course content —
+  only the platform-wide kill switch and ordinary reporting elsewhere.
+
+
+### Follow-up: a one-command install, and demo content to install (✅ built)
+
+`setup.sh`, `run.sh`, `MARYSIA.md` — for handing the project to somebody on Ubuntu with nothing
+installed. `MARYSIA.md` is in Polish, because the person it is written for reads Polish and a setup
+guide is exactly the wrong place to make somebody translate as they go.
+
+**The two files are split on purpose**: `setup.sh` builds, `run.sh` starts. Re-running the build
+should never kill a running site, and starting should never rebuild.
+
+**The `.venv`/`node_modules`/database are all created by the script**, so the thing you send is just
+the repository — which is what "ready to send without node/venv" required. Everything a person might
+reasonably want to change is four lines at the top of `setup.sh`; the rest is machinery.
+
+#### Two real bugs, found only by running it on a genuinely clean copy
+
+Both would have hit the recipient and nobody else, which is exactly why testing on a working machine
+would not have caught them:
+
+- **`python3 -c 'import venv'` is not a test for `python3-venv`.** The `venv` module ships with
+  Python itself, so it imports fine on a machine where `python3 -m venv` cannot build a working
+  environment. Ubuntu splits out `ensurepip`, which is what the check now looks for. The first clean
+  run failed exactly the way a new user's would.
+- **Changing the port broke the site silently.** `run.sh` invites you to change the ports, but the
+  API only accepts browser requests from origins it knows, and its built-in allowlist covers the
+  default port only — so a changed port produced "Something went wrong" and no clue. `run.sh` now
+  passes the chosen origin through, and keeps `frontend/.env` in step with the backend port.
+
+#### The demo content, and why profiles needed new models to hold it
+
+`manage.py seed_demo_content` (idempotent, `--reset` to redo) creates four people with real
+histories, reviews with text, threaded comments, three courses with participants, one pending
+request and one draft. It exists because an empty app is genuinely hard to judge: every list says
+"nothing here yet", so a feature that works is indistinguishable from one that does not.
+
+Placing that content required two new models:
+
+- **`ExperienceEntry`** — self-declared, and labelled as such on screen. That is the whole reason it
+  sits next to the education card rather than inside it: one is a claim a person typed, the other is
+  a claim an institution made, and a reader should be able to tell without being told.
+- **`SkillEntry`** — with `evidence` (`self_declared` / `coursework` / `registry`), which is the
+  interesting field. `registry` is **not self-assignable**: the serializer downgrades it, because a
+  value anybody can type is worth what typing costs. It is what `identity.standing.skill_seeds`
+  already computes, so imported USOS grades have somewhere to land.
+
+The **activity feed** (`GET /users/{id}/activity/`) is derived on read rather than stored. A real
+event log would mean touching every mutation and would still miss everything that happened before
+the feature existed — the corpus alone is 742 exercises with a history this app never recorded.
+Tags come from real data (an exercise's own tags, a course's subjects), so filtering by one means
+something, and **undated items sort last rather than being given a fake date**.
+
+**A real API defect the tests caught**: DRF derives uniqueness validators from `unique_together` but
+not from `Meta.constraints`, which is what `SkillEntry` uses — so a duplicate skill label surfaced as
+a 500 rather than a 400. Fixed in the serializer.
+
+**Verified on a genuinely clean copy** (`git write-tree` → `git archive` → no `.venv`, no
+`node_modules`, no database): `setup.sh` ran end to end, `run.sh` started both halves, and a
+17-check browser pass confirmed every promise `MARYSIA.md` makes — courses listed, the draft hidden,
+the demo login working, Piotr's pending request waiting with its note, a profile showing experience,
+skills with their evidence, and an activity feed that filters by tag and re-sorts. 458 backend tests
+(16 new), zero console errors.
+
+## 17U. Feature: booking sessions with a tutor (✅ built, full stack)
+
+A tutor can publish when they teach, and a student can ask for an hour of it. A new Django app,
+`booking/`, plus `/bookings` on the frontend and a booking panel on every tutoring listing.
+
+It attaches to `services.Service` — a tutoring **offering** — rather than inventing a second,
+parallel notion of "a thing you can book". A Service already carried the provider, the courses, the
+rate and the delivery mode; what it had no answer to was *when*.
+
+### The one decision everything else follows from
+
+A tutor chooses, **per offering**, how the availability a student sees is computed. It is a real
+stored field (`Service.availability_mode`) rather than behaviour inferred from anything, because the
+two answers are two different promises to the student and the student is entitled to know which one
+they are looking at:
+
+| Mode | What a slot on screen means |
+|---|---|
+| `derived` | Declared hours **minus** everything already taken — bookings made here, plus any other appointment the tutor recorded as a block. Booking an hour removes it from what the next person sees. |
+| `declared` | A published window that keeps showing **whole** even once part of it is spoken for. Several people can legitimately ask for the same hour. |
+
+`declared` is not `derived` done badly. Plenty of tutors advertise "2–4pm, ask me" and triage the
+clashes themselves, and a system that could only express the tidy version would be telling those
+people they are holding it wrong. What it must not do is let a student *mistake* one for the other,
+so the mode is stated in words above the grid in both cases — including the good one, since a notice
+that only ever appears when something is qualified teaches people to distrust its absence.
+
+**The default is `derived`**, and that is the mode that cannot mislead: it shows less than it might,
+where `declared` can show an hour that is gone. Advertising over-subscribed hours stays available as
+something you turn on having read what it means. Every listing that predates the field gets
+`derived`, which for a tutor who has declared no hours at all shows nothing either way — so the
+default cannot retroactively publish availability nobody claimed.
+
+### What a request means in each mode, decided rather than left to fall out
+
+**Every booking starts as a request, and needs the tutor's confirmation, in BOTH modes.** Nothing in
+this app ever writes a confirmed booking directly. A stranger should not be able to put an
+appointment in somebody's calendar, and a tutor should be free to refuse a particular student without
+having to undo something they never agreed to. **The mode changes what is shown and what is refused,
+never who decides** — which is exactly what stops `declared` from being a hole.
+
+The two modes then meet in **one** function. `is_offered_slot()` asks whether a requested time is
+genuinely one of the slots the listing is publishing *right now*, using the same computation the
+browse endpoint uses, and both modes' entire booking semantics fall out of that one subtraction:
+
+- in `derived`, a slot somebody has already asked for is not in the published list, so the second
+  request is **refused** ("that slot is no longer available");
+- in `declared`, the same slot **is** still in the list, so the second request is **accepted**, and
+  the tutor sorts it out.
+
+Deliberately the same function rather than a separate "does this look reasonable" check, so a student
+also cannot request 03:00 on a Sunday just because they can craft the POST.
+
+**A `requested` booking holds a `derived` slot, not just a `confirmed` one** (`BLOCKING_STATUSES`).
+That is a real choice with a real cost — the first person to ask holds the hour until the tutor
+answers — but the alternative is a slot shown as free, requested by four people, disappointing three.
+That would defeat the entire promise of the mode. The cost is named in "Left open": there is no
+expiry on an unanswered request.
+
+**Confirming two overlapping bookings is refused in both modes.** `declared` is a statement about
+what is *published*, not a claim to be in two places at once; a Booking has exactly one student, so
+allowing it would be silently pretending group sessions exist. It matters in `derived` too, despite
+the request path already refusing overlaps there, because a tutor can switch an offering from
+`declared` to `derived` after the requests have landed.
+
+**Confirming one request does not auto-decline the others.** The tutor may want to counter-offer, or
+may know the other two are the same study group. What they must not have to do is decide blind, so a
+contested request carries a count of what it clashes with — **tutor-only**, since that count is a
+window onto their whole calendar across every listing they run, which is precisely what `declared`
+mode exists to keep private. For a student it is always 0.
+
+For the same reason, a `declared` calendar does **not** return taken slots flagged as taken. Doing so
+would leak the tutor's real load to anybody who opened the page and half-defeat the mode. What the
+student gets instead is the mode said plainly.
+
+### Whose calendar is it — the model shape
+
+**Availability rules belong to the tutor, with an optional narrowing to one offering.** A person has
+one calendar; a tutor with three listings who had to re-declare Tuesday afternoon three times would
+be maintaining three copies of one fact, and the copies would drift, so "when is this person free"
+would depend on which listing you asked. `AvailabilityRule.service` being nullable keeps the narrower
+case anyway ("I only teach Analiza on Thursday evenings").
+
+**Busy time is always computed tutor-wide, across every listing.** An hour booked through the physics
+listing is not available through the maths one. Scoping it per listing would produce exactly that
+double-booking while each listing looked internally consistent.
+
+**`AvailabilityException` has two kinds, not an `is_blocked` boolean.** `block` is "not that Tuesday"
+— a conference, a dentist, an exam they are sitting themselves, i.e. the "any other appointments they
+have recorded" half of the brief — while `open` is "and also this one Saturday", which no amount of
+blocking can express. Openings are added *before* blocks are subtracted, so "I'm away that day" wins
+over "and also this Saturday" rather than the two quietly disagreeing. All-day means the whole day and
+is only meaningful for a block; an all-day *opening* would be a claim to be free from midnight to
+midnight, so it is refused.
+
+**`Booking.ends_at` is stored, not derived** from `Service.session_minutes` on read: a tutor who later
+changes their session length from 60 to 90 minutes has not thereby lengthened every appointment
+already in their calendar. `Booking.tutor` is denormalized from `service.provider` and load-bearing
+rather than convenient — every busy-time query is tutor-wide, and routing it through
+`service__provider` would make the one query the whole feature depends on a join a new call site can
+forget.
+
+**Five statuses, not three** (`requested → confirmed/declined → cancelled/completed`). `declined` is
+the tutor's answer to a request; `cancelled` is either party walking away from something already
+agreed, with `cancelled_by` recording which — the distinction each party actually wants when they look
+back at it. `complete` is refused before the session has ended (a completed booking for an hour still
+in the future is a claim about something that has not happened) and is never automatic on the clock
+passing, because plenty of confirmed sessions do not happen and marking them complete would turn a
+record of what took place into a record of what was scheduled.
+
+### The API, and where the seams are
+
+`BookingViewSet` is a `ReadOnlyModelViewSet` plus four explicit actions rather than a `ModelViewSet`:
+a booking is never edited as a bag of fields, every change to one is a specific act by a specific
+party with its own rules, and a generic PATCH would be a way to write `status='confirmed'` straight
+past all of them. A third party gets a **404** (queryset scoping, matching this app's convention for a
+private conversation); the wrong one of the two parties gets a **403**, because pretending it does not
+exist is a lie they can disprove by reading it; a wrong-status transition gets a **409**, because
+nothing about the request was malformed — the world moved.
+
+`GET /api/services/{id}/availability/` lives in the booking app despite its `services/` URL: the URL
+says what the availability is *of*, the code belongs with what computes it. An `@action` on
+`ServiceViewSet` would have made services import booking, which already imports it back. It is public,
+like the listing itself, and returns `availability_mode`, `session_minutes` and — its own flag rather
+than inferred — `has_schedule`, because a fully-booked fortnight and a schedule nobody ever wrote look
+identical from an empty day list and want completely different words on screen.
+
+**Booking hides behind the existing `tutoring` kill switch**, not a flag of its own. Turning tutoring
+off already takes the listings away; leaving their booking endpoints live would let a stale tab write
+appointments against a feature that is supposed to be gone.
+
+**Deleting a listing that still has an upcoming booking is refused (409).** `Booking.service` cascades,
+so the delete would take real, agreed appointments with it, silently, from the student's side as well.
+A listing is an offer; a booking is an agreement; withdrawing the first is not the same act as standing
+somebody up. Pausing is offered instead and already existed (`is_active`) — it removes the listing from
+every browse and refuses new bookings while leaving the agreed ones intact. This is the one place the
+services→booking dependency runs backwards, so the import is local and commented as such.
+
+### Notifications
+
+Four types (`booking_requested/confirmed/declined/cancelled`), split by recipient the same way the
+course ones are: the tutor gets the request, the student gets the answer, either can be the one told
+about a cancellation. One `cancelled` type for both directions, because `cancelled_by` already records
+which side it was. All four sit under one new coarse preference (`Profile.notify_on_booking`) — and the
+settings copy names the consequence out loud, because a tutor who mutes this stops hearing that anybody
+has asked for an hour of their time.
+
+**No `Notification` FK to `Booking`, deliberately.** The existing `exercise`/`material`/`taught_course`
+columns exist because each has a real page to open. A booking does not: there is no per-booking route,
+and both parties' destination is the same schedule page, which is also where the request is acted on.
+`NotificationCard.svelte` routes the four types there by type, which is simpler than a fifth nullable
+column that would always point at one URL.
+
+### Frontend
+
+- **`/bookings`** — one page, three tabs, because they are three views of one calendar rather than
+  three features: splitting them across routes would mean a tutor answering a request has to leave the
+  page to check whether they had already blocked that afternoon. Requests for me / My bookings / My
+  availability. Neither side is gated behind a role, since most accounts here are both a tutor and a
+  student — the same reasoning messaging's single inbox already follows.
+- **`BookingPanel.svelte`** on `/services/[id]`, above reviews and discussion: somebody who has read
+  the card and the map is deciding whether they can get an hour, and that comes before what other
+  people thought.
+- The success message says **"Request sent — the tutor still has to confirm it"**, never "booked".
+  Telling somebody they have an appointment when what they have is a question would be the single most
+  misleading sentence this feature could say.
+- `ServiceForm` gained the mode as two radios with a sentence each rather than a select: the difference
+  between them is a paragraph, not a word, and a tutor picking `declared` should be reading what it
+  means at the moment they pick it.
+- Full i18n parity — every new string in both `en.json` and `pl.json` (1018 keys each, verified
+  key-set-identical programmatically).
+
+### Two real bugs, both found by driving a browser rather than by reading the code
+
+1. **A refusal explained itself and then wiped the explanation.** `/bookings`'s `load()` cleared
+   `actionError` on entry, and the 409 path set the message *then* reloaded to show the world as it now
+   was — so the tutor saw the list rearrange itself with no word about why their click had not worked.
+   `load()` no longer clears it; callers clear it before acting, which is when it stops being true.
+2. **A repeatable script needed a reset the API could actually perform.** The e2e script signs in as
+   the seeded demo users rather than registering (registration is rate-limited per IP, and a script
+   that registers three people exhausts it on repeated runs — at which point the whole run fails in a
+   way that looks exactly like a regression). That made the accounts stateful, so the script now starts
+   by clearing the tutor's rules and exceptions and cancelling their live bookings *through the real
+   endpoints*. A script that had to reach into the database to set itself up would not be exercising
+   the same system a person uses.
+
+### Verified
+
+**Backend: 550 tests, all passing** (57 new in `booking/tests.py`, up from 493). The slot arithmetic is
+pinned directly — back-to-back sessions, a window too short to fit one, a block cutting a hole in the
+middle rather than trimming an edge, an all-day block, an opening the weekly pattern never had, a block
+beating an opening on the same day, overlapping rules not offering one hour twice, and the past never
+offered. Then the modes against each other, on the same calendar: `derived` removes a taken hour,
+`declared` does not, a *requested* booking already holds a derived slot, a declined one gives it back,
+and an hour taken through one listing is taken on all of them.
+
+**Browser: `e2e/booking.mjs`, 28 checks, zero console/page errors**, three people in three contexts
+against the real servers. The same published window is captioned differently in the two modes; three
+one-hour slots come out of one 14:00–17:00 rule; the student is told it is a request; the hour then
+vanishes from the derived listing and stays on the declared one; a second person asks for it anyway and
+is accepted; the tutor is warned the hour is contested, confirms one, is **refused** on the clashing one
+in its own words, declines it; each student sees their own answer and neither is shown the tutor's
+calendar; a whole-day block empties a Tuesday the weekly rule would otherwise fill, read back from the
+public endpoint with no account; and deleting a listing with a live booking is refused, naming pausing
+as the alternative.
+
+**Regression:** `classroom.mjs` (44), `classroom-overhaul.mjs` (29), `material-claims.mjs` (14) and
+`profile-editing.mjs` (8) all re-run clean, zero console/page errors. `npm run check`: 0 errors, 0
+warnings. `npm run build`: clean. `manage.py check` and `makemigrations --check --dry-run` both clean.
+
+### Week and month views (✅ built, a follow-up pass)
+
+The first build showed availability as a list of days with a row of time chips. That reads well for
+"what's free this week" and answers nothing else. Two more views were added, both the shapes people
+already know from every calendar they use, and both driven from the same data as the list.
+
+**Three shared, domain-free pieces** (`lib/components/booking/`): `calendar.ts` (the geometry and the
+`CalendarEntry`/`CalendarMonthDay` shapes), `CalendarWeek.svelte` and `CalendarMonth.svelte`, plus a
+small `ViewSwitcher`. None of them imports `Booking`, `Service` or anything else from this domain —
+each caller resolves its own objects into entries first, which is what lets one grid serve a student
+choosing an hour and a tutor looking at their week. Same "dumb component, pure props in" contract the
+project's other shared pieces already follow.
+
+- **Week** is a real time axis: block height is duration, so a 30-minute session and a two-hour one
+  are visibly different, and **overlapping entries are laid out side by side in lanes** rather than
+  stacked. That is not a nicety — overlaps are `declared` mode working as designed, and stacking them
+  would hide exactly the clash the tutor opened the calendar to see. Lanes are computed per *cluster*,
+  so two overlapping entries in the morning do not make an unrelated afternoon one half-width.
+- **Month** is deliberately a **summary, not a miniature week**: a cell carries a count and a tone,
+  and clicking it opens that day's week. A month grid trying to show every session's time would be
+  illegible at that size, and the question it exists to answer — "which day should I look at?" — is a
+  different one. Every cell is a button, including the empty ones, because "is anything happening on
+  the 14th?" is a real question and a grid that only let you click the busy days would refuse it.
+- **The hour range is fitted to the content**, padded an hour each side and floored to whole hours,
+  with a minimum span — a day drawn from midnight would make a two-hour afternoon window an unreadable
+  sliver.
+- Monday-first throughout, matching both locales and the backend's own `date.weekday()` numbering, so
+  nothing converts between two week shapes. Weekday names come from `Intl` off a real week rather than
+  seven message keys, so they arrive translated and abbreviated the way each locale abbreviates.
+
+**One new endpoint, `GET /api/my-schedule/`**, because the tutor's calendar and a student's slot list
+are genuinely different questions. The student-facing one is scoped to a listing, sliced into that
+listing's session length, and has the taken hours removed. This one spans **every** listing, has no
+single session length to slice by, does not hide the past, and — the point — **returns the bookings
+alongside the windows instead of subtracting them**, so each session is drawn sitting inside the hours
+it occupies. A calendar with the appointments cut out of it is the one thing a calendar must not be.
+It returns both sides of the caller's account, since somebody who teaches on Tuesday and takes a
+lesson on Thursday has one week, not two.
+
+The tutor's calendar is **read from that endpoint rather than assembled in the browser** from the
+rules and exceptions already on the page. Expanding a weekly rule over real dates, adding openings and
+then subtracting blocks is exactly the arithmetic `booking/availability.py` exists to own, and a
+second implementation of it client-side is how the calendar and the slots a student is offered start
+disagreeing. `_rule_windows`/`_apply_exceptions` were widened to take a tutor plus an optional service
+scope so both callers share one implementation.
+
+Two smaller decisions worth naming: **declined and cancelled sessions are not drawn** (they are not
+appointments, and drawing them would fill the week with blocks nobody will attend) while completed
+ones are, because looking back at what you actually taught is half of why anybody opens a calendar;
+and the month view **dots** days that have published hours but no sessions, rather than folding them
+into the count — a number that sometimes means sessions and sometimes means hours is a number nobody
+can read.
+
+**A real rendering bug, found by looking at a screenshot rather than at the assertions**, which all
+passed: the hour labels were positioned by an `nth-child` rule in the stylesheet that had to be kept
+in step with the row height by hand, and centred on their own line — so the first label was pulled
+half-way out of the top of the grid and clipped, and the last sat on the bottom edge. Both the labels
+and the lines now come from one `linePosition()` function, and the label sits just under its line, the
+way a paper timetable reads.
+
+**Verified**: `e2e/booking.mjs` grew to **42 checks** (from 28), still zero console/page errors —
+the week grid renders an hour axis and seven columns with exactly the slots the list showed, as real
+pressable buttons; the month grid is whole weeks and marks the days with free times; clicking a day
+opens its week; the tutor's own calendar draws published hours as bands with the confirmed session on
+top of them and the declined one absent; and its month view counts sessions while dotting the days
+that only have hours. **559 backend tests** (9 new for `my-schedule`, up from 550). Both views were
+also inspected as real screenshots, which is what caught the axis bug. `classroom.mjs` (44),
+`classroom-overhaul.mjs` (29), `material-claims.mjs` (14) and `profile-editing.mjs` (8) all re-run
+clean. `npm run check`: 0 errors, 0 warnings. `npm run build`: clean.
+
+**Left open here too**: the week grid scrolls sideways on a narrow screen rather than reflowing —
+seven columns against a time axis genuinely need the width, and collapsing them would just reproduce
+the list view, which is already offered beside it. There is no drag-to-create or drag-to-move:
+availability is still edited through the forms below the calendar, and the calendar only shows. And
+the month view cannot show a day's times at all by design, so a day with six sessions and a day with
+one differ by a number rather than by shape.
+
+### 24-hour and Monday by default; 12-hour and Sunday in Settings (✅ built)
+
+The calendars were formatting times through `Intl` with nothing but the interface locale, which for
+`en` means a 12-hour clock and — had anything asked — a Sunday-first week. Nobody chose that. It was
+`Intl`'s default leaking through as if it were a decision, and it was wrong for most of the people
+this app is built for.
+
+**Two real stored preferences on `Profile`**, `time_format` (`24h`/`12h`) and `week_starts_on`
+(`monday`/`sunday`), **defaulting to 24-hour and Monday**, with both offered in Settings under their
+own "Dates and times" section.
+
+- **They are separate from the interface language, deliberately.** Reading the English interface is
+  not a statement about wanting a 12-hour clock, and letting the locale decide is exactly how somebody
+  ends up looking at the wrong one with no way to say so. The Settings copy says this out loud rather
+  than leaving it to be discovered.
+- **The defaults cost nothing to hold**: they are what this app's own markets (PL, UA, the EU) use,
+  and what the rest of the stack already speaks — `AvailabilityRule` stores a 24-hour `TimeField` and
+  numbers weekdays from Monday, matching Python's `date.weekday()`. So the default needs no conversion
+  anywhere, and the other two are a real choice rather than an inference.
+- **Stored as names, not numbers** (`'monday'`, not `1`): the row stays readable, and the frontend's
+  own `Date.getDay()` numbering stays the frontend's business rather than being baked into a column.
+  `displayPrefs.weekStartsOn` converts once.
+- **Not on the public profile.** Not because a clock preference is sensitive, but because a stranger's
+  settings are not a public endpoint's business — the same line `PublicProfileSerializer` already draws
+  around the notification preferences.
+- **A signed-out visitor gets the same defaults**, which matters because most people looking at a
+  public tutoring listing are signed out — they see the app's 24-hour Monday-first calendar rather
+  than whatever their browser's language implies.
+
+**Where the preference is read.** `state/displayPrefs.svelte.ts` holds it and is read directly by the
+components that draw a clock, the way `themeStore` already is, rather than threaded through props from
+every page. The distinction worth keeping: the calendar components stay free of any **domain** import
+(they still know nothing about bookings or services), while chrome this global is fetched where it is
+needed. The geometry in `calendar.ts` takes `weekStartsOn` as a **parameter** instead, defaulting to
+Monday, so that module stays pure and importless.
+
+`lib/utils/datetime.ts` holds the formatters — `formatTimeOfDay`, `formatClock` (for a rule's bare
+`'HH:MM'`), `formatHourMark`, `formatDateTime`, `weekdayNames`. They live outside the rune module
+because they build throwaway `Date`s and `svelte/prefer-svelte-reactivity` refuses a mutable Date in a
+`.svelte.ts` file. That rule is right, and the split it forced is the better shape: the setting in one
+file, the rendering in another. Two smaller details inside them: 24-hour uses `hourCycle: 'h23'` rather
+than `hour12: false`, which in some locales produces the h24 cycle and prints midnight as "24:00"; and
+an hour axis drops the minutes in 12-hour mode ("4 PM", not "4:00 PM"), since an axis label is a marker
+and the minutes are always zero.
+
+**The weekday `<select>` on the availability form re-orders but does not re-number.** The stored value
+stays Monday-based 0–6, because that is what the backend compares a rule against; only the order the
+options are offered in follows the preference. A Sunday-first reader picking "Sunday" must still store
+6, or the rule would quietly land on Monday.
+
+**A real bug this surfaced, found in a browser rather than by reading the code.** Both calendars stored
+the first day of the visible range in `$state`, computed once at mount from `startOfWeek(today,
+displayPrefs.weekStartsOn)`. `authStore` loads asynchronously, so at mount the preference had not
+resolved and the default Monday was baked in — while the month grid, which was `$derived`, re-ordered
+correctly. The header and the grid beside it therefore disagreed for anybody whose saved setting was
+Sunday. Fixed at the root by storing the **focused day** and deriving the range from it, which also
+deleted the re-anchoring arithmetic that switching views used to need: "the week of the 12th" and "the
+month containing the 12th" are the same focus read two ways. (A second, duller bug went with it: a
+`formatClock` edit to the published-rule row had silently not applied, so that one line stayed 24-hour
+while everything around it switched. The browser check caught it; `svelte-check` could not have.)
+
+**Verified**: `e2e/booking.mjs` grew to **51 checks**, zero console/page errors. In English, with
+nothing set, the axis is 24-hour and the week starts Monday — the point, since `Intl` would have picked
+neither. Settings offers both as real choices; switching flips the axis to AM/PM, moves the week to
+Sunday-first, re-orders the month grid to match, carries the published rule's own times with it, and
+**survives a hard reload**. The script resets the account to the defaults at the start of a run and
+again afterwards, or a previous run's setting would quietly become the "default" the first check
+asserts against. **564 backend tests** (5 new, up from 559), including that the default does not follow
+the interface language, that an out-of-range value is refused, and that neither field appears on
+somebody else's public profile. Both states were also inspected as real screenshots.
+`classroom.mjs` (44), `classroom-overhaul.mjs` (29), `material-claims.mjs` (14) and
+`profile-editing.mjs` (8) all re-run clean. `npm run check`: 0 errors, 0 warnings.
+
+**Left open**: no per-account timezone still (see above) — these two say how a time is *drawn*, not
+which clock it is drawn from. And the preference is account-wide only: a signed-out visitor cannot
+choose, since there is nowhere to keep the answer.
+
+### Left open, not built
+
+- **No expiry on an unanswered request.** A `derived` slot is held by whoever asked first until the
+  tutor answers, so an unattended tutor's calendar can be squatted. A real version wants a lease, or a
+  tutor-configurable auto-decline.
+- **No timezone per tutor.** Rules are interpreted in the project timezone (`settings.TIME_ZONE`, UTC).
+  A tutor abroad would be publishing hours in the wrong one. Nothing in this app has ever had a
+  timezone field, and guessing one from the browser would be worse than not having it.
+- **No auto-confirm option**, even for `derived` where the slot was provably free. Defensible either
+  way; deciding it belongs with a real tutor asking for it.
+- **No rescheduling.** A booking is cancelled and a new one requested; there is no "move this to
+  Thursday" that keeps the thread.
+- **No calendar export or import** — no `.ics` feed, and no way to have an external calendar's busy
+  time subtracted. The `block` exception is the manual stand-in for exactly that, which is honest but
+  is data entry.
+- **Slots step by the session length**, so a 90-minute session inside a 14:00–17:00 window offers
+  14:00 and 15:30 and drops the tail. A sliding grid would offer four times as many slots for the same
+  hours and booking any one would silently invalidate its neighbours, which is worse for a student to
+  run into; a real answer is per-listing granularity, which nobody has asked for yet.
+- **No cancellation window or no-show handling.** Either party can cancel a confirmed session one
+  minute before it starts, with no consequence recorded anywhere.
+- **A booking has no discussion of its own.** The student's note and the tutor's reply are one field
+  each; anything further goes through the existing messaging.
+- **Nothing connects a completed session to money.** This app has no payment processing anywhere
+  (`Service.hourly_rate` has always been display-only), and a booking does not change that.
+- **No moderation or reporting surface for a booking**, matching the gap Section 17P already names for
+  Service listings and messages.
+
+---
+
+## 17V. Feature: one-off events, a rebuilt navbar, and homepage tabs (✅ built, full stack)
+
+Three pieces of work that shipped together because two of them exist to make the third reachable: a
+new `events` Django app, a navbar reorganised from a flat row of ten links into three groups, and a
+homepage that finally acknowledges the four kinds of content this site holds besides exercises.
+
+### 17V.1 Events — what an event is, and what it deliberately is not
+
+An **event** is a one-off happening somebody organises and other people turn up to: a guest lecture, a
+workshop, a study session, an exam-prep meetup.
+
+EdMat already had two models that put a person in a room with other people at a time, and an event is
+neither of them. Getting this wrong in either direction would have been the expensive mistake, so it
+is written out in `events/models.py`'s own module docstring as well:
+
+- **`classroom.TaughtCourse`** is something taught *over time* to a group who sign up for it. It has a
+  roster, chapters, lessons, contributions, staff, and an enrolment lifecycle in which a request can be
+  pending, approved, declined or revoked. A guest lecture on Thursday has none of that. Modelling one
+  as a course with a single lesson would mean every one of those fields exists and means nothing, and
+  every read site would then have to defend against a "course" that is really an evening.
+- **`booking.Booking`** is one person's hour with one tutor, negotiated: requested, then confirmed or
+  declined. An event is the opposite shape — it is published first and *many* people answer it, and
+  nobody approves anybody. There is no counterparty to negotiate with.
+
+So it is its own small app, and deliberately smaller than either. Everything it needs that already
+exists is reused rather than rebuilt: the taxonomy for discovery (the same `subjects`/`field` pair
+`TaughtCourse` and `Service` both use), `notifications.notify()` for telling people, and the
+`FeatureFlag` kill switch.
+
+**The model, and the choices inside it**
+
+- **`status`: draft / published / cancelled.** Three values rather than two booleans, for the reason
+  `TaughtCourse.status` already records: two booleans make an illegal state representable. `cancelled`
+  is a *state*, not a deletion, and that is load-bearing — people arranged their week around this, so
+  the row has to survive long enough to tell them, and the event has to stay readable afterwards so
+  somebody who missed the notification does not turn up to an empty room.
+- **A start instant plus a duration**, not a start and an end. Two datetimes make an event that ends
+  before it begins representable and would need validating at every write; a duration cannot be
+  negative in the first place, and "90 minutes" is also what a host actually knows while writing the
+  announcement. `ends_at` is derived.
+- **`location_kind`: onsite / online / hybrid**, rather than a nullable URL. A hybrid event with only a
+  link set reads as online-only to somebody who would have come in person, and `clean()` requires the
+  place and/or the link that the chosen kind actually implies — in the model, so the admin and any seed
+  command are held to it too, not only the API.
+- **`capacity = 0` means no limit**, which is genuinely different from a limit that happens to be
+  large. The same convention and default as `TaughtCourse.capacity`.
+- **`EventAttendance` stores "no" as a real row**, not as the absence of one, for two reasons that are
+  not the same. First, capacity: somebody who said they were coming and changed their mind must give
+  the seat back, and with one row per person (enforced by a unique constraint, not by whichever view
+  happens to write it) that is a status change on a row that already exists — so nobody can hold two
+  seats and no counting code has to reconcile a delete against a create. Second, "I answered no" and
+  "I never answered" are different states, and a host's view of the event is more honest when it can
+  tell them apart.
+- **The host does not attend their own event.** They are running it, and counting them would make an
+  empty event report one attendee.
+
+**The API** (`/api/events/`) follows the split this codebase already uses everywhere: anyone may read
+what is published, only the host may change it, and the scoping happens in the queryset rather than in
+after-the-fact checks — so somebody poking at another person's draft gets a 404, which is also the
+honest answer, since for them it does not exist.
+
+Two things about `get_queryset` worth recording, because the first was a real bug found by a test:
+
+- **Visibility and browse filters are separate layers.** DRF's `get_object` reads the same queryset, so
+  a filter meant for the list also narrows what is reachable by id. That is right for visibility and
+  wrong for browsing: with `when=upcoming` applied unconditionally, `GET /api/events/{id}/` for a talk
+  that happened last week answered **404**, and so did any attempt to answer one. Caught by
+  `AttendanceTests.test_a_past_event_cannot_be_answered`, which expected the honest refusal ("this
+  already happened") and got "no such event". Visibility now always applies; browse filters only on
+  `list`.
+- **A cancelled event leaves the browse list but stays readable.** Found by *looking at the rendered
+  page*, not by an assertion: three cancelled events sat at the top of "Coming up", each one an
+  invitation to click through to something that is not happening. It is now excluded from the browse
+  listing only — it still resolves at its own URL (so the link in the cancellation notification works)
+  and still appears under "I am going to these" and "I am running these".
+
+**Attendance is one endpoint, not two.** `POST /events/{id}/attend/` takes `{status}`, because there is
+one row and it has a value; an `attend`/`unattend` pair would leave a client having to know which one
+applies from state it might be holding stale. The capacity check is re-run against the database on
+every call rather than trusted from the `can_respond` the client was last shown — two people answering
+a one-seat event at the same moment both saw a free seat. Somebody who already holds a seat is
+deliberately exempt from the cap, or a full event would refuse to let one of its own attendees decline,
+which is the one answer a full event most wants to hear.
+
+**The roster is private, but not as private as a course's.** A course roster is staff-and-participants
+only. For an event, "is anybody else going" is half of why somebody opens the page at all, so people
+who *are* going see each other; strangers get a 403. The host additionally sees the declines, which
+nobody else does — a decline is between the person who made it and the person running the event.
+
+**Notifications: three types, and a deliberate silence.** The host is told when somebody says they are
+coming; everybody holding a seat is told when the event moves or is called off. A **decline is not a
+notification** — it is information the host can see on the event itself, and a bell for every "no"
+would make hosting a well-attended event unpleasant. A change of mind does not re-notify either. Only
+the time and the place count as "changed": a corrected typo in a description does not put a badge on
+forty people's bell, which is how a bell gets ignored. `Notification` gained a nullable `event` FK on
+the same shape and reasoning as `taught_course` before it, and `Profile.notify_on_event` is its own
+coarse category rather than a share of `notify_on_course_activity` — a switch labelled "courses" that
+silently also governed events would be a setting whose label lies.
+
+### 17V.2 Events and the tutor's calendar — two questions, two different answers
+
+This had to be decided explicitly, so both halves are recorded, along with the asymmetry inside the
+second one.
+
+**Question one: do events appear on `/api/my-schedule/`? Yes.** That endpoint answers "what does my week
+look like", and it already carries *both* sides of the caller's bookings because somebody who teaches on
+Tuesday and takes a lesson on Thursday has one week, not two. An evening spent running a workshop is
+gone in exactly the same way, so a calendar omitting it would be answering its own question wrongly.
+Hosting and going both appear. Drafts do not (nothing was announced, so the evening is not spoken for)
+and neither do cancellations (it *was* a commitment and is not one any more — leaving it there would go
+on saying the Thursday is taken after the very notification saying it is not). This endpoint still never
+*subtracts*: `windows_for_tutor` is untouched, the published bands are drawn whole, and the event is
+drawn on top of them, because a calendar with the appointments cut out of it is the one thing a calendar
+must not be. Events get **their own tone** there — dashed, in the accent colour — rather than reusing
+the confirmed-booking green.
+
+**Question two: does an event also remove the hour from what students are OFFERED? Hosting does;
+attending does not.** This lives in `availability._event_intervals`, feeding the same `_busy_intervals`
+that confirmed and requested bookings already feed, so `derived` mode subtracts it, `declared` mode
+ignores it, and the two modes still meet in exactly one subtraction rather than growing a second code
+path. Because `is_offered_slot` is deliberately the *same* function the browse endpoint uses, a student
+also cannot request the hour, not merely fail to see it.
+
+The asymmetry is the whole decision:
+
+- **Hosting is a commitment to other people who will physically turn up expecting you.** It is exactly
+  as binding as a confirmed booking, and a tutor who could still be booked during a workshop they are
+  running would have been double-booked *by the app* rather than by their own mistake.
+- **Attending is a statement this app lets you take back with one click, telling nobody when you do.**
+  Treating it as a withdrawal of bookable hours would mean an RSVP silently costing somebody income they
+  never agreed to give up — and on a 200-person lecture that would happen to every tutor in the room.
+  The clash is still *shown*, since both kinds are drawn on the tutor's own calendar, so somebody who
+  does want the evening free can block it with the one-off exception mechanism that exists for exactly
+  this. The difference is between the app deciding and the app informing.
+
+Two consequences worth stating plainly. **A cancelled or draft event blocks nothing**, on the same
+reasoning as above. And **the `events` kill switch is honoured here too**, which is the harder half: with
+events off, a live event stops protecting its host's evening. That is still the right way round, because
+with the feature down the tutor cannot see the event *anywhere* — not on their calendar, not on the
+event page — so an hour missing from their published availability would be unexplainable from inside the
+app, and a kill switch whose side effects outlive it is not a kill switch. The hour goes again the
+moment the flag returns.
+
+It also means `/api/my-schedule/` and `/services/{id}/availability/` will disagree about a hosted
+event's hour, deliberately: the first shows a tutor their real Tuesday, the second shows a student what
+can be booked.
+
+### 17V.3 The kill switch, including every link that points at the feature
+
+`events` is a new `FeatureFlag`, seeded on by a data migration alongside the existing five, and gating
+the whole `/api/events/` surface through the standard `feature_gate('events')` — every action, not
+just writes, with real staff bypassing it as they do everywhere else.
+
+The explicit requirement here was that pulling the switch removes the **links** too, not only the pages
+behind them, since a killed feature that still shows its buttons has not been hidden, only made to fail
+somewhere less useful. So, with the flag off, for a non-staff visitor:
+
+- the **Events nav link** is gone;
+- the **homepage Events tab** is not rendered at all (a tab that opens onto "this feature is
+  unavailable" is a link to a dead end);
+- **"Host an event" disappears from the "Add…" menu** — and the menu's own trigger disappears entirely
+  if every item under it is gone, because an empty menu invites a click and then explains nothing;
+- `/events` and `/events/[id]` render the shared `FeatureGate` notice rather than the real page;
+- and **`/api/my-schedule/` returns an empty `events` list while continuing to work**, since it is a
+  *tutoring* endpoint and must not break — a killed feature leaking through a neighbouring endpoint is
+  exactly the hole a kill switch is meant not to have.
+
+All eight of those are pinned by the browser script, and the flag is turned back on at the end of it.
+
+### 17V.4 The navbar, rebuilt
+
+The bar had grown one link per feature — browse, materials, my set, submit exercise, submit material,
+courses, tutoring, watchlist, schedule, messages, moderation — every one competing for the same
+attention and wrapping onto a second line before a laptop was even narrow. The rebuild removes nothing;
+it sorts what was there by what each link is **for**:
+
+- **Browsing stays in the nav**, because that is what a nav is: places to go and look at things.
+- **Making collapses into one "Add…" popover.** Five of the old links were create flows sharing a
+  single question ("I want to make something") that the bar was asking five times: submit an exercise,
+  submit a material, create a course, offer tutoring, and now host an event.
+- **You collapses into the account button**, which was already there carrying the person's name and did
+  nothing except link to Settings, while Log out sat beside it as a separate control and My Set sat
+  over in the nav. It now holds **Profile** (new — `/users/<own id>`, which the app had no navigation to
+  at all), My Set, My schedule, Settings and Log out.
+- **Messages moved into the action area as an icon-only SVG button** with a real `aria-label` and its
+  unread badge intact. It and the notification bell are siblings — both inboxes, both with an unread
+  count — and one being a word in the nav while the other was an icon on the right was an accident of
+  the order they were built in rather than a distinction.
+
+**One shared popover primitive, not three ad-hoc dropdowns.** `MeatballsMenu` already owned exactly the
+behaviour that is easy to get subtly wrong (open, Escape, click-outside, return focus to the trigger) —
+but it owned it *for a "⋯" button holding a list of callbacks*. The navbar needs two panels that are
+neither: one holds links, the other is triggered by a person's name. Widening `MeatballsMenu` to take
+either items or children and either a label or a trigger snippet would have produced a component that
+is really two components sharing a file. So the behaviour moved into `shared/Popover.svelte` and
+`MeatballsMenu` keeps its own implementation deliberately — it is used in a dozen places, it works, and
+rewriting a tested component onto a new primitive is real risk for no user-visible payoff. The
+duplication is about twenty lines and is named in both files so nobody has to rediscover that it was a
+choice.
+
+Two details worth keeping: the panel's `children` snippet receives a `close` callback, because a link
+that navigates and leaves the popover hanging over the new page is a real bug under client-side routing
+(the component is not torn down by the navigation); and focus returns to the trigger on **Escape only**,
+never on a click-away, since somebody who clicked elsewhere has already said where they want to be.
+
+**On a phone the same content becomes one row and a drawer.** Three rules drove that, and each shows up
+in the markup rather than only in the styles:
+
+1. **One row.** The bar is the brand and nothing else; everything that lives across the top on a desktop
+   lives in the drawer instead. Before this, the nav collapsed behind a toggle while the action row
+   stayed and wrapped — so the "one row" was frequently three.
+2. **It gets out of the way.** Scrolling down tucks the bar away; scrolling up brings it back at once. A
+   sticky bar on a 390px-tall reading surface is a real cost, and the gesture people make to get it back
+   is exactly the one that returns it. The measurement runs once per animation frame (`scroll` fires far
+   more often than the screen redraws, and reading `scrollY` in the handler is a layout read on every
+   one), with a 6px deadband — without it, the sub-pixel jitter a phone produces while a finger rests on
+   the screen flickers the bar in and out — and the bar is always out within 72px of the top, so a page
+   restored mid-article never opens with no bar and no obvious reason.
+3. **The menu button never goes anywhere.** It is rendered **outside `<header>`**, which is the
+   requirement rather than a layout preference: the header is the thing that slides away, so a button
+   inside it would slide away too, and this is the one control that has to survive the bar hiding,
+   because it is what brings the bar's contents back. It sits level with the bar while the bar is there
+   and stays exactly where it is once the bar has gone, so it never appears to move.
+
+**The item lists are snippets rendered by both surfaces.** The browse links, the create actions and the
+account items each exist once and are rendered into both the desktop popovers and the drawer, so a
+feature flag can never hide an entry in one place and leave it in the other — which is precisely the bug
+a second hand-maintained mobile menu would eventually grow.
+
+**The drawer is not a popover-in-a-popover.** Inside it, the create and account groups are flat sections
+under headings rather than nested menus, and Messages and Notifications are plain links carrying their
+unread counts as text rather than the desktop bell and envelope, both of which open popovers of their
+own. A popover inside a drawer is a worse interaction than simply going to the inbox, and the counts —
+the only reason those two are worth surfacing at all — come along either way. Targets are 44px, which is
+the size a thumb actually hits.
+
+Drawer mechanics: Escape closes it and returns focus to the toggle, the scrim closes it, background
+scroll is locked (on a phone the drawer is most of the screen, and a page scrolling behind it is how
+somebody loses their place in an article by opening a menu), every link inside closes it, and a route
+change from *anywhere* — including the browser's own back button, which no click handler sees — closes
+it too. It is moved off-canvas rather than unmounted so it slides, and `visibility: hidden` is what keeps
+it out of the tab order while it is off-screen: a translated element is still focusable, and a hidden
+drawer full of reachable links is a real keyboard trap. The scrim is a real `<button>` rather than a
+`<div>` with a click handler, so it is interactive by construction rather than by assertion — kept out
+of the tab order and hidden from the accessibility tree, since a keyboard user already has Escape and
+the ✕ and a third unlabelled route would be noise. Anybody who has asked for less motion gets the same
+behaviour with none of it.
+
+**A real bug, caught by looking at a screenshot rather than by any assertion:** the drawer opened and shut
+again in the same frame, so the page looked exactly as though the menu button did nothing. The
+route-change effect read `drawerOpen` to decide whether to close, which made the effect *depend* on it —
+so setting it to `true` re-ran the very effect whose job was to close it. `untrack` around that read is
+load-bearing; the dependency the effect is supposed to have is the pathname and nothing else.
+
+**My Set is the one entry that lives in two places, conditionally.** It is in the account menu for
+anybody signed in, and stays in the nav for a guest — who has no account menu, and whose set is the
+more fragile of the two, since it exists only in that browser until they make an account.
+
+**Found by looking at a screenshot rather than by an assertion:** the account trigger was a person's own
+name sitting in a row of icons, which reads as a label rather than as something to press. It gained a
+chevron that rotates on open.
+
+### 17V.5 Homepage tabs
+
+The homepage was exercises and nothing else — top-rated and recent — with no acknowledgement on the
+front page that this site also holds materials, courses somebody runs, people offering tutoring, or
+events. It is now five tabs: **Exercises, Materials, Courses, Tutoring, Events.**
+
+- **Each tab renders that feature's own card component** (`ExerciseCard`, `MaterialCard`, `CourseCard`,
+  `ServiceCard`, `EventCard`) rather than a homepage-specific summary card. A course on the homepage
+  should look like a course, and a second card component per kind is a second place to fix every time
+  one of them changes.
+- **The selected tab is in the URL** (`?tab=`), not in component state. Three things follow and all
+  three were the point: a reload keeps you where you were, the back button steps between tabs the way a
+  person expects, and somebody can send a link to the Events tab. A query parameter rather than five
+  routes, because these are five views of one page; and a real `goto` rather than `replaceState`, which
+  would have taken the back button away again.
+- **Data is fetched per tab, once, and kept.** Loading all five on first paint would make the homepage
+  five round trips slow for a visitor who only ever looks at one; re-fetching on every switch would make
+  going back and forth flicker.
+- **Real ARIA tab semantics**, including the part usually skipped: a roving `tabindex`, `aria-selected`,
+  `aria-controls`/`aria-labelledby` wiring the panel to its tab, and Left/Right/Home/End moving between
+  tabs with focus following selection. A `role="tablist"` that does not answer arrow keys is a promise
+  to a screen-reader user that the page then breaks.
+- **Tabs are gated by the same flags their features are.** A killed feature's tab is not rendered, and
+  an unknown or now-hidden `?tab=` falls back to Exercises rather than rendering nothing, so a stale
+  link still lands somewhere real.
+
+### 17V.6 Verified
+
+**Backend — `events/tests.py` (60 tests) plus seven new ones in `booking/tests.py`, and the whole suite
+re-run.** The suite pins refusals rather
+than happy paths, on `classroom/tests.py`'s own reasoning: a draft invisible to strangers and 404 on its
+own URL; a cancelled event readable but out of the browse list while staying in the lists of the people
+it concerns; `mine=hosting` vs `mine=attending`; every location-kind validation, including a **partial
+edit validated against the fields it is not changing** (switching an onsite event to online while
+sending no URL must fail on the URL it does not have); cancelling refused as a PATCH and offered only as
+its own action; un-cancelling refused; deleting refused once people are coming, naming cancelling as the
+alternative; the seat given back on a change of mind; a full event still accepting a decline; the block
+reason told to the person it applies to; the private roster in all four of its cases; every notification
+including the two deliberate silences; the kill switch across anonymous / signed-in / host / write /
+staff; and the schedule integration. The availability half is pinned in `booking/tests.py`, next to the mode
+arithmetic it belongs to: a hosted event removes the hour from a `derived` listing and an attended one
+does not; a `declared` listing keeps publishing through both; a draft and a cancellation block nothing;
+a 150-minute workshop swallows every slot it covers (the subtraction is interval arithmetic, not slot
+matching); the kill switch gives the hours back; and a student is refused at request time, not merely
+shown a shorter list — asserted separately so a future refactor that split the browse check from the
+request-time gate would be caught here rather than in production.
+
+**Browser — `frontend/e2e/events-and-nav.mjs`, 92 checks, zero console/page errors**, five browser
+contexts against the real servers. It drives the whole loop: the Add menu opening, offering all five
+create actions, closing on Escape and returning focus; the account menu holding all five entries with
+Profile resolving to the signed-in person's own id; Messages rendering as an SVG with no text and a real
+accessible name; five tabs with the panel correctly wired, the tab surviving a reload, the back button
+stepping between tabs and arrow keys moving between them; creating an event through the real form and
+landing on its own page; a second person answering, the count moving, and *answering* being what unlocks
+the roster they could not see a moment earlier; the host's notification linking to the event; capacity
+refusing a third person, the seat-holder still able to decline, and the freed seat being offered on;
+the event appearing on the events page, the homepage tab via a shared link, and the host's own calendar
+labelled "Running"; cancelling telling the person who was coming while the event stays readable; the
+kill switch removing the nav link, the tab, the menu item, the page and the API while leaving
+`/my-schedule/` working and empty, with a moderator keeping access throughout; both locales; and the
+phone navbar in a 390×844 context — the bar down to a single row with neither the desktop nav nor the
+action row on it, the drawer holding the browse links, the create actions, the account items and
+Messages, Escape closing it and returning focus, **the bar tucking away on scroll down while the menu
+button stays within a pixel of where it was**, the bar returning on scroll up, and a drawer link both
+navigating and closing the drawer behind it.
+
+One real application bug came out of this that no assertion would have found — the drawer opening and
+closing in the same frame, see 17V.4 — and three bugs in the script itself are worth recording because
+each cost a real run: fields addressed by
+position rather than by label (filling "One-line summary" where "Place" was meant, leaving a required
+field empty so the browser silently refused to submit — which reads exactly like a broken create flow);
+`kasia` being the one seeded staff account rather than `julia`, so the flag PATCH 403'd; and Paraglide
+here having **no URL strategy configured**, so `/pl/events` is not a locale URL at all and the language
+is chosen through the picker. A fourth was the test being right and the assertion wrong: the "does the
+kill switch leak" check was being asked of the moderator, who bypasses every flag by design.
+
+**Regression — all six pre-existing scripts re-run, 188 checks, zero regressions:** booking 51,
+classroom 44, classroom-overhaul 29, education-auth 42, material-claims 14, profile-editing 8. Two runs
+hit the documented Vite/Chromium resource-exhaustion artifact (a navigation timing out after a long
+chain of full page loads) and passed on a re-run against a fresh dev server; `education-auth.mjs`
+carries a **pre-existing hardcoded `127.0.0.1:8011`** and must be run against the port `test.md`
+documents, which is unrelated to this work.
+
+`npm run check`: 0 errors, 0 warnings. `npm run build`: clean. `makemigrations --check`: no pending
+changes.
+
+### 17V.7 Left open, not built
+
+**Six of the entries below were closed in a follow-up pass — see 17W.** What remains here needs a
+product decision or infrastructure this project does not have, rather than an afternoon.
+
+- ~~**No editing an event after it exists.**~~ **Built — 17W.1.**
+- ~~**No subject picker on the event form.**~~ **Built — 17W.2.** `CourseForm` still has the gap.
+- **No recurrence.** Every event is a single occurrence; a weekly reading group is five events. Adding a
+  rule would mean deciding whether attendance is per-occurrence, which is a real design question rather
+  than a field.
+- **No reminder before it starts.** Somebody who said they are coming is told if it moves or is called
+  off, and never told "this is tomorrow" — that needs scheduled work (cron or a task queue), which this
+  project has nowhere to run yet.
+- **No comments on an event.** The generic `Comment` is right there and `classroom` shows how to wire
+  it; it was left out to keep this pass honest rather than broad.
+- **No moderation or reporting surface for an event**, matching the gap Section 17P names for Service
+  listings and 17U for bookings.
+- **No waiting list.** A full event simply refuses, and the seat freed by a change of mind goes to
+  whoever asks next rather than to whoever asked first.
+- **Attendance has no check-in**, so nothing records who actually turned up as opposed to who said they
+  would.
+- **The homepage tabs show six items each with no pagination**, and "See all" is the only route to the
+  rest.
+- **`MeatballsMenu` still duplicates `Popover`'s open/close behaviour**, deliberately — see 17V.4.
+- ~~**The drawer does not trap focus.**~~ **Built — 17W.3.**
+- **Attending an event still does not block bookable time**, by decision rather than omission (17V.2).
+  The missing escape hatch beside it is now built — 17W.4.
+- ~~**Nothing warns a host that they are publishing an event over their own bookable hours**~~ —
+  **Built — 17W.5.**
+
+---
+
+## 17W. Closing the real defects on that list (✅ built)
+
+Six entries from 17V.7. The other seven stay open on purpose: recurrence and a waiting list are design
+questions (is attendance per-occurrence? is a freed seat first-come or first-asked?), reminders need
+scheduled work this project has nowhere to run, and comments/moderation/check-in are scope rather than
+defects.
+
+### 17W.1 Editing an event
+
+`/events/[id]/edit`, the same shape as `classroom/[id]/edit`: load, refuse in a sentence, otherwise hand
+the record to the shared `EventForm` — which was already written for both jobs and needed no change.
+The API, the serializer and the "this has moved" notification all existed and were tested; only the page
+was missing.
+
+**A cancelled event is refused here rather than allowed to fail on save.** The form always sends a
+status and `validate_status` refuses to reopen a cancelled event, so that form could only ever be
+rejected. Same reasoning the classroom page states for a course that is not yours.
+
+### 17W.2 Subjects on the event form
+
+A checkbox group, not `<select multiple>`: multi-select needs a modifier key most people do not know
+they are holding, and at this catalogue's size the whole list fits on screen.
+
+**Narrowed to the chosen field**, because a subject belongs to one, and **changing the field drops
+subjects that no longer belong to it** — the same reasoning that already blanks `locationText` when the
+location kind changes: a value the form no longer offers is one nobody can see and every later edit
+silently preserves. Done in the change handler rather than an `$effect`, because an effect that both
+reads and writes `subjectSlugs` re-runs itself — the exact shape of the drawer bug in 17V.4, and
+reaching for `untrack` to fix a loop that need not exist is the wrong trade.
+
+### 17W.3 The drawer traps focus
+
+A keydown cycle rather than `inert`. `inert` is the tidier idea and would also take the background out
+of the accessibility tree, but from inside `Header.svelte` "the rest of the document" means iterating
+the body's children and skipping our own three elements — a DOM-wide side effect to undo on every exit
+path including teardown. This stays inside the component and needs no cleanup.
+
+**The toggle button leads the cycle deliberately.** It is the drawer's ✕ while the drawer is open and it
+lives outside `<header>` (17V.4), so a trap scoped to the drawer alone would put the close button out of
+a keyboard's reach — a worse bug than the leak being fixed.
+
+### 17W.4 One click to keep the hours
+
+Attending still does not withdraw bookable time; that decision stands and 17V.2 explains it. What was
+missing was the way out for somebody who *does* want the evening held, which was "go and write an
+availability exception by hand". Now a button on the event, writing a real `AvailabilityException`
+whose note names the event — because an unexplained hole in a schedule six weeks later is one somebody
+deletes.
+
+### 17W.5 The clash warning
+
+Hosting removes the hours from anything still bookable, but it never moves a session somebody has
+already booked — so a host could be double-booked and find out only by looking at their own calendar.
+Two different warnings, because they are different problems: a **live booking** over those hours (shown
+to host and attendee alike, since either can be the one who has to sort it out) and **hours still
+published as bookable** (host only — for anybody else the subtraction never happens). Styled as a
+warning, not an error: nothing has gone wrong and nothing is refused.
+
+`my-schedule` never subtracts, by design, so its windows are the raw published bands and this overlap
+check sees what the tutor sees.
+
+### 17W.6 The hardcoded port in `education-auth.mjs`
+
+It reached the API through a literal `127.0.0.1:8011`, making it the only script here that could not be
+pointed at another backend. Now `E2E_API` like every sibling, and the call moved to Node so it does not
+depend on CORS — the reasoning `classroom-overhaul.mjs` already records.
+
+**Worth knowing: the sibling scripts default to `:8000` while `test.md` documents `:8011`,** so most of
+them need `E2E_API` set explicitly. That mismatch is pre-existing and untouched here.
+
+### 17W.7 Verified
+
+`e2e/known-issues.mjs` — **23 checks, zero console/page errors**, plus screenshots actually looked at.
+Real runs: the subjects group renders four subjects and the one ticked at creation is still ticked when
+the edit form reloads; a non-host is refused in words with no form rendered; the "keep these hours free"
+button writes a real `AvailabilityException` **read back from the API**, so a button that only flipped a
+flag on the page would fail; focus survives 40 Tabs and 20 Shift-Tabs inside the drawer, Escape closes
+it and focus returns to the button that opened it.
+
+All seven pre-existing scripts re-run: **280 checks, zero regressions** (events-and-nav 92, booking 51,
+classroom 44, classroom-overhaul 29, education-auth 42, material-claims 14, profile-editing 8).
+**303 browser checks in total.** `npm run check` 0 errors 0 warnings; `npm run build` clean. No backend
+file was touched.
+
+**One trap worth recording, hit three times in this pass**: `register` is throttled at **10/hour in a
+per-process `LocMemCache`**, so a long e2e session exhausts it and every later script fails in ways that
+look exactly like a code regression (a page with no menus, a form that will not submit). Restarting the
+backend process clears it. `pkill -f "manage.py runserver …"` also matches the shell issuing it and
+kills the replacement — kill by the PID holding the port instead.
+
+---
+
+## 17X. `/levels` — the trust system, described where readers are (✅ built)
+
+The REP/SKILL/ENERGY design has lived in LAUNCHCHECKLIST.md since it was written, which is the right
+home for a design brief and the wrong one for the people the rules would apply to. `/levels` is that
+document written for a reader: two ladders, seven capability tiers, five mod levels, vote weight,
+energy costs, REP events, the promotion/demotion rules, and appeals.
+
+**The page's real job is the distinction between designed and live**, so it is a badge on every heading
+rather than a caveat somebody skims. Eight sections carry *Designed, not built*; exactly one carries
+*Live today*, and it is checked against the code rather than the brief — the single staff flag, the one
+contributor flag, `NodeGovernor`, and the real throttle rates out of `DEFAULT_THROTTLE_RATES`, including
+the honest note that they are per-process counters. A page that let somebody believe they had a tier
+would be worse than no page.
+
+**Text lives in `lib/content/levels.ts`, per locale — deliberately widening the exception
+`content/privacy.ts` opened** rather than letting it drift. That file's argument was that a document has
+to be readable and reviewable AS A DOCUMENT, not as ~50 keys interleaved with button labels in
+`en.json`; nine tables and forty paragraphs are the same shape of content, and the rule's actual
+purpose — no string is ever English-only — still holds exactly, since both locales live in the one file
+and a third cannot be added without adding all of it. If the file and LAUNCHCHECKLIST.md ever disagree,
+**the checklist is the source and the page is the stale copy**; the module says so at the top.
+
+**Reachable from three places, and two of them are attached to a badge rather than sitting in a menu.**
+The footer, beside the privacy policy — both are standing explanations of how the site treats you,
+wanted occasionally and never mid-task. `/settings`, directly under the role badges in the Profile card,
+worded about your own standing: "these badges are all the standing EdMat has today; what they are meant
+to become —". And `/users/[id]`, inside the badge row itself as a caption reading "What these badges
+mean", worded for somebody looking at SOMEBODY ELSE'S profile — the common case there, and the one where
+"what does Verified contributor actually mean?" is a real question. Not in the navbar in any case: this
+is something you want at the moment a badge raises the question, not something you go looking for.
+
+The public-profile link is suppressed when the badge row renders nothing at all (a private profile with
+no roles), since a caption explaining badges that are not there explains nothing.
+
+**Verified in a browser**: both locales render fully translated with 8 tables and exactly one live
+badge, the footer link navigates, zero console/page errors. `npm run check` 0 errors 0 warnings; build
+clean. One ordering bug found by looking at the screenshot rather than by any assertion: bullets
+rendered *after* the table in the only section that has both, so the line introducing the rate-limit
+table sat underneath it. Bullets now precede tables everywhere.
+
+**Left open**: nothing on the page is personalised — it cannot say what tier *you* hold, because no
+tier exists to hold. `/settings` links to it but shows no standing of its own beyond the two existing
+flags; turning that link into a real panel — your REP, your SKILL per field, your energy, read against
+these tables — is what there is to build once the system behind it exists.
+
 ---
 
 ## 18. Open questions
@@ -3796,7 +5243,9 @@ All scratch listings created during verification were deleted afterward, confirm
 | Polish (source data) | English (this project) |
 |---|---|
 | kierunek | field |
-| przedmiot | course |
+| przedmiot | course (`taxonomy.Course`) — a university subject |
+| kurs (prowadzony przez użytkownika) | taught course (`classroom.TaughtCourse`) — something a person runs and others join |
+| wydarzenie | event (`events.Event`) — a one-off happening people turn up to, distinct from both a taught course and a booking |
 | dział / temat | topic |
 | zadanie | exercise |
 | materiał (dydaktyczny) | material |

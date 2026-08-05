@@ -185,6 +185,7 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     # rest" split (module doc comment above) — a course listing has no reason to pay for resolving
     # every exercise's own requirement rows when nothing in that view ever reads them.
     requirements = serializers.SerializerMethodField()
+    contributors = serializers.SerializerMethodField()
 
     class Meta(ExerciseListSerializer.Meta):
         fields = ExerciseListSerializer.Meta.fields + [
@@ -195,6 +196,7 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
             'translated_by',
             'available_locales',
             'requirements',
+            'contributors',
         ]
 
     def get_statement(self, obj):
@@ -216,6 +218,58 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     def get_translated_by(self, obj):
         t = self._translation(obj)
         return t.translated_by_id if t else None
+
+    def get_contributors(self, obj):
+        """Everybody with a real account who worked on this exercise, named and in one list.
+
+        An exercise genuinely has several: whoever submitted it, whoever wrote each locale's text,
+        and whoever reviewed those. The page previously showed only the submitter — and since the
+        imported corpus has no submitter at all, that meant most exercises credited nobody, which
+        reads as "written by nobody" rather than "imported from a course archive".
+
+        Roles rather than a flat list of people, because "translated this into Ukrainian" and
+        "submitted it" are different claims and crediting them identically would be wrong. One row
+        per person per role: somebody who translated two locales is named once per locale, since
+        that is two pieces of work.
+
+        Names are resolved here rather than left as bare ids for the client to fetch one by one —
+        that was a real N+1 over the network on a page that already knows it needs them.
+        """
+        rows = []
+        seen = set()
+
+        def add(user, role, locale=None):
+            if not user:
+                return
+            key = (user.pk, role, locale)
+            if key in seen:
+                return
+            seen.add(key)
+            profile = getattr(user, 'profile', None)
+            rows.append(
+                {
+                    'id': user.pk,
+                    'display_name': (
+                        profile.display_name
+                        if profile and profile.display_name
+                        else user.username
+                    ),
+                    'role': role,
+                    'locale': locale,
+                }
+            )
+
+        add(obj.submitted_by, 'submitted')
+        # Only translations that actually shipped: a pending suggestion is not yet a contribution to
+        # what anybody is reading, and crediting it here would publish the fact that somebody made a
+        # suggestion that has not been accepted. 'published' is the real value — the status vocabulary
+        # here is published/pending/rejected, and guarding on 'approved' silently credited nobody.
+        for translation in obj.translations.all():
+            if translation.status != 'published':
+                continue
+            add(translation.translated_by, 'translated', translation.locale)
+            add(translation.reviewed_by, 'reviewed', translation.locale)
+        return rows
 
     def get_requirements(self, obj):
         # Filtered in Python over the `.all()` cache, not `.filter(is_removed=False)` — same

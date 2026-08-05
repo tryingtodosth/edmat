@@ -66,6 +66,22 @@ export interface ExerciseTranslation {
 	createdAt: string;
 }
 
+/** Somebody with a real account who worked on an exercise.
+ *
+ * Roles rather than one flat list of people, because "translated this into Ukrainian" and
+ * "submitted it" are different claims and crediting them identically would be wrong. `locale` is
+ * set for the translation-shaped roles and absent for `submitted`, which is about the whole row.
+ *
+ * Absent entirely for the imported corpus, which nobody here submitted — an honest empty rather
+ * than a fabricated credit.
+ */
+export interface ExerciseContributor {
+	id: string;
+	displayName: string;
+	role: 'submitted' | 'translated' | 'reviewed';
+	locale?: string;
+}
+
 /** What a component actually renders: an Exercise resolved against one chosen content locale. */
 export interface ResolvedExercise extends Exercise {
 	locale: string;
@@ -78,4 +94,5 @@ export interface ResolvedExercise extends Exercise {
 	translatedByUserId?: string;
 	availableLocales: string[]; // every locale with at least one PUBLISHED translation, original first
 	requirements: ExerciseRequirement[];
+	contributors: ExerciseContributor[];
 }

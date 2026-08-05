@@ -28,6 +28,7 @@
 	import LocationMap from '$lib/components/service/LocationMap.svelte';
 	import ReviewForm from '$lib/components/review/ReviewForm.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
+	import BookingPanel from '$lib/components/booking/BookingPanel.svelte';
 
 	let service = $state<Service | undefined>(undefined);
 	let courseNames = $state<string[]>([]);
@@ -181,6 +182,11 @@
 				/>
 			</section>
 		{/if}
+
+		<!-- Above reviews and discussion: somebody who has read the card and the map is deciding
+		     whether they can actually get an hour, and that question comes before what other people
+		     thought of it. -->
+		<BookingPanel {service} />
 
 		{#if authStore.isAuthenticated && authStore.user?.id !== service.providerId}
 			<section class="watchlist-action no-print">

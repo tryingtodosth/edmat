@@ -14,6 +14,10 @@ Two parts, run separately:
 
 ---
 
+> **Just want it running?** [`MARYSIA.md`](./MARYSIA.md) is a two-command setup for Ubuntu
+> (`./setup.sh` then `./run.sh`) that installs everything missing, in Polish, assuming nothing.
+> The rest of this file is the manual version.
+
 ## Prerequisites
 
 - **Python 3.12** (the backend was built and tested against `3.12.3`)
@@ -77,6 +81,9 @@ one).
 
 ## Useful commands
 
+**See [`test.md`](./test.md)** for the full testing guide — what each suite covers, how to run
+them, and the two environment quirks that most often look like a regression but are not.
+
 ```sh
 # Backend — from edmat/backend/, using ../.venv/bin/python3
 manage.py check                    # sanity check
@@ -102,6 +109,8 @@ edmat/
 │   ├── manage.py
 │   ├── config/                settings, root urls
 │   ├── accounts/               User profiles, auth endpoints
+│   ├── identity/                sign-in provider drafts, schools, education & the USOS seam
+│   ├── classroom/                courses users run, lessons, enrolment
 │   ├── taxonomy/                Field / Course / Topic / Chapter
 │   ├── exercises/                 Exercise / ExerciseTranslation / Tag
 │   ├── materials/                  course PDFs

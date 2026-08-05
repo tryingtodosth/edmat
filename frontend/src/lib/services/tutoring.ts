@@ -40,7 +40,13 @@ function draftToBody(draft: ServiceDraft): Record<string, unknown> {
 		// leave a stale pin in place on a listing that no longer has a physical location at all.
 		location_label: draft.locationLabel,
 		location_lat: draft.locationLat,
-		location_lon: draft.locationLon
+		location_lon: draft.locationLon,
+		availability_mode: draft.availabilityMode,
+		// Parsed once, here, rather than kept a number through the form — see ServiceDraft's own note
+		// on why an in-progress field stays a string. An unparseable value falls back to the backend's
+		// own default instead of sending NaN, which would 400 with a message about a field the tutor
+		// may not even have touched.
+		session_minutes: Number(draft.sessionMinutes.trim()) || 60
 	};
 }
 

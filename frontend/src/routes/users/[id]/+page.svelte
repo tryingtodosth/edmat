@@ -9,7 +9,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { formatDate, formatRelativeDate } from '$lib/utils/format';
-	import { getUserById } from '$lib/services/users';
+	import { getUserById, getUserEducation } from '$lib/services/users';
 	import { getExercisesBySubmitter, getExercisesByIds } from '$lib/services/exercises';
 	import { getReviewsByUser } from '$lib/services/reviews';
 	import {
@@ -25,8 +25,24 @@
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
+	import EducationCard from '$lib/components/shared/EducationCard.svelte';
+	import ProfileExtras from '$lib/components/profile/ProfileExtras.svelte';
+	import type { PublicEducation } from '$lib/types/identity';
 
 	let user = $state<User | undefined>(undefined);
+
+	/** Whether the badge row actually renders anything — the same four conditions the markup uses. A
+	 * private profile with no roles renders an empty `.roles`, and hanging "what these badges mean" off
+	 * a row with no badges in it would be explaining nothing. */
+	const hasBadges = $derived(
+		Boolean(
+			user &&
+			(user.isModerator ||
+				user.isVerifiedContributor ||
+				user.offersTutoring ||
+				user.isProfilePublic)
+		)
+	);
 	let loading = $state(true);
 	let notFound = $state(false);
 
@@ -101,6 +117,8 @@
 		listingCourseNamesById = Object.fromEntries(entries);
 	}
 
+	let education = $state<PublicEducation | null>(null);
+
 	async function loadUser(id: string) {
 		loading = true;
 		notFound = false;
@@ -115,7 +133,12 @@
 		await Promise.all([
 			loadContributions(id, locale),
 			loadReviews(id, locale),
-			loadTutoringListings(id)
+			loadTutoringListings(id),
+			// Null unless that account consented — see getUserEducation. A failure here must never
+			// take the whole profile down over an optional section.
+			getUserEducation(id)
+				.then((res) => (education = res))
+				.catch(() => (education = null))
 		]);
 		loading = false;
 	}
@@ -154,7 +177,19 @@
 				{#if !user.isModerator && !user.isVerifiedContributor && !user.offersTutoring && user.isProfilePublic}
 					<span class="badge badge--neutral">{m.settings_role_member()}</span>
 				{/if}
+				<!-- In the badge row itself rather than below it, so it reads as a caption on the badges
+				     and not as a second thing to click. Worded for somebody looking at SOMEBODY ELSE'S
+				     profile, which is the common case here and the one where "what does Verified
+				     contributor actually mean?" is a real question — the same link on /settings asks it
+				     the other way round, about your own. -->
+				{#if hasBadges}
+					<a class="badge-help" href={resolve('/levels')}>{m.profile_levelsHint()}</a>
+				{/if}
 			</div>
+
+			{#if user.bio}
+				<p class="bio">{user.bio}</p>
+			{/if}
 
 			{#if user.offersTutoring && user.tutoringNote}
 				<p class="tutoring-note">{user.tutoringNote}</p>
@@ -184,6 +219,15 @@
 				</div>
 			{/if}
 		</section>
+
+		{#if education}
+			<EducationCard {education} />
+		{/if}
+
+		<!-- Your own profile is the same page everybody else sees; the ⋯ menus are the only difference,
+		     so what you edit is what you are looking at rather than a separate form you then have to
+		     imagine the public version of. -->
+		<ProfileExtras userId={user.id} canEdit={authStore.user?.id === user.id} />
 
 		{#if tutoringListings.length > 0}
 			<section class="profile-section">
@@ -282,6 +326,25 @@
 	.roles {
 		display: flex;
 		gap: var(--space-1);
+		// Wraps rather than squeezing the link onto the badge line: three badges plus a caption does not
+		// fit a phone, and a badge row that scrolls sideways would hide the badges themselves.
+		flex-wrap: wrap;
+		align-items: center;
+	}
+	.badge-help {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		margin-left: var(--space-1);
+		// Underlined explicitly. The global reset sets `text-decoration: none` on every anchor, which
+		// is fine where colour, weight or a button shape already says "clickable" — here it left a
+		// small grey caption that gave a reader no reason to think it could be followed at all, which
+		// was visible the moment the row was looked at rather than in any assertion.
+		text-decoration: underline;
+		text-underline-offset: 0.2em;
+
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.badge {
 		@include mix.status-pill(var(--accent), var(--accent-soft));
@@ -291,6 +354,9 @@
 	}
 	.badge--tutoring {
 		@include mix.status-pill(var(--accent), var(--accent-soft));
+	}
+	.bio {
+		white-space: pre-wrap;
 	}
 	.tutoring-note {
 		font-size: var(--font-size-sm);
