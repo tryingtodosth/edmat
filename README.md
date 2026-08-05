@@ -14,9 +14,10 @@ Two parts, run separately:
 
 ---
 
-> **Just want it running?** [`MARYSIA.md`](./MARYSIA.md) is a two-command setup for Ubuntu
-> (`./setup.sh` then `./run.sh`) that installs everything missing, in Polish, assuming nothing.
-> The rest of this file is the manual version.
+> **Just want it running?** On Ubuntu, `./setup.sh` then `./run.sh` — the first installs whatever is
+> missing (Python, Node, the dependencies, the corpus), the second starts both servers. Roughly five
+> minutes, most of it waiting. The rest of this file is the manual version, and the one to read if
+> you are not on Ubuntu or something goes wrong.
 
 ## Prerequisites
 
