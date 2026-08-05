@@ -343,21 +343,24 @@
 			{@render browseLinks(() => {})}
 		</nav>
 
-		<div class="site-header__actions no-print">
-			{#if authStore.isAuthenticated && hasAnythingToAdd}
-				<Popover label={m.nav_add()}>
-					{#snippet trigger(open: boolean)}
-						<span class="add-trigger" class:add-trigger--open={open}>
-							<span aria-hidden="true">+</span>
-							<span class="add-trigger__text">{m.nav_add()}</span>
-						</span>
-					{/snippet}
-					{#snippet children(close: () => void)}
-						{@render createItems('menu-item', close)}
-					{/snippet}
-				</Popover>
-			{/if}
+		<!-- Add… rides on the top row next to the nav rather than in the icon cluster. The row wraps,
+		     and while this sat at the head of the actions group it wrapped down with them — putting the
+		     one create affordance on a second line, below the things it creates against. -->
+		{#if authStore.isAuthenticated && hasAnythingToAdd}
+			<Popover label={m.nav_add()}>
+				{#snippet trigger(open: boolean)}
+					<span class="add-trigger" class:add-trigger--open={open}>
+						<span aria-hidden="true">+</span>
+						<span class="add-trigger__text">{m.nav_add()}</span>
+					</span>
+				{/snippet}
+				{#snippet children(close: () => void)}
+					{@render createItems('menu-item', close)}
+				{/snippet}
+			</Popover>
+		{/if}
 
+		<div class="site-header__actions no-print">
 			<RandomExerciseButton />
 
 			{#if authStore.isAuthenticated && canMessaging}
