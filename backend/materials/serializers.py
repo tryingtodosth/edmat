@@ -138,6 +138,7 @@ class MaterialSerializer(serializers.ModelSerializer):
             'requirements',
             'file',
             'author',
+            'source_url',
             'submitted_by',
             'submitted_by_display_name',
             'tags',

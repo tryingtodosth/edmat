@@ -161,5 +161,40 @@ export const authStore = {
 			const message = e instanceof ApiError ? e.message : undefined;
 			return { ok: false, error: message ?? 'updateFailed' };
 		}
+	},
+
+	/** POST /api/auth/me/avatar/ — its own multipart endpoint, deliberately not part of
+	 * `updateProfile`'s JSON PATCH above (see accounts/views.py's AvatarView for why the backend
+	 * splits them). Takes an already-cropped square `Blob` from AvatarEditor's own canvas export.
+	 *
+	 * The crop happening client-side is a UX affordance, NOT a security boundary — the backend
+	 * re-decodes and re-encodes whatever arrives here regardless of shape or claimed type, so a
+	 * caller bypassing this function entirely gains nothing. */
+	async uploadAvatar(blob: Blob): Promise<{ ok: true } | { ok: false; error: string }> {
+		const formData = new FormData();
+		// A filename is required for the browser to send this as a real file part rather than a
+		// plain string field. The backend discards it and generates a UUID name of its own, so this
+		// value is never trusted or stored — it only has to exist.
+		formData.append('avatar', blob, 'avatar.webp');
+		try {
+			const raw = await apiClient.postForm<RawProfile>('/auth/me/avatar/', formData);
+			user = mapUser(raw);
+			return { ok: true };
+		} catch (e) {
+			const message = e instanceof ApiError ? e.message : undefined;
+			return { ok: false, error: message ?? 'uploadFailed' };
+		}
+	},
+
+	/** DELETE /api/auth/me/avatar/ — removes the stored file, not just the reference. */
+	async removeAvatar(): Promise<{ ok: true } | { ok: false; error: string }> {
+		try {
+			const raw = await apiClient.delete<RawProfile>('/auth/me/avatar/');
+			user = mapUser(raw);
+			return { ok: true };
+		} catch (e) {
+			const message = e instanceof ApiError ? e.message : undefined;
+			return { ok: false, error: message ?? 'updateFailed' };
+		}
 	}
 };

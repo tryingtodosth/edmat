@@ -154,3 +154,58 @@ class ExerciseBulkEndpointTests(APITestCase):
         self.assertEqual(
             len(statements), len(set(statements)), 'every exercise must keep its own distinct statement'
         )
+
+
+class ContentSanitizationTests(APITestCase):
+    """A real security-scan finding, closed: ExerciseTranslation.statement/hint/answer/solution
+    (rendered client-side as `{@html}` via MathContent.svelte) had ZERO server-side sanitization —
+    the frontend's own DOMPurify pass was the ONLY defense, including for content that publishes
+    with no moderator review at all (a verified contributor's new exercise). Fixed via
+    ExerciseTranslation.save() calling config.sanitize.sanitize_content unconditionally; these tests
+    exercise that fix through the real model save path, not the sanitizer function in isolation."""
+
+    def setUp(self):
+        self.course = make_course()
+        self.exercise = make_exercise(self.course, 1)
+
+    def _translate(self, **fields):
+        defaults = {'locale': 'en', 'status': 'published', 'title': 't', 'statement': 's'}
+        defaults.update(fields)
+        return ExerciseTranslation.objects.create(exercise=self.exercise, **defaults)
+
+    def test_a_script_tag_is_stripped_on_save(self):
+        t = self._translate(statement='<script>alert(1)</script><p>Real content.</p>')
+        self.assertNotIn('<script', t.statement)
+        self.assertIn('<p>Real content.</p>', t.statement)
+
+    def test_an_event_handler_attribute_is_stripped_on_save(self):
+        t = self._translate(statement='<img src="x" onerror="alert(1)">')
+        self.assertNotIn('onerror', t.statement)
+
+    def test_a_javascript_href_is_stripped_on_save(self):
+        t = self._translate(statement='<a href="javascript:alert(1)">click</a>')
+        self.assertNotIn('javascript:', t.statement)
+
+    def test_legitimate_math_delimiters_survive_unchanged(self):
+        """The real, found-before-shipping bug this fix's own build caught: bleach's HTML5 parser
+        normalizes a bare `<`/`>` into an entity, which would corrupt a real inequality like
+        `\\(p<\\infty\\)` into `\\(p&lt;\\infty\\)` — silently breaking KaTeX rendering for a huge
+        share of this math-heavy corpus's real content. Locks in the fix (stash math segments
+        before bleach ever sees them, splice the original back in unchanged after)."""
+        statement = r'<p>For \(p<\infty\) and \(x>0\), consider \[f(x)=x^p.\]</p>'
+        t = self._translate(statement=statement)
+        self.assertEqual(t.statement, statement)
+
+    def test_a_real_svg_diagram_survives_unchanged(self):
+        statement = (
+            '<svg viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="A circle">'
+            '<circle cx="50" cy="50" r="40" fill="red" stroke="black" stroke-width="2"></circle>'
+            '</svg>'
+        )
+        t = self._translate(statement=statement)
+        self.assertEqual(t.statement, statement)
+
+    def test_the_title_field_is_sanitized_too(self):
+        t = self._translate(title='<img src=x onerror=alert(1)>Evil title')
+        self.assertNotIn('onerror', t.title)
+        self.assertIn('Evil title', t.title)

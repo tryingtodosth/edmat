@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Course, MaterialType } from '$lib/types';
+	import type { Course, MaterialCoverageDraft, MaterialType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getAllCourses } from '$lib/services/taxonomy';
+	import { getAllCourses, getTopicsForCourse } from '$lib/services/taxonomy';
 	import { submitMaterial } from '$lib/services/materials';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -18,9 +18,17 @@
 
 	let courses = $state<Course[]>([]);
 	let courseId = $state('');
+	let topics = $state<Topic[]>([]);
 	let type = $state<MaterialType>('examCollection');
 	let title = $state('');
 	let description = $state('');
+	// Provenance. Both plain strings and both `type="text"` — deliberately NOT `type="url"` for
+	// the source: this project has hit the Svelte `bind:value` coercion bug twice already (the
+	// node-governor grant form, then this very form's own price/minutes fields), and while `url`
+	// binds a string safely, its browser-native validation would also reject a perfectly reasonable
+	// `example.edu/handout.pdf` typed without a scheme. Normalized in handleSubmit instead.
+	let author = $state('');
+	let sourceUrl = $state('');
 	let locale = $state('pl');
 	let file = $state<File | null>(null);
 	let submitting = $state(false);
@@ -58,11 +66,49 @@
 		requirements = requirements.filter((_, i) => i !== index);
 	}
 
+	// "Covers" — topic + level only (no subtopic at submission time, see MaterialCoverageDraft's
+	// own doc comment for why). `coverageLevel` is text/`inputmode="numeric"`, not `type="number"`,
+	// the same real, live-reproduced Svelte 5 `bind:value` mismatch this file's own doc comment
+	// above already explains for `priceAmount`/`estimatedMinutes`.
+	let coverage = $state<MaterialCoverageDraft[]>([]);
+	let coverageTopicId = $state('');
+	let coverageLevel = $state('50');
+
+	function addCoverage() {
+		if (!coverageTopicId) return;
+		const level = Number(coverageLevel);
+		if (!Number.isFinite(level) || level < 1 || level > 100) return;
+		if (coverage.some((c) => c.topicId === coverageTopicId)) return;
+		coverage = [...coverage, { topicId: coverageTopicId, level }];
+		coverageTopicId = '';
+		coverageLevel = '50';
+	}
+
+	function removeCoverage(topicId: string) {
+		coverage = coverage.filter((c) => c.topicId !== topicId);
+	}
+
+	function coverageTopicName(topicId: string): string {
+		return topics.find((t) => t.id === topicId)?.name ?? topicId;
+	}
+
+	let availableCoverageTopics = $derived(
+		topics.filter((t) => !coverage.some((c) => c.topicId === t.id))
+	);
+
 	async function init() {
 		courses = await getAllCourses();
 		if (courses.length) courseId = courses[0].id;
 	}
 	init();
+
+	$effect(() => {
+		if (!courseId) return;
+		getTopicsForCourse(courseId).then((t) => {
+			topics = t;
+			coverage = [];
+		});
+	});
 
 	function handleFileChange(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
@@ -70,6 +116,15 @@
 	}
 
 	let canSubmit = $derived(Boolean(courseId && title.trim() && file));
+
+	/** The backend field is a real `URLField`, which rejects a bare `example.edu/x.pdf` outright.
+	 * Someone typing a source by hand very reasonably omits the scheme, so prepend `https://` when
+	 * none is present rather than bouncing the whole submission back over it. */
+	function normalizeSourceUrl(value: string): string | undefined {
+		const trimmed = value.trim();
+		if (!trimmed) return undefined;
+		return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+	}
 
 	async function handleSubmit() {
 		if (!authStore.user || !canSubmit || !file) return;
@@ -83,7 +138,10 @@
 					title: title.trim(),
 					description: description.trim(),
 					locale,
+					author: author.trim() || undefined,
+					sourceUrl: normalizeSourceUrl(sourceUrl),
 					requirements: requirements.length > 0 ? requirements : undefined,
+					coverage: coverage.length > 0 ? coverage : undefined,
 					priceAmount: priceAmount.trim() ? Number(priceAmount) : undefined,
 					priceCurrency: priceAmount.trim() ? priceCurrency.trim() || 'PLN' : undefined,
 					estimatedMinutes: estimatedMinutes.trim() ? Number(estimatedMinutes) : undefined
@@ -92,9 +150,11 @@
 			);
 			success = true;
 			title = description = '';
+			author = sourceUrl = '';
 			file = null;
 			requirements = [];
 			requirementDraft = '';
+			coverage = [];
 			priceAmount = '';
 			estimatedMinutes = '';
 			const input = document.getElementById('material-file-input') as HTMLInputElement | null;
@@ -190,6 +250,69 @@
 						<span class="file-picked">{file.name}</span>
 					{/if}
 				</label>
+
+				<!-- Provenance, placed directly after the file: these two questions are about the file
+				     that was just picked, and the uploader is the only person who can answer either —
+				     a moderator reviewing the pending PDF cannot recover them from the bytes. -->
+				<label class="field">
+					<span>{m.submitMaterial_field_author()} <em>({m.common_optional()})</em></span>
+					<input type="text" bind:value={author} maxlength="200" />
+					<span class="file-hint">{m.submitMaterial_authorHint()}</span>
+				</label>
+
+				<label class="field">
+					<span>{m.submitMaterial_field_sourceUrl()} <em>({m.common_optional()})</em></span>
+					<input
+						type="text"
+						inputmode="url"
+						bind:value={sourceUrl}
+						maxlength="500"
+						placeholder={m.submitMaterial_sourceUrlPlaceholder()}
+					/>
+					<span class="file-hint">{m.submitMaterial_sourceUrlHint()}</span>
+				</label>
+
+				{#if topics.length > 0}
+					<div class="field">
+						<span>{m.submitMaterial_field_coverage()} <em>({m.common_optional()})</em></span>
+						{#if coverage.length > 0}
+							<ul class="requirements-list">
+								{#each coverage as entry (entry.topicId)}
+									<li>
+										<span>{coverageTopicName(entry.topicId)} — {entry.level}%</span>
+										<button type="button" onclick={() => removeCoverage(entry.topicId)}
+											>&times;</button
+										>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+						{#if availableCoverageTopics.length > 0}
+							<div class="price-inputs">
+								<select
+									bind:value={coverageTopicId}
+									aria-label={m.submitMaterial_coverageTopicLabel()}
+								>
+									<option value="">{m.submitMaterial_coverageTopicPlaceholder()}</option>
+									{#each availableCoverageTopics as topic (topic.id)}
+										<option value={topic.id}>{topic.name}</option>
+									{/each}
+								</select>
+								<input
+									type="text"
+									inputmode="numeric"
+									class="currency-input"
+									aria-label={m.submitMaterial_coverageLevelLabel()}
+									bind:value={coverageLevel}
+								/>
+								<button type="button" class="add-coverage-btn" onclick={addCoverage}>
+									{m.submitMaterial_coverageAdd()}
+								</button>
+							</div>
+						{/if}
+						<span class="file-hint">{m.submitMaterial_coverageHint()}</span>
+					</div>
+				{/if}
 
 				<div class="field">
 					<span>{m.submitMaterial_field_requirements()} <em>({m.common_optional()})</em></span>
@@ -372,5 +495,9 @@
 	.submit {
 		@include mix.button-primary;
 		align-self: flex-start;
+	}
+	.add-coverage-btn {
+		@include mix.button-secondary;
+		flex-shrink: 0;
 	}
 </style>

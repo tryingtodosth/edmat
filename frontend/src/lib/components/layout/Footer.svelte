@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 </script>
 
@@ -7,6 +8,9 @@
 		<p>{m.common_appName()} — {m.nav_tagline()}</p>
 		<p class="muted">{m.footer_sourceNote()}</p>
 		<p class="muted">{m.footer_phaseNote()}</p>
+		<!-- With no consent banner, this link is the site's standing disclosure — so it belongs
+		     somewhere permanent and on every page, not behind a dialog. -->
+		<p><a href={resolve('/privacy')}>{m.footer_privacy()}</a></p>
 	</div>
 </footer>
 

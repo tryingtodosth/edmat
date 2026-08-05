@@ -7,11 +7,19 @@ call site that reads request.user.profile can assume it exists rather than defen
 from django.conf import settings
 from django.db import models
 
+from .avatar import validate_avatar_file
+
 
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, related_name='profile', on_delete=models.CASCADE)
     display_name = models.CharField(max_length=100, blank=True)
-    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    # `validators=` is defense in depth for the ONE write path that bypasses the API: the Django
+    # admin, which assigns this field directly and so never reaches `AvatarView`/`process_avatar`.
+    # It gives that path the size/content-type/decompression-bomb checks but NOT the re-encode, which
+    # is why the API deliberately does not rely on it — see accounts/avatar.py's own doc comment.
+    avatar = models.ImageField(
+        upload_to='avatars/', blank=True, null=True, validators=[validate_avatar_file]
+    )
     preferred_locale = models.CharField(max_length=8, default='en')
     is_verified_contributor = models.BooleanField(default=False)
     joined_at = models.DateTimeField(auto_now_add=True)

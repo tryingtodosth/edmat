@@ -1,10 +1,12 @@
-import type { Difficulty, ResolvedExercise, SourceType } from '$lib/types';
+import type { CoverageVoteValue, Difficulty, ExerciseRequirement, ResolvedExercise, SourceType } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
 import {
+	mapExerciseRequirement,
 	mapResolvedExerciseDetail,
 	mapResolvedExerciseList,
 	type RawExerciseCommon,
-	type RawExerciseDetail
+	type RawExerciseDetail,
+	type RawExerciseRequirement
 } from '$lib/api/mappers';
 import { getTopicsForCourse } from './taxonomy';
 
@@ -205,4 +207,59 @@ export async function getRandomExercise(
 	});
 	const raw = await apiClient.get<RawExerciseDetail | undefined>(`/exercises/random/${qs}`);
 	return raw ? mapResolvedExerciseDetail(raw) : undefined;
+}
+
+// ---- exercise requirements ("skill tags") — the exact same shape materials.ts's own
+// setMaterialRequirements/proposeRequirement/castRequirementVote/retractRequirementVote already
+// establish for a Material, applied here to Exercise for the first time. See those functions' own
+// doc comments (materials.ts) for the full reasoning — governor-only bulk replace vs. open propose
+// vs. open voting is the identical trust split on both content types.
+
+export async function setExerciseRequirements(
+	exerciseId: string,
+	labels: string[]
+): Promise<ResolvedExercise> {
+	const raw = await apiClient.put<RawExerciseDetail>(
+		`/exercises/${encodeURIComponent(exerciseId)}/requirements/`,
+		{ requirements: labels }
+	);
+	return mapResolvedExerciseDetail(raw);
+}
+
+// Thrown specifically for the 409 "this requirement already exists" case, mirroring
+// materials.ts's own DuplicateRequirementError for the identical purpose.
+export class DuplicateExerciseRequirementError extends Error {}
+
+export async function proposeExerciseRequirement(
+	exerciseId: string,
+	label: string
+): Promise<ExerciseRequirement> {
+	try {
+		const raw = await apiClient.post<RawExerciseRequirement>(
+			`/exercises/${encodeURIComponent(exerciseId)}/requirements/propose_requirement/`,
+			{ label }
+		);
+		return mapExerciseRequirement(raw);
+	} catch (e) {
+		if (e instanceof ApiError && e.status === 409) throw new DuplicateExerciseRequirementError(e.message);
+		throw e;
+	}
+}
+
+export async function castExerciseRequirementVote(
+	requirementId: string,
+	value: CoverageVoteValue
+): Promise<ExerciseRequirement> {
+	const raw = await apiClient.post<RawExerciseRequirement>(
+		`/exercise-requirements/${encodeURIComponent(requirementId)}/vote/`,
+		{ value }
+	);
+	return mapExerciseRequirement(raw);
+}
+
+export async function retractExerciseRequirementVote(requirementId: string): Promise<ExerciseRequirement> {
+	const raw = await apiClient.delete<RawExerciseRequirement>(
+		`/exercise-requirements/${encodeURIComponent(requirementId)}/vote/`
+	);
+	return mapExerciseRequirement(raw);
 }

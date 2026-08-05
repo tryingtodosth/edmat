@@ -9,6 +9,10 @@ export interface ExerciseSubmissionDraft {
 	difficulty: Difficulty;
 	source: ExerciseSource;
 	tags: string[];
+	// Free-text prerequisite/"skill tag" labels — optional, applied into real ExerciseRequirement
+	// rows on approval (moderation/views.py's `_apply_submission`), the same submission-time draft
+	// shape MaterialSubmission.requirements already establishes for a Material.
+	requirements?: string[];
 	statement: string;
 	hint: string;
 	answer: string;

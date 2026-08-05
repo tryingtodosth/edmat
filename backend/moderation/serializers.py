@@ -42,6 +42,31 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['submitted_by', 'status', 'reviewed_by', 'review_note', 'resulting_exercise']
 
+    def validate_payload(self, value):
+        """`payload` stays a flat, unvalidated JSON blob for every OTHER key (Section 9's own
+        "draft of everything Exercise + ExerciseTranslation would need"), but `requirements` — a
+        new list[str] of skill-tag labels, applied into real `ExerciseRequirement` rows on approval
+        (`_apply_submission`, moderation/views.py) — gets the exact same real validation
+        `MaterialSubmissionSerializer.validate_requirements` already applies to the identical
+        concept for a Material: reject (don't silently dedupe) a case-insensitive-after-trim
+        duplicate within the submitted list itself, sharing `find_duplicate_requirement_label`
+        rather than a second, independently-drifting copy of that check."""
+        if 'requirements' in value:
+            labels = value.get('requirements')
+            # A plain list of strings, not a field-keyed dict — `validate_<field>` is already
+            # scoped to `payload` itself, so DRF nests whatever this raises under `{'payload': [...]}`
+            # on its own; returning a dict here would double-nest instead.
+            if not isinstance(labels, list):
+                raise serializers.ValidationError(['requirements: must be a list of labels.'])
+            cleaned = clean_requirement_labels(labels)
+            duplicate = find_duplicate_requirement_label(cleaned)
+            if duplicate is not None:
+                raise serializers.ValidationError(
+                    [f'requirements: "{duplicate}" appears more than once in this list.']
+                )
+            value['requirements'] = cleaned
+        return value
+
 
 class EditSuggestionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -81,6 +106,7 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
 
     course = serializers.SlugRelatedField(slug_field='slug', queryset=Course.objects.all())
     requirements = serializers.JSONField(required=False, default=list)
+    coverage = serializers.JSONField(required=False, default=list)
 
     class Meta:
         model = MaterialSubmission
@@ -93,7 +119,10 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
             'description',
             'locale',
             'file',
+            'author',
+            'source_url',
             'requirements',
+            'coverage',
             'price_amount',
             'price_currency',
             'estimated_minutes',
@@ -135,6 +164,52 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
         if duplicate is not None:
             raise serializers.ValidationError(f'"{duplicate}" appears more than once in this list.')
         return cleaned
+
+    def validate_coverage(self, value):
+        """Same string-or-list acceptance `validate_requirements` above already establishes (this
+        endpoint is multipart, not JSON) — each entry is `{"topic_id": int, "level": int}` (1-100).
+        Which COURSE a `topic_id` must belong to isn't known yet at this point (`course` is a
+        sibling field, validated independently) — that cross-field check happens in `validate()`
+        below, the same split DRF itself expects for anything needing more than one field's value."""
+        if isinstance(value, str):
+            import json
+
+            try:
+                value = json.loads(value) if value.strip() else []
+            except ValueError:
+                raise serializers.ValidationError('Must be a JSON array of {topic_id, level} objects.')
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Must be a JSON array of {topic_id, level} objects.')
+
+        cleaned = []
+        seen_topic_ids = set()
+        for entry in value:
+            if not isinstance(entry, dict):
+                raise serializers.ValidationError('Each coverage entry must be an object.')
+            try:
+                topic_id = int(entry.get('topic_id'))
+                level = int(entry.get('level'))
+            except (TypeError, ValueError):
+                raise serializers.ValidationError('Each coverage entry needs a real topic_id and level.')
+            if not (1 <= level <= 100):
+                raise serializers.ValidationError('level must be between 1 and 100.')
+            if topic_id in seen_topic_ids:
+                raise serializers.ValidationError('The same topic was listed more than once.')
+            seen_topic_ids.add(topic_id)
+            cleaned.append({'topic_id': topic_id, 'level': level})
+        return cleaned
+
+    def validate(self, attrs):
+        coverage = attrs.get('coverage')
+        course = attrs.get('course')
+        if coverage and course is not None:
+            valid_topic_ids = set(course.topics.values_list('id', flat=True))
+            for entry in coverage:
+                if entry['topic_id'] not in valid_topic_ids:
+                    raise serializers.ValidationError(
+                        {'coverage': [f'Topic {entry["topic_id"]} is not one of this course\'s own topics.']}
+                    )
+        return attrs
 
 
 class ReportCreateSerializer(serializers.ModelSerializer):

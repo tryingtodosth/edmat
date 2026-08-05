@@ -10,13 +10,28 @@ import type { ModerationStatus } from './submission';
  * new upload can declare its own requirements/price/time estimate at submission time, mirroring the
  * same fields a real, already-published Material carries (material.ts) — see `_apply_material_submission`
  * (backend) for how these three carry over onto the real Material row once approved. */
+// One "Covers" claim declared at submission time — topic + level only, no subtopic (that finer-
+// grained UX stays a post-publish-only flow via the material detail page's own "+Add coverage"
+// action, `proposeCoverage` in materials.ts) — see moderation/models.py's own MaterialSubmission
+// .coverage doc comment for the full reasoning.
+export interface MaterialCoverageDraft {
+	topicId: string;
+	level: number; // 1-100
+}
+
 export interface MaterialSubmissionDraft {
 	courseId: string;
 	type: MaterialType;
 	title: string;
 	description: string;
 	locale: string;
+	// Provenance the uploader declares. Optional, but this is the only moment either is
+	// recoverable — a moderator looking at a pending PDF cannot determine its author or origin from
+	// the bytes, so if the form never asks, the information is not merely missing, it is gone.
+	author?: string;
+	sourceUrl?: string;
 	requirements?: string[];
+	coverage?: MaterialCoverageDraft[];
 	priceAmount?: number;
 	priceCurrency?: string;
 	estimatedMinutes?: number;
@@ -37,6 +52,8 @@ export interface MaterialSubmission {
 	locale: string;
 	fileName: string;
 	fileUrl: string;
+	author: string;
+	sourceUrl?: string;
 	requirements: string[];
 	priceAmount?: number;
 	priceCurrency: string;

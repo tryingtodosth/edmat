@@ -47,3 +47,7 @@ Thumbs.db
 /Database-of-Student-Exercise/pytest.ini
 /Database-of-Student-Exercise/README.md
 /Database-of-Student-Exercise/requirements.txt
+
+# Activity-log shards (telemetry app). Real personal data under a retention policy —
+# never in git, and backed up separately from the main database.
+backend/logdata/

@@ -109,6 +109,12 @@ export interface Material {
 	// genuinely different, REAL-account attribution that was missing entirely until now — the
 	// material counterpart to `ResolvedExercise.submittedByUserId`.
 	author: string;
+	// Where the material came from, as a link wherever one exists. Genuinely distinct from
+	// `author` above — that is WHO wrote it, this is WHERE it came from, and neither answers the
+	// other. Optional: a scan of a paper handout has no URL, and every one of the 7 legacy corpus
+	// materials predates the field (material.yaml never carried a source), so blank is the honest
+	// value rather than a fabricated one.
+	sourceUrl?: string;
 	submittedByUserId?: string;
 	submittedByDisplayName?: string;
 	tags: string[]; // the same free-form Tag vocabulary Exercise.tags already uses — see TagChip.svelte

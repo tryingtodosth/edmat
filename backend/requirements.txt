@@ -16,3 +16,9 @@ clamd>=1.0.2,<2.0
 # confirmed-necessary dependency of django-postman itself (its own api.py unconditionally imports
 # the Site model at load time), not an optional extra — see config/settings.py's own note on this.
 django-postman>=4.6,<5.0
+# config/sanitize.py — real server-side HTML sanitization for user-submitted exercise/material
+# content (CLAUDE.md Section 11's own "sanitize on save too, defense in depth" requirement — never
+# actually implemented until a security scan of the whole project found the gap). The frontend's own
+# DOMPurify pass (renderContent.ts) was, until this fix, the ONLY sanitization layer for content
+# that publishes with no moderator review at all (a verified contributor's new exercises).
+bleach>=6.1,<7.0

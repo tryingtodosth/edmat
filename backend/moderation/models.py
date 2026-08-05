@@ -116,6 +116,21 @@ class MaterialSubmission(models.Model):
         upload_to=material_submission_upload_path,
         validators=[validate_material_submission_file],
     )
+    # Provenance, declared by the uploader and carried onto the real Material on approval — both
+    # mirror `materials.models.Material`'s own fields of the same names exactly (see `Material
+    # .source_url`'s doc comment for why the source is a URL rather than free text, and why neither
+    # field is required).
+    #
+    # These matter more at SUBMISSION time than anywhere else, and are the reason they were added:
+    # the uploader is the only person who actually knows where a file came from. A moderator looking
+    # at a pending PDF in the queue has no way to determine its author or origin from the bytes, so
+    # if the form never asks, the information is not merely missing from the record — it is
+    # unrecoverable. `MaterialSubmissionSerializer` exposes both, and the moderation queue's own
+    # Materials tab renders them alongside the file link so a reviewer can actually weigh provenance
+    # as part of the approve/reject decision (CLAUDE.md Section 18 item 2's still-open copyright
+    # question is exactly the kind of call that needs this in front of the person making it).
+    author = models.CharField(max_length=200, blank=True)
+    source_url = models.URLField(max_length=500, blank=True)
     # A brand-new upload can optionally declare its own requirements/price/time-estimate at
     # submission time, mirroring the same three fields `materials.models.Material`/
     # `MaterialRequirement` itself carries once published — see `_apply_material_submission`
@@ -128,6 +143,15 @@ class MaterialSubmission(models.Model):
     # plain fields instead of one whole JSON draft, since a Material submission is otherwise
     # real, typed fields already, not a JSON blob).
     requirements = models.JSONField(default=list, blank=True)
+    # A brand-new upload can optionally declare initial "Covers" claims too, the requirement-side
+    # sibling above — a plain `list[{"topic_id": int, "level": int}]`, not real `MaterialCoverage`
+    # rows, since there's no real Material yet for them to be a FK to (see `requirements`'s own doc
+    # comment for the identical reasoning). Deliberately narrower than the post-publish "+Add
+    # coverage" flow (`MaterialViewSet.coverage`, materials/views.py): topic + level only, no
+    # subtopic — the get-or-create-a-subtopic-on-the-fly flow that action supports is real UX
+    # richness this submission form doesn't need on day one; a submitter who wants subtopic-level
+    # precision can still add it after publish via that same, already-working flow.
+    coverage = models.JSONField(default=list, blank=True)
     price_amount = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     price_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='PLN', blank=True)
     estimated_minutes = models.PositiveIntegerField(null=True, blank=True)

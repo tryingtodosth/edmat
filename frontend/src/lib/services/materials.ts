@@ -179,12 +179,25 @@ export async function submitMaterial(
 	formData.append('description', draft.description);
 	formData.append('locale', draft.locale);
 	formData.append('file', file);
+	// Provenance — both optional, both only ever knowable by the uploader (see
+	// MaterialSubmission.author/source_url in moderation/models.py). Sent as plain multipart
+	// fields, not JSON-encoded like `requirements`/`coverage` below, since neither is a list.
+	if (draft.author?.trim()) formData.append('author', draft.author.trim());
+	if (draft.sourceUrl?.trim()) formData.append('source_url', draft.sourceUrl.trim());
 	// All three genuinely optional — a submission that never sets any of them behaves exactly as
 	// before this feature existed. `requirements` travels as a JSON-encoded string, not a native
 	// array — this is a multipart body, and the backend's own `validate_requirements` (moderation/
 	// serializers.py) specifically parses a string here rather than assuming a real list arrived.
 	if (draft.requirements && draft.requirements.length > 0) {
 		formData.append('requirements', JSON.stringify(draft.requirements));
+	}
+	// Same "JSON-encoded string over multipart" shape `requirements` just above already uses —
+	// `validate_coverage` (moderation/serializers.py) parses this string itself, same reasoning.
+	if (draft.coverage && draft.coverage.length > 0) {
+		formData.append(
+			'coverage',
+			JSON.stringify(draft.coverage.map((c) => ({ topic_id: Number(c.topicId), level: c.level })))
+		);
 	}
 	if (draft.priceAmount !== undefined) formData.append('price_amount', String(draft.priceAmount));
 	if (draft.priceCurrency) formData.append('price_currency', draft.priceCurrency);

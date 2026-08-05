@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AvatarView,
     DonationLinkViewSet,
     LoginView,
     LogoutView,
@@ -21,6 +22,7 @@ urlpatterns = router.urls + [
     path('auth/login/', LoginView.as_view(), name='auth-login'),
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('auth/me/', MeView.as_view(), name='auth-me'),
+    path('auth/me/avatar/', AvatarView.as_view(), name='auth-me-avatar'),
     path('auth/password-reset/', PasswordResetView.as_view(), name='auth-password-reset'),
     path('users/<int:pk>/', UserPublicView.as_view(), name='user-public'),
     path('users/<int:pk>/reviews/', UserReviewsView.as_view(), name='user-reviews'),
