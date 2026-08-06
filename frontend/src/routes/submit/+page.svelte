@@ -3,6 +3,7 @@
 	import type { Branch, Difficulty, Discipline, SourceType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getBranchesForDiscipline, getDisciplines, getTopicsForBranch } from '$lib/services/taxonomy';
+	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import { submitExercise } from '$lib/services/submissions';
 	import { authStore } from '$lib/state/auth.svelte';
 	import {
@@ -156,23 +157,46 @@
 			{/if}
 
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
-				<label class="field">
-					<span>{m.submit_field_field()}</span>
-					<select value={disciplineId} onchange={(e) => onFieldChange(e.currentTarget.value)}>
-						{#each fields as f (f.id)}
-							<option value={f.id}>{f.name}</option>
-						{/each}
-					</select>
-				</label>
+				<div class="field">
+					<label>
+						<span>{m.submit_field_field()}</span>
+						<select value={disciplineId} onchange={(e) => onFieldChange(e.currentTarget.value)}>
+							{#each fields as f (f.id)}
+								<option value={f.id}>{f.name}</option>
+							{/each}
+						</select>
+					</label>
+					<!-- Selecting what was just proposed rather than only refreshing the list: somebody
+					     who suggested a discipline did so BECAUSE they wanted to file under it. -->
+					<ProposeNodeButton
+						kind="discipline"
+						onproposed={async (slug) => {
+							fields = await getDisciplines();
+							await onFieldChange(slug);
+						}}
+					/>
+				</div>
 
-				<label class="field">
-					<span>{m.submit_field_course()}</span>
-					<select bind:value={branchId}>
-						{#each branches as c (c.id)}
-							<option value={c.id}>{c.name}</option>
-						{/each}
-					</select>
-				</label>
+				<div class="field">
+					<label>
+						<span>{m.submit_field_course()}</span>
+						<select bind:value={branchId}>
+							{#each branches as c (c.id)}
+								<option value={c.id}>{c.name}</option>
+							{/each}
+						</select>
+					</label>
+					{#if disciplineId}
+						<ProposeNodeButton
+							kind="branch"
+							parent={disciplineId}
+							onproposed={async (slug) => {
+								branches = await getBranchesForDiscipline(disciplineId);
+								branchId = slug;
+							}}
+						/>
+					{/if}
+				</div>
 
 				<label class="field">
 					<span>{m.submit_field_title()}</span>
@@ -228,6 +252,18 @@
 									<option value={topic.id}>{topic.name}</option>
 								{/each}
 							</select>
+						{/if}
+						<!-- The case this whole feature exists for: an exercise on measure theory with no
+						     `teoria-miary` topic to file it under. Offered even when the list is empty,
+						     which is exactly when it is most needed. -->
+						{#if branchId}
+							<ProposeNodeButton
+								kind="topic"
+								parent={branchId}
+								onproposed={async () => {
+									topics = await getTopicsForBranch(branchId);
+								}}
+							/>
 						{/if}
 					</div>
 				{/if}
