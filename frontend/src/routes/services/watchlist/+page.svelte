@@ -10,28 +10,51 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { getWatchlist, unwatchService } from '$lib/services/tutoring';
 	import { getBranchById } from '$lib/services/taxonomy';
+	import { cachedList, opacityFor, type TrackedRow } from '$lib/state/cachedList.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
+	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
 
-	let watches = $state<ServiceWatch[]>([]);
+	// A watchlist is the list this pattern fits best on this whole surface: it is deliberately
+	// re-visited (that is what "compare these" means), it is small, and the rows are almost always
+	// the same ones — so painting the saved copy first is nearly always painting the right answer,
+	// and the fade is what tells you how long it has been since anybody checked the rate you are
+	// comparing against.
+	let watches = $state<TrackedRow<ServiceWatch>[]>([]);
+	let newSinceLastVisit = $state(0);
 	let courseNamesByServiceId = $state<Record<string, string[]>>({});
 	let loading = $state(true);
 
-	async function load() {
-		loading = true;
-		watches = await getWatchlist();
+	async function resolveBranchNames(rows: TrackedRow<ServiceWatch>[]) {
 		const entries = await Promise.all(
-			watches.map(async (w) => {
-				const branches = await Promise.all(w.service.branchIds.map((id) => getBranchById(id)));
-				return [w.service.id, branches.filter((c) => c !== undefined).map((c) => c!.name)] as const;
+			rows.map(async ({ item }) => {
+				const branches = await Promise.all(item.service.branchIds.map((id) => getBranchById(id)));
+				return [
+					item.service.id,
+					branches.filter((c) => c !== undefined).map((c) => c!.name)
+				] as const;
 			})
 		);
 		courseNamesByServiceId = Object.fromEntries(entries);
+	}
+
+	async function load() {
+		loading = true;
+		newSinceLastVisit = 0;
+		await cachedList<ServiceWatch>('watchlist', getWatchlist, (result) => {
+			watches = result.rows;
+			newSinceLastVisit = result.newCount;
+			loading = false;
+			// Branch names are resolved per row and not awaited here: the cards are already on
+			// screen from the cached rows, and holding the whole list back for a label that arrives
+			// a moment later would give back exactly the head start the cache just bought.
+			resolveBranchNames(result.rows);
+		});
 		loading = false;
 	}
 
 	async function handleRemove(watchId: string) {
 		await unwatchService(watchId);
-		watches = watches.filter((w) => w.id !== watchId);
+		watches = watches.filter((w) => w.item.id !== watchId);
 	}
 
 	let loadedOnce = $state(false);
@@ -62,9 +85,11 @@
 	{:else if watches.length === 0}
 		<p class="empty">{m.services_watchlistEmpty()}</p>
 	{:else}
+		<NewSinceNotice count={newSinceLastVisit} />
 		<div class="grid">
-			{#each watches as watch (watch.id)}
-				<div class="watch-item">
+			{#each watches as row (row.item.id)}
+				{@const watch = row.item}
+				<div class="watch-item" style="opacity: {opacityFor(row.confirmedAt)}">
 					<ServiceCard
 						service={watch.service}
 						branchNames={courseNamesByServiceId[watch.service.id] ?? []}

@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "common_appName": "EdMat",
   "common_loading": "Loading…",
+  "common_newSinceLastVisit": "{count} new since you last looked.",
   "offline_savedCopy": "Showing a saved copy from {when} — you appear to be offline.",
   "common_error_generic": "Something went wrong.",
   "common_cancel": "Cancel",

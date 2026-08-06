@@ -16,9 +16,18 @@
 // (`MAX_PAGES_PER_LIST`), oldest evicted, because localStorage is a handful of megabytes shared
 // with everything else.
 //
-// **Record when each row was last confirmed.** Not when the list was fetched — per row. That is
-// what lets the UI grey a row by its own age, so a list refreshed a minute ago whose bottom half
-// has not been seen in a week says so, instead of presenting all of it as equally current.
+// **Record when each row was last confirmed.** Not when the list was fetched — per row, so the UI
+// can grey a row by its own age rather than presenting everything as equally current.
+//
+// What that amounts to in practice, corrected after actually wiring three lists to it rather than
+// left as the original comment's own optimistic reading: a SUCCESSFUL refresh re-stamps every row
+// the server still returns, so online and up to date, the whole list sits at full opacity and the
+// gradient is invisible. That is the correct outcome — every row genuinely was just confirmed — but
+// it means the fade earns its keep in exactly two places: the first paint, before the network has
+// answered, and a list shown from the device when the request fails outright. In both, the greyness
+// is saying "this is your copy, nobody has confirmed it just now," which is the honest message.
+// Per-row ages only diverge WITHIN one list once a list is genuinely paged (page 2 kept from a week
+// ago beside a freshly refreshed page 1); none of this app's lists paginate yet.
 
 import { readCache, writeCache } from './offlineCache.svelte';
 
@@ -59,7 +68,7 @@ function readIndex(name: string): number[] {
 
 function touchIndex(name: string, page: number): void {
 	const pages = readIndex(name).filter((p) => p !== page);
-    pages.push(page);
+	pages.push(page);
 	while (pages.length > MAX_PAGES_PER_LIST) {
 		const evicted = pages.shift();
 		if (evicted !== undefined) writeCache(pageKey(name, evicted), null);
@@ -82,6 +91,14 @@ export function mergeRows<T extends Identified>(
 	const known = new Map(existing.map((row) => [row.item.id, row]));
 	const freshIds = new Set(fresh.map((item) => item.id));
 
+	// A first visit has nothing for a row to be new *against*, so without this every row is
+	// announced as an arrival — and it is loudest on the one visit where it means least. Found by
+	// wiring this up and looking at the screen: an opening visit to /services said "2 new since you
+	// last looked" about the only two listings that have ever existed, and applying a branch filter
+	// for the first time said "1 new" about a listing the reader had just asked to see. Rows are
+	// still stamped with their confirmation time; they are simply not counted as arrivals.
+	const hadPrevious = existing.length > 0;
+
 	const added: TrackedRow<T>[] = [];
 	const kept: TrackedRow<T>[] = [];
 
@@ -92,7 +109,7 @@ export function mergeRows<T extends Identified>(
 			// where it was, and stamp it as confirmed now.
 			kept.push({ item, confirmedAt: now, isNew: previous.isNew });
 		} else {
-			added.push({ item, confirmedAt: now, isNew: true });
+			added.push({ item, confirmedAt: now, isNew: hadPrevious });
 		}
 	}
 
@@ -195,4 +212,23 @@ export function fadeFor(confirmedAt: number, now = Date.now()): number {
 	if (age < AGING_MS) return 0.25;
 	if (age < OLD_MS) return 0.5;
 	return 0.7;
+}
+
+/** The dimmest a row is ever drawn. Below roughly this, ordinary body text stops clearing WCAG AA. */
+const MIN_OPACITY = 0.6;
+
+/**
+ * `fadeFor` as a real CSS opacity — and deliberately NOT `1 - fadeFor(...)`.
+ *
+ * Rendering the raw fade would put the oldest rows at opacity 0.3, dropping normal body text from
+ * roughly 15:1 to roughly 2:1 against the page — well under the 4.5:1 this project measured and
+ * fixed its own colour tokens to clear (Section 17E darkened `$light-status-success` for exactly
+ * this reason). A row nobody can read is not a row marked as stale, it is a row taken away, and
+ * staleness is the least important thing about it.
+ *
+ * So the same four steps map onto `[MIN_OPACITY, 1]` instead: the gradient still reads at a glance,
+ * still disappears entirely when everything is current, and the floor stays legible.
+ */
+export function opacityFor(confirmedAt: number, now = Date.now()): number {
+	return 1 - fadeFor(confirmedAt, now) * (1 - MIN_OPACITY);
 }
