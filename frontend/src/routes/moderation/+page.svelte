@@ -12,8 +12,10 @@
 		ReportGroup,
 		User
 	} from '$lib/types';
+	import type { TaxonomyProposal } from '$lib/services/moderation';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
+		decideTaxonomyProposal,
 		getModerationQueue,
 		decideEditSuggestion,
 		decideExerciseSubmission,
@@ -44,6 +46,7 @@
 	>('reports');
 	let flagTogglePending = $state<Record<string, boolean>>({});
 	let flagError = $state('');
+	let taxonomyProposals = $state<TaxonomyProposal[]>([]);
 	let reports = $state<ReportGroup[]>([]);
 	let submissions = $state<ExerciseSubmission[]>([]);
 	let materialSubmissions = $state<MaterialSubmission[]>([]);
@@ -73,6 +76,7 @@
 		loading = true;
 		const queue = await getModerationQueue();
 		reports = queue.reports;
+		taxonomyProposals = queue.taxonomyProposals;
 		submissions = queue.exerciseSubmissions;
 		materialSubmissions = queue.materialSubmissions;
 		editSuggestions = queue.editSuggestions;
@@ -272,6 +276,47 @@
 				})}
 			</p>
 		{/if}
+		<!-- Proposed taxonomy entries. Above the tabs rather than inside one: a proposal is cheap
+		     to decide and blocks whoever is waiting to file content under the word, so burying it
+		     behind a tab is how it ends up unreviewed. -->
+		{#if taxonomyProposals.length > 0}
+			<section class="taxonomy-proposals">
+				<h2>{m.moderation_taxonomy_heading()}</h2>
+				<ul>
+					{#each taxonomyProposals as proposal (proposal.kind + proposal.id)}
+						<li>
+							<span class="kind">{proposal.kind}</span>
+							<strong>{proposal.name}</strong>
+							<code>{proposal.slug}</code>
+							{#if proposal.parent}
+								<span class="hint">← {proposal.parent}</span>
+							{/if}
+							<button
+								type="button"
+								class="link"
+								onclick={async () => {
+									await decideTaxonomyProposal(proposal.kind, proposal.id, 'approve');
+									await load();
+								}}
+							>
+								{m.moderation_taxonomy_approve()}
+							</button>
+							<button
+								type="button"
+								class="link danger"
+								onclick={async () => {
+									await decideTaxonomyProposal(proposal.kind, proposal.id, 'reject');
+									await load();
+								}}
+							>
+								{m.moderation_taxonomy_reject()}
+							</button>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+
 		<div class="tabs" role="tablist">
 			<button
 				type="button"
@@ -751,6 +796,25 @@
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
+
+	.taxonomy-proposals ul {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.taxonomy-proposals li {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+	.taxonomy-proposals .kind {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		text-transform: uppercase;
+	}
+
 
 	.page {
 		max-width: 780px;

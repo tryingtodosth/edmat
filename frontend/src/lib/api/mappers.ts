@@ -49,6 +49,7 @@ import type {
 	ServiceReview,
 	ServiceWatch,
 	Subtopic,
+	TaxonomyStatus,
 	TagFollowState,
 	TutorSchedule,
 	Topic,
@@ -69,6 +70,7 @@ export interface RawDiscipline {
 	id: number;
 	slug: string;
 	published: boolean;
+	status: TaxonomyStatus;
 	name: string;
 	description: string;
 }
@@ -78,7 +80,8 @@ export function mapDiscipline(json: RawDiscipline): Discipline {
 		id: json.slug,
 		name: json.name,
 		description: json.description,
-		published: json.published
+		published: json.published,
+		status: json.status ?? 'approved'
 	};
 }
 
@@ -88,13 +91,21 @@ export interface RawTopic {
 	branch: number;
 	order: number;
 	name: string;
+	status: TaxonomyStatus;
 }
 
 /** `branchId` is the frontend branch id (= slug) — the raw JSON's own `branch` field is a PK int,
  * not a slug, but a Topic is always resolved from a request already scoped to one known branch, so
  * the caller passes that branch's own id straight through rather than needing a second lookup. */
 export function mapTopic(json: RawTopic, branchId: string): Topic {
-	return { id: String(json.id), slug: json.slug, branchId, name: json.name, order: json.order };
+	return {
+		id: String(json.id),
+		slug: json.slug,
+		branchId,
+		name: json.name,
+		order: json.order,
+		status: json.status ?? 'approved'
+	};
 }
 
 export interface RawSubtopic {
@@ -119,6 +130,7 @@ export interface RawBranch {
 	slug: string;
 	discipline: string; // already the discipline's own slug (backend SlugRelatedField)
 	published: boolean;
+	status: TaxonomyStatus;
 	order: number;
 	name: string;
 	description: string;
@@ -132,6 +144,7 @@ export function mapBranch(json: RawBranch): Branch {
 		name: json.name,
 		description: json.description,
 		published: json.published,
+		status: json.status ?? 'approved',
 		order: json.order,
 		topics: json.topics.map((t) => mapTopic(t, json.slug))
 	};

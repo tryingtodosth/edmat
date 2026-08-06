@@ -816,3 +816,49 @@ class FeatureFlagViewSet(mixins.ListModelMixin, mixins.UpdateModelMixin, viewset
 
     def perform_update(self, serializer):
         serializer.save(updated_by=self.request.user)
+
+
+class TaxonomyProposalActionView(APIView):
+    """POST /api/moderation/taxonomy/<kind>/<pk>/ — approve or reject a proposed node.
+
+    Approving flips `status` and nothing else: the row has been live and referenceable since it was
+    proposed, so approval is an endorsement rather than a publication, and content already filed
+    against it does not move.
+
+    Rejecting DELETES it. There is no draft to preserve and nothing to revise — a discipline is a
+    slug and a name — so a tombstone would only make every listing carry a third case it has to
+    remember to exclude. Content filed against a rejected node is not orphaned by this: `Topic` and
+    `Branch` cascade, which is the honest outcome, since the word it was filed under turned out not
+    to exist. A moderator about to delete a node that has content is told how much first.
+    """
+
+    permission_classes = [IsModerator]
+
+    KINDS = {'discipline': 'Discipline', 'branch': 'Branch', 'topic': 'Topic'}
+
+    def post(self, request, kind, pk):
+        from taxonomy import models as taxonomy_models
+
+        if kind not in self.KINDS:
+            return Response(
+                {'detail': f'Expected one of {sorted(self.KINDS)}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        model = getattr(taxonomy_models, self.KINDS[kind])
+        node = model.objects.filter(pk=pk, status='pending').first()
+        if node is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        decision = request.data.get('decision')
+        if decision == 'approve':
+            node.status = 'approved'
+            node.save(update_fields=['status'])
+            return Response({'kind': kind, 'slug': node.slug, 'status': node.status})
+        if decision == 'reject':
+            slug = node.slug
+            node.delete()
+            return Response({'kind': kind, 'slug': slug, 'status': 'rejected'})
+        return Response(
+            {'detail': 'decision must be "approve" or "reject".'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )

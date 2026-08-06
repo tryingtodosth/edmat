@@ -17,7 +17,7 @@ class DisciplineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Discipline
-        fields = ['id', 'slug', 'published', 'name', 'description']
+        fields = ['id', 'slug', 'published', 'status', 'name', 'description']
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))
@@ -35,7 +35,7 @@ class BranchSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Branch
-        fields = ['id', 'slug', 'discipline', 'published', 'order', 'name', 'description']
+        fields = ['id', 'slug', 'discipline', 'published', 'status', 'order', 'name', 'description']
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))
@@ -51,7 +51,7 @@ class TopicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Topic
-        fields = ['id', 'slug', 'branch', 'order', 'name']
+        fields = ['id', 'slug', 'branch', 'order', 'status', 'name']
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))

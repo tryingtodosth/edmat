@@ -11,6 +11,7 @@ from .views import (
     NodeGovernorViewSet,
     ReportActionView,
     ReportViewSet,
+    TaxonomyProposalActionView,
 )
 
 router = DefaultRouter()
@@ -27,6 +28,13 @@ router.register('moderation/governors', NodeGovernorViewSet, basename='node-gove
 
 urlpatterns = router.urls + [
     path('moderation/queue/', ModerationQueueView.as_view(), name='moderation-queue'),
+    # Before the generic `moderation/<kind>/<pk>/<decision>/` below, which would otherwise swallow
+    # `moderation/taxonomy/...` as a kind named "taxonomy".
+    path(
+        'moderation/taxonomy/<str:kind>/<int:pk>/',
+        TaxonomyProposalActionView.as_view(),
+        name='moderation-taxonomy-action',
+    ),
     path(
         'moderation/reports/<str:kind>/<int:pk>/<str:decision>/',
         ReportActionView.as_view(),

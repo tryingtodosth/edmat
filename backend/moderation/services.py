@@ -534,6 +534,7 @@ def build_moderation_queue_payload(user=None) -> dict:
         edits = edits.filter(exercise__branch_id__in=branch_ids)
         translations = translations.filter(exercise__branch_id__in=branch_ids)
     return {
+        'taxonomy_proposals': build_taxonomy_proposal_queue(),
         'submissions': ExerciseSubmissionSerializer(submissions, many=True).data,
         'material_submissions': MaterialSubmissionSerializer(material_submissions, many=True).data,
         'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
@@ -551,3 +552,51 @@ def is_feature_enabled(key: str) -> bool:
 
     flag = FeatureFlag.objects.filter(key=key).first()
     return True if flag is None else flag.is_enabled
+
+
+def build_taxonomy_proposal_queue() -> list[dict]:
+    """Every pending discipline, branch and topic, in one flat list.
+
+    Flat rather than three sections, because to a moderator they are one job — "somebody suggested a
+    word, does it belong" — and the only thing that differs is which level it sits at, which the
+    `kind` field carries.
+
+    Deliberately NOT scoped by `governed_branch_ids`. A node governor is scoped to a branch, and the
+    whole point of a proposal is that its place in the tree is what is being decided; a new
+    discipline belongs to no branch at all, so scoping this would make every proposal invisible to
+    exactly the people closest to it. Global staff and node governors alike see all of them.
+    """
+    from config.i18n_utils import resolve_translation
+    from taxonomy.models import Branch, Discipline, Topic
+
+    def name_of(node):
+        translation = resolve_translation(node.translations, 'pl')
+        return translation.name if translation else node.slug
+
+    rows = []
+    for kind, queryset, parent_of in (
+        ('discipline', Discipline.objects.filter(status='pending'), lambda n: None),
+        (
+            'branch',
+            Branch.objects.filter(status='pending').select_related('discipline'),
+            lambda n: n.discipline.slug,
+        ),
+        (
+            'topic',
+            Topic.objects.filter(status='pending').select_related('branch'),
+            lambda n: n.branch.slug,
+        ),
+    ):
+        for node in queryset.prefetch_related('translations'):
+            rows.append(
+                {
+                    'kind': kind,
+                    'id': node.pk,
+                    'slug': node.slug,
+                    'name': name_of(node),
+                    'parent': parent_of(node),
+                    'proposed_by': node.proposed_by_id,
+                    'proposed_at': node.proposed_at.isoformat() if node.proposed_at else None,
+                }
+            )
+    return rows

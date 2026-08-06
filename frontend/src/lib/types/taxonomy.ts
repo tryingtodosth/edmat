@@ -7,11 +7,19 @@
 // taught at different depths, and the depth belongs to whoever teaches it. The backend collapsed
 // them accordingly, which is also what freed the word `Course` for the classes people actually run.
 
+/** Whether a human has agreed this node belongs.
+ *
+ * Separate from `published`, which asks whether to show it at all. A pending node is REAL — it can
+ * be browsed and filed against — it is simply grouped under "others" until somebody reviews it,
+ * because a suggestion you cannot use until it is approved is no use to whoever needed the word. */
+export type TaxonomyStatus = 'pending' | 'approved';
+
 export interface Discipline {
 	id: string; // slug, e.g. 'matematyka'
 	name: string;
 	description: string;
 	published: boolean;
+	status: TaxonomyStatus;
 }
 
 export interface Topic {
@@ -20,6 +28,7 @@ export interface Topic {
 	branchId: string;
 	name: string;
 	order: number;
+	status: TaxonomyStatus;
 }
 
 // A finer-grained breakdown within one Topic (e.g. within "extrema," a subtopic might be
@@ -40,6 +49,7 @@ export interface Branch {
 	name: string;
 	description: string;
 	published: boolean;
+	status: TaxonomyStatus;
 	order: number;
 	topics: Topic[];
 }

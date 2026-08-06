@@ -26,6 +26,10 @@ import {
 } from '$lib/api/mappers';
 
 export interface ModerationQueue {
+	/** Proposed disciplines, branches and topics awaiting a decision — one flat list, because to a
+	 * moderator they are one job ("somebody suggested a word, does it belong"), and the only thing
+	 * that differs is which level it sits at, which `kind` carries. */
+	taxonomyProposals: TaxonomyProposal[];
 	exerciseSubmissions: ExerciseSubmission[];
 	materialSubmissions: MaterialSubmission[];
 	editSuggestions: EditSuggestion[];
@@ -43,13 +47,15 @@ export async function getModerationQueue(): Promise<ModerationQueue> {
 		edit_suggestions: RawEditSuggestion[];
 		translations: RawExerciseTranslation[];
 		reports: RawReportGroup[];
+		taxonomy_proposals: unknown[];
 	}>('/moderation/queue/');
 	return {
 		exerciseSubmissions: raw.submissions.map(mapExerciseSubmission),
 		materialSubmissions: raw.material_submissions.map(mapMaterialSubmission),
 		editSuggestions: raw.edit_suggestions.map(mapEditSuggestion),
 		translations: raw.translations.map(mapExerciseTranslation),
-		reports: raw.reports.map(mapReportGroup)
+		reports: raw.reports.map(mapReportGroup),
+		taxonomyProposals: (raw.taxonomy_proposals ?? []).map(mapTaxonomyProposal)
 	};
 }
 
@@ -156,4 +162,39 @@ export async function grantNodeGovernor(
 
 export async function revokeNodeGovernor(id: string): Promise<void> {
 	await apiClient.delete(`/moderation/governors/${encodeURIComponent(id)}/`);
+}
+
+export interface TaxonomyProposal {
+	kind: 'discipline' | 'branch' | 'topic';
+	id: number;
+	slug: string;
+	name: string;
+	parent: string | null;
+	proposedBy: number | null;
+	proposedAt: string | null;
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export function mapTaxonomyProposal(raw: any): TaxonomyProposal {
+	return {
+		kind: raw.kind,
+		id: raw.id,
+		slug: raw.slug,
+		name: raw.name,
+		parent: raw.parent ?? null,
+		proposedBy: raw.proposed_by ?? null,
+		proposedAt: raw.proposed_at ?? null
+	};
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Approve keeps the node and flips its status; reject deletes it. There is no draft to preserve —
+ * a discipline is a slug and a name — so a tombstone would only make every listing carry a third
+ * case to exclude. */
+export async function decideTaxonomyProposal(
+	kind: string,
+	id: number,
+	decision: 'approve' | 'reject'
+): Promise<void> {
+	await apiClient.post(`/moderation/taxonomy/${kind}/${id}/`, { decision });
 }

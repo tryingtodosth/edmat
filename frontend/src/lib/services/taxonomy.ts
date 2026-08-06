@@ -79,3 +79,24 @@ export async function getTopicsForBranch(branchId: string): Promise<Topic[]> {
 	const branch = await getBranchById(branchId);
 	return branch?.topics ?? [];
 }
+
+/** Suggest a new discipline, branch or topic.
+ *
+ * A moderator's own suggestion comes back `approved`; everybody else's comes back `pending` and is
+ * usable straight away — the browse UI groups pending nodes under "others" rather than hiding them,
+ * because a word nobody can use until it is reviewed helps nobody. */
+export async function proposeTaxonomyNode(payload: {
+	kind: 'discipline' | 'branch' | 'topic';
+	name: string;
+	slug?: string;
+	/** The containing node's slug — a discipline for a branch, a branch for a topic. */
+	parent?: string;
+}): Promise<{ kind: string; slug: string; status: 'pending' | 'approved' }> {
+	return apiClient.post('/taxonomy/propose/', {
+		kind: payload.kind,
+		name: payload.name,
+		slug: payload.slug,
+		parent: payload.parent,
+		locale: getLocale()
+	});
+}

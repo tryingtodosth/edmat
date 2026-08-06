@@ -9,6 +9,13 @@
 	let courseCounts = $state<Record<string, number>>({});
 	let loading = $state(true);
 
+	// Anybody signed in may propose a discipline, and everybody else's proposal is live but
+	// `pending` until a moderator agrees. Rather than hiding those — which would make proposing one
+	// useless until somebody wakes up — they are grouped under "Others", so the settled vocabulary
+	// reads as settled while a suggestion is still findable and filable against.
+	let settled = $derived(fields.filter((f) => f.status !== 'pending'));
+	let proposed = $derived(fields.filter((f) => f.status === 'pending'));
+
 	onMount(async () => {
 		fields = await getDisciplines();
 		const counts: Record<string, number> = {};
@@ -32,10 +39,22 @@
 		<p class="loading">{m.common_loading()}</p>
 	{:else}
 		<div class="grid">
-			{#each fields as field (field.id)}
+			{#each settled as field (field.id)}
 				<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} />
 			{/each}
 		</div>
+
+		{#if proposed.length > 0}
+			<section class="proposed">
+				<h2>{m.taxonomy_others()}</h2>
+				<p class="hint">{m.taxonomy_propose_pending()}</p>
+				<div class="grid">
+					{#each proposed as field (field.id)}
+						<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} />
+					{/each}
+				</div>
+			</section>
+		{/if}
 	{/if}
 </div>
 

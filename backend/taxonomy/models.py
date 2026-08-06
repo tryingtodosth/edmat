@@ -26,10 +26,65 @@ chosen by whoever runs the class: the 42 chapter rows are corpus data imported f
 somewhere to live.
 """
 
+from django.conf import settings
 from django.db import models
 
 
-class Discipline(models.Model):
+#: Whether a taxonomy row is live or still waiting for somebody to look at it.
+#:
+#: Two values, not three. A rejected proposal is deleted rather than kept as a tombstone: unlike an
+#: exercise submission, there is no draft content to preserve and nothing for the proposer to revise
+#: — a discipline is a slug and a name. Keeping refused rows would only make every listing query
+#: carry a third case it has to remember to exclude.
+TAXONOMY_STATUS_CHOICES = [
+    ('pending', 'Waiting for review'),
+    ('approved', 'Approved'),
+]
+
+
+class ProposableNode(models.Model):
+    """Shared review state for the three levels anybody may propose.
+
+    Anyone signed in can suggest a discipline, a branch or a topic — the corpus is only as good as
+    its vocabulary, and a student who has just found that "teoria miary" exists nowhere should be
+    able to say so. A moderator's own proposal goes live immediately, because asking somebody to
+    approve their own suggestion is a click that means nothing.
+
+    **A pending row is real and referenceable, not a draft in a side table.** That is the whole
+    reason this is two fields on the node rather than a `TaxonomySubmission` model holding a JSON
+    payload the way `ExerciseSubmission` does: content has to be fileable against a proposed topic
+    straight away, otherwise proposing one is useless until a moderator happens to be awake. The
+    cost is that every public listing must filter on `status`, which is why `approved()` exists and
+    why the serializers expose the status rather than hiding it — the browse UI groups anything
+    pending under "others" instead of pretending it is settled.
+
+    `status` is separate from `published`, which some of these already had. They answer different
+    questions: `status` is "has a human agreed this belongs", `published` is "should it be shown at
+    all". An approved-but-unpublished node is a real state — a moderator agreeing a branch exists
+    while it is not yet ready to browse.
+    """
+
+    status = models.CharField(
+        max_length=10, choices=TAXONOMY_STATUS_CHOICES, default='approved'
+    )
+    proposed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        related_name='proposed_%(class)ss',
+        on_delete=models.SET_NULL,
+    )
+    proposed_at = models.DateTimeField(auto_now_add=True, null=True)
+
+    class Meta:
+        abstract = True
+
+    @property
+    def is_pending(self) -> bool:
+        return self.status == 'pending'
+
+
+class Discipline(ProposableNode):
     """dziedzina — matematyka / informatyka / fizyka.
 
     A domain of knowledge, NOT a degree programme. The predecessor of this model was `Field`, meaning
@@ -61,7 +116,7 @@ class DisciplineTranslation(models.Model):
         return f'{self.discipline.slug} ({self.locale})'
 
 
-class Branch(models.Model):
+class Branch(ProposableNode):
     """dział — analiza matematyczna, rachunek prawdopodobieństwa.
 
     A branch of its discipline, in the ordinary English sense of "branch of mathematics". Carries no
@@ -99,7 +154,7 @@ class BranchTranslation(models.Model):
         return f'{self.branch.slug} ({self.locale})'
 
 
-class Topic(models.Model):
+class Topic(ProposableNode):
     """temat — BRANCH-SCOPED, as it was course-scoped before: topic slugs repeat across branches
     (`calki` means something in analysis and something else in probability), so the pair is the key.
     """

@@ -1,8 +1,20 @@
-from rest_framework import viewsets
+from django.utils.text import slugify
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import Branch, Discipline
+from moderation.services import governed_branch_ids
+
+from .models import (
+    Branch,
+    BranchTranslation,
+    Discipline,
+    DisciplineTranslation,
+    Topic,
+    TopicTranslation,
+)
 from .serializers import BranchDetailSerializer, DisciplineSerializer
 
 
@@ -80,3 +92,79 @@ class BranchViewSet(viewsets.ReadOnlyModelViewSet):
         )
         serializer = MaterialSerializer(materials, many=True, context={'request': request})
         return Response(serializer.data)
+
+
+class ProposeNodeView(APIView):
+    """POST /api/taxonomy/propose/ — suggest a discipline, a branch or a topic.
+
+    Anyone signed in may propose. A moderator's own proposal is approved on the spot: asking
+    somebody to approve their own suggestion is a click that means nothing, and it is the same
+    "staff never queue behind themselves" rule `Course.contribution_needs_approval` already applies
+    to course contributions.
+
+    Everybody else's arrives `pending` and is REAL immediately — referenceable, filable against,
+    and shown in the browse UI grouped under "others" until a moderator agrees. A proposal that
+    could not be used until approved would be useless to the person who needed the word.
+
+        {"kind": "topic", "slug": "teoria-miary", "name": "Teoria miary", "parent": "analiza-..."}
+
+    `parent` is the containing node's slug — a discipline for a branch, a branch for a topic. Not
+    needed for a discipline, which has nothing above it.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    #: kind -> (model, translation model, parent field, parent model, the translation's own FK)
+    KINDS = {
+        'discipline': (Discipline, DisciplineTranslation, None, None, 'discipline'),
+        'branch': (Branch, BranchTranslation, 'discipline', Discipline, 'branch'),
+        'topic': (Topic, TopicTranslation, 'branch', Branch, 'topic'),
+    }
+
+    def post(self, request):
+        kind = request.data.get('kind')
+        if kind not in self.KINDS:
+            raise ValidationError({'kind': f'Expected one of {sorted(self.KINDS)}.'})
+        model, translation_model, parent_field, parent_model, translation_fk = self.KINDS[kind]
+
+        slug = slugify((request.data.get('slug') or request.data.get('name') or '').strip())
+        if not slug:
+            raise ValidationError({'slug': 'A slug or a name is required.'})
+        name = (request.data.get('name') or slug).strip()
+
+        parent = None
+        if parent_field:
+            parent_slug = request.data.get('parent')
+            parent = parent_model.objects.filter(slug=parent_slug).first()
+            if parent is None:
+                raise ValidationError({'parent': f'No {parent_field} with that slug.'})
+
+        # A branch slug is unique globally; a topic slug only within its branch. Checking here
+        # rather than letting IntegrityError surface means the caller gets "that already exists"
+        # instead of a 500, and it is also how a duplicate proposal is turned into a no-op.
+        existing = model.objects.filter(slug=slug)
+        if parent_field:
+            existing = existing.filter(**{parent_field: parent})
+        if existing.exists():
+            raise ValidationError({'slug': 'That already exists.'})
+
+        # `governed_branch_ids` returns None for global staff and a SET for everybody else —
+        # empty when they govern nothing. So `is not None` would read every ordinary user as a
+        # moderator, which is exactly the bug the tests caught: a truthy set is the real signal.
+        is_moderator = bool(request.user.is_staff or governed_branch_ids(request.user))
+        fields = {'slug': slug, 'status': 'approved' if is_moderator else 'pending'}
+        if not is_moderator:
+            fields['proposed_by'] = request.user
+        if parent_field:
+            fields[parent_field] = parent
+
+        node = model.objects.create(**fields)
+        # The name is a translation row, exactly as every other name in this app is — a proposal
+        # that stored a bare CharField would be the one node nobody could ever translate.
+        translation_model.objects.create(
+            **{translation_fk: node, 'locale': request.data.get('locale') or 'pl', 'name': name}
+        )
+        return Response(
+            {'kind': kind, 'slug': node.slug, 'status': node.status},
+            status=status.HTTP_201_CREATED,
+        )
