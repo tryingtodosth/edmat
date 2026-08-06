@@ -1199,6 +1199,7 @@
   "events_scheduleHosting": "Prowadzisz",
   "events_scheduleGoing": "Wybierasz się",
   "eventPosts_heading": "Aktualności",
+  "eventPosts_count": "Aktualności: {count}",
   "eventPosts_new": "Dodaj aktualność",
   "eventPosts_publish": "Opublikuj",
   "eventPosts_empty": "Na razie brak aktualności.",

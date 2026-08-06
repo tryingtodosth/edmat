@@ -40,6 +40,7 @@ export function mapEvent(raw: any): EdmatEvent {
 		language: raw.language ?? 'pl',
 		goingCount: raw.going_count ?? 0,
 		declinedCount: raw.declined_count ?? 0,
+		postCount: raw.post_count ?? 0,
 		// `?? null` rather than `?? 0`: an uncapped event genuinely has no seat count, and rendering
 		// zero there would read as "full".
 		seatsLeft: raw.seats_left === null || raw.seats_left === undefined ? null : raw.seats_left,

@@ -27,10 +27,12 @@
 		getServices,
 		updateService
 	} from '$lib/services/tutoring';
+	import { cachedList, opacityFor, type TrackedRow } from '$lib/state/cachedList.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import ServiceForm from '$lib/components/service/ServiceForm.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
+	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 
 	let branches = $state<Branch[]>([]);
@@ -39,7 +41,13 @@
 	// OFFERS, not something a student searches for, and a hybrid listing already matches both of
 	// these (services/views.py's own filter). See ServiceBrowseFilters (tutoring.ts).
 	let modeFilter = $state<'' | 'online' | 'inPerson'>('');
-	let listings = $state<Service[]>([]);
+	// The browse list is read through `cachedList`, so a return visit paints the rows this device
+	// already had before the network answers, then merges the fresh answer in rather than replacing
+	// it wholesale. Only the browse tab: "My listings" is a management surface where a stale row
+	// would be actively misleading (you would be about to edit something that may no longer say what
+	// the screen says), and it is small and always freshly loaded anyway.
+	let listings = $state<TrackedRow<Service>[]>([]);
+	let newSinceLastVisit = $state(0);
 	let myListings = $state<Service[]>([]);
 	let tab = $state<'browse' | 'mine'>('browse');
 	let loading = $state(true);
@@ -67,12 +75,35 @@
 		branches = await getAllBranches();
 	}
 
+	// The cache name carries the FILTER, not just "services". Keying it on the page alone would
+	// merge two genuinely different result sets: switching from "all branches" to "analiza" would
+	// see every non-analiza row as removed and every analiza row as an arrival, so the reader would
+	// be told "6 new" for a filter they just applied themselves. One key per filter combination
+	// means each is remembered as its own list, which is also what somebody flipping back and forth
+	// between two filters actually wants.
+	function browseCacheKey(): string {
+		return `services:${courseFilter || 'all'}:${modeFilter || 'any'}`;
+	}
+
 	async function loadBrowse() {
 		loading = true;
+		newSinceLastVisit = 0;
 		try {
-			listings = await getServices(courseFilter || undefined, {
-				deliveryMode: modeFilter || undefined
-			});
+			await cachedList<Service>(
+				browseCacheKey(),
+				() =>
+					getServices(courseFilter || undefined, {
+						deliveryMode: modeFilter || undefined
+					}),
+				(result) => {
+					listings = result.rows;
+					newSinceLastVisit = result.newCount;
+					// Cleared on the FIRST callback, which is the one carrying what was already on the
+					// device — that is the whole point: rows on screen while the request is still out,
+					// rather than a spinner in front of content this browser already holds.
+					loading = false;
+				}
+			);
 		} catch {
 			// A real, live-found bug (the exact class already documented in
 			// messages/+page.svelte's own comment): getServices() used to always succeed for an
@@ -266,12 +297,19 @@
 			{:else if listings.length === 0}
 				<p class="empty">{m.services_empty()}</p>
 			{:else}
+				<NewSinceNotice count={newSinceLastVisit} />
 				<div class="grid">
-					{#each listings as service (service.id)}
-						<ServiceCard
-							{service}
-							branchNames={service.branchIds.map((id) => branchNameById.get(id) ?? id)}
-						/>
+					{#each listings as row (row.item.id)}
+						{@const service = row.item}
+						<!-- The wrapper carries the fade so ServiceCard keeps its own plain `service` prop
+						     and knows nothing about caching — the same "dumb component, pure props in"
+						     contract the booking calendar pieces already follow. -->
+						<div class="grid-cell" style="opacity: {opacityFor(row.confirmedAt)}">
+							<ServiceCard
+								{service}
+								branchNames={service.branchIds.map((id) => branchNameById.get(id) ?? id)}
+							/>
+						</div>
 					{/each}
 				</div>
 			{/if}
@@ -461,6 +499,15 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 		gap: var(--space-3);
+	}
+	/* The fade wrapper becomes the grid item, so it has to stretch the card the way the card itself
+	   used to — otherwise a short listing next to a tall one stops matching heights. */
+	.grid-cell {
+		display: flex;
+		flex-direction: column;
+		> :global(*) {
+			flex: 1;
+		}
 	}
 	.mine-list {
 		display: flex;

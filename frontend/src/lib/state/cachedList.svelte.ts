@@ -16,9 +16,18 @@
 // (`MAX_PAGES_PER_LIST`), oldest evicted, because localStorage is a handful of megabytes shared
 // with everything else.
 //
-// **Record when each row was last confirmed.** Not when the list was fetched — per row. That is
-// what lets the UI grey a row by its own age, so a list refreshed a minute ago whose bottom half
-// has not been seen in a week says so, instead of presenting all of it as equally current.
+// **Record when each row was last confirmed.** Not when the list was fetched — per row, so the UI
+// can grey a row by its own age rather than presenting everything as equally current.
+//
+// What that amounts to in practice, corrected after actually wiring three lists to it rather than
+// left as the original comment's own optimistic reading: a SUCCESSFUL refresh re-stamps every row
+// the server still returns, so online and up to date, the whole list sits at full opacity and the
+// gradient is invisible. That is the correct outcome — every row genuinely was just confirmed — but
+// it means the fade earns its keep in exactly two places: the first paint, before the network has
+// answered, and a list shown from the device when the request fails outright. In both, the greyness
+// is saying "this is your copy, nobody has confirmed it just now," which is the honest message.
+// Per-row ages only diverge WITHIN one list once a list is genuinely paged (page 2 kept from a week
+// ago beside a freshly refreshed page 1); none of this app's lists paginate yet.
 
 import { readCache, writeCache } from './offlineCache.svelte';
 
