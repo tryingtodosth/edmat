@@ -98,6 +98,14 @@
 			busy = false;
 		}
 	}
+
+	/** Open the course page already in edit mode. Extracted from the button so the disable below can
+	 * be a normal comment: the route IS resolved, but `no-navigation-without-resolve` cannot see
+	 * through the appended query string, and an HTML comment cannot sit between attributes. */
+	function openEditor() {
+		// eslint-disable-next-line svelte/no-navigation-without-resolve
+		goto(`${resolve('/courses/[id]', { id: course!.id })}?edit=1`);
+	}
 </script>
 
 <svelte:head>
@@ -220,11 +228,7 @@
 
 			<section>
 				<h2>{m.course_settings_heading()}</h2>
-				<button
-					type="button"
-					class="secondary"
-					onclick={() => goto(resolve('/courses/[id]', { id: course!.id }) + '?edit=1')}
-				>
+				<button type="button" class="secondary" onclick={openEditor}>
 					{m.course_edit()}
 				</button>
 			</section>
