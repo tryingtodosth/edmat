@@ -23,7 +23,13 @@ let pass = 0,
 	fail = 0;
 const errors = [];
 const check = (l, ok, extra = '') => {
-	ok ? (pass++, console.log(`  ok   ${l}`)) : (fail++, console.log(`  FAIL ${l} ${extra}`));
+	if (ok) {
+		pass++;
+		console.log(`  ok   ${l}`);
+	} else {
+		fail++;
+		console.log(`  FAIL ${l} ${extra}`);
+	}
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const api = (path, init = {}) =>

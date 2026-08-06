@@ -85,11 +85,7 @@ try {
 		after.includes(NEW_TITLE),
 		`before=[${before}] after=[${after}]`
 	);
-	check(
-		'and it is on the page',
-		(await page.locator('body').innerText()).includes(NEW_TITLE),
-		''
-	);
+	check('and it is on the page', (await page.locator('body').innerText()).includes(NEW_TITLE), '');
 	check(
 		'the form clears itself',
 		(await form.locator('input[type="text"]').inputValue()) === '',

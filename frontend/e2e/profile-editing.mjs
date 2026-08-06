@@ -33,7 +33,13 @@ p.on('dialog', (d) => d.accept());
 let pass = 0,
 	fail = 0;
 const ck = (l, o, x = '') => {
-	o ? (pass++, console.log('  ok   ' + l)) : (fail++, console.log('  FAIL ' + l + ' ' + x));
+	if (o) {
+		pass++;
+		console.log('  ok   ' + l);
+	} else {
+		fail++;
+		console.log('  FAIL ' + l + ' ' + x);
+	}
 };
 
 const email = `edit-${Date.now()}@example.com`;
