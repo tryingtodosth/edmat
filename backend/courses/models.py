@@ -1,7 +1,7 @@
 """Courses run by users, and the people taking part in them.
 
-**On the name.** This module used to be called `classroom`, with its model named `Course` and
-its route `/api/courses/`, because `taxonomy.Course` already meant a *przedmiot* — a
+**On the name.** This module used to be called `classroom`, with its model named `TaughtCourse` and
+its route `/api/taught-courses/`, because `taxonomy.Course` already meant a *przedmiot* — a
 university subject like Analiza Matematyczna II — and English collapses that and *kurs* onto one
 word. The note here used to say that renaming the taxonomy side "would arguably be the tidier fix,
 but reaches into migrations, the corpus importer, the API and the frontend's own routes." That is
@@ -808,3 +808,56 @@ class CourseInvite(models.Model):
     @property
     def is_usable(self) -> bool:
         return self.unusable_reason() is None
+
+
+class CourseNote(models.Model):
+    """One person's own notes on a course, or on one lesson inside it.
+
+    **Never visible to anybody else, including the people running the course.** That is the whole
+    point of the feature and the reason it is a separate model rather than a field on Enrollment:
+    an enrolment row is read by staff constantly — the roster, the review queue, the participant
+    count — and a private note living on it would be one careless `select_related` away from being
+    rendered on somebody else's screen. Here it can only ever be reached through a queryset already
+    filtered to `author=request.user`, which is what `CourseNoteViewSet.get_queryset` does.
+
+    Deliberately not `Lesson.participant_notes`, which looks similar and is the opposite thing:
+    those are written by staff FOR everybody in the course. These are written by one person for
+    themselves.
+
+    `lesson` is nullable because both anchors are real: "notes on this course" is a running page of
+    thoughts, and "notes on this session" belongs beside the session. One row per (author, course,
+    lesson) so a note is edited rather than accumulated, with a partial constraint for the
+    course-level row because NULLs do not compare equal in SQL — without it, a single unique index
+    over all three columns would happily allow ten course-level notes per person.
+    """
+
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='course_notes', on_delete=models.CASCADE
+    )
+    course = models.ForeignKey(Course, related_name='notes', on_delete=models.CASCADE)
+    lesson = models.ForeignKey(
+        Lesson, related_name='notes', null=True, blank=True, on_delete=models.CASCADE
+    )
+    body = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['author', 'course', 'lesson'],
+                condition=models.Q(lesson__isnull=False),
+                name='unique_note_per_lesson',
+            ),
+            models.UniqueConstraint(
+                fields=['author', 'course'],
+                condition=models.Q(lesson__isnull=True),
+                name='unique_note_per_course',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        where = self.lesson.title if self.lesson_id else self.course.title
+        return f'{self.author} — notes on {where}'

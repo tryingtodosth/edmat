@@ -8,6 +8,7 @@ from .models import (
     Chapter,
     CourseInvite,
     CourseItem,
+    CourseNote,
     CourseStaff,
     Enrollment,
     Lesson,
@@ -513,3 +514,18 @@ class InvitePreviewSerializer(serializers.Serializer):
     role = serializers.CharField()
     is_usable = serializers.BooleanField()
     unusable_reason = serializers.CharField(allow_null=True)
+
+
+class CourseNoteSerializer(serializers.ModelSerializer):
+    """A person's own notes. There is deliberately no author field on the wire.
+
+    Not an oversight: the only rows a caller can ever reach are their own, because
+    `CourseNoteViewSet` filters by `author=request.user` before anything else. Serialising an author
+    would imply the field can vary, and the first time somebody built a "notes for this course" view
+    on that assumption it would be a privacy bug rather than a wrong label.
+    """
+
+    class Meta:
+        model = CourseNote
+        fields = ['id', 'lesson', 'body', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']

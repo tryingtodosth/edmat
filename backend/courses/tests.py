@@ -1345,3 +1345,78 @@ class ReorderTests(ApiTestCase):
 
     def test_an_unknown_kind_is_refused(self):
         self.assertEqual(self._reorder({'kind': 'course', 'order': []}).status_code, 400)
+
+
+class PrivateNoteTests(ApiTestCase):
+    """Notes a person writes for themselves.
+
+    The one property worth testing hardest is that nobody else can read them — not another
+    participant, and not the people running the course. Everything else here is upsert mechanics.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Week 1')
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Mon')
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+
+    def _put(self, who, payload):
+        return self.as_(who).put(
+            f'/api/courses/{self.course.pk}/notes/', payload, format='json'
+        )
+
+    def _get(self, who):
+        return self.as_(who).get(f'/api/courses/{self.course.pk}/notes/')
+
+    def test_a_note_is_written_and_read_back(self):
+        self.assertEqual(self._put(self.student, {'body': 'Revise limits'}).status_code, 200)
+        rows = self._get(self.student).data
+        self.assertEqual([r['body'] for r in rows], ['Revise limits'])
+
+    def test_the_instructor_cannot_read_a_participants_notes(self):
+        """The point of the feature. Running the course grants no visibility into what somebody
+        wrote for themselves."""
+        self._put(self.student, {'body': 'I did not understand any of this'})
+        self.assertEqual(self._get(self.instructor).data, [])
+
+    def test_another_participant_cannot_read_them_either(self):
+        self._put(self.student, {'body': 'mine'})
+        self.assertEqual(self._get(self.other).data, [])
+
+    def test_writing_again_edits_rather_than_accumulates(self):
+        self._put(self.student, {'body': 'first'})
+        self._put(self.student, {'body': 'second'})
+        rows = self._get(self.student).data
+        self.assertEqual(len(rows), 1, 'one row per anchor, upserted')
+        self.assertEqual(rows[0]['body'], 'second')
+
+    def test_a_course_note_and_a_lesson_note_are_separate_rows(self):
+        self._put(self.student, {'body': 'about the course'})
+        self._put(self.student, {'body': 'about Monday', 'lesson': self.lesson.pk})
+        rows = self._get(self.student).data
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(
+            {r['lesson'] for r in rows},
+            {None, self.lesson.pk},
+            'the course-level note is the one with no lesson',
+        )
+
+    def test_clearing_a_note_deletes_it_rather_than_storing_a_blank(self):
+        self._put(self.student, {'body': 'temporary'})
+        self.assertEqual(self._put(self.student, {'body': '   '}).status_code, 204)
+        self.assertEqual(self._get(self.student).data, [])
+
+    def test_a_lesson_from_another_course_is_refused(self):
+        elsewhere = Lesson.objects.create(
+            chapter=Chapter.objects.create(
+                course=self.make_course(title='Theirs'), title='Theirs'
+            ),
+            title='Their session',
+        )
+        res = self._put(self.student, {'body': 'x', 'lesson': elsewhere.pk})
+        self.assertEqual(res.status_code, 400)
+
+    def test_notes_need_an_account(self):
+        res = APIClient().get(f'/api/courses/{self.course.pk}/notes/')
+        self.assertIn(res.status_code, (401, 403))

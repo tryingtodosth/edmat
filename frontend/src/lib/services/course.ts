@@ -10,6 +10,7 @@ import type {
 	CourseInvite,
 	CourseInviteDraft,
 	CourseItem,
+	CourseNote,
 	CourseStaffMember,
 	Enrollment,
 	EnrollmentStatus,
@@ -526,4 +527,38 @@ export async function acceptInvite(token: string): Promise<InviteAcceptResult> {
 	/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 	const raw = await apiClient.post<any>(`/course-invites/${encodeURIComponent(token)}/accept/`, {});
 	return { detail: raw.detail, courseId: String(raw.course_id) };
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function mapNote(raw: any): CourseNote {
+	return {
+		id: String(raw.id),
+		lessonId: raw.lesson === null || raw.lesson === undefined ? null : String(raw.lesson),
+		body: raw.body ?? '',
+		updatedAt: raw.updated_at
+	};
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** The caller's own notes on a course. Never anybody else's — the server filters by author, so
+ * there is no "whose notes" parameter to get wrong here. */
+export async function getMyCourseNotes(courseId: string): Promise<CourseNote[]> {
+	const raw = await apiClient.get<unknown[]>(
+		`/courses/${encodeURIComponent(courseId)}/notes/`
+	);
+	return raw.map(mapNote);
+}
+
+/** Upsert one note. An empty body deletes it, which is why this resolves to null in that case
+ * rather than pretending to have stored a blank. */
+export async function saveMyCourseNote(
+	courseId: string,
+	body: string,
+	lessonId: string | null = null
+): Promise<CourseNote | null> {
+	const raw = await apiClient.put<unknown>(`/courses/${encodeURIComponent(courseId)}/notes/`, {
+		body,
+		lesson: lessonId ? Number(lessonId) : null
+	});
+	return raw ? mapNote(raw) : null;
 }

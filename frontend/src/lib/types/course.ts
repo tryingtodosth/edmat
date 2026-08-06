@@ -247,3 +247,16 @@ export interface LessonDraft {
 	durationMinutes: number | null;
 	participantNotes: string;
 }
+
+/** A person's own notes on a course, or on one lesson in it.
+ *
+ * There is no author here on purpose: the API only ever returns the caller's own rows, and a field
+ * implying otherwise would invite a "notes for this course" view that leaks. Distinct from
+ * `Lesson.participantNotes`, which staff write FOR everybody. */
+export interface CourseNote {
+	id: string;
+	/** null for the course-level note. */
+	lessonId: string | null;
+	body: string;
+	updatedAt: string;
+}

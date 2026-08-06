@@ -27,6 +27,7 @@ from .models import (
     Chapter,
     CourseInvite,
     CourseItem,
+    CourseNote,
     CourseStaff,
     Enrollment,
     Lesson,
@@ -39,6 +40,7 @@ from .serializers import (
     CourseInviteWriteSerializer,
     CourseItemSerializer,
     CourseItemWriteSerializer,
+    CourseNoteSerializer,
     CourseStaffSerializer,
     EnrollmentSerializer,
     InvitePreviewSerializer,
@@ -511,6 +513,54 @@ class CourseViewSet(viewsets.ModelViewSet):
         row.role = role
         row.save(update_fields=['role'])
         return Response(CourseStaffSerializer(row).data)
+
+    # --- private notes ------------------------------------------------------------------------
+
+    @action(
+        detail=True,
+        methods=['get', 'put'],
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def notes(self, request, pk=None):
+        """A person's own notes on this course — never anybody else's.
+
+        The privacy boundary is the queryset, not a check: every row this method can reach is
+        already filtered to `author=request.user`, so there is no code path where forgetting a
+        condition exposes somebody else's notes. A permission check would be one `if` away from
+        that failure; a filtered queryset cannot fail open.
+
+        Staff are not an exception, deliberately. Being able to see everything else in a course does
+        not extend to what somebody wrote for themselves, and a course owner who could read their
+        participants' notes would make the feature useless the moment anybody realised.
+
+        PUT rather than POST because a note is edited rather than accumulated: one row per person
+        per course, or per lesson within it, upserted on the anchor. Sending an empty body deletes
+        the row rather than storing a blank one, so clearing a note leaves nothing behind.
+        """
+        course = self.get_object()
+        mine = CourseNote.objects.filter(author=request.user, course=course)
+
+        if request.method == 'GET':
+            return Response(CourseNoteSerializer(mine, many=True).data)
+
+        lesson_id = request.data.get('lesson')
+        lesson = None
+        if lesson_id not in (None, ''):
+            # A note has to hang off this course's own lesson. Without the check, an id from another
+            # course would anchor a note somewhere the author cannot see it again.
+            lesson = Lesson.objects.filter(chapter__course=course, pk=lesson_id).first()
+            if lesson is None:
+                raise DRFValidationError({'lesson': 'Not a lesson in this course.'})
+
+        body = (request.data.get('body') or '').strip()
+        if not body:
+            mine.filter(lesson=lesson).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        note, _ = CourseNote.objects.update_or_create(
+            author=request.user, course=course, lesson=lesson, defaults={'body': body}
+        )
+        return Response(CourseNoteSerializer(note).data)
 
     # --- reordering -------------------------------------------------------------------------------
 

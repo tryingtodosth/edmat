@@ -22,8 +22,10 @@
 		getInvites,
 		getParticipants,
 		leaveCourse,
+		getMyCourseNotes,
 		moveCourseItem,
 		reorderCourse,
+		saveMyCourseNote,
 		muteCourse,
 		removeCourseItem,
 		removeCourseStaff,
@@ -33,6 +35,7 @@
 	} from '$lib/services/course';
 	import type {
 		CourseInvite,
+		CourseNote,
 		CourseStaffMember,
 		Enrollment,
 		Course
@@ -88,6 +91,13 @@
 	let allLessons = $derived((course?.chapters ?? []).flatMap((c) => c.lessons));
 
 	let comments = $state<Comment[]>([]);
+
+	// The reader's own notes. Only ever their own — the API filters by author, so there is nothing
+	// here that could be pointed at somebody else's.
+	let myNotes = $state<CourseNote[]>([]);
+	let noteDraft = $state('');
+	let noteSaved = $state(false);
+	let courseNote = $derived(myNotes.find((n) => n.lessonId === null) ?? null);
 	let usersById = $state<Record<string, User>>({});
 
 	/** Author names for the thread, resolved once per unseen id — the same shape the tutoring
@@ -143,6 +153,22 @@
 			return;
 		}
 		course = found;
+
+		// The reader's own notes, if they have an account. Fails softly for the same reason the
+		// roster below does: a refusal is the permission working, not a page error.
+		if (authStore.user) {
+			try {
+				myNotes = await getMyCourseNotes(id);
+				noteDraft = myNotes.find((n) => n.lessonId === null)?.body ?? '';
+			} catch {
+				myNotes = [];
+				noteDraft = '';
+			}
+		} else {
+			myNotes = [];
+			noteDraft = '';
+		}
+
 		// The roster is not public, so this is expected to fail for a stranger — an empty list is the
 		// right outcome, not an error the page should show.
 		if (found.isInstructor || found.myEnrollmentStatus === 'active') {
@@ -623,6 +649,38 @@
 
 		<!-- The discussion. `canReadDiscussion`/`canPostDiscussion` are resolved server-side, because
 		     whether this viewer may read or post depends on the course's mode AND their membership. -->
+		<!-- Private notes. Shown to anybody signed in who can open the course, including staff:
+		     running a course does not stop somebody wanting notes of their own on it. -->
+		{#if authStore.user}
+			<section class="notes-section">
+				<h2>{m.course_notes_heading()}</h2>
+				<p class="hint">{m.course_notes_privateHint()}</p>
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						run(async () => {
+							await saveMyCourseNote(course!.id, noteDraft);
+							myNotes = await getMyCourseNotes(course!.id);
+							noteSaved = true;
+						});
+					}}
+				>
+					<textarea
+						bind:value={noteDraft}
+						rows="4"
+						placeholder={m.course_notes_placeholder()}
+						oninput={() => (noteSaved = false)}
+					></textarea>
+					<div class="notes-actions">
+						<button type="submit" class="primary" disabled={busy}>{m.course_notes_save()}</button>
+						{#if noteSaved}
+							<span class="hint">{m.course_notes_saved()}</span>
+						{/if}
+					</div>
+				</form>
+			</section>
+		{/if}
+
 		{#if course.canReadDiscussion}
 			<section class="discussion-section">
 				<h2>{m.course_discussionHeading()}</h2>
