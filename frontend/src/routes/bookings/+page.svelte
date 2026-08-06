@@ -36,6 +36,8 @@
 	import { getMySchedule } from '$lib/services/booking';
 	import { getMyServices } from '$lib/services/tutoring';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { cachedList, opacityFor, type TrackedRow } from '$lib/state/cachedList.svelte';
+	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
 	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
 	import { formatClock, formatDateTime } from '$lib/utils/datetime';
 	import CalendarMonth from '$lib/components/booking/CalendarMonth.svelte';
@@ -57,8 +59,16 @@
 	type Tab = 'incoming' | 'mine' | 'availability';
 	let tab = $state<Tab>('incoming');
 
-	let incoming = $state<Booking[]>([]);
-	let mine = $state<Booking[]>([]);
+	// Both booking lists read through `cachedList`. This is the surface where the "N new" count
+	// earns its keep most directly: a tutor opening this page wants to know whether anybody has
+	// asked for an hour since they last looked, and that is exactly what the merge already knows.
+	// The availability tab is NOT cached — rules and one-off exceptions are what you come here to
+	// EDIT, and editing a stale copy of your own schedule is how you publish hours you meant to
+	// withdraw.
+	let incoming = $state<TrackedRow<Booking>[]>([]);
+	let mine = $state<TrackedRow<Booking>[]>([]);
+	let newIncoming = $state(0);
+	let newMine = $state(0);
 	let rules = $state<AvailabilityRule[]>([]);
 	let exceptions = $state<AvailabilityException[]>([]);
 	let myServices = $state<Service[]>([]);
@@ -107,16 +117,33 @@
 	// instead, which is the moment it actually stops being true.
 	async function load() {
 		loading = true;
+		newIncoming = 0;
+		newMine = 0;
 		try {
-			const [asTutor, asStudent, ruleRows, exceptionRows, services] = await Promise.all([
-				getBookings({ role: 'tutor' }),
-				getBookings({ role: 'student' }),
+			const [, , ruleRows, exceptionRows, services] = await Promise.all([
+				cachedList<Booking>(
+					'bookings:incoming',
+					() => getBookings({ role: 'tutor' }),
+					(r) => {
+						incoming = r.rows;
+						newIncoming = r.newCount;
+						// Painted as soon as the device's own copy is in hand, before the network answers.
+						loading = false;
+					}
+				),
+				cachedList<Booking>(
+					'bookings:mine',
+					() => getBookings({ role: 'student' }),
+					(r) => {
+						mine = r.rows;
+						newMine = r.newCount;
+						loading = false;
+					}
+				),
 				getAvailabilityRules(),
 				getAvailabilityExceptions(todayIso()),
 				getMyServices()
 			]);
-			incoming = asTutor;
-			mine = asStudent;
 			rules = ruleRows;
 			exceptions = exceptionRows;
 			myServices = services;
@@ -366,7 +393,7 @@
 		calendarView = next as CalendarView;
 	}
 
-	let pendingCount = $derived(incoming.filter((b) => b.status === 'requested').length);
+	let pendingCount = $derived(incoming.filter((r) => r.item.status === 'requested').length);
 	function serviceTitle(id?: string): string {
 		return myServices.find((s) => s.id === id)?.title ?? '';
 	}
@@ -408,9 +435,11 @@
 			{#if incoming.length === 0}
 				<p class="muted">{m.booking_noIncoming()}</p>
 			{:else}
+				<NewSinceNotice count={newIncoming} />
 				<ul class="bookings">
-					{#each incoming as booking (booking.id)}
-						<li class="booking">
+					{#each incoming as row (row.item.id)}
+						{@const booking = row.item}
+						<li class="booking" style="opacity: {opacityFor(row.confirmedAt)}">
 							<div class="booking__head">
 								<strong>{formatWhen(booking.startsAt)}</strong>
 								<span class="pill pill--{booking.status}">{STATUS_LABEL[booking.status]()}</span>
@@ -461,9 +490,11 @@
 					<a href={resolve('/services')}>{m.booking_findATutor()}</a>
 				</p>
 			{:else}
+				<NewSinceNotice count={newMine} />
 				<ul class="bookings">
-					{#each mine as booking (booking.id)}
-						<li class="booking">
+					{#each mine as row (row.item.id)}
+						{@const booking = row.item}
+						<li class="booking" style="opacity: {opacityFor(row.confirmedAt)}">
 							<div class="booking__head">
 								<strong>{formatWhen(booking.startsAt)}</strong>
 								<span class="pill pill--{booking.status}">{STATUS_LABEL[booking.status]()}</span>

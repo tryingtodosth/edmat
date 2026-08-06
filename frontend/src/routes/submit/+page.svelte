@@ -2,7 +2,11 @@
 	import { resolve } from '$app/paths';
 	import type { Branch, Difficulty, Discipline, SourceType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getBranchesForDiscipline, getDisciplines, getTopicsForBranch } from '$lib/services/taxonomy';
+	import {
+		getBranchesForDiscipline,
+		getDisciplines,
+		getTopicsForBranch
+	} from '$lib/services/taxonomy';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import { submitExercise } from '$lib/services/submissions';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -14,6 +18,7 @@
 	} from '$lib/utils/labels';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 
 	let fields = $state<Discipline[]>([]);
 	let branches = $state<Branch[]>([]);
@@ -161,9 +166,7 @@
 					<label>
 						<span>{m.submit_field_field()}</span>
 						<select value={disciplineId} onchange={(e) => onFieldChange(e.currentTarget.value)}>
-							{#each fields as f (f.id)}
-								<option value={f.id}>{f.name}</option>
-							{/each}
+							<TaxonomyOptions nodes={fields} />
 						</select>
 					</label>
 					<!-- Selecting what was just proposed rather than only refreshing the list: somebody
@@ -181,9 +184,7 @@
 					<label>
 						<span>{m.submit_field_course()}</span>
 						<select bind:value={branchId}>
-							{#each branches as c (c.id)}
-								<option value={c.id}>{c.name}</option>
-							{/each}
+							<TaxonomyOptions nodes={branches} />
 						</select>
 					</label>
 					{#if disciplineId}
@@ -246,11 +247,12 @@
 							</ul>
 						{/if}
 						{#if availableTopics.length > 0}
-							<select value="" onchange={(e) => (addTopic(e.currentTarget.value), (e.currentTarget.value = ''))}>
+							<select
+								value=""
+								onchange={(e) => (addTopic(e.currentTarget.value), (e.currentTarget.value = ''))}
+							>
 								<option value="" disabled>{m.submit_topicsAddPlaceholder()}</option>
-								{#each availableTopics as topic (topic.id)}
-									<option value={topic.id}>{topic.name}</option>
-								{/each}
+								<TaxonomyOptions nodes={availableTopics} />
 							</select>
 						{/if}
 						<!-- The case this whole feature exists for: an exercise on measure theory with no

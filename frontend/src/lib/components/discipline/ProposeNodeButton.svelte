@@ -17,6 +17,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import { proposeTaxonomyNode } from '$lib/services/taxonomy';
+	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
 
 	let {
 		kind,
@@ -59,6 +60,17 @@
 		try {
 			const created = await proposeTaxonomyNode({ kind, name: trimmed, parent });
 			result = created.status;
+			// A discipline or a branch also lives in the preloaded tree (`taxonomy.svelte.ts`), which
+			// backs the disciplines index and every picker reading the store. Without this, something
+			// proposed here is missing from those surfaces until a hard reload — the caller's own
+			// `onproposed` only ever refreshes its own local copy, so the two sources of truth would
+			// disagree about a node somebody just created.
+			//
+			// Done here rather than in each of the four call sites, for the reason
+			// `notifications.svelte.ts` already records for its own live stream: one integration point
+			// cannot drift, four that each have to remember can. A topic is skipped because the tree
+			// holds disciplines and branches only, so refreshing it would be a round trip for nothing.
+			if (kind !== 'topic') await taxonomyStore.refresh();
 			onproposed?.(created.slug, created.status);
 			// Left open on success so the outcome is readable — an approved proposal and one waiting
 			// for review are different answers, and a dialog that vanishes tells you neither.
@@ -85,9 +97,7 @@
 	<ModalShell title={label} onClose={() => (open = false)}>
 		{#if result}
 			<p class="outcome">
-				{result === 'approved'
-					? m.taxonomy_propose_added()
-					: m.taxonomy_propose_pendingNotice()}
+				{result === 'approved' ? m.taxonomy_propose_added() : m.taxonomy_propose_pendingNotice()}
 			</p>
 			<button type="button" class="primary" onclick={() => (open = false)}>
 				{m.common_close()}

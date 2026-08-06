@@ -50,6 +50,18 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'event_attendance': 'notify_on_event',
     'event_updated': 'notify_on_event',
     'event_cancelled': 'notify_on_event',
+    # Taxonomy proposals (taxonomy/). Under the existing moderation-decision category rather than a
+    # new one: somebody proposed a word, a moderator decided on it, and that is the same kind of
+    # event as a decision on a submitted exercise — a separate switch would be splitting hairs the
+    # setting's own label ("moderation decisions") does not split.
+    #
+    # Four types, not one with the outcome in the text, because the reader's next move differs.
+    # Approved and rejected are finished; merged and moved both say "the things you filed under this
+    # are somewhere else now, here is where", which is the one taxonomy decision worth acting on.
+    'taxonomy_approved': 'notify_on_moderation_decision',
+    'taxonomy_merged': 'notify_on_moderation_decision',
+    'taxonomy_moved': 'notify_on_moderation_decision',
+    'taxonomy_rejected': 'notify_on_moderation_decision',
     'event_posted': 'notify_on_event',
 }
 
@@ -150,6 +162,18 @@ def label_for_material(material) -> str:
     return translation.title if translation else material.slug
 
 
+def label_for_taxonomy_node(node) -> str:
+    """A discipline/branch/topic's own name, same resolve-then-fall-back-to-the-slug shape as the two
+    helpers above. Read at decision time rather than at render time because merge and reject both
+    delete the node — by the time anybody opens the notification there is nothing left to name."""
+    if node is None:
+        return ''
+    translation = (
+        node.translations.filter(locale=DEFAULT_FALLBACK_LOCALE).first() or node.translations.first()
+    )
+    return translation.name if translation else node.slug
+
+
 def notify_tag_followers(tag, *, actor, exercise=None, material=None):
     """Called right after a Tag gets attached to a piece of content — both the moderation-approved-
     submission path (moderation/views.py's `_apply_submission`, a brand-new Exercise) and the
@@ -187,7 +211,9 @@ def notify_tag_followers(tag, *, actor, exercise=None, material=None):
         )
 
 
-def notify_comment_reply(comment, *, target_label: str, exercise=None, material=None):
+def notify_comment_reply(
+    comment, *, target_label: str, exercise=None, material=None, root_recipient=None
+):
     """Called right after a new Comment is saved — the one shared implementation for
     exercises/views.py's `ExerciseViewSet.comments`, materials/views.py's
     `MaterialCoverageViewSet.comments`/`MaterialViewSet.comments`, and services/views.py's
@@ -197,14 +223,22 @@ def notify_comment_reply(comment, *, target_label: str, exercise=None, material=
     (`notify()`'s own `material=` param, unchanged) — a per-coverage-claim reply still passes
     neither (there's no natural single Material/Exercise page for a specific coverage row to link
     to any more precisely than the material's own detail page, and `_notify_coverage_reply` was
-    never asked to add that link, so it's left exactly as before). No-ops outright when the new
-    comment isn't a reply at all (`parent_id` unset) — a root-level comment has no one to notify.
-    Replying to your own earlier comment is handled by `notify()`'s own actor==recipient guard, not
-    duplicated here."""
-    if not comment.parent_id:
+    never asked to add that link, so it's left exactly as before).
+
+    `root_recipient` is what a review thread needs and no other thread does. Everywhere else a
+    top-level comment genuinely has nobody to notify — it is the opening line of a discussion
+    attached to an exercise or a material, which nobody personally wrote. A comment under somebody's
+    REVIEW is the opposite: the top-level one is precisely the reply being made to a person, and
+    they are the one who should hear about it. Callers that have such a person pass them; the
+    others pass nothing and keep the old behaviour exactly.
+
+    Replying to your own earlier comment — or to your own review — is handled by `notify()`'s own
+    actor==recipient guard, not duplicated here."""
+    recipient = comment.parent.author if comment.parent_id else root_recipient
+    if recipient is None:
         return None
     return notify(
-        comment.parent.author,
+        recipient,
         'comment_reply',
         actor=comment.author,
         target_label=target_label,

@@ -14,6 +14,7 @@
 	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import LocationPicker from './LocationPicker.svelte';
+	import { splitByStatus } from '$lib/utils/taxonomy';
 
 	let {
 		initial,
@@ -26,6 +27,9 @@
 		onSubmit: (draft: ServiceDraft) => Promise<void>;
 		onCancel?: () => void;
 	} = $props();
+
+	// Proposed branches stay selectable, under their own "Others" sub-list — see lib/utils/taxonomy.ts.
+	let groupedBranches = $derived(splitByStatus(branches));
 
 	// One-time seed from `initial` (edit mode) — same `untrack()` discipline this app's own
 	// EditSuggestionForm/TranslateForm/AddCoverageForm/CoveragePopover already establish for a form
@@ -127,7 +131,7 @@
 		<fieldset class="field">
 			<legend>{m.services_field_courses()}</legend>
 			<div class="branch-list">
-				{#each branches as branch (branch.id)}
+				{#each groupedBranches.settled as branch (branch.id)}
 					<label class="checkbox">
 						<input
 							type="checkbox"
@@ -138,6 +142,23 @@
 					</label>
 				{/each}
 			</div>
+			<!-- A checkbox group cannot use <optgroup>, so the same "Others" separation is a labelled
+			     sub-list. Still selectable — a proposed branch is real and filable against. -->
+			{#if groupedBranches.proposed.length > 0}
+				<p class="branch-list__othersLabel">{m.taxonomy_others()}</p>
+				<div class="branch-list">
+					{#each groupedBranches.proposed as branch (branch.id)}
+						<label class="checkbox">
+							<input
+								type="checkbox"
+								checked={selectedCourseIds.has(branch.id)}
+								onchange={() => toggleCourse(branch.id)}
+							/>
+							<span>{branch.name}</span>
+						</label>
+					{/each}
+				</div>
+			{/if}
 		</fieldset>
 	{/if}
 
@@ -352,5 +373,12 @@
 	}
 	.cancel {
 		@include mix.button-secondary;
+	}
+	/* Marks where the settled list ends and suggestions begin. */
+	.branch-list__othersLabel {
+		margin-top: var(--space-2);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--text-secondary);
 	}
 </style>

@@ -39,6 +39,13 @@ export type NotificationType =
 	| 'eventAttendance'
 	| 'eventUpdated'
 	| 'eventCancelled'
+	// A proposed discipline/branch/topic got decided on (taxonomy/). Four, because the reader's next
+	// move differs: approved and rejected are finished, while merged and moved both mean "whatever
+	// you filed under this is somewhere else now" and `note` says where.
+	| 'taxonomyApproved'
+	| 'taxonomyMerged'
+	| 'taxonomyMoved'
+	| 'taxonomyRejected';
 	// Kept apart from `eventUpdated` even though both mean "something changed". That one means the
 	// time or the place moved and the reader must rearrange their evening; this one means the host
 	// wrote something and the reader should go and read it. `note` carries its opening words.

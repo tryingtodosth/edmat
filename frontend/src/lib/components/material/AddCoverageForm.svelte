@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import type { Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 
 	let {
 		topics,
@@ -29,9 +30,7 @@
 	<label class="field">
 		<span>{m.coverage_topicLabel()}</span>
 		<select bind:value={topicId}>
-			{#each topics as topic (topic.id)}
-				<option value={topic.id}>{topic.name}</option>
-			{/each}
+			<TaxonomyOptions nodes={topics} />
 		</select>
 	</label>
 

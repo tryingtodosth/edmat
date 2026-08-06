@@ -7,9 +7,15 @@
 	import { getBranchesForDiscipline, getDisciplineById } from '$lib/services/taxonomy';
 	import { getExercisesForBranch } from '$lib/services/exercises';
 	import BranchCard from '$lib/components/branch/BranchCard.svelte';
+	import { isPending, splitByStatus } from '$lib/utils/taxonomy';
+	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
+	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
 
 	let field = $state<Discipline | undefined>(undefined);
 	let branches = $state<Branch[]>([]);
+	// Proposed branches are real and browsable, just grouped under "Others" until a moderator
+	// agrees — see lib/utils/taxonomy.ts for why they are neither hidden nor mixed in.
+	let grouped = $derived(splitByStatus(branches));
 	let exerciseCounts = $state<Record<string, number>>({});
 	let loading = $state(true);
 	let notFound = $state(false);
@@ -17,14 +23,25 @@
 	async function load(disciplineId: string) {
 		loading = true;
 		notFound = false;
-		const f = await getDisciplineById(disciplineId);
+		// The preloaded tree answers both of these without a request, so a click from the index
+		// paints immediately. It still falls back to a direct fetch, because a deep link to this URL
+		// can arrive before the preload has finished — and because a node proposed in another tab
+		// would not be in the copy this one loaded.
+		await taxonomyStore.preload();
+		const f = taxonomyStore.disciplineById(disciplineId) ?? (await getDisciplineById(disciplineId));
 		if (!f) {
 			notFound = true;
 			loading = false;
 			return;
 		}
 		field = f;
-		branches = await getBranchesForDiscipline(disciplineId);
+		const known = taxonomyStore.branchesFor(disciplineId);
+		branches = known.length > 0 ? known : await getBranchesForDiscipline(disciplineId);
+		loading = false;
+
+		// Exercise counts are genuinely per-branch and not part of the taxonomy, so they stay a
+		// fetch — but after `loading` is cleared, so the grid is on screen while they arrive rather
+		// than the whole page waiting on them.
 		const counts: Record<string, number> = {};
 		await Promise.all(
 			branches.map(async (c) => {
@@ -32,7 +49,6 @@
 			})
 		);
 		exerciseCounts = counts;
-		loading = false;
 	}
 
 	// See routes/exercises/[id]/+page.svelte's own note on why this guard exists — an
@@ -63,15 +79,38 @@
 		<p class="empty">{m.discipline_notFound()}</p>
 	{:else if field}
 		<header>
-			<h1>{field.name}</h1>
+			<!-- The grouping on the page you came from says this for a whole section; once you are
+			     looking at one node on its own there is nothing left to carry it. -->
+			<h1>
+				{field.name}
+				{#if isPending(field)}<PendingBadge />{/if}
+			</h1>
 			<p>{field.description}</p>
 		</header>
 		<h2>{m.discipline_branchesHeading()}</h2>
 		<div class="grid">
-			{#each branches as branch (branch.id)}
+			{#each grouped.settled as branch (branch.id)}
 				<BranchCard {branch} exerciseCount={exerciseCounts[branch.id] ?? 0} />
 			{/each}
 		</div>
+
+		<!-- Same shape as the disciplines index: a suggestion stays findable and filable against,
+		     under a heading that says it has not been agreed to yet. -->
+		{#if grouped.proposed.length > 0}
+			<section class="proposed">
+				<h2>{m.taxonomy_others()}</h2>
+				<p class="hint">{m.taxonomy_propose_pending()}</p>
+				<div class="grid">
+					{#each grouped.proposed as branch (branch.id)}
+						<BranchCard
+							{branch}
+							exerciseCount={exerciseCounts[branch.id] ?? 0}
+							showPending={false}
+						/>
+					{/each}
+				</div>
+			</section>
+		{/if}
 	{/if}
 </div>
 
@@ -107,6 +146,19 @@
 	}
 	.loading,
 	.empty {
+		color: var(--text-secondary);
+	}
+	/* The "Others" section. Set apart rather than merely appended: a suggestion nobody has agreed
+	   to yet should not read as part of the settled vocabulary just because it sorts after it. */
+	.proposed {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding-top: var(--space-4);
+		border-top: 1px dashed var(--border-color);
+	}
+	.proposed .hint {
+		font-size: var(--font-size-sm);
 		color: var(--text-secondary);
 	}
 </style>

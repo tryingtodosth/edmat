@@ -190,6 +190,13 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		eventAttendance: 'notifyOnEvent',
 		eventUpdated: 'notifyOnEvent',
 		eventCancelled: 'notifyOnEvent',
+		// Under the existing moderation-decision category rather than a new switch: somebody proposed
+		// a word and a moderator decided on it, which is the same kind of event as a decision on a
+		// submitted exercise.
+		taxonomyApproved: 'notifyOnModerationDecision',
+		taxonomyMerged: 'notifyOnModerationDecision',
+		taxonomyMoved: 'notifyOnModerationDecision',
+		taxonomyRejected: 'notifyOnModerationDecision'
 		eventPosted: 'notifyOnEvent'
 	};
 
@@ -222,6 +229,10 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	eventAttendance: m.notifPref_eventAttendance,
 	eventUpdated: m.notifPref_eventUpdated,
 	eventCancelled: m.notifPref_eventCancelled,
+	taxonomyApproved: m.notifPref_taxonomyApproved,
+	taxonomyMerged: m.notifPref_taxonomyMerged,
+	taxonomyMoved: m.notifPref_taxonomyMoved,
+	taxonomyRejected: m.notifPref_taxonomyRejected
 	eventPosted: m.notifPref_eventPosted
 };
 

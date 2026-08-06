@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -314,6 +315,17 @@ CACHES = {
         'OPTIONS': {'MAX_ENTRIES': 10000, 'CULL_FREQUENCY': 4},
     }
 }
+
+# ...except under the test runner, which gets a per-process cache instead. The whole point of the
+# file cache above is that every process on the box shares it — and a test run is one of those
+# processes. DRF counts throttle hits through the cache, so a suite run after somebody had been
+# clicking around a dev server inherited that session's spent budget and failed with a real 429
+# where the test expected a 401; and `cache.clear()` in a throttle test wiped the running server's
+# counters in return. Both directions were live: the throttle tests passed alone and failed in a
+# full run, which is the signature of shared state rather than a broken assertion. LocMem is
+# per-process, so a run neither reads nor writes anybody else's counters.
+if sys.argv[1:2] == ['test']:
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 
 # Password validation
