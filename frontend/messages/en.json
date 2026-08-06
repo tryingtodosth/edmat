@@ -1198,6 +1198,7 @@
   "events_scheduleHosting": "Running",
   "events_scheduleGoing": "Going",
   "eventPosts_heading": "Updates",
+  "eventPosts_count": "Updates: {count}",
   "eventPosts_new": "Post an update",
   "eventPosts_publish": "Post it",
   "eventPosts_empty": "No updates yet.",

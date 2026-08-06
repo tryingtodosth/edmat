@@ -7,6 +7,7 @@ person's draft gets a 404, which is also the honest answer, since for them it do
 """
 
 from django.db import IntegrityError, transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -14,7 +15,7 @@ from rest_framework.response import Response
 
 from moderation.permissions import feature_gate
 
-from .models import ATTENDING_STATUSES, PUBLIC_STATUSES, Event, EventAttendance
+from .models import ATTENDING_STATUSES, PUBLIC_STATUSES, Event, EventAttendance, EventPost
 from .serializers import (
     AttendanceWriteSerializer,
     EventAttendanceSerializer,
@@ -51,7 +52,22 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         qs = Event.objects.select_related('host', 'host__profile', 'discipline').prefetch_related(
-            'subjects', 'attendances'
+            'subjects',
+            'attendances',
+            # Two columns, because the only question asked of this on a list page is "how many?"
+            # (`EventSerializer.post_count`) — prefetching whole posts to count them would pull every
+            # body and image path for fifty events to render fifty numbers.
+            #
+            # `to_attr` is load-bearing rather than stylistic. Without it the deferred queryset lands
+            # in the related manager's own prefetch cache, and the manager chains further calls onto
+            # it — so `event.posts.select_related('author')` in the `posts` action below inherited the
+            # `.only()` and raised `FieldError: Field EventPost.author cannot be both deferred and
+            # traversed using select_related`. Found by the reading tests, not by inspection.
+            Prefetch(
+                'posts',
+                queryset=EventPost.objects.only('id', 'event'),
+                to_attr='counted_posts',
+            ),
         )
         qs = self._visible_to(qs, user)
         if self.action != 'list':

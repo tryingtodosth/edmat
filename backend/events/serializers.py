@@ -68,6 +68,11 @@ class EventSerializer(serializers.ModelSerializer):
     # Present for the host, absent (0) for everybody else — a decline is between the person who made
     # it and the person running the event.
     declined_count = serializers.SerializerMethodField()
+    # How many updates the host has posted. On the READ shape rather than only on the posts endpoint,
+    # because without it the feature is invisible from a listing: somebody scanning a grid of events
+    # has no way to tell the one whose room moved this morning from the one nobody has touched since
+    # announcing it, and would have to open each in turn to find out.
+    post_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
@@ -90,6 +95,7 @@ class EventSerializer(serializers.ModelSerializer):
             'language',
             'going_count',
             'declined_count',
+            'post_count',
             'seats_left',
             'is_full',
             'is_past',
@@ -112,6 +118,17 @@ class EventSerializer(serializers.ModelSerializer):
         if user and user.is_authenticated and event.host_id == user.pk:
             return event.declined_count()
         return 0
+
+    def get_post_count(self, event) -> int:
+        # `counted_posts` is `EventViewSet.get_queryset`'s own `to_attr` prefetch, so a listing
+        # answers this from memory instead of firing one COUNT per row. The fallback is not dead
+        # code: this serializer is also handed events that never came through that queryset — the
+        # ones `create`, `attend` and `cancel` build from a write serializer — and those have no
+        # prefetch to read.
+        counted = getattr(event, 'counted_posts', None)
+        if counted is not None:
+            return len(counted)
+        return event.posts.count()
 
     def get_is_host(self, event) -> bool:
         user = self._user()

@@ -5125,6 +5125,133 @@ these tables — is what there is to build once the system behind it exists.
 
 ---
 
+## 17Y. Feature: updates on an event — a picture, some links, some words (✅ built, full stack)
+
+An event could say what it *was* and never what had *happened since*. The room moves, the slides go
+up, the recording appears, the start slips twenty minutes — and the only places to put any of that
+were the `description` (read by somebody deciding whether to come, edited in place, undated) or
+nowhere. `EventPost` is that missing thing: a dated broadcast from the host, appended and read in
+order.
+
+### What it is not
+
+Two models already in this app look close enough to be worth ruling out in writing, since picking
+either would have been the expensive mistake:
+
+- **Not the event's `description`.** A description answers "what is this?"; an update answers "what
+  has changed?". Folding updates into the description means either losing every earlier one or
+  growing one text field into an undated changelog nobody can skim.
+- **Not a `community.Comment`.** That thread is a conversation — anybody may write, and the reader's
+  question is "what do people think?". This is a broadcast from the one person running the thing, and
+  the reader's question is "what do I need to know?". Same shape, opposite direction. Mixing them
+  would bury "moved to room 5" under a discussion, which is precisely the message that must not be
+  buried.
+
+**Only the host may post**, because every post goes out as a notification to everybody holding a seat,
+and the right to interrupt forty people's evening belongs to the person who organised it. Attendees
+are not silenced by this — the event has its own thread — they simply do not get the megaphone.
+
+**Reads are public** (anybody who can see the event), which is deliberately wider than the roster.
+"The room has moved" is most useful to somebody still deciding whether to come, and gating it behind
+an RSVP would hide it from exactly those people. A draft's updates are invisible for free, because the
+draft is — the visibility rule lives in `EventViewSet.get_queryset` and nothing here restates it.
+
+### The picture is never the bytes that were uploaded
+
+`events/postimage.py` decodes and **re-encodes** every accepted image, which is what discards appended
+payloads, embedded metadata, and format-parser trickery. That pipeline already existed for avatars, so
+the parts of it that are *security bounds* rather than presentation moved to a new top-level
+`imaging` module — a second copy of a decompression-bomb budget is how one path gets a fix after an
+incident and the other silently does not. `accounts/avatar.py` keeps every public name it exported;
+`validate_avatar_file` in particular cannot move, because `accounts/migrations/0006` refers to it by
+path.
+
+What did **not** move is the shape. An avatar is centre-cropped square for the round frame that
+renders it; a post picture keeps its aspect ratio and bounds its longest edge instead, because it is
+routinely a whiteboard, a slide or a poster — the three things a centre-crop damages most, since on
+all of them the content runs to the edges. `thumbnail` is shrink-only, so a small picture is not
+stretched up to the bound.
+
+**EXIF is stripped for a sharper reason here than on an avatar.** A phone photo of the room an event
+is in carries the GPS coordinates of that room. An event already publishes where it is, deliberately
+and in words the host chose; what it must not also publish is a precise fix taken from a photo the
+host thought they were merely illustrating the page with.
+
+### Links are rows, and arrive in whichever shape the request can carry
+
+`EventPostLink` rather than a JSON list: a `URLField` validates each one on the way in for free, and a
+list inside a text column gets none of that. Capped at ten — a shape bound, not a storage one, since
+past a handful a post has stopped being an announcement and become a link dump.
+
+Deliberately a URL and nothing else. A label sounds useful until you ask who writes it: the host, in a
+second field, for every link, most of which are self-describing. The frontend shows host and path,
+which is what somebody reads before deciding whether to click.
+
+`PostLinksField` accepts three shapes and normalizes all three, because a post is submitted two
+different ways: with a picture it must be `multipart/form-data`, which has no arrays, and without one
+it is ordinary JSON, where a list is obvious. So it reads a JSON list, repeated form keys, or one
+string holding several. **The repeated-key case needed a `get_value` override** — DRF's default reads
+only the *last* value for a repeated key off a QueryDict, so three links would silently have become
+one.
+
+### Notifications
+
+A new `event_posted` type, to everybody holding a seat, carrying the post's opening words rather than
+only its existence — a notification that makes you open a page to discover it was "the slides are up"
+spent your attention to tell you nothing.
+
+**Kept apart from `event_updated`** even though both mean "something about this event changed",
+because the two ask different things of the reader: that one fires when the time or place moved and
+the reader must rearrange their evening; this one means the host wrote something and the reader should
+go and read it. Collapsing them makes the urgent one indistinguishable from "the slides are up", which
+is how people learn to ignore both. An edit never re-notifies, and a draft notifies nobody.
+
+### The count on the card
+
+`EventSerializer.post_count`, so a listing can say an event has news without fetching every feed —
+otherwise the whole feature is invisible until somebody opens each event in turn. Shown only when
+non-zero: "Updates: 0" spends a line to say nothing, on every event on the page, since most never get
+one.
+
+Its prefetch needs `to_attr`, and that is load-bearing rather than stylistic. Without it the deferred
+queryset lands in the related manager's own prefetch cache and the manager chains further calls onto
+it — so `event.posts.select_related('author')` in the `posts` action inherited the `.only()` and
+raised `FieldError: Field EventPost.author cannot be both deferred and traversed using
+select_related`. Found by the reading tests, not by inspection.
+
+### Verified
+
+**`events/tests.py` grew from 60 to 95 tests**, full backend suite **728, all passing**. Weighted
+towards refusals and the cases that fail silently: a post with neither words nor a picture; links
+alone; a stranger posting (404, not 403); a draft's feed invisible to everybody but its host; the
+newest first; every link shape including the repeated-key one DRF loses by default; a disguised
+executable; the stored picture re-encoded, bounded, and NOT centre-cropped; a small picture not
+upscaled; a body-only PATCH leaving links *and* picture alone while an explicitly empty list clears
+them; an empty multipart `image` field meaning "remove"; removing the only picture from a wordless
+post refused; who is told and who is not; and the update count adding no queries per event.
+
+**Driven in a real browser and against a real server**, since type-checks and unit tests both pass on
+an API whose field names the frontend does not agree with — this project's own recorded lesson.
+Anonymous read (3 posts, one picture, shortened link labels, no composer), host compose through the
+actual form, the live notification arriving with the post's text, the picture served as genuine WebP
+resized 2400×1200 → 1600×800, and the count rendering on the browse card.
+
+### Left open, not built
+
+- **A post cannot be reported.** Consistent rather than an omission: `Event` itself is not in
+  `REPORT_KIND_MODELS` either, so an event's description is equally unreportable. Both belong in the
+  same change if either does.
+- **No comments on a post.** The generic `Comment` is right there and `courses` shows how to wire it;
+  left out to keep the broadcast/conversation split clean until somebody asks for the other half.
+- **One picture per post**, no galleries, and no alt text — the host is never asked for a description,
+  so the image renders with an empty `alt`, marking it decorative, rather than an invented one being
+  read aloud on every post.
+- **No "N new since you last looked".** The count is a total, so an attendee cannot tell at a glance
+  which updates they have already read.
+- **No draft or scheduled post** — publishing is the act of writing one.
+
+---
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this
@@ -5252,6 +5379,7 @@ these tables — is what there is to build once the system behind it exists.
 | przedmiot | course (`taxonomy.Course`) — a university subject |
 | kurs (prowadzony przez użytkownika) | taught course (`classroom.TaughtCourse`) — something a person runs and others join |
 | wydarzenie | event (`events.Event`) — a one-off happening people turn up to, distinct from both a taught course and a booking |
+| aktualność | update (`events.EventPost`) — a dated note the host appends to an event after announcing it; not its description, and not a comment |
 | dział / temat | topic |
 | zadanie | exercise |
 | materiał (dydaktyczny) | material |
