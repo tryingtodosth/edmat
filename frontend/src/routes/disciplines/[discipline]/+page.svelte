@@ -7,7 +7,8 @@
 	import { getBranchesForDiscipline, getDisciplineById } from '$lib/services/taxonomy';
 	import { getExercisesForBranch } from '$lib/services/exercises';
 	import BranchCard from '$lib/components/branch/BranchCard.svelte';
-	import { splitByStatus } from '$lib/utils/taxonomy';
+	import { isPending, splitByStatus } from '$lib/utils/taxonomy';
+	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
 
 	let field = $state<Discipline | undefined>(undefined);
 	let branches = $state<Branch[]>([]);
@@ -67,7 +68,12 @@
 		<p class="empty">{m.discipline_notFound()}</p>
 	{:else if field}
 		<header>
-			<h1>{field.name}</h1>
+			<!-- The grouping on the page you came from says this for a whole section; once you are
+			     looking at one node on its own there is nothing left to carry it. -->
+			<h1>
+				{field.name}
+				{#if isPending(field)}<PendingBadge />{/if}
+			</h1>
 			<p>{field.description}</p>
 		</header>
 		<h2>{m.discipline_branchesHeading()}</h2>
@@ -85,7 +91,11 @@
 				<p class="hint">{m.taxonomy_propose_pending()}</p>
 				<div class="grid">
 					{#each grouped.proposed as branch (branch.id)}
-						<BranchCard {branch} exerciseCount={exerciseCounts[branch.id] ?? 0} />
+						<BranchCard
+							{branch}
+							exerciseCount={exerciseCounts[branch.id] ?? 0}
+							showPending={false}
+						/>
 					{/each}
 				</div>
 			</section>
@@ -134,10 +144,10 @@
 		flex-direction: column;
 		gap: var(--space-2);
 		padding-top: var(--space-4);
-		border-top: 1px dashed var(--border);
+		border-top: 1px dashed var(--border-color);
 	}
 	.proposed .hint {
 		font-size: var(--font-size-sm);
-		color: var(--text-muted);
+		color: var(--text-secondary);
 	}
 </style>

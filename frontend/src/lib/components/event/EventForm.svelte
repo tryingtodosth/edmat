@@ -353,6 +353,6 @@
 		margin-top: var(--space-2);
 		font-size: var(--font-size-xs);
 		font-weight: 600;
-		color: var(--text-muted);
+		color: var(--text-secondary);
 	}
 </style>

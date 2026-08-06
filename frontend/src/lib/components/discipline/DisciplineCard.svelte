@@ -5,12 +5,19 @@
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
 	import { isPending } from '$lib/utils/taxonomy';
 
-	let { field, courseCount }: { field: Discipline; courseCount: number } = $props();
+	// `showPending` is off when the card already sits inside an "Others" section — that heading and
+	// its hint have just said the same thing, and saying it twice in one glance is noise. It stays
+	// on everywhere else, which is every context where the grouping is not there to carry it.
+	let {
+		field,
+		courseCount,
+		showPending = true
+	}: { field: Discipline; courseCount: number; showPending?: boolean } = $props();
 </script>
 
 <a class="field-card" href={resolve('/disciplines/[discipline]', { discipline: field.id })}>
 	<h3>{field.name}</h3>
-	{#if isPending(field)}<PendingBadge />{/if}
+	{#if showPending && isPending(field)}<PendingBadge />{/if}
 	<p>{field.description}</p>
 	<span class="field-card__count">{m.discipline_branchCount({ count: courseCount })}</span>
 </a>

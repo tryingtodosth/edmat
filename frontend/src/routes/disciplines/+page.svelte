@@ -79,7 +79,7 @@
 				<p class="hint">{m.taxonomy_propose_pending()}</p>
 				<div class="grid">
 					{#each proposed as field (field.id)}
-						<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} />
+						<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} showPending={false} />
 					{/each}
 				</div>
 			</section>
@@ -111,10 +111,10 @@
 		flex-direction: column;
 		gap: var(--space-2);
 		padding-top: var(--space-4);
-		border-top: 1px dashed var(--border);
+		border-top: 1px dashed var(--border-color);
 	}
 	.proposed .hint {
 		font-size: var(--font-size-sm);
-		color: var(--text-muted);
+		color: var(--text-secondary);
 	}
 </style>

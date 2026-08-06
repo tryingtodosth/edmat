@@ -21,13 +21,16 @@
 		display: inline-block;
 		align-self: flex-start;
 		padding: 0.1rem 0.45rem;
-		border: 1px dashed var(--border);
+		border: 1px dashed var(--border-color);
 		border-radius: var(--radius-sm);
 		font-size: var(--font-size-xs);
 		font-weight: 600;
-		/* Muted rather than a warning colour: nothing is wrong, it just is not settled yet. */
-		color: var(--text-muted);
-		background: var(--surface-2);
+		/* The neutral status pair, not the warning one: nothing is wrong, it just is not settled
+		   yet. These are the real token names — an earlier draft invented `--surface-2`/
+		   `--text-muted`, which do not exist here, so the badge rendered as bare bold text with no
+		   pill around it at all. Nothing failed; it just silently looked wrong. */
+		color: var(--status-neutral);
+		background: var(--status-neutral-bg);
 		white-space: nowrap;
 	}
 	.pending-badge--compact {
