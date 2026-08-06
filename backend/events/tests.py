@@ -920,6 +920,65 @@ class PostEditingTests(PostTestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    def _post_with_picture(self, event):
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {
+                'body': 'The board',
+                'image': SimpleUploadedFile(
+                    'board.png', make_post_image_bytes(800, 400), content_type='image/png'
+                ),
+            },
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        return response.json()['id']
+
+    def test_an_empty_image_field_removes_the_picture(self):
+        """Multipart cannot send null — every value is a string — so an empty `image` field is the
+        only way a form can say "remove this". DRF reads a blank value for a nullable field as None,
+        and this pins that: without it, a host who attached the wrong photo could only delete the
+        whole post."""
+        event = self.make_event()
+        post_id = self._post_with_picture(event)
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/posts/{post_id}/', {'image': ''}, format='multipart'
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['image_url'], '')
+        # The rest of the post is untouched — removing a picture is not a rewrite.
+        self.assertEqual(response.json()['body'], 'The board')
+
+    def test_an_edit_that_names_only_the_body_keeps_the_picture(self):
+        """The other half of `test_an_edit_that_names_only_the_body_leaves_the_links_alone`, and the
+        one that would break silently: an absent `image` must mean "leave it", not "remove it"."""
+        event = self.make_event()
+        post_id = self._post_with_picture(event)
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/posts/{post_id}/', {'body': 'reworded'}, format='json'
+        )
+        self.assertTrue(response.json()['image_url'])
+
+    def test_removing_the_only_picture_from_a_wordless_post_is_refused(self):
+        """It would leave a post with neither words nor a picture — which `EventPost.clean` forbids on
+        creation, and must equally forbid an edit from arriving at."""
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {
+                'body': '',
+                'image': SimpleUploadedFile(
+                    'board.png', make_post_image_bytes(400, 200), content_type='image/png'
+                ),
+            },
+            format='multipart',
+        )
+        post_id = response.json()['id']
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/posts/{post_id}/', {'image': ''}, format='multipart'
+        )
+        self.assertEqual(response.status_code, 400)
+
 
 class PostNotificationTests(PostTestCase):
     def _going(self, event, user):
