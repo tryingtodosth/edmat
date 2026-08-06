@@ -22,7 +22,7 @@ export interface ExerciseSubmissionDraft {
 
 export interface ExerciseSubmission {
 	id: string;
-	courseId: string;
+	branchId: string;
 	submittedByUserId: string;
 	draft: ExerciseSubmissionDraft;
 	status: ModerationStatus;

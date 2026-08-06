@@ -2,8 +2,8 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type {
-		Course,
-		Field,
+		Branch,
+		Discipline,
 		Material,
 		MaterialBrowseFilters,
 		ResolvedExercise,
@@ -11,16 +11,16 @@
 	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
-	import { getCourseById, getFieldById, getTopicsForCourse } from '$lib/services/taxonomy';
-	import { getExercisesForCourse, type ExerciseFilters } from '$lib/services/exercises';
-	import { getMaterialsForCourse } from '$lib/services/materials';
-	import FiltersSidebar from '$lib/components/course/FiltersSidebar.svelte';
+	import { getBranchById, getDisciplineById, getTopicsForBranch } from '$lib/services/taxonomy';
+	import { getExercisesForBranch, type ExerciseFilters } from '$lib/services/exercises';
+	import { getMaterialsForBranch } from '$lib/services/materials';
+	import FiltersSidebar from '$lib/components/branch/FiltersSidebar.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
 	import MaterialFilterBar from '$lib/components/material/MaterialFilterBar.svelte';
 
-	let course = $state<Course | undefined>(undefined);
-	let field = $state<Field | undefined>(undefined);
+	let branch = $state<Branch | undefined>(undefined);
+	let field = $state<Discipline | undefined>(undefined);
 	let topics = $state<Topic[]>([]);
 	let materials = $state<Material[]>([]);
 	let exercises = $state<ResolvedExercise[]>([]);
@@ -30,22 +30,22 @@
 	let loading = $state(true);
 	let notFound = $state(false);
 
-	async function loadCourse(courseId: string) {
+	async function loadCourse(branchId: string) {
 		loading = true;
 		notFound = false;
 		filters = {};
 		materialFilters = {};
-		const c = await getCourseById(courseId);
+		const c = await getBranchById(branchId);
 		if (!c) {
 			notFound = true;
 			loading = false;
 			return;
 		}
-		course = c;
-		const [f, t] = await Promise.all([getFieldById(c.fieldId), getTopicsForCourse(courseId)]);
+		branch = c;
+		const [f, t] = await Promise.all([getDisciplineById(c.disciplineId), getTopicsForBranch(branchId)]);
 		field = f;
 		topics = t;
-		materials = await getMaterialsForCourse(courseId);
+		materials = await getMaterialsForBranch(branchId);
 		loading = false;
 	}
 
@@ -54,7 +54,7 @@
 	// out whatever the visitor had just picked in FiltersSidebar.
 	let loadedForId = $state<string | undefined>(undefined);
 	$effect(() => {
-		const id = page.params.course!;
+		const id = page.params.branch!;
 		if (id === loadedForId) return;
 		loadedForId = id;
 		loadCourse(id);
@@ -63,59 +63,58 @@
 	// Every filter change re-runs the service call, same shape a real fetch() will have later —
 	// each filter field is read synchronously here so Svelte's effect tracking picks it up.
 	$effect(() => {
-		if (!course) return;
+		if (!branch) return;
 		const topicId = filters.topicId;
 		const difficulty = filters.difficulty;
 		const sourceType = filters.sourceType;
 		const query = filters.query;
-		getExercisesForCourse(course.id, getLocale(), { topicId, difficulty, sourceType, query }).then(
+		getExercisesForBranch(branch.id, getLocale(), { topicId, difficulty, sourceType, query }).then(
 			(list) => {
 				exercises = list;
 			}
 		);
 	});
 
-	// Same shape, for the Materials tab's own filter bar — course-scoped `getMaterialsForCourse`
+	// Same shape, for the Materials tab's own filter bar — branch-scoped `getMaterialsForBranch`
 	// now forwards every real structured param the search/filter/sort overhaul added (type,
 	// topic/subtopic coverage depth, tag, free text, sort) to the backend's own
 	// `_filter_materials`/`_sort_materials` (materials/views.py), the exact same ones the
-	// cross-course /materials hub already uses.
+	// cross-branch /materials hub already uses.
 	$effect(() => {
-		if (!course) return;
+		if (!branch) return;
 		const query = materialFilters.query;
 		const type = materialFilters.type;
 		const tag = materialFilters.tag;
 		const topicId = materialFilters.topicId;
 		const minLevel = materialFilters.minLevel;
 		const sort = materialFilters.sort;
-		getMaterialsForCourse(course.id, { query, type, tag, topicId, minLevel, sort }).then((list) => {
+		getMaterialsForBranch(branch.id, { query, type, tag, topicId, minLevel, sort }).then((list) => {
 			materials = list;
 		});
 	});
 </script>
 
 <svelte:head>
-	<title>{course?.name ?? m.common_appName()} — {m.common_appName()}</title>
+	<title>{branch?.name ?? m.common_appName()} — {m.common_appName()}</title>
 </svelte:head>
 
 <div class="page">
 	{#if loading}
 		<p class="loading">{m.common_loading()}</p>
 	{:else if notFound}
-		<p class="empty">{m.course_notFound()}</p>
-	{:else if course}
+		<p class="empty">{m.branch_notFound()}</p>
+	{:else if branch}
 		<!-- "Breadcrumb" -->
 		<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
-			<a href={resolve('/fields')}>{m.common_home()}</a> ›
+			<a href={resolve('/disciplines')}>{m.common_home()}</a> ›
 			{#if field}
-				<a href={resolve('/fields/[field]', { field: field.id })}>{field.name}</a>
+				<a href={resolve('/disciplines/[discipline]', { discipline: field.id })}>{field.name}</a>
 			{/if}
 		</nav>
 
 		<header>
-			<h1>{course.name}</h1>
-			<p class="university">{course.university}</p>
-			<p>{course.description}</p>
+			<h1>{branch.name}</h1>
+			<p>{branch.description}</p>
 		</header>
 
 		<div class="tabs" role="tablist">
@@ -126,7 +125,7 @@
 				class:active={tab === 'exercises'}
 				onclick={() => (tab = 'exercises')}
 			>
-				{m.course_tab_exercises()}
+				{m.branch_tab_exercises()}
 			</button>
 			<button
 				type="button"
@@ -135,7 +134,7 @@
 				class:active={tab === 'materials'}
 				onclick={() => (tab = 'materials')}
 			>
-				{m.course_tab_materials()}
+				{m.branch_tab_materials()}
 			</button>
 		</div>
 
@@ -156,7 +155,7 @@
 				<MaterialFilterBar
 					bind:filters={materialFilters}
 					resultCount={materials.length}
-					scope="course"
+					scope="branch"
 					{topics}
 				/>
 				<div class="grid grid--materials">
@@ -192,12 +191,7 @@
 	h1 {
 		font-size: var(--font-size-xl);
 	}
-	.university {
-		font-size: var(--font-size-sm);
-		color: var(--text-secondary);
-		margin-top: var(--space-1);
-	}
-	header p:not(.university) {
+	header p {
 		color: var(--text-secondary);
 		margin-top: var(--space-2);
 	}

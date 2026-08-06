@@ -1,18 +1,18 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { Course, ServiceDraft } from '$lib/types';
+	import type { Branch, ServiceDraft } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
-	import { getAllCourses } from '$lib/services/taxonomy';
+	import { getAllBranches } from '$lib/services/taxonomy';
 	import { createService } from '$lib/services/tutoring';
 	import ServiceForm from '$lib/components/service/ServiceForm.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
-	let courses = $state<Course[]>([]);
+	let branches = $state<Branch[]>([]);
 
 	async function init() {
-		courses = await getAllCourses();
+		branches = await getAllBranches();
 	}
 	init();
 
@@ -34,7 +34,7 @@
 		{#if !authStore.isAuthenticated}
 			<p class="login-prompt"><a href={resolve('/login')}>{m.services_loginRequired()}</a></p>
 		{:else}
-			<ServiceForm {courses} onSubmit={handleSubmit} />
+			<ServiceForm {branches} onSubmit={handleSubmit} />
 		{/if}
 	</div>
 </FeatureGate>

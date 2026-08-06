@@ -1,42 +1,42 @@
 <script lang="ts">
-	// The materials search/filter/sort overhaul's own cross-course browse hub — before this route
-	// existed, materials could only be seen scoped inside one course's own Materials tab, and the
+	// The materials search/filter/sort overhaul's own cross-branch browse hub — before this route
+	// existed, materials could only be seen scoped inside one branch's own Materials tab, and the
 	// backend's real GET /api/materials/ (type/topic/tag/min_level/q/sort, plus the personalized
 	// GET /api/materials/recommended/) had no frontend page consuming it at all. Two real sections:
 	// a personalized "Recommended" strip (RecommendedMaterials.svelte) above a full, filterable,
-	// sortable grid across every course at once — both respecting the same shared
+	// sortable grid across every branch at once — both respecting the same shared
 	// simple/advanced `materialsUiStore` mode every other materials surface in this app now reads.
-	import type { Field, Material, MaterialBrowseFilters } from '$lib/types';
+	import type { Discipline, Material, MaterialBrowseFilters } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getFields } from '$lib/services/taxonomy';
+	import { getDisciplines } from '$lib/services/taxonomy';
 	import { browseMaterials } from '$lib/services/materials';
 	import MaterialFilterBar from '$lib/components/material/MaterialFilterBar.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
 	import RecommendedMaterials from '$lib/components/material/RecommendedMaterials.svelte';
 
-	let fields = $state<Field[]>([]);
+	let fields = $state<Discipline[]>([]);
 	let materials = $state<Material[]>([]);
 	let filters = $state<MaterialBrowseFilters>({});
 	let loading = $state(true);
 
 	$effect(() => {
-		getFields().then((f) => (fields = f));
+		getDisciplines().then((f) => (fields = f));
 	});
 
 	// Every filter field is read synchronously here so Svelte's own effect tracking picks each one
-	// up individually — the same shape routes/courses/[course]/+page.svelte's own exercise-filter
+	// up individually — the same shape routes/branches/[branch]/+page.svelte's own exercise-filter
 	// effect already uses.
 	$effect(() => {
 		const query = filters.query;
 		const type = filters.type;
 		const tag = filters.tag;
-		const fieldId = filters.fieldId;
-		const courseId = filters.courseId;
+		const disciplineId = filters.disciplineId;
+		const branchId = filters.branchId;
 		const topicId = filters.topicId;
 		const minLevel = filters.minLevel;
 		const sort = filters.sort;
 		loading = true;
-		browseMaterials({ query, type, tag, fieldId, courseId, topicId, minLevel, sort }).then(
+		browseMaterials({ query, type, tag, disciplineId, branchId, topicId, minLevel, sort }).then(
 			(list) => {
 				materials = list;
 				loading = false;

@@ -195,7 +195,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def _respond_full(self, instance, response_status):
         # ServiceWriteSerializer (used for create/update, above) is deliberately narrower than
         # ServiceSerializer — but the caller still wants the FULL representation back (provider
-        # info, resolved course_slugs) after a successful write, the same way every other
+        # info, resolved branch_slugs) after a successful write, the same way every other
         # create/update endpoint in this app responds with its own real, full read shape rather
         # than echoing back the narrower write payload.
         return Response(

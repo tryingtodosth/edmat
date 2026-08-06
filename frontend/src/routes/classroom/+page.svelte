@@ -1,6 +1,7 @@
 <script lang="ts">
-	// Browsing courses people are running. `/classroom`, not `/courses`, because `/courses/[course]`
-	// already belongs to the taxonomy's university subjects — see lib/types/classroom.ts on the name.
+	// Browsing courses people are running. Still `/classroom` rather than `/courses`: the taxonomy
+	// has released that route (its przedmiot rows became `/branches/[branch]`), but moving this one
+	// belongs with renaming the whole classroom app, not with the taxonomy split.
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getCourses } from '$lib/services/classroom';

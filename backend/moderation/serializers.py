@@ -23,7 +23,7 @@ _REVERSE_GOVERNABLE_NODE_MODELS = {model: kind for kind, model in GOVERNABLE_NOD
 
 class ExerciseSubmissionSerializer(serializers.ModelSerializer):
     # By slug, not PK — every other course reference on the frontend (Branch.id, ExerciseListSerializer's
-    # own course_slug) already uses the slug as the id it round-trips, so submitting/reading a
+    # own branch_slug) already uses the slug as the id it round-trips, so submitting/reading a
     # submission's own `course` this way needs no separate slug<->PK lookup on the frontend side.
     branch = serializers.SlugRelatedField(slug_field='slug', queryset=Branch.objects.all())
 

@@ -2,7 +2,7 @@
 	// The tag-hover menu's "add to different content" action — search for another Exercise or
 	// Material and attach this same tag to it. Debounced text search, reusing the exact services
 	// (searchExercises/searchMaterials) built for this modal specifically, since neither existed as
-	// a course-agnostic lookup before this feature needed one.
+	// a branch-agnostic lookup before this feature needed one.
 	import type { Material, ResolvedExercise, TaggableKind } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';

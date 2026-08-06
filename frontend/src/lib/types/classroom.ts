@@ -1,9 +1,9 @@
 /** Courses run by users, and enrolment in them.
  *
- * `TaughtCourse`, not `Course`, for the same reason the backend uses that name: `Course` in this
- * app already means a university *subject* (`taxonomy.Course`, e.g. Analiza Matematyczna II), which
- * nobody runs and nobody joins. Users only ever see the word "course"; the distinction lives in the
- * code, where confusing the two would be a real bug.
+ * Still `TaughtCourse` rather than `Course`, mirroring the backend. The name existed because
+ * `Course` used to mean a university *subject* (przedmiot, e.g. Analiza Matematyczna II) — that is
+ * now `Branch`, so the word is free, and taking it is the next step rather than part of the
+ * taxonomy split. Users only ever saw "course" either way.
  */
 
 /** Who may see the course at all. Split out of `CourseStatus`, which used to answer this and "how

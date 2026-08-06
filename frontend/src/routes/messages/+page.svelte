@@ -36,7 +36,7 @@
 
 	// A real, found-during-verification bug: getMessages() is authenticated-only
 	// (messaging/views.py's MessageViewSet), and a bare top-level call (unlike this app's own
-	// PUBLIC-endpoint eager-fetch precedent, e.g. submit-material's getAllCourses()) also runs
+	// PUBLIC-endpoint eager-fetch precedent, e.g. submit-material's getAllBranches()) also runs
 	// during SERVER-SIDE RENDERING, where there's no browser-stored token at all — the resulting
 	// 401 ApiError was never caught, and an uncaught rejection during SSR crashed the ENTIRE dev
 	// server process outright, not just this one page.

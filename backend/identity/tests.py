@@ -346,7 +346,7 @@ class SkillSeedTests(ApiTestCase):
         """An unmatched branch is still a real result — inventing a placement would be worse."""
         self.assertTrue(CourseGrade.objects.filter(matched_course__isnull=True).exists())
         seeds = self.client.get('/api/education/me/').data['standing']['skill_seeds']
-        self.assertTrue(all(s['course_slug'] == 'analiza-2' for s in seeds))
+        self.assertTrue(all(s['branch_slug'] == 'analiza-2' for s in seeds))
 
     def test_seeds_do_not_require_publishing_the_transcript(self):
         profile = EducationProfile.objects.get(user=self.user)

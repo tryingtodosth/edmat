@@ -36,10 +36,11 @@ class ServiceSerializer(serializers.ModelSerializer):
     provider_id = serializers.IntegerField(source='provider.id', read_only=True)
     provider_username = serializers.CharField(source='provider.username', read_only=True)
     provider_display_name = serializers.SerializerMethodField()
-    # Read-side: real course objects (slug + own translated name would need the frontend's
-    # existing course-resolution, so we just expose slugs here — the frontend already has every
-    # published course's own name from GET /api/fields/{slug}/courses/, no need to duplicate it).
-    course_slugs = serializers.SlugRelatedField(
+    # Read-side: real branch objects (slug + own translated name would need the frontend's
+    # existing branch-resolution, so we just expose slugs here — the frontend already has every
+    # published branch's own name from GET /api/disciplines/{slug}/branches/, no need to duplicate
+    # it).
+    branch_slugs = serializers.SlugRelatedField(
         source='branches', slug_field='slug', many=True, read_only=True
     )
     # A plain SerializerMethodField (2 extra queries per row), not a queryset-level annotation the
@@ -58,7 +59,7 @@ class ServiceSerializer(serializers.ModelSerializer):
             'provider_display_name',
             'title',
             'description',
-            'course_slugs',
+            'branch_slugs',
             'hourly_rate',
             'currency',
             'is_active',
@@ -110,11 +111,11 @@ class ServiceWriteSerializer(serializers.ModelSerializer):
     """POST/PATCH — `provider` is always the authenticated caller (set by the view, never accepted
     from the client, matching this app's own established "who's the author" convention throughout
     - Review/Comment/ExerciseSubmission never take an author from the request body either).
-    `course_slugs` (write) accepts a list of real Branch slugs, resolved here rather than requiring
+    `branch_slugs` (write) accepts a list of real Branch slugs, resolved here rather than requiring
     the frontend to already know numeric Branch PKs (every other course reference in this API is a
     slug, see CLAUDE.md's own note on id-format convention)."""
 
-    course_slugs = serializers.ListField(child=serializers.SlugField(), write_only=True, required=False)
+    branch_slugs = serializers.ListField(child=serializers.SlugField(), write_only=True, required=False)
     location_lat = CoordinateField(
         max_digits=9, decimal_places=COORD_PRECISION, required=False, allow_null=True
     )
@@ -128,7 +129,7 @@ class ServiceWriteSerializer(serializers.ModelSerializer):
             'id',
             'title',
             'description',
-            'course_slugs',
+            'branch_slugs',
             'hourly_rate',
             'currency',
             'is_active',
@@ -149,7 +150,7 @@ class ServiceWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('A session must be between 15 minutes and 8 hours.')
         return minutes
 
-    def validate_course_slugs(self, slugs):
+    def validate_branch_slugs(self, slugs):
         branches = list(Branch.objects.filter(slug__in=slugs, published=True))
         found_slugs = {c.slug for c in branches}
         missing = set(slugs) - found_slugs
@@ -192,14 +193,14 @@ class ServiceWriteSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        branches = validated_data.pop('course_slugs', [])
+        branches = validated_data.pop('branch_slugs', [])
         service = Service.objects.create(**validated_data)
         if branches:
             service.branches.set(branches)
         return service
 
     def update(self, instance, validated_data):
-        branches = validated_data.pop('course_slugs', None)
+        branches = validated_data.pop('branch_slugs', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()

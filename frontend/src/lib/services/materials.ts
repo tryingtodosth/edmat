@@ -33,8 +33,8 @@ import {
 // deliberately not extracted into a shared util for two independently-shaped filter objects.
 function materialQueryString(filters: MaterialBrowseFilters): string {
 	const search = new URLSearchParams();
-	if (filters.fieldId) search.set('field', filters.fieldId);
-	if (filters.courseId) search.set('course', filters.courseId);
+	if (filters.disciplineId) search.set('discipline', filters.disciplineId);
+	if (filters.branchId) search.set('branch', filters.branchId);
 	if (filters.type)
 		search.set('type', FRONTEND_TO_BACKEND_MATERIAL_TYPE[filters.type] ?? filters.type);
 	if (filters.tag) search.set('tag', filters.tag);
@@ -46,25 +46,25 @@ function materialQueryString(filters: MaterialBrowseFilters): string {
 	return s ? `?${s}` : '';
 }
 
-/** Course-scoped materials listing (routes/courses/[course]'s own Materials tab) — now
- * filter/sort-capable too, via the exact same query params the cross-course `browseMaterials`
+/** Branch-scoped materials listing (routes/branches/[branch]'s own Materials tab) — now
+ * filter/sort-capable too, via the exact same query params the cross-branch `browseMaterials`
  * below sends (taxonomy.CourseViewSet.materials, materials/views.py, reuse the identical
- * `_filter_materials`/`_sort_materials` helpers `MaterialViewSet` itself uses). `filters.courseId`
- * is deliberately ignored here — the course is already the one this function was called for. */
-export async function getMaterialsForCourse(
-	courseId: string,
+ * `_filter_materials`/`_sort_materials` helpers `MaterialViewSet` itself uses). `filters.branchId`
+ * is deliberately ignored here — the branch is already the one this function was called for. */
+export async function getMaterialsForBranch(
+	branchId: string,
 	filters: MaterialBrowseFilters = {}
 ): Promise<Material[]> {
-	const qs = materialQueryString({ ...filters, courseId: undefined });
+	const qs = materialQueryString({ ...filters, branchId: undefined });
 	const raw = await apiClient.get<RawMaterial[]>(
-		`/courses/${encodeURIComponent(courseId)}/materials/${qs}`
+		`/branches/${encodeURIComponent(branchId)}/materials/${qs}`
 	);
 	return raw.map(mapMaterial);
 }
 
-/** The cross-course browse hub (routes/materials/+page.svelte) — every real structured dimension
+/** The cross-branch browse hub (routes/materials/+page.svelte) — every real structured dimension
  * this overhaul added: type, topic/subtopic coverage depth, tag, free text, and sort, optionally
- * further scoped to one field/course. Backed by GET /api/materials/ (MaterialViewSet.list). */
+ * further scoped to one field/branch. Backed by GET /api/materials/ (MaterialViewSet.list). */
 export async function browseMaterials(filters: MaterialBrowseFilters = {}): Promise<Material[]> {
 	const raw = await apiClient.get<RawMaterial[]>(`/materials/${materialQueryString(filters)}`);
 	return raw.map(mapMaterial);
@@ -93,7 +93,7 @@ export async function getMaterialById(id: string): Promise<Material | undefined>
 }
 
 /** The tag-hover menu's own "add to different content" picker (TagChip.svelte/
- * AddTagToContentModal.svelte) — a title/description text search across every course's materials,
+ * AddTagToContentModal.svelte) — a title/description text search across every branch's materials,
  * backed by MaterialViewSet's own new `?q=` filter. */
 export async function searchMaterials(query: string): Promise<Material[]> {
 	if (!query.trim()) return [];
@@ -173,7 +173,7 @@ export async function submitMaterial(
 	file: File
 ): Promise<MaterialSubmission> {
 	const formData = new FormData();
-	formData.append('course', draft.courseId);
+	formData.append('branch', draft.branchId);
 	formData.append('type', FRONTEND_TO_BACKEND_MATERIAL_TYPE[draft.type] ?? 'other');
 	formData.append('title', draft.title);
 	formData.append('description', draft.description);
@@ -209,18 +209,18 @@ export async function submitMaterial(
 	return mapMaterialSubmission(raw);
 }
 
-export async function getMaterialSubmissionsForCourse(
-	courseId: string
+export async function getMaterialSubmissionsForBranch(
+	branchId: string
 ): Promise<MaterialSubmission[]> {
 	const raw = await apiClient.get<RawMaterialSubmission[]>(
-		`/material-submissions/?course=${encodeURIComponent(courseId)}`
+		`/material-submissions/?branch=${encodeURIComponent(branchId)}`
 	);
 	return raw.map(mapMaterialSubmission);
 }
 
 // ---- material requirements — a governor-only bulk replace of an ALREADY-PUBLISHED material's own
 // requirement list (materials/views.py's `requirements` action) — see that view's own doc comment
-// for the exact trust boundary (global staff, or a governor of the material's own course; not open
+// for the exact trust boundary (global staff, or a governor of the material's own branch; not open
 // to any authenticated user the way MaterialCoverage proposals are). A full, ordered replace, not a
 // single add/remove — the natural shape for a list editor that always submits its own current state.
 export async function setMaterialRequirements(

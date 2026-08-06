@@ -1,21 +1,21 @@
 <script lang="ts">
-	// The tutoring/services listings browse page — course-scoped discovery (the whole reason a
+	// The tutoring/services listings browse page — branch-scoped discovery (the whole reason a
 	// Service is tied to real Courses, see backend/services/models.py's own doc comment) plus, for
 	// an authenticated visitor, a "My listings" management tab (edit/pause/delete their own, inline,
 	// reusing the same ServiceForm the create page uses). No +page.ts — same "plain +page.svelte
 	// over client-side state" pattern every other route in this app already follows.
 	import { resolve } from '$app/paths';
-	import type { Course, Service, ServiceDraft } from '$lib/types';
+	import type { Branch, Service, ServiceDraft } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
-	import { getAllCourses } from '$lib/services/taxonomy';
+	import { getAllBranches } from '$lib/services/taxonomy';
 	import { deleteService, getMyServices, getServices, updateService } from '$lib/services/tutoring';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import ServiceForm from '$lib/components/service/ServiceForm.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
-	let courses = $state<Course[]>([]);
+	let branches = $state<Branch[]>([]);
 	let courseFilter = $state('');
 	// '' means "either" — deliberately not a third `hybrid` value: hybrid is something a tutor
 	// OFFERS, not something a student searches for, and a hybrid listing already matches both of
@@ -27,10 +27,10 @@
 	let loading = $state(true);
 	let editingId = $state<string | null>(null);
 
-	let courseNameById = $derived(new Map(courses.map((c) => [c.id, c.name])));
+	let branchNameById = $derived(new Map(branches.map((c) => [c.id, c.name])));
 
 	async function loadCourses() {
-		courses = await getAllCourses();
+		branches = await getAllBranches();
 	}
 
 	async function loadBrowse() {
@@ -94,7 +94,7 @@
 		const updated = await updateService(service.id, {
 			title: service.title,
 			description: service.description,
-			courseIds: service.courseIds,
+			branchIds: service.branchIds,
 			hourlyRate: service.hourlyRate !== null ? String(service.hourlyRate) : '',
 			currency: service.currency,
 			isActive: !service.isActive,
@@ -184,11 +184,11 @@
 		{#if tab === 'browse'}
 			<div class="filters">
 				<label class="filter">
-					<span>{m.services_filterByCourse()}</span>
+					<span>{m.services_filterByBranch()}</span>
 					<select bind:value={courseFilter} onchange={handleCourseFilterChange}>
-						<option value="">{m.services_allCourses()}</option>
-						{#each courses as course (course.id)}
-							<option value={course.id}>{course.name}</option>
+						<option value="">{m.services_allBranches()}</option>
+						{#each branches as branch (branch.id)}
+							<option value={branch.id}>{branch.name}</option>
 						{/each}
 					</select>
 				</label>
@@ -211,7 +211,7 @@
 					{#each listings as service (service.id)}
 						<ServiceCard
 							{service}
-							courseNames={service.courseIds.map((id) => courseNameById.get(id) ?? id)}
+							branchNames={service.branchIds.map((id) => branchNameById.get(id) ?? id)}
 						/>
 					{/each}
 				</div>
@@ -227,7 +227,7 @@
 						{#if editingId === service.id}
 							<ServiceForm
 								initial={service}
-								{courses}
+								{branches}
 								onSubmit={(draft) => handleEditSubmit(service.id, draft)}
 								onCancel={() => (editingId = null)}
 							/>

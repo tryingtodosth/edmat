@@ -6,8 +6,8 @@
 // - 'simple'   — a search box, a type filter, and a sort dropdown. Intuitive, low-friction, for a
 //                visitor who just wants to find a script or a past exam quickly.
 // - 'advanced' — every real structured dimension the overhaul added: topic/subtopic coverage depth
-//                (the "difficulty of coverage" axis), a tag filter, field/course scoping on the
-//                cross-course hub, on top of everything 'simple' already offers. For someone who
+//                (the "difficulty of coverage" axis), a tag filter, field/branch scoping on the
+//                cross-branch hub, on top of everything 'simple' already offers. For someone who
 //                wants to slice the corpus precisely.
 //
 // A Svelte 5 rune module, this app's own established convention for global reactive state that

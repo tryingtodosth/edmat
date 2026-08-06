@@ -133,7 +133,7 @@ def skill_seeds_for(profile: EducationProfile | None) -> list[dict]:
             continue
         seeds.append(
             {
-                'course_slug': grade.matched_course.slug,
+                'branch_slug': grade.matched_course.slug,
                 'course_name': grade.name,
                 'ects': grade.ects,
                 'basis': 'passed, per the university registry',
@@ -182,7 +182,7 @@ def public_view(profile: EducationProfile | None) -> dict | None:
                 'ects': g.ects,
                 'value': g.value,
                 'scale': g.scale,
-                'course_slug': g.matched_course.slug if g.matched_course else None,
+                'branch_slug': g.matched_course.slug if g.matched_course else None,
             }
             for g in grades
         ]

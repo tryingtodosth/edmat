@@ -20,7 +20,7 @@ export interface MaterialCoverageDraft {
 }
 
 export interface MaterialSubmissionDraft {
-	courseId: string;
+	branchId: string;
 	type: MaterialType;
 	title: string;
 	description: string;
@@ -44,7 +44,7 @@ export type MaterialScanStatus = 'skipped' | 'clean' | 'flagged';
 
 export interface MaterialSubmission {
 	id: string;
-	courseId: string;
+	branchId: string;
 	submittedByUserId: string;
 	type: MaterialType;
 	title: string;

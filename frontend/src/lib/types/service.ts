@@ -1,4 +1,4 @@
-// Tutoring/services listings ("Korepetycje") — a user-created, course-scoped offer. See
+// Tutoring/services listings ("Korepetycje") — a user-created, branch-scoped offer. See
 // backend/services/models.py's own doc comment for the full reasoning, including why this is a
 // distinct, fuller thing from `User.offersTutoring` (a bare opt-in badge with no structure) — a
 // user can set just that flag, create one or more real Service listings, or both.
@@ -33,10 +33,10 @@ export interface Service {
 	providerDisplayName: string;
 	title: string;
 	description: string;
-	// Real Course ids (== slugs, see taxonomy.ts's own note on Course.id), not free text — the whole
-	// reason a listing is tied to the taxonomy at all is so a visitor browsing one specific course
-	// can discover tutors for THAT course.
-	courseIds: string[];
+	// Real Branch ids (== slugs, see taxonomy.ts's own note on Branch.id), not free text — the whole
+	// reason a listing is tied to the taxonomy at all is so a visitor browsing one specific branch
+	// can discover tutors for THAT branch.
+	branchIds: string[];
 	hourlyRate: number | null; // display-only, this app has no real payment processing anywhere
 	currency: ServiceCurrency;
 	isActive: boolean;
@@ -86,7 +86,7 @@ export interface ServiceWatch {
 export interface ServiceDraft {
 	title: string;
 	description: string;
-	courseIds: string[];
+	branchIds: string[];
 	hourlyRate: string;
 	currency: ServiceCurrency;
 	isActive: boolean;

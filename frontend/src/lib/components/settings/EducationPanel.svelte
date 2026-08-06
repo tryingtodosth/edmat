@@ -259,10 +259,10 @@
 							{grade.name}
 							<span class="muted"> · {grade.term} · {grade.ects} ECTS</span>
 							<strong> {grade.value}</strong>
-							{#if grade.courseSlug}
+							{#if grade.branchSlug}
 								<!-- The reason a transcript is worth more here than a badge: this result
-								     names a course this site actually has. -->
-								<span class="matched">{m.education_matchedCourse()}</span>
+								     names a branch this site actually has. -->
+								<span class="matched">{m.education_matchedBranch()}</span>
 							{/if}
 						</li>
 					{/each}
@@ -330,7 +330,7 @@
 				<p class="muted small">
 					{m.education_skillSeeds({
 						count: standing.skillSeeds.length,
-						courses: standing.skillSeeds.map((s) => s.courseName).join(', ')
+						branches: standing.skillSeeds.map((s) => s.courseName).join(', ')
 					})}
 				</p>
 			{/if}

@@ -26,7 +26,7 @@ export function mapEvent(raw: any): EdmatEvent {
 		summary: raw.summary ?? '',
 		description: raw.description ?? '',
 		subjectSlugs: raw.subject_slugs ?? [],
-		fieldSlug: raw.field_slug ?? null,
+		disciplineSlug: raw.discipline_slug ?? null,
 		status: raw.status,
 		startsAt: raw.starts_at,
 		endsAt: raw.ends_at,
@@ -74,7 +74,7 @@ function toBody(draft: Partial<EventDraft>): Record<string, unknown> {
 	if (draft.summary !== undefined) body.summary = draft.summary;
 	if (draft.description !== undefined) body.description = draft.description;
 	if (draft.subjectSlugs !== undefined) body.subject_slugs = draft.subjectSlugs;
-	if (draft.fieldSlug !== undefined) body.field_slug = draft.fieldSlug;
+	if (draft.disciplineSlug !== undefined) body.discipline_slug = draft.disciplineSlug;
 	if (draft.status !== undefined) body.status = draft.status;
 	if (draft.locationText !== undefined) body.location_text = draft.locationText;
 	if (draft.onlineUrl !== undefined) body.online_url = draft.onlineUrl;

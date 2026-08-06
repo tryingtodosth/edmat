@@ -3,12 +3,12 @@
 	// same reasoning the material detail page's own doc comment already gives for why this couldn't
 	// just be crammed into the compact ServiceCard grid component: reviews+discussion+a watchlist
 	// toggle need real page-level space, not a card. Reuses ServiceCard directly for the listing's
-	// own info (title, description, courses, contact/report — the exact "one card component, reused
+	// own info (title, description, branches, contact/report — the exact "one card component, reused
 	// at a different weight/context" economy CLAUDE.md's Section 17G already establishes for
 	// Material), rather than re-rendering any of that by hand here.
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import type { Comment, Course, Service, ServiceReview, User } from '$lib/types';
+	import type { Comment, Branch, Service, ServiceReview, User } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
 		AlreadyWatchingError,
@@ -19,7 +19,7 @@
 		unwatchService,
 		watchService
 	} from '$lib/services/tutoring';
-	import { getCourseById } from '$lib/services/taxonomy';
+	import { getBranchById } from '$lib/services/taxonomy';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
 	import { getUserById } from '$lib/services/users';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -31,7 +31,7 @@
 	import BookingPanel from '$lib/components/booking/BookingPanel.svelte';
 
 	let service = $state<Service | undefined>(undefined);
-	let courseNames = $state<string[]>([]);
+	let branchNames = $state<string[]>([]);
 	let reviews = $state<ServiceReview[]>([]);
 	let comments = $state<Comment[]>([]);
 	let usersById = $state<Record<string, User>>({});
@@ -81,14 +81,14 @@
 		}
 		service = svc;
 
-		const [courses, revs, cmts] = await Promise.all([
-			Promise.all(svc.courseIds.map((cid) => getCourseById(cid))),
+		const [branches, revs, cmts] = await Promise.all([
+			Promise.all(svc.branchIds.map((cid) => getBranchById(cid))),
 			getServiceReviews(id),
 			getCommentsForTarget('service', id),
 			loadWatchState(id)
 		]);
-		courseNames = (courses as (Course | undefined)[])
-			.filter((c): c is Course => c !== undefined)
+		branchNames = (branches as (Branch | undefined)[])
+			.filter((c): c is Branch => c !== undefined)
 			.map((c) => c.name);
 		reviews = revs;
 		comments = cmts;
@@ -159,11 +159,11 @@
 		<p class="empty">{m.services_notFound()}</p>
 	{:else}
 		<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
-			<a href={resolve('/fields')}>{m.common_home()}</a> ›
+			<a href={resolve('/disciplines')}>{m.common_home()}</a> ›
 			<a href={resolve('/services')}>{m.services_heading()}</a>
 		</nav>
 
-		<ServiceCard {service} {courseNames} linkTitle={false} />
+		<ServiceCard {service} {branchNames} linkTitle={false} />
 
 		<!-- The map lives on the detail page only, never on the browse card. A Leaflet instance per
 		     card would mean a dozen map widgets and a tile request storm on one browse page, for

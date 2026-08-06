@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The governor-facing edit surface for a Material's own requirement list (backend:
 	// materials/views.py's `requirements` action — global staff or a governor of the material's own
-	// course only, see that view's own doc comment for the full trust-boundary reasoning). A plain
+	// branch only, see that view's own doc comment for the full trust-boundary reasoning). A plain
 	// add/remove list, same "controlled/dumb, parent owns the async save" shape AddCoverageForm
 	// already establishes for this app's own add-flow modals — this component never calls the
 	// service function itself, it only ever hands the caller a full, ordered `string[]` to submit.

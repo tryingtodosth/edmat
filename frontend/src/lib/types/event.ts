@@ -1,8 +1,8 @@
 /** One-off happenings somebody organises and other people turn up to — mirrors `backend/events/`.
  *
  * Deliberately its own vocabulary rather than a reuse of `TaughtCourse`'s: an event has a host and
- * attendances where a course has an instructor and enrolments, and the two lifecycles genuinely
- * differ (nobody approves anybody into an event, and an event can be cancelled where a course is
+ * attendances where a branch has an instructor and enrolments, and the two lifecycles genuinely
+ * differ (nobody approves anybody into an event, and an event can be cancelled where a branch is
  * finished). See `backend/events/models.py` for why the two are separate models at all.
  */
 
@@ -21,7 +21,7 @@ export type EventAttendanceStatus = 'going' | 'not_going';
 
 /** Why the viewer cannot answer. A reason rather than a boolean, because "full" and "this already
  * happened" are the same refusal to a boolean and completely different to a person — the same
- * reasoning `EnrollmentBlockReason` records for courses. */
+ * reasoning `EnrollmentBlockReason` records for branches. */
 export type EventResponseBlockReason =
 	'sign_in' | 'cancelled' | 'not_published' | 'host' | 'past' | 'full';
 
@@ -45,7 +45,7 @@ export interface EdmatEvent {
 	summary: string;
 	description: string;
 	subjectSlugs: string[];
-	fieldSlug: string | null;
+	disciplineSlug: string | null;
 	status: EventStatus;
 	startsAt: string;
 	endsAt: string;
@@ -75,7 +75,7 @@ export interface EventDraft {
 	summary?: string;
 	description?: string;
 	subjectSlugs?: string[];
-	fieldSlug?: string | null;
+	disciplineSlug?: string | null;
 	status?: Exclude<EventStatus, 'cancelled'>;
 	startsAt: string;
 	durationMinutes: number;

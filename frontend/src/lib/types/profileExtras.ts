@@ -23,8 +23,8 @@ export interface SkillEntry {
 	label: string;
 	level: SkillLevel;
 	evidence: SkillEvidence;
-	courseSlug: string | null;
-	fieldSlug: string | null;
+	branchSlug: string | null;
+	disciplineSlug: string | null;
 	order: number;
 }
 

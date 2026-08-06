@@ -24,8 +24,8 @@ export async function getUserExtras(
 			label: s.label,
 			level: s.level,
 			evidence: s.evidence,
-			courseSlug: s.course_slug ?? null,
-			fieldSlug: s.field_slug ?? null,
+			branchSlug: s.branch_slug ?? null,
+			disciplineSlug: s.discipline_slug ?? null,
 			order: s.order
 		}))
 	};

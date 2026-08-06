@@ -175,9 +175,9 @@ def _filter_exercises(qs, params):
     verified = params.get('verified')
     if verified in ('true', '1'):
         qs = qs.filter(verified=True)
-    field = params.get('field')
-    if field and not branch:
-        qs = qs.filter(branch__field__slug=field)
+    discipline = params.get('discipline')
+    if discipline and not branch:
+        qs = qs.filter(branch__discipline__slug=discipline)
     q = params.get('q')
     if q:
         qs = qs.filter(
@@ -447,7 +447,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             return Response([])
         # select_related(...) + prefetch_related(...) — without these, ExerciseDetailSerializer
         # would still cost several queries PER ROW even after `_published_translations` was fixed to
-        # share one cache: `course_slug` resolves `obj.course.slug` (a plain FK, select_related),
+        # share one cache: `branch_slug` resolves `obj.course.slug` (a plain FK, select_related),
         # `source` is a reverse OneToOne (also select_related), `topics`/`tags` are M2M fields DRF's
         # own PrimaryKeyRelatedField/SlugRelatedField resolve per object (prefetch_related), and
         # `source.translations` (ExerciseSourceSerializer.get_name) is its own separate reverse-FK

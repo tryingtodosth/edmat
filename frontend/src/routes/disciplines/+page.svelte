@@ -1,20 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Field } from '$lib/types';
+	import type { Discipline } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getCoursesForField, getFields } from '$lib/services/taxonomy';
-	import FieldCard from '$lib/components/field/FieldCard.svelte';
+	import { getBranchesForDiscipline, getDisciplines } from '$lib/services/taxonomy';
+	import DisciplineCard from '$lib/components/discipline/DisciplineCard.svelte';
 
-	let fields = $state<Field[]>([]);
+	let fields = $state<Discipline[]>([]);
 	let courseCounts = $state<Record<string, number>>({});
 	let loading = $state(true);
 
 	onMount(async () => {
-		fields = await getFields();
+		fields = await getDisciplines();
 		const counts: Record<string, number> = {};
 		await Promise.all(
 			fields.map(async (f) => {
-				counts[f.id] = (await getCoursesForField(f.id)).length;
+				counts[f.id] = (await getBranchesForDiscipline(f.id)).length;
 			})
 		);
 		courseCounts = counts;
@@ -33,7 +33,7 @@
 	{:else}
 		<div class="grid">
 			{#each fields as field (field.id)}
-				<FieldCard {field} courseCount={courseCounts[field.id] ?? 0} />
+				<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} />
 			{/each}
 		</div>
 	{/if}

@@ -74,9 +74,9 @@ def _filter_materials(qs, params):
     branch = params.get('branch')
     if branch:
         qs = qs.filter(branch__slug=branch)
-    field = params.get('field')
-    if field and not branch:
-        qs = qs.filter(branch__field__slug=field)
+    discipline = params.get('discipline')
+    if discipline and not branch:
+        qs = qs.filter(branch__discipline__slug=discipline)
     material_type = params.get('type')
     if material_type:
         qs = qs.filter(type=material_type)

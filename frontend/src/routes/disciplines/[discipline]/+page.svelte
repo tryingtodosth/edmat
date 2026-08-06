@@ -1,34 +1,34 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import type { Course, Field } from '$lib/types';
+	import type { Branch, Discipline } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
-	import { getCoursesForField, getFieldById } from '$lib/services/taxonomy';
-	import { getExercisesForCourse } from '$lib/services/exercises';
-	import CourseCard from '$lib/components/course/CourseCard.svelte';
+	import { getBranchesForDiscipline, getDisciplineById } from '$lib/services/taxonomy';
+	import { getExercisesForBranch } from '$lib/services/exercises';
+	import BranchCard from '$lib/components/branch/BranchCard.svelte';
 
-	let field = $state<Field | undefined>(undefined);
-	let courses = $state<Course[]>([]);
+	let field = $state<Discipline | undefined>(undefined);
+	let branches = $state<Branch[]>([]);
 	let exerciseCounts = $state<Record<string, number>>({});
 	let loading = $state(true);
 	let notFound = $state(false);
 
-	async function load(fieldId: string) {
+	async function load(disciplineId: string) {
 		loading = true;
 		notFound = false;
-		const f = await getFieldById(fieldId);
+		const f = await getDisciplineById(disciplineId);
 		if (!f) {
 			notFound = true;
 			loading = false;
 			return;
 		}
 		field = f;
-		courses = await getCoursesForField(fieldId);
+		branches = await getBranchesForDiscipline(disciplineId);
 		const counts: Record<string, number> = {};
 		await Promise.all(
-			courses.map(async (c) => {
-				counts[c.id] = (await getExercisesForCourse(c.id, getLocale())).length;
+			branches.map(async (c) => {
+				counts[c.id] = (await getExercisesForBranch(c.id, getLocale())).length;
 			})
 		);
 		exerciseCounts = counts;
@@ -40,7 +40,7 @@
 	// never refires without a real navigation.
 	let loadedForId = $state<string | undefined>(undefined);
 	$effect(() => {
-		const id = page.params.field!;
+		const id = page.params.discipline!;
 		if (id === loadedForId) return;
 		loadedForId = id;
 		load(id);
@@ -54,22 +54,22 @@
 <div class="page">
 	<!-- "Breadcrumb" -->
 	<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
-		<a href={resolve('/fields')}>{m.common_home()}</a>
+		<a href={resolve('/disciplines')}>{m.common_home()}</a>
 	</nav>
 
 	{#if loading}
 		<p class="loading">{m.common_loading()}</p>
 	{:else if notFound}
-		<p class="empty">{m.field_notFound()}</p>
+		<p class="empty">{m.discipline_notFound()}</p>
 	{:else if field}
 		<header>
 			<h1>{field.name}</h1>
 			<p>{field.description}</p>
 		</header>
-		<h2>{m.field_coursesHeading()}</h2>
+		<h2>{m.discipline_branchesHeading()}</h2>
 		<div class="grid">
-			{#each courses as course (course.id)}
-				<CourseCard {course} exerciseCount={exerciseCounts[course.id] ?? 0} />
+			{#each branches as branch (branch.id)}
+				<BranchCard {branch} exerciseCount={exerciseCounts[branch.id] ?? 0} />
 			{/each}
 		</div>
 	{/if}

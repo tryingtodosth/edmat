@@ -170,7 +170,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		contentRestored: 'notifyOnContentAction',
 		contentRemoved: 'notifyOnContentAction',
 		newTaggedContent: null,
-		// All six share one coarse category — somebody who does not want course traffic does not want
+		// All six share one coarse category — somebody who does not want branch traffic does not want
 		// any of it — while the per-type list below still allows peeling off one of them.
 		courseEnrollmentRequested: 'notifyOnCourseActivity',
 		courseEnrollmentApproved: 'notifyOnCourseActivity',
@@ -178,7 +178,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		courseRemoved: 'notifyOnCourseActivity',
 		courseNewLesson: 'notifyOnCourseActivity',
 		courseNewPost: 'notifyOnCourseActivity',
-		// All four share one category, on the course types' own reasoning. This is the one worth
+		// All four share one category, on the branch types' own reasoning. This is the one worth
 		// reading the coarse label carefully before switching off: a tutor who mutes it stops hearing
 		// that anybody has asked for an hour of their time.
 		bookingRequested: 'notifyOnBooking',
@@ -186,7 +186,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		bookingDeclined: 'notifyOnBooking',
 		bookingCancelled: 'notifyOnBooking',
 		// Their own category rather than a share of `notifyOnCourseActivity`: a switch labelled
-		// "courses" that also governed events would be a setting whose label lies.
+		// "branches" that also governed events would be a setting whose label lies.
 		eventAttendance: 'notifyOnEvent',
 		eventUpdated: 'notifyOnEvent',
 		eventCancelled: 'notifyOnEvent'

@@ -183,7 +183,7 @@
 	<div class="material-card__footer">
 		{#if material.submittedByUserId}
 			<!-- A real, found gap: a community-submitted material had NO clickable attribution at all
-			     (Material.author is free text — a course TA/professor's name from the legacy corpus,
+			     (Material.author is free text — a branch TA/professor's name from the legacy corpus,
 			     almost never a real account, so it stays plain text below) until `submitted_by` was
 			     added. Same "link the author's name to their public profile" convention the exercise
 			     detail page's own `submitted-by` link already establishes. -->

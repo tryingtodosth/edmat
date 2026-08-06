@@ -35,6 +35,16 @@ MERGES = [
     ('uw-matematyka-rp1', 'rachunek-prawdopodobienstwa', []),
 ]
 
+#: The names lose their level numbers along with their slugs. "Analiza Matematyczna II" was the
+#: title of one university's one course; the branch is analysis, and which instalment of it somebody
+#: is being taught is a fact about the class, not about the mathematics. Only the `pl` rows exist
+#: today — the `en` ones are somebody's to write in the admin, which is the whole point of the
+#: translation tables.
+RENAMED = {
+    'analiza-matematyczna': {'pl': 'Analiza matematyczna'},
+    'rachunek-prawdopodobienstwa': {'pl': 'Rachunek prawdopodobieństwa'},
+}
+
 
 def merge(apps, schema_editor):
     Branch = apps.get_model('taxonomy', 'Branch')
@@ -129,6 +139,9 @@ def merge(apps, schema_editor):
 
         target.slug = new_slug
         target.save(update_fields=['slug'])
+
+        for locale, name in RENAMED.get(new_slug, {}).items():
+            target.translations.filter(locale=locale).update(name=name)
 
 
 def unmerge(apps, schema_editor):

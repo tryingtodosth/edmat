@@ -2,7 +2,7 @@
 	// A stranger's public profile — reachable from any comment/review/submission byline throughout
 	// the app once that becomes a real link (see the byline `<a>` this session added to CommentNode/
 	// ReviewList/moderation's own name spans). Same client-side "$effect keyed off page.params, with
-	// an id-changed idempotency guard" pattern the exercise/course detail pages already establish —
+	// an id-changed idempotency guard" pattern the exercise/branch detail pages already establish —
 	// no +page.ts, this app has no server-rendered-auth story to back one (CLAUDE.md Section 16).
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
@@ -17,7 +17,7 @@
 		getServiceReviewsByUser,
 		getServicesByProvider
 	} from '$lib/services/tutoring';
-	import { getCourseById } from '$lib/services/taxonomy';
+	import { getBranchById } from '$lib/services/taxonomy';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import type { Review, ResolvedExercise, Service, ServiceReview, User } from '$lib/types';
@@ -110,8 +110,8 @@
 		tutoringListings = listings;
 		const entries = await Promise.all(
 			listings.map(async (svc) => {
-				const courses = await Promise.all(svc.courseIds.map((id) => getCourseById(id)));
-				return [svc.id, courses.filter((c) => c !== undefined).map((c) => c!.name)] as const;
+				const branches = await Promise.all(svc.branchIds.map((id) => getBranchById(id)));
+				return [svc.id, branches.filter((c) => c !== undefined).map((c) => c!.name)] as const;
 			})
 		);
 		listingCourseNamesById = Object.fromEntries(entries);
@@ -234,7 +234,7 @@
 				<h2>{m.profile_tutoringListingsHeading()}</h2>
 				<div class="listings-grid">
 					{#each tutoringListings as service (service.id)}
-						<ServiceCard {service} courseNames={listingCourseNamesById[service.id] ?? []} />
+						<ServiceCard {service} branchNames={listingCourseNamesById[service.id] ?? []} />
 					{/each}
 				</div>
 			</section>

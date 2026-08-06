@@ -6,7 +6,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import type {
 		AvailabilityMode,
-		Course,
+		Branch,
 		Service,
 		ServiceCurrency,
 		ServiceDeliveryMode,
@@ -17,12 +17,12 @@
 
 	let {
 		initial,
-		courses,
+		branches,
 		onSubmit,
 		onCancel
 	}: {
 		initial?: Service;
-		courses: Course[];
+		branches: Branch[];
 		onSubmit: (draft: ServiceDraft) => Promise<void>;
 		onCancel?: () => void;
 	} = $props();
@@ -36,7 +36,7 @@
 	// (svelte/prefer-svelte-reactivity) flags calling .add()/.delete() on a bare Set; SvelteSet is
 	// reactive to in-place mutation directly, matching routes/settings/+page.svelte's own
 	// `mutedTypes` precedent for the identical reason.
-	let selectedCourseIds = new SvelteSet<string>(untrack(() => initial?.courseIds ?? []));
+	let selectedCourseIds = new SvelteSet<string>(untrack(() => initial?.branchIds ?? []));
 	let hourlyRate = $state(
 		untrack(() =>
 			initial?.hourlyRate !== null && initial?.hourlyRate !== undefined
@@ -90,7 +90,7 @@
 			await onSubmit({
 				title: title.trim(),
 				description: description.trim(),
-				courseIds: Array.from(selectedCourseIds),
+				branchIds: Array.from(selectedCourseIds),
 				hourlyRate,
 				currency,
 				isActive,
@@ -123,18 +123,18 @@
 		<textarea rows="3" bind:value={description}></textarea>
 	</label>
 
-	{#if courses.length > 0}
+	{#if branches.length > 0}
 		<fieldset class="field">
 			<legend>{m.services_field_courses()}</legend>
-			<div class="course-list">
-				{#each courses as course (course.id)}
+			<div class="branch-list">
+				{#each branches as branch (branch.id)}
 					<label class="checkbox">
 						<input
 							type="checkbox"
-							checked={selectedCourseIds.has(course.id)}
-							onchange={() => toggleCourse(course.id)}
+							checked={selectedCourseIds.has(branch.id)}
+							onchange={() => toggleCourse(branch.id)}
 						/>
-						<span>{course.name}</span>
+						<span>{branch.name}</span>
 					</label>
 				{/each}
 			</div>
@@ -322,7 +322,7 @@
 		font-family: inherit;
 		resize: vertical;
 	}
-	.course-list {
+	.branch-list {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);

@@ -21,7 +21,7 @@ export interface ExerciseSource {
  */
 export interface Exercise {
 	id: string;
-	courseId: string;
+	branchId: string;
 	number: number;
 	topicIds: string[];
 	difficulty: Difficulty;

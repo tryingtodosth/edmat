@@ -127,7 +127,7 @@ export async function resolveReport(
 
 // ---- node governors -------------------------------------------------------------------------
 // The "node governor" administration panel itself — granting/revoking who governs which
-// Field/Course (moderation/views.py's NodeGovernorViewSet). `list` is scoped to the caller's OWN
+// Discipline/Branch (moderation/views.py's NodeGovernorViewSet). `list` is scoped to the caller's OWN
 // grants server-side unless they're a real global (is_staff) moderator, who sees every grant —
 // the exact same backend behavior a plain, unparameterized GET already reflects, nothing extra
 // needed on this side to express "my own vs. everyone's".

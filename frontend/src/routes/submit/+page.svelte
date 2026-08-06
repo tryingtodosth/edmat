@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Course, Difficulty, Field, SourceType, Topic } from '$lib/types';
+	import type { Branch, Difficulty, Discipline, SourceType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getCoursesForField, getFields, getTopicsForCourse } from '$lib/services/taxonomy';
+	import { getBranchesForDiscipline, getDisciplines, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { submitExercise } from '$lib/services/submissions';
 	import { authStore } from '$lib/state/auth.svelte';
 	import {
@@ -14,12 +14,12 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 
-	let fields = $state<Field[]>([]);
-	let courses = $state<Course[]>([]);
+	let fields = $state<Discipline[]>([]);
+	let branches = $state<Branch[]>([]);
 	let topics = $state<Topic[]>([]);
 
-	let fieldId = $state('');
-	let courseId = $state('');
+	let disciplineId = $state('');
+	let branchId = $state('');
 	let title = $state('');
 	let difficulty = $state<Difficulty>('medium');
 	let selectedTopicIds = $state<string[]>([]);
@@ -47,30 +47,30 @@
 	let publishedExerciseId = $state<string | null>(null);
 
 	async function init() {
-		fields = await getFields();
+		fields = await getDisciplines();
 		if (fields.length) await onFieldChange(fields[0].id);
 	}
 	init();
 
-	// Field → Course cascade — same pattern RandomExerciseButton.svelte's own filter popover
-	// already establishes: picking a field resets the course (and, transitively via the $effect
-	// below, the topics) to that field's own first course, rather than a flat, cross-field course
+	// Discipline → Branch cascade — same pattern RandomExerciseButton.svelte's own filter popover
+	// already establishes: picking a field resets the branch (and, transitively via the $effect
+	// below, the topics) to that field's own first branch, rather than a flat, cross-field branch
 	// list a submitter had to scroll through to find the right one.
 	async function onFieldChange(next: string) {
-		fieldId = next;
-		courses = fieldId ? await getCoursesForField(fieldId) : [];
-		courseId = courses.length ? courses[0].id : '';
+		disciplineId = next;
+		branches = disciplineId ? await getBranchesForDiscipline(disciplineId) : [];
+		branchId = branches.length ? branches[0].id : '';
 	}
 
 	$effect(() => {
-		if (!courseId) return;
-		getTopicsForCourse(courseId).then((t) => {
+		if (!branchId) return;
+		getTopicsForBranch(branchId).then((t) => {
 			topics = t;
 			selectedTopicIds = [];
 		});
 	});
 
-	// "Covers" — chip-picker over the course's own real Topics (a controlled vocabulary, unlike the
+	// "Covers" — chip-picker over the branch's own real Topics (a controlled vocabulary, unlike the
 	// free-text requirement chips below): an "add topic" select offers only topics not yet picked;
 	// picking one adds it immediately, shown as a removable chip, replacing the old plain checkbox
 	// list with the same chip visual language MaterialCard's own "Covers"/"Requires" chips use.
@@ -96,11 +96,11 @@
 		requirements = requirements.filter((_, i) => i !== index);
 	}
 
-	let canSubmit = $derived(Boolean(courseId && title.trim() && statement.trim()));
+	let canSubmit = $derived(Boolean(branchId && title.trim() && statement.trim()));
 
 	async function handleSubmit() {
 		if (!authStore.user || !canSubmit) return;
-		const result = await submitExercise(courseId, authStore.user.id, {
+		const result = await submitExercise(branchId, authStore.user.id, {
 			title: title.trim(),
 			topicIds: selectedTopicIds,
 			difficulty,
@@ -158,7 +158,7 @@
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
 				<label class="field">
 					<span>{m.submit_field_field()}</span>
-					<select value={fieldId} onchange={(e) => onFieldChange(e.currentTarget.value)}>
+					<select value={disciplineId} onchange={(e) => onFieldChange(e.currentTarget.value)}>
 						{#each fields as f (f.id)}
 							<option value={f.id}>{f.name}</option>
 						{/each}
@@ -167,8 +167,8 @@
 
 				<label class="field">
 					<span>{m.submit_field_course()}</span>
-					<select bind:value={courseId}>
-						{#each courses as c (c.id)}
+					<select bind:value={branchId}>
+						{#each branches as c (c.id)}
 							<option value={c.id}>{c.name}</option>
 						{/each}
 					</select>

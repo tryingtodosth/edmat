@@ -106,7 +106,7 @@ class MaterialSerializer(serializers.ModelSerializer):
     # MaterialViewSet's own `prefetch_related('requirements__votes__voter__profile')` (the exact N+1
     # that prefetch was added to fix in the first place, CLAUDE.md's own moderation-load-test note).
     requirements = serializers.SerializerMethodField()
-    course_slug = serializers.SlugRelatedField(source='branch', slug_field='slug', read_only=True)
+    branch_slug = serializers.SlugRelatedField(source='branch', slug_field='slug', read_only=True)
     # Read-only here on purpose — Material has no create/update endpoint at all (MaterialViewSet is
     # a ReadOnlyModelViewSet), so the only way a tag is ever added/removed is the tag-hover menu's
     # own "add to different content" action (exercises.TagViewSet.apply), never through this
@@ -131,7 +131,7 @@ class MaterialSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'branch',
-            'course_slug',
+            'branch_slug',
             'slug',
             'type',
             'coverage',

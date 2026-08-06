@@ -11,8 +11,8 @@
 	import { resolve } from '$app/paths';
 	import type {
 		Comment,
-		Course,
-		Field,
+		Branch,
+		Discipline,
 		Material,
 		MaterialCoverage,
 		MaterialReview,
@@ -32,7 +32,7 @@
 		setMaterialRequirements,
 		submitMaterialReview
 	} from '$lib/services/materials';
-	import { getCourseById, getFieldById, getTopicsForCourse } from '$lib/services/taxonomy';
+	import { getBranchById, getDisciplineById, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
 	import { getUserById } from '$lib/services/users';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -49,8 +49,8 @@
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 
 	let material = $state<Material | undefined>(undefined);
-	let course = $state<Course | undefined>(undefined);
-	let field = $state<Field | undefined>(undefined);
+	let branch = $state<Branch | undefined>(undefined);
+	let field = $state<Discipline | undefined>(undefined);
 	let topics = $state<Topic[]>([]);
 	let loading = $state(true);
 	let notFound = $state(false);
@@ -114,14 +114,14 @@
 		material = mat;
 
 		const [c, cmts, revs] = await Promise.all([
-			getCourseById(mat.courseId),
+			getBranchById(mat.branchId),
 			getCommentsForTarget('material', id),
 			getMaterialReviews(id)
 		]);
-		course = c;
+		branch = c;
 		const [f, t] = await Promise.all([
-			c ? getFieldById(c.fieldId) : Promise.resolve(undefined),
-			c ? getTopicsForCourse(c.id) : Promise.resolve([])
+			c ? getDisciplineById(c.disciplineId) : Promise.resolve(undefined),
+			c ? getTopicsForBranch(c.id) : Promise.resolve([])
 		]);
 		field = f;
 		topics = t;
@@ -256,12 +256,12 @@
 		<p class="empty">{m.material_notFound()}</p>
 	{:else}
 		<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
-			<a href={resolve('/fields')}>{m.common_home()}</a> ›
+			<a href={resolve('/disciplines')}>{m.common_home()}</a> ›
 			{#if field}
-				<a href={resolve('/fields/[field]', { field: field.id })}>{field.name}</a> ›
+				<a href={resolve('/disciplines/[discipline]', { discipline: field.id })}>{field.name}</a> ›
 			{/if}
-			{#if course}
-				<a href={resolve('/courses/[course]', { course: course.id })}>{course.name}</a>
+			{#if branch}
+				<a href={resolve('/branches/[branch]', { branch: branch.id })}>{branch.name}</a>
 			{/if}
 		</nav>
 

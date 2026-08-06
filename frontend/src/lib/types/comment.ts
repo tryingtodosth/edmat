@@ -10,7 +10,7 @@ export type CommentTargetType =
 	| 'material'
 	| 'materialCoverage'
 	| 'service'
-	// A course run by a user (classroom.TaughtCourse) — the same generic Comment mechanism, so the
+	// A branch run by a user (classroom.TaughtCourse) — the same generic Comment mechanism, so the
 	// thread, the tree builder and the report flow all come for free.
 	| 'taughtCourse';
 

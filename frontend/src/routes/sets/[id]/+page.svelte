@@ -6,7 +6,7 @@
 	// this route resolves for anyone once the owner has actually shared it, and ALSO for the owner
 	// themselves previewing their own still-private one (the "is this what my friend will see"
 	// check, see the private-preview note below). Works for a guest exactly as it does for a
-	// logged-in visitor, matching the exercise/course detail pages' own "no server-rendered auth
+	// logged-in visitor, matching the exercise/branch detail pages' own "no server-rendered auth
 	// story, plain $effect keyed off page.params" pattern.
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';

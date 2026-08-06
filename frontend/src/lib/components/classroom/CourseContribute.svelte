@@ -77,7 +77,7 @@
 			     real way to name it. Browsing links are right there for finding one. -->
 			<span class="hint">
 				{m.classroom_contribute_idHint()}
-				<a href={kind === 'material' ? resolve('/materials') : resolve('/fields')}>
+				<a href={kind === 'material' ? resolve('/materials') : resolve('/disciplines')}>
 					{m.classroom_items_openLink()}
 				</a>
 			</span>

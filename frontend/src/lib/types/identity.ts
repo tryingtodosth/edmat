@@ -62,7 +62,7 @@ export interface CourseGrade {
 	ects: number;
 	value: string;
 	scale: 'polish_2_5' | 'ects_letter';
-	courseSlug: string | null;
+	branchSlug: string | null;
 }
 
 export interface EducationProfile {
@@ -94,7 +94,7 @@ export interface Standing {
 	tier: string;
 	usosTier: string | null;
 	reasons: StandingReason[];
-	skillSeeds: { courseSlug: string; courseName: string; ects: number; basis: string }[];
+	skillSeeds: { branchSlug: string; courseName: string; ects: number; basis: string }[];
 	average: number | null;
 }
 
@@ -133,7 +133,7 @@ export interface PublicEducation {
 		ects: number;
 		value: string;
 		scale: string;
-		courseSlug: string | null;
+		branchSlug: string | null;
 	}[];
 	average: number | null;
 }

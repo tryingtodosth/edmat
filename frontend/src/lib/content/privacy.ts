@@ -138,7 +138,7 @@ const EN: PrivacyPolicy = {
 			heading: 'Who else sees it',
 			body: [
 				'Nobody outside the Faculty. EdMat sends no data to advertisers, analytics providers or any other third party.',
-				'Two external services are contacted in the course of normal use, and neither receives anything about you: OpenStreetMap, when you search for an address while creating a tutoring listing (the search text is sent, your identity is not), and the map tiles shown on a listing, which are requested by your browser directly from OpenStreetMap and therefore reveal your IP address to them.'
+				'Two external services are contacted in the branch of normal use, and neither receives anything about you: OpenStreetMap, when you search for an address while creating a tutoring listing (the search text is sent, your identity is not), and the map tiles shown on a listing, which are requested by your browser directly from OpenStreetMap and therefore reveal your IP address to them.'
 			]
 		},
 		{

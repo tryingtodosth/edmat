@@ -29,7 +29,7 @@ class ServiceCreationTests(APITestCase):
             {
                 'title': 'AM2 tutoring, exam prep',
                 'description': 'Weekly sessions, exam-focused.',
-                'course_slugs': [self.branch.slug],
+                'branch_slugs': [self.branch.slug],
                 'hourly_rate': '80.00',
                 'currency': 'PLN',
             },
@@ -41,14 +41,14 @@ class ServiceCreationTests(APITestCase):
         self.assertEqual(service.title, 'AM2 tutoring, exam prep')
         self.assertEqual(list(service.branches.all()), [self.branch])
         # The response is the FULL read shape (ServiceSerializer), not the narrower write
-        # serializer's own echoed payload - provider info and resolved course_slugs included.
+        # serializer's own echoed payload - provider info and resolved branch_slugs included.
         self.assertEqual(response.data['provider_username'], 'provider-one')
-        self.assertEqual(response.data['course_slugs'], [self.branch.slug])
+        self.assertEqual(response.data['branch_slugs'], [self.branch.slug])
 
     def test_anonymous_user_cannot_create_a_listing(self):
         response = self.client.post(
             reverse('service-list'),
-            {'title': 'Anon listing', 'course_slugs': [self.branch.slug]},
+            {'title': 'Anon listing', 'branch_slugs': [self.branch.slug]},
             format='json',
         )
 
@@ -60,12 +60,12 @@ class ServiceCreationTests(APITestCase):
 
         response = self.client.post(
             reverse('service-list'),
-            {'title': 'Bad branch ref', 'course_slugs': ['does-not-exist']},
+            {'title': 'Bad branch ref', 'branch_slugs': ['does-not-exist']},
             format='json',
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('course_slugs', response.data)
+        self.assertIn('branch_slugs', response.data)
         self.assertFalse(Service.objects.filter(title='Bad branch ref').exists())
 
     def test_hourly_rate_and_courses_are_optional(self):
@@ -244,7 +244,7 @@ class TutoringKillSwitchTests(APITestCase):
 
         response = self.client.post(
             reverse('service-list'),
-            {'title': 'New listing', 'description': '...', 'course_slugs': [self.branch.slug]},
+            {'title': 'New listing', 'description': '...', 'branch_slugs': [self.branch.slug]},
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

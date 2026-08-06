@@ -37,7 +37,7 @@ export const authStore = {
 		return user?.isNodeGovernor ?? false;
 	},
 	/** True for either kind of moderation authority — a real global (is_staff) moderator, OR a
-	 * node governor scoped to at least one Field/Course. This is the gate the moderation nav
+	 * node governor scoped to at least one Discipline/Branch. This is the gate the moderation nav
 	 * link/route itself uses; the "Governors" management tab on that page still checks
 	 * `isModerator` specifically, since only a global moderator can grant/revoke the scoped role
 	 * (CLAUDE.md's own documented v1 scope decision). */

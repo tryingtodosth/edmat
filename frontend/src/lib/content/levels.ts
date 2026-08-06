@@ -144,7 +144,7 @@ const EN: LevelsDoc = {
 					],
 					[
 						'M3',
-						'full authority within one field or course, including immediate effect',
+						'full authority within one field or branch, including immediate effect',
 						'granted by staff',
 						'yes'
 					],
@@ -270,7 +270,7 @@ const EN: LevelsDoc = {
 				'Everything above is a design. This section describes the code as it stands, and is the only part of this page that claims to describe the present.'
 			],
 			bullets: [
-				'Moderation is a single staff flag, plus field- and course-scoped governors. There is nothing between “nothing” and “everything”.',
+				'Moderation is a single staff flag, plus field- and branch-scoped governors. There is nothing between “nothing” and “everything”.',
 				'One contributor flag stands in for the whole capability tier.',
 				'There is no REP, no SKILL and no ENERGY. Nothing is metered per action, and no level exists to be shown to you.',
 				'What does limit you is a plain rate limit on the address you are coming from, or on the account you are using.'

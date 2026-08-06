@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Field } from '$lib/types';
+	import type { Discipline } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 
-	let { field, courseCount }: { field: Field; courseCount: number } = $props();
+	let { field, courseCount }: { field: Discipline; courseCount: number } = $props();
 </script>
 
-<a class="field-card" href={resolve('/fields/[field]', { field: field.id })}>
+<a class="field-card" href={resolve('/disciplines/[discipline]', { discipline: field.id })}>
 	<h3>{field.name}</h3>
 	<p>{field.description}</p>
-	<span class="field-card__count">{m.field_courseCount({ count: courseCount })}</span>
+	<span class="field-card__count">{m.discipline_branchCount({ count: courseCount })}</span>
 </a>
 
 <style lang="scss">
