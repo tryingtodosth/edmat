@@ -19,12 +19,19 @@
 		onmove,
 		onremove,
 		ondeletechapter,
+		oneditchapter,
+		oneditlesson,
+		ondeletelesson,
 		onreorder
 	}: {
 		course: Course;
 		onmove?: (itemId: string, lessonId: string | null) => void;
 		onremove?: (itemId: string) => void;
 		ondeletechapter?: (chapterId: string) => void;
+		/** Rename a chapter or retime its unlock. Staff only — the server checks again regardless. */
+		oneditchapter?: (chapterId: string, patch: { title: string; unlocksAt: string | null }) => void;
+		oneditlesson?: (lessonId: string, patch: { title: string; participantNotes: string }) => void;
+		ondeletelesson?: (lessonId: string) => void;
 		/** Whole groups, never a single move — a drag between two lessons changes both, and the
 		 * server takes them together so there is no moment where an item is in both or neither. */
 		onreorder?: (
@@ -48,6 +55,55 @@
 
 	let dragged = $state<Dragged | null>(null);
 
+	// Which row is open for editing, and the draft being typed into it. One at a time: a course
+	// with thirty lessons all in edit mode is a form nobody can find their way out of, and "save
+	// what I am looking at" is the only action anybody wants here.
+	let editingChapter = $state<string | null>(null);
+	let editingLesson = $state<string | null>(null);
+	let draftTitle = $state('');
+	let draftUnlocksAt = $state('');
+	let draftNotes = $state('');
+
+	/** A datetime-local input wants `YYYY-MM-DDTHH:mm`, and an ISO string from the API carries
+	 * seconds and a zone it will silently refuse. */
+	function toLocalInput(iso: string | null): string {
+		if (!iso) return '';
+		const d = new Date(iso);
+		const pad = (n: number) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	}
+
+	function beginChapterEdit(chapter: Chapter) {
+		editingLesson = null;
+		editingChapter = chapter.id;
+		draftTitle = chapter.title;
+		draftUnlocksAt = toLocalInput(chapter.unlocksAt);
+	}
+
+	function beginLessonEdit(lesson: Lesson) {
+		editingChapter = null;
+		editingLesson = lesson.id;
+		draftTitle = lesson.title;
+		draftNotes = lesson.participantNotes;
+	}
+
+	function saveChapter(chapterId: string) {
+		const title = draftTitle.trim();
+		if (!title) return;
+		oneditchapter?.(chapterId, {
+			title,
+			unlocksAt: draftUnlocksAt ? new Date(draftUnlocksAt).toISOString() : null
+		});
+		editingChapter = null;
+	}
+
+	function saveLesson(lessonId: string) {
+		const title = draftTitle.trim();
+		if (!title) return;
+		oneditlesson?.(lessonId, { title, participantNotes: draftNotes });
+		editingLesson = null;
+	}
+
 	// The payload that puts everything back exactly as it was, kept from before the last drop.
 	//
 	// Undo is cheap here only because a reorder is expressed as COMPLETE groups rather than as a
@@ -59,9 +115,15 @@
 	// course's running order, and without this the only way back is to remember what it was.
 	let undo = $state<ReorderPayload | null>(null);
 
-	function startDrag(kind: Dragged['kind'], id: string, from: string) {
+	function startDrag(event: DragEvent, kind: Dragged['kind'], id: string, from: string) {
 		if (!course.canCurate) return;
 		dragged = { kind, id, from };
+		// Chrome refuses to begin a native HTML5 drag unless `dragstart` puts something on the
+		// dataTransfer. Without this the whole feature is inert: the handlers are all correct, no
+		// error is raised, and nothing moves — which is exactly how it behaved. The payload itself
+		// is unused (`dragged` above carries the real state); it exists to arm the drag.
+		event.dataTransfer?.setData('text/plain', `${kind}:${id}`);
+		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 	}
 
 	/** Reinsert `id` before `beforeId` in `list`, or at the end when `beforeId` is null. */
@@ -170,11 +232,53 @@
 	{/if}
 
 	{#each chapters as chapter (chapter.id)}
-		<article class="chapter" class:chapter--locked={!chapter.isUnlocked}>
+		<!-- The chapter itself is draggable, which it was not: `dropOn('chapter', …)` existed in the
+		     script from the start and nothing ever called it, so chapters alone could not be
+		     reordered while their lessons and items could. `chapters` is the only group a chapter
+		     can be in, hence the empty group id. -->
+		<article
+			class="chapter"
+			class:chapter--locked={!chapter.isUnlocked}
+			draggable={course.canCurate && editingChapter === null}
+			ondragstart={(e) => {
+				e.stopPropagation();
+				startDrag(e, 'chapter', chapter.id, '');
+			}}
+			ondragover={(e) => {
+								e.preventDefault();
+								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+							}}
+			ondrop={(e) => {
+				e.stopPropagation();
+				dropOn('chapter', '', chapter.id);
+			}}
+		>
 			<header>
-				<h3>{chapter.title}</h3>
-				{#if !chapter.isUnlocked}
-					<span class="lock" title={when(chapter.unlocksAt)}>🔒 {lockLabel(chapter)}</span>
+				{#if editingChapter === chapter.id}
+					<form
+						class="edit-row"
+						onsubmit={(e) => {
+							e.preventDefault();
+							saveChapter(chapter.id);
+						}}
+					>
+						<input type="text" bind:value={draftTitle} maxlength="200" />
+						<input type="datetime-local" bind:value={draftUnlocksAt} />
+						<button type="submit" class="link">{m.course_edit_save()}</button>
+						<button type="button" class="link" onclick={() => (editingChapter = null)}>
+							{m.course_edit_cancel()}
+						</button>
+					</form>
+				{:else}
+					<h3>{chapter.title}</h3>
+					{#if !chapter.isUnlocked}
+						<span class="lock" title={when(chapter.unlocksAt)}>🔒 {lockLabel(chapter)}</span>
+					{/if}
+					{#if course.canCurate && oneditchapter}
+						<button type="button" class="link" onclick={() => beginChapterEdit(chapter)}>
+							{m.course_edit_edit()}
+						</button>
+					{/if}
 				{/if}
 			</header>
 			{#if chapter.description}
@@ -182,22 +286,80 @@
 			{/if}
 
 			{#if chapter.lessons.length > 0}
-				<ol class="lessons">
+				<!-- The <ol> is a drop target too, not just its children: dropping past the last
+				     lesson has to mean "put it at the end", which a per-sibling handler cannot
+				     express. -->
+				<ol
+					class="lessons"
+					ondragover={(e) => {
+								e.preventDefault();
+								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+							}}
+					ondrop={(e) => {
+						e.stopPropagation();
+						dropOn('lesson', chapter.id, null);
+					}}
+				>
 					{#each chapter.lessons as lesson (lesson.id)}
 						<li
 							class="lesson"
 							draggable={course.canCurate}
-							ondragstart={() => startDrag('lesson', lesson.id, chapter.id)}
-							ondragover={(e) => e.preventDefault()}
+							ondragstart={(e) => {
+								// Must stop here. A lesson sits inside its chapter's own draggable
+								// <article>, so without this the event bubbles up and the chapter's
+								// handler overwrites `dragged` with kind:'chapter' — after which the
+								// lesson drop bails on the kind mismatch and nothing moves, silently.
+								e.stopPropagation();
+								startDrag(e, 'lesson', lesson.id, chapter.id);
+							}}
+							ondragover={(e) => {
+								e.preventDefault();
+								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+							}}
 							ondrop={() => dropOn('lesson', chapter.id, lesson.id)}
 						>
 							<div class="lesson__head">
 								{#if course.canCurate}
 									<span class="grip" aria-hidden="true">⠿</span>
 								{/if}
-								<h4>{lesson.title}</h4>
-								{#if lesson.scheduledAt}
-									<span class="when">{when(lesson.scheduledAt)}</span>
+								{#if editingLesson === lesson.id}
+									<form
+										class="edit-row"
+										onsubmit={(e) => {
+											e.preventDefault();
+											saveLesson(lesson.id);
+										}}
+									>
+										<input type="text" bind:value={draftTitle} maxlength="200" />
+										<input
+											type="text"
+											bind:value={draftNotes}
+											placeholder={m.course_newLessonNotes()}
+										/>
+										<button type="submit" class="link">{m.course_edit_save()}</button>
+										<button type="button" class="link" onclick={() => (editingLesson = null)}>
+											{m.course_edit_cancel()}
+										</button>
+									</form>
+								{:else}
+									<h4>{lesson.title}</h4>
+									{#if lesson.scheduledAt}
+										<span class="when">{when(lesson.scheduledAt)}</span>
+									{/if}
+									{#if course.canCurate && oneditlesson}
+										<button type="button" class="link" onclick={() => beginLessonEdit(lesson)}>
+											{m.course_edit_edit()}
+										</button>
+									{/if}
+									{#if course.canCurate && ondeletelesson}
+										<button
+											type="button"
+											class="link danger"
+											onclick={() => ondeletelesson?.(lesson.id)}
+										>
+											{m.course_deleteLesson()}
+										</button>
+									{/if}
 								{/if}
 							</div>
 							{#if lesson.description}
@@ -213,9 +375,12 @@
 											draggable={course.canCurate}
 											ondragstart={(e) => {
 												e.stopPropagation();
-												startDrag('item', item.id, lesson.id);
+												startDrag(e, 'item', item.id, lesson.id);
 											}}
-											ondragover={(e) => e.preventDefault()}
+											ondragover={(e) => {
+								e.preventDefault();
+								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+							}}
 											ondrop={(e) => {
 												e.stopPropagation();
 												dropOn('item', lesson.id, item.id);
@@ -228,7 +393,10 @@
 							{:else}
 								<p
 									class="empty"
-									ondragover={(e) => e.preventDefault()}
+									ondragover={(e) => {
+								e.preventDefault();
+								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+							}}
 									ondrop={() => dropOn('item', lesson.id, null)}
 									role="presentation"
 								>
@@ -243,7 +411,23 @@
 				     different and wrong statement about a chapter that is merely shut. -->
 				<p class="empty">{m.course_chapter_lockedEmpty()}</p>
 			{:else}
-				<p class="empty">{m.course_items_empty()}</p>
+				<!-- A drop target, not just a message. An empty chapter renders no lesson elements,
+				     so without this there is literally nothing to drop a lesson onto and moving one
+				     into a fresh chapter is impossible — which is precisely when you most want to. -->
+				<p
+					class="empty empty--droppable"
+					role="presentation"
+					ondragover={(e) => {
+								e.preventDefault();
+								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+							}}
+					ondrop={(e) => {
+						e.stopPropagation();
+						dropOn('lesson', chapter.id, null);
+					}}
+				>
+					{m.course_chapter_dropHere()}
+				</p>
 			{/if}
 
 			{#if course.canCurate && ondeletechapter}
@@ -421,6 +605,23 @@
 		border-radius: var(--radius-sm);
 		background: var(--bg-surface);
 		color: var(--text-primary);
+	}
+	.empty--droppable {
+		border: 1px dashed var(--border-color);
+		border-radius: var(--radius-md, 6px);
+		padding: var(--space-3);
+		text-align: center;
+	}
+	.edit-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+		flex: 1;
+	}
+	.edit-row input[type='text'] {
+		flex: 1;
+		min-width: 12ch;
 	}
 	.undo {
 		display: flex;

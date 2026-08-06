@@ -43,6 +43,39 @@
 
 	let root = $state<HTMLElement | null>(null);
 	let triggerEl = $state<HTMLButtonElement | null>(null);
+	let panelEl = $state<HTMLElement | null>(null);
+	/** How far to slide the panel back inside the viewport, in px. */
+	let shift = $state(0);
+
+	// The panel hangs off its trigger (`right: 0` by default), which is correct right up until the
+	// trigger is not where the CSS assumed. The navbar wraps: when "Add…" lands near the LEFT of a
+	// second row, a panel anchored to the trigger's right edge extends leftward and runs off the
+	// page — reported, and reproducible by narrowing the window until the row wraps.
+	//
+	// CSS alone cannot fix this, because an absolutely-positioned box has no way to know it has left
+	// the viewport. So: measure once on open, and slide it back by exactly the overflow. Both
+	// directions, because the same panel overflows right when its trigger sits near the right edge
+	// on a narrow screen.
+	function clampIntoViewport() {
+		if (!panelEl) return;
+		shift = 0;
+		// Measured after the shift is cleared, so reopening does not compound the previous nudge.
+		requestAnimationFrame(() => {
+			if (!panelEl) return;
+			const margin = 8;
+			const box = panelEl.getBoundingClientRect();
+			if (box.right > window.innerWidth - margin) {
+				shift = -(box.right - window.innerWidth + margin);
+			} else if (box.left < margin) {
+				shift = margin - box.left;
+			}
+		});
+	}
+
+	$effect(() => {
+		if (open) clampIntoViewport();
+		else shift = 0;
+	});
 
 	function close() {
 		open = false;
@@ -83,7 +116,12 @@
 	</button>
 
 	{#if open}
-		<div class="popover__panel popover__panel--{align}" role="menu">
+		<div
+			class="popover__panel popover__panel--{align}"
+			role="menu"
+			bind:this={panelEl}
+			style="transform: translateX({shift}px)"
+		>
 			{@render children(close)}
 		</div>
 	{/if}

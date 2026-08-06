@@ -27,6 +27,8 @@
 		moveCourseItem,
 		reorderCourse,
 		saveMyCourseNote,
+		updateChapter,
+		updateLesson,
 		uploadAttachment,
 		muteCourse,
 		removeCourseItem,
@@ -438,6 +440,27 @@
 					() => removeCourseItem(course!.id, itemId),
 					(msg) => (contributeError = msg)
 				)}
+			oneditchapter={course.canCurate
+				? (chapterId, patch) =>
+						act(
+							() => updateChapter(course!.id, chapterId, patch),
+							(msg) => (staffError = msg)
+						)
+				: undefined}
+			oneditlesson={course.canCurate
+				? (lessonId, patch) =>
+						act(
+							() => updateLesson(course!.id, lessonId, patch),
+							(msg) => (staffError = msg)
+						)
+				: undefined}
+			ondeletelesson={course.canCurate
+				? (lessonId) =>
+						act(
+							() => deleteLesson(course!.id, lessonId),
+							(msg) => (staffError = msg)
+						)
+				: undefined}
 			ondeletechapter={course.canCurate
 				? (chapterId) =>
 						act(

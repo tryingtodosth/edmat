@@ -314,6 +314,29 @@ export async function addLesson(courseId: string, draft: LessonDraft): Promise<L
 	);
 }
 
+/** Rename a lesson, retime it, or rewrite its notes. The backend has taken PATCH here all along;
+ * nothing in the UI ever called it, which is why a lesson could be created and deleted but never
+ * corrected. */
+export async function updateLesson(
+	courseId: string,
+	lessonId: string,
+	draft: Partial<LessonDraft>
+): Promise<Lesson> {
+	const body: Record<string, unknown> = {};
+	if (draft.title !== undefined) body.title = draft.title;
+	if (draft.description !== undefined) body.description = draft.description;
+	if (draft.participantNotes !== undefined) body.participant_notes = draft.participantNotes;
+	if (draft.scheduledAt !== undefined) body.scheduled_at = draft.scheduledAt || null;
+	if (draft.durationMinutes !== undefined) body.duration_minutes = draft.durationMinutes;
+	if (draft.chapterId !== undefined) body.chapter = Number(draft.chapterId);
+	return mapLesson(
+		await apiClient.patch(
+			`/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/`,
+			body
+		)
+	);
+}
+
 export async function deleteLesson(courseId: string, lessonId: string): Promise<void> {
 	await apiClient.delete(
 		`/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/`
