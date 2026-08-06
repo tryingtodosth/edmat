@@ -37,6 +37,16 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'course_removed': 'notify_on_course_activity',
     'course_new_lesson': 'notify_on_course_activity',
     'course_new_post': 'notify_on_course_activity',
+    # These five were valid `Notification.type` choices but had no entry here, so `notify()` fell
+    # through to its "no preference gates it" default and sent them regardless — a setting labelled
+    # "courses" that five course notifications ignored. They belong to the same category as the six
+    # above: somebody who does not want course traffic does not want to hear that a contribution
+    # arrived either.
+    'course_contribution_submitted': 'notify_on_course_activity',
+    'course_contribution_approved': 'notify_on_course_activity',
+    'course_contribution_rejected': 'notify_on_course_activity',
+    'course_staff_added': 'notify_on_course_activity',
+    'course_invite_used': 'notify_on_course_activity',
     # Booking (booking/). One coarse category for all four, on the course types' own reasoning — see
     # Profile.notify_on_booking for why this is the one worth thinking twice about before muting.
     'booking_requested': 'notify_on_booking',

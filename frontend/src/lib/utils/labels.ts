@@ -194,6 +194,13 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		// Under the existing moderation-decision category rather than a new switch: somebody proposed
 		// a word and a moderator decided on it, which is the same kind of event as a decision on a
 		// submitted exercise.
+		courseContributionSubmitted: 'notifyOnCourseActivity',
+		courseContributionApproved: 'notifyOnCourseActivity',
+		courseContributionRejected: 'notifyOnCourseActivity',
+		courseStaffAdded: 'notifyOnCourseActivity',
+		courseInviteUsed: 'notifyOnCourseActivity',
+		materialSubmissionApproved: 'notifyOnModerationDecision',
+		materialSubmissionRejected: 'notifyOnModerationDecision',
 		taxonomyApproved: 'notifyOnModerationDecision',
 		taxonomyMerged: 'notifyOnModerationDecision',
 		taxonomyMoved: 'notifyOnModerationDecision',
@@ -230,6 +237,13 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	eventUpdated: m.notifPref_eventUpdated,
 	eventCancelled: m.notifPref_eventCancelled,
 	eventPosted: m.notifPref_eventPosted,
+	courseContributionSubmitted: m.notifPref_courseContributionSubmitted,
+	courseContributionApproved: m.notifPref_courseContributionApproved,
+	courseContributionRejected: m.notifPref_courseContributionRejected,
+	courseStaffAdded: m.notifPref_courseStaffAdded,
+	courseInviteUsed: m.notifPref_courseInviteUsed,
+	materialSubmissionApproved: m.notifPref_materialSubmissionApproved,
+	materialSubmissionRejected: m.notifPref_materialSubmissionRejected,
 	taxonomyApproved: m.notifPref_taxonomyApproved,
 	taxonomyMerged: m.notifPref_taxonomyMerged,
 	taxonomyMoved: m.notifPref_taxonomyMoved,

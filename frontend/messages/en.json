@@ -1246,5 +1246,19 @@
   "notifPref_taxonomyApproved": "Suggestion approved",
   "notifPref_taxonomyMerged": "Suggestion merged",
   "notifPref_taxonomyMoved": "Suggestion moved",
-  "notifPref_taxonomyRejected": "Suggestion rejected"
+  "notifPref_taxonomyRejected": "Suggestion rejected",
+  "notification_courseContributionSubmitted": "{actor} offered something to \"{title}\".",
+  "notifPref_courseContributionSubmitted": "Contribution offered",
+  "notification_courseContributionApproved": "Your contribution to \"{title}\" was accepted.",
+  "notifPref_courseContributionApproved": "Contribution accepted",
+  "notification_courseContributionRejected": "Your contribution to \"{title}\" was not accepted.",
+  "notifPref_courseContributionRejected": "Contribution not accepted",
+  "notification_courseStaffAdded": "You are now part of the team running \"{title}\".",
+  "notifPref_courseStaffAdded": "Added to a course team",
+  "notification_courseInviteUsed": "{actor} joined \"{title}\" with your invite link.",
+  "notifPref_courseInviteUsed": "Invite link used",
+  "notification_materialSubmissionApproved": "Your material \"{title}\" was published.",
+  "notifPref_materialSubmissionApproved": "Material upload approved",
+  "notification_materialSubmissionRejected": "Your material \"{title}\" was not published.",
+  "notifPref_materialSubmissionRejected": "Material upload rejected"
 }

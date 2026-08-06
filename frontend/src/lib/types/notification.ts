@@ -43,6 +43,16 @@ export type NotificationType =
 	// time or the place moved and the reader must rearrange their evening; this one means the host
 	// wrote something and the reader should go and read it. `note` carries its opening words.
 	| 'eventPosted'
+	// Emitted by courses/ and moderation/ and never listed here until now, which meant
+	// `mapNotification` fell back to `commentReply` and rendered every one of them as a reply to
+	// a comment that does not exist.
+	| 'courseContributionSubmitted'
+	| 'courseContributionApproved'
+	| 'courseContributionRejected'
+	| 'courseStaffAdded'
+	| 'courseInviteUsed'
+	| 'materialSubmissionApproved'
+	| 'materialSubmissionRejected'
 	// A proposed discipline/branch/topic got decided on (taxonomy/). Four, because the reader's next
 	// move differs: approved and rejected are finished, while merged and moved both mean "whatever
 	// you filed under this is somewhere else now" and `note` says where.

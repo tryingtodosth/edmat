@@ -23,6 +23,12 @@ from django.db import models
 NOTIFICATION_TYPES = [
     ('submission_approved', 'Exercise submission approved'),
     ('submission_rejected', 'Exercise submission rejected'),
+    # Both are really sent (moderation/views.py) and both were gated correctly, but neither was ever
+    # a valid choice here — so the admin showed a bare value and `get_type_display()` answered with
+    # the raw string. The two catalogs in this app drift in both directions; this is that drift the
+    # other way round from the five course types services.py was missing.
+    ('material_submission_approved', 'Material upload approved'),
+    ('material_submission_rejected', 'Material upload rejected'),
     ('edit_suggestion_approved', 'Edit suggestion approved'),
     ('edit_suggestion_rejected', 'Edit suggestion rejected'),
     ('translation_approved', 'Translation approved'),
@@ -77,6 +83,13 @@ NOTIFICATION_TYPES = [
     # something — the reader should go and read it. Collapsing them would make the urgent one
     # indistinguishable from "the slides are up", which is how people learn to ignore both.
     ('event_posted', 'A new update on an event you are going to'),
+    # Taxonomy proposals (taxonomy/). Four rather than one with the outcome in the text, because the
+    # reader's next move differs: approved and rejected are finished, while merged and moved both
+    # mean "whatever you filed under this is somewhere else now", and the note says where.
+    ('taxonomy_approved', 'Your suggested discipline, branch or topic was added'),
+    ('taxonomy_merged', 'Your suggestion already existed and was merged'),
+    ('taxonomy_moved', 'Your suggestion was moved somewhere else in the taxonomy'),
+    ('taxonomy_rejected', 'Your suggestion was not added'),
 ]
 
 
