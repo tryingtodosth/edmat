@@ -4,7 +4,7 @@
 Section 18 item 4 resolves.
 
 The "node governor" feature (see `.models.NodeGovernor`/`.services.is_governor_of_course`) adds a
-SECOND, narrower kind of moderator on top — scoped to one Field/Course rather than the whole
+SECOND, narrower kind of moderator on top — scoped to one Discipline/Branch rather than the whole
 platform. `is_staff` stays the coarser, global concept everywhere; it's checked first and always
 wins, so nothing about today's existing global-moderator behavior changes for an `is_staff` user.
 """
@@ -41,7 +41,7 @@ from .services import (
     build_moderation_queue_payload,
     build_report_queue,
     check_auto_hide,
-    governed_course_ids,
+    governed_branch_ids,
     is_governor_of_course,
     resolve_view_scope_exercise,
 )
@@ -78,9 +78,9 @@ class ExerciseSubmissionViewSet(viewsets.ModelViewSet):
         qs = ExerciseSubmission.objects.all()
         if not self.request.user.is_staff:
             qs = qs.filter(submitted_by=self.request.user)
-        course = self.request.query_params.get('course')
-        if course:
-            qs = qs.filter(course__slug=course)
+        branch = self.request.query_params.get('branch')
+        if branch:
+            qs = qs.filter(branch__slug=branch)
         return qs
 
     def perform_create(self, serializer):
@@ -172,9 +172,9 @@ class MaterialSubmissionViewSet(viewsets.ModelViewSet):
         qs = MaterialSubmission.objects.all()
         if not self.request.user.is_staff:
             qs = qs.filter(submitted_by=self.request.user)
-        course = self.request.query_params.get('course')
-        if course:
-            qs = qs.filter(course__slug=course)
+        branch = self.request.query_params.get('branch')
+        if branch:
+            qs = qs.filter(branch__slug=branch)
         return qs
 
     def perform_create(self, serializer):
@@ -246,7 +246,7 @@ def _apply_submission(submission, reviewer):
     the identical `next_number` before either one's `Exercise.objects.create()` commits — confirmed
     directly by firing two real, concurrent `POST .../approve/` calls against a real dev server and
     watching one come back a raw `django.db.utils.IntegrityError` / HTTP 500
-    (`UNIQUE constraint failed: exercises_exercise.course_id, exercises_exercise.number`). The
+    (`UNIQUE constraint failed: exercises_exercise.branch_id, exercises_exercise.number`). The
     textbook fix, `select_for_update()` on the course while computing the next number, doesn't help
     here: this project's own dev database is SQLite, which has no row-level locking at all
     (`connection.features.has_select_for_update` is `False`; Django silently no-ops a `select_for_update()`
@@ -268,10 +268,10 @@ def _apply_submission(submission, reviewer):
     Django refuses any further query on that connection until an explicit rollback, which would turn
     a handled retry into the exact same unhandled 500 this is fixing."""
     payload = submission.payload
-    course = submission.course
+    branch = submission.branch
     for attempt in range(5):
         next_number = (
-            Exercise.objects.filter(course=course)
+            Exercise.objects.filter(branch=branch)
             .order_by('-number')
             .values_list('number', flat=True)
             .first()
@@ -280,7 +280,7 @@ def _apply_submission(submission, reviewer):
         try:
             with transaction.atomic():
                 exercise = Exercise.objects.create(
-                    course=course,
+                    branch=branch,
                     number=next_number,
                     difficulty=payload.get('difficulty', 'medium'),
                     published=True,
@@ -383,12 +383,12 @@ def _apply_material_submission(submission, reviewer):
     base_slug = slugify(submission.title) or 'material'
     slug = base_slug
     suffix = 1
-    while Material.objects.filter(course=submission.course, slug=slug).exists():
+    while Material.objects.filter(branch=submission.branch, slug=slug).exists():
         suffix += 1
         slug = f'{base_slug}-{suffix}'
 
     material = Material.objects.create(
-        course=submission.course,
+        branch=submission.branch,
         slug=slug,
         type=submission.type,
         file=submission.file,
@@ -481,13 +481,13 @@ _KIND_MODELS = {
 
 
 def _course_for_moderation_target(kind, obj):
-    """Which Course a pending moderation-queue item belongs to — the scope
+    """Which Branch a pending moderation-queue item belongs to — the scope
     `is_governor_of_course` checks a node governor's own authority against. A submission (exercise
     OR material) carries its own `course` FK directly; an edit suggestion/translation are both
     scoped through the Exercise they target."""
     if kind in ('submission', 'material'):
-        return obj.course
-    return obj.exercise.course
+        return obj.branch
+    return obj.exercise.branch
 
 
 class ModerationActionView(APIView):
@@ -536,7 +536,7 @@ class ModerationActionView(APIView):
     value rather than this step's `claimed` count.
 
     ✅ "Node governor" scoping — `IsModerator` above only checks that SOME kind of moderation
-    authority exists; a real node governor is scoped to one Field/Course, so this view still needs
+    authority exists; a real node governor is scoped to one Discipline/Branch, so this view still needs
     its own, narrower OBJECT-level check for THIS SPECIFIC item, done once, up front, before the row
     is ever claimed — a governor with no authority over the relevant course gets a plain `403`
     without the row being touched at all, the same "check before you claim" ordering
@@ -650,7 +650,7 @@ class ModerationActionView(APIView):
 
 
 def _course_for_report_target(target):
-    """Which Course a reported target belongs to — an Exercise's own `course` directly, or (for a
+    """Which Branch a reported target belongs to — an Exercise's own `course` directly, or (for a
     Comment/Review) whichever Exercise `resolve_view_scope_exercise` already resolves its viewer
     pool against. `None` when that can't be determined at all (the same honest gap
     `resolve_view_scope_exercise` itself already documents) — a Service, Tag, Material, or
@@ -661,9 +661,9 @@ def _course_for_report_target(target):
     course (`target.course`/`target.material.course`) that a future pass could wire through here to
     give governors real scoped access — left as a genuine follow-up, not attempted in this pass."""
     if isinstance(target, Exercise):
-        return target.course
+        return target.branch
     exercise = resolve_view_scope_exercise(target)
-    return exercise.course if exercise is not None else None
+    return exercise.branch if exercise is not None else None
 
 
 class ReportActionView(APIView):
@@ -685,7 +685,7 @@ class ReportActionView(APIView):
     no longer merely "auto-hidden pending review," it's in whatever state that decision produced.
 
     ✅ "Node governor" scoping — same object-level check `ModerationActionView` does, resolving
-    which Course this report's own target belongs to (`resolve_view_scope_exercise`, the SAME
+    which Branch this report's own target belongs to (`resolve_view_scope_exercise`, the SAME
     function `check_auto_hide`/`build_report_queue` already use, so a governor's own authority is
     checked against the identical scope the queue itself was already filtered by — no risk of the
     two disagreeing). A target with no resolvable course (e.g. a Comment on something with no
@@ -754,12 +754,12 @@ class ReportActionView(APIView):
         # Scoped the same way ModerationQueueView's own read already is — an unscoped call here
         # would otherwise hand a node governor back every OTHER pending report on the platform too,
         # not just their own, the moment they restore/remove one real item of their own.
-        return Response(build_report_queue(course_ids=governed_course_ids(request.user)))
+        return Response(build_report_queue(branch_ids=governed_branch_ids(request.user)))
 
 
 class NodeGovernorViewSet(viewsets.ModelViewSet):
     """CRUD for the "node governor" grants themselves — the actual administration panel this
-    feature is named for: who governs which Field/Course. `list`/`create`/`destroy` only; no
+    feature is named for: who governs which Discipline/Branch. `list`/`create`/`destroy` only; no
     `update` — revoking and re-granting is a simpler, less error-prone flow than a partial-update
     one for a role assignment (change the node, change the user — both really are "a different
     grant," not an edit of this one).
@@ -768,7 +768,7 @@ class NodeGovernorViewSet(viewsets.ModelViewSet):
     moderator, who sees every grant — the same staff-vs-own `get_queryset` split
     `ExerciseSubmissionViewSet` already establishes. `create`/`destroy` are deliberately
     `IsAdminUser`-only for v1: only a global moderator can delegate this scoped role today, not
-    (yet) a Field-level governor delegating Course-level ones under their own field — a real,
+    (yet) a Discipline-level governor delegating Branch-level ones under their own field — a real,
     narrower-than-technically-possible scope decision, flagged in CLAUDE.md rather than silently
     assumed, not an oversight.
     """
@@ -802,7 +802,7 @@ class FeatureFlagViewSet(mixins.ListModelMixin, mixins.UpdateModelMixin, viewset
     No `create`/`destroy` at all (only List + Update mixins) — the 4 real flags are a fixed set
     (FeatureFlag.Meta / the seeding migration), not something a client can add or remove.
     `lookup_field = 'key'` so the URL reads as `/feature-flags/tutoring/`, not an opaque numeric id
-    — the key already IS the natural, stable identifier, the same reasoning Course/Field use their
+    — the key already IS the natural, stable identifier, the same reasoning Branch/Discipline use their
     own slug as the URL lookup rather than a raw PK."""
 
     queryset = FeatureFlag.objects.select_related('updated_by__profile')

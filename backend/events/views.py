@@ -47,7 +47,7 @@ class EventViewSet(viewsets.ModelViewSet):
         So: visibility always, browse filters only on `list`.
         """
         user = self.request.user
-        qs = Event.objects.select_related('host', 'host__profile', 'field').prefetch_related(
+        qs = Event.objects.select_related('host', 'host__profile', 'discipline').prefetch_related(
             'subjects', 'attendances'
         )
         qs = self._visible_to(qs, user)
@@ -99,9 +99,9 @@ class EventViewSet(viewsets.ModelViewSet):
         subject = self.request.query_params.get('subject')
         if subject:
             qs = qs.filter(subjects__slug=subject)
-        field = self.request.query_params.get('field')
-        if field:
-            qs = qs.filter(field__slug=field)
+        discipline = self.request.query_params.get('discipline')
+        if discipline:
+            qs = qs.filter(discipline__slug=discipline)
 
         # `upcoming` is the default for a list nobody parameterized, because an events page that
         # opens on last month's talks is answering a question nobody asked. `past` is a real value

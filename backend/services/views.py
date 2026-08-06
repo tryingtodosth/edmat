@@ -110,9 +110,9 @@ class ServiceViewSet(viewsets.ModelViewSet):
         else:
             qs = qs.filter(is_active=True)
 
-        course_slug = self.request.query_params.get('course')
-        if course_slug:
-            qs = qs.filter(courses__slug=course_slug)
+        branch_slug = self.request.query_params.get('branch')
+        if branch_slug:
+            qs = qs.filter(branches__slug=branch_slug)
 
         # A user's own active tutoring listings — the public profile page's own new "their
         # tutoring listings" section (CLAUDE.md's tutoring-listings feature note, item 6). Reuses

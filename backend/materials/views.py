@@ -71,12 +71,12 @@ def _notify_material_reply(comment, material, locale):
 # courses both have, say, a topic called `granice`. The frontend's own Topic.id is already the bare
 # numeric PK as a string (lib/api/mappers.ts's `mapTopic`), so no new id shape needed on that side.
 def _filter_materials(qs, params):
-    course = params.get('course')
-    if course:
-        qs = qs.filter(course__slug=course)
+    branch = params.get('branch')
+    if branch:
+        qs = qs.filter(branch__slug=branch)
     field = params.get('field')
-    if field and not course:
-        qs = qs.filter(course__field__slug=field)
+    if field and not branch:
+        qs = qs.filter(branch__field__slug=field)
     material_type = params.get('type')
     if material_type:
         qs = qs.filter(type=material_type)
@@ -253,10 +253,10 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
         if not topic_id:
             return Response({'topic': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            topic = Topic.objects.get(pk=topic_id, course=material.course)
+            topic = Topic.objects.get(pk=topic_id, branch=material.branch)
         except (Topic.DoesNotExist, ValueError, TypeError):
             return Response(
-                {'topic': ["Not a topic of this material's own course."]},
+                {'topic': ["Not a topic of this material's own branch."]},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -401,7 +401,7 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
         material = self.get_object()
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
-        if not (request.user.is_staff or is_governor_of_course(request.user, material.course)):
+        if not (request.user.is_staff or is_governor_of_course(request.user, material.branch)):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         labels = request.data.get('requirements', [])

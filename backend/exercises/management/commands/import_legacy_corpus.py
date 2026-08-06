@@ -26,7 +26,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from materials.models import Material, MaterialCoverage, MaterialTranslation
-from taxonomy.models import Chapter, ChapterTranslation, Course, CourseTranslation, Field, FieldTranslation, Topic, TopicTranslation
+from taxonomy.models import Chapter, ChapterTranslation, Branch, BranchTranslation, Discipline, DisciplineTranslation, Topic, TopicTranslation
 
 from ...models import Exercise, ExerciseSource, ExerciseSourceTranslation, ExerciseTranslation, Tag
 
@@ -58,7 +58,7 @@ SECTION_ALIASES = {
     'rozwiazanie': 'solution',
 }
 
-ORIGINAL_LOCALE = 'pl'  # every existing exercise/course/field/material is authored in Polish
+ORIGINAL_LOCALE = 'pl'  # every existing exercise/branch/field/material is authored in Polish
 
 
 def yload(path: Path) -> dict[str, Any]:
@@ -113,12 +113,12 @@ class Command(BaseCommand):
             raise CommandError(f'Corpus directory not found: {corpus}')
         dry_run = options['dry_run']
 
-        stats = {'fields': 0, 'courses': 0, 'topics': 0, 'chapters': 0, 'exercises': 0, 'materials': 0}
+        stats = {'fields': 0, 'branches': 0, 'topics': 0, 'chapters': 0, 'exercises': 0, 'materials': 0}
 
         with transaction.atomic():
             field_by_slug = self._import_fields(corpus, stats)
-            for course_dir in sorted((corpus / 'courses').glob('*')):
-                if not course_dir.is_dir() or not (course_dir / 'course.yaml').exists():
+            for course_dir in sorted((corpus / 'branches').glob('*')):
+                if not course_dir.is_dir() or not (course_dir / 'branch.yaml').exists():
                     continue
                 self._import_course(course_dir, field_by_slug, stats)
 
@@ -128,20 +128,20 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                'Imported: {fields} fields, {courses} courses, {topics} topics, {chapters} chapters, '
+                'Imported: {fields} fields, {branches} branches, {topics} topics, {chapters} chapters, '
                 '{exercises} exercises, {materials} materials'.format(**stats)
             )
         )
 
-    def _import_fields(self, corpus: Path, stats: dict) -> dict[str, Field]:
-        field_by_slug: dict[str, Field] = {}
+    def _import_fields(self, corpus: Path, stats: dict) -> dict[str, Discipline]:
+        field_by_slug: dict[str, Discipline] = {}
         for path in sorted((corpus / 'fields').glob('*.yaml')):
             data = yload(path)
             slug = data['id']
-            field, _ = Field.objects.update_or_create(
+            field, _ = Discipline.objects.update_or_create(
                 slug=slug, defaults={'published': bool(data.get('published', True))}
             )
-            FieldTranslation.objects.update_or_create(
+            DisciplineTranslation.objects.update_or_create(
                 field=field,
                 locale=ORIGINAL_LOCALE,
                 defaults={'name': data.get('name', slug), 'description': data.get('description', '')},
@@ -150,16 +150,16 @@ class Command(BaseCommand):
             stats['fields'] += 1
         return field_by_slug
 
-    def _import_course(self, course_dir: Path, field_by_slug: dict[str, Field], stats: dict):
-        data = yload(course_dir / 'course.yaml')
+    def _import_course(self, course_dir: Path, field_by_slug: dict[str, Discipline], stats: dict):
+        data = yload(course_dir / 'branch.yaml')
         slug = data['id']
         if slug != course_dir.name:
-            raise CommandError(f'Course id must match directory name: {course_dir}')
+            raise CommandError(f'Branch id must match directory name: {course_dir}')
         field = field_by_slug.get(data['field'])
         if field is None:
-            raise CommandError(f'Unknown field {data["field"]!r} for course {slug}')
+            raise CommandError(f'Unknown field {data["field"]!r} for branch {slug}')
 
-        course, _ = Course.objects.update_or_create(
+        branch, _ = Branch.objects.update_or_create(
             slug=slug,
             defaults={
                 'field': field,
@@ -167,17 +167,17 @@ class Command(BaseCommand):
                 'published': bool(data.get('published', True)),
             },
         )
-        CourseTranslation.objects.update_or_create(
-            course=course,
+        BranchTranslation.objects.update_or_create(
+            branch=branch,
             locale=ORIGINAL_LOCALE,
             defaults={'name': data.get('name', slug), 'description': data.get('description', '')},
         )
-        stats['courses'] += 1
+        stats['branches'] += 1
 
         topic_by_slug: dict[str, Topic] = {}
         for order, t in enumerate(data.get('topics', [])):
             topic, _ = Topic.objects.update_or_create(
-                course=course, slug=t['id'], defaults={'order': order}
+                branch=branch, slug=t['id'], defaults={'order': order}
             )
             TopicTranslation.objects.update_or_create(
                 topic=topic, locale=ORIGINAL_LOCALE, defaults={'name': t.get('name', t['id'])}
@@ -190,7 +190,7 @@ class Command(BaseCommand):
             chapters_data = yload(chapters_path)
             for c in chapters_data.get('chapters', []):
                 chapter, _ = Chapter.objects.update_or_create(
-                    course=course,
+                    branch=branch,
                     number=c['number'],
                     defaults={'start_page': c.get('start_page')},
                 )
@@ -205,21 +205,21 @@ class Command(BaseCommand):
         exercises_dir = course_dir / 'zadania'
         if exercises_dir.exists():
             for path in sorted(exercises_dir.glob('*.md')):
-                self._import_exercise(path, course, topic_by_slug, stats)
+                self._import_exercise(path, branch, topic_by_slug, stats)
 
         materials_dir = course_dir / 'materialy'
         if materials_dir.exists():
             for mdir in sorted(materials_dir.glob('*')):
                 if not mdir.is_dir() or not (mdir / 'material.yaml').exists():
                     continue
-                self._import_material(mdir, course, topic_by_slug, stats)
+                self._import_material(mdir, branch, topic_by_slug, stats)
 
     def _import_exercise(
-        self, path: Path, course: Course, topic_by_slug: dict[str, Topic], stats: dict
+        self, path: Path, branch: Branch, topic_by_slug: dict[str, Topic], stats: dict
     ):
         item = parse_exercise_file(path)
         exercise, _ = Exercise.objects.update_or_create(
-            course=course,
+            branch=branch,
             number=item['number'],
             defaults={
                 'difficulty': item['difficulty'],
@@ -265,7 +265,7 @@ class Command(BaseCommand):
         stats['exercises'] += 1
 
     def _import_material(
-        self, mdir: Path, course: Course, topic_by_slug: dict[str, Topic], stats: dict
+        self, mdir: Path, branch: Branch, topic_by_slug: dict[str, Topic], stats: dict
     ):
         data = yload(mdir / 'material.yaml')
         # The directory name, not material.yaml's own `id:` field, is the natural unique key here —
@@ -283,7 +283,7 @@ class Command(BaseCommand):
             raise CommandError(f'Missing PDF: {pdf_path}')
 
         material, _ = Material.objects.update_or_create(
-            course=course,
+            branch=branch,
             slug=slug,
             defaults={
                 'type': MATERIAL_TYPE_MAP.get(data.get('type'), 'other'),
@@ -312,7 +312,7 @@ class Command(BaseCommand):
         # Re-upload the PDF into MEDIA_ROOT/materials/ under a stable, collision-free name — copying
         # the file directly rather than going through Django's FieldFile.save() (which would append
         # a random suffix on every re-run) is what keeps this step idempotent too.
-        media_dest = Path(settings.MEDIA_ROOT) / 'materials' / f'{course.slug}-{slug}{pdf_path.suffix}'
+        media_dest = Path(settings.MEDIA_ROOT) / 'materials' / f'{branch.slug}-{slug}{pdf_path.suffix}'
         media_dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(pdf_path, media_dest)
         material.file.name = f'materials/{media_dest.name}'

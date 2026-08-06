@@ -48,13 +48,13 @@ class ExperienceSerializer(serializers.ModelSerializer):
 
 
 class SkillSerializer(serializers.ModelSerializer):
-    course_slug = serializers.SlugRelatedField(source='course', slug_field='slug', read_only=True)
-    field_slug = serializers.SlugRelatedField(source='field', slug_field='slug', read_only=True)
+    branch_slug = serializers.SlugRelatedField(source='branch', slug_field='slug', read_only=True)
+    discipline_slug = serializers.SlugRelatedField(source='discipline', slug_field='slug', read_only=True)
 
     class Meta:
         model = SkillEntry
-        fields = ['id', 'label', 'level', 'evidence', 'course', 'field', 'course_slug', 'field_slug', 'order']
-        extra_kwargs = {'course': {'write_only': True}, 'field': {'write_only': True}}
+        fields = ['id', 'label', 'level', 'evidence', 'branch', 'discipline', 'branch_slug', 'discipline_slug', 'order']
+        extra_kwargs = {'branch': {'write_only': True}, 'discipline': {'write_only': True}}
 
     def validate_label(self, value):
         """One row per label per person, reported as a validation error rather than a 500.
@@ -119,7 +119,7 @@ class UserProfileExtrasView(APIView):
         return Response(
             {
                 'experience': ExperienceSerializer(profile.experience.all(), many=True).data,
-                'skills': SkillSerializer(profile.skills.select_related('course', 'field'), many=True).data,
+                'skills': SkillSerializer(profile.skills.select_related('branch', 'discipline'), many=True).data,
             }
         )
 

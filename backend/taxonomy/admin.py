@@ -1,12 +1,12 @@
 from django.contrib import admin
 
 from .models import (
+    Branch,
+    BranchTranslation,
     Chapter,
     ChapterTranslation,
-    Course,
-    CourseTranslation,
-    Field,
-    FieldTranslation,
+    Discipline,
+    DisciplineTranslation,
     Subtopic,
     SubtopicTranslation,
     Topic,
@@ -14,27 +14,27 @@ from .models import (
 )
 
 
-class FieldTranslationInline(admin.TabularInline):
-    model = FieldTranslation
+class DisciplineTranslationInline(admin.TabularInline):
+    model = DisciplineTranslation
     extra = 0
 
 
-@admin.register(Field)
-class FieldAdmin(admin.ModelAdmin):
+@admin.register(Discipline)
+class DisciplineAdmin(admin.ModelAdmin):
     list_display = ['slug', 'published']
-    inlines = [FieldTranslationInline]
+    inlines = [DisciplineTranslationInline]
 
 
-class CourseTranslationInline(admin.TabularInline):
-    model = CourseTranslation
+class BranchTranslationInline(admin.TabularInline):
+    model = BranchTranslation
     extra = 0
 
 
-@admin.register(Course)
-class CourseAdmin(admin.ModelAdmin):
-    list_display = ['slug', 'field', 'university', 'published', 'order']
-    list_filter = ['field', 'published']
-    inlines = [CourseTranslationInline]
+@admin.register(Branch)
+class BranchAdmin(admin.ModelAdmin):
+    list_display = ['slug', 'discipline', 'published', 'order']
+    list_filter = ['discipline', 'published']
+    inlines = [BranchTranslationInline]
 
 
 class TopicTranslationInline(admin.TabularInline):
@@ -49,8 +49,8 @@ class SubtopicInline(admin.TabularInline):
 
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
-    list_display = ['slug', 'course', 'order']
-    list_filter = ['course']
+    list_display = ['slug', 'branch', 'order']
+    list_filter = ['branch']
     inlines = [TopicTranslationInline, SubtopicInline]
 
 
@@ -62,7 +62,7 @@ class SubtopicTranslationInline(admin.TabularInline):
 @admin.register(Subtopic)
 class SubtopicAdmin(admin.ModelAdmin):
     list_display = ['slug', 'topic', 'order']
-    list_filter = ['topic__course']
+    list_filter = ['topic__branch']
     inlines = [SubtopicTranslationInline]
 
 
@@ -73,6 +73,6 @@ class ChapterTranslationInline(admin.TabularInline):
 
 @admin.register(Chapter)
 class ChapterAdmin(admin.ModelAdmin):
-    list_display = ['course', 'number', 'start_page']
-    list_filter = ['course']
+    list_display = ['branch', 'number', 'start_page']
+    list_filter = ['branch']
     inlines = [ChapterTranslationInline]

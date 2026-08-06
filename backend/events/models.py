@@ -95,9 +95,9 @@ class Event(models.Model):
     # Discovery through the taxonomy rather than free-text tags — the same choice `TaughtCourse` and
     # `Service` both already make, and the reason somebody browsing Analiza Matematyczna II finds the
     # exam-prep session about it without knowing it exists.
-    subjects = models.ManyToManyField('taxonomy.Course', related_name='events', blank=True)
-    field = models.ForeignKey(
-        'taxonomy.Field',
+    subjects = models.ManyToManyField('taxonomy.Branch', related_name='events', blank=True)
+    discipline = models.ForeignKey(
+        'taxonomy.Discipline',
         related_name='events',
         null=True,
         blank=True,

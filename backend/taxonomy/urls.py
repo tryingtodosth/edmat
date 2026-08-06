@@ -1,9 +1,11 @@
 from rest_framework.routers import DefaultRouter
 
-from .views import CourseViewSet, FieldViewSet
+from .views import BranchViewSet, DisciplineViewSet
 
 router = DefaultRouter()
-router.register('fields', FieldViewSet, basename='field')
-router.register('courses', CourseViewSet, basename='course')
+# `/api/courses/` is deliberately NOT registered here any more. It used to serve przedmiot rows;
+# it now belongs to the `courses` app, where a course is a kurs somebody actually teaches.
+router.register('disciplines', DisciplineViewSet, basename='discipline')
+router.register('branches', BranchViewSet, basename='branch')
 
 urlpatterns = router.urls

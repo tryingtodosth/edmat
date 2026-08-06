@@ -82,7 +82,7 @@ class RedactionTests(TestCase):
 
     def test_ordinary_query_strings_are_kept(self):
         self.assertEqual(
-            redact_query_string('/api/exercises/', 'course=am2&lang=pl'), 'course=am2&lang=pl'
+            redact_query_string('/api/exercises/', 'branch=am2&lang=pl'), 'branch=am2&lang=pl'
         )
 
 

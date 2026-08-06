@@ -79,9 +79,9 @@ class MeViewNodeGovernorTests(APITestCase):
         from testing.factories import make_course
 
         user = make_user('has-a-grant')
-        course = make_course('me-view-course')
+        branch = make_course('me-view-branch')
         NodeGovernor.objects.create(
-            user=user, content_type=ContentType.objects.get_for_model(type(course)), object_id=course.pk
+            user=user, content_type=ContentType.objects.get_for_model(type(branch)), object_id=branch.pk
         )
         self.client.force_authenticate(user)
 
@@ -107,8 +107,8 @@ class UserReviewsViewTests(APITestCase):
         from community.models import Review
         from testing.factories import make_course, make_exercise
 
-        course = make_course('user-reviews-course')
-        exercise = make_exercise(course, 1)
+        branch = make_course('user-reviews-branch')
+        exercise = make_exercise(branch, 1)
         author = make_user('review-author')
         someone_else = make_user('review-someone-else')
         Review.objects.create(exercise=exercise, author=author, rating=5, body='Great!')
@@ -124,8 +124,8 @@ class UserReviewsViewTests(APITestCase):
         from community.models import Review
         from testing.factories import make_course, make_exercise
 
-        course = make_course('user-reviews-removed-course')
-        exercise = make_exercise(course, 1)
+        branch = make_course('user-reviews-removed-branch')
+        exercise = make_exercise(branch, 1)
         author = make_user('review-author-removed')
         Review.objects.create(
             exercise=exercise, author=author, rating=1, body='Removed', is_removed=True

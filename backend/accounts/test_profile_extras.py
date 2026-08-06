@@ -12,7 +12,7 @@ from rest_framework.test import APIClient
 from classroom.models import Enrollment, TaughtCourse
 from community.models import Review
 from exercises.models import Tag
-from taxonomy.models import Course, Field
+from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_exercise
 
@@ -86,13 +86,13 @@ class SkillTests(ApiTestCase):
         self.assertEqual(SkillEntry.objects.filter(profile=self.me.profile).count(), 1)
 
     def test_a_skill_can_name_a_real_course_and_reports_its_slug(self):
-        field = Field.objects.create(slug='matematyka')
-        course = Course.objects.create(slug='analiza-2', field=field, university='UW')
+        field = Discipline.objects.create(slug='matematyka')
+        branch = Branch.objects.create(slug='analiza-2', discipline=field)
         self.as_(self.me).post(
-            '/api/me/skills/', {'label': 'Analiza II', 'course': course.pk}, format='json'
+            '/api/me/skills/', {'label': 'Analiza II', 'branch': branch.pk}, format='json'
         )
         public = self.client.get(f'/api/users/{self.me.pk}/extras/')
-        self.assertEqual(public.data['skills'][0]['course_slug'], 'analiza-2')
+        self.assertEqual(public.data['skills'][0]['branch_slug'], 'analiza-2')
 
 
 class ActivityFeedTests(ApiTestCase):
@@ -101,8 +101,8 @@ class ActivityFeedTests(ApiTestCase):
         # The repo's own shared fixtures rather than hand-built taxonomy rows — the real shape has
         # translations and a topic, and rebuilding that by hand here would just be a second, wronger
         # copy of `testing/factories.py`.
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
         self.exercise.submitted_by = self.me
         self.exercise.published = True
         self.exercise.save()

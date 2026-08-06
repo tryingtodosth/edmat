@@ -150,9 +150,9 @@ def _annotated_exercises():
 
 
 def _filter_exercises(qs, params):
-    course = params.get('course')
-    if course:
-        qs = qs.filter(course__slug=course)
+    branch = params.get('branch')
+    if branch:
+        qs = qs.filter(branch__slug=branch)
     topic = params.get('topic')
     if topic:
         qs = qs.filter(topics__slug=topic)
@@ -176,8 +176,8 @@ def _filter_exercises(qs, params):
     if verified in ('true', '1'):
         qs = qs.filter(verified=True)
     field = params.get('field')
-    if field and not course:
-        qs = qs.filter(course__field__slug=field)
+    if field and not branch:
+        qs = qs.filter(branch__field__slug=field)
     q = params.get('q')
     if q:
         qs = qs.filter(
@@ -360,7 +360,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         exercise = self.get_object()
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
-        if not (request.user.is_staff or is_governor_of_course(request.user, exercise.course)):
+        if not (request.user.is_staff or is_governor_of_course(request.user, exercise.branch)):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         labels = request.data.get('requirements', [])
@@ -458,7 +458,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         qs = (
             _annotated_exercises()
             .filter(pk__in=ids)
-            .select_related('course', 'source')
+            .select_related('branch', 'source')
             .prefetch_related(
                 'translations', 'topics', 'tags', 'source__translations', 'requirements__votes__voter__profile'
             )

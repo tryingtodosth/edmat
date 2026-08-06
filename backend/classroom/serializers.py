@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
-from taxonomy.models import Course as Subject, Field
+from taxonomy.models import Branch, Discipline
 
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
@@ -271,10 +271,10 @@ class TaughtCourseWriteSerializer(serializers.ModelSerializer):
     # already addresses taxonomy rows (`Service.course_slugs`) — a client that has a course page
     # open knows its slug, not its id.
     subjects = serializers.SlugRelatedField(
-        slug_field='slug', many=True, required=False, queryset=Subject.objects.all()
+        slug_field='slug', many=True, required=False, queryset=Branch.objects.all()
     )
     field = serializers.SlugRelatedField(
-        slug_field='slug', required=False, allow_null=True, queryset=Field.objects.all()
+        slug_field='slug', required=False, allow_null=True, queryset=Discipline.objects.all()
     )
 
     class Meta:

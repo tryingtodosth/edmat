@@ -12,8 +12,8 @@ from testing.factories import make_course, make_exercise, make_material, make_to
 
 class ReviewTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
         self.user = make_user('reviewer')
         self.client.force_authenticate(self.user)
 
@@ -74,8 +74,8 @@ class ReviewTests(APITestCase):
 
 class CommentTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
         self.user = make_user('commenter')
         self.client.force_authenticate(self.user)
 
@@ -125,7 +125,7 @@ class CommentTests(APITestCase):
         """The same cross-target check materials/views.py's MaterialCoverageViewSet.comments now
         applies (Section 17O) — a client-supplied `parent` genuinely threads, but nothing used to
         stop it from naming a comment belonging to an entirely different Exercise's own thread."""
-        other_exercise = make_exercise(self.course, 2)
+        other_exercise = make_exercise(self.branch, 2)
         foreign_root = self.client.post(
             reverse('exercise-comments', kwargs={'pk': other_exercise.pk}),
             {'body': 'A comment on a different exercise entirely.'},
@@ -146,9 +146,9 @@ class CommentTests(APITestCase):
     def test_a_parent_from_a_material_coverage_thread_is_also_rejected(self):
         """The identical cross-target check, the other direction — a parent id resolving to a real
         Comment, just one attached to a different content type (a MaterialCoverage claim)."""
-        course = make_course(slug='uw-comment-cross-target-course')
-        material = make_material(course, 'skrypt')
-        topic = make_topic(course)
+        branch = make_course(slug='uw-comment-cross-target-branch')
+        material = make_material(branch, 'skrypt')
+        topic = make_topic(branch)
         from materials.models import MaterialCoverage
 
         coverage = MaterialCoverage.objects.create(

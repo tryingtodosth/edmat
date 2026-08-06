@@ -218,7 +218,7 @@ class CourseGrade(models.Model):
     """One course result.
 
     `matched_course` is the reason importing a transcript is worth more here than a badge would be.
-    EdMat's whole content tree hangs off `taxonomy.Course`, so a result in a course the registry
+    EdMat's whole content tree hangs off `taxonomy.Branch`, so a result in a course the registry
     names is an institutionally-attested claim to competence in a specific corner of this site —
     which is what LAUNCHCHECKLIST §3a means by seeding skill from real enrolment. Nullable because
     matching is best-effort: an unmatched course is still a real result, just not one this site can
@@ -235,7 +235,7 @@ class CourseGrade(models.Model):
         max_length=20, choices=GradeScale.choices, default=GradeScale.POLISH_2_5
     )
     matched_course = models.ForeignKey(
-        'taxonomy.Course',
+        'taxonomy.Branch',
         related_name='imported_grades',
         null=True,
         blank=True,

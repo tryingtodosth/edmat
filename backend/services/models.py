@@ -65,7 +65,7 @@ class Service(models.Model):
     provider = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='services', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    courses = models.ManyToManyField('taxonomy.Course', related_name='tutoring_services', blank=True)
+    branches = models.ManyToManyField('taxonomy.Branch', related_name='tutoring_services', blank=True)
 
     # Both optional and deliberately DISPLAY-only — this app has no real payment processing
     # anywhere (matching CLAUDE.md's own "no payment processor, contact via messaging" scope), a

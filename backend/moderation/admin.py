@@ -5,8 +5,8 @@ from .models import ContentView, EditSuggestion, ExerciseSubmission, FeatureFlag
 
 @admin.register(ExerciseSubmission)
 class ExerciseSubmissionAdmin(admin.ModelAdmin):
-    list_display = ['submitted_by', 'course', 'status', 'created_at', 'resulting_exercise']
-    list_filter = ['status', 'course']
+    list_display = ['submitted_by', 'branch', 'status', 'created_at', 'resulting_exercise']
+    list_filter = ['status', 'branch']
 
 
 @admin.register(EditSuggestion)

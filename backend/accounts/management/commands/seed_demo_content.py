@@ -31,7 +31,7 @@ from classroom.models import Enrollment, Lesson, TaughtCourse
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, Tag
 from materials.models import Material
-from taxonomy.models import Course, Field
+from taxonomy.models import Branch, Discipline
 
 User = get_user_model()
 DEMO_PASSWORD = 'password123'
@@ -290,15 +290,15 @@ class Command(BaseCommand):
                 )
 
             for order, (label, level, evidence) in enumerate(spec['skills']):
-                course = self._course_for_skill(label)
+                branch = self._branch_for_skill(label)
                 SkillEntry.objects.update_or_create(
                     profile=profile,
                     label=label,
                     defaults={
                         'level': level,
                         'evidence': evidence,
-                        'course': course,
-                        'field': course.field if course else None,
+                        'branch': branch,
+                        'discipline': branch.discipline if branch else None,
                         'order': order,
                     },
                 )
@@ -306,15 +306,15 @@ class Command(BaseCommand):
         return people
 
     @staticmethod
-    def _course_for_skill(label: str):
-        """Best-effort link into the real taxonomy — a skill tied to a Course can be filtered and
+    def _branch_for_skill(label: str):
+        """Best-effort link into the real taxonomy — a skill tied to a Branch can be filtered and
         matched against this site's own exercises; a free-text one cannot."""
         needle = label.strip().lower()
-        for course in Course.objects.prefetch_related('translations'):
-            for translation in course.translations.all():
+        for branch in Branch.objects.prefetch_related('translations'):
+            for translation in branch.translations.all():
                 name = (translation.name or '').strip().lower()
                 if name and (name == needle or needle in name or name in needle):
-                    return course
+                    return branch
         return None
 
     # -- reviews and comments ---------------------------------------------------------------------
@@ -390,10 +390,10 @@ class Command(BaseCommand):
                     'starts_on': timezone.now().date() + timedelta(days=7),
                 },
             )
-            subject = self._course_for_skill(spec['title'].split()[0])
+            subject = self._branch_for_skill(spec['title'].split()[0])
             if subject:
                 course.subjects.add(subject)
-                course.field = subject.field
+                course.field = subject.discipline
                 course.save(update_fields=['field'])
 
             for order, (title, description, notes) in enumerate(spec['lessons'], start=1):

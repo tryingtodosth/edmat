@@ -1,14 +1,13 @@
 """Courses run by users, and the people taking part in them.
 
-**On the name.** `taxonomy.Course` already exists and means something else entirely — a *przedmiot*,
-a university subject like Analiza Matematyczna II, which nobody runs and nobody enrols in. What this
-module adds is the other Polish word: a *kurs*, something a person teaches over time to a group who
-sign up for it. Two different concepts that English collapses onto one word, so the model here is
-`TaughtCourse` and the app is `classroom`. Renaming `taxonomy.Course` to `Subject` would arguably be
-the tidier fix, but it reaches into migrations, the corpus importer, the API and the frontend's own
-`/courses/[course]` routes — far too much collateral for a naming preference, so the new thing takes
-the new name. In the UI both are simply called what a person calls them ("course" / "kurs"), since a
-visitor never sees a class name.
+**On the name.** This module used to be called `classroom`, with its model named `TaughtCourse` and
+its route `/api/taught-courses/`, because `taxonomy.Course` already meant a *przedmiot* — a
+university subject like Analiza Matematyczna II — and English collapses that and *kurs* onto one
+word. The note here used to say that renaming the taxonomy side "would arguably be the tidier fix,
+but reaches into migrations, the corpus importer, the API and the frontend's own routes." That is
+exactly what has now been done: przedmiot turned out not to be taxonomy at all (it carried a
+`university`), so it became a kurs, the knowledge levels became Discipline → Branch → Topic, and the
+word `Course` is free for the thing everybody means by it.
 
 Everything here reuses machinery this project already has rather than inventing parallel versions:
 the taxonomy for discovery, existing exercises and materials as lesson content, the feature-flag kill
@@ -180,10 +179,10 @@ class TaughtCourse(models.Model):
     # Matematyczna II should find the courses being run about it, which is the same reasoning
     # `Service.courses` already follows for tutoring listings.
     subjects = models.ManyToManyField(
-        'taxonomy.Course', related_name='taught_courses', blank=True
+        'taxonomy.Branch', related_name='taught_courses', blank=True
     )
     field = models.ForeignKey(
-        'taxonomy.Field',
+        'taxonomy.Discipline',
         related_name='taught_courses',
         null=True,
         blank=True,

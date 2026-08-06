@@ -117,7 +117,7 @@ def skill_seeds_for(profile: EducationProfile | None) -> list[dict]:
     cheaply. Deliberately conservative and deliberately labelled *evidence*, not proof — having
     taken a course is not the same as being good at it, and the seed is sized accordingly.
 
-    Only ever drawn from grades that actually matched a real `taxonomy.Course`. An unmatched result
+    Only ever drawn from grades that actually matched a real `taxonomy.Branch`. An unmatched result
     is still a real result; it is simply not one this site can place, and inventing a placement for
     it would be worse than leaving it out.
     """

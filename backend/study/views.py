@@ -12,7 +12,7 @@ class ExerciseSetViewSet(viewsets.ModelViewSet):
 
     `lookup_field = 'slug'` — every URL (including the owner's own update/delete) resolves a set by
     its random, unguessable slug rather than a raw numeric pk, matching the same "id IS the slug"
-    convention Field/Course already use elsewhere in this API. `ExerciseSet.slug`
+    convention Discipline/Branch already use elsewhere in this API. `ExerciseSet.slug`
     (study/models.py) is generated once at creation via `secrets.token_urlsafe`, never user-chosen.
 
     `retrieve` is the one deliberate exception to the owner-only rule above: reachable by an

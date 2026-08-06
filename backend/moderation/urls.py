@@ -22,7 +22,7 @@ router.register('feature-flags', FeatureFlagViewSet, basename='feature-flag')
 # Under moderation/ (not a bare top-level prefix) to sit alongside this app's other
 # moderation-namespaced endpoints (moderation/queue/, moderation/reports/...) below — this is the
 # "node governor" feature's own administration surface (list/grant/revoke who governs which
-# Field/Course), distinct from ModerationActionView/ReportActionView (which ACT on pending items).
+# Discipline/Branch), distinct from ModerationActionView/ReportActionView (which ACT on pending items).
 router.register('moderation/governors', NodeGovernorViewSet, basename='node-governor')
 
 urlpatterns = router.urls + [

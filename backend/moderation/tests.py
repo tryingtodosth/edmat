@@ -17,8 +17,8 @@ from rest_framework.test import APITestCase
 from community.models import Comment
 from exercises.models import Exercise, ExerciseTranslation
 from moderation.models import ContentView, FeatureFlag, NodeGovernor, Report
-from moderation.services import governed_course_ids, is_feature_enabled, is_governor_of_course
-from taxonomy.models import Field
+from moderation.services import governed_branch_ids, is_feature_enabled, is_governor_of_course
+from taxonomy.models import Discipline
 from testing.factories import make_course, make_exercise, make_material, make_topic, make_user, make_viewer
 
 
@@ -30,8 +30,8 @@ class TranslationApprovalTests(APITestCase):
 
     def setUp(self):
         self.moderator = make_user('mod', is_staff=True)
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
         self.client.force_authenticate(self.moderator)
 
     def _approve_url(self, pk):
@@ -127,7 +127,7 @@ class SubmissionApprovalTests(APITestCase):
     def setUp(self):
         self.moderator = make_user('mod2', is_staff=True)
         self.student = make_user('student', is_verified_contributor=False)
-        self.course = make_course(slug='uw-submission-course')
+        self.branch = make_course(slug='uw-submission-branch')
         self.client.force_authenticate(self.moderator)
 
     def _submit(self, **payload_overrides):
@@ -141,7 +141,7 @@ class SubmissionApprovalTests(APITestCase):
             **payload_overrides,
         }
         return ExerciseSubmission.objects.create(
-            course=self.course, submitted_by=self.student, payload=payload
+            branch=self.branch, submitted_by=self.student, payload=payload
         )
 
     def test_approving_a_submission_creates_a_real_exercise(self):
@@ -158,7 +158,7 @@ class SubmissionApprovalTests(APITestCase):
         self.assertEqual(submission.status, 'approved')
         self.assertIsNotNone(submission.resulting_exercise)
         exercise = submission.resulting_exercise
-        self.assertEqual(exercise.course, self.course)
+        self.assertEqual(exercise.branch, self.branch)
         translation = exercise.translations.get(locale='pl')
         self.assertEqual(translation.title, 'A submitted exercise')
         self.assertEqual(translation.status, 'published')
@@ -185,7 +185,7 @@ class SubmissionApprovalTests(APITestCase):
         response = self.client.post(
             reverse('exercise-submission-list'),
             {
-                'course': self.course.slug,
+                'branch': self.branch.slug,
                 'payload': {
                     'difficulty': 'easy',
                     'locale': 'pl',
@@ -212,7 +212,7 @@ class SubmissionApprovalTests(APITestCase):
         self.assertEqual(submission.status, 'rejected')
         self.assertIsNone(submission.resulting_exercise)
         self.assertEqual(submission.review_note, 'Not mathematically sound.')
-        self.assertEqual(Exercise.objects.filter(course=self.course).count(), 0)
+        self.assertEqual(Exercise.objects.filter(branch=self.branch).count(), 0)
 
     def test_double_decision_on_the_same_submission_returns_conflict(self):
         submission = self._submit()
@@ -225,7 +225,7 @@ class SubmissionApprovalTests(APITestCase):
 
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(second.status_code, status.HTTP_409_CONFLICT)
-        self.assertEqual(Exercise.objects.filter(course=self.course).count(), 1)
+        self.assertEqual(Exercise.objects.filter(branch=self.branch).count(), 1)
 
     def test_sequentially_approved_submissions_get_distinct_exercise_numbers(self):
         """A lighter-weight, single-threaded regression for the retry-loop fix (real concurrent
@@ -343,7 +343,7 @@ class MaterialSubmissionApiTests(APITestCase):
     to the validators it calls, covered above)."""
 
     def setUp(self):
-        self.course = make_course(slug='uw-material-submission-course')
+        self.branch = make_course(slug='uw-material-submission-branch')
         self.student = make_user('matsub_student')
         self.other_student = make_user('matsub_other_student')
 
@@ -351,7 +351,7 @@ class MaterialSubmissionApiTests(APITestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         data = {
-            'course': self.course.slug,
+            'branch': self.branch.slug,
             'type': 'practice_test',
             'title': 'A submitted practice test',
             'description': 'Real practice problems.',
@@ -377,12 +377,12 @@ class MaterialSubmissionApiTests(APITestCase):
         response = self._upload(
             self.client,
             author='dr hab. Anna Kowalska',
-            source_url='https://example.edu/courses/am2/materials',
+            source_url='https://example.edu/branches/am2/materials',
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['author'], 'dr hab. Anna Kowalska')
-        self.assertEqual(response.data['source_url'], 'https://example.edu/courses/am2/materials')
+        self.assertEqual(response.data['source_url'], 'https://example.edu/branches/am2/materials')
 
     def test_a_malformed_source_url_is_rejected_rather_than_stored(self):
         """A `URLField`, not free text — a stored non-URL would render as a broken link on every
@@ -416,7 +416,7 @@ class MaterialSubmissionApiTests(APITestCase):
     def test_uploading_with_a_valid_coverage_entry_is_accepted(self):
         import json
 
-        topic = make_topic(self.course, 'matsub-api-topic')
+        topic = make_topic(self.branch, 'matsub-api-topic')
         self.client.force_authenticate(self.student)
         response = self._upload(
             self.client, coverage=json.dumps([{'topic_id': topic.pk, 'level': 40}])
@@ -427,7 +427,7 @@ class MaterialSubmissionApiTests(APITestCase):
     def test_uploading_with_a_coverage_topic_from_a_different_course_is_rejected(self):
         import json
 
-        other_course = make_course(slug='uw-material-submission-other-course')
+        other_course = make_course(slug='uw-material-submission-other-branch')
         other_topic = make_topic(other_course, 'matsub-api-other-topic')
         self.client.force_authenticate(self.student)
         response = self._upload(
@@ -438,7 +438,7 @@ class MaterialSubmissionApiTests(APITestCase):
     def test_uploading_with_an_out_of_range_coverage_level_is_rejected(self):
         import json
 
-        topic = make_topic(self.course, 'matsub-api-range-topic')
+        topic = make_topic(self.branch, 'matsub-api-range-topic')
         self.client.force_authenticate(self.student)
         response = self._upload(
             self.client, coverage=json.dumps([{'topic_id': topic.pk, 'level': 999}])
@@ -538,7 +538,7 @@ class MaterialUploadVerifiedContributorGateTests(APITestCase):
     while an ordinary authenticated user can still list/retrieve their own past submissions."""
 
     def setUp(self):
-        self.course = make_course(slug='uw-verified-gate-course')
+        self.branch = make_course(slug='uw-verified-gate-branch')
         self.plain_user = make_user('gate_plain_user')
         self.verified_user = make_user('gate_verified_user', is_verified_contributor=True)
         self.moderator = make_user('gate_moderator', is_staff=True)
@@ -547,7 +547,7 @@ class MaterialUploadVerifiedContributorGateTests(APITestCase):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         data = {
-            'course': self.course.slug,
+            'branch': self.branch.slug,
             'type': 'practice_test',
             'title': 'A submitted practice test',
             'description': 'Real practice problems.',
@@ -621,7 +621,7 @@ class MaterialSubmissionApprovalTests(APITestCase):
     def setUp(self):
         self.moderator = make_user('matsub_approve_mod', is_staff=True)
         self.student = make_user('matsub_approve_student')
-        self.course = make_course(slug='uw-material-approval-course')
+        self.branch = make_course(slug='uw-material-approval-branch')
         self.client.force_authenticate(self.moderator)
 
     def _submit(self, **overrides):
@@ -630,7 +630,7 @@ class MaterialSubmissionApprovalTests(APITestCase):
         from moderation.models import MaterialSubmission
 
         defaults = {
-            'course': self.course,
+            'branch': self.branch,
             'submitted_by': self.student,
             'type': 'exam_collection',
             'title': 'A submitted exam collection',
@@ -655,7 +655,7 @@ class MaterialSubmissionApprovalTests(APITestCase):
         self.assertEqual(submission.status, 'approved')
         self.assertIsNotNone(submission.resulting_material)
         material = submission.resulting_material
-        self.assertEqual(material.course, self.course)
+        self.assertEqual(material.branch, self.branch)
         self.assertTrue(material.published)
         self.assertEqual(material.type, 'exam_collection')
         translation = material.translations.get(locale='en')
@@ -669,7 +669,7 @@ class MaterialSubmissionApprovalTests(APITestCase):
         record is lost at exactly the moment it becomes public, so this pins the carry-over."""
         submission = self._submit(
             author='dr hab. Anna Kowalska',
-            source_url='https://example.edu/courses/am2/materials',
+            source_url='https://example.edu/branches/am2/materials',
         )
 
         response = self.client.post(
@@ -685,7 +685,7 @@ class MaterialSubmissionApprovalTests(APITestCase):
         submission.refresh_from_db()
         material = submission.resulting_material
         self.assertEqual(material.author, 'dr hab. Anna Kowalska')
-        self.assertEqual(material.source_url, 'https://example.edu/courses/am2/materials')
+        self.assertEqual(material.source_url, 'https://example.edu/branches/am2/materials')
 
     def test_a_submission_declaring_neither_still_approves_cleanly(self):
         """Both fields are deliberately optional — a scan of a paper handout has no URL, and forcing
@@ -762,7 +762,7 @@ class MaterialSubmissionApprovalTests(APITestCase):
         self.assertEqual(labels, ['English B2+', 'basic algebra'])
 
     def test_approving_a_submission_with_coverage_creates_real_material_coverage_rows(self):
-        topic = make_topic(self.course, 'matsub-approval-topic')
+        topic = make_topic(self.branch, 'matsub-approval-topic')
         submission = self._submit(coverage=[{'topic_id': topic.pk, 'level': 60}])
 
         response = self.client.post(
@@ -785,7 +785,7 @@ class MaterialSubmissionApprovalTests(APITestCase):
 
         response = self.client.post(
             reverse('moderation-action', kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'reject'}),
-            {'review_note': 'Wrong course.'},
+            {'review_note': 'Wrong branch.'},
             format='json',
         )
 
@@ -826,11 +826,11 @@ class MaterialSubmissionApprovalTests(APITestCase):
 
     def test_a_node_governor_with_no_authority_over_this_course_is_forbidden(self):
         from moderation.models import NodeGovernor
-        from taxonomy.models import Course
+        from taxonomy.models import Branch
 
-        other_course = make_course(slug='uw-material-approval-other-course')
+        other_course = make_course(slug='uw-material-approval-other-branch')
         governor = make_user('matsub_approve_governor')
-        NodeGovernor.objects.create(user=governor, content_type=ContentType.objects.get_for_model(Course), object_id=other_course.pk)
+        NodeGovernor.objects.create(user=governor, content_type=ContentType.objects.get_for_model(Branch), object_id=other_course.pk)
         submission = self._submit()
 
         self.client.force_authenticate(governor)
@@ -846,8 +846,8 @@ class MaterialSubmissionApprovalTests(APITestCase):
 class EditSuggestionApprovalTests(APITestCase):
     def setUp(self):
         self.moderator = make_user('mod3', is_staff=True)
-        self.course = make_course(slug='uw-edit-course')
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course(slug='uw-edit-branch')
+        self.exercise = make_exercise(self.branch, 1)
         self.client.force_authenticate(self.moderator)
 
     def _suggest(self, field='hint', proposed_value='A helpful hint.'):
@@ -927,8 +927,8 @@ class AutoHideTests(APITestCase):
     tiny viewer pool on its own (1 report / 4 viewers = 25%, well above the raw 20% rule)."""
 
     def setUp(self):
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
 
     def test_reports_below_the_minimum_count_do_not_hide_even_at_a_high_percentage(self):
         _record_views(self.exercise, 4)  # 2/4 = 50%, comfortably over 20% — but only 2 reporters
@@ -1022,9 +1022,9 @@ class MaterialCoverageCommentReportTests(APITestCase):
     def test_reporting_a_comment_attached_to_a_material_coverage_claim_succeeds(self):
         from materials.models import MaterialCoverage
 
-        course = make_course(slug='uw-coverage-report-course')
-        material = make_material(course, 'skrypt')
-        topic = make_topic(course)
+        branch = make_course(slug='uw-coverage-report-branch')
+        material = make_material(branch, 'skrypt')
+        topic = make_topic(branch)
         coverage = MaterialCoverage.objects.create(
             material=material, topic=topic, level=60, proposed_by=make_user('coverage-report-proposer')
         )
@@ -1055,9 +1055,9 @@ class MaterialCoverageCommentReportTests(APITestCase):
         from materials.models import MaterialCoverage
         from moderation.services import check_auto_hide
 
-        course = make_course(slug='uw-coverage-noautohide-course')
-        material = make_material(course, 'skrypt')
-        topic = make_topic(course)
+        branch = make_course(slug='uw-coverage-noautohide-branch')
+        material = make_material(branch, 'skrypt')
+        topic = make_topic(branch)
         coverage = MaterialCoverage.objects.create(
             material=material, topic=topic, level=60, proposed_by=make_user('noautohide-proposer')
         )
@@ -1083,8 +1083,8 @@ class MaterialCoverageCommentReportTests(APITestCase):
 class ReportActionViewTests(APITestCase):
     def setUp(self):
         self.moderator = make_user('report-mod', is_staff=True)
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
         _record_views(self.exercise, 10)
         for i in range(3):
             reporter = make_user(f'action-reporter{i}')
@@ -1149,11 +1149,11 @@ class ReportActionScopingTests(APITestCase):
     unscoped, which would have handed a course governor back every OTHER pending report on the
     platform the moment they resolved one of their own."""
 
-    def _hidden_exercise_in(self, course):
-        exercise = make_exercise(course, 1)
+    def _hidden_exercise_in(self, branch):
+        exercise = make_exercise(branch, 1)
         _record_views(exercise, 10)
         for i in range(3):
-            reporter = make_user(f'rep-scope-{course.slug}-{i}')
+            reporter = make_user(f'rep-scope-{branch.slug}-{i}')
             self.client.force_authenticate(reporter)
             _report(self.client, 'exercise', exercise.pk)
         exercise.refresh_from_db()
@@ -1161,10 +1161,10 @@ class ReportActionScopingTests(APITestCase):
         return exercise
 
     def test_a_course_governor_can_restore_an_auto_hidden_exercise_in_their_own_course(self):
-        course = make_course('report-scope-a')
-        exercise = self._hidden_exercise_in(course)
+        branch = make_course('report-scope-a')
+        exercise = self._hidden_exercise_in(branch)
         governor = make_user('report-scope-gov')
-        _grant(governor, 'course', course)
+        _grant(governor, 'branch', branch)
         self.client.force_authenticate(governor)
 
         response = self.client.post(
@@ -1185,7 +1185,7 @@ class ReportActionScopingTests(APITestCase):
         other_course = make_course('report-scope-c')
         exercise = self._hidden_exercise_in(other_course)
         governor = make_user('report-scope-gov2')
-        _grant(governor, 'course', governed_course)
+        _grant(governor, 'branch', governed_course)
         self.client.force_authenticate(governor)
 
         response = self.client.post(
@@ -1207,7 +1207,7 @@ class ReportActionScopingTests(APITestCase):
         own_exercise = self._hidden_exercise_in(governed_course)
         other_exercise = self._hidden_exercise_in(other_course)
         governor = make_user('report-scope-gov3')
-        _grant(governor, 'course', governed_course)
+        _grant(governor, 'branch', governed_course)
         self.client.force_authenticate(governor)
 
         response = self.client.post(
@@ -1233,8 +1233,8 @@ class ReportQueueTests(APITestCase):
     output shape, not just that it runs without error."""
 
     def test_reports_on_the_same_target_are_grouped_with_a_correct_count(self):
-        course = make_course()
-        exercise = make_exercise(course, 1)
+        branch = make_course()
+        exercise = make_exercise(branch, 1)
         _record_views(exercise, 10)
         for i in range(2):
             reporter = make_user(f'queue-reporter{i}')
@@ -1267,7 +1267,7 @@ class TagMaterialRequirementReportTests(APITestCase):
 
     def setUp(self):
         self.moderator = make_user('tmr-mod', is_staff=True)
-        self.course = make_course('tmr-course')
+        self.branch = make_course('tmr-branch')
 
     def _report_as_new_users(self, kind, object_id, prefix, count=1):
         for i in range(count):
@@ -1301,7 +1301,7 @@ class TagMaterialRequirementReportTests(APITestCase):
         self.assertFalse(Tag.objects.filter(pk=tag.pk, is_removed=False).exists())
 
     def test_reporting_a_material_queues_it_and_a_moderator_can_remove_and_restore_it(self):
-        material = make_material(self.course, 'tmr-material', title='Report Me')
+        material = make_material(self.branch, 'tmr-material', title='Report Me')
         self._report_as_new_users('material', material.pk, 'mat')
 
         self.client.force_authenticate(self.moderator)
@@ -1335,7 +1335,7 @@ class TagMaterialRequirementReportTests(APITestCase):
     def test_reporting_a_requirement_queues_it_and_a_moderator_can_remove_it(self):
         from materials.models import MaterialRequirement
 
-        material = make_material(self.course, 'tmr-material-2', title='Has A Requirement')
+        material = make_material(self.branch, 'tmr-material-2', title='Has A Requirement')
         requirement = MaterialRequirement.objects.create(material=material, label='basic algebra')
         self._report_as_new_users('requirement', requirement.pk, 'req')
 
@@ -1365,7 +1365,7 @@ class TagMaterialRequirementReportTests(APITestCase):
         self.assertNotIn('basic algebra', [r['label'] for r in detail.data['requirements']])
 
     def test_a_non_moderator_cannot_act_on_a_reported_material(self):
-        material = make_material(self.course, 'tmr-material-3')
+        material = make_material(self.branch, 'tmr-material-3')
         self._report_as_new_users('material', material.pk, 'mat3')
 
         self.client.force_authenticate(make_user('tmr-not-a-mod'))
@@ -1461,49 +1461,49 @@ def _grant(user, kind, node, granted_by=None):
 
 
 class NodeGovernorHelperTests(APITestCase):
-    """Direct tests of `is_governor_of_course`/`governed_course_ids` (moderation/services.py) — the
+    """Direct tests of `is_governor_of_course`/`governed_branch_ids` (moderation/services.py) — the
     "node governor" feature's own core scoping logic, exercised independently of any one HTTP view."""
 
     def setUp(self):
-        self.course_a1 = make_course('gov-helper-a1', field_slug='matematyka')
-        self.course_a2 = make_course('gov-helper-a2', field_slug='matematyka')
-        self.course_b1 = make_course('gov-helper-b1', field_slug='fizyka')
-        self.field_a = Field.objects.get(slug='matematyka')
+        self.course_a1 = make_course('gov-helper-a1', discipline_slug='matematyka')
+        self.course_a2 = make_course('gov-helper-a2', discipline_slug='matematyka')
+        self.course_b1 = make_course('gov-helper-b1', discipline_slug='fizyka')
+        self.field_a = Discipline.objects.get(slug='matematyka')
 
     def test_global_staff_governs_every_course_and_is_unscoped(self):
         staff = make_user('helper-staff', is_staff=True)
 
         self.assertTrue(is_governor_of_course(staff, self.course_a1))
         self.assertTrue(is_governor_of_course(staff, self.course_b1))
-        self.assertIsNone(governed_course_ids(staff))
+        self.assertIsNone(governed_branch_ids(staff))
 
     def test_a_course_level_grant_is_scoped_to_just_that_course(self):
-        governor = make_user('helper-course-gov')
-        _grant(governor, 'course', self.course_a1)
+        governor = make_user('helper-branch-gov')
+        _grant(governor, 'branch', self.course_a1)
 
         self.assertTrue(is_governor_of_course(governor, self.course_a1))
         self.assertFalse(is_governor_of_course(governor, self.course_a2))
         self.assertFalse(is_governor_of_course(governor, self.course_b1))
-        self.assertEqual(governed_course_ids(governor), {self.course_a1.pk})
+        self.assertEqual(governed_branch_ids(governor), {self.course_a1.pk})
 
     def test_a_field_level_grant_cascades_to_every_course_in_that_field(self):
         governor = make_user('helper-field-gov')
-        _grant(governor, 'field', self.field_a)
+        _grant(governor, 'discipline', self.field_a)
 
         self.assertTrue(is_governor_of_course(governor, self.course_a1))
         self.assertTrue(is_governor_of_course(governor, self.course_a2))
         self.assertFalse(is_governor_of_course(governor, self.course_b1))
-        self.assertEqual(governed_course_ids(governor), {self.course_a1.pk, self.course_a2.pk})
+        self.assertEqual(governed_branch_ids(governor), {self.course_a1.pk, self.course_a2.pk})
 
     def test_a_user_with_no_grants_governs_nothing(self):
         plain = make_user('helper-plain')
 
         self.assertFalse(is_governor_of_course(plain, self.course_a1))
-        self.assertEqual(governed_course_ids(plain), set())
+        self.assertEqual(governed_branch_ids(plain), set())
 
     def test_an_unresolvable_course_is_a_safe_default_deny_for_a_non_staff_user(self):
-        governor = make_user('helper-course-gov2')
-        _grant(governor, 'course', self.course_a1)
+        governor = make_user('helper-branch-gov2')
+        _grant(governor, 'branch', self.course_a1)
 
         self.assertFalse(is_governor_of_course(governor, None))
 
@@ -1514,23 +1514,23 @@ class ModerationActionScopingTests(APITestCase):
     course(s) must fail with a clean 403, never silently succeed."""
 
     def setUp(self):
-        self.course_a = make_course('scope-course-a', field_slug='matematyka')
-        self.course_b = make_course('scope-course-b', field_slug='matematyka')
-        self.other_field_course = make_course('scope-course-c', field_slug='fizyka')
-        self.field = Field.objects.get(slug='matematyka')
+        self.course_a = make_course('scope-branch-a', discipline_slug='matematyka')
+        self.course_b = make_course('scope-branch-b', discipline_slug='matematyka')
+        self.other_field_course = make_course('scope-branch-c', discipline_slug='fizyka')
+        self.field = Discipline.objects.get(slug='matematyka')
 
-    def _submission_for(self, course):
+    def _submission_for(self, branch):
         from moderation.models import ExerciseSubmission
 
         return ExerciseSubmission.objects.create(
-            course=course,
-            submitted_by=make_user(f'scope-student-{course.slug}'),
+            branch=branch,
+            submitted_by=make_user(f'scope-student-{branch.slug}'),
             payload={'difficulty': 'easy', 'locale': 'pl', 'title': 'T', 'statement': 'S'},
         )
 
     def test_course_governor_can_approve_a_submission_in_their_own_course(self):
-        governor = make_user('scope-course-gov')
-        _grant(governor, 'course', self.course_a)
+        governor = make_user('scope-branch-gov')
+        _grant(governor, 'branch', self.course_a)
         submission = self._submission_for(self.course_a)
         self.client.force_authenticate(governor)
 
@@ -1546,8 +1546,8 @@ class ModerationActionScopingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_course_governor_cannot_approve_a_submission_in_a_different_course(self):
-        governor = make_user('scope-course-gov2')
-        _grant(governor, 'course', self.course_a)
+        governor = make_user('scope-branch-gov2')
+        _grant(governor, 'branch', self.course_a)
         submission = self._submission_for(self.course_b)
         self.client.force_authenticate(governor)
 
@@ -1566,7 +1566,7 @@ class ModerationActionScopingTests(APITestCase):
 
     def test_field_governor_can_approve_items_in_any_course_under_their_field(self):
         governor = make_user('scope-field-gov')
-        _grant(governor, 'field', self.field)
+        _grant(governor, 'discipline', self.field)
         submission = self._submission_for(self.course_b)
         self.client.force_authenticate(governor)
 
@@ -1583,7 +1583,7 @@ class ModerationActionScopingTests(APITestCase):
 
     def test_field_governor_cannot_approve_items_outside_their_own_field(self):
         governor = make_user('scope-field-gov2')
-        _grant(governor, 'field', self.field)
+        _grant(governor, 'discipline', self.field)
         submission = self._submission_for(self.other_field_course)
         self.client.force_authenticate(governor)
 
@@ -1612,13 +1612,13 @@ class ModerationQueueScopingTests(APITestCase):
         course_a = make_course('queue-scope-a')
         course_b = make_course('queue-scope-b')
         sub_a = ExerciseSubmission.objects.create(
-            course=course_a, submitted_by=make_user('queue-s1'), payload={'title': 'A'}
+            branch=course_a, submitted_by=make_user('queue-s1'), payload={'title': 'A'}
         )
         ExerciseSubmission.objects.create(
-            course=course_b, submitted_by=make_user('queue-s2'), payload={'title': 'B'}
+            branch=course_b, submitted_by=make_user('queue-s2'), payload={'title': 'B'}
         )
         governor = make_user('queue-gov')
-        _grant(governor, 'course', course_a)
+        _grant(governor, 'branch', course_a)
         self.client.force_authenticate(governor)
 
         response = self.client.get(reverse('moderation-queue'))
@@ -1633,10 +1633,10 @@ class ModerationQueueScopingTests(APITestCase):
         course_a = make_course('queue-scope-c')
         course_b = make_course('queue-scope-d')
         sub_a = ExerciseSubmission.objects.create(
-            course=course_a, submitted_by=make_user('queue-s3'), payload={'title': 'A'}
+            branch=course_a, submitted_by=make_user('queue-s3'), payload={'title': 'A'}
         )
         sub_b = ExerciseSubmission.objects.create(
-            course=course_b, submitted_by=make_user('queue-s4'), payload={'title': 'B'}
+            branch=course_b, submitted_by=make_user('queue-s4'), payload={'title': 'B'}
         )
         self.client.force_authenticate(make_user('queue-staff', is_staff=True))
 
@@ -1652,9 +1652,9 @@ class IsModeratorGateTests(APITestCase):
     existed."""
 
     def test_a_node_governor_with_any_grant_can_reach_the_queue(self):
-        course = make_course('gate-course')
+        branch = make_course('gate-branch')
         governor = make_user('gate-gov')
-        _grant(governor, 'course', course)
+        _grant(governor, 'branch', branch)
         self.client.force_authenticate(governor)
 
         response = self.client.get(reverse('moderation-queue'))
@@ -1675,22 +1675,22 @@ class NodeGovernorGrantApiTests(APITestCase):
 
     def setUp(self):
         self.staff = make_user('grant-staff', is_staff=True)
-        self.course = make_course('grant-course')
+        self.branch = make_course('grant-branch')
 
     def test_staff_can_grant_a_course_level_governor(self):
-        target = make_user('future-course-gov')
+        target = make_user('future-branch-gov')
         self.client.force_authenticate(self.staff)
 
         response = self.client.post(
             reverse('node-governor-list'),
-            {'user': target.pk, 'kind': 'course', 'node_slug': self.course.slug},
+            {'user': target.pk, 'kind': 'branch', 'node_slug': self.branch.slug},
             format='json',
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(NodeGovernor.objects.filter(user=target).exists())
-        self.assertEqual(response.data['node_type'], 'course')
-        self.assertEqual(response.data['node_id'], self.course.slug)
+        self.assertEqual(response.data['node_type'], 'branch')
+        self.assertEqual(response.data['node_id'], self.branch.slug)
 
     def test_staff_can_grant_a_field_level_governor(self):
         target = make_user('future-field-gov')
@@ -1698,21 +1698,21 @@ class NodeGovernorGrantApiTests(APITestCase):
 
         response = self.client.post(
             reverse('node-governor-list'),
-            {'user': target.pk, 'kind': 'field', 'node_slug': 'matematyka'},
+            {'user': target.pk, 'kind': 'discipline', 'node_slug': 'matematyka'},
             format='json',
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['node_type'], 'field')
+        self.assertEqual(response.data['node_type'], 'discipline')
 
     def test_a_duplicate_grant_is_rejected(self):
         target = make_user('dup-gov')
-        _grant(target, 'course', self.course, granted_by=self.staff)
+        _grant(target, 'branch', self.branch, granted_by=self.staff)
         self.client.force_authenticate(self.staff)
 
         response = self.client.post(
             reverse('node-governor-list'),
-            {'user': target.pk, 'kind': 'course', 'node_slug': self.course.slug},
+            {'user': target.pk, 'kind': 'branch', 'node_slug': self.branch.slug},
             format='json',
         )
 
@@ -1725,7 +1725,7 @@ class NodeGovernorGrantApiTests(APITestCase):
 
         response = self.client.post(
             reverse('node-governor-list'),
-            {'user': target.pk, 'kind': 'course', 'node_slug': 'does-not-exist'},
+            {'user': target.pk, 'kind': 'branch', 'node_slug': 'does-not-exist'},
             format='json',
         )
 
@@ -1737,7 +1737,7 @@ class NodeGovernorGrantApiTests(APITestCase):
 
         response = self.client.post(
             reverse('node-governor-list'),
-            {'user': target.pk, 'kind': 'course', 'node_slug': self.course.slug},
+            {'user': target.pk, 'kind': 'branch', 'node_slug': self.branch.slug},
             format='json',
         )
 
@@ -1745,7 +1745,7 @@ class NodeGovernorGrantApiTests(APITestCase):
 
     def test_staff_can_revoke_a_grant(self):
         target = make_user('revoke-me')
-        grant = _grant(target, 'course', self.course, granted_by=self.staff)
+        grant = _grant(target, 'branch', self.branch, granted_by=self.staff)
         self.client.force_authenticate(self.staff)
 
         response = self.client.delete(reverse('node-governor-detail', kwargs={'pk': grant.pk}))
@@ -1756,8 +1756,8 @@ class NodeGovernorGrantApiTests(APITestCase):
     def test_non_staff_user_only_sees_their_own_grants_in_the_list(self):
         user_a = make_user('list-user-a')
         user_b = make_user('list-user-b')
-        _grant(user_a, 'course', self.course, granted_by=self.staff)
-        _grant(user_b, 'course', self.course, granted_by=self.staff)
+        _grant(user_a, 'branch', self.branch, granted_by=self.staff)
+        _grant(user_b, 'branch', self.branch, granted_by=self.staff)
         self.client.force_authenticate(user_a)
 
         response = self.client.get(reverse('node-governor-list'))
@@ -1768,8 +1768,8 @@ class NodeGovernorGrantApiTests(APITestCase):
     def test_staff_sees_every_grant_in_the_list(self):
         user_a = make_user('list-user-c')
         user_b = make_user('list-user-d')
-        _grant(user_a, 'course', self.course, granted_by=self.staff)
-        _grant(user_b, 'course', self.course, granted_by=self.staff)
+        _grant(user_a, 'branch', self.branch, granted_by=self.staff)
+        _grant(user_b, 'branch', self.branch, granted_by=self.staff)
         self.client.force_authenticate(self.staff)
 
         response = self.client.get(reverse('node-governor-list'))
@@ -1860,7 +1860,7 @@ class FeatureFlagTests(APITestCase):
 
     def test_exercise_submissions_flag_off_blocks_non_staff(self):
         FeatureFlag.objects.filter(key='exercise_submissions').update(is_enabled=False)
-        course = make_course(slug='uw-flag-am2')
+        branch = make_course(slug='uw-flag-am2')
         self.client.force_authenticate(self.plain_user)
 
         response = self.client.get(reverse('exercise-submission-list'))

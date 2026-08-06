@@ -92,7 +92,7 @@ class ExerciseListSerializer(serializers.ModelSerializer):
 
     title = serializers.SerializerMethodField()
     resolved_locale = serializers.SerializerMethodField()
-    course_slug = serializers.SlugRelatedField(source='course', slug_field='slug', read_only=True)
+    course_slug = serializers.SlugRelatedField(source='branch', slug_field='slug', read_only=True)
     topics = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     # A plain SerializerMethodField, not a SlugRelatedField — a moderator-removed Tag
     # (`Tag.is_removed`, added alongside the tag/material/"skill tag" reporting feature) needs
@@ -109,7 +109,7 @@ class ExerciseListSerializer(serializers.ModelSerializer):
         model = Exercise
         fields = [
             'id',
-            'course',
+            'branch',
             'course_slug',
             'number',
             'topics',

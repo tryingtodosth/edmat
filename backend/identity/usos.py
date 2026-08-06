@@ -343,7 +343,7 @@ def integration_state(school: School | None = None) -> dict:
             'identity claim, not evidence of judgement (§2b).',
             'Vote weight: none until reputation is actually earned (§2c).',
             'Optionally, and only if asked for separately: a diploma and a transcript, which map '
-            'onto real courses on this site.',
+            'onto real branches on this site.',
         ],
     }
 

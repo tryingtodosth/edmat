@@ -14,7 +14,7 @@ from django.db import models
 from exercises.models import Exercise
 from materials.models import CURRENCY_CHOICES
 from materials.validators import validate_material_submission_file
-from taxonomy.models import Course, Field
+from taxonomy.models import Branch, Discipline
 
 REVIEW_STATUS_CHOICES = [
     ('pending', 'Pending'),
@@ -24,7 +24,7 @@ REVIEW_STATUS_CHOICES = [
 
 
 class ExerciseSubmission(models.Model):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     payload = models.JSONField()  # draft of everything Exercise + ExerciseTranslation would need
     status = models.CharField(max_length=10, choices=REVIEW_STATUS_CHOICES, default='pending')
@@ -106,7 +106,7 @@ class MaterialSubmission(models.Model):
         ('flagged', 'Scanned — flagged'),
     ]
 
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     type = models.CharField(max_length=20)  # materials.models.MATERIAL_TYPE_CHOICES values
     title = models.CharField(max_length=300)
@@ -242,12 +242,12 @@ class ContentView(models.Model):
         return f'{self.user} viewed {self.exercise}'
 
 
-# The "node governor" concept: a moderator scoped to ONE taxonomy node (a Field or a Course),
+# The "node governor" concept: a moderator scoped to ONE taxonomy node (a Discipline or a Branch),
 # distinct from Django's own `is_staff` (a GLOBAL moderator — unchanged, still checked first
-# everywhere this matters, see moderation/services.py's `is_governor_of_course`). A Field-level
-# grant cascades down to every Course under it (a field coordinator governs everything in their
-# field); a Course-level grant is scoped to just that one course (a single course's own TA/rep).
-# Generic FK to Field/Course rather than two separate models — the two node kinds share every real
+# everywhere this matters, see moderation/services.py's `is_governor_of_course`). A Discipline-level
+# grant cascades down to every Branch under it (a field coordinator governs everything in their
+# field); a Branch-level grant is scoped to just that one course (a single course's own TA/rep).
+# Generic FK to Discipline/Branch rather than two separate models — the two node kinds share every real
 # behavior here (who's granted, by whom, when), so a discriminated pair would just be the same row
 # shape twice; GENERIC_NODE_MODELS (services.py) is the one place `kind` <-> model is defined,
 # mirroring moderation/services.py's own REPORT_KIND_MODELS precedent exactly.
@@ -274,7 +274,7 @@ class NodeGovernor(models.Model):
 # The one place `kind` <-> model is defined for node governance — moderation/serializers.py's
 # NodeGovernorSerializer (validating a grant/list request) imports this rather than keeping its own
 # copy, the same discipline REPORT_KIND_MODELS already establishes for the reporting system.
-GOVERNABLE_NODE_MODELS = {'field': Field, 'course': Course}
+GOVERNABLE_NODE_MODELS = {'discipline': Discipline, 'branch': Branch}
 
 
 # A fixed, curated set — not user-creatable, matching this codebase's own "curated choices=, not

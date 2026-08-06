@@ -23,9 +23,9 @@ class ExerciseSet(models.Model):
     name = models.CharField(max_length=100)
     exercises = models.ManyToManyField(Exercise, through='ExerciseSetItem')
     # The external identifier this whole API resolves a set BY (ExerciseSetViewSet.lookup_field) —
-    # matching the exact same "id IS the slug" convention Field/Course already use, rather than a
+    # matching the exact same "id IS the slug" convention Discipline/Branch already use, rather than a
     # numeric-pk/slug split invented just for this one model. Auto-generated, never user-editable —
-    # a set has no real reason to want a vanity URL the way a Course does.
+    # a set has no real reason to want a vanity URL the way a Branch does.
     slug = models.SlugField(max_length=16, unique=True, default=_generate_set_slug, editable=False)
     # Privacy — new sets are PRIVATE by default (a deliberate opt-IN model): the owner has to
     # actively decide to share before a stranger holding the link can open it at all. Toggling this

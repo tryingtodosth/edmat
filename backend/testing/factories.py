@@ -4,13 +4,13 @@ before this). Deliberately plain functions, not a factory_boy/model_bakery depen
 has treated every runtime dependency as a real, flagged decision (frontend's own d3-force/fuse.js
 notes), and these fixtures are simple enough (a handful of model fields, no complex relationships)
 that a small shared module of plain functions covers it without adding a new package. Every app's own
-`tests.py` imports from here rather than each re-deriving its own Field/Course/Exercise boilerplate.
+`tests.py` imports from here rather than each re-deriving its own Discipline/Branch/Exercise boilerplate.
 """
 
 from django.contrib.auth import get_user_model
 
 from exercises.models import Exercise, ExerciseTranslation
-from taxonomy.models import Course, CourseTranslation, Field, FieldTranslation, Topic
+from taxonomy.models import Branch, BranchTranslation, Discipline, DisciplineTranslation, Topic
 
 User = get_user_model()
 
@@ -34,27 +34,33 @@ def make_viewer(username):
     return User.objects.create(username=username)
 
 
-def make_course(slug='uw-test-course', field_slug='matematyka'):
-    field, _ = Field.objects.get_or_create(slug=field_slug)
-    FieldTranslation.objects.get_or_create(field=field, locale='pl', defaults={'name': field_slug})
-    course, _ = Course.objects.get_or_create(
-        slug=slug, defaults={'field': field, 'university': 'Test University'}
+def make_branch(slug='test-branch', discipline_slug='matematyka'):
+    discipline, _ = Discipline.objects.get_or_create(slug=discipline_slug)
+    DisciplineTranslation.objects.get_or_create(
+        discipline=discipline, locale='pl', defaults={'name': discipline_slug}
     )
-    CourseTranslation.objects.get_or_create(course=course, locale='pl', defaults={'name': slug})
-    return course
+    branch, _ = Branch.objects.get_or_create(slug=slug, defaults={'discipline': discipline})
+    BranchTranslation.objects.get_or_create(branch=branch, locale='pl', defaults={'name': slug})
+    return branch
 
 
-def make_topic(course, slug='test-topic'):
-    topic, _ = Topic.objects.get_or_create(course=course, slug=slug)
+#: The old name, kept as an alias so the ~40 call sites across eight apps' tests keep working. A
+#: branch is what they always actually wanted — none of them cared about the `university` this used
+#: to set.
+make_course = make_branch
+
+
+def make_topic(branch, slug='test-topic'):
+    topic, _ = Topic.objects.get_or_create(branch=branch, slug=slug)
     return topic
 
 
-def make_exercise(course, number, *, difficulty='medium', locale='pl', title=None, statement=None):
+def make_exercise(branch, number, *, difficulty='medium', locale='pl', title=None, statement=None):
     """Builds a real Exercise + its one 'published' ExerciseTranslation for the original locale —
     the same structural/translation split every real exercise in this app already follows
     (CLAUDE.md Section 9), not a shortcut fixture shape that skips it."""
     exercise = Exercise.objects.create(
-        course=course, number=number, difficulty=difficulty, original_locale=locale
+        branch=branch, number=number, difficulty=difficulty, original_locale=locale
     )
     ExerciseTranslation.objects.create(
         exercise=exercise,
@@ -66,14 +72,14 @@ def make_exercise(course, number, *, difficulty='medium', locale='pl', title=Non
     return exercise
 
 
-def make_material(course, slug='test-material', *, type='script', locale='pl', title=None, description=''):
+def make_material(branch, slug='test-material', *, type='script', locale='pl', title=None, description=''):
     """`Material.file` just needs SOME stored path for tests — `FileField.url` builds a URL from
     `MEDIA_URL` + the stored name without ever checking the file exists on disk, and nothing in
     this suite downloads the actual bytes, so a bare string name (no real upload) is honest and
     sufficient here."""
     from materials.models import Material, MaterialTranslation
 
-    material = Material.objects.create(course=course, slug=slug, type=type, file=f'materials/{slug}.pdf')
+    material = Material.objects.create(branch=branch, slug=slug, type=type, file=f'materials/{slug}.pdf')
     MaterialTranslation.objects.create(
         material=material, locale=locale, title=title or slug, description=description
     )

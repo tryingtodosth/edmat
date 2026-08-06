@@ -12,9 +12,9 @@ from testing.factories import make_course, make_exercise, make_user
 
 class ExerciseSetCreationTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
-        self.exercise_a = make_exercise(self.course, 1)
-        self.exercise_b = make_exercise(self.course, 2)
+        self.branch = make_course()
+        self.exercise_a = make_exercise(self.branch, 1)
+        self.exercise_b = make_exercise(self.branch, 2)
         self.user = make_user('set-owner')
         self.client.force_authenticate(self.user)
 
@@ -87,8 +87,8 @@ class ExerciseSetCreationTests(APITestCase):
 
 class ExerciseSetOwnershipTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
-        self.exercises = [make_exercise(self.course, n) for n in range(1, 4)]
+        self.branch = make_course()
+        self.exercises = [make_exercise(self.branch, n) for n in range(1, 4)]
         self.owner = make_user('owner')
         self.other_user = make_user('someone-else')
         self.my_set = ExerciseSet.objects.create(owner=self.owner, name='My exam prep')
@@ -139,8 +139,8 @@ class ExerciseSetSharingTests(APITestCase):
     that no revoke mechanism existed."""
 
     def setUp(self):
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
         self.owner = make_user('sharer')
         self.owner.profile.display_name = 'Kasia Wiśniewska'
         self.owner.profile.save(update_fields=['display_name'])

@@ -16,8 +16,8 @@ class ExerciseSourceInline(admin.StackedInline):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    list_display = ['__str__', 'course', 'number', 'difficulty', 'published', 'verified', 'original_locale']
-    list_filter = ['course', 'difficulty', 'published', 'verified']
+    list_display = ['__str__', 'branch', 'number', 'difficulty', 'published', 'verified', 'original_locale']
+    list_filter = ['branch', 'difficulty', 'published', 'verified']
     search_fields = ['number']
     filter_horizontal = ['topics', 'tags']
     inlines = [ExerciseSourceInline, ExerciseTranslationInline]

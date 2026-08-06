@@ -15,7 +15,7 @@ from rest_framework.test import APIClient
 
 from materials.models import Material, MaterialTranslation
 from notifications.models import Notification
-from taxonomy.models import Course as Subject, Field
+from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
 
 from .models import (
@@ -39,8 +39,8 @@ class ApiTestCase(TestCase):
         self.instructor = User.objects.create_user('kasia', 'kasia@x.example', 'pw12345!')
         self.student = User.objects.create_user('michal', 'michal@x.example', 'pw12345!')
         self.other = User.objects.create_user('ola', 'ola@x.example', 'pw12345!')
-        self.field = Field.objects.create(slug='matematyka')
-        self.subject = Subject.objects.create(slug='analiza-2', field=self.field, university='UW')
+        self.field = Discipline.objects.create(slug='matematyka')
+        self.subject = Branch.objects.create(slug='analiza-2', discipline=self.field)
         self.client = APIClient()
 
     def as_(self, user):
@@ -54,7 +54,7 @@ class ApiTestCase(TestCase):
         `Material` has no `title` column — titles are per-locale rows, which is why every material
         response resolves one rather than reading a field.
         """
-        material = Material.objects.create(course=self.subject, slug=slug, type='script')
+        material = Material.objects.create(branch=self.subject, slug=slug, type='script')
         MaterialTranslation.objects.create(material=material, locale='pl', title=title)
         return material
 
@@ -1192,7 +1192,7 @@ class CourseUploadQuotaTests(ApiTestCase):
         """
         from django.core.files.base import ContentFile
 
-        material = Material.objects.create(course=self.subject, slug=slug, type='script')
+        material = Material.objects.create(branch=self.subject, slug=slug, type='script')
         material.file.save(f'{slug}.pdf', ContentFile(b'x' * size), save=True)
         MaterialTranslation.objects.create(material=material, locale='pl', title=slug)
         return material

@@ -17,19 +17,19 @@ from testing.factories import make_course, make_exercise, make_user
 
 class ExerciseListingTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
-        self.easy = make_exercise(self.course, 1, difficulty='easy')
-        self.hard = make_exercise(self.course, 2, difficulty='hard')
+        self.branch = make_course()
+        self.easy = make_exercise(self.branch, 1, difficulty='easy')
+        self.hard = make_exercise(self.branch, 2, difficulty='hard')
 
     def test_course_exercises_lists_both(self):
-        response = self.client.get(reverse('course-exercises', kwargs={'slug': self.course.slug}))
+        response = self.client.get(reverse('branch-exercises', kwargs={'slug': self.branch.slug}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         ids = {row['id'] for row in response.data}
         self.assertEqual(ids, {self.easy.pk, self.hard.pk})
 
     def test_course_exercises_filters_by_difficulty(self):
         response = self.client.get(
-            reverse('course-exercises', kwargs={'slug': self.course.slug}), {'difficulty': 'hard'}
+            reverse('branch-exercises', kwargs={'slug': self.branch.slug}), {'difficulty': 'hard'}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         ids = {row['id'] for row in response.data}
@@ -42,12 +42,12 @@ class ExerciseSubmittedByFilterTests(APITestCase):
     exercise submissions — `?submitted_by=<id>` on the plain exercise list endpoint."""
 
     def setUp(self):
-        self.course = make_course()
+        self.branch = make_course()
         self.author = make_user('u-contributor')
-        self.mine = make_exercise(self.course, 1, title='Mine')
+        self.mine = make_exercise(self.branch, 1, title='Mine')
         self.mine.submitted_by = self.author
         self.mine.save(update_fields=['submitted_by'])
-        self.someone_elses = make_exercise(self.course, 2, title='Not mine')
+        self.someone_elses = make_exercise(self.branch, 2, title='Not mine')
 
     def test_filters_to_only_that_users_submissions(self):
         response = self.client.get(reverse('exercise-list'), {'submitted_by': self.author.pk})
@@ -69,8 +69,8 @@ class ExerciseLocaleResolutionTests(APITestCase):
     none exists yet for the one they asked for."""
 
     def setUp(self):
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1, locale='pl', title='Polska wersja')
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1, locale='pl', title='Polska wersja')
 
     def test_lang_param_resolves_to_a_real_translation_when_one_exists(self):
         ExerciseTranslation.objects.create(
@@ -101,8 +101,8 @@ class ExerciseLocaleResolutionTests(APITestCase):
 
 class ExerciseTranslationSubmissionTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
 
     def test_authenticated_user_can_submit_a_translation(self):
         self.client.force_authenticate(make_user('translator'))
@@ -136,9 +136,9 @@ class ExerciseBulkEndpointTests(APITestCase):
     Fixed by caching on the per-row object instead; this test locks that fix in place."""
 
     def test_each_exercise_in_a_bulk_response_keeps_its_own_distinct_content(self):
-        course = make_course()
+        branch = make_course()
         exercises = [
-            make_exercise(course, n, title=f'Title {n}', statement=f'Statement {n}.')
+            make_exercise(branch, n, title=f'Title {n}', statement=f'Statement {n}.')
             for n in range(1, 6)
         ]
 
@@ -165,8 +165,8 @@ class ContentSanitizationTests(APITestCase):
     exercise that fix through the real model save path, not the sanitizer function in isolation."""
 
     def setUp(self):
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
 
     def _translate(self, **fields):
         defaults = {'locale': 'en', 'status': 'published', 'title': 't', 'statement': 's'}

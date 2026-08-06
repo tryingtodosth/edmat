@@ -28,7 +28,7 @@ class MaterialRequirementInline(admin.TabularInline):
 class MaterialAdmin(admin.ModelAdmin):
     list_display = [
         'slug',
-        'course',
+        'branch',
         'type',
         'author',
         'published',
@@ -36,7 +36,7 @@ class MaterialAdmin(admin.ModelAdmin):
         'price_amount',
         'estimated_minutes',
     ]
-    list_filter = ['course', 'type', 'published', 'featured']
+    list_filter = ['branch', 'type', 'published', 'featured']
     filter_horizontal = ['tags']
     inlines = [MaterialTranslationInline, MaterialCoverageInline, MaterialRequirementInline]
 
@@ -44,7 +44,7 @@ class MaterialAdmin(admin.ModelAdmin):
 @admin.register(MaterialCoverage)
 class MaterialCoverageAdmin(admin.ModelAdmin):
     list_display = ['material', 'topic', 'subtopic', 'level', 'proposed_by', 'created_at']
-    list_filter = ['topic__course']
+    list_filter = ['topic__branch']
 
 
 @admin.register(MaterialCoverageVote)

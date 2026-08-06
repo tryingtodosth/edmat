@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
 from materials.services import clean_requirement_labels, find_duplicate_requirement_label
-from taxonomy.models import Course
+from taxonomy.models import Branch
 
 from .models import (
     GOVERNABLE_NODE_MODELS,
@@ -22,16 +22,16 @@ _REVERSE_GOVERNABLE_NODE_MODELS = {model: kind for kind, model in GOVERNABLE_NOD
 
 
 class ExerciseSubmissionSerializer(serializers.ModelSerializer):
-    # By slug, not PK — every other course reference on the frontend (Course.id, ExerciseListSerializer's
+    # By slug, not PK — every other course reference on the frontend (Branch.id, ExerciseListSerializer's
     # own course_slug) already uses the slug as the id it round-trips, so submitting/reading a
     # submission's own `course` this way needs no separate slug<->PK lookup on the frontend side.
-    course = serializers.SlugRelatedField(slug_field='slug', queryset=Course.objects.all())
+    branch = serializers.SlugRelatedField(slug_field='slug', queryset=Branch.objects.all())
 
     class Meta:
         model = ExerciseSubmission
         fields = [
             'id',
-            'course',
+            'branch',
             'submitted_by',
             'payload',
             'status',
@@ -104,7 +104,7 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
     than silently storing the raw string as a single-element requirement.
     """
 
-    course = serializers.SlugRelatedField(slug_field='slug', queryset=Course.objects.all())
+    branch = serializers.SlugRelatedField(slug_field='slug', queryset=Branch.objects.all())
     requirements = serializers.JSONField(required=False, default=list)
     coverage = serializers.JSONField(required=False, default=list)
 
@@ -112,7 +112,7 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
         model = MaterialSubmission
         fields = [
             'id',
-            'course',
+            'branch',
             'submitted_by',
             'type',
             'title',
@@ -201,13 +201,13 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         coverage = attrs.get('coverage')
-        course = attrs.get('course')
-        if coverage and course is not None:
-            valid_topic_ids = set(course.topics.values_list('id', flat=True))
+        branch = attrs.get('branch')
+        if coverage and branch is not None:
+            valid_topic_ids = set(branch.topics.values_list('id', flat=True))
             for entry in coverage:
                 if entry['topic_id'] not in valid_topic_ids:
                     raise serializers.ValidationError(
-                        {'coverage': [f'Topic {entry["topic_id"]} is not one of this course\'s own topics.']}
+                        {'coverage': [f'Topic {entry["topic_id"]} is not one of this branch\'s own topics.']}
                     )
         return attrs
 
@@ -253,12 +253,12 @@ class ReportCreateSerializer(serializers.ModelSerializer):
 
 
 class NodeGovernorSerializer(serializers.ModelSerializer):
-    """The "node governor" feature's own grant/list serializer — `kind` + `node_slug` (a Field/Course
-    slug, matching every other Field/Course reference in this API, e.g.
+    """The "node governor" feature's own grant/list serializer — `kind` + `node_slug` (a Discipline/Branch
+    slug, matching every other Discipline/Branch reference in this API, e.g.
     ExerciseSubmissionSerializer.course above — the frontend never deals with a raw numeric PK for
     either of those two types) resolve to the real GenericForeignKey target, mirroring
     ReportCreateSerializer's own `kind`/`object_id` write-only pattern one level up (a slug, not a
-    bare int, since Field/Course are the one pair of models this whole API already treats that way).
+    bare int, since Discipline/Branch are the one pair of models this whole API already treats that way).
     `user` stays a plain PK — User genuinely is one of the "opaque numeric id" types everywhere else
     in this app (Review.author, Comment.author, ...), so no special-casing needed there.
     """
