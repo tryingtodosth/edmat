@@ -1,7 +1,7 @@
 <script lang="ts">
 	// "Add certain tutor offers to a watchlist to compare listings" — the comparison view itself.
 	// A plain grid of ServiceCard, same as the browse page's own grid, reused directly rather than
-	// a bespoke side-by-side comparison table: every field worth comparing (rate, courses, rating)
+	// a bespoke side-by-side comparison table: every field worth comparing (rate, branches, rating)
 	// already renders on the card, and this app has no precedent anywhere for a dedicated
 	// column-per-listing comparison table to match instead.
 	import { resolve } from '$app/paths';
@@ -9,7 +9,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { getWatchlist, unwatchService } from '$lib/services/tutoring';
-	import { getCourseById } from '$lib/services/taxonomy';
+	import { getBranchById } from '$lib/services/taxonomy';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 
 	let watches = $state<ServiceWatch[]>([]);
@@ -21,8 +21,8 @@
 		watches = await getWatchlist();
 		const entries = await Promise.all(
 			watches.map(async (w) => {
-				const courses = await Promise.all(w.service.courseIds.map((id) => getCourseById(id)));
-				return [w.service.id, courses.filter((c) => c !== undefined).map((c) => c!.name)] as const;
+				const branches = await Promise.all(w.service.branchIds.map((id) => getBranchById(id)));
+				return [w.service.id, branches.filter((c) => c !== undefined).map((c) => c!.name)] as const;
 			})
 		);
 		courseNamesByServiceId = Object.fromEntries(entries);
@@ -67,7 +67,7 @@
 				<div class="watch-item">
 					<ServiceCard
 						service={watch.service}
-						courseNames={courseNamesByServiceId[watch.service.id] ?? []}
+						branchNames={courseNamesByServiceId[watch.service.id] ?? []}
 					/>
 					<button type="button" class="remove" onclick={() => handleRemove(watch.id)}>
 						{m.services_removeFromWatchlist()}

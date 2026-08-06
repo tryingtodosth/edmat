@@ -27,7 +27,7 @@
 	let timeFormat = $state<'24h' | '12h'>('24h');
 	let weekStartsOn = $state<'monday' | 'sunday'>('monday');
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
-	// signal distinct from a real, course-scoped services.Service listing (see accounts/models.py's
+	// signal distinct from a real, branch-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
 	let offersTutoring = $state(false);
 	let tutoringNote = $state('');
@@ -355,8 +355,8 @@
 						{/each}
 					</ul>
 				{/if}
-				<!-- Events get their own coarse category rather than sharing the courses one: the two are
-				     different things to the person reading the label, and somebody who runs no courses but
+				<!-- Events get their own coarse category rather than sharing the branches one: the two are
+				     different things to the person reading the label, and somebody who runs no branches but
 				     goes to talks should not have to guess which switch theirs is under. -->
 				<label class="checkbox">
 					<input type="checkbox" bind:checked={notifyOnEvent} />

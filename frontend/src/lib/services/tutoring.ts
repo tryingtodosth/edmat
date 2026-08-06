@@ -30,7 +30,7 @@ function draftToBody(draft: ServiceDraft): Record<string, unknown> {
 	return {
 		title: draft.title,
 		description: draft.description,
-		course_slugs: draft.courseIds,
+		branch_slugs: draft.branchIds,
 		hourly_rate: trimmedRate ? trimmedRate : null,
 		currency: draft.currency,
 		is_active: draft.isActive,
@@ -50,15 +50,15 @@ function draftToBody(draft: ServiceDraft): Record<string, unknown> {
 	};
 }
 
-/** The public browse page (`?course=` narrows to one course's own listings, matching the exact
- * "course-scoped discovery" reasoning `ServiceViewSet`'s own doc comment gives). Only ever returns
+/** The public browse page (`?branch=` narrows to one branch's own listings, matching the exact
+ * "branch-scoped discovery" reasoning `ServiceViewSet`'s own doc comment gives). Only ever returns
  * `is_active` listings — a paused one only shows up via `getMyServices` below. */
 export async function getServices(
-	courseId?: string,
+	branchId?: string,
 	filters: ServiceBrowseFilters = {}
 ): Promise<Service[]> {
 	const search = new URLSearchParams();
-	if (courseId) search.set('course', courseId);
+	if (branchId) search.set('branch', branchId);
 	if (filters.deliveryMode) {
 		search.set('delivery_mode', FRONTEND_TO_BACKEND_DELIVERY_MODE[filters.deliveryMode]);
 	}
@@ -90,8 +90,8 @@ export async function getServicesByProvider(userId: string): Promise<Service[]> 
 	return raw.map(mapService);
 }
 
-// Thrown specifically for an unknown course slug (services/serializers.py's own
-// `validate_course_slugs`) — a distinct, named error so a caller can show a real, specific message
+// Thrown specifically for an unknown branch slug (services/serializers.py's own
+// `validate_branch_slugs`) — a distinct, named error so a caller can show a real, specific message
 // rather than the generic one every other failure gets.
 export class UnknownCourseError extends Error {}
 
@@ -101,7 +101,7 @@ export async function createService(draft: ServiceDraft): Promise<Service> {
 		return mapService(raw);
 	} catch (e) {
 		if (e instanceof ApiError && e.status === 400 && e.body && typeof e.body === 'object') {
-			if ('course_slugs' in (e.body as Record<string, unknown>)) {
+			if ('branch_slugs' in (e.body as Record<string, unknown>)) {
 				throw new UnknownCourseError(e.message);
 			}
 		}

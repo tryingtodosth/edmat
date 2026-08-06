@@ -8,7 +8,7 @@ import {
 	type RawExerciseDetail,
 	type RawExerciseRequirement
 } from '$lib/api/mappers';
-import { getTopicsForCourse } from './taxonomy';
+import { getTopicsForBranch } from './taxonomy';
 
 export interface ExerciseFilters {
 	topicId?: string;
@@ -26,25 +26,25 @@ function toQueryString(params: Record<string, string | undefined>): string {
 	return s ? `?${s}` : '';
 }
 
-/** Topic filtering is always course-scoped in this app (every real call site passes both a course
- * and, optionally, a topic within it) — the backend's own Topic model is course-scoped too
+/** Topic filtering is always branch-scoped in this app (every real call site passes both a branch
+ * and, optionally, a topic within it) — the backend's own Topic model is branch-scoped too
  * (CLAUDE.md Section 9), so `topicId` here is the topic's own numeric-PK-as-string id, never the
- * bare slug (which isn't guaranteed globally unique across courses) — see lib/api/mappers.ts's own
+ * bare slug (which isn't guaranteed globally unique across branches) — see lib/api/mappers.ts's own
  * id-format note. The backend's `?topic=` filter reads a slug, not a pk, so this resolves the id
  * back to its slug first via a lightweight lookup rather than changing the backend's own filter
- * shape (which is also used, unprefixed, by the Random Exercise picker's course-scoped topic
+ * shape (which is also used, unprefixed, by the Random Exercise picker's branch-scoped topic
  * select, RandomExerciseButton.svelte — a slug-based filter is the one shape both callers share). */
-async function topicIdToSlug(courseId: string, topicId: string): Promise<string | undefined> {
-	const topics = await getTopicsForCourse(courseId);
+async function topicIdToSlug(branchId: string, topicId: string): Promise<string | undefined> {
+	const topics = await getTopicsForBranch(branchId);
 	return topics.find((t) => t.id === topicId)?.slug;
 }
 
-export async function getExercisesForCourse(
-	courseId: string,
+export async function getExercisesForBranch(
+	branchId: string,
 	locale: string,
 	filters: ExerciseFilters = {}
 ): Promise<ResolvedExercise[]> {
-	const topicSlug = filters.topicId ? await topicIdToSlug(courseId, filters.topicId) : undefined;
+	const topicSlug = filters.topicId ? await topicIdToSlug(branchId, filters.topicId) : undefined;
 	const qs = toQueryString({
 		difficulty: filters.difficulty,
 		source_type: filters.sourceType,
@@ -53,7 +53,7 @@ export async function getExercisesForCourse(
 		lang: locale
 	});
 	const raw = await apiClient.get<RawExerciseCommon[]>(
-		`/courses/${encodeURIComponent(courseId)}/exercises/${qs}`
+		`/branches/${encodeURIComponent(branchId)}/exercises/${qs}`
 	);
 	return raw.map(mapResolvedExerciseList);
 }
@@ -119,9 +119,9 @@ export async function getRecentExercises(locale: string, limit = 6): Promise<Res
 	return raw.map(mapResolvedExerciseList);
 }
 
-/** Every exercise id carrying a given tag, across every course — the tag-hover menu's own "Save
- * for later" action (TagChip.svelte) needs a course-agnostic id list to bulk-add, unlike every
- * other exercise-listing call in this file, which is deliberately course-scoped. */
+/** Every exercise id carrying a given tag, across every branch — the tag-hover menu's own "Save
+ * for later" action (TagChip.svelte) needs a branch-agnostic id list to bulk-add, unlike every
+ * other exercise-listing call in this file, which is deliberately branch-scoped. */
 export async function getExerciseIdsForTag(tagSlug: string): Promise<string[]> {
 	const raw = await apiClient.get<{ id: number }[]>(
 		`/exercises/${toQueryString({ tag: tagSlug })}`
@@ -129,9 +129,9 @@ export async function getExerciseIdsForTag(tagSlug: string): Promise<string[]> {
 	return raw.map((e) => String(e.id));
 }
 
-/** Course-agnostic text search — the tag-hover menu's own "add to different content" picker
+/** Branch-agnostic text search — the tag-hover menu's own "add to different content" picker
  * (TagChip.svelte/AddTagToContentModal.svelte) needs to find an exercise by name without knowing
- * which course it belongs to first, unlike `getExercisesForCourse`'s own always-course-scoped
+ * which branch it belongs to first, unlike `getExercisesForBranch`'s own always-branch-scoped
  * `filters.query`. */
 export async function searchExercises(
 	query: string,
@@ -156,8 +156,8 @@ export async function getAllTags(): Promise<string[]> {
  * "give me a random exercise like ___" filters, so they're left out on purpose, not overlooked).
  */
 export interface RandomExerciseFilters {
-	fieldId?: string;
-	courseId?: string;
+	disciplineId?: string;
+	branchId?: string;
 	topicId?: string;
 	difficulty?: Difficulty;
 	sourceType?: SourceType;
@@ -192,10 +192,10 @@ export async function getRandomExercise(
 	topicAffinity: Record<string, number>
 ): Promise<ResolvedExercise | undefined> {
 	const qs = toQueryString({
-		field: filters.fieldId,
-		course: filters.courseId,
+		discipline: filters.disciplineId,
+		branch: filters.branchId,
 		topic: filters.topicId
-			? await topicIdToSlug(filters.courseId ?? '', filters.topicId)
+			? await topicIdToSlug(filters.branchId ?? '', filters.topicId)
 			: undefined,
 		difficulty: filters.difficulty,
 		source_type: filters.sourceType,

@@ -2,7 +2,7 @@
 	// **Rebuilt from a flat row of ten links into three groups, and again for phones.**
 	//
 	// The bar had grown one link per feature — browse, materials, my set, submit exercise, submit
-	// material, courses, tutoring, watchlist, schedule, messages, moderation — every one competing for
+	// material, branches, tutoring, watchlist, schedule, messages, moderation — every one competing for
 	// the same attention and wrapping onto a second line before a laptop was even narrow. The rebuild
 	// removes nothing; it sorts what was there by what each link is FOR:
 	//
@@ -226,10 +226,10 @@
 <!-- Item lists as snippets, rendered by BOTH the desktop popovers and the mobile drawer, so a
      feature flag cannot hide an entry in one surface and leave it in the other. -->
 {#snippet browseLinks(onclick: () => void)}
-	<a href={resolve('/fields')} {onclick}>{m.nav_browse()}</a>
+	<a href={resolve('/disciplines')} {onclick}>{m.nav_browse()}</a>
 	<a href={resolve('/materials')} {onclick}>{m.nav_materials()}</a>
 	{#if canClassroom}
-		<a href={resolve('/classroom')} {onclick}>{m.nav_classroom()}</a>
+		<a href={resolve('/courses')} {onclick}>{m.nav_classroom()}</a>
 	{/if}
 	{#if canEvents}
 		<a href={resolve('/events')} {onclick}>{m.nav_events()}</a>
@@ -268,7 +268,7 @@
 		</a>
 	{/if}
 	{#if canClassroom}
-		<a role="menuitem" class={itemClass} href={resolve('/classroom/new')} {onclick}>
+		<a role="menuitem" class={itemClass} href={resolve('/courses/new')} {onclick}>
 			{m.nav_add_course()}
 		</a>
 	{/if}

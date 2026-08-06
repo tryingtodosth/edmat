@@ -116,7 +116,7 @@ def resolved_title(material, locale: str) -> str:
 
 
 def _materials_queryset():
-    return Material.objects.filter(published=True).select_related('course').prefetch_related(
+    return Material.objects.filter(published=True).select_related('branch').prefetch_related(
         'translations',
         'coverage__votes__voter__profile',
         'coverage__topic',
@@ -125,7 +125,7 @@ def _materials_queryset():
     )
 
 
-def get_active_course_ids(user) -> set[int]:
+def get_active_branch_ids(user) -> set[int]:
     """Real signals, not an invented "my courses" declaration (the brief left that as an OPTIONAL
     addition, not a requirement — not built, see this feature's own "Left open" list): which
     courses has this user actually engaged with, inferred from (a) exercises they've viewed
@@ -149,28 +149,28 @@ def get_active_course_ids(user) -> set[int]:
     from moderation.models import ContentView
     from study.models import ExerciseSet
 
-    course_ids: set[int] = set(
-        ContentView.objects.filter(user=user).values_list('exercise__course_id', flat=True)
+    branch_ids: set[int] = set(
+        ContentView.objects.filter(user=user).values_list('exercise__branch_id', flat=True)
     )
-    course_ids |= set(Review.objects.filter(author=user).values_list('exercise__course_id', flat=True))
+    branch_ids |= set(Review.objects.filter(author=user).values_list('exercise__branch_id', flat=True))
 
     exercise_ct = ContentType.objects.get_for_model(Exercise)
     commented_exercise_ids = Comment.objects.filter(
         author=user, content_type=exercise_ct
     ).values_list('object_id', flat=True)
-    course_ids |= set(
-        Exercise.objects.filter(pk__in=commented_exercise_ids).values_list('course_id', flat=True)
+    branch_ids |= set(
+        Exercise.objects.filter(pk__in=commented_exercise_ids).values_list('branch_id', flat=True)
     )
 
     set_exercise_ids = ExerciseSet.objects.filter(owner=user).values_list(
         'exercisesetitem__exercise_id', flat=True
     )
-    course_ids |= set(
-        Exercise.objects.filter(pk__in=set_exercise_ids).values_list('course_id', flat=True)
+    branch_ids |= set(
+        Exercise.objects.filter(pk__in=set_exercise_ids).values_list('branch_id', flat=True)
     )
 
-    course_ids.discard(None)
-    return course_ids
+    branch_ids.discard(None)
+    return branch_ids
 
 
 def get_engaged_topic_ids(user) -> set[int]:
@@ -196,7 +196,7 @@ def get_recommended_materials(user, limit: int = 12) -> tuple[list[Material], bo
     scoring every one of them in Python costs nothing real, the same "small corpus, cheap in
     Python" call MaterialCoverageSerializer.get_vote_summary already makes for its own per-row
     aggregation."""
-    active_course_ids = get_active_course_ids(user)
+    active_branch_ids = get_active_branch_ids(user)
     engaged_topic_ids = get_engaged_topic_ids(user)
     if user is not None and getattr(user, 'is_authenticated', False):
         viewed_material_ids = set(MaterialView.objects.filter(user=user).values_list('material_id', flat=True))
@@ -207,7 +207,7 @@ def get_recommended_materials(user, limit: int = 12) -> tuple[list[Material], bo
     if not materials:
         return [], False
 
-    personalized = bool(active_course_ids or engaged_topic_ids)
+    personalized = bool(active_branch_ids or engaged_topic_ids)
 
     if not personalized:
         # Honest, non-personalized fallback: featured first, then the most confidently-covered
@@ -218,7 +218,7 @@ def get_recommended_materials(user, limit: int = 12) -> tuple[list[Material], bo
 
     def score(material) -> float:
         s = 0.0
-        if material.course_id in active_course_ids:
+        if material.branch_id in active_branch_ids:
             s += 5.0
         rows = list(material.coverage.all())
         overlap_rows = [r for r in rows if r.topic_id in engaged_topic_ids]

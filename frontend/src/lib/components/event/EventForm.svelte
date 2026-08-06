@@ -3,8 +3,8 @@
 	// drift the moment one gained a field. Same shape `CourseForm` establishes.
 	import { onMount, untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getAllCourses, getFields } from '$lib/services/taxonomy';
-	import type { Course, Field } from '$lib/types/taxonomy';
+	import { getAllBranches, getDisciplines } from '$lib/services/taxonomy';
+	import type { Branch, Discipline } from '$lib/types/taxonomy';
 	import type { EdmatEvent, EventDraft, EventLocationKind } from '$lib/types/event';
 
 	let {
@@ -33,7 +33,7 @@
 	let locationText = $state(untrack(() => initial?.locationText ?? ''));
 	let onlineUrl = $state(untrack(() => initial?.onlineUrl ?? ''));
 	let capacity = $state(untrack(() => initial?.capacity ?? 0));
-	let fieldSlug = $state(untrack(() => initial?.fieldSlug ?? ''));
+	let disciplineSlug = $state(untrack(() => initial?.disciplineSlug ?? ''));
 	// The API has always accepted these; only the form was missing them, so subject-scoped discovery
 	// worked over HTTP before it worked from the UI.
 	let subjectSlugs = $state<string[]>(untrack(() => [...(initial?.subjectSlugs ?? [])]));
@@ -44,11 +44,11 @@
 	// refuses for the same reason it refuses un-cancelling.
 	let publishNow = $state(untrack(() => (initial ? initial.status === 'published' : true)));
 
-	let fields = $state<Field[]>([]);
-	let courses = $state<Course[]>([]);
+	let fields = $state<Discipline[]>([]);
+	let branches = $state<Branch[]>([]);
 	onMount(async () => {
 		try {
-			[fields, courses] = await Promise.all([getFields(), getAllCourses()]);
+			[fields, branches] = await Promise.all([getDisciplines(), getAllBranches()]);
 		} catch {
 			// A taxonomy that will not load should not stop somebody announcing an event. The select
 			// simply stays at "None", which is a legitimate value, and the subject list stays empty.
@@ -58,7 +58,7 @@
 	// Narrowed to the chosen field, because a subject belongs to one and offering every subject in the
 	// catalogue under a field they cannot belong to invites a combination discovery will never match.
 	let subjectChoices = $derived(
-		fieldSlug ? courses.filter((c) => c.fieldId === fieldSlug) : courses
+		disciplineSlug ? branches.filter((c) => c.disciplineId === disciplineSlug) : branches
 	);
 
 	function toggleSubject(slug: string) {
@@ -76,8 +76,8 @@
 	 * `Header.svelte` — reaching for `untrack` to fix a loop that need not exist is the wrong trade
 	 * when a user action is what genuinely causes the change. */
 	function onFieldChange() {
-		if (!fieldSlug) return;
-		const allowed = new Set(courses.filter((c) => c.fieldId === fieldSlug).map((c) => c.id));
+		if (!disciplineSlug) return;
+		const allowed = new Set(branches.filter((c) => c.disciplineId === disciplineSlug).map((c) => c.id));
 		subjectSlugs = subjectSlugs.filter((slug) => allowed.has(slug));
 	}
 
@@ -114,7 +114,7 @@
 			locationText: needsPlace ? locationText.trim() : '',
 			onlineUrl: needsLink ? onlineUrl.trim() : '',
 			capacity: Number(capacity) || 0,
-			fieldSlug: fieldSlug || null,
+			disciplineSlug: disciplineSlug || null,
 			subjectSlugs,
 			status: publishNow ? 'published' : 'draft'
 		});
@@ -180,7 +180,7 @@
 		</label>
 		<label class="field">
 			<span>{m.events_form_field()}</span>
-			<select bind:value={fieldSlug} onchange={onFieldChange}>
+			<select bind:value={disciplineSlug} onchange={onFieldChange}>
 				<option value="">{m.events_form_none()}</option>
 				{#each fields as field (field.id)}
 					<option value={field.id}>{field.name}</option>
@@ -197,14 +197,14 @@
 			<p class="empty">{m.events_form_subjectsEmpty()}</p>
 		{:else}
 			<div class="subjects__list">
-				{#each subjectChoices as course (course.id)}
+				{#each subjectChoices as branch (branch.id)}
 					<label class="check">
 						<input
 							type="checkbox"
-							checked={subjectSlugs.includes(course.id)}
-							onchange={() => toggleSubject(course.id)}
+							checked={subjectSlugs.includes(branch.id)}
+							onchange={() => toggleSubject(branch.id)}
 						/>
-						<span>{course.name}</span>
+						<span>{branch.name}</span>
 					</label>
 				{/each}
 			</div>

@@ -9,8 +9,8 @@
 	import { getRecommendedMaterials } from '$lib/services/materials';
 	import MaterialCard from './MaterialCard.svelte';
 
-	// No `topics` prop: recommended materials can span several different courses at once, and
-	// MaterialCard's own "add coverage" trigger needs a topic list scoped to ONE specific course to
+	// No `topics` prop: recommended materials can span several different branches at once, and
+	// MaterialCard's own "add coverage" trigger needs a topic list scoped to ONE specific branch to
 	// mean anything — safely omitted here (MaterialCard already defaults it to `[]`, which just hides
 	// that trigger) rather than passing a list that would be wrong for most of the cards shown.
 

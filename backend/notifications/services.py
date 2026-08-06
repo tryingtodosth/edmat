@@ -87,7 +87,7 @@ def notify(
     target_label: str = '',
     exercise=None,
     material=None,
-    taught_course=None,
+    course=None,
     event=None,
     note: str = '',
 ):
@@ -134,7 +134,7 @@ def notify(
         target_label=target_label,
         exercise=exercise,
         material=material,
-        taught_course=taught_course,
+        course=course,
         event=event,
         note=(note or '')[:500],
     )
@@ -231,7 +231,7 @@ def notify_course_participants(
     telling them what is happening inside would leak exactly what the participants-only rule exists
     to protect.
     """
-    from classroom.models import ACTIVE_ENROLLMENT_STATUSES
+    from courses.models import ACTIVE_ENROLLMENT_STATUSES
 
     recipients = []
     for enrollment in course.enrollments.filter(
@@ -248,7 +248,7 @@ def notify_course_participants(
             notif_type,
             actor=actor,
             target_label=course.title,
-            taught_course=course,
+            course=course,
             note=note,
         )
         if result is not None:

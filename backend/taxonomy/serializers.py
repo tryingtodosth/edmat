@@ -1,23 +1,23 @@
 """Every taxonomy serializer resolves for a ?lang= locale, falling back to 'pl' (today's only real
 original locale) when no translation exists for the requested one — same "resolve, fall back to
-original" behavior CLAUDE.md Section 10 specifies for Exercise, applied here too since Field/Course/
-Topic/Chapter are translatable the same way. See config/i18n_utils.py for the shared helper.
+original" behavior CLAUDE.md Section 10 specifies for Exercise, applied here too since Discipline/
+Branch/Topic/Chapter are translatable the same way. See config/i18n_utils.py for the shared helper.
 """
 
 from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
 
-from .models import Chapter, Course, Field, Subtopic, Topic
+from .models import Branch, Chapter, Discipline, Subtopic, Topic
 
 
-class FieldSerializer(serializers.ModelSerializer):
+class DisciplineSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
 
     class Meta:
-        model = Field
-        fields = ['id', 'slug', 'published', 'name', 'description']
+        model = Discipline
+        fields = ['id', 'slug', 'published', 'status', 'name', 'description']
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))
@@ -28,14 +28,14 @@ class FieldSerializer(serializers.ModelSerializer):
         return t.description if t else ''
 
 
-class CourseSerializer(serializers.ModelSerializer):
+class BranchSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
-    field = serializers.SlugRelatedField(slug_field='slug', read_only=True)
+    discipline = serializers.SlugRelatedField(slug_field='slug', read_only=True)
 
     class Meta:
-        model = Course
-        fields = ['id', 'slug', 'field', 'university', 'published', 'order', 'name', 'description']
+        model = Branch
+        fields = ['id', 'slug', 'discipline', 'published', 'status', 'order', 'name', 'description']
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))
@@ -51,7 +51,7 @@ class TopicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Topic
-        fields = ['id', 'slug', 'course', 'order', 'name']
+        fields = ['id', 'slug', 'branch', 'order', 'status', 'name']
 
     def get_name(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))
@@ -62,7 +62,7 @@ class SubtopicSerializer(serializers.ModelSerializer):
     """Nested inside MaterialCoverageSerializer (materials app) — not exposed as its own top-level
     /api/subtopics/ list endpoint, since a subtopic is only ever meaningful in the context of one
     topic (matching how Topic itself has no standalone list endpoint either, only nested inside a
-    Course's own detail response)."""
+    Branch's own detail response)."""
 
     name = serializers.SerializerMethodField()
 
@@ -81,16 +81,16 @@ class ChapterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Chapter
-        fields = ['id', 'course', 'number', 'start_page', 'topics', 'title']
+        fields = ['id', 'branch', 'number', 'start_page', 'topics', 'title']
 
     def get_title(self, obj):
         t = resolve_translation(obj.translations, request_locale(self.context))
         return t.title if t else f'Chapter {obj.number}'
 
 
-class CourseDetailSerializer(CourseSerializer):
+class BranchDetailSerializer(BranchSerializer):
     topics = TopicSerializer(many=True, read_only=True)
     chapters = ChapterSerializer(many=True, read_only=True)
 
-    class Meta(CourseSerializer.Meta):
-        fields = CourseSerializer.Meta.fields + ['topics', 'chapters']
+    class Meta(BranchSerializer.Meta):
+        fields = BranchSerializer.Meta.fields + ['topics', 'chapters']

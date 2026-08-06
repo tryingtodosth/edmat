@@ -96,10 +96,10 @@ class Notification(models.Model):
     # Same nullable/SET_NULL shape and the same reason as `material` above: a course notification has
     # neither an Exercise nor a Material to link through, and a notification you cannot click is
     # markedly less useful than one you can.
-    taught_course = models.ForeignKey(
-        'classroom.TaughtCourse', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    course = models.ForeignKey(
+        'courses.Course', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
-    # Same nullable/SET_NULL shape and the same reason as `taught_course` above: an event
+    # Same nullable/SET_NULL shape and the same reason as `course` above: an event
     # notification has none of the three targets above to link through, and a notification you
     # cannot click is markedly less useful than one you can.
     event = models.ForeignKey(

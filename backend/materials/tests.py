@@ -18,26 +18,26 @@ from materials.models import (
 )
 from materials.services import get_recommended_materials
 from moderation.models import NodeGovernor
-from taxonomy.models import Course
+from taxonomy.models import Branch
 from testing.factories import make_course, make_exercise, make_material, make_topic, make_user
 
 
 class MaterialListingTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
+        self.branch = make_course()
         self.material = make_material(
-            self.course, 'skrypt', title='Course script', description='The full lecture script.'
+            self.branch, 'skrypt', title='Branch script', description='The full lecture script.'
         )
 
     def test_course_materials_lists_published_materials(self):
-        response = self.client.get(reverse('course-materials', kwargs={'slug': self.course.slug}))
+        response = self.client.get(reverse('branch-materials', kwargs={'slug': self.branch.slug}))
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['slug'], 'skrypt')
 
     def test_search_matches_on_title(self):
-        make_material(self.course, 'exam-collection', title='Exam collection', description='Past exams.')
+        make_material(self.branch, 'exam-collection', title='Exam collection', description='Past exams.')
 
         response = self.client.get(reverse('material-list'), {'q': 'exam'})
 
@@ -76,10 +76,10 @@ class MaterialListingTests(APITestCase):
 
 class MaterialCoverageProposalTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
-        self.other_course = make_course(slug='uw-other-course')
-        self.material = make_material(self.course, 'skrypt')
-        self.topic = make_topic(self.course)
+        self.branch = make_course()
+        self.other_course = make_course(slug='uw-other-branch')
+        self.material = make_material(self.branch, 'skrypt')
+        self.topic = make_topic(self.branch)
         self.user = make_user('proposer')
         self.client.force_authenticate(self.user)
 
@@ -132,9 +132,9 @@ class MaterialCoverageProposalTests(APITestCase):
 
 class MaterialCoverageVoteTests(APITestCase):
     def setUp(self):
-        self.course = make_course()
-        self.material = make_material(self.course, 'skrypt')
-        self.topic = make_topic(self.course)
+        self.branch = make_course()
+        self.material = make_material(self.branch, 'skrypt')
+        self.topic = make_topic(self.branch)
         self.coverage = MaterialCoverage.objects.create(
             material=self.material, topic=self.topic, level=70, proposed_by=make_user('proposer2')
         )
@@ -185,9 +185,9 @@ class MaterialCoverageVoteTests(APITestCase):
 
 class MaterialCoverageCommentTests(APITestCase):
     def test_authenticated_user_can_comment_on_a_coverage_claim(self):
-        course = make_course()
-        material = make_material(course, 'skrypt')
-        topic = make_topic(course)
+        branch = make_course()
+        material = make_material(branch, 'skrypt')
+        topic = make_topic(branch)
         coverage = MaterialCoverage.objects.create(
             material=material, topic=topic, level=60, proposed_by=make_user('proposer3')
         )
@@ -207,13 +207,13 @@ class MaterialFilterSortTests(APITestCase):
     `min_level`, `sort`) — none of these had any real test coverage before this class."""
 
     def setUp(self):
-        self.course = make_course()
-        self.topic = make_topic(self.course)
-        self.other_topic = make_topic(self.course, slug='other-topic')
+        self.branch = make_course()
+        self.topic = make_topic(self.branch)
+        self.other_topic = make_topic(self.branch, slug='other-topic')
 
-        self.script = make_material(self.course, 'skrypt', type='script', title='Course script')
+        self.script = make_material(self.branch, 'skrypt', type='script', title='Branch script')
         self.exam = make_material(
-            self.course, 'exam-set', type='exam_collection', title='Exam set'
+            self.branch, 'exam-set', type='exam_collection', title='Exam set'
         )
 
         MaterialCoverage.objects.create(material=self.script, topic=self.topic, level=90)
@@ -284,7 +284,7 @@ class MaterialFilterSortTests(APITestCase):
 
     def test_course_materials_action_honors_the_same_filters(self):
         response = self.client.get(
-            reverse('course-materials', kwargs={'slug': self.course.slug}), {'type': 'script'}
+            reverse('branch-materials', kwargs={'slug': self.branch.slug}), {'type': 'script'}
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -294,8 +294,8 @@ class MaterialFilterSortTests(APITestCase):
 
 class MaterialRecommendedTests(APITestCase):
     def test_anonymous_visitor_gets_the_honest_non_personalized_fallback(self):
-        course = make_course()
-        make_material(course, 'skrypt')
+        branch = make_course()
+        make_material(branch, 'skrypt')
 
         response = self.client.get(reverse('material-recommended'))
 
@@ -304,9 +304,9 @@ class MaterialRecommendedTests(APITestCase):
         self.assertEqual(len(response.data['results']), 1)
 
     def test_featured_material_leads_the_non_personalized_fallback(self):
-        course = make_course()
-        make_material(course, 'plain')
-        featured = make_material(course, 'featured-one')
+        branch = make_course()
+        make_material(branch, 'plain')
+        featured = make_material(branch, 'featured-one')
         featured.featured = True
         featured.save()
 
@@ -317,9 +317,9 @@ class MaterialRecommendedTests(APITestCase):
     def test_a_users_own_engagement_makes_the_response_personalized(self):
         from moderation.models import ContentView
 
-        course = make_course()
-        make_material(course, 'skrypt')
-        exercise = make_exercise(course, 1)
+        branch = make_course()
+        make_material(branch, 'skrypt')
+        exercise = make_exercise(branch, 1)
         user = make_user('engaged-reader')
         ContentView.objects.create(user=user, exercise=exercise)
         self.client.force_authenticate(user)
@@ -329,9 +329,9 @@ class MaterialRecommendedTests(APITestCase):
         self.assertTrue(response.data['personalized'])
 
     def test_limit_param_is_honored_and_bounded(self):
-        course = make_course()
+        branch = make_course()
         for i in range(5):
-            make_material(course, f'mat-{i}')
+            make_material(branch, f'mat-{i}')
 
         response = self.client.get(reverse('material-recommended'), {'limit': 2})
 
@@ -343,8 +343,8 @@ class MaterialPriceAndTimeSerializationTests(APITestCase):
     before this feature existed (null on the wire, not a fabricated "Free"/"0 min" default)."""
 
     def test_unset_price_and_time_serialize_as_null(self):
-        course = make_course()
-        material = make_material(course, 'plain')
+        branch = make_course()
+        material = make_material(branch, 'plain')
 
         response = self.client.get(reverse('material-detail', kwargs={'pk': material.pk}))
 
@@ -353,8 +353,8 @@ class MaterialPriceAndTimeSerializationTests(APITestCase):
         self.assertEqual(response.data['price_currency'], 'PLN')  # the model's own default
 
     def test_a_priced_material_with_a_time_estimate_serializes_both(self):
-        course = make_course()
-        material = make_material(course, 'priced')
+        branch = make_course()
+        material = make_material(branch, 'priced')
         material.price_amount = '29.99'
         material.price_currency = 'EUR'
         material.estimated_minutes = 45
@@ -374,9 +374,9 @@ class MaterialRequirementApiTests(APITestCase):
     mutation — global staff, or a real governor of the material's own course."""
 
     def setUp(self):
-        self.course = make_course(slug='uw-requirement-course')
-        self.other_course = make_course(slug='uw-requirement-other-course')
-        self.material = make_material(self.course, 'skrypt')
+        self.branch = make_course(slug='uw-requirement-branch')
+        self.other_course = make_course(slug='uw-requirement-other-branch')
+        self.material = make_material(self.branch, 'skrypt')
 
     def _put(self, labels):
         return self.client.put(
@@ -405,11 +405,11 @@ class MaterialRequirementApiTests(APITestCase):
         self.assertEqual([r['label'] for r in response.data['requirements']], labels)
 
     def test_a_governor_of_the_materials_own_course_can_set_requirements(self):
-        governor = make_user('course-governor')
+        governor = make_user('branch-governor')
         NodeGovernor.objects.create(
             user=governor,
             content_type=self._course_content_type(),
-            object_id=self.course.pk,
+            object_id=self.branch.pk,
         )
         self.client.force_authenticate(governor)
 
@@ -419,7 +419,7 @@ class MaterialRequirementApiTests(APITestCase):
         self.assertEqual(self.material.requirements.count(), 1)
 
     def test_a_governor_of_a_different_course_is_forbidden(self):
-        governor = make_user('other-course-governor')
+        governor = make_user('other-branch-governor')
         NodeGovernor.objects.create(
             user=governor,
             content_type=self._course_content_type(),
@@ -470,7 +470,7 @@ class MaterialRequirementApiTests(APITestCase):
     def _course_content_type():
         from django.contrib.contenttypes.models import ContentType
 
-        return ContentType.objects.get_for_model(Course)
+        return ContentType.objects.get_for_model(Branch)
 
 
 class MaterialRequirementProposalTests(APITestCase):
@@ -480,8 +480,8 @@ class MaterialRequirementProposalTests(APITestCase):
     entirely separate from the governor-only bulk-replace PUT above, which is unaffected."""
 
     def setUp(self):
-        self.course = make_course(slug='uw-propose-requirement-course')
-        self.material = make_material(self.course, 'skrypt-propose-req')
+        self.branch = make_course(slug='uw-propose-requirement-branch')
+        self.material = make_material(self.branch, 'skrypt-propose-req')
         self.user = make_user('requirement-proposer')
         self.client.force_authenticate(self.user)
 
@@ -550,11 +550,11 @@ class MaterialCoverageCommentThreadingTests(APITestCase):
     `parent` must actually belong to the SAME coverage's own comment set."""
 
     def setUp(self):
-        self.course = make_course()
-        self.other_course = make_course(slug='uw-thread-other-course')
-        self.material = make_material(self.course, 'skrypt')
+        self.branch = make_course()
+        self.other_course = make_course(slug='uw-thread-other-branch')
+        self.material = make_material(self.branch, 'skrypt')
         self.other_material = make_material(self.other_course, 'other-skrypt')
-        self.topic = make_topic(self.course)
+        self.topic = make_topic(self.branch)
         self.other_topic = make_topic(self.other_course, slug='other-thread-topic')
         self.coverage = MaterialCoverage.objects.create(
             material=self.material, topic=self.topic, level=70, proposed_by=make_user('thread-proposer')
@@ -613,7 +613,7 @@ class MaterialCoverageCommentThreadingTests(APITestCase):
     def test_a_parent_from_an_exercise_comment_thread_is_also_rejected(self):
         """The same cross-target check catches a parent id that resolves to a real Comment, just one
         attached to an entirely different content type (an Exercise), not another MaterialCoverage."""
-        exercise = make_exercise(self.course, 1)
+        exercise = make_exercise(self.branch, 1)
         exercise_comment_response = self.client.post(
             reverse('exercise-comments', kwargs={'pk': exercise.pk}), {'body': 'An exercise comment'}, format='json'
         )
@@ -636,8 +636,8 @@ class MaterialRequirementVoteTests(APITestCase):
     targeting a MaterialRequirement instead of a MaterialCoverage row."""
 
     def setUp(self):
-        self.course = make_course()
-        self.material = make_material(self.course, 'skrypt-req')
+        self.branch = make_course()
+        self.material = make_material(self.branch, 'skrypt-req')
         self.requirement = MaterialRequirement.objects.create(material=self.material, label='English B2+')
 
     def _vote(self, user, value):
@@ -706,7 +706,7 @@ class MaterialRequirementVoteTests(APITestCase):
         """The `?sort=votes` endpoint-level check — confirms requirement votes actually feed into
         the same ranking coverage votes already did, not just that the per-row vote_summary math
         works in isolation."""
-        well_voted = make_material(self.course, 'well-voted-reqs')
+        well_voted = make_material(self.branch, 'well-voted-reqs')
         well_voted_req = MaterialRequirement.objects.create(material=well_voted, label='Calculus I')
         for i in range(3):
             self._vote(make_user(f'sort-voter-{i}'), 1)  # votes on self.requirement (self.material)
@@ -731,8 +731,8 @@ class MaterialReviewsTests(APITestCase):
     average_rating/review_count surfaced on the parent serializer)."""
 
     def setUp(self):
-        self.course = make_course()
-        self.material = make_material(self.course, 'reviewed-material')
+        self.branch = make_course()
+        self.material = make_material(self.branch, 'reviewed-material')
 
     def test_creating_a_review_succeeds_and_is_listed(self):
         self.client.force_authenticate(make_user('mat-reviewer'))
@@ -791,8 +791,8 @@ class MaterialCommentsTests(APITestCase):
     already-existing per-coverage-claim thread (MaterialCoverageCommentTests above)."""
 
     def setUp(self):
-        self.course = make_course()
-        self.material = make_material(self.course, 'discussed-material')
+        self.branch = make_course()
+        self.material = make_material(self.branch, 'discussed-material')
 
     def _post(self, body, parent=None):
         data = {'body': body}
@@ -820,7 +820,7 @@ class MaterialCommentsTests(APITestCase):
         self.assertEqual(reply.data['parent'], root.data['id'])
 
     def test_a_parent_from_a_different_materials_own_thread_is_rejected(self):
-        other_material = make_material(self.course, 'a-different-material')
+        other_material = make_material(self.branch, 'a-different-material')
         self.client.force_authenticate(make_user('mat-cross-target-author'))
         other_root = self.client.post(
             reverse('material-comments', kwargs={'pk': other_material.pk}), {'body': 'On a different material'}, format='json'

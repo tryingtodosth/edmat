@@ -12,7 +12,7 @@ export interface ExerciseSetItemOptions {
  * guest equivalent, which does not use this type at all (it's a bare array of exercise ids). */
 export interface ExerciseSet {
 	// The backend's own random, unguessable `slug` (study/models.py's `_generate_set_slug`) — the
-	// same "id IS the slug" convention Field/Course already use, not the raw numeric pk. This is
+	// same "id IS the slug" convention Discipline/Branch already use, not the raw numeric pk. This is
 	// what makes `isPublic` a real privacy boundary rather than security-through-obscurity resting
 	// on a sequential integer.
 	id: string;

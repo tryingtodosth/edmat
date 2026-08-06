@@ -19,7 +19,7 @@ from rest_framework.test import APIClient
 
 from notifications.models import Notification
 from services.models import Service
-from taxonomy.models import Course, Field
+from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
 
 from .availability import slots_for_service
@@ -36,8 +36,8 @@ class ApiTestCase(TestCase):
         self.tutor = User.objects.create_user('kasia', 'kasia@x.example', 'pw12345!')
         self.student = User.objects.create_user('michal', 'michal@x.example', 'pw12345!')
         self.other = User.objects.create_user('ola', 'ola@x.example', 'pw12345!')
-        self.field = Field.objects.create(slug='matematyka')
-        self.course = Course.objects.create(slug='analiza-2', field=self.field, university='UW')
+        self.field = Discipline.objects.create(slug='matematyka')
+        self.branch = Branch.objects.create(slug='analiza-2', discipline=self.field)
         self.client = APIClient()
 
     def as_(self, user):

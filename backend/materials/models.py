@@ -24,7 +24,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from exercises.models import Tag
-from taxonomy.models import Course, Subtopic, Topic
+from taxonomy.models import Branch, Subtopic, Topic
 
 from .validators import validate_material_submission_file
 
@@ -63,7 +63,7 @@ CURRENCY_CHOICES = [
 
 
 class Material(models.Model):
-    course = models.ForeignKey(Course, related_name='materials', on_delete=models.CASCADE)
+    branch = models.ForeignKey(Branch, related_name='materials', on_delete=models.CASCADE)
     slug = models.SlugField()
     type = models.CharField(max_length=20, choices=MATERIAL_TYPE_CHOICES)
     # validators=[...] — same real content-type/size check materials.validators.
@@ -132,11 +132,11 @@ class Material(models.Model):
     estimated_minutes = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
-        unique_together = [('course', 'slug')]
-        ordering = ['course', 'order']
+        unique_together = [('branch', 'slug')]
+        ordering = ['branch', 'order']
 
     def __str__(self) -> str:
-        return f'{self.course.slug}/{self.slug}'
+        return f'{self.branch.slug}/{self.slug}'
 
 
 class MaterialReview(models.Model):
@@ -181,7 +181,7 @@ class MaterialRequirement(models.Model):
 
     `order` is a plain, user-controlled display order (not alphabetical, not creation-order) — the
     same "a plain PositiveIntegerField the client controls, not `auto_now_add`-derived" shape this
-    app already uses for `Material.order`/`Course.order`/`Topic.order` itself.
+    app already uses for `Material.order`/`Branch.order`/`Topic.order` itself.
     """
 
     material = models.ForeignKey(Material, related_name='requirements', on_delete=models.CASCADE)

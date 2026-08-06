@@ -5,7 +5,7 @@
 	// Exercise field that's actually meaningful to filter a random pick by.
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { Course, Field, Topic } from '$lib/types';
+	import type { Branch, Discipline, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import {
@@ -13,7 +13,7 @@
 		getAllTags,
 		type RandomExerciseFilters
 	} from '$lib/services/exercises';
-	import { getCoursesForField, getFields, getTopicsForCourse } from '$lib/services/taxonomy';
+	import { getBranchesForDiscipline, getDisciplines, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { browsingHistoryStore } from '$lib/state/browsingHistory.svelte';
 	import {
 		DIFFICULTIES,
@@ -27,8 +27,8 @@
 	let noMatch = $state(false);
 	let container: HTMLDivElement | undefined = $state();
 
-	let fields = $state<Field[]>([]);
-	let courses = $state<Course[]>([]);
+	let fields = $state<Discipline[]>([]);
+	let branches = $state<Branch[]>([]);
 	let topics = $state<Topic[]>([]);
 	let allTags = $state<string[]>([]);
 	let optionsLoaded = $state(false);
@@ -38,26 +38,26 @@
 	async function loadFilterOptions() {
 		if (optionsLoaded) return;
 		optionsLoaded = true;
-		[fields, allTags] = await Promise.all([getFields(), getAllTags()]);
+		[fields, allTags] = await Promise.all([getDisciplines(), getAllTags()]);
 	}
 
 	async function onFieldChange(next: string) {
-		filters.fieldId = next || undefined;
-		filters.courseId = undefined;
+		filters.disciplineId = next || undefined;
+		filters.branchId = undefined;
 		filters.topicId = undefined;
-		courses = filters.fieldId ? await getCoursesForField(filters.fieldId) : [];
+		branches = filters.disciplineId ? await getBranchesForDiscipline(filters.disciplineId) : [];
 		topics = [];
 	}
 
 	async function onCourseChange(next: string) {
-		filters.courseId = next || undefined;
+		filters.branchId = next || undefined;
 		filters.topicId = undefined;
-		topics = filters.courseId ? await getTopicsForCourse(filters.courseId) : [];
+		topics = filters.branchId ? await getTopicsForBranch(filters.branchId) : [];
 	}
 
 	function clearFilters() {
 		filters = {};
-		courses = [];
+		branches = [];
 		topics = [];
 	}
 
@@ -128,7 +128,7 @@
 			<label class="field">
 				<span>{m.random_field()}</span>
 				<select
-					value={filters.fieldId ?? ''}
+					value={filters.disciplineId ?? ''}
 					onchange={(e) => onFieldChange((e.target as HTMLSelectElement).value)}
 				>
 					<option value="">{m.random_any()}</option>
@@ -141,13 +141,13 @@
 			<label class="field">
 				<span>{m.random_course()}</span>
 				<select
-					value={filters.courseId ?? ''}
-					disabled={courses.length === 0}
+					value={filters.branchId ?? ''}
+					disabled={branches.length === 0}
 					onchange={(e) => onCourseChange((e.target as HTMLSelectElement).value)}
 				>
 					<option value="">{m.random_any()}</option>
-					{#each courses as course (course.id)}
-						<option value={course.id}>{course.name}</option>
+					{#each branches as branch (branch.id)}
+						<option value={branch.id}>{branch.name}</option>
 					{/each}
 				</select>
 			</label>

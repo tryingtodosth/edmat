@@ -1,13 +1,13 @@
 <script lang="ts">
 	// The materials search/filter/sort overhaul's own real filter/sort UI — reused by both the
-	// cross-course browse hub (routes/materials/+page.svelte, `scope: 'global'`) and the per-course
-	// Materials tab (routes/courses/[course]/+page.svelte, `scope: 'course'`), rather than two
+	// cross-branch browse hub (routes/materials/+page.svelte, `scope: 'global'`) and the per-branch
+	// Materials tab (routes/branches/[branch]/+page.svelte, `scope: 'branch'`), rather than two
 	// independent, drifting implementations. Reads `materialsUiStore.mode` directly (not a prop) so
 	// every mount of this bar always reflects the ONE real, shared "simple vs advanced" preference
 	// — set from Settings, or via this bar's own quick toggle, both write to the same store.
-	import type { Course, Field, MaterialBrowseFilters, Topic } from '$lib/types';
+	import type { Branch, Discipline, MaterialBrowseFilters, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getCoursesForField, getTopicsForCourse } from '$lib/services/taxonomy';
+	import { getBranchesForDiscipline, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { materialsUiStore } from '$lib/state/materialsUi.svelte';
 	import {
 		MATERIAL_SORTS,
@@ -25,41 +25,41 @@
 	}: {
 		filters: MaterialBrowseFilters;
 		resultCount: number;
-		scope: 'course' | 'global';
-		fields?: Field[];
+		scope: 'branch' | 'global';
+		fields?: Discipline[];
 		topics?: Topic[];
 	} = $props();
 
-	// Global scope only: cascading field -> course -> topic, the exact same pattern
-	// RandomExerciseButton.svelte already established for the identical field/course/topic
+	// Global scope only: cascading field -> branch -> topic, the exact same pattern
+	// RandomExerciseButton.svelte already established for the identical field/branch/topic
 	// cascade — reused deliberately, not reinvented, since it's already the app's own proven shape
-	// for "pick a field, then a course scoped to it, then a topic scoped to that."
-	let courses = $state<Course[]>([]);
+	// for "pick a field, then a branch scoped to it, then a topic scoped to that."
+	let branches = $state<Branch[]>([]);
 	let globalTopics = $state<Topic[]>([]);
 
 	async function onFieldChange(next: string) {
-		filters.fieldId = next || undefined;
-		filters.courseId = undefined;
+		filters.disciplineId = next || undefined;
+		filters.branchId = undefined;
 		filters.topicId = undefined;
-		courses = filters.fieldId ? await getCoursesForField(filters.fieldId) : [];
+		branches = filters.disciplineId ? await getBranchesForDiscipline(filters.disciplineId) : [];
 		globalTopics = [];
 	}
 
 	async function onCourseChange(next: string) {
-		filters.courseId = next || undefined;
+		filters.branchId = next || undefined;
 		filters.topicId = undefined;
-		globalTopics = filters.courseId ? await getTopicsForCourse(filters.courseId) : [];
+		globalTopics = filters.branchId ? await getTopicsForBranch(filters.branchId) : [];
 	}
 
-	// `scope === 'course'` always has its topic list handed in directly (the course is already
-	// known/fixed by the URL); `scope === 'global'` only has one once a course has been picked.
-	let topicOptions = $derived(scope === 'course' ? courseTopics : globalTopics);
+	// `scope === 'branch'` always has its topic list handed in directly (the branch is already
+	// known/fixed by the URL); `scope === 'global'` only has one once a branch has been picked.
+	let topicOptions = $derived(scope === 'branch' ? courseTopics : globalTopics);
 
 	function clear() {
 		if (scope === 'global') {
-			filters.fieldId = undefined;
-			filters.courseId = undefined;
-			courses = [];
+			filters.disciplineId = undefined;
+			filters.branchId = undefined;
+			branches = [];
 			globalTopics = [];
 		}
 		filters.type = undefined;
@@ -78,7 +78,7 @@
 			filters.minLevel ||
 			filters.query ||
 			filters.sort ||
-			(scope === 'global' && (filters.fieldId || filters.courseId))
+			(scope === 'global' && (filters.disciplineId || filters.branchId))
 		)
 	);
 
@@ -133,7 +133,7 @@
 				<label class="field">
 					<span>{m.materialFilters_field()}</span>
 					<select
-						value={filters.fieldId ?? ''}
+						value={filters.disciplineId ?? ''}
 						onchange={(e) => onFieldChange((e.target as HTMLSelectElement).value)}
 					>
 						<option value="">{m.materialFilters_field_all()}</option>
@@ -146,13 +146,13 @@
 				<label class="field">
 					<span>{m.materialFilters_course()}</span>
 					<select
-						value={filters.courseId ?? ''}
-						disabled={!filters.fieldId}
+						value={filters.branchId ?? ''}
+						disabled={!filters.disciplineId}
 						onchange={(e) => onCourseChange((e.target as HTMLSelectElement).value)}
 					>
 						<option value="">{m.materialFilters_course_all()}</option>
-						{#each courses as course (course.id)}
-							<option value={course.id}>{course.name}</option>
+						{#each branches as branch (branch.id)}
+							<option value={branch.id}>{branch.name}</option>
 						{/each}
 					</select>
 				</label>

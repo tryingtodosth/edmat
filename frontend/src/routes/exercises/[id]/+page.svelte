@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import type { Comment, Course, ResolvedExercise, Review, Topic, User } from '$lib/types';
+	import type { Comment, Branch, ResolvedExercise, Review, Topic, User } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import {
@@ -12,7 +12,7 @@
 		retractExerciseRequirementVote,
 		setExerciseRequirements
 	} from '$lib/services/exercises';
-	import { getCourseById, getTopicsForCourse } from '$lib/services/taxonomy';
+	import { getBranchById, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { getReviewsForExercise, submitReview } from '$lib/services/reviews';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
 	import { getUserById } from '$lib/services/users';
@@ -44,7 +44,7 @@
 	import CoverageVoteWidget from '$lib/components/material/CoverageVoteWidget.svelte';
 
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
-	let course = $state<Course | undefined>(undefined);
+	let branch = $state<Branch | undefined>(undefined);
 	let topics = $state<Topic[]>([]);
 	let reviews = $state<Review[]>([]);
 	let comments = $state<Comment[]>([]);
@@ -106,12 +106,12 @@
 		// picker's "prefer unseen" / topic-affinity heuristics (CLAUDE.md's Random Exercise note).
 		browsingHistoryStore.markSeen(ex.id, ex.topicIds);
 		const [c, revs, cmts] = await Promise.all([
-			getCourseById(ex.courseId),
+			getBranchById(ex.branchId),
 			getReviewsForExercise(id),
 			getCommentsForTarget('exercise', id)
 		]);
-		course = c;
-		topics = c ? await getTopicsForCourse(c.id) : [];
+		branch = c;
+		topics = c ? await getTopicsForBranch(c.id) : [];
 		reviews = revs;
 		comments = cmts;
 
@@ -256,11 +256,11 @@
 	{:else if notFound || !exercise}
 		<p class="empty">{m.exercise_notFound()}</p>
 	{:else}
-		{#if course}
+		{#if branch}
 			<!-- "Breadcrumb" -->
 			<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
-				<a href={resolve('/fields')}>{m.common_home()}</a> ›
-				<a href={resolve('/courses/[course]', { course: course.id })}>{course.name}</a>
+				<a href={resolve('/disciplines')}>{m.common_home()}</a> ›
+				<a href={resolve('/branches/[branch]', { branch: branch.id })}>{branch.name}</a>
 			</nav>
 		{/if}
 
@@ -288,7 +288,7 @@
 
 				     Absent entirely for the 742 imported corpus exercises, which nobody here submitted and
 				     whose translations carry no account. That silence is honest: crediting somebody for a
-				     row lifted from a course archive would be inventing an author. -->
+				     row lifted from a branch archive would be inventing an author. -->
 				{#if exercise.contributors.length > 0}
 					<p class="contributors">
 						<span class="contributors__label">{m.exercise_contributorsHeading()}</span>

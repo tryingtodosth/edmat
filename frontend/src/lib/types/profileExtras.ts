@@ -23,8 +23,8 @@ export interface SkillEntry {
 	label: string;
 	level: SkillLevel;
 	evidence: SkillEvidence;
-	courseSlug: string | null;
-	fieldSlug: string | null;
+	branchSlug: string | null;
+	disciplineSlug: string | null;
 	order: number;
 }
 
@@ -32,7 +32,7 @@ export interface ActivityItem {
 	kind: 'exercise' | 'review' | 'comment' | 'course_taught' | 'course_joined';
 	title: string;
 	exerciseId?: string;
-	taughtCourseId?: string;
+	courseId?: string;
 	rating?: number;
 	tags: string[];
 	/** null for the imported corpus, which carries no submission timestamp — those sort last rather

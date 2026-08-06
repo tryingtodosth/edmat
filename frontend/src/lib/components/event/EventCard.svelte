@@ -3,7 +3,7 @@
 	// of events renders (the events page, the homepage tab, somebody's own "my events").
 	//
 	// It leads with the DATE rather than the title, unlike every other card in this app. That is the
-	// one thing an event is that a course, a material and a listing are not: it happens once, at a
+	// one thing an event is that a branch, a material and a listing are not: it happens once, at a
 	// time, and "when" is the question a reader is scanning for. A grid of events sorted soonest-first
 	// with the date buried in a meta line underneath makes the reader work for the only fact that
 	// decides whether the rest is worth reading.

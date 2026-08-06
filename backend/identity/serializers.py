@@ -18,11 +18,11 @@ class DiplomaSerializer(serializers.ModelSerializer):
 
 
 class CourseGradeSerializer(serializers.ModelSerializer):
-    course_slug = serializers.SlugField(source='matched_course.slug', read_only=True, default=None)
+    branch_slug = serializers.SlugField(source='matched_course.slug', read_only=True, default=None)
 
     class Meta:
         model = CourseGrade
-        fields = ['id', 'code', 'name', 'term', 'ects', 'value', 'scale', 'course_slug']
+        fields = ['id', 'code', 'name', 'term', 'ects', 'value', 'scale', 'branch_slug']
 
 
 class EducationProfileSerializer(serializers.ModelSerializer):

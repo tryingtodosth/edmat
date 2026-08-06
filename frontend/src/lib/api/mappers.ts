@@ -1,9 +1,9 @@
 // Backend JSON -> frontend TS shape, one function per domain type. Kept in one file since several
-// lib/services/*.ts functions need the SAME mapping (e.g. getExercisesForCourse/getTopRatedExercises/
+// lib/services/*.ts functions need the SAME mapping (e.g. getExercisesForBranch/getTopRatedExercises/
 // getRandomExercise all need "raw exercise JSON -> ResolvedExercise") — the "three strikes" extraction
 // convention this codebase already follows elsewhere (see CLAUDE.md's Random Exercise feature note).
 //
-// id-format convention used throughout: Field/Course ids are the backend's own slug (already a
+// id-format convention used throughout: Discipline/Branch ids are the backend's own slug (already a
 // stable, human-readable string, and every URL on both sides already keys by it — no PK<->slug
 // lookup ever needed). Every other id (Topic, Exercise, Review, Comment, User, ...) is the backend's
 // numeric PK converted to a string via String(n) — opaque everywhere in this app (never parsed back
@@ -16,7 +16,7 @@ import type {
 	Booking,
 	Comment,
 	CommentTargetType,
-	Course,
+	Branch,
 	CoverageVoteSummary,
 	DonationLink,
 	EditSuggestion,
@@ -27,7 +27,7 @@ import type {
 	ExerciseSubmission,
 	ExerciseTranslation,
 	FeatureFlag,
-	Field,
+	Discipline,
 	Material,
 	MaterialCoverage,
 	MaterialRequirement,
@@ -36,6 +36,7 @@ import type {
 	MaterialType,
 	Message,
 	ModerationStatus,
+	GovernableNodeKind,
 	NodeGovernorGrant,
 	Notification,
 	ReportGroup,
@@ -48,6 +49,7 @@ import type {
 	ServiceReview,
 	ServiceWatch,
 	Subtopic,
+	TaxonomyStatus,
 	TagFollowState,
 	TutorSchedule,
 	Topic,
@@ -64,36 +66,46 @@ function idOrUndefined(value: number | null | undefined): string | undefined {
 
 // ---- taxonomy ------------------------------------------------------------------------------
 
-export interface RawField {
+export interface RawDiscipline {
 	id: number;
 	slug: string;
 	published: boolean;
+	status: TaxonomyStatus;
 	name: string;
 	description: string;
 }
 
-export function mapField(json: RawField): Field {
+export function mapDiscipline(json: RawDiscipline): Discipline {
 	return {
 		id: json.slug,
 		name: json.name,
 		description: json.description,
-		published: json.published
+		published: json.published,
+		status: json.status ?? 'approved'
 	};
 }
 
 export interface RawTopic {
 	id: number;
 	slug: string;
-	course: number;
+	branch: number;
 	order: number;
 	name: string;
+	status: TaxonomyStatus;
 }
 
-/** `courseId` is the frontend course id (= slug) — the raw JSON's own `course` field is a PK int,
- * not a slug, but a Topic is always resolved from a request already scoped to one known course, so
- * the caller passes that course's own id straight through rather than needing a second lookup. */
-export function mapTopic(json: RawTopic, courseId: string): Topic {
-	return { id: String(json.id), slug: json.slug, courseId, name: json.name, order: json.order };
+/** `branchId` is the frontend branch id (= slug) — the raw JSON's own `branch` field is a PK int,
+ * not a slug, but a Topic is always resolved from a request already scoped to one known branch, so
+ * the caller passes that branch's own id straight through rather than needing a second lookup. */
+export function mapTopic(json: RawTopic, branchId: string): Topic {
+	return {
+		id: String(json.id),
+		slug: json.slug,
+		branchId,
+		name: json.name,
+		order: json.order,
+		status: json.status ?? 'approved'
+	};
 }
 
 export interface RawSubtopic {
@@ -105,34 +117,34 @@ export interface RawSubtopic {
 }
 
 /** Nested inside RawMaterialCoverage (below), same "no standalone list endpoint" treatment
- * mapTopic's own `courseId` parameter gets — `topicId` is passed straight through from the
- * enclosing coverage row rather than re-derived from `json.topic` (a bare PK with no course
- * context of its own to compose an id from, unlike mapTopic's `courseId` which the caller already
+ * mapTopic's own `branchId` parameter gets — `topicId` is passed straight through from the
+ * enclosing coverage row rather than re-derived from `json.topic` (a bare PK with no branch
+ * context of its own to compose an id from, unlike mapTopic's `branchId` which the caller already
  * has in hand). */
 export function mapSubtopic(json: RawSubtopic, topicId: string): Subtopic {
 	return { id: String(json.id), slug: json.slug, topicId, name: json.name, order: json.order };
 }
 
-export interface RawCourse {
+export interface RawBranch {
 	id: number;
 	slug: string;
-	field: string; // already the field's own slug (backend SlugRelatedField)
-	university: string;
+	discipline: string; // already the discipline's own slug (backend SlugRelatedField)
 	published: boolean;
+	status: TaxonomyStatus;
 	order: number;
 	name: string;
 	description: string;
 	topics: RawTopic[];
 }
 
-export function mapCourse(json: RawCourse): Course {
+export function mapBranch(json: RawBranch): Branch {
 	return {
 		id: json.slug,
-		fieldId: json.field,
+		disciplineId: json.discipline,
 		name: json.name,
 		description: json.description,
-		university: json.university,
 		published: json.published,
+		status: json.status ?? 'approved',
 		order: json.order,
 		topics: json.topics.map((t) => mapTopic(t, json.slug))
 	};
@@ -163,8 +175,8 @@ function mapSource(json: RawExerciseSource): ExerciseSource {
 /** Fields present on EVERY exercise response, list or detail. */
 export interface RawExerciseCommon {
 	id: number;
-	course: number;
-	course_slug: string;
+	branch: number;
+	branch_slug: string;
 	number: number;
 	topics: number[];
 	difficulty: Exercise['difficulty'];
@@ -182,8 +194,8 @@ export interface RawExerciseCommon {
 }
 
 /** Detail-only fields — resolving these needs a full per-locale translation walk, so the List
- * shape (used for course/top-rated/recent listings, where nothing reads them) skips them entirely
- * rather than paying that cost for every exercise in a 383-item course listing. */
+ * shape (used for branch/top-rated/recent listings, where nothing reads them) skips them entirely
+ * rather than paying that cost for every exercise in a 383-item branch listing. */
 export interface RawExerciseDetail extends RawExerciseCommon {
 	statement: string;
 	hint: string;
@@ -226,7 +238,7 @@ export function mapExerciseRequirement(json: RawExerciseRequirement): ExerciseRe
 function mapExerciseBase(json: RawExerciseCommon): Exercise {
 	return {
 		id: String(json.id),
-		courseId: json.course_slug,
+		branchId: json.branch_slug,
 		number: json.number,
 		topicIds: json.topics.map(String),
 		difficulty: json.difficulty,
@@ -242,7 +254,7 @@ function mapExerciseBase(json: RawExerciseCommon): Exercise {
 	};
 }
 
-/** Used by list endpoints (course/exercises, top-rated, recent, random) — `statement`/`hint`/
+/** Used by list endpoints (branch/exercises, top-rated, recent, random) — `statement`/`hint`/
  * `answer`/`solution` are cheap empty-string placeholders (never read by a card/list view, see
  * lib/components/exercise/ExerciseCard.svelte) rather than real content, matching the type contract
  * without paying for detail resolution nothing on that page actually needs. */
@@ -259,7 +271,7 @@ export function mapResolvedExerciseList(json: RawExerciseCommon): ResolvedExerci
 		translatedByUserId: undefined,
 		availableLocales: [],
 		// Empty on the list shape for the same reason `requirements` is: a card never credits anybody,
-		// and resolving contributors for all 383 exercises in a course listing would be paid for
+		// and resolving contributors for all 383 exercises in a branch listing would be paid for
 		// nothing. Empty here means "not asked for", not "nobody worked on it".
 		requirements: [],
 		contributors: []
@@ -422,8 +434,8 @@ export function mapMaterialRequirement(json: RawMaterialRequirement): MaterialRe
 
 export interface RawMaterial {
 	id: number;
-	course: number;
-	course_slug: string;
+	branch: number;
+	branch_slug: string;
 	slug: string;
 	type: string;
 	coverage: RawMaterialCoverage[];
@@ -451,7 +463,7 @@ export function mapMaterial(json: RawMaterial): Material {
 	const fileUrl = json.file ?? '';
 	return {
 		id: String(json.id),
-		courseId: json.course_slug,
+		branchId: json.branch_slug,
 		slug: json.slug,
 		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? 'other',
 		title: json.title,
@@ -558,7 +570,7 @@ export function mapComment(
 
 export interface RawExerciseSubmission {
 	id: number;
-	course: string; // slug (SlugRelatedField)
+	branch: string; // slug (SlugRelatedField)
 	submitted_by: number;
 	payload: unknown; // round-trips as ExerciseSubmissionDraft verbatim, see submissions.ts
 	status: ModerationStatus;
@@ -571,7 +583,7 @@ export interface RawExerciseSubmission {
 export function mapExerciseSubmission(json: RawExerciseSubmission): ExerciseSubmission {
 	return {
 		id: String(json.id),
-		courseId: json.course,
+		branchId: json.branch,
 		submittedByUserId: String(json.submitted_by),
 		draft: json.payload as ExerciseSubmission['draft'],
 		status: json.status,
@@ -584,7 +596,7 @@ export function mapExerciseSubmission(json: RawExerciseSubmission): ExerciseSubm
 
 export interface RawMaterialSubmission {
 	id: number;
-	course: string; // slug (SlugRelatedField), same convention as RawExerciseSubmission.course
+	branch: string; // slug (SlugRelatedField), same convention as RawExerciseSubmission.branch
 	submitted_by: number;
 	type: string;
 	title: string;
@@ -610,7 +622,7 @@ export function mapMaterialSubmission(json: RawMaterialSubmission): MaterialSubm
 	const fileUrl = json.file ?? '';
 	return {
 		id: String(json.id),
-		courseId: json.course,
+		branchId: json.branch,
 		submittedByUserId: String(json.submitted_by),
 		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? 'other',
 		title: json.title,
@@ -885,7 +897,7 @@ export interface RawNodeGovernorGrant {
 	id: number;
 	user: number;
 	user_display_name: string;
-	node_type: 'field' | 'course' | null; // null only if the underlying Field/Course row was since
+	node_type: GovernableNodeKind | null; // null only if the underlying Discipline/Branch row was since
 	// hard-deleted (GenericForeignKey resolves to None) — not a realistic case for a real grant,
 	// but the backend serializer method can genuinely return None, so this stays honest about it.
 	node_id: string | null;
@@ -899,7 +911,7 @@ export function mapNodeGovernorGrant(json: RawNodeGovernorGrant): NodeGovernorGr
 		id: String(json.id),
 		userId: String(json.user),
 		userDisplayName: json.user_display_name,
-		nodeType: json.node_type ?? 'course',
+		nodeType: json.node_type ?? 'branch',
 		nodeId: json.node_id ?? '',
 		nodeLabel: json.node_label,
 		grantedByUserId: json.granted_by !== null ? String(json.granted_by) : null,
@@ -946,7 +958,7 @@ export interface RawNotification {
 	target_label: string;
 	exercise_id: number | null;
 	material_id: number | null;
-	taught_course_id: number | null;
+	course_id: number | null;
 	event_id: number | null;
 	note: string;
 	is_read: boolean;
@@ -962,9 +974,9 @@ export function mapNotification(json: RawNotification): Notification {
 		targetLabel: json.target_label,
 		exerciseId: json.exercise_id !== null ? String(json.exercise_id) : undefined,
 		materialId: json.material_id !== null ? String(json.material_id) : undefined,
-		taughtCourseId:
-			json.taught_course_id !== null && json.taught_course_id !== undefined
-				? String(json.taught_course_id)
+		courseId:
+			json.course_id !== null && json.course_id !== undefined
+				? String(json.course_id)
 				: undefined,
 		eventId:
 			json.event_id !== null && json.event_id !== undefined
@@ -1000,7 +1012,7 @@ export interface RawService {
 	provider_display_name: string;
 	title: string;
 	description: string;
-	course_slugs: string[];
+	branch_slugs: string[];
 	hourly_rate: string | null; // DRF's DecimalField serializes as a string, not a JS number
 	currency: string;
 	is_active: boolean;
@@ -1024,7 +1036,7 @@ export function mapService(json: RawService): Service {
 		providerDisplayName: json.provider_display_name,
 		title: json.title,
 		description: json.description,
-		courseIds: json.course_slugs,
+		branchIds: json.branch_slugs,
 		hourlyRate: json.hourly_rate !== null ? Number(json.hourly_rate) : null,
 		currency: (json.currency as Service['currency']) || 'PLN',
 		isActive: json.is_active,

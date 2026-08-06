@@ -1,6 +1,6 @@
 <script lang="ts">
 	// The homepage used to be exercises and nothing else — top-rated and recent, and no acknowledgement
-	// on the front page that this site also holds materials, courses somebody runs, people offering
+	// on the front page that this site also holds materials, branches somebody runs, people offering
 	// tutoring, or (now) events. Five tabs, one per kind of thing, each showing a real listing built
 	// from that feature's OWN card component rather than a homepage-specific summary card: a course on
 	// the homepage should look like a course, and a second card component per kind is a second place to
@@ -21,26 +21,26 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import type { Course, Material, ResolvedExercise, Service } from '$lib/types';
-	import type { TaughtCourse } from '$lib/types/classroom';
+	import type { Branch, Material, ResolvedExercise, Service } from '$lib/types';
+	import type { Course } from '$lib/types/course';
 	import type { EdmatEvent } from '$lib/types/event';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { getRecentExercises, getTopRatedExercises } from '$lib/services/exercises';
 	import { browseMaterials } from '$lib/services/materials';
-	import { getCourses } from '$lib/services/classroom';
+	import { getCourses } from '$lib/services/course';
 	import { getServices } from '$lib/services/tutoring';
 	import { getEvents } from '$lib/services/events';
-	import { getCourseById } from '$lib/services/taxonomy';
+	import { getBranchById } from '$lib/services/taxonomy';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
-	import CourseCard from '$lib/components/classroom/CourseCard.svelte';
+	import CourseCard from '$lib/components/course/CourseCard.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import EventCard from '$lib/components/event/EventCard.svelte';
 
-	type TabId = 'exercises' | 'materials' | 'courses' | 'tutoring' | 'events';
+	type TabId = 'exercises' | 'materials' | 'branches' | 'tutoring' | 'events';
 
 	// Each tab names the flag that governs its content, or `null` for the two that are always there.
 	// A tab whose feature a moderator has killed is not rendered at all — a tab strip that opens onto
@@ -53,7 +53,7 @@
 	}[] = [
 		{ id: 'exercises', label: () => m.home_tab_exercises(), flag: null },
 		{ id: 'materials', label: () => m.home_tab_materials(), flag: null },
-		{ id: 'courses', label: () => m.home_tab_courses(), flag: 'classroom' },
+		{ id: 'branches', label: () => m.home_tab_courses(), flag: 'classroom' },
 		{ id: 'tutoring', label: () => m.home_tab_tutoring(), flag: 'tutoring' },
 		{ id: 'events', label: () => m.home_tab_events(), flag: 'events' }
 	];
@@ -108,9 +108,9 @@
 	// --- per-tab data --------------------------------------------------------------------------
 	let topRated = $state<ResolvedExercise[]>([]);
 	let recent = $state<ResolvedExercise[]>([]);
-	let coursesById = $state<Record<string, Course>>({});
+	let coursesById = $state<Record<string, Branch>>({});
 	let materials = $state<Material[]>([]);
-	let taughtCourses = $state<TaughtCourse[]>([]);
+	let courses = $state<Course[]>([]);
 	let services = $state<Service[]>([]);
 	let events = $state<EdmatEvent[]>([]);
 
@@ -131,15 +131,15 @@
 				]);
 				topRated = tr;
 				recent = rc;
-				const courseIds = [...new Set([...tr, ...rc].map((e) => e.courseId))];
-				const resolved = await Promise.all(courseIds.map((cid) => getCourseById(cid)));
-				const map: Record<string, Course> = {};
+				const branchIds = [...new Set([...tr, ...rc].map((e) => e.branchId))];
+				const resolved = await Promise.all(branchIds.map((cid) => getBranchById(cid)));
+				const map: Record<string, Branch> = {};
 				for (const c of resolved) if (c) map[c.id] = c;
 				coursesById = map;
 			} else if (id === 'materials') {
 				materials = (await browseMaterials({ sort: 'recent' })).slice(0, 6);
-			} else if (id === 'courses') {
-				taughtCourses = (await getCourses({ openOnly: true })).slice(0, 6);
+			} else if (id === 'branches') {
+				courses = (await getCourses({ openOnly: true })).slice(0, 6);
 			} else if (id === 'tutoring') {
 				services = (await getServices()).slice(0, 6);
 			} else if (id === 'events') {
@@ -173,7 +173,7 @@
 	<section class="hero">
 		<h1>{m.home_hero_title()}</h1>
 		<p>{m.home_hero_subtitle()}</p>
-		<a class="cta" href={resolve('/fields')}>{m.home_hero_cta()}</a>
+		<a class="cta" href={resolve('/disciplines')}>{m.home_hero_cta()}</a>
 	</section>
 
 	<!-- `tabindex="-1"` on the list itself, with the roving tabindex living on the tabs: the container
@@ -222,7 +222,7 @@
 				{:else}
 					<div class="grid">
 						{#each topRated as exercise (exercise.id)}
-							<ExerciseCard {exercise} courseName={coursesById[exercise.courseId]?.name} />
+							<ExerciseCard {exercise} courseName={coursesById[exercise.branchId]?.name} />
 						{/each}
 					</div>
 				{/if}
@@ -231,7 +231,7 @@
 				<h2>{m.home_recent_heading()}</h2>
 				<div class="grid">
 					{#each recent as exercise (exercise.id)}
-						<ExerciseCard {exercise} courseName={coursesById[exercise.courseId]?.name} />
+						<ExerciseCard {exercise} courseName={coursesById[exercise.branchId]?.name} />
 					{/each}
 				</div>
 			</section>
@@ -251,17 +251,17 @@
 					</div>
 				{/if}
 			</section>
-		{:else if active === 'courses'}
+		{:else if active === 'branches'}
 			<section class="section">
 				<div class="section__head">
 					<h2>{m.home_courses_heading()}</h2>
-					<a href={resolve('/classroom')}>{m.home_seeAll()}</a>
+					<a href={resolve('/courses')}>{m.home_seeAll()}</a>
 				</div>
-				{#if taughtCourses.length === 0}
-					<p class="status">{m.classroom_browseEmpty()}</p>
+				{#if courses.length === 0}
+					<p class="status">{m.course_browseEmpty()}</p>
 				{:else}
 					<div class="grid">
-						{#each taughtCourses as course (course.id)}
+						{#each courses as course (course.id)}
 							<CourseCard {course} />
 						{/each}
 					</div>

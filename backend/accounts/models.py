@@ -52,7 +52,7 @@ class Profile(models.Model):
     # only the unfinished ones: "you have 3 of your 5" is a sentence somebody can act on, whereas a
     # cap that silently frees a slot when a course is marked finished is one people would discover
     # by accident. 0 means uncapped — the same convention
-    # `TaughtCourse.capacity` and `TaughtCourse.upload_quota_bytes` already use, so "no limit" reads
+    # `Course.capacity` and `Course.upload_quota_bytes` already use, so "no limit" reads
     # the same everywhere it appears.
     #
     # Uncapped by default, and lowered per account by an administrator in Django admin rather than
@@ -236,15 +236,15 @@ class SkillEntry(models.Model):
         max_length=16, choices=SKILL_EVIDENCE_CHOICES, default='self_declared'
     )
     # Optional links into the real taxonomy — what makes a skill more than a word. A skill tied to a
-    # Course can be counted, filtered and matched against the exercises on this site; a free-text one
+    # Branch can be counted, filtered and matched against the exercises on this site; a free-text one
     # cannot, which is why both are allowed but only one of them is useful to the rest of the app.
     # This is also where `identity.standing.skill_seeds` would land once USOS grades are imported for
     # real: the seeds already compute exactly this shape.
-    course = models.ForeignKey(
-        'taxonomy.Course', null=True, blank=True, related_name='claimed_skills', on_delete=models.SET_NULL
+    branch = models.ForeignKey(
+        'taxonomy.Branch', null=True, blank=True, related_name='claimed_skills', on_delete=models.SET_NULL
     )
-    field = models.ForeignKey(
-        'taxonomy.Field', null=True, blank=True, related_name='claimed_skills', on_delete=models.SET_NULL
+    discipline = models.ForeignKey(
+        'taxonomy.Discipline', null=True, blank=True, related_name='claimed_skills', on_delete=models.SET_NULL
     )
     order = models.PositiveIntegerField(default=0)
 

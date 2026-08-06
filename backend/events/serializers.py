@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from taxonomy.models import Course as Subject, Field
+from taxonomy.models import Branch, Discipline
 
 from .models import ATTENDING_STATUSES, Event, EventAttendance
 
@@ -35,7 +35,7 @@ class EventSerializer(serializers.ModelSerializer):
     subject_slugs = serializers.SlugRelatedField(
         source='subjects', slug_field='slug', many=True, read_only=True
     )
-    field_slug = serializers.SlugRelatedField(source='field', slug_field='slug', read_only=True)
+    discipline_slug = serializers.SlugRelatedField(source='discipline', slug_field='slug', read_only=True)
 
     ends_at = serializers.DateTimeField(read_only=True)
     is_past = serializers.BooleanField(read_only=True)
@@ -45,7 +45,7 @@ class EventSerializer(serializers.ModelSerializer):
 
     # The viewer's own relationship to this event, all resolved server-side. The client should never
     # work out "may I answer this?" for itself — a client that computes a permission is a client that
-    # can compute it wrongly, which is the same reasoning `TaughtCourseSerializer` records for
+    # can compute it wrongly, which is the same reasoning `CourseSerializer` records for
     # `can_enrol`.
     my_attendance = serializers.SerializerMethodField()
     is_host = serializers.SerializerMethodField()
@@ -64,7 +64,7 @@ class EventSerializer(serializers.ModelSerializer):
             'summary',
             'description',
             'subject_slugs',
-            'field_slug',
+            'discipline_slug',
             'status',
             'starts_at',
             'ends_at',
@@ -120,21 +120,21 @@ class EventSerializer(serializers.ModelSerializer):
 class EventWriteSerializer(serializers.ModelSerializer):
     """Writes take slugs, not primary keys, for the taxonomy relations — the client already knows a
     subject by its slug everywhere else in this API, and making it look up an integer id first would
-    be a round trip for nothing. Same shape `TaughtCourseWriteSerializer` uses."""
+    be a round trip for nothing. Same shape `CourseWriteSerializer` uses."""
 
     subject_slugs = serializers.SlugRelatedField(
         source='subjects',
         slug_field='slug',
         many=True,
         required=False,
-        queryset=Subject.objects.all(),
+        queryset=Branch.objects.all(),
     )
-    field_slug = serializers.SlugRelatedField(
-        source='field',
+    discipline_slug = serializers.SlugRelatedField(
+        source='discipline',
         slug_field='slug',
         required=False,
         allow_null=True,
-        queryset=Field.objects.all(),
+        queryset=Discipline.objects.all(),
     )
 
     class Meta:
@@ -144,7 +144,7 @@ class EventWriteSerializer(serializers.ModelSerializer):
             'summary',
             'description',
             'subject_slugs',
-            'field_slug',
+            'discipline_slug',
             'status',
             'starts_at',
             'duration_minutes',

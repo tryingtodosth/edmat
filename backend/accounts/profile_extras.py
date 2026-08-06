@@ -48,13 +48,13 @@ class ExperienceSerializer(serializers.ModelSerializer):
 
 
 class SkillSerializer(serializers.ModelSerializer):
-    course_slug = serializers.SlugRelatedField(source='course', slug_field='slug', read_only=True)
-    field_slug = serializers.SlugRelatedField(source='field', slug_field='slug', read_only=True)
+    branch_slug = serializers.SlugRelatedField(source='branch', slug_field='slug', read_only=True)
+    discipline_slug = serializers.SlugRelatedField(source='discipline', slug_field='slug', read_only=True)
 
     class Meta:
         model = SkillEntry
-        fields = ['id', 'label', 'level', 'evidence', 'course', 'field', 'course_slug', 'field_slug', 'order']
-        extra_kwargs = {'course': {'write_only': True}, 'field': {'write_only': True}}
+        fields = ['id', 'label', 'level', 'evidence', 'branch', 'discipline', 'branch_slug', 'discipline_slug', 'order']
+        extra_kwargs = {'branch': {'write_only': True}, 'discipline': {'write_only': True}}
 
     def validate_label(self, value):
         """One row per label per person, reported as a validation error rather than a 500.
@@ -119,7 +119,7 @@ class UserProfileExtrasView(APIView):
         return Response(
             {
                 'experience': ExperienceSerializer(profile.experience.all(), many=True).data,
-                'skills': SkillSerializer(profile.skills.select_related('course', 'field'), many=True).data,
+                'skills': SkillSerializer(profile.skills.select_related('branch', 'discipline'), many=True).data,
             }
         )
 
@@ -135,7 +135,7 @@ class UserActivityView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, pk):
-        from classroom.models import Enrollment, TaughtCourse
+        from courses.models import Enrollment, Course
         from community.models import Comment, Review
         from exercises.models import Exercise
 
@@ -193,12 +193,12 @@ class UserActivityView(APIView):
                 }
             )
 
-        for course in TaughtCourse.objects.filter(instructor_id=pk).prefetch_related('subjects'):
+        for course in Course.objects.filter(instructor_id=pk).prefetch_related('subjects'):
             items.append(
                 {
                     'kind': 'course_taught',
                     'title': course.title,
-                    'taught_course_id': course.pk,
+                    'course_id': course.pk,
                     'tags': [s.slug for s in course.subjects.all()],
                     'created_at': course.created_at.isoformat(),
                 }
@@ -213,7 +213,7 @@ class UserActivityView(APIView):
                 {
                     'kind': 'course_joined',
                     'title': enrollment.course.title,
-                    'taught_course_id': enrollment.course_id,
+                    'course_id': enrollment.course_id,
                     'tags': [s.slug for s in enrollment.course.subjects.all()],
                     'created_at': enrollment.requested_at.isoformat(),
                 }

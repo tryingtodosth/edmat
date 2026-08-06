@@ -124,7 +124,7 @@ function mapSnapshot(raw: any): EducationSnapshot {
 				ects: g.ects,
 				value: g.value,
 				scale: g.scale,
-				courseSlug: g.course_slug ?? null
+				branchSlug: g.branch_slug ?? null
 			}))
 		},
 		standing: {
@@ -132,7 +132,7 @@ function mapSnapshot(raw: any): EducationSnapshot {
 			usosTier: raw.standing.usos_tier,
 			reasons: raw.standing.reasons,
 			skillSeeds: (raw.standing.skill_seeds ?? []).map((s: any) => ({
-				courseSlug: s.course_slug,
+				branchSlug: s.branch_slug,
 				courseName: s.course_name,
 				ects: s.ects,
 				basis: s.basis
@@ -173,7 +173,7 @@ export function mapPublicEducation(raw: any): PublicEducation | null {
 			ects: g.ects,
 			value: g.value,
 			scale: g.scale,
-			courseSlug: g.course_slug ?? null
+			branchSlug: g.branch_slug ?? null
 		})),
 		average: raw.average ?? null
 	};

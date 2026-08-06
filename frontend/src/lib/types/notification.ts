@@ -48,7 +48,7 @@ export interface Notification {
 	targetLabel: string;
 	exerciseId?: string; // absent when there's nowhere real to link (e.g. a rejected submission)
 	materialId?: string; // set instead of exerciseId when a newTaggedContent notification targets a Material
-	taughtCourseId?: string; // set for the course types, which have neither an exercise nor a material
+	courseId?: string; // set for the branch types, which have neither an exercise nor a material
 	eventId?: string; // set for the event types, which have none of the three above
 	note: string;
 	isRead: boolean;

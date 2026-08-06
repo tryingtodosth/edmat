@@ -14,7 +14,7 @@ from rest_framework.test import APIClient
 
 from moderation.models import FeatureFlag
 from notifications.models import Notification
-from taxonomy.models import Course as Subject, Field
+from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
 
 from .models import Event, EventAttendance
@@ -32,8 +32,8 @@ class ApiTestCase(TestCase):
         self.host = User.objects.create_user('kasia', 'kasia@x.example', 'pw12345!')
         self.goer = User.objects.create_user('michal', 'michal@x.example', 'pw12345!')
         self.other = User.objects.create_user('ola', 'ola@x.example', 'pw12345!')
-        self.field = Field.objects.create(slug='matematyka')
-        self.subject = Subject.objects.create(slug='analiza-2', field=self.field, university='UW')
+        self.discipline = Discipline.objects.create(slug='matematyka')
+        self.subject = Branch.objects.create(slug='analiza-2', discipline=self.discipline)
         self.client = APIClient()
 
     def as_(self, user):
@@ -112,14 +112,14 @@ class VisibilityTests(ApiTestCase):
     def test_discovery_by_subject_and_field(self):
         event = self.make_event()
         event.subjects.add(self.subject)
-        event.field = self.field
+        event.discipline = self.discipline
         event.save()
         self.make_event(title='unrelated')
         self.assertEqual(
             [e['id'] for e in self.client.get('/api/events/?subject=analiza-2').json()], [event.pk]
         )
         self.assertEqual(
-            [e['id'] for e in self.client.get('/api/events/?field=matematyka').json()], [event.pk]
+            [e['id'] for e in self.client.get('/api/events/?discipline=matematyka').json()], [event.pk]
         )
 
     def test_mine_splits_hosting_from_attending(self):
@@ -371,7 +371,7 @@ class RosterTests(ApiTestCase):
         )
 
     def test_people_who_are_going_see_each_other(self):
-        """Unlike a course roster: "is anybody else going" is half of why somebody opens an event."""
+        """Unlike a branch roster: "is anybody else going" is half of why somebody opens an event."""
         event = self.make_event()
         EventAttendance.objects.create(event=event, attendee=self.goer, status='going')
         EventAttendance.objects.create(event=event, attendee=self.other, status='going')

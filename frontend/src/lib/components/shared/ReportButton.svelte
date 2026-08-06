@@ -40,7 +40,7 @@
 
 {#if authStore.isAuthenticated}
 	<button type="button" class="report-trigger" onclick={openModal}>
-		🚩 {m.report_action()}
+		{m.report_action()}
 	</button>
 {/if}
 

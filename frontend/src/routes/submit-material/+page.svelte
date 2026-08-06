@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Course, MaterialCoverageDraft, MaterialType, Topic } from '$lib/types';
+	import type { Branch, MaterialCoverageDraft, MaterialType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getAllCourses, getTopicsForCourse } from '$lib/services/taxonomy';
+	import { getAllBranches, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { submitMaterial } from '$lib/services/materials';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -16,8 +16,8 @@
 	// re-checks every upload's real bytes regardless of what this hints the OS file dialog toward.
 	const ACCEPTED_EXTENSIONS = '.pdf,.png,.jpg,.jpeg,.tex,.doc,.docx,.odt';
 
-	let courses = $state<Course[]>([]);
-	let courseId = $state('');
+	let branches = $state<Branch[]>([]);
+	let branchId = $state('');
 	let topics = $state<Topic[]>([]);
 	let type = $state<MaterialType>('examCollection');
 	let title = $state('');
@@ -97,14 +97,14 @@
 	);
 
 	async function init() {
-		courses = await getAllCourses();
-		if (courses.length) courseId = courses[0].id;
+		branches = await getAllBranches();
+		if (branches.length) branchId = branches[0].id;
 	}
 	init();
 
 	$effect(() => {
-		if (!courseId) return;
-		getTopicsForCourse(courseId).then((t) => {
+		if (!branchId) return;
+		getTopicsForBranch(branchId).then((t) => {
 			topics = t;
 			coverage = [];
 		});
@@ -115,7 +115,7 @@
 		file = input.files?.[0] ?? null;
 	}
 
-	let canSubmit = $derived(Boolean(courseId && title.trim() && file));
+	let canSubmit = $derived(Boolean(branchId && title.trim() && file));
 
 	/** The backend field is a real `URLField`, which rejects a bare `example.edu/x.pdf` outright.
 	 * Someone typing a source by hand very reasonably omits the scheme, so prepend `https://` when
@@ -133,7 +133,7 @@
 		try {
 			await submitMaterial(
 				{
-					courseId,
+					branchId,
 					type,
 					title: title.trim(),
 					description: description.trim(),
@@ -201,8 +201,8 @@
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
 				<label class="field">
 					<span>{m.submitMaterial_field_course()}</span>
-					<select bind:value={courseId}>
-						{#each courses as c (c.id)}
+					<select bind:value={branchId}>
+						{#each branches as c (c.id)}
 							<option value={c.id}>{c.name}</option>
 						{/each}
 					</select>

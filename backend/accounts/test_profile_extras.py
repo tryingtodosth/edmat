@@ -9,10 +9,10 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from classroom.models import Enrollment, TaughtCourse
+from courses.models import Enrollment, Course
 from community.models import Review
 from exercises.models import Tag
-from taxonomy.models import Course, Field
+from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_exercise
 
@@ -86,13 +86,13 @@ class SkillTests(ApiTestCase):
         self.assertEqual(SkillEntry.objects.filter(profile=self.me.profile).count(), 1)
 
     def test_a_skill_can_name_a_real_course_and_reports_its_slug(self):
-        field = Field.objects.create(slug='matematyka')
-        course = Course.objects.create(slug='analiza-2', field=field, university='UW')
+        field = Discipline.objects.create(slug='matematyka')
+        branch = Branch.objects.create(slug='analiza-2', discipline=field)
         self.as_(self.me).post(
-            '/api/me/skills/', {'label': 'Analiza II', 'course': course.pk}, format='json'
+            '/api/me/skills/', {'label': 'Analiza II', 'branch': branch.pk}, format='json'
         )
         public = self.client.get(f'/api/users/{self.me.pk}/extras/')
-        self.assertEqual(public.data['skills'][0]['course_slug'], 'analiza-2')
+        self.assertEqual(public.data['skills'][0]['branch_slug'], 'analiza-2')
 
 
 class ActivityFeedTests(ApiTestCase):
@@ -101,8 +101,8 @@ class ActivityFeedTests(ApiTestCase):
         # The repo's own shared fixtures rather than hand-built taxonomy rows — the real shape has
         # translations and a topic, and rebuilding that by hand here would just be a second, wronger
         # copy of `testing/factories.py`.
-        self.course = make_course()
-        self.exercise = make_exercise(self.course, 1)
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
         self.exercise.submitted_by = self.me
         self.exercise.published = True
         self.exercise.save()
@@ -111,8 +111,8 @@ class ActivityFeedTests(ApiTestCase):
 
     def test_the_feed_merges_several_kinds_and_reports_which(self):
         Review.objects.create(exercise=self.exercise, author=self.me, rating=5, body='Dobre')
-        taught = TaughtCourse.objects.create(instructor=self.me, title='Analiza od zera', status='open')
-        joined = TaughtCourse.objects.create(instructor=self.other, title='Inny', status='open')
+        taught = Course.objects.create(instructor=self.me, title='Analiza od zera', status='open')
+        joined = Course.objects.create(instructor=self.other, title='Inny', status='open')
         Enrollment.objects.create(course=joined, participant=self.me, status='active')
 
         res = self.client.get(f'/api/users/{self.me.pk}/activity/')
@@ -169,7 +169,7 @@ class SeedDemoContentTests(ApiTestCase):
         self.assertTrue(ania.profile.bio)
         self.assertTrue(ania.profile.experience.exists())
         self.assertTrue(ania.profile.skills.exists())
-        self.assertTrue(TaughtCourse.objects.filter(instructor=ania).exists())
+        self.assertTrue(Course.objects.filter(instructor=ania).exists())
 
     def test_it_leaves_a_pending_request_for_the_instructor_to_act_on(self):
         from django.core.management import call_command
@@ -181,8 +181,8 @@ class SeedDemoContentTests(ApiTestCase):
         from django.core.management import call_command
 
         call_command('seed_demo_content', verbosity=0)
-        self.assertTrue(TaughtCourse.objects.filter(visibility='only_you').exists())
-        self.assertTrue(TaughtCourse.objects.filter(visibility='private').exists())
+        self.assertTrue(Course.objects.filter(visibility='only_you').exists())
+        self.assertTrue(Course.objects.filter(visibility='private').exists())
 
 
 class DisplayPreferenceTests(ApiTestCase):

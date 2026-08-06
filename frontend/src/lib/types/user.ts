@@ -10,7 +10,7 @@ export interface User {
 	joinedAt: string | null; // null only ever appears on a PublicProfile view of a privacy-gated profile
 	isVerifiedContributor: boolean;
 	isModerator: boolean;
-	// The "node governor" feature (nodeGovernor.ts) — a moderator scoped to one Field/Course rather
+	// The "node governor" feature (nodeGovernor.ts) — a moderator scoped to one Discipline/Branch rather
 	// than the whole platform. Deliberately just a cheap flag here, not the actual list of governed
 	// nodes — see accounts/serializers.py's ProfileSerializer.get_is_node_governor for why (this
 	// response is fetched on every authenticated page load). A frontend that needs to know WHICH
@@ -20,7 +20,7 @@ export interface User {
 	preferredLocale: string;
 	// Tutoring ("Korepetycje") — a deliberately lightweight, opt-in signal, distinct from a real
 	// services.Service listing (service.ts): "I'm open to being asked," shown as a badge on the
-	// public profile with a short free-text note, no structured course tie-in and no rate. Always
+	// public profile with a short free-text note, no structured branch tie-in and no rate. Always
 	// present on both the current user's own /auth/me/ shape and a stranger's /users/{id} one (see
 	// accounts/serializers.py — both ProfileSerializer and PublicProfileSerializer include these
 	// two unconditionally, regardless of showProfilePublicly, since opting in to tutoring is itself

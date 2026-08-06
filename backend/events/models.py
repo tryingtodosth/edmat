@@ -3,7 +3,7 @@
 **Why this is not one of the two things it looks like.** EdMat already has two models that put a
 person in a room with other people at a time, and an event is neither of them:
 
-- `classroom.TaughtCourse` is something taught *over time* to a group who sign up for it. It has a
+- `classroom.Course` is something taught *over time* to a group who sign up for it. It has a
   roster, chapters, lessons, contributions, staff and an enrolment lifecycle in which a request can
   be pending, approved, declined or revoked. A guest lecture on Thursday has none of that. Modelling
   one as a course with a single lesson would mean every one of those fields exists and means nothing,
@@ -14,7 +14,7 @@ person in a room with other people at a time, and an event is neither of them:
 
 So an event is its own small model, and deliberately smaller than either: a title, a time, a place, a
 cap, and a list of people who said they are coming. Everything it needs that already exists is reused
-rather than rebuilt — the taxonomy for discovery (the same `subjects`/`field` pair `TaughtCourse` and
+rather than rebuilt — the taxonomy for discovery (the same `subjects`/`field` pair `Course` and
 `Service` both use), `notifications.notify()` for telling people, and the `events` FeatureFlag for the
 kill switch.
 """
@@ -27,7 +27,7 @@ from django.db import models
 from django.utils import timezone
 
 # An event's own lifecycle. Three values rather than a boolean `is_published` plus a boolean
-# `is_cancelled`, for the reason `TaughtCourse.status` already records: two booleans make an illegal
+# `is_cancelled`, for the reason `Course.status` already records: two booleans make an illegal
 # state representable — cancelled but never published — that every read site then has to defend
 # against.
 STATUS_CHOICES = [
@@ -92,12 +92,12 @@ class Event(models.Model):
     summary = models.CharField(max_length=300, blank=True)
     description = models.TextField(blank=True)
 
-    # Discovery through the taxonomy rather than free-text tags — the same choice `TaughtCourse` and
+    # Discovery through the taxonomy rather than free-text tags — the same choice `Course` and
     # `Service` both already make, and the reason somebody browsing Analiza Matematyczna II finds the
     # exam-prep session about it without knowing it exists.
-    subjects = models.ManyToManyField('taxonomy.Course', related_name='events', blank=True)
-    field = models.ForeignKey(
-        'taxonomy.Field',
+    subjects = models.ManyToManyField('taxonomy.Branch', related_name='events', blank=True)
+    discipline = models.ForeignKey(
+        'taxonomy.Discipline',
         related_name='events',
         null=True,
         blank=True,
@@ -125,7 +125,7 @@ class Event(models.Model):
     online_url = models.URLField(max_length=500, blank=True)
 
     # 0 means no limit, which is genuinely different from "a limit that happens to be large" — the
-    # same convention, and the same default, `TaughtCourse.capacity` already uses.
+    # same convention, and the same default, `Course.capacity` already uses.
     capacity = models.PositiveSmallIntegerField(default=0)
     language = models.CharField(max_length=8, default='pl')
 

@@ -1,19 +1,21 @@
 <script lang="ts">
 	import type {
-		Course,
+		Branch,
 		EditSuggestion,
 		ExerciseSubmission,
 		ExerciseTranslation,
 		FeatureFlagKey,
-		Field,
+		Discipline,
 		GovernableNodeKind,
 		MaterialSubmission,
 		NodeGovernorGrant,
 		ReportGroup,
 		User
 	} from '$lib/types';
+	import type { TaxonomyProposal } from '$lib/services/moderation';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
+		decideTaxonomyProposal,
 		getModerationQueue,
 		decideEditSuggestion,
 		decideExerciseSubmission,
@@ -25,7 +27,7 @@
 		revokeNodeGovernor
 	} from '$lib/services/moderation';
 	import { getUserById } from '$lib/services/users';
-	import { getCourseById, getFields, getAllCourses } from '$lib/services/taxonomy';
+	import { getBranchById, getDisciplines, getAllBranches } from '$lib/services/taxonomy';
 	import { getExercisesByIds } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
@@ -44,27 +46,28 @@
 	>('reports');
 	let flagTogglePending = $state<Record<string, boolean>>({});
 	let flagError = $state('');
+	let taxonomyProposals = $state<TaxonomyProposal[]>([]);
 	let reports = $state<ReportGroup[]>([]);
 	let submissions = $state<ExerciseSubmission[]>([]);
 	let materialSubmissions = $state<MaterialSubmission[]>([]);
 	let editSuggestions = $state<EditSuggestion[]>([]);
 	let translations = $state<ExerciseTranslation[]>([]);
 	let usersById = $state<Record<string, User>>({});
-	let coursesById = $state<Record<string, Course>>({});
+	let coursesById = $state<Record<string, Branch>>({});
 	let exerciseTitles = $state<Record<string, string>>({});
 	let notes = $state<Record<string, string>>({});
 	let loading = $state(true);
 
 	// Node-governor state — `myGovernedNodes` is what EVERY moderator sees (the backend already
 	// scopes GET /moderation/governors/ to "my own grants" for a non-staff user, so this is a real,
-	// live list even for a scoped governor, not a staff-only concept); `fields`/`allCourses` back
+	// live list even for a scoped governor, not a staff-only concept); `disciplines`/`allBranches` back
 	// the grant form's own node picker, only ever fetched for a real global moderator.
 	let myGovernedNodes = $state<NodeGovernorGrant[]>([]);
 	let allGovernors = $state<NodeGovernorGrant[]>([]);
-	let fields = $state<Field[]>([]);
-	let allCourses = $state<Course[]>([]);
+	let disciplines = $state<Discipline[]>([]);
+	let allBranches = $state<Branch[]>([]);
 	let grantUserId = $state('');
-	let grantKind = $state<GovernableNodeKind>('course');
+	let grantKind = $state<GovernableNodeKind>('branch');
 	let grantNodeSlug = $state('');
 	let grantError = $state('');
 	let grantSubmitting = $state(false);
@@ -73,6 +76,7 @@
 		loading = true;
 		const queue = await getModerationQueue();
 		reports = queue.reports;
+		taxonomyProposals = queue.taxonomyProposals;
 		submissions = queue.exerciseSubmissions;
 		materialSubmissions = queue.materialSubmissions;
 		editSuggestions = queue.editSuggestions;
@@ -89,15 +93,15 @@
 		for (const u of users) if (u) uMap[u.id] = u;
 		usersById = uMap;
 
-		const courseIds = [
+		const branchIds = [
 			...new Set([
-				...submissions.map((s) => s.courseId),
-				...materialSubmissions.map((s) => s.courseId)
+				...submissions.map((s) => s.branchId),
+				...materialSubmissions.map((s) => s.branchId)
 			])
 		];
-		const courses = await Promise.all(courseIds.map((id) => getCourseById(id)));
-		const cMap: Record<string, Course> = {};
-		for (const c of courses) if (c) cMap[c.id] = c;
+		const branches = await Promise.all(branchIds.map((id) => getBranchById(id)));
+		const cMap: Record<string, Branch> = {};
+		for (const c of branches) if (c) cMap[c.id] = c;
 		coursesById = cMap;
 
 		const exerciseIds = [
@@ -118,11 +122,11 @@
 		// for a non-staff user (moderation/views.py's NodeGovernorViewSet.get_queryset), so the same
 		// one call correctly backs the "you govern: X" banner for a scoped governor; a real global
 		// moderator additionally sees every grant (for the Governors tab's own management list) and
-		// gets the Field/Course pickers the grant form needs.
+		// gets the Discipline/Branch pickers the grant form needs.
 		myGovernedNodes = await listNodeGovernors();
 		if (authStore.isModerator) {
 			allGovernors = myGovernedNodes;
-			[fields, allCourses] = await Promise.all([getFields(), getAllCourses()]);
+			[disciplines, allBranches] = await Promise.all([getDisciplines(), getAllBranches()]);
 			// Kill switches are the same "real global staff only" scope as granting/revoking a node
 			// governor above — a scoped governor never sees this tab at all (the tab button's own
 			// {#if authStore.isModerator} guard below), so no point fetching it for them.
@@ -216,10 +220,10 @@
 		reports = await resolveReport(r.kind, r.objectId, 'remove', notes[reportKey(r)]);
 	}
 
-	// The candidate node list for the grant form's own picker — every Field, or every Course,
+	// The candidate node list for the grant form's own picker — every Discipline, or every Branch,
 	// depending on `grantKind`; re-derived reactively rather than re-fetched, since both lists are
 	// already loaded once in `load()` above.
-	let grantNodeOptions = $derived(grantKind === 'field' ? fields : allCourses);
+	let grantNodeOptions = $derived(grantKind === 'discipline' ? disciplines : allBranches);
 
 	async function submitGrant() {
 		grantError = '';
@@ -272,6 +276,47 @@
 				})}
 			</p>
 		{/if}
+		<!-- Proposed taxonomy entries. Above the tabs rather than inside one: a proposal is cheap
+		     to decide and blocks whoever is waiting to file content under the word, so burying it
+		     behind a tab is how it ends up unreviewed. -->
+		{#if taxonomyProposals.length > 0}
+			<section class="taxonomy-proposals">
+				<h2>{m.moderation_taxonomy_heading()}</h2>
+				<ul>
+					{#each taxonomyProposals as proposal (proposal.kind + proposal.id)}
+						<li>
+							<span class="kind">{proposal.kind}</span>
+							<strong>{proposal.name}</strong>
+							<code>{proposal.slug}</code>
+							{#if proposal.parent}
+								<span class="hint">← {proposal.parent}</span>
+							{/if}
+							<button
+								type="button"
+								class="link"
+								onclick={async () => {
+									await decideTaxonomyProposal(proposal.kind, proposal.id, 'approve');
+									await load();
+								}}
+							>
+								{m.moderation_taxonomy_approve()}
+							</button>
+							<button
+								type="button"
+								class="link danger"
+								onclick={async () => {
+									await decideTaxonomyProposal(proposal.kind, proposal.id, 'reject');
+									await load();
+								}}
+							>
+								{m.moderation_taxonomy_reject()}
+							</button>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+
 		<div class="tabs" role="tablist">
 			<button
 				type="button"
@@ -461,7 +506,7 @@
 									{m.moderation_submittedBy({
 										name: usersById[s.submittedByUserId]?.displayName ?? '—'
 									})}
-									{m.moderation_forCourse({ course: coursesById[s.courseId]?.name ?? s.courseId })}
+									{m.moderation_forBranch({ branch: coursesById[s.branchId]?.name ?? s.branchId })}
 								</p>
 								<p class="excerpt">{s.draft.statement.replace(/<[^>]+>/g, '').slice(0, 200)}</p>
 								<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[s.id]}
@@ -506,12 +551,12 @@
 									{m.moderation_submittedBy({
 										name: usersById[s.submittedByUserId]?.displayName ?? '—'
 									})}
-									{m.moderation_forCourse({ course: coursesById[s.courseId]?.name ?? s.courseId })}
+									{m.moderation_forBranch({ branch: coursesById[s.branchId]?.name ?? s.branchId })}
 								</p>
 								<p class="excerpt">{s.description.slice(0, 200)}</p>
 								<!-- Provenance, surfaced to the reviewing moderator rather than only stored.
 								     CLAUDE.md Section 18 item 2 is a still-open question about the copyright
-								     status of transcribed course material — that is a judgment the person
+								     status of transcribed branch material — that is a judgment the person
 								     clicking Approve is actually making, so where the file came from belongs
 								     in front of them at that moment, not just in the database. -->
 								{#if s.author || s.sourceUrl}
@@ -668,8 +713,8 @@
 						<label>
 							{m.moderation_governors_kindLabel()}
 							<select bind:value={grantKind} onchange={() => (grantNodeSlug = '')}>
-								<option value="course">{m.moderation_governors_kindCourse()}</option>
-								<option value="field">{m.moderation_governors_kindField()}</option>
+								<option value="branch">{m.moderation_governors_kindBranch()}</option>
+								<option value="discipline">{m.moderation_governors_kindDiscipline()}</option>
 							</select>
 						</label>
 						<label>
@@ -698,9 +743,9 @@
 								<li class="governor-row">
 									<span class="governor-user">{g.userDisplayName}</span>
 									<span class="governor-scope">
-										{g.nodeType === 'field'
-											? m.moderation_governors_scopeField({ label: g.nodeLabel })
-											: m.moderation_governors_scopeCourse({ label: g.nodeLabel })}
+										{g.nodeType === 'discipline'
+											? m.moderation_governors_scopeDiscipline({ label: g.nodeLabel })
+											: m.moderation_governors_scopeBranch({ label: g.nodeLabel })}
 									</span>
 									<button type="button" class="reject" onclick={() => revokeGrant(g)}>
 										{m.moderation_governors_revoke()}
@@ -751,6 +796,25 @@
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
+
+	.taxonomy-proposals ul {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.taxonomy-proposals li {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+	.taxonomy-proposals .kind {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		text-transform: uppercase;
+	}
+
 
 	.page {
 		max-width: 780px;

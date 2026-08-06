@@ -18,7 +18,7 @@ from testing.factories import make_course, make_user
 
 class ServiceCreationTests(APITestCase):
     def setUp(self):
-        self.course = make_course(slug='uw-services-am2')
+        self.branch = make_course(slug='uw-services-am2')
         self.provider = make_user('provider-one')
 
     def test_authenticated_user_can_create_a_course_scoped_listing(self):
@@ -29,7 +29,7 @@ class ServiceCreationTests(APITestCase):
             {
                 'title': 'AM2 tutoring, exam prep',
                 'description': 'Weekly sessions, exam-focused.',
-                'course_slugs': [self.course.slug],
+                'branch_slugs': [self.branch.slug],
                 'hourly_rate': '80.00',
                 'currency': 'PLN',
             },
@@ -39,16 +39,16 @@ class ServiceCreationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         service = Service.objects.get(provider=self.provider)
         self.assertEqual(service.title, 'AM2 tutoring, exam prep')
-        self.assertEqual(list(service.courses.all()), [self.course])
+        self.assertEqual(list(service.branches.all()), [self.branch])
         # The response is the FULL read shape (ServiceSerializer), not the narrower write
-        # serializer's own echoed payload - provider info and resolved course_slugs included.
+        # serializer's own echoed payload - provider info and resolved branch_slugs included.
         self.assertEqual(response.data['provider_username'], 'provider-one')
-        self.assertEqual(response.data['course_slugs'], [self.course.slug])
+        self.assertEqual(response.data['branch_slugs'], [self.branch.slug])
 
     def test_anonymous_user_cannot_create_a_listing(self):
         response = self.client.post(
             reverse('service-list'),
-            {'title': 'Anon listing', 'course_slugs': [self.course.slug]},
+            {'title': 'Anon listing', 'branch_slugs': [self.branch.slug]},
             format='json',
         )
 
@@ -60,25 +60,25 @@ class ServiceCreationTests(APITestCase):
 
         response = self.client.post(
             reverse('service-list'),
-            {'title': 'Bad course ref', 'course_slugs': ['does-not-exist']},
+            {'title': 'Bad branch ref', 'branch_slugs': ['does-not-exist']},
             format='json',
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('course_slugs', response.data)
-        self.assertFalse(Service.objects.filter(title='Bad course ref').exists())
+        self.assertIn('branch_slugs', response.data)
+        self.assertFalse(Service.objects.filter(title='Bad branch ref').exists())
 
     def test_hourly_rate_and_courses_are_optional(self):
         self.client.force_authenticate(self.provider)
 
         response = self.client.post(
-            reverse('service-list'), {'title': 'General tutoring, any course'}, format='json'
+            reverse('service-list'), {'title': 'General tutoring, any branch'}, format='json'
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         service = Service.objects.get(pk=response.data['id'])
         self.assertIsNone(service.hourly_rate)
-        self.assertEqual(service.courses.count(), 0)
+        self.assertEqual(service.branches.count(), 0)
 
 
 class ServiceDiscoveryTests(APITestCase):
@@ -89,15 +89,15 @@ class ServiceDiscoveryTests(APITestCase):
         self.other_provider = make_user('provider-three')
 
         self.active_am2 = Service.objects.create(provider=self.provider, title='AM2 help', is_active=True)
-        self.active_am2.courses.add(self.course_a)
+        self.active_am2.branches.add(self.course_a)
 
         self.active_rp1 = Service.objects.create(
             provider=self.other_provider, title='RP1 help', is_active=True
         )
-        self.active_rp1.courses.add(self.course_b)
+        self.active_rp1.branches.add(self.course_b)
 
         self.paused = Service.objects.create(provider=self.provider, title='Paused listing', is_active=False)
-        self.paused.courses.add(self.course_a)
+        self.paused.branches.add(self.course_a)
 
     def test_public_browse_only_shows_active_listings(self):
         response = self.client.get(reverse('service-list'))
@@ -106,7 +106,7 @@ class ServiceDiscoveryTests(APITestCase):
         self.assertEqual(titles, {'AM2 help', 'RP1 help'})
 
     def test_course_scoped_filter_only_returns_that_courses_listings(self):
-        response = self.client.get(reverse('service-list'), {'course': self.course_a.slug})
+        response = self.client.get(reverse('service-list'), {'branch': self.course_a.slug})
 
         titles = {row['title'] for row in response.data}
         self.assertEqual(titles, {'AM2 help'})
@@ -162,7 +162,7 @@ class ServiceDiscoveryTests(APITestCase):
 
 class ServiceOwnershipTests(APITestCase):
     def setUp(self):
-        self.course = make_course(slug='uw-services-am2')
+        self.branch = make_course(slug='uw-services-am2')
         self.owner = make_user('service-owner')
         self.other_user = make_user('service-someone-else')
         self.service = Service.objects.create(provider=self.owner, title='Original title')
@@ -220,14 +220,14 @@ class TutoringKillSwitchTests(APITestCase):
     whether to turn it back on)."""
 
     def setUp(self):
-        self.course = make_course(slug='uw-killswitch-am2')
+        self.branch = make_course(slug='uw-killswitch-am2')
         self.provider = make_user('kill-provider')
         self.visitor = make_user('kill-visitor')
         self.staff = make_user('kill-staff', is_staff=True)
         self.service = Service.objects.create(
             provider=self.provider, title='AM2 tutoring', description='...'
         )
-        self.service.courses.add(self.course)
+        self.service.branches.add(self.branch)
         FeatureFlag.objects.filter(key='tutoring').update(is_enabled=False)
 
     def test_anonymous_browse_is_blocked_while_off(self):
@@ -244,7 +244,7 @@ class TutoringKillSwitchTests(APITestCase):
 
         response = self.client.post(
             reverse('service-list'),
-            {'title': 'New listing', 'description': '...', 'course_slugs': [self.course.slug]},
+            {'title': 'New listing', 'description': '...', 'branch_slugs': [self.branch.slug]},
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -311,7 +311,7 @@ class ServiceReportingTests(APITestCase):
         self.client.force_authenticate(self.reporter)
         self.client.post(reverse('report-list'), {'kind': 'service', 'object_id': self.service.pk}, format='json')
 
-        queue = build_report_queue(course_ids=None)
+        queue = build_report_queue(branch_ids=None)
 
         matching = [row for row in queue if row['kind'] == 'service' and row['object_id'] == self.service.pk]
         self.assertEqual(len(matching), 1)
@@ -323,11 +323,11 @@ class ServiceReportingTests(APITestCase):
         # all) — a course-scoped node governor's own queue can't resolve which course it belongs to,
         # so it's safely excluded for them (the same "hide rather than show something we can't
         # verify is theirs" default build_report_queue already documents), while still showing up
-        # for real global staff (course_ids=None, the case above).
+        # for real global staff (branch_ids=None, the case above).
         self.client.force_authenticate(self.reporter)
         self.client.post(reverse('report-list'), {'kind': 'service', 'object_id': self.service.pk}, format='json')
 
-        queue = build_report_queue(course_ids=set())
+        queue = build_report_queue(branch_ids=set())
 
         matching = [row for row in queue if row['kind'] == 'service']
         self.assertEqual(matching, [])

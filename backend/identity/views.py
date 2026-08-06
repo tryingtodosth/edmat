@@ -17,7 +17,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from taxonomy.models import Course
+from taxonomy.models import Branch
 
 from . import providers, usos
 from .models import CourseGrade, Diploma, EducationProfile, School, Verification
@@ -295,7 +295,7 @@ class ImportedGradesView(APIView):
         return Response(EducationView._payload(request, profile))
 
 
-def _match_course(name: str, school: School | None) -> Course | None:
+def _match_course(name: str, school: School | None) -> Branch | None:
     """Best-effort match of a registry course onto this site's own taxonomy.
 
     Deliberately conservative — a wrong match would attach a competence claim to the wrong corner of
@@ -305,9 +305,9 @@ def _match_course(name: str, school: School | None) -> Course | None:
     if not name:
         return None
     needle = name.strip().lower()
-    for course in Course.objects.filter(published=True).prefetch_related('translations'):
-        for translation in course.translations.all():
+    for branch in Branch.objects.filter(published=True).prefetch_related('translations'):
+        for translation in branch.translations.all():
             title = (getattr(translation, 'name', '') or '').strip().lower()
             if title and (title == needle or needle.startswith(title)):
-                return course
+                return branch
     return None

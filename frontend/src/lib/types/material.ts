@@ -94,7 +94,7 @@ export interface MaterialReview {
 // about this shape blocks adding a MaterialTranslation table later the same way Exercise has one.
 export interface Material {
 	id: string;
-	courseId: string;
+	branchId: string;
 	slug: string;
 	type: MaterialType;
 	title: string;
@@ -104,7 +104,7 @@ export interface Material {
 	fileName: string;
 	fileUrl: string; // Phase 3: a real, working URL served by the Django dev server's MEDIA_ROOT
 	// Free text, NOT a real account — the real corpus's own material.yaml `author:` values are
-	// plain human names (a course TA/professor), almost never a registered platform user, so this
+	// plain human names (a branch TA/professor), almost never a registered platform user, so this
 	// is deliberately never rendered as a clickable link. `submittedByUserId` below is the
 	// genuinely different, REAL-account attribution that was missing entirely until now — the
 	// material counterpart to `ResolvedExercise.submittedByUserId`.
@@ -139,16 +139,16 @@ export interface Material {
 
 // The materials search/filter/sort overhaul's own structured query surface — mirrors the backend's
 // own `_filter_materials`/`_sort_materials` (materials/views.py) param-for-param, so a caller never
-// has to guess what's actually filterable. `courseId`/`fieldId` are only meaningful for the
-// cross-course browse hub (routes/materials/+page.svelte) — a course-scoped caller (the course
-// page's own Materials tab) never sets either, since the course is already implied by the URL it
+// has to guess what's actually filterable. `branchId`/`disciplineId` are only meaningful for the
+// cross-branch browse hub (routes/materials/+page.svelte) — a branch-scoped caller (the branch
+// page's own Materials tab) never sets either, since the branch is already implied by the URL it
 // calls. `topicId`/`minLevel` are the "difficulty of coverage" dimension: `topicId` alone asks "does
 // this material cover this specific topic at all," `minLevel` alone asks "any topic, but deeply,"
 // and both together ask "THIS topic, at least THIS deep" — the same three-way distinction the
 // backend's own `_filter_materials` doc comment already draws.
 export interface MaterialBrowseFilters {
-	fieldId?: string;
-	courseId?: string;
+	disciplineId?: string;
+	branchId?: string;
 	type?: MaterialType;
 	tag?: string;
 	topicId?: string;
@@ -158,7 +158,7 @@ export interface MaterialBrowseFilters {
 }
 
 // One of `_SORT_KEYS` (materials/views.py) — omitted/unrecognized on the backend keeps its own
-// existing `(course, order)` default, which this app surfaces as `undefined`/no explicit choice
+// existing `(branch, order)` default, which this app surfaces as `undefined`/no explicit choice
 // rather than a fifth named option, since "the platform's own curated order" isn't really a *sort*
 // so much as the absence of picking one.
 export type MaterialSort = 'recent' | 'level' | 'votes' | 'alphabetical';

@@ -7,7 +7,7 @@ class NotificationSerializer(serializers.ModelSerializer):
     actor_display_name = serializers.SerializerMethodField()
     exercise_id = serializers.PrimaryKeyRelatedField(source='exercise', read_only=True)
     material_id = serializers.PrimaryKeyRelatedField(source='material', read_only=True)
-    taught_course_id = serializers.PrimaryKeyRelatedField(source='taught_course', read_only=True)
+    course_id = serializers.PrimaryKeyRelatedField(source='course', read_only=True)
     event_id = serializers.PrimaryKeyRelatedField(source='event', read_only=True)
 
     class Meta:
@@ -20,7 +20,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             'target_label',
             'exercise_id',
             'material_id',
-            'taught_course_id',
+            'course_id',
             'event_id',
             'note',
             'is_read',

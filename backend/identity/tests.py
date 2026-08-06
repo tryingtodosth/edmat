@@ -14,7 +14,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from taxonomy.models import Course, CourseTranslation, Field
+from taxonomy.models import Branch, BranchTranslation, Discipline
 from telemetry.routers import all_log_shards
 
 from .models import CourseGrade, EducationProfile, School, StudentStatus, Verification
@@ -326,12 +326,12 @@ class SkillSeedTests(ApiTestCase):
         self.client = APIClient()
         self.user = User.objects.create_user('kasia', 'kasia@example.com', 'pw12345!')
         self.client.force_authenticate(self.user)
-        field = Field.objects.create(slug='matematyka')
-        course = Course.objects.create(slug='analiza-2', field=field, university='UW')
-        CourseTranslation.objects.create(
-            course=course, locale='pl', name='Analiza matematyczna II'
+        field = Discipline.objects.create(slug='matematyka')
+        branch = Branch.objects.create(slug='analiza-2', discipline=field)
+        BranchTranslation.objects.create(
+            branch=branch, locale='pl', name='Analiza matematyczna II'
         )
-        self.course = course
+        self.branch = branch
         self.client.patch('/api/education/me/', {'school': 'uw'}, format='json')
         self.client.post(
             '/api/education/usos/connect/', {'include_grades': True}, format='json'
@@ -339,14 +339,14 @@ class SkillSeedTests(ApiTestCase):
         self.client.post('/api/education/usos/import/', {'kind': 'grades'}, format='json')
 
     def test_a_registry_course_matches_a_real_course_on_this_site(self):
-        matched = CourseGrade.objects.filter(matched_course=self.course)
+        matched = CourseGrade.objects.filter(matched_course=self.branch)
         self.assertTrue(matched.exists())
 
     def test_unmatched_results_are_kept_but_never_placed(self):
-        """An unmatched course is still a real result — inventing a placement would be worse."""
+        """An unmatched branch is still a real result — inventing a placement would be worse."""
         self.assertTrue(CourseGrade.objects.filter(matched_course__isnull=True).exists())
         seeds = self.client.get('/api/education/me/').data['standing']['skill_seeds']
-        self.assertTrue(all(s['course_slug'] == 'analiza-2' for s in seeds))
+        self.assertTrue(all(s['branch_slug'] == 'analiza-2' for s in seeds))
 
     def test_seeds_do_not_require_publishing_the_transcript(self):
         profile = EducationProfile.objects.get(user=self.user)

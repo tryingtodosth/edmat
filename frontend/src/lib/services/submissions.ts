@@ -8,22 +8,22 @@ import { mapExerciseSubmission, type RawExerciseSubmission } from '$lib/api/mapp
 // `_apply_submission` reads it back in this exact camelCase shape when a moderator approves it, so
 // there's no snake_case<->camelCase translation needed on either side of this particular field.
 export async function submitExercise(
-	courseId: string,
+	branchId: string,
 	_submittedByUserId: string,
 	draft: ExerciseSubmissionDraft
 ): Promise<ExerciseSubmission> {
 	const raw = await apiClient.post<RawExerciseSubmission>('/exercise-submissions/', {
-		course: courseId,
+		branch: branchId,
 		payload: draft
 	});
 	return mapExerciseSubmission(raw);
 }
 
-export async function getExerciseSubmissionsForCourse(
-	courseId: string
+export async function getExerciseSubmissionsForBranch(
+	branchId: string
 ): Promise<ExerciseSubmission[]> {
 	const raw = await apiClient.get<RawExerciseSubmission[]>(
-		`/exercise-submissions/?course=${encodeURIComponent(courseId)}`
+		`/exercise-submissions/?branch=${encodeURIComponent(branchId)}`
 	);
 	return raw.map(mapExerciseSubmission);
 }

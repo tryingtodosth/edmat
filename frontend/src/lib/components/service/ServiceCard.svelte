@@ -11,11 +11,11 @@
 
 	let {
 		service,
-		courseNames = [],
+		branchNames = [],
 		linkTitle = true
 	}: {
 		service: Service;
-		courseNames?: string[];
+		branchNames?: string[];
 		linkTitle?: boolean;
 	} = $props();
 
@@ -74,10 +74,10 @@
 		<p class="description">{service.description}</p>
 	{/if}
 
-	{#if courseNames.length > 0}
-		<div class="courses">
-			{#each courseNames as name (name)}
-				<span class="course-chip">{name}</span>
+	{#if branchNames.length > 0}
+		<div class="branches">
+			{#each branchNames as name (name)}
+				<span class="branch-chip">{name}</span>
 			{/each}
 		</div>
 	{/if}
@@ -158,12 +158,12 @@
 		font-size: var(--font-size-sm);
 		flex: 1;
 	}
-	.courses {
+	.branches {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-1);
 	}
-	.course-chip {
+	.branch-chip {
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
 	}
 	.service-card__footer {

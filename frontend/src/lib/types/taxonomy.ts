@@ -1,20 +1,34 @@
-// Field (kierunek) -> Course (przedmiot) -> Topic (dział, COURSE-SCOPED — see CLAUDE.md Section 9,
-// topics are never a global vocabulary, they're validated against one course's own list). Mirrors
-// the real content/fields/*.yaml + course.yaml shape in Database-of-Student-Exercise exactly.
+// Discipline (dziedzina) -> Branch (dział) -> Topic (temat, BRANCH-SCOPED — topics are never a
+// global vocabulary, they're validated against one branch's own list).
+//
+// This used to be Field (kierunek) -> Course (przedmiot) -> Topic, where a przedmiot was one
+// university's one subject and carried a `university` string. That is an offering, not knowledge:
+// "Analiza I" for physicists and "Analiza Matematyczna II" for mathematicians are the same branch
+// taught at different depths, and the depth belongs to whoever teaches it. The backend collapsed
+// them accordingly, which is also what freed the word `Course` for the classes people actually run.
 
-export interface Field {
+/** Whether a human has agreed this node belongs.
+ *
+ * Separate from `published`, which asks whether to show it at all. A pending node is REAL — it can
+ * be browsed and filed against — it is simply grouped under "others" until somebody reviews it,
+ * because a suggestion you cannot use until it is approved is no use to whoever needed the word. */
+export type TaxonomyStatus = 'pending' | 'approved';
+
+export interface Discipline {
 	id: string; // slug, e.g. 'matematyka'
 	name: string;
 	description: string;
 	published: boolean;
+	status: TaxonomyStatus;
 }
 
 export interface Topic {
-	id: string; // `${courseId}:${slug}` — composed so topic ids never collide across courses
+	id: string; // `${branchId}:${slug}` — composed so topic ids never collide across branches
 	slug: string;
-	courseId: string;
+	branchId: string;
 	name: string;
 	order: number;
+	status: TaxonomyStatus;
 }
 
 // A finer-grained breakdown within one Topic (e.g. within "extrema," a subtopic might be
@@ -29,13 +43,13 @@ export interface Subtopic {
 	order: number;
 }
 
-export interface Course {
-	id: string; // slug, e.g. 'uw-matematyka-am2'
-	fieldId: string;
+export interface Branch {
+	id: string; // slug, e.g. 'analiza-matematyczna'
+	disciplineId: string;
 	name: string;
 	description: string;
-	university: string;
 	published: boolean;
+	status: TaxonomyStatus;
 	order: number;
 	topics: Topic[];
 }

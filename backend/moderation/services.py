@@ -3,7 +3,7 @@ the moderation queue. If +20% of users who viewed that content report it, it get
 even before a moderator's decision."
 
 Also home to the "node governor" access-control helpers (`is_governor_of_course`/
-`governed_course_ids`) — a moderator scoped to one taxonomy node (a Field or a Course) rather than
+`governed_branch_ids`) — a moderator scoped to one taxonomy node (a Discipline or a Branch) rather than
 Django's own global `is_staff`. Neither is HTTP-shaped, matching this module's own existing
 "business logic lives here, views.py stays thin" convention already established for
 `check_auto_hide`/`resolve_view_scope_exercise` below.
@@ -19,7 +19,7 @@ from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, Tag
 from materials.models import Material, MaterialRequirement
 from services.models import Service, ServiceReview
-from taxonomy.models import Course, Field
+from taxonomy.models import Branch, Discipline
 
 # The one place `kind` <-> model is defined — moderation/serializers.py's ReportCreateSerializer
 # (validating an incoming report) and build_report_queue below (rendering the moderator-facing
@@ -55,30 +55,30 @@ MIN_REPORTS_FOR_AUTO_HIDE = 3
 AUTO_HIDE_THRESHOLD = 0.20
 
 
-def is_governor_of_course(user, course) -> bool:
+def is_governor_of_course(user, branch) -> bool:
     """Does `user` have moderation authority over `course` — Django's global `is_staff` (unchanged,
     checked first, always wins regardless of `course`), OR a real `NodeGovernor` grant covering it
-    (a direct Course-level grant, OR a Field-level one cascading down since `course` sits under that
-    Field)? `course=None` is a safe-default DENY for a non-staff user — a caller that couldn't
+    (a direct Branch-level grant, OR a Discipline-level one cascading down since `course` sits under that
+    Discipline)? `course=None` is a safe-default DENY for a non-staff user — a caller that couldn't
     determine which course a report's target even belongs to shouldn't guess yes."""
     if user is None or not user.is_authenticated:
         return False
     if user.is_staff:
         return True
-    if course is None:
+    if branch is None:
         return False
     from .models import NodeGovernor
 
-    course_ct = ContentType.objects.get_for_model(Course)
-    field_ct = ContentType.objects.get_for_model(Field)
+    branch_ct = ContentType.objects.get_for_model(Branch)
+    discipline_ct = ContentType.objects.get_for_model(Discipline)
     return NodeGovernor.objects.filter(user=user).filter(
-        Q(content_type=course_ct, object_id=course.pk) | Q(content_type=field_ct, object_id=course.field_id)
+        Q(content_type=branch_ct, object_id=branch.pk) | Q(content_type=discipline_ct, object_id=branch.discipline_id)
     ).exists()
 
 
-def governed_course_ids(user) -> set[int] | None:
-    """Every Course id `user` can act as a governor on, resolving Field-level grants down to every
-    Course under them. Returns `None` for a global (`is_staff`) moderator or an unauthenticated
+def governed_branch_ids(user) -> set[int] | None:
+    """Every Branch id `user` can act as a governor on, resolving Discipline-level grants down to every
+    Branch under them. Returns `None` for a global (`is_staff`) moderator or an unauthenticated
     caller — the signal every caller below reads as "skip scoping entirely, see everything," not an
     empty/no-access result (an authenticated non-staff governor who genuinely governs nothing would
     get back a real empty `set()` instead, which correctly filters everything out)."""
@@ -86,19 +86,19 @@ def governed_course_ids(user) -> set[int] | None:
         return None
     from .models import NodeGovernor
 
-    course_ct = ContentType.objects.get_for_model(Course)
-    field_ct = ContentType.objects.get_for_model(Field)
+    branch_ct = ContentType.objects.get_for_model(Branch)
+    discipline_ct = ContentType.objects.get_for_model(Discipline)
     grants = NodeGovernor.objects.filter(user=user).values_list('content_type_id', 'object_id')
-    course_ids: set[int] = set()
-    field_ids: set[int] = set()
+    branch_ids: set[int] = set()
+    discipline_ids: set[int] = set()
     for ct_id, obj_id in grants:
-        if ct_id == course_ct.id:
-            course_ids.add(obj_id)
-        elif ct_id == field_ct.id:
-            field_ids.add(obj_id)
-    if field_ids:
-        course_ids |= set(Course.objects.filter(field_id__in=field_ids).values_list('id', flat=True))
-    return course_ids
+        if ct_id == branch_ct.id:
+            branch_ids.add(obj_id)
+        elif ct_id == discipline_ct.id:
+            discipline_ids.add(obj_id)
+    if discipline_ids:
+        branch_ids |= set(Branch.objects.filter(discipline_id__in=discipline_ids).values_list('id', flat=True))
+    return branch_ids
 
 
 def _content_owner(target):
@@ -251,13 +251,13 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
     return '', exercise_id, exercise_title
 
 
-def build_report_queue(course_ids: set[int] | None = None) -> list[dict]:
+def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
     """Every target with at least one PENDING report, grouped and sorted by priority — this is the
     literal "gets a priority in the moderation queue" requirement: already auto-hidden items float
     to the very top (most urgent, since they're live-hidden right now and waiting on a decision),
     everything else follows by raw pending-report count descending.
 
-    `course_ids`, added for the "node governor" feature — `None` (the default, and what a global
+    `branch_ids`, added for the "node governor" feature — `None` (the default, and what a global
     `is_staff` moderator's call always passes, see `build_moderation_queue_payload`) means
     unfiltered, exactly today's existing behavior. A real `set` scopes the results to only groups
     whose own resolved Exercise belongs to one of those courses — a group whose course can't be
@@ -444,7 +444,7 @@ def build_report_queue(course_ids: set[int] | None = None) -> list[dict]:
         exercise = scope_exercise_by_key.get(key)
         # Node-governor scoping — see this function's own doc comment for why an unresolvable
         # exercise (course=None) is excluded for a SCOPED caller but not for the unfiltered one.
-        if course_ids is not None and (exercise is None or exercise.course_id not in course_ids):
+        if branch_ids is not None and (exercise is None or exercise.branch_id not in branch_ids):
             continue
         # `.get(pk, 0)`, not `.get(pk)` — an exercise genuinely resolved but with zero ContentView
         # rows must read as 0 (a real, meaningful "nobody's viewed this yet"), not None (which means
@@ -509,7 +509,7 @@ def build_moderation_queue_payload(user=None) -> dict:
 
     `user`, added for the "node governor" feature — `None` (measure_moderation_queue's own call,
     unchanged) means unfiltered, matching this function's original, always-unscoped behavior.
-    Passing the requesting user (ModerationQueueView.get does) resolves their own `governed_course_ids`
+    Passing the requesting user (ModerationQueueView.get does) resolves their own `governed_branch_ids`
     and scopes every one of the four queue sections to it — `None` from THAT resolution (a global
     `is_staff` moderator) still means unfiltered, so today's global-moderator experience is
     completely unchanged; only a real, non-staff node governor ever sees a narrower queue."""
@@ -518,27 +518,28 @@ def build_moderation_queue_payload(user=None) -> dict:
     from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission
     from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer, MaterialSubmissionSerializer
 
-    course_ids = governed_course_ids(user) if user is not None else None
+    branch_ids = governed_branch_ids(user) if user is not None else None
 
     # select_related('course') — ExerciseSubmissionSerializer.course/MaterialSubmissionSerializer.course
     # are both SlugRelatedFields, which resolve `submission.course.slug` per row; without this it's
     # a real, measured N+1 (one query per pending submission), the next-largest cost in this response
     # once build_report_queue()'s own, larger N+1 was fixed.
-    submissions = ExerciseSubmission.objects.filter(status='pending').select_related('course')
-    material_submissions = MaterialSubmission.objects.filter(status='pending').select_related('course')
+    submissions = ExerciseSubmission.objects.filter(status='pending').select_related('branch')
+    material_submissions = MaterialSubmission.objects.filter(status='pending').select_related('branch')
     edits = EditSuggestion.objects.filter(status='pending')
     translations = ExerciseTranslation.objects.filter(status='pending')
-    if course_ids is not None:
-        submissions = submissions.filter(course_id__in=course_ids)
-        material_submissions = material_submissions.filter(course_id__in=course_ids)
-        edits = edits.filter(exercise__course_id__in=course_ids)
-        translations = translations.filter(exercise__course_id__in=course_ids)
+    if branch_ids is not None:
+        submissions = submissions.filter(branch_id__in=branch_ids)
+        material_submissions = material_submissions.filter(branch_id__in=branch_ids)
+        edits = edits.filter(exercise__branch_id__in=branch_ids)
+        translations = translations.filter(exercise__branch_id__in=branch_ids)
     return {
+        'taxonomy_proposals': build_taxonomy_proposal_queue(),
         'submissions': ExerciseSubmissionSerializer(submissions, many=True).data,
         'material_submissions': MaterialSubmissionSerializer(material_submissions, many=True).data,
         'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
         'translations': ExerciseTranslationSerializer(translations, many=True).data,
-        'reports': build_report_queue(course_ids=course_ids),
+        'reports': build_report_queue(branch_ids=branch_ids),
     }
 
 
@@ -551,3 +552,51 @@ def is_feature_enabled(key: str) -> bool:
 
     flag = FeatureFlag.objects.filter(key=key).first()
     return True if flag is None else flag.is_enabled
+
+
+def build_taxonomy_proposal_queue() -> list[dict]:
+    """Every pending discipline, branch and topic, in one flat list.
+
+    Flat rather than three sections, because to a moderator they are one job — "somebody suggested a
+    word, does it belong" — and the only thing that differs is which level it sits at, which the
+    `kind` field carries.
+
+    Deliberately NOT scoped by `governed_branch_ids`. A node governor is scoped to a branch, and the
+    whole point of a proposal is that its place in the tree is what is being decided; a new
+    discipline belongs to no branch at all, so scoping this would make every proposal invisible to
+    exactly the people closest to it. Global staff and node governors alike see all of them.
+    """
+    from config.i18n_utils import resolve_translation
+    from taxonomy.models import Branch, Discipline, Topic
+
+    def name_of(node):
+        translation = resolve_translation(node.translations, 'pl')
+        return translation.name if translation else node.slug
+
+    rows = []
+    for kind, queryset, parent_of in (
+        ('discipline', Discipline.objects.filter(status='pending'), lambda n: None),
+        (
+            'branch',
+            Branch.objects.filter(status='pending').select_related('discipline'),
+            lambda n: n.discipline.slug,
+        ),
+        (
+            'topic',
+            Topic.objects.filter(status='pending').select_related('branch'),
+            lambda n: n.branch.slug,
+        ),
+    ):
+        for node in queryset.prefetch_related('translations'):
+            rows.append(
+                {
+                    'kind': kind,
+                    'id': node.pk,
+                    'slug': node.slug,
+                    'name': name_of(node),
+                    'parent': parent_of(node),
+                    'proposed_by': node.proposed_by_id,
+                    'proposed_at': node.proposed_at.isoformat() if node.proposed_at else None,
+                }
+            )
+    return rows

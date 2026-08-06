@@ -11,6 +11,7 @@ from .views import (
     NodeGovernorViewSet,
     ReportActionView,
     ReportViewSet,
+    TaxonomyProposalActionView,
 )
 
 router = DefaultRouter()
@@ -22,11 +23,18 @@ router.register('feature-flags', FeatureFlagViewSet, basename='feature-flag')
 # Under moderation/ (not a bare top-level prefix) to sit alongside this app's other
 # moderation-namespaced endpoints (moderation/queue/, moderation/reports/...) below — this is the
 # "node governor" feature's own administration surface (list/grant/revoke who governs which
-# Field/Course), distinct from ModerationActionView/ReportActionView (which ACT on pending items).
+# Discipline/Branch), distinct from ModerationActionView/ReportActionView (which ACT on pending items).
 router.register('moderation/governors', NodeGovernorViewSet, basename='node-governor')
 
 urlpatterns = router.urls + [
     path('moderation/queue/', ModerationQueueView.as_view(), name='moderation-queue'),
+    # Before the generic `moderation/<kind>/<pk>/<decision>/` below, which would otherwise swallow
+    # `moderation/taxonomy/...` as a kind named "taxonomy".
+    path(
+        'moderation/taxonomy/<str:kind>/<int:pk>/',
+        TaxonomyProposalActionView.as_view(),
+        name='moderation-taxonomy-action',
+    ),
     path(
         'moderation/reports/<str:kind>/<int:pk>/<str:decision>/',
         ReportActionView.as_view(),

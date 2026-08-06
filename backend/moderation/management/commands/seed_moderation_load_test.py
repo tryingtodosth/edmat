@@ -28,7 +28,7 @@ from django.db import IntegrityError, transaction
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation
 from moderation.models import EditSuggestion, ExerciseSubmission, Report
-from taxonomy.models import Course
+from taxonomy.models import Branch
 
 User = get_user_model()
 
@@ -130,12 +130,12 @@ class Command(BaseCommand):
         return created_ids
 
     def _seed_submissions(self, count: int, users: list) -> list[int]:
-        courses = list(Course.objects.all())
+        branches = list(Branch.objects.all())
         created_ids: list[int] = []
         for i in range(count):
-            course = random.choice(courses)
+            branch = random.choice(branches)
             submission = ExerciseSubmission.objects.create(
-                course=course,
+                branch=branch,
                 submitted_by=random.choice(users),
                 status='pending',
                 payload={

@@ -4,7 +4,7 @@ exists. `average_rating`/`review_count` are computed off the reverse `reviews` r
 community app's Review model defines (related_name='reviews') — no import of community.models needed
 here, Django wires the reverse accessor up automatically once that FK exists.
 
-Phase 3 note: `course_slug`/`submitted_by` are cheap and live on BOTH the List and Detail shape (a
+Phase 3 note: `branch_slug`/`submitted_by` are cheap and live on BOTH the List and Detail shape (a
 plain FK id, or a value already available off the already-joined `course` row) — but `translated_by`/
 `available_locales` (which need to walk every translation row for that exercise) are Detail-only,
 same "Card is lightweight, Detail resolves the rest" split this project's own sibling apps already
@@ -92,7 +92,7 @@ class ExerciseListSerializer(serializers.ModelSerializer):
 
     title = serializers.SerializerMethodField()
     resolved_locale = serializers.SerializerMethodField()
-    course_slug = serializers.SlugRelatedField(source='course', slug_field='slug', read_only=True)
+    branch_slug = serializers.SlugRelatedField(source='branch', slug_field='slug', read_only=True)
     topics = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
     # A plain SerializerMethodField, not a SlugRelatedField — a moderator-removed Tag
     # (`Tag.is_removed`, added alongside the tag/material/"skill tag" reporting feature) needs
@@ -109,8 +109,8 @@ class ExerciseListSerializer(serializers.ModelSerializer):
         model = Exercise
         fields = [
             'id',
-            'course',
-            'course_slug',
+            'branch',
+            'branch_slug',
             'number',
             'topics',
             'difficulty',

@@ -7,7 +7,7 @@ translations elsewhere."
 from django.conf import settings
 from django.db import models
 
-from taxonomy.models import Course, Topic
+from taxonomy.models import Branch, Topic
 
 DIFFICULTY_CHOICES = [
     ('easy', 'Easy'),
@@ -75,7 +75,7 @@ class TagFollow(models.Model):
 
 
 class Exercise(models.Model):
-    course = models.ForeignKey(Course, related_name='exercises', on_delete=models.CASCADE)
+    branch = models.ForeignKey(Branch, related_name='exercises', on_delete=models.CASCADE)
     number = models.PositiveIntegerField()
     topics = models.ManyToManyField(Topic, related_name='exercises', blank=True)
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
@@ -101,11 +101,11 @@ class Exercise(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = [('course', 'number')]
-        ordering = ['course', 'number']
+        unique_together = [('branch', 'number')]
+        ordering = ['branch', 'number']
 
     def __str__(self) -> str:
-        return f'{self.course.slug}-{self.number:04d}'
+        return f'{self.branch.slug}-{self.number:04d}'
 
 
 class ExerciseSource(models.Model):

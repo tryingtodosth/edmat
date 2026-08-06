@@ -6,6 +6,7 @@
 import type { NotificationType, User } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
 import { mapUser, NOTIFICATION_TYPE_REVERSE_MAP, type RawProfile } from '$lib/api/mappers';
+import { clearCache } from './offlineCache.svelte';
 import { tokenStore } from './token.svelte';
 
 function deriveUsername(email: string): string {
@@ -37,7 +38,7 @@ export const authStore = {
 		return user?.isNodeGovernor ?? false;
 	},
 	/** True for either kind of moderation authority — a real global (is_staff) moderator, OR a
-	 * node governor scoped to at least one Field/Course. This is the gate the moderation nav
+	 * node governor scoped to at least one Discipline/Branch. This is the gate the moderation nav
 	 * link/route itself uses; the "Governors" management tab on that page still checks
 	 * `isModerator` specifically, since only a global moderator can grant/revoke the scoped role
 	 * (CLAUDE.md's own documented v1 scope decision). */
@@ -111,6 +112,11 @@ export const authStore = {
 		const hadToken = Boolean(tokenStore.value);
 		tokenStore.set(null);
 		user = null;
+		// Saved API responses go with the session. Only public-ish listings are ever cached (see
+		// offlineCache.svelte.ts on why caching is opt-in per call site), but "public to you while
+		// signed in" is not "public to the next person holding the phone" — which courses you were
+		// in is itself worth not leaving behind on a shared device.
+		clearCache();
 		// Fire-and-forget — logout() is called synchronously from a plain onclick (Header.svelte),
 		// and the local session is already cleared above regardless of whether this call succeeds;
 		// invalidating the token server-side is a courtesy, not something the UI needs to wait on.
