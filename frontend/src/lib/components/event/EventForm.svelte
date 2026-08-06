@@ -6,6 +6,9 @@
 	import { getAllBranches, getDisciplines } from '$lib/services/taxonomy';
 	import type { Branch, Discipline } from '$lib/types/taxonomy';
 	import type { EdmatEvent, EventDraft, EventLocationKind } from '$lib/types/event';
+	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
+	import { splitByStatus } from '$lib/utils/taxonomy';
 
 	let {
 		initial = null,
@@ -60,6 +63,7 @@
 	let subjectChoices = $derived(
 		disciplineSlug ? branches.filter((c) => c.disciplineId === disciplineSlug) : branches
 	);
+	let groupedSubjects = $derived(splitByStatus(subjectChoices));
 
 	function toggleSubject(slug: string) {
 		subjectSlugs = subjectSlugs.includes(slug)
@@ -77,7 +81,9 @@
 	 * when a user action is what genuinely causes the change. */
 	function onFieldChange() {
 		if (!disciplineSlug) return;
-		const allowed = new Set(branches.filter((c) => c.disciplineId === disciplineSlug).map((c) => c.id));
+		const allowed = new Set(
+			branches.filter((c) => c.disciplineId === disciplineSlug).map((c) => c.id)
+		);
 		subjectSlugs = subjectSlugs.filter((slug) => allowed.has(slug));
 	}
 
@@ -182,10 +188,18 @@
 			<span>{m.events_form_field()}</span>
 			<select bind:value={disciplineSlug} onchange={onFieldChange}>
 				<option value="">{m.events_form_none()}</option>
-				{#each fields as field (field.id)}
-					<option value={field.id}>{field.name}</option>
-				{/each}
+				<TaxonomyOptions nodes={fields} />
 			</select>
+			<!-- A Discipline's own frontend id IS its slug (`mapDiscipline`), so what the proposal
+			     answers with can be selected directly — unlike a Topic, whose id is a numeric pk. -->
+			<ProposeNodeButton
+				kind="discipline"
+				onproposed={async (slug) => {
+					fields = await getDisciplines();
+					disciplineSlug = slug;
+					onFieldChange();
+				}}
+			/>
 		</label>
 	</div>
 
@@ -197,7 +211,7 @@
 			<p class="empty">{m.events_form_subjectsEmpty()}</p>
 		{:else}
 			<div class="subjects__list">
-				{#each subjectChoices as branch (branch.id)}
+				{#each groupedSubjects.settled as branch (branch.id)}
 					<label class="check">
 						<input
 							type="checkbox"
@@ -208,8 +222,39 @@
 					</label>
 				{/each}
 			</div>
+			<!-- A checkbox group cannot use <optgroup>, so the same "Others" separation is a labelled
+			     sub-list. Still selectable — a proposed subject is real and filable against. -->
+			{#if groupedSubjects.proposed.length > 0}
+				<p class="subjects__othersLabel">{m.taxonomy_others()}</p>
+				<div class="subjects__list">
+					{#each groupedSubjects.proposed as branch (branch.id)}
+						<label class="check">
+							<input
+								type="checkbox"
+								checked={subjectSlugs.includes(branch.id)}
+								onchange={() => toggleSubject(branch.id)}
+							/>
+							<span>{branch.name}</span>
+						</label>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 		<small>{m.events_form_subjectsHint()}</small>
+		<!-- Only once a field is chosen: the backend requires a parent for a branch proposal, so
+		     offering this against "None" could only ever produce a refusal. Rendered outside the
+		     empty/non-empty branch above because a field with no subjects yet is exactly when
+		     somebody needs to suggest one. -->
+		{#if disciplineSlug}
+			<ProposeNodeButton
+				kind="branch"
+				parent={disciplineSlug}
+				onproposed={async (slug) => {
+					branches = await getAllBranches();
+					if (!subjectSlugs.includes(slug)) subjectSlugs = [...subjectSlugs, slug];
+				}}
+			/>
+		{/if}
 	</fieldset>
 
 	<label class="check">
@@ -302,5 +347,12 @@
 	.submit {
 		@include mix.button-primary;
 		align-self: flex-start;
+	}
+	/* Marks where the settled list ends and suggestions begin. */
+	.subjects__othersLabel {
+		margin-top: var(--space-2);
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--text-muted);
 	}
 </style>

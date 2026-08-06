@@ -2,6 +2,7 @@
 	import type { Topic } from '$lib/types';
 	import type { ExerciseFilters } from '$lib/services/exercises';
 	import { m } from '$lib/paraglide/messages.js';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 	import {
 		DIFFICULTIES,
 		DIFFICULTY_LABELS,
@@ -39,9 +40,7 @@
 		<span>{m.filters_topic()}</span>
 		<select bind:value={filters.topicId}>
 			<option value={undefined}>{m.filters_topic_all()}</option>
-			{#each topics as topic (topic.id)}
-				<option value={topic.id}>{topic.name}</option>
-			{/each}
+			<TaxonomyOptions nodes={topics} />
 		</select>
 	</label>
 

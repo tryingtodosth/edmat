@@ -13,8 +13,13 @@
 		getAllTags,
 		type RandomExerciseFilters
 	} from '$lib/services/exercises';
-	import { getBranchesForDiscipline, getDisciplines, getTopicsForBranch } from '$lib/services/taxonomy';
+	import {
+		getBranchesForDiscipline,
+		getDisciplines,
+		getTopicsForBranch
+	} from '$lib/services/taxonomy';
 	import { browsingHistoryStore } from '$lib/state/browsingHistory.svelte';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 	import {
 		DIFFICULTIES,
 		DIFFICULTY_LABELS,
@@ -132,9 +137,7 @@
 					onchange={(e) => onFieldChange((e.target as HTMLSelectElement).value)}
 				>
 					<option value="">{m.random_any()}</option>
-					{#each fields as field (field.id)}
-						<option value={field.id}>{field.name}</option>
-					{/each}
+					<TaxonomyOptions nodes={fields} />
 				</select>
 			</label>
 
@@ -146,9 +149,7 @@
 					onchange={(e) => onCourseChange((e.target as HTMLSelectElement).value)}
 				>
 					<option value="">{m.random_any()}</option>
-					{#each branches as branch (branch.id)}
-						<option value={branch.id}>{branch.name}</option>
-					{/each}
+					<TaxonomyOptions nodes={branches} />
 				</select>
 			</label>
 
@@ -156,9 +157,7 @@
 				<span>{m.random_topic()}</span>
 				<select bind:value={filters.topicId} disabled={topics.length === 0}>
 					<option value={undefined}>{m.random_any()}</option>
-					{#each topics as topic (topic.id)}
-						<option value={topic.id}>{topic.name}</option>
-					{/each}
+					<TaxonomyOptions nodes={topics} />
 				</select>
 			</label>
 

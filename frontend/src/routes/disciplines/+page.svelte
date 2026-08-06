@@ -7,6 +7,7 @@
 	import Loading from '$lib/components/shared/Loading.svelte';
 	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
 	import { cached } from '$lib/state/offlineCache.svelte';
+	import { splitByStatus } from '$lib/utils/taxonomy';
 
 	let fields = $state<Discipline[]>([]);
 	let courseCounts = $state<Record<string, number>>({});
@@ -21,8 +22,9 @@
 	// `pending` until a moderator agrees. Rather than hiding those — which would make proposing one
 	// useless until somebody wakes up — they are grouped under "Others", so the settled vocabulary
 	// reads as settled while a suggestion is still findable and filable against.
-	let settled = $derived(fields.filter((f) => f.status !== 'pending'));
-	let proposed = $derived(fields.filter((f) => f.status === 'pending'));
+	let grouped = $derived(splitByStatus(fields));
+	let settled = $derived(grouped.settled);
+	let proposed = $derived(grouped.proposed);
 
 	onMount(async () => {
 		await cached('disciplines', getDisciplines, (result) => {
@@ -101,5 +103,18 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 		gap: var(--space-3);
+	}
+	/* The "Others" section. Set apart rather than merely appended: a suggestion nobody has agreed
+	   to yet should not read as part of the settled vocabulary just because it sorts after it. */
+	.proposed {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding-top: var(--space-4);
+		border-top: 1px dashed var(--border);
+	}
+	.proposed .hint {
+		font-size: var(--font-size-sm);
+		color: var(--text-muted);
 	}
 </style>

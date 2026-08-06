@@ -7,9 +7,13 @@
 	import { getBranchesForDiscipline, getDisciplineById } from '$lib/services/taxonomy';
 	import { getExercisesForBranch } from '$lib/services/exercises';
 	import BranchCard from '$lib/components/branch/BranchCard.svelte';
+	import { splitByStatus } from '$lib/utils/taxonomy';
 
 	let field = $state<Discipline | undefined>(undefined);
 	let branches = $state<Branch[]>([]);
+	// Proposed branches are real and browsable, just grouped under "Others" until a moderator
+	// agrees — see lib/utils/taxonomy.ts for why they are neither hidden nor mixed in.
+	let grouped = $derived(splitByStatus(branches));
 	let exerciseCounts = $state<Record<string, number>>({});
 	let loading = $state(true);
 	let notFound = $state(false);
@@ -68,10 +72,24 @@
 		</header>
 		<h2>{m.discipline_branchesHeading()}</h2>
 		<div class="grid">
-			{#each branches as branch (branch.id)}
+			{#each grouped.settled as branch (branch.id)}
 				<BranchCard {branch} exerciseCount={exerciseCounts[branch.id] ?? 0} />
 			{/each}
 		</div>
+
+		<!-- Same shape as the disciplines index: a suggestion stays findable and filable against,
+		     under a heading that says it has not been agreed to yet. -->
+		{#if grouped.proposed.length > 0}
+			<section class="proposed">
+				<h2>{m.taxonomy_others()}</h2>
+				<p class="hint">{m.taxonomy_propose_pending()}</p>
+				<div class="grid">
+					{#each grouped.proposed as branch (branch.id)}
+						<BranchCard {branch} exerciseCount={exerciseCounts[branch.id] ?? 0} />
+					{/each}
+				</div>
+			</section>
+		{/if}
 	{/if}
 </div>
 
@@ -108,5 +126,18 @@
 	.loading,
 	.empty {
 		color: var(--text-secondary);
+	}
+	/* The "Others" section. Set apart rather than merely appended: a suggestion nobody has agreed
+	   to yet should not read as part of the settled vocabulary just because it sorts after it. */
+	.proposed {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding-top: var(--space-4);
+		border-top: 1px dashed var(--border);
+	}
+	.proposed .hint {
+		font-size: var(--font-size-sm);
+		color: var(--text-muted);
 	}
 </style>

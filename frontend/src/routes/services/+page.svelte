@@ -14,6 +14,7 @@
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import ServiceForm from '$lib/components/service/ServiceForm.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 
 	let branches = $state<Branch[]>([]);
 	let courseFilter = $state('');
@@ -187,9 +188,7 @@
 					<span>{m.services_filterByBranch()}</span>
 					<select bind:value={courseFilter} onchange={handleCourseFilterChange}>
 						<option value="">{m.services_allBranches()}</option>
-						{#each branches as branch (branch.id)}
-							<option value={branch.id}>{branch.name}</option>
-						{/each}
+						<TaxonomyOptions nodes={branches} />
 					</select>
 				</label>
 				<label class="filter">

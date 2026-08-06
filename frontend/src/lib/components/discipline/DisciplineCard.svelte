@@ -2,12 +2,15 @@
 	import { resolve } from '$app/paths';
 	import type { Discipline } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
+	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
+	import { isPending } from '$lib/utils/taxonomy';
 
 	let { field, courseCount }: { field: Discipline; courseCount: number } = $props();
 </script>
 
 <a class="field-card" href={resolve('/disciplines/[discipline]', { discipline: field.id })}>
 	<h3>{field.name}</h3>
+	{#if isPending(field)}<PendingBadge />{/if}
 	<p>{field.description}</p>
 	<span class="field-card__count">{m.discipline_branchCount({ count: courseCount })}</span>
 </a>
