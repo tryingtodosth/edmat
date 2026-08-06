@@ -15,7 +15,7 @@
 	import { resolve } from '$app/paths';
 	import type { Material, MaterialCoverage } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
+	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import CoveragePopover from './CoveragePopover.svelte';
@@ -86,7 +86,7 @@
 		{:else}
 			<h3><MathTitle text={material.title} /></h3>
 		{/if}
-		<span class="material-type">{MATERIAL_TYPE_LABELS[material.type]()}</span>
+		<span class="material-type">{materialTypesStore.nameFor(material.type)}</span>
 	</div>
 
 	{#if material.reviewCount > 0}

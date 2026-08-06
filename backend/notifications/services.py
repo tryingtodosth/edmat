@@ -37,6 +37,16 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'course_removed': 'notify_on_course_activity',
     'course_new_lesson': 'notify_on_course_activity',
     'course_new_post': 'notify_on_course_activity',
+    # These five were valid `Notification.type` choices but had no entry here, so `notify()` fell
+    # through to its "no preference gates it" default and sent them regardless — a setting labelled
+    # "courses" that five course notifications ignored. They belong to the same category as the six
+    # above: somebody who does not want course traffic does not want to hear that a contribution
+    # arrived either.
+    'course_contribution_submitted': 'notify_on_course_activity',
+    'course_contribution_approved': 'notify_on_course_activity',
+    'course_contribution_rejected': 'notify_on_course_activity',
+    'course_staff_added': 'notify_on_course_activity',
+    'course_invite_used': 'notify_on_course_activity',
     # Booking (booking/). One coarse category for all four, on the course types' own reasoning — see
     # Profile.notify_on_booking for why this is the one worth thinking twice about before muting.
     'booking_requested': 'notify_on_booking',
@@ -50,6 +60,7 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'event_attendance': 'notify_on_event',
     'event_updated': 'notify_on_event',
     'event_cancelled': 'notify_on_event',
+    'event_posted': 'notify_on_event',
     # Taxonomy proposals (taxonomy/). Under the existing moderation-decision category rather than a
     # new one: somebody proposed a word, a moderator decided on it, and that is the same kind of
     # event as a decision on a submitted exercise — a separate switch would be splitting hairs the
@@ -62,7 +73,6 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'taxonomy_merged': 'notify_on_moderation_decision',
     'taxonomy_moved': 'notify_on_moderation_decision',
     'taxonomy_rejected': 'notify_on_moderation_decision',
-    'event_posted': 'notify_on_event',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile

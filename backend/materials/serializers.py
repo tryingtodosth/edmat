@@ -1,10 +1,12 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
+from community.serializers import ReplyCountMixin
+
 from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.serializers import SubtopicSerializer, TopicSerializer
 
-from .models import Material, MaterialCoverage, MaterialRequirement, MaterialReview
+from .models import Material, MaterialCoverage, MaterialRequirement, MaterialReview, MaterialType
 from .services import build_vote_summary  # see services.py's own doc comment: the one shared
 # vote-tallying implementation both MaterialCoverageSerializer and MaterialRequirementSerializer
 # below use, rather than each keeping its own identical copy of the same math.
@@ -76,15 +78,25 @@ class MaterialRequirementSerializer(serializers.ModelSerializer):
         return build_vote_summary(votes, self.context.get('request'))
 
 
-class MaterialReviewSerializer(serializers.ModelSerializer):
+class MaterialReviewSerializer(ReplyCountMixin, serializers.ModelSerializer):
     # Same `getattr(obj.author.profile, 'display_name', '') or obj.author.username` pattern
     # community/serializers.py's ReviewSerializer and services/serializers.py's
     # ServiceReviewSerializer already establish for the identical purpose.
     author_display_name = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
 
     class Meta:
         model = MaterialReview
-        fields = ['id', 'material', 'author', 'author_display_name', 'rating', 'body', 'created_at']
+        fields = [
+            'id',
+            'material',
+            'author',
+            'author_display_name',
+            'rating',
+            'body',
+            'created_at',
+            'reply_count',
+        ]
         read_only_fields = ['author']
 
     def get_author_display_name(self, obj):
@@ -183,3 +195,24 @@ class MaterialSerializer(serializers.ModelSerializer):
         if obj.submitted_by_id is None:
             return None
         return getattr(obj.submitted_by.profile, 'display_name', '') or obj.submitted_by.username
+
+
+class MaterialTypeSerializer(serializers.ModelSerializer):
+    """The vocabulary `Material.type` draws from, name resolved for the reader's own locale.
+
+    `status` is on the wire for the same reason the taxonomy serializers expose theirs: the browse
+    and picker UIs group anything pending under "Others" rather than pretending it is settled, and
+    they cannot do that from a name alone.
+    """
+
+    name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MaterialType
+        fields = ['id', 'slug', 'order', 'status', 'name']
+
+    def get_name(self, obj):
+        t = resolve_translation(obj.translations, request_locale(self.context))
+        # The slug is the honest fallback for a type proposed in a language nobody has translated
+        # yet — better than an empty label, and it is what the proposer typed a slug of anyway.
+        return t.name if t else obj.slug

@@ -221,3 +221,24 @@ def scan_for_malware(file_obj) -> ScanOutcome:
     if status == 'OK':
         return ScanOutcome(scanned=True, clean=True, detail='Scanned by ClamAV — no threats found.')
     return ScanOutcome(scanned=False, clean=True, detail=f'ClamAV scan did not complete ({status}).')
+
+
+def validate_material_type(slug: str) -> str:
+    """The replacement for the `choices=` that used to sit on `Material.type`.
+
+    A pending type is accepted, not just an approved one — the whole point of letting somebody
+    propose a type is being able to file a material under it before a moderator gets to it, exactly
+    as a pending topic is filable against. What is refused is a slug nobody has proposed at all.
+
+    Raises Django's ValidationError, which DRF turns into a 400 when a serializer calls it.
+    """
+    from django.core.exceptions import ValidationError
+
+    from .models import MaterialType
+
+    slug = (slug or '').strip()
+    if not slug:
+        raise ValidationError('A material type is required.')
+    if not MaterialType.objects.filter(slug=slug).exists():
+        raise ValidationError(f'No material type "{slug}". Propose it first.')
+    return slug

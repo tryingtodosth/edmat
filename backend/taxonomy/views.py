@@ -114,18 +114,32 @@ class ProposeNodeView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
-    #: kind -> (model, translation model, parent field, parent model, the translation's own FK)
-    KINDS = {
-        'discipline': (Discipline, DisciplineTranslation, None, None, 'discipline'),
-        'branch': (Branch, BranchTranslation, 'discipline', Discipline, 'branch'),
-        'topic': (Topic, TopicTranslation, 'branch', Branch, 'topic'),
-    }
+    @staticmethod
+    def kinds():
+        """kind -> (model, translation model, parent field, parent model, the translation's own FK)
+
+        A function rather than a class attribute because `material_type` lives in the materials app,
+        which imports taxonomy.models — resolving it at import time here would close that loop. It
+        is proposed through this endpoint rather than one of its own because everything that makes a
+        proposal work is already here: the moderator-proposes-is-approved rule, the duplicate guard,
+        and the "real but pending" contract. A material type simply has nothing above it, like a
+        discipline.
+        """
+        from materials.models import MaterialType, MaterialTypeTranslation
+
+        return {
+            'discipline': (Discipline, DisciplineTranslation, None, None, 'discipline'),
+            'branch': (Branch, BranchTranslation, 'discipline', Discipline, 'branch'),
+            'topic': (Topic, TopicTranslation, 'branch', Branch, 'topic'),
+            'material_type': (MaterialType, MaterialTypeTranslation, None, None, 'material_type'),
+        }
 
     def post(self, request):
+        kinds = self.kinds()
         kind = request.data.get('kind')
-        if kind not in self.KINDS:
-            raise ValidationError({'kind': f'Expected one of {sorted(self.KINDS)}.'})
-        model, translation_model, parent_field, parent_model, translation_fk = self.KINDS[kind]
+        if kind not in kinds:
+            raise ValidationError({'kind': f'Expected one of {sorted(kinds)}.'})
+        model, translation_model, parent_field, parent_model, translation_fk = kinds[kind]
 
         slug = slugify((request.data.get('slug') or request.data.get('name') or '').strip())
         if not slug:

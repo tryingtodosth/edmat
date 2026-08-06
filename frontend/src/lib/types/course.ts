@@ -261,7 +261,6 @@ export interface CourseNote {
 	updatedAt: string;
 }
 
-
 /** A file the course keeps — last year's exam, Tuesday's slides, somebody's scan.
  *
  * Not a Material: a Material is corpus content, branch-scoped and discoverable site-wide. An

@@ -4,7 +4,7 @@
 // Widened again, deliberately BEYOND the current corpus, per an explicit "expand material types"
 // request — see the backend's own materials/models.py doc comment for the full reasoning
 // (`formulaSheet` restored from the original Phase 1/Section-9 sketch, the rest genuinely new).
-export type MaterialType =
+export type BuiltinMaterialType =
 	| 'script'
 	| 'examCollection'
 	| 'midtermCollection'
@@ -18,6 +18,23 @@ export type MaterialType =
 	| 'textbookExcerpt'
 	| 'codeDataset'
 	| 'other';
+
+// The vocabulary is a table now (backend materials.MaterialType), so anybody can propose a
+// kind we do not have and the set is genuinely open. `(string & {})` is the standard way to
+// say "these thirteen, and also anything else" without losing autocomplete on the known ones —
+// a plain `string` would keep the code compiling and quietly give up every existing check.
+//
+// A built-in arrives camelCase (the mapper below rewrites the snake_case wire value); a
+// proposed one arrives as whatever slug it was given, kebab-case from Django's slugify.
+export type MaterialType = BuiltinMaterialType | (string & {});
+
+/** One row of the vocabulary, as the API serves it — name already resolved for the reader. */
+export interface MaterialTypeOption {
+	slug: string;
+	name: string;
+	order: number;
+	status: 'pending' | 'approved';
+}
 
 // A vote is +1 (agree the claimed level is accurate) or -1 (disagree) — see CoverageVoteSummary's
 // own doc comment for why the WEIGHT of a vote isn't a value on the vote itself.
@@ -86,6 +103,9 @@ export interface MaterialReview {
 	rating: number;
 	body?: string;
 	createdAt: string;
+	// How many comments hang off this review. Carried on the review itself so a conversation
+	// under it is visible without opening every review in turn.
+	replyCount: number;
 }
 
 // Materials are a lighter object than exercises and, deliberately, do NOT get the full

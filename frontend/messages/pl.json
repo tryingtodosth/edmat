@@ -1247,5 +1247,20 @@
   "notifPref_taxonomyApproved": "Propozycja przyjęta",
   "notifPref_taxonomyMerged": "Propozycja scalona",
   "notifPref_taxonomyMoved": "Propozycja przeniesiona",
-  "notifPref_taxonomyRejected": "Propozycja odrzucona"
+  "notifPref_taxonomyRejected": "Propozycja odrzucona",
+  "notification_courseContributionSubmitted": "{actor} zaproponował(a) materiał do „{title}\".",
+  "notifPref_courseContributionSubmitted": "Zaproponowano materiał",
+  "notification_courseContributionApproved": "Twój materiał do „{title}\" został przyjęty.",
+  "notifPref_courseContributionApproved": "Materiał przyjęty",
+  "notification_courseContributionRejected": "Twój materiał do „{title}\" nie został przyjęty.",
+  "notifPref_courseContributionRejected": "Materiał nieprzyjęty",
+  "notification_courseStaffAdded": "Dołączasz do zespołu prowadzącego „{title}\".",
+  "notifPref_courseStaffAdded": "Dodano do zespołu kursu",
+  "notification_courseInviteUsed": "{actor} dołączył(a) do „{title}\" z Twojego zaproszenia.",
+  "notifPref_courseInviteUsed": "Użyto zaproszenia",
+  "notification_materialSubmissionApproved": "Twój materiał „{title}\" został opublikowany.",
+  "notifPref_materialSubmissionApproved": "Materiał przyjęty",
+  "notification_materialSubmissionRejected": "Twój materiał „{title}\" nie został opublikowany.",
+  "notifPref_materialSubmissionRejected": "Materiał odrzucony",
+  "taxonomy_propose_materialType": "Zaproponuj rodzaj"
 }

@@ -268,9 +268,7 @@ export async function enrol(courseId: string, requestNote = ''): Promise<Enrollm
 }
 
 export async function leaveCourse(courseId: string): Promise<Enrollment> {
-	return mapEnrollment(
-		await apiClient.post(`/courses/${encodeURIComponent(courseId)}/leave/`)
-	);
+	return mapEnrollment(await apiClient.post(`/courses/${encodeURIComponent(courseId)}/leave/`));
 }
 
 /** Stay in the course, stop hearing about it — `Enrollment.notify`. */
@@ -398,10 +396,7 @@ function chapterBody(draft: Partial<ChapterDraft>): Record<string, unknown> {
 }
 
 export async function createChapter(courseId: string, draft: ChapterDraft): Promise<Chapter> {
-	const raw = await apiClient.post<unknown>(
-		`/courses/${courseId}/chapters/`,
-		chapterBody(draft)
-	);
+	const raw = await apiClient.post<unknown>(`/courses/${courseId}/chapters/`, chapterBody(draft));
 	return mapChapter(raw);
 }
 
@@ -568,9 +563,7 @@ function mapNote(raw: any): CourseNote {
 /** The caller's own notes on a course. Never anybody else's — the server filters by author, so
  * there is no "whose notes" parameter to get wrong here. */
 export async function getMyCourseNotes(courseId: string): Promise<CourseNote[]> {
-	const raw = await apiClient.get<unknown[]>(
-		`/courses/${encodeURIComponent(courseId)}/notes/`
-	);
+	const raw = await apiClient.get<unknown[]>(`/courses/${encodeURIComponent(courseId)}/notes/`);
 	return raw.map(mapNote);
 }
 
@@ -587,7 +580,6 @@ export async function saveMyCourseNote(
 	});
 	return raw ? mapNote(raw) : null;
 }
-
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function mapAttachment(raw: any): Attachment {

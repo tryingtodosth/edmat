@@ -7,6 +7,7 @@ from rest_framework.response import Response
 
 from community.models import Comment
 from community.serializers import CommentSerializer
+from community.views import comment_thread_response, notify_review_reply, reply_counts_for
 from config.i18n_utils import request_locale
 from moderation.services import is_governor_of_course
 from notifications.services import notify_comment_reply
@@ -19,6 +20,7 @@ from .models import (
     MaterialRequirement,
     MaterialRequirementVote,
     MaterialReview,
+    MaterialType,
     MaterialView,
 )
 from .serializers import (
@@ -27,6 +29,7 @@ from .serializers import (
     MaterialRequirementSerializer,
     MaterialReviewSerializer,
     MaterialSerializer,
+    MaterialTypeSerializer,
 )
 from .services import (
     _net_vote_weight,
@@ -466,8 +469,10 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
         identical `unique_together = [('material', 'author')]`)."""
         material = self.get_object()
         if request.method == 'GET':
-            qs = material.reviews.all()
-            serializer = MaterialReviewSerializer(qs, many=True)
+            qs = list(material.reviews.all())
+            serializer = MaterialReviewSerializer(
+                qs, many=True, context={'reply_counts': reply_counts_for(qs)}
+            )
             return Response(serializer.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
@@ -588,3 +593,52 @@ class MaterialCoverageViewSet(viewsets.GenericViewSet):
         serializer.save(content_type=content_type, object_id=coverage.pk, author=request.user)
         _notify_coverage_reply(serializer.instance, coverage)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class MaterialReviewViewSet(viewsets.GenericViewSet):
+    """`/api/material-reviews/{id}/comments/` — the conversation under one material review.
+
+    A sibling of `community.views.ReviewViewSet` rather than a shared generic one, for the same
+    reason the three review MODELS were never unified (see `MaterialReview`'s own docstring): each
+    has a plain, direct FK to what it reviews, and the thread endpoint is small enough that sharing
+    `comment_thread_response` covers the part actually worth sharing.
+
+    It exists at all because `ReviewList.svelte` is one component rendering exercise, material and
+    tutoring reviews alike — wiring replies to only one of the three would put a Reply affordance on
+    some reviews and not others with nothing on screen to explain the difference.
+    """
+
+    queryset = MaterialReview.objects.all()
+    serializer_class = CommentSerializer
+    permission_classes = [permissions.AllowAny]
+
+    @action(detail=True, methods=['get', 'post'])
+    def comments(self, request, pk=None):
+        review = self.get_object()
+        return comment_thread_response(
+            request,
+            review,
+            on_created=lambda comment: notify_review_reply(
+                comment,
+                review,
+                label=resolved_title(review.material, request_locale({'request': request})),
+                material=review.material,
+            ),
+        )
+
+
+class MaterialTypeViewSet(viewsets.ReadOnlyModelViewSet):
+    """GET /api/material-types/ — the vocabulary, including anything pending.
+
+    Public and unfiltered by status on purpose. A pending type is real: materials can already be
+    filed under it, so hiding it here would leave the picker unable to name a type some material
+    on screen is already using. The frontend groups pending ones under "Others" instead.
+
+    Read-only: a type is created by proposing it (POST /api/taxonomy/propose/, kind=material_type)
+    and changed by a moderator deciding on it, so there is no generic write path to guard.
+    """
+
+    queryset = MaterialType.objects.all().prefetch_related('translations')
+    serializer_class = MaterialTypeSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = None

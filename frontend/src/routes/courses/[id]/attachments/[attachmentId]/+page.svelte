@@ -127,9 +127,12 @@
 			{#if attachment.description}
 				<p>{attachment.description}</p>
 			{/if}
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- a media-server URL, not an
+			     app route, so there is nothing for resolve() to resolve. -->
 			<a class="download" href={attachment.fileUrl} download>
 				{m.course_attachment_download()}
 			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</header>
 
 		{#if error}

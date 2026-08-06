@@ -215,7 +215,7 @@
 					})}
 				</p>
 			{/if}
-			<ReviewList {reviews} {usersById} kind="service_review" />
+			<ReviewList {reviews} {usersById} kind="service_review" commentTarget="serviceReview" />
 			{#if authStore.isAuthenticated}
 				{#if submissionNotice === 'review'}
 					<p class="notice">{m.review_thanks()}</p>

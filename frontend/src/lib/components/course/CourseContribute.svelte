@@ -68,9 +68,7 @@
 
 		<label class="field">
 			<span>
-				{kind === 'material'
-					? m.course_contribute_materialId()
-					: m.course_contribute_exerciseId()}
+				{kind === 'material' ? m.course_contribute_materialId() : m.course_contribute_exerciseId()}
 			</span>
 			<input type="text" bind:value={itemId} inputmode="numeric" required />
 			<!-- Honest about the gap: there is no picker yet, so the id from the item's own page is the

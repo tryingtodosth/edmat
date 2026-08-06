@@ -87,6 +87,36 @@
 				actor: notification.actorDisplayName || m.notification_someone(),
 				title: notification.targetLabel
 			}),
+		courseContributionSubmitted: () =>
+			m.notification_courseContributionSubmitted({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		courseContributionApproved: () =>
+			m.notification_courseContributionApproved({
+				title: notification.targetLabel
+			}),
+		courseContributionRejected: () =>
+			m.notification_courseContributionRejected({
+				title: notification.targetLabel
+			}),
+		courseStaffAdded: () =>
+			m.notification_courseStaffAdded({
+				title: notification.targetLabel
+			}),
+		courseInviteUsed: () =>
+			m.notification_courseInviteUsed({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		materialSubmissionApproved: () =>
+			m.notification_materialSubmissionApproved({
+				title: notification.targetLabel
+			}),
+		materialSubmissionRejected: () =>
+			m.notification_materialSubmissionRejected({
+				title: notification.targetLabel
+			}),
 		// The four taxonomy decisions. Each says what happened and nothing more: for merge and move
 		// the destination is in `note`, which already renders as its own quoted line just below — the
 		// same division of labour a rejected submission and its moderator's reason already use, so

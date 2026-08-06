@@ -27,9 +27,7 @@
 	let title = $state(untrack(() => initial?.title ?? ''));
 	let summary = $state(untrack(() => initial?.summary ?? ''));
 	let description = $state(untrack(() => initial?.description ?? ''));
-	let visibility = $state<Course['visibility']>(
-		untrack(() => initial?.visibility ?? 'only_you')
-	);
+	let visibility = $state<Course['visibility']>(untrack(() => initial?.visibility ?? 'only_you'));
 	let status = $state<Course['status']>(untrack(() => initial?.status ?? 'open'));
 	let enrollmentPolicy = $state<Course['enrollmentPolicy']>(
 		untrack(() => initial?.enrollmentPolicy ?? 'open')

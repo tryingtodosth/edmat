@@ -24,7 +24,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from exercises.models import Tag
-from taxonomy.models import Branch, Subtopic, Topic
+from taxonomy.models import Branch, ProposableNode, Subtopic, Topic
 
 from .validators import validate_material_submission_file
 
@@ -62,10 +62,67 @@ CURRENCY_CHOICES = [
 ]
 
 
+class MaterialType(ProposableNode):
+    """The vocabulary `Material.type` draws from, so somebody can suggest a kind we do not have.
+
+    Thirteen values were hardcoded as `choices`, chosen by looking at a seven-material corpus. That
+    is a guess with no way for the person holding the actual document to correct it — which is the
+    same problem the taxonomy had, so this is the same answer: anybody signed in may propose one, a
+    moderator's own proposal is live at once, everybody else's is real but `pending` and grouped
+    under "Others" until somebody agrees.
+
+    **`Material.type` stays a slug column rather than becoming a ForeignKey**, deliberately. An FK
+    would give referential integrity, and it would also mean rejecting a proposed type could reach
+    the materials filed under it — which is exactly the shape of the bug this project already
+    shipped once, where rejecting a proposed branch cascade-deleted the exercises under it. It also
+    keeps `MaterialSubmission.type` (a draft, which may name a type that is later rejected) able to
+    hold its value without pointing at a row that has to survive for it. The vocabulary is a table;
+    the field records which word was chosen.
+
+    The consequence, stated rather than glossed: a Material can hold a slug with no row behind it,
+    if one is ever deleted out from under it. `validate_material_type` is what stops that happening
+    on any real write path, and an unknown slug degrades to showing the slug itself rather than
+    breaking the page.
+    """
+
+    slug = models.SlugField(unique=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'slug']
+
+    def __str__(self) -> str:
+        return self.slug
+
+
+class MaterialTypeTranslation(models.Model):
+    """The human name, per locale — the same shape every other name in this app has.
+
+    A bare CharField would have made a user-proposed type the one piece of vocabulary in EdMat
+    nobody could ever translate, while the thirteen built-ins already had both languages in the
+    frontend's message catalogue.
+    """
+
+    material_type = models.ForeignKey(
+        MaterialType, related_name='translations', on_delete=models.CASCADE
+    )
+    locale = models.CharField(max_length=8)
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        unique_together = [('material_type', 'locale')]
+
+    def __str__(self) -> str:
+        return f'{self.material_type.slug} [{self.locale}]'
+
+
 class Material(models.Model):
     branch = models.ForeignKey(Branch, related_name='materials', on_delete=models.CASCADE)
     slug = models.SlugField()
-    type = models.CharField(max_length=20, choices=MATERIAL_TYPE_CHOICES)
+    # No `choices=` any more: the allowed set is MaterialType's own rows, which a moderator can grow
+    # without a code change. Validated on write by `validate_material_type` rather than by the field,
+    # because `choices` cannot express "and anything somebody has since proposed".
+    type = models.CharField(max_length=32)
     # validators=[...] — same real content-type/size check materials.validators.
     # validate_material_submission_file already gives every user-submitted MaterialSubmission
     # (moderation/models.py), added here too for defense-in-depth consistency: a raw `.save()` call

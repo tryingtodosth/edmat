@@ -7,9 +7,11 @@ import type {
 	MaterialReview,
 	MaterialSubmission,
 	MaterialSubmissionDraft,
+	MaterialTypeOption,
 	RecommendedMaterialsResult
 } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
+import { getLocale } from '$lib/paraglide/runtime';
 import {
 	FRONTEND_TO_BACKEND_MATERIAL_TYPE,
 	mapMaterial,
@@ -21,7 +23,8 @@ import {
 	type RawMaterialCoverage,
 	type RawMaterialRequirement,
 	type RawMaterialReview,
-	type RawMaterialSubmission
+	type RawMaterialSubmission,
+	type RawMaterialType
 } from '$lib/api/mappers';
 
 // Builds the exact query string the backend's own `_filter_materials`/`_sort_materials`
@@ -307,4 +310,22 @@ export async function submitMaterialReview(
 		{ rating, body: body?.trim() || '' }
 	);
 	return mapMaterialReview(raw);
+}
+
+/** The material-type vocabulary, names already resolved for the reader's locale by the backend.
+ * Includes pending types — a proposal is real and filable against immediately, so a picker that
+ * hid them could not name a type some material on screen is already using. */
+export async function getMaterialTypes(): Promise<MaterialTypeOption[]> {
+	// `?lang=` is not optional here: the name is resolved server-side, and without it the backend
+	// falls back to its default locale — which is how an English reader ends up looking at a
+	// Polish picker. Same reason, same fix as taxonomy.ts's own langQuery.
+	const raw = await apiClient.get<RawMaterialType[]>(
+		`/material-types/?lang=${encodeURIComponent(getLocale())}`
+	);
+	return raw.map((row) => ({
+		slug: row.slug,
+		name: row.name,
+		order: row.order,
+		status: row.status
+	}));
 }

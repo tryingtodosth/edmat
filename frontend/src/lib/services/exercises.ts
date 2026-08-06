@@ -1,4 +1,10 @@
-import type { CoverageVoteValue, Difficulty, ExerciseRequirement, ResolvedExercise, SourceType } from '$lib/types';
+import type {
+	CoverageVoteValue,
+	Difficulty,
+	ExerciseRequirement,
+	ResolvedExercise,
+	SourceType
+} from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
 import {
 	mapExerciseRequirement,
@@ -241,7 +247,8 @@ export async function proposeExerciseRequirement(
 		);
 		return mapExerciseRequirement(raw);
 	} catch (e) {
-		if (e instanceof ApiError && e.status === 409) throw new DuplicateExerciseRequirementError(e.message);
+		if (e instanceof ApiError && e.status === 409)
+			throw new DuplicateExerciseRequirementError(e.message);
 		throw e;
 	}
 }
@@ -257,7 +264,9 @@ export async function castExerciseRequirementVote(
 	return mapExerciseRequirement(raw);
 }
 
-export async function retractExerciseRequirementVote(requirementId: string): Promise<ExerciseRequirement> {
+export async function retractExerciseRequirementVote(
+	requirementId: string
+): Promise<ExerciseRequirement> {
 	const raw = await apiClient.delete<RawExerciseRequirement>(
 		`/exercise-requirements/${encodeURIComponent(requirementId)}/vote/`
 	);

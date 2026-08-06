@@ -6,10 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
-		addCourseStaff,
 		createChapter,
-		createInvite,
-		decideCourseItem,
 		decideEnrollment,
 		deleteChapter,
 		deleteCourse,
@@ -17,8 +14,6 @@
 		enrol,
 		EnrolmentRefused,
 		getCourse,
-		getCourseStaff,
-		getInvites,
 		getParticipants,
 		leaveCourse,
 		getAttachments,
@@ -31,24 +26,11 @@
 		uploadAttachment,
 		muteCourse,
 		removeCourseItem,
-		removeCourseStaff,
-		revokeInvite,
-		setCourseStaffRole,
 		submitCourseItem
 	} from '$lib/services/course';
-	import type {
-		Attachment,
-		CourseInvite,
-		CourseNote,
-		CourseStaffMember,
-		Enrollment,
-		Course
-	} from '$lib/types/course';
+	import type { Attachment, CourseNote, Enrollment, Course } from '$lib/types/course';
 	import CourseContent from '$lib/components/course/CourseContent.svelte';
 	import CourseContribute from '$lib/components/course/CourseContribute.svelte';
-	import CourseInvites from '$lib/components/course/CourseInvites.svelte';
-	import CourseReviewQueue from '$lib/components/course/CourseReviewQueue.svelte';
-	import CourseStaffPanel from '$lib/components/course/CourseStaffPanel.svelte';
 	import type { Comment, User } from '$lib/types';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
 	import { getUserById } from '$lib/services/users';
@@ -63,10 +45,7 @@
 	let refusal = $state<string | null>(null);
 	let requestNote = $state('');
 
-	let staff = $state<CourseStaffMember[]>([]);
-	let invites = $state<CourseInvite[]>([]);
 	let staffError = $state('');
-	let inviteError = $state('');
 	let contributeError = $state('');
 	let contributeNotice = $state('');
 
@@ -77,15 +56,6 @@
 
 	/** Everything offered and not yet decided on. Derived from the course payload, which already
 	 * contains only what this viewer may see — a participant's copy simply has none. */
-	let pendingItems = $derived(
-		[
-			...(course?.unfiledItems ?? []),
-			...(course?.chapters ?? []).flatMap((chapter) =>
-				chapter.lessons.flatMap((lesson) => lesson.items)
-			)
-		].filter((item) => item.status === 'pending')
-	);
-
 
 	let comments = $state<Comment[]>([]);
 
@@ -97,7 +67,6 @@
 	let myNotes = $state<CourseNote[]>([]);
 	let noteDraft = $state('');
 	let noteSaved = $state(false);
-	let courseNote = $derived(myNotes.find((n) => n.lessonId === null) ?? null);
 	let usersById = $state<Record<string, User>>({});
 
 	/** Author names for the thread, resolved once per unseen id — the same shape the tutoring
@@ -189,27 +158,9 @@
 			participants = [];
 		}
 
-		// Who runs it is readable by anybody in the room; the links are an administrator's alone, so
-		// they are only fetched when the viewer actually has them. Both fail softly for the same
-		// reason the roster does — a refusal here is the permission working, not a page error.
-		if (found.isInstructor || found.myEnrollmentStatus === 'active') {
-			try {
-				staff = await getCourseStaff(id);
-			} catch {
-				staff = [];
-			}
-		} else {
-			staff = [];
-		}
-		if (found.canAdminister) {
-			try {
-				invites = await getInvites(id);
-			} catch {
-				invites = [];
-			}
-		} else {
-			invites = [];
-		}
+		// The staff list and the invite links moved to /courses/[id]/manage along with everything
+		// that acts on them. They were still being fetched here and then used by nothing, which is
+		// two requests per course page view spent on data nobody reads.
 
 		await loadDiscussion(id, found.canReadDiscussion);
 		loading = false;
@@ -289,6 +240,7 @@
 
 	function addChapter(event: SubmitEvent) {
 		event.preventDefault();
+		staffError = '';
 		const title = newChapterTitle.trim();
 		if (!title) return;
 		const unlocksAt = newChapterUnlocksAt || null;
@@ -392,9 +344,7 @@
 					disabled={busy}
 					onclick={() => run(() => enrol(course!.id, requestNote))}
 				>
-					{course.enrollmentPolicy === 'approval'
-						? m.course_requestToJoin()
-						: m.course_join()}
+					{course.enrollmentPolicy === 'approval' ? m.course_requestToJoin() : m.course_join()}
 				</button>
 			{:else if course.enrollmentBlockReason}
 				<p class="note">{REFUSAL[course.enrollmentBlockReason]?.() ?? m.common_error_generic()}</p>
@@ -411,6 +361,14 @@
 		<!-- Content: chapters and the materials/exercises filed under them. Rendered for everybody,
 		     including a stranger, because what a course contains is part of deciding to join — the
 		     server has already decided which items and which locked chapters this viewer may see. -->
+		<!-- Seven curator actions on this page write to `staffError` — reordering, moving an item,
+		     renaming or deleting a chapter, creating one — and none of them showed it. A refusal
+		     from the server was swallowed, so a drag that the server rejected looked exactly like a
+		     drag that worked until the page was reloaded. Same bug the bookings page had. -->
+		{#if staffError}
+			<p class="error staff-error">{staffError}</p>
+		{/if}
+
 		<CourseContent
 			{course}
 			onmove={course.canCurate
@@ -461,6 +419,33 @@
 						)
 				: undefined}
 		/>
+
+		<!-- Creating a chapter. The handler for this was written and never rendered, so a curator
+		     could rename and delete chapters through CourseContent but had no way to make one — a
+		     course whose structure could only ever shrink. It sits directly under the content it
+		     adds to, rather than on the manage page, because it is the one curator action whose
+		     result appears right here. -->
+		{#if course.canCurate}
+			<form class="add-chapter" onsubmit={addChapter}>
+				<h3>{m.course_chapters_heading()}</h3>
+				<div class="add-chapter__row">
+					<label>
+						<span>{m.course_chapters_title()}</span>
+						<input type="text" bind:value={newChapterTitle} maxlength="200" required />
+					</label>
+					<label>
+						<span>{m.course_chapters_unlocksAt()}</span>
+						<!-- Optional, and empty means never gated — genuinely different from a date that
+						     has already passed, which is why it is not defaulted to today. -->
+						<input type="datetime-local" bind:value={newChapterUnlocksAt} />
+						<small>{m.course_chapters_unlocksAtHint()}</small>
+					</label>
+					<button type="submit" class="primary" disabled={busy || !newChapterTitle.trim()}>
+						{m.course_chapters_add()}
+					</button>
+				</div>
+			</form>
+		{/if}
 
 		<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
 		     are the part worth joining for, and the API blanks them for anyone who has not. -->
@@ -578,8 +563,7 @@
 						bind:value={noteDraft}
 						rows="4"
 						placeholder={m.course_notes_placeholder()}
-						oninput={() => (noteSaved = false)}
-					></textarea>
+						oninput={() => (noteSaved = false)}></textarea>
 					<div class="notes-actions">
 						<button type="submit" class="primary" disabled={busy}>{m.course_notes_save()}</button>
 						{#if noteSaved}
@@ -695,7 +679,6 @@
 	/* The panels inside a drawer were written as top-level sections and carry their own h2, which at
 	   page size competed with the drawer label right above it. Demoted visually only — the heading
 	   level itself is left alone, since that is what a screen reader navigates by. */
-
 
 	.page {
 		max-width: 800px;

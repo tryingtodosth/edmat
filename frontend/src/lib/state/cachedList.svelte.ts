@@ -88,7 +88,11 @@ export function mergeRows<T extends Identified>(
 	fresh: T[],
 	now = Date.now()
 ): TrackedRow<T>[] {
+	// A local lookup built and discarded inside this call, not reactive state — SvelteMap here
+	// would add reactivity machinery to something nothing ever observes.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
 	const known = new Map(existing.map((row) => [row.item.id, row]));
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- same, a local Set.
 	const freshIds = new Set(fresh.map((item) => item.id));
 
 	// A first visit has nothing for a row to be new *against*, so every row would be announced as
@@ -113,6 +117,7 @@ export function mergeRows<T extends Identified>(
 
 	// Existing rows the server still returns are already in `kept`, but in the SERVER's order.
 	// Re-order them to the order the reader last saw, so nothing moves under them.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local lookup, see above.
 	const keptById = new Map(kept.map((row) => [row.item.id, row]));
 	const inReaderOrder = existing
 		.filter((row) => freshIds.has(row.item.id))

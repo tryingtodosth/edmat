@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from community.models import Comment
 from community.serializers import CommentSerializer
+from community.views import comment_thread_response, notify_review_reply, reply_counts_for
 from moderation.permissions import feature_gate
 from notifications.services import notify_comment_reply
 
@@ -292,10 +293,15 @@ class ServiceViewSet(viewsets.ModelViewSet):
         service = self.get_object()
         if request.method == 'GET':
             # `is_removed=False` — a moderator-removed review (the report-a-tutor-review feature)
-            # disappears entirely, same `community.Review.is_removed` precedent (a full queryset
-            # exclusion, not a Comment-style tombstone-blank — a ServiceReview is never threaded).
-            qs = service.reviews.filter(is_removed=False)
-            serializer = ServiceReviewSerializer(qs, many=True)
+            # disappears entirely, same `community.Review.is_removed` precedent: a full queryset
+            # exclusion rather than a Comment-style tombstone-blank. A review CAN now be replied to,
+            # but the reasoning is unchanged — nothing structural hangs off the review row itself
+            # (the replies are Comments, which keep their own tombstones), so a removed review can
+            # still simply disappear and take its thread's reachability with it.
+            qs = list(service.reviews.filter(is_removed=False))
+            serializer = ServiceReviewSerializer(
+                qs, many=True, context={'reply_counts': reply_counts_for(qs)}
+            )
             return Response(serializer.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
@@ -394,4 +400,39 @@ class GeocodeView(APIView):
                 # the data itself so the UI cannot render results while forgetting the attribution.
                 'attribution': '© OpenStreetMap contributors',
             }
+        )
+
+
+class ServiceReviewViewSet(viewsets.GenericViewSet):
+    """`/api/service-reviews/{id}/comments/` — the conversation under one tutoring-listing review.
+
+    The third of three, and the reason all three exist: `ReviewList.svelte` renders exercise,
+    material and tutoring reviews from one component, so replies had to reach all three or the
+    affordance would appear and disappear between pages for no reason a reader could see.
+
+    Carries the same `tutoring` kill switch every other listing endpoint does — a killed feature
+    whose review threads stayed writable would be exactly the leak the switch exists to prevent.
+    A removed review is excluded, matching `ServiceViewSet.reviews`'s own read.
+    """
+
+    queryset = ServiceReview.objects.filter(is_removed=False)
+    serializer_class = CommentSerializer
+
+    def get_permissions(self):
+        return [permissions.AllowAny(), _TutoringFeatureGate()]
+
+    @action(detail=True, methods=['get', 'post'])
+    def comments(self, request, pk=None):
+        review = self.get_object()
+        return comment_thread_response(
+            request,
+            review,
+            on_created=lambda comment: notify_review_reply(
+                comment,
+                review,
+                # No Notification FK exists for a Service (the model carries exercise/material/
+                # taught_course/event and nothing else), so this label is all the notification can
+                # say — the same honest limitation a per-coverage-claim reply already has.
+                label=review.service.title,
+            ),
         )

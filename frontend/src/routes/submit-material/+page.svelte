@@ -6,7 +6,8 @@
 	import { submitMaterial } from '$lib/services/materials';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
-	import { MATERIAL_CURRENCIES, MATERIAL_TYPES, MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
+	import { MATERIAL_CURRENCIES } from '$lib/utils/labels';
+	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
@@ -33,6 +34,12 @@
 	let sourceUrl = $state('');
 	let locale = $state('pl');
 	let file = $state<File | null>(null);
+	// TaxonomyOptions is keyed by `id`; a material type is identified by its slug, which IS what
+	// the select must bind. Mapped here rather than widening that component, which is shared with
+	// three genuinely id-keyed taxonomy levels.
+	let typeOptions = $derived(
+		materialTypesStore.list.map((t) => ({ id: t.slug, name: t.name, status: t.status }))
+	);
 	let submitting = $state(false);
 	let success = $state(false);
 	let errorMessage = $state('');
@@ -214,14 +221,25 @@
 				</label>
 
 				<div class="field-row">
-					<label class="field">
-						<span>{m.submitMaterial_field_type()}</span>
-						<select bind:value={type}>
-							{#each MATERIAL_TYPES as t (t)}
-								<option value={t}>{MATERIAL_TYPE_LABELS[t]()}</option>
-							{/each}
-						</select>
-					</label>
+					<div class="field">
+						<label>
+							<span>{m.submitMaterial_field_type()}</span>
+							<!-- The vocabulary, not a fixed list: anything somebody has proposed appears under
+							     "Others" via TaxonomyOptions, exactly as a proposed discipline does. -->
+							<select bind:value={type}>
+								<TaxonomyOptions nodes={typeOptions} />
+							</select>
+						</label>
+						<!-- The case this exists for: a document that is genuinely not one of the thirteen
+						     kinds somebody guessed at from a seven-material corpus. -->
+						<ProposeNodeButton
+							kind="material_type"
+							onproposed={async (slug) => {
+								await materialTypesStore.refresh();
+								type = slug;
+							}}
+						/>
+					</div>
 					<label class="field">
 						<span>{m.submitMaterial_field_language()}</span>
 						<select bind:value={locale}>

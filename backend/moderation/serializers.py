@@ -108,6 +108,15 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
     requirements = serializers.JSONField(required=False, default=list)
     coverage = serializers.JSONField(required=False, default=list)
 
+    def validate_type(self, value):
+        """`MaterialSubmission.type` has always been a bare CharField with a comment naming the
+        enum it was supposed to hold, so a malformed value only surfaced later as a 500 when
+        approval tried to build a real Material from it. Now that the vocabulary is a table, it can
+        be checked at submission time — where the person who can fix it is still looking."""
+        from materials.validators import validate_material_type
+
+        return validate_material_type(value)
+
     class Meta:
         model = MaterialSubmission
         fields = [

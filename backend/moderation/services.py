@@ -555,7 +555,7 @@ def is_feature_enabled(key: str) -> bool:
 
 
 def build_taxonomy_proposal_queue() -> list[dict]:
-    """Every pending discipline, branch and topic, in one flat list.
+    """Every pending discipline, branch, topic and material type, in one flat list.
 
     Flat rather than three sections, because to a moderator they are one job — "somebody suggested a
     word, does it belong" — and the only thing that differs is which level it sits at, which the
@@ -567,6 +567,7 @@ def build_taxonomy_proposal_queue() -> list[dict]:
     exactly the people closest to it. Global staff and node governors alike see all of them.
     """
     from config.i18n_utils import resolve_translation
+    from materials.models import MaterialType
     from taxonomy.models import Branch, Discipline, Topic
 
     def name_of(node):
@@ -586,6 +587,10 @@ def build_taxonomy_proposal_queue() -> list[dict]:
             Topic.objects.filter(status='pending').select_related('branch'),
             lambda n: n.branch.slug,
         ),
+        # A material type is not part of the tree, but it is the same job for the same person on the
+        # same screen — somebody suggested a word, does it belong — so it joins the same list rather
+        # than earning a queue tab of its own.
+        ('material_type', MaterialType.objects.filter(status='pending'), lambda n: None),
     ):
         for node in queryset.prefetch_related('translations'):
             rows.append(

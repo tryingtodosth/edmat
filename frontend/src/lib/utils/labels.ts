@@ -7,8 +7,8 @@ import type {
 	Difficulty,
 	DonationPlatform,
 	FeatureFlagKey,
+	BuiltinMaterialType,
 	MaterialSort,
-	MaterialType,
 	NotificationType,
 	SourceType
 } from '$lib/types';
@@ -97,7 +97,7 @@ export const DONATION_PLATFORM_ICONS: Record<DonationPlatform, string> = {
 // The submit-material form's own type picker needed an iterable list alongside the label map above
 // — MATERIAL_TYPE_LABELS only ever had a reader (MaterialCard.svelte's badge), never a `<select>`
 // needing every possible value, until this form existed.
-export const MATERIAL_TYPES: MaterialType[] = [
+export const MATERIAL_TYPES: BuiltinMaterialType[] = [
 	'script',
 	'examCollection',
 	'midtermCollection',
@@ -113,7 +113,10 @@ export const MATERIAL_TYPES: MaterialType[] = [
 	'other'
 ];
 
-export const MATERIAL_TYPE_LABELS: Record<MaterialType, () => string> = {
+// Keyed by the BUILT-IN union, not the open one: these thirteen have curated wording in both
+// locales and a proposed type never will. `materialTypesStore.nameFor()` is what resolves a
+// label safely for either — indexing this map directly throws for anything not in it.
+export const MATERIAL_TYPE_LABELS: Record<BuiltinMaterialType, () => string> = {
 	script: m.materialType_script,
 	examCollection: m.materialType_examCollection,
 	midtermCollection: m.materialType_midtermCollection,
@@ -190,14 +193,21 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		eventAttendance: 'notifyOnEvent',
 		eventUpdated: 'notifyOnEvent',
 		eventCancelled: 'notifyOnEvent',
+		eventPosted: 'notifyOnEvent',
 		// Under the existing moderation-decision category rather than a new switch: somebody proposed
 		// a word and a moderator decided on it, which is the same kind of event as a decision on a
 		// submitted exercise.
+		courseContributionSubmitted: 'notifyOnCourseActivity',
+		courseContributionApproved: 'notifyOnCourseActivity',
+		courseContributionRejected: 'notifyOnCourseActivity',
+		courseStaffAdded: 'notifyOnCourseActivity',
+		courseInviteUsed: 'notifyOnCourseActivity',
+		materialSubmissionApproved: 'notifyOnModerationDecision',
+		materialSubmissionRejected: 'notifyOnModerationDecision',
 		taxonomyApproved: 'notifyOnModerationDecision',
 		taxonomyMerged: 'notifyOnModerationDecision',
 		taxonomyMoved: 'notifyOnModerationDecision',
 		taxonomyRejected: 'notifyOnModerationDecision'
-		eventPosted: 'notifyOnEvent'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -229,11 +239,18 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	eventAttendance: m.notifPref_eventAttendance,
 	eventUpdated: m.notifPref_eventUpdated,
 	eventCancelled: m.notifPref_eventCancelled,
+	eventPosted: m.notifPref_eventPosted,
+	courseContributionSubmitted: m.notifPref_courseContributionSubmitted,
+	courseContributionApproved: m.notifPref_courseContributionApproved,
+	courseContributionRejected: m.notifPref_courseContributionRejected,
+	courseStaffAdded: m.notifPref_courseStaffAdded,
+	courseInviteUsed: m.notifPref_courseInviteUsed,
+	materialSubmissionApproved: m.notifPref_materialSubmissionApproved,
+	materialSubmissionRejected: m.notifPref_materialSubmissionRejected,
 	taxonomyApproved: m.notifPref_taxonomyApproved,
 	taxonomyMerged: m.notifPref_taxonomyMerged,
 	taxonomyMoved: m.notifPref_taxonomyMoved,
 	taxonomyRejected: m.notifPref_taxonomyRejected
-	eventPosted: m.notifPref_eventPosted
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
