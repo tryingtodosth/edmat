@@ -2,6 +2,7 @@
 views.py of their own — both are reached through ExerciseViewSet's `reviews`/`comments` actions
 (exercises/views.py), so these tests exercise that real HTTP surface rather than the models alone."""
 
+from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -188,3 +189,244 @@ class CommentTests(APITestCase):
         self.assertEqual(removed_row['body'], '')
         self.assertEqual(removed_row['author_display_name'], '')
         self.assertTrue(removed_row['is_removed'])
+
+
+class ReviewReplyTests(APITestCase):
+    """Replying to a review. A reply is an ordinary Comment whose generic target is the Review, so
+    what is worth pinning here is the part that is genuinely new: who hears about it, and that a
+    reply cannot be smuggled onto a thread it does not belong to."""
+
+    def setUp(self):
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
+        self.reviewer = make_user('reviewer')
+        self.replier = make_user('replier')
+        self.review = Review.objects.create(
+            exercise=self.exercise, author=self.reviewer, rating=4, body='Good but terse.'
+        )
+
+    def test_anyone_can_read_the_thread_under_a_review(self):
+        response = self.client.get(reverse('review-comments', kwargs={'pk': self.review.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json(), [])
+
+    def test_anonymous_user_cannot_reply(self):
+        response = self.client.post(
+            reverse('review-comments', kwargs={'pk': self.review.pk}),
+            {'body': 'Me too.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(Comment.objects.count(), 0)
+
+    def test_replying_notifies_the_review_author(self):
+        """The one thing `notify_comment_reply` could not do before: a top-level comment under a
+        review has no parent comment, so without `root_recipient` the reviewer — the person
+        actually being replied to — would never be told."""
+        from notifications.models import Notification
+
+        self.client.force_authenticate(self.replier)
+        response = self.client.post(
+            reverse('review-comments', kwargs={'pk': self.review.pk}),
+            {'body': 'I read it differently.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        notification = Notification.objects.get(recipient=self.reviewer)
+        self.assertEqual(notification.type, 'comment_reply')
+        self.assertEqual(notification.actor, self.replier)
+        self.assertEqual(notification.exercise, self.exercise)
+
+    def test_replying_to_your_own_review_notifies_nobody(self):
+        from notifications.models import Notification
+
+        self.client.force_authenticate(self.reviewer)
+        self.client.post(
+            reverse('review-comments', kwargs={'pk': self.review.pk}),
+            {'body': 'Adding a thought.'},
+            format='json',
+        )
+
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_a_nested_reply_notifies_the_person_being_answered_not_the_reviewer(self):
+        from notifications.models import Notification
+
+        third = make_user('third')
+        self.client.force_authenticate(self.replier)
+        root = self.client.post(
+            reverse('review-comments', kwargs={'pk': self.review.pk}),
+            {'body': 'I read it differently.'},
+            format='json',
+        ).json()
+        Notification.objects.all().delete()
+
+        self.client.force_authenticate(third)
+        self.client.post(
+            reverse('review-comments', kwargs={'pk': self.review.pk}),
+            {'body': 'Why?', 'parent': root['id']},
+            format='json',
+        )
+
+        recipients = list(Notification.objects.values_list('recipient', flat=True))
+        self.assertEqual(recipients, [self.replier.pk])
+
+    def test_a_parent_from_another_reviews_thread_is_rejected(self):
+        other_review = Review.objects.create(
+            exercise=self.exercise, author=self.replier, rating=2, body='Disagree.'
+        )
+        self.client.force_authenticate(self.replier)
+        elsewhere = self.client.post(
+            reverse('review-comments', kwargs={'pk': other_review.pk}),
+            {'body': 'On the other review.'},
+            format='json',
+        ).json()
+
+        response = self.client.post(
+            reverse('review-comments', kwargs={'pk': self.review.pk}),
+            {'body': 'Misattached.', 'parent': elsewhere['id']},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Comment.objects.filter(body='Misattached.').count(), 0)
+
+    def test_a_hidden_review_has_no_reachable_thread(self):
+        """A review a moderator removed is not shown, so the conversation under it should not be
+        reachable either — the queryset excludes it rather than the action checking after the fact."""
+        self.review.is_removed = True
+        self.review.save(update_fields=['is_removed'])
+
+        response = self.client.get(reverse('review-comments', kwargs={'pk': self.review.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class CommentEditDeleteTests(APITestCase):
+    """What the author of a comment can do to it afterwards. Both were unreachable before — the
+    model had `is_removed` but only a moderator could ever set it."""
+
+    def setUp(self):
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
+        self.author = make_user('author')
+        self.other = make_user('other')
+        self.client.force_authenticate(self.author)
+        self.comment = Comment.objects.get_or_create(
+            content_type=ContentType.objects.get_for_model(self.exercise),
+            object_id=self.exercise.pk,
+            author=self.author,
+            body='Original wording.',
+        )[0]
+
+    def test_the_author_can_edit_their_own_comment(self):
+        response = self.client.patch(
+            reverse('comment-detail', kwargs={'pk': self.comment.pk}),
+            {'body': 'Reworded.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.body, 'Reworded.')
+
+    def test_an_edit_is_recorded_rather_than_silent(self):
+        """A comment can already have replies answering what it USED to say, so an edit that left
+        no trace would let somebody rewrite the question after the answer exists."""
+        self.assertIsNone(self.comment.edited_at)
+
+        response = self.client.patch(
+            reverse('comment-detail', kwargs={'pk': self.comment.pk}),
+            {'body': 'Reworded.'},
+            format='json',
+        )
+
+        self.assertTrue(response.json()['is_edited'])
+        self.comment.refresh_from_db()
+        self.assertIsNotNone(self.comment.edited_at)
+
+    def test_editing_somebody_elses_comment_is_refused(self):
+        self.client.force_authenticate(self.other)
+
+        response = self.client.patch(
+            reverse('comment-detail', kwargs={'pk': self.comment.pk}),
+            {'body': 'Not mine to change.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.body, 'Original wording.')
+
+    def test_an_edit_cannot_blank_the_body(self):
+        response = self.client.patch(
+            reverse('comment-detail', kwargs={'pk': self.comment.pk}),
+            {'body': '   '},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.body, 'Original wording.')
+
+    def test_deleting_is_a_tombstone_that_keeps_the_replies_in_place(self):
+        reply = Comment.objects.create(
+            content_type=ContentType.objects.get_for_model(self.exercise),
+            object_id=self.exercise.pk,
+            parent=self.comment,
+            author=self.other,
+            body='Answering the original.',
+        )
+
+        response = self.client.delete(reverse('comment-detail', kwargs={'pk': self.comment.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.comment.refresh_from_db()
+        self.assertTrue(self.comment.is_removed)
+        self.assertTrue(Comment.objects.filter(pk=reply.pk).exists())
+
+    def test_an_author_deletion_is_distinguishable_from_a_moderator_removal(self):
+        """Both end up `is_removed`, and the reader is told which — otherwise somebody's own
+        deletion is reported to everyone as a moderator having removed it."""
+        self.client.delete(reverse('comment-detail', kwargs={'pk': self.comment.pk}))
+
+        self.comment.refresh_from_db()
+        self.assertTrue(self.comment.removed_by_author)
+
+    def test_deleting_somebody_elses_comment_is_refused(self):
+        self.client.force_authenticate(self.other)
+
+        response = self.client.delete(reverse('comment-detail', kwargs={'pk': self.comment.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.comment.refresh_from_db()
+        self.assertFalse(self.comment.is_removed)
+
+    def test_a_moderator_cannot_quietly_delete_through_this_endpoint(self):
+        """Staff removing somebody's words is a moderation act with a record behind it (a Report, a
+        decision, a note) and keeps its own path. A second, unrecorded route here would make that
+        record incomplete rather than make moderation easier."""
+        staff = make_user('staff')
+        staff.is_staff = True
+        staff.save(update_fields=['is_staff'])
+        self.client.force_authenticate(staff)
+
+        response = self.client.delete(reverse('comment-detail', kwargs={'pk': self.comment.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.comment.refresh_from_db()
+        self.assertFalse(self.comment.is_removed)
+
+    def test_an_already_removed_comment_cannot_be_edited(self):
+        self.client.delete(reverse('comment-detail', kwargs={'pk': self.comment.pk}))
+
+        response = self.client.patch(
+            reverse('comment-detail', kwargs={'pk': self.comment.pk}),
+            {'body': 'Back from the dead.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)

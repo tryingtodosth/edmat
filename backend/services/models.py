@@ -146,8 +146,9 @@ class ServiceReview(models.Model):
     # follows `community.Review.is_removed`'s own precedent exactly: a REMOVED review disappears
     # entirely from `service.reviews` reads (services/views.py's `reviews` action, and this
     # serializer's own average_rating/review_count), not a Comment-style tombstone-blank — a
-    # ServiceReview is never threaded/replied-to, so there's no structural reason to keep a hidden
-    # row visibly present the way a removed Comment's own reply chain needs.
+    # ServiceReview carries no structure of its own that a hidden row would need to hold open the
+    # way a removed Comment's reply chain does — replies to a review are Comments, and they keep
+    # their own tombstones, so removing the review can simply take the whole thread out of reach.
     is_removed = models.BooleanField(default=False)
 
     class Meta:

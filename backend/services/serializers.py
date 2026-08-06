@@ -2,6 +2,8 @@ import decimal
 
 from rest_framework import serializers
 
+from community.serializers import ReplyCountMixin
+
 from taxonomy.models import Branch
 
 from .geocoding import COORD_PRECISION
@@ -93,14 +95,24 @@ class ServiceSerializer(serializers.ModelSerializer):
         return obj.reviews.filter(is_removed=False).count()
 
 
-class ServiceReviewSerializer(serializers.ModelSerializer):
+class ServiceReviewSerializer(ReplyCountMixin, serializers.ModelSerializer):
     # Same `getattr(obj.author.profile, 'display_name', '') or obj.author.username` pattern
     # community/serializers.py's ReviewSerializer already establishes for the identical purpose.
     author_display_name = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
 
     class Meta:
         model = ServiceReview
-        fields = ['id', 'service', 'author', 'author_display_name', 'rating', 'body', 'created_at']
+        fields = [
+            'id',
+            'service',
+            'author',
+            'author_display_name',
+            'rating',
+            'body',
+            'created_at',
+            'reply_count',
+        ]
         read_only_fields = ['author']
 
     def get_author_display_name(self, obj):

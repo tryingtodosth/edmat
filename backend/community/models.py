@@ -52,6 +52,17 @@ class Comment(models.Model):
     # See Review.auto_hidden_at's own doc comment just above for the full reasoning — same field,
     # same meaning, added here for symmetry now that Comment is reportable too.
     auto_hidden_at = models.DateTimeField(null=True, blank=True)
+    # Set when the AUTHOR deletes their own comment, which is a genuinely different event from a
+    # moderator removing it even though both end up as `is_removed`. Without this the reader is
+    # told "removed by a moderator" for a comment nobody moderated — a placeholder that lies about
+    # what happened to somebody's own words. The two are kept as one `is_removed` plus this flag
+    # rather than a second removal state so every existing reader of `is_removed` (the serializer's
+    # own body blanking, the moderation queue, the auto-hide check) keeps working untouched.
+    removed_by_author = models.BooleanField(default=False)
+    # Null until the author edits. Recorded rather than silently overwriting the body because a
+    # comment can already have replies written in answer to what it USED to say — an edit that
+    # leaves no trace lets somebody rewrite the question after the answer exists.
+    edited_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['created_at']
