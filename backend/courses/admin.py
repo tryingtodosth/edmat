@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import Enrollment, Lesson, Course
+from .models import Chapter, Enrollment, Lesson, Course
+
+
+class ChapterInline(admin.TabularInline):
+    """Chapters, not lessons — a lesson hangs off a chapter now, so it is one level too deep to
+    inline here. `ChapterAdmin` below carries its own lessons."""
+
+    model = Chapter
+    extra = 0
 
 
 class LessonInline(admin.TabularInline):
@@ -27,11 +35,18 @@ class CourseAdmin(admin.ModelAdmin):
     list_editable = ['capacity', 'upload_quota_bytes']
     list_filter = ['visibility', 'status', 'enrollment_policy', 'language']
     search_fields = ['title', 'instructor__username']
-    inlines = [LessonInline]
+    inlines = [ChapterInline]
 
     @admin.display(description='Used (MB)')
     def uploaded_mb(self, obj):
         return round(obj.uploaded_bytes / (1024 * 1024), 1)
+
+
+@admin.register(Chapter)
+class ChapterAdmin(admin.ModelAdmin):
+    list_display = ['course', 'title', 'order', 'unlocks_at']
+    list_filter = ['course']
+    inlines = [LessonInline]
 
 
 @admin.register(Enrollment)

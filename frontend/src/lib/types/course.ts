@@ -61,7 +61,7 @@ export interface CourseStaffMember {
 export interface CourseItem {
 	id: string;
 	kind: 'material' | 'exercise';
-	chapter: string | null;
+	lesson: string | null;
 	material: string | null;
 	exercise: string | null;
 	/** Enough to recognise the thing without a second request — a material's resolved title, or an
@@ -88,7 +88,7 @@ export interface Chapter {
 	isUnlocked: boolean;
 	/** Empty for a participant while the chapter is locked. The chapter itself still renders, so a
 	 * course never looks shorter than it is. */
-	items: CourseItem[];
+	lessons: Lesson[];
 }
 
 export interface CourseInvite {
@@ -118,18 +118,23 @@ export interface InvitePreview {
 	unusableReason: InviteUnusableReason | null;
 }
 
+/** The middle level: a session inside a chapter, holding the items worked through in it.
+ *
+ * This used to sit beside Chapter and point at exercises and materials with two id arrays. Those
+ * are gone: content lives in `CourseItem`, which is the half that can also say "a participant
+ * offered this and it is waiting for review". */
 export interface Lesson {
 	id: string;
+	chapterId: string;
 	title: string;
 	description: string;
 	order: number;
 	scheduledAt: string | null;
 	durationMinutes: number | null;
-	exerciseIds: string[];
-	materialIds: string[];
 	/** Empty unless the viewer is actually in the course — the field is always present, so no
 	 * client ever has to branch on whether a key exists. */
 	participantNotes: string;
+	items: CourseItem[];
 }
 
 export interface Course {
@@ -234,6 +239,7 @@ export interface CourseInviteDraft {
 }
 
 export interface LessonDraft {
+	chapterId: string;
 	title: string;
 	description: string;
 	order: number;

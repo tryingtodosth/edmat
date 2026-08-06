@@ -58,7 +58,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = (
             Course.objects.select_related('instructor', 'instructor__profile', 'field')
-            .prefetch_related('subjects', 'lessons', 'enrollments')
+            .prefetch_related('subjects', 'chapters__lessons__items', 'enrollments')
             .all()
         )
 
@@ -379,7 +379,9 @@ class CourseViewSet(viewsets.ModelViewSet):
             )
             return Response(
                 LessonSerializer(
-                    course.lessons.all(), many=True, context={'is_participant': is_participant}
+                    Lesson.objects.filter(chapter__course=course),
+                    many=True,
+                    context={'is_participant': is_participant},
                 ).data
             )
 
@@ -387,7 +389,13 @@ class CourseViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_404_NOT_FOUND)
         write = LessonWriteSerializer(data=request.data)
         write.is_valid(raise_exception=True)
-        lesson = write.save(course=course)
+        # A lesson lives in a chapter, and the chapter has to be one of THIS course's — otherwise a
+        # correctly-authenticated instructor could file a session into somebody else's week. The
+        # serializer cannot see the course, so the check belongs here.
+        chapter = write.validated_data.get('chapter')
+        if chapter is None or chapter.course_id != course.pk:
+            raise DRFValidationError({'chapter': 'Pick a chapter belonging to this course.'})
+        lesson = write.save()
         if course.announce_new_lessons:
             notify_course_participants(
                 course, 'course_new_lesson', actor=request.user, note=lesson.title
@@ -407,7 +415,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         course = self.get_object()
         if not course.can_curate(request.user):
             return Response(status=status.HTTP_404_NOT_FOUND)
-        lesson = course.lessons.filter(pk=lesson_id).first()
+        lesson = Lesson.objects.filter(chapter__course=course, pk=lesson_id).first()
         if not lesson:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if request.method == 'DELETE':
@@ -503,6 +511,118 @@ class CourseViewSet(viewsets.ModelViewSet):
         row.role = role
         row.save(update_fields=['role'])
         return Response(CourseStaffSerializer(row).data)
+
+    # --- reordering -------------------------------------------------------------------------------
+
+    #: What each `kind` reorders, and what it hangs from. `parent` is the field that says which
+    #: group a row is in — None for chapters, whose group is the course itself.
+    _REORDERABLE = {
+        'chapter': (Chapter, None, 'course'),
+        'lesson': (Lesson, 'chapter_id', 'chapter__course'),
+        'item': (CourseItem, 'lesson_id', 'course'),
+    }
+
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def reorder(self, request, pk=None):
+        """Rewrite the order of chapters, lessons or items — staff only.
+
+        One endpoint for all three levels rather than three near-identical ones: the levels differ
+        only in which model they touch and what "the group above" means, and three copies of this
+        would be three places to fix the next time the shape changes.
+
+        The payload describes **complete groups**, not individual moves:
+
+            {"kind": "chapter", "order": [4, 7, 2]}
+            {"kind": "lesson",  "groups": {"7": [3, 9], "2": [5]}}
+            {"kind": "item",    "groups": {"3": [8, 6], "": [11]}}
+
+        Complete, because a drag between two chapters changes both of them, and sending one move at
+        a time means a window where the same lesson is in both or neither. Every group in one
+        request, one transaction, so there is no such window. `""` is the unfiled group — where a
+        participant's submission sits before anyone decides where it belongs.
+
+        Position is the index in the list. Nothing is computed from gaps or fractional ranks: the
+        client already knows the order it wants, and rewriting a handful of small integers is
+        cheaper than any scheme for avoiding it.
+        """
+        course = self.get_object()
+        # `can_curate`, not `can_administer`: reordering is editing content, which is exactly what
+        # an assistant is brought in to do. It is emphatically not open to participants — that is
+        # the line this check draws, and a 404 rather than a 403 keeps it from confirming anything
+        # about a course somebody cannot administer.
+        if not course.can_curate(request.user):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        kind = request.data.get('kind')
+        if kind not in self._REORDERABLE:
+            raise DRFValidationError({'kind': f'Expected one of {sorted(self._REORDERABLE)}.'})
+        model, parent_field, course_path = self._REORDERABLE[kind]
+
+        if parent_field is None:
+            groups = {'': request.data.get('order', [])}
+        else:
+            groups = request.data.get('groups')
+            if not isinstance(groups, dict):
+                raise DRFValidationError({'groups': 'Expected an object of group id -> [row ids].'})
+
+        # Flattened first, so "the same row listed in two groups" is caught before anything is
+        # written. Without this, the last group to be processed would silently win.
+        flat = [row_id for ids in groups.values() for row_id in ids]
+        if len(flat) != len(set(flat)):
+            raise DRFValidationError({'groups': 'A row may appear in only one group.'})
+
+        # Scoped to this course, so an id belonging to somebody else's course simply is not found —
+        # the same queryset-scoping-not-permission-checking shape the rest of this viewset uses.
+        owned = model.objects.filter(**{course_path: course})
+        by_id = {row.pk: row for row in owned}
+        try:
+            missing = [row_id for row_id in flat if int(row_id) not in by_id]
+        except (TypeError, ValueError):
+            raise DRFValidationError({'groups': 'Row ids must be integers.'})
+        if missing:
+            raise DRFValidationError({'groups': f'Not in this course: {missing}.'})
+
+        # The group ids get the same treatment as the row ids. Without this, a chapter id from
+        # somebody else's course would be written straight onto a lesson here — moving content out
+        # of this course and into theirs, which is not a reorder by any reading.
+        if parent_field is not None:
+            allowed_parents = (
+                {str(pk) for pk in course.chapters.values_list('pk', flat=True)}
+                if kind == 'lesson'
+                else {
+                    str(pk)
+                    for pk in Lesson.objects.filter(chapter__course=course).values_list(
+                        'pk', flat=True
+                    )
+                }
+            )
+            unknown = [g for g in groups if g != '' and str(g) not in allowed_parents]
+            if unknown:
+                raise DRFValidationError({'groups': f'Not a group in this course: {unknown}.'})
+            if kind == 'lesson' and '' in groups:
+                # A lesson without a chapter has nowhere to be drawn — `Lesson.chapter` is NOT NULL
+                # precisely so the middle level always has a parent.
+                raise DRFValidationError({'groups': 'A lesson must belong to a chapter.'})
+
+        with transaction.atomic():
+            for parent_id, ids in groups.items():
+                for position, row_id in enumerate(ids):
+                    row = by_id[int(row_id)]
+                    row.order = position
+                    fields = ['order']
+                    if parent_field is not None:
+                        # Re-parenting and reordering are the same write: a drag between chapters
+                        # is one gesture, and splitting it into two saves would leave the row
+                        # briefly ordered against a group it is no longer in.
+                        setattr(row, parent_field, int(parent_id) if parent_id != '' else None)
+                        fields.append(parent_field)
+                    row.save(update_fields=fields)
+
+        return Response({'reordered': len(flat)})
 
     # --- chapters ---------------------------------------------------------------------------------
 

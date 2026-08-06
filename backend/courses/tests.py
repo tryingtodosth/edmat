@@ -268,8 +268,9 @@ class LessonTests(ApiTestCase):
     def setUp(self):
         super().setUp()
         self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Week 1')
         self.lesson = Lesson.objects.create(
-            course=self.course,
+            chapter=self.chapter,
             title='Ciągi',
             description='Public blurb',
             participant_notes='The zoom link and the homework',
@@ -291,7 +292,11 @@ class LessonTests(ApiTestCase):
 
     def test_a_pending_request_is_not_yet_a_participant(self):
         course = self.make_course(enrollment_policy='approval')
-        Lesson.objects.create(course=course, title='L', participant_notes='secret')
+        Lesson.objects.create(
+            chapter=Chapter.objects.create(course=course, title='W'),
+            title='L',
+            participant_notes='secret',
+        )
         client = self.as_(self.student)
         client.post(f'/api/courses/{course.pk}/enrol/')
         res = client.get(f'/api/courses/{course.pk}/')
@@ -307,7 +312,7 @@ class LessonTests(ApiTestCase):
         client = self.as_(self.instructor)
         created = client.post(
             f'/api/courses/{self.course.pk}/lessons/',
-            {'title': 'Szeregi', 'order': 2},
+            {'title': 'Szeregi', 'order': 2, 'chapter': self.chapter.pk},
             format='json',
         )
         self.assertEqual(created.status_code, 201)
@@ -529,9 +534,12 @@ class NotificationTests(ApiTestCase):
 
     def test_a_new_lesson_reaches_participants_but_not_the_instructor(self):
         course = self.make_course()
+        chapter = Chapter.objects.create(course=course, title='Week 1')
         self.as_(self.student).post(f'/api/courses/{course.pk}/enrol/')
         self.as_(self.instructor).post(
-            f'/api/courses/{course.pk}/lessons/', {'title': 'Ciągi'}, format='json'
+            f'/api/courses/{course.pk}/lessons/',
+            {'title': 'Ciągi', 'chapter': chapter.pk},
+            format='json',
         )
         self.assertEqual(self.notifs(self.student, 'course_new_lesson').count(), 1)
         # notify()'s own actor==recipient guard: nobody is told about their own action.
@@ -952,9 +960,16 @@ class ChapterTests(ApiTestCase):
         return Chapter.objects.create(course=self.course, title='Week 3', **kwargs)
 
     def _item_in(self, chapter):
+        lesson = Lesson.objects.create(chapter=chapter, title='Session')
         return CourseItem.objects.create(
-            course=self.course, chapter=chapter, material=self.material, status='approved'
+            course=self.course, lesson=lesson, material=self.material, status='approved'
         )
+
+    @staticmethod
+    def _items_of(chapter_row):
+        """Every item under a chapter, flattened back out of its lessons — what these tests used to
+        read straight off the chapter before the middle level existed."""
+        return [item for lesson in chapter_row['lessons'] for item in lesson['items']]
 
     def test_a_locked_chapter_still_appears_but_its_contents_do_not(self):
         chapter = self._chapter(unlocks_at=timezone.now() + timedelta(days=7))
@@ -964,13 +979,13 @@ class ChapterTests(ApiTestCase):
         self.assertEqual(len(seen.data), 1, 'the chapter itself must remain visible')
         self.assertFalse(seen.data[0]['is_unlocked'])
         self.assertIsNotNone(seen.data[0]['unlocks_at'])
-        self.assertEqual(seen.data[0]['items'], [], 'contents must stay shut')
+        self.assertEqual(self._items_of(seen.data[0]), [], 'contents must stay shut')
 
     def test_staff_can_read_a_locked_chapter_because_they_have_to_prepare_it(self):
         chapter = self._chapter(unlocks_at=timezone.now() + timedelta(days=7))
         self._item_in(chapter)
         seen = self.as_(self.instructor).get(f'/api/courses/{self.course.pk}/chapters/')
-        self.assertEqual(len(seen.data[0]['items']), 1)
+        self.assertEqual(len(self._items_of(seen.data[0])), 1)
         self.assertFalse(seen.data[0]['is_unlocked'], 'still shut, just readable by staff')
 
     def test_a_chapter_whose_date_has_passed_is_open(self):
@@ -978,14 +993,14 @@ class ChapterTests(ApiTestCase):
         self._item_in(chapter)
         seen = self.as_(self.student).get(f'/api/courses/{self.course.pk}/chapters/')
         self.assertTrue(seen.data[0]['is_unlocked'])
-        self.assertEqual(len(seen.data[0]['items']), 1)
+        self.assertEqual(len(self._items_of(seen.data[0])), 1)
 
     def test_a_chapter_with_no_date_is_simply_always_open(self):
         chapter = self._chapter()
         self._item_in(chapter)
         seen = self.as_(self.student).get(f'/api/courses/{self.course.pk}/chapters/')
         self.assertTrue(seen.data[0]['is_unlocked'])
-        self.assertEqual(len(seen.data[0]['items']), 1)
+        self.assertEqual(len(self._items_of(seen.data[0])), 1)
 
     def test_deleting_a_chapter_keeps_its_content_unfiled(self):
         chapter = self._chapter()
@@ -994,19 +1009,22 @@ class ChapterTests(ApiTestCase):
             f'/api/courses/{self.course.pk}/chapters/{chapter.pk}/'
         )
         item.refresh_from_db()
-        self.assertIsNone(item.chapter_id)
+        self.assertIsNone(item.lesson_id)
         self.assertTrue(CourseItem.objects.filter(pk=item.pk).exists())
 
-    def test_an_item_cannot_be_filed_into_another_courses_chapter(self):
-        elsewhere = Chapter.objects.create(
-            course=self.make_course(title='Different course'), title='Theirs'
+    def test_an_item_cannot_be_filed_into_another_courses_lesson(self):
+        elsewhere = Lesson.objects.create(
+            chapter=Chapter.objects.create(
+                course=self.make_course(title='Different course'), title='Theirs'
+            ),
+            title='Their session',
         )
         item = CourseItem.objects.create(
             course=self.course, material=self.material, status='approved'
         )
         response = self.as_(self.instructor).patch(
             f'/api/courses/{self.course.pk}/items/{item.pk}/',
-            {'chapter': elsewhere.pk},
+            {'lesson': elsewhere.pk},
             format='json',
         )
         self.assertEqual(response.status_code, 400)
@@ -1241,3 +1259,89 @@ class CourseUploadQuotaTests(ApiTestCase):
         file has gone missing from storage looks like. Reading the total must not raise on it."""
         self.course.items.create(material=self.make_material('widmo', 'Widmo'), status='approved')
         self.assertEqual(self.course.uploaded_bytes, 0)
+
+
+class ReorderTests(ApiTestCase):
+    """Drag-and-drop, from the server's side.
+
+    The endpoint takes whole groups rather than individual moves, because a drag between two
+    chapters changes both — see `CourseViewSet.reorder`. These check that it does, that a
+    participant cannot, and that ids from another course are refused rather than quietly written.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.material = self.make_material('skrypt', 'Skrypt')
+        self.a = Chapter.objects.create(course=self.course, title='Week 1', order=0)
+        self.b = Chapter.objects.create(course=self.course, title='Week 2', order=1)
+        self.a1 = Lesson.objects.create(chapter=self.a, title='Mon', order=0)
+        self.a2 = Lesson.objects.create(chapter=self.a, title='Tue', order=1)
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+
+    def _reorder(self, payload, who=None):
+        return self.as_(who or self.instructor).post(
+            f'/api/courses/{self.course.pk}/reorder/', payload, format='json'
+        )
+
+    def test_chapters_take_the_order_they_are_given(self):
+        res = self._reorder({'kind': 'chapter', 'order': [self.b.pk, self.a.pk]})
+        self.assertEqual(res.status_code, 200)
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.assertEqual((self.b.order, self.a.order), (0, 1))
+
+    def test_a_lesson_can_be_dragged_into_another_chapter(self):
+        """The move and the reorder are one write: `a2` leaves chapter A for chapter B, and both
+        groups arrive in the same request, so there is no moment where it is in both or neither."""
+        res = self._reorder(
+            {'kind': 'lesson', 'groups': {str(self.a.pk): [self.a1.pk], str(self.b.pk): [self.a2.pk]}}
+        )
+        self.assertEqual(res.status_code, 200)
+        self.a2.refresh_from_db()
+        self.assertEqual(self.a2.chapter_id, self.b.pk)
+        self.assertEqual(self.a2.order, 0)
+
+    def test_items_reorder_within_a_lesson_and_can_be_unfiled(self):
+        one = CourseItem.objects.create(
+            course=self.course, lesson=self.a1, material=self.material, status='approved'
+        )
+        res = self._reorder({'kind': 'item', 'groups': {'': [one.pk]}})
+        self.assertEqual(res.status_code, 200)
+        one.refresh_from_db()
+        self.assertIsNone(one.lesson_id, 'the empty group means "in the course but not filed"')
+
+    def test_a_participant_cannot_reorder_anything(self):
+        res = self._reorder({'kind': 'chapter', 'order': [self.b.pk, self.a.pk]}, who=self.student)
+        self.assertEqual(res.status_code, 404, '404 rather than 403 — the same scoping convention')
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.order, 0, 'and nothing moved')
+
+    def test_a_row_from_another_course_is_refused(self):
+        theirs = Chapter.objects.create(course=self.make_course(title='Theirs'), title='Not yours')
+        res = self._reorder({'kind': 'chapter', 'order': [self.a.pk, theirs.pk]})
+        self.assertEqual(res.status_code, 400)
+        theirs.refresh_from_db()
+        self.assertEqual(theirs.order, 0)
+
+    def test_a_group_from_another_course_is_refused(self):
+        """The dangerous half: a valid lesson of ours, addressed into their chapter, would move our
+        content into their course if the group id were not checked too."""
+        theirs = Chapter.objects.create(course=self.make_course(title='Theirs'), title='Not yours')
+        res = self._reorder({'kind': 'lesson', 'groups': {str(theirs.pk): [self.a1.pk]}})
+        self.assertEqual(res.status_code, 400)
+        self.a1.refresh_from_db()
+        self.assertEqual(self.a1.chapter_id, self.a.pk)
+
+    def test_the_same_row_cannot_be_listed_in_two_groups(self):
+        res = self._reorder(
+            {'kind': 'lesson', 'groups': {str(self.a.pk): [self.a1.pk], str(self.b.pk): [self.a1.pk]}}
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_a_lesson_cannot_be_left_without_a_chapter(self):
+        res = self._reorder({'kind': 'lesson', 'groups': {'': [self.a1.pk]}})
+        self.assertEqual(res.status_code, 400)
+
+    def test_an_unknown_kind_is_refused(self):
+        self.assertEqual(self._reorder({'kind': 'course', 'order': []}).status_code, 400)

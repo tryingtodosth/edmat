@@ -23,6 +23,7 @@
 		getParticipants,
 		leaveCourse,
 		moveCourseItem,
+		reorderCourse,
 		muteCourse,
 		removeCourseItem,
 		removeCourseStaff,
@@ -72,12 +73,19 @@
 	let pendingItems = $derived(
 		[
 			...(course?.unfiledItems ?? []),
-			...(course?.chapters ?? []).flatMap((chapter) => chapter.items)
+			...(course?.chapters ?? []).flatMap((chapter) =>
+				chapter.lessons.flatMap((lesson) => lesson.items)
+			)
 		].filter((item) => item.status === 'pending')
 	);
 
 	let newLessonTitle = $state('');
 	let newLessonNotes = $state('');
+	// A lesson lives in a chapter, so adding one has to say which. Defaults to the first chapter
+	// rather than to nothing: with a single chapter — which is most courses — the select is a
+	// formality and pre-filling it removes a step that has only one right answer.
+	let newLessonChapter = $state('');
+	let allLessons = $derived((course?.chapters ?? []).flatMap((c) => c.lessons));
 
 	let comments = $state<Comment[]>([]);
 	let usersById = $state<Record<string, User>>({});
@@ -372,9 +380,16 @@
 		<CourseContent
 			{course}
 			onmove={course.canCurate
-				? (itemId, chapterId) =>
+				? (itemId, lessonId) =>
 						act(
-							() => moveCourseItem(course!.id, itemId, chapterId),
+							() => moveCourseItem(course!.id, itemId, lessonId),
+							(msg) => (staffError = msg)
+						)
+				: undefined}
+			onreorder={course.canCurate
+				? (payload) =>
+						act(
+							() => reorderCourse(course!.id, payload),
 							(msg) => (staffError = msg)
 						)
 				: undefined}
@@ -569,10 +584,13 @@
 						const title = newLessonTitle.trim();
 						if (!title) return;
 						run(async () => {
+							const chapterId = newLessonChapter || course!.chapters[0]?.id;
+							if (!chapterId) return;
 							await addLesson(course!.id, {
+								chapterId,
 								title,
 								description: '',
-								order: course!.lessons.length + 1,
+								order: allLessons.length + 1,
 								scheduledAt: null,
 								durationMinutes: null,
 								participantNotes: newLessonNotes
@@ -582,6 +600,14 @@
 						});
 					}}
 				>
+					<label class="field">
+						<span>{m.course_newLessonChapter()}</span>
+						<select bind:value={newLessonChapter}>
+							{#each course.chapters as chapter (chapter.id)}
+								<option value={chapter.id}>{chapter.title}</option>
+							{/each}
+						</select>
+					</label>
 					<label class="field">
 						<span>{m.course_newLessonTitle()}</span>
 						<input type="text" bind:value={newLessonTitle} maxlength="200" />

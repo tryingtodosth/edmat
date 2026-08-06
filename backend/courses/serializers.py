@@ -33,27 +33,31 @@ class ParticipantSerializer(serializers.Serializer):
 
 
 class LessonSerializer(serializers.ModelSerializer):
-    exercise_ids = serializers.PrimaryKeyRelatedField(
-        source='exercises', many=True, read_only=True
-    )
-    material_ids = serializers.PrimaryKeyRelatedField(
-        source='materials', many=True, read_only=True
-    )
     participant_notes = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
 
     class Meta:
         model = Lesson
         fields = [
             'id',
+            'chapter',
             'title',
             'description',
             'order',
             'scheduled_at',
             'duration_minutes',
-            'exercise_ids',
-            'material_ids',
             'participant_notes',
+            'items',
         ]
+
+    def get_items(self, lesson):
+        """Filtered per viewer, not per lesson: a pending contribution is visible to staff and to
+        whoever offered it, and to nobody else. The chapter's own lock is already applied one level
+        up, in `ChapterSerializer.get_lessons`."""
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        visible = [item for item in lesson.items.all() if item.is_visible_to(user)]
+        return CourseItemSerializer(visible, many=True, context=self.context).data
 
     def get_participant_notes(self, lesson) -> str:
         """Blank for anybody who is not actually in the course.
@@ -69,13 +73,12 @@ class LessonWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
         fields = [
+            'chapter',
             'title',
             'description',
             'order',
             'scheduled_at',
             'duration_minutes',
-            'exercises',
-            'materials',
             'participant_notes',
         ]
 
@@ -190,7 +193,9 @@ class CourseSerializer(serializers.ModelSerializer):
             or course.is_staff_member(self._user())
         )
         return LessonSerializer(
-            course.lessons.all(), many=True, context={**self.context, 'is_participant': is_participant}
+            Lesson.objects.filter(chapter__course=course),
+            many=True,
+            context={**self.context, 'is_participant': is_participant},
         ).data
 
     def get_my_enrollment_status(self, course) -> str | None:
@@ -360,7 +365,7 @@ class CourseItemSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'kind',
-            'chapter',
+            'lesson',
             'material',
             'exercise',
             'label',
@@ -397,7 +402,7 @@ class CourseItemSerializer(serializers.ModelSerializer):
 class CourseItemWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseItem
-        fields = ['chapter', 'material', 'exercise', 'order', 'note']
+        fields = ['lesson', 'material', 'exercise', 'order', 'note']
 
     def validate(self, attrs):
         material = attrs.get('material', getattr(self.instance, 'material', None))
@@ -406,22 +411,30 @@ class CourseItemWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 'Reference exactly one of material or exercise.'
             )
-        # A chapter from another course would file this item somewhere its own course cannot see.
-        # The database cannot express that constraint across two hops, so it is checked here.
-        chapter = attrs.get('chapter')
+        # A lesson from another course would file this item somewhere its own course cannot see.
+        # The database cannot express that constraint across three hops, so it is checked here.
+        lesson = attrs.get('lesson')
         course = self.context.get('course')
-        if chapter and course and chapter.course_id != course.pk:
-            raise serializers.ValidationError({'chapter': 'That chapter belongs to another course.'})
+        if lesson and course and lesson.chapter.course_id != course.pk:
+            raise serializers.ValidationError({'lesson': 'That lesson belongs to another course.'})
         return attrs
 
 
 class ChapterSerializer(serializers.ModelSerializer):
     is_unlocked = serializers.SerializerMethodField()
-    items = serializers.SerializerMethodField()
+    lessons = serializers.SerializerMethodField()
 
     class Meta:
         model = Chapter
-        fields = ['id', 'title', 'description', 'order', 'unlocks_at', 'is_unlocked', 'items']
+        fields = [
+            'id',
+            'title',
+            'description',
+            'order',
+            'unlocks_at',
+            'is_unlocked',
+            'lessons',
+        ]
 
     def _user(self):
         request = self.context.get('request')
@@ -436,14 +449,16 @@ class ChapterSerializer(serializers.ModelSerializer):
         """
         return chapter.is_unlocked()
 
-    def get_items(self, chapter):
+    def get_lessons(self, chapter):
         user = self._user()
         if not chapter.is_visible_to(user):
             # The chapter still renders — title, description and unlock date — but its contents do
-            # not. That is the whole point of a locked chapter: you can see that week 3 exists.
+            # not. That is the whole point of a locked chapter: you can see that week 3 exists,
+            # without being shown what is in it yet.
             return []
-        visible = [item for item in chapter.items.all() if item.is_visible_to(user)]
-        return CourseItemSerializer(visible, many=True, context=self.context).data
+        return LessonSerializer(
+            chapter.lessons.all(), many=True, context=self.context
+        ).data
 
 
 class ChapterWriteSerializer(serializers.ModelSerializer):

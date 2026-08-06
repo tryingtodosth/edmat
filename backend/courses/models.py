@@ -438,14 +438,32 @@ class Course(models.Model):
 
 
 class Lesson(models.Model):
-    """One session or unit within a course.
+    """One session within a chapter — the middle level of a course's contents.
 
-    Content is *referenced*, never copied: a lesson points at exercises and materials that already
-    exist in this app, so a corrected exercise stays corrected everywhere and nothing here becomes a
-    second, silently diverging copy of the corpus.
+    A course reads Chapter -> Lesson -> CourseItem: "Week 3" holds "Tuesday's session", which holds
+    the exercises and materials worked through in it.
+
+    **This model used to sit beside Chapter rather than inside it**, and the two were near-duplicates
+    — both hung off the course with a title, a description and an order, and both grouped content.
+    They differed only in how: Lesson pointed at exercises and materials with two direct M2Ms, while
+    Chapter grouped `CourseItem` rows, which also carry a review status and a submitter. Only the
+    Chapter half was ever rendered; the Lesson half had serializers, viewset actions and frontend
+    service functions, and nothing displayed it.
+
+    So the duplication is resolved by nesting rather than by deleting either one: Lesson becomes the
+    subchapter that a course actually needs, and content stays in `CourseItem`, which is the
+    mechanism that can express "a participant offered this and it is waiting for review".
+
+    Content is *referenced*, never copied: a lesson's items point at exercises and materials that
+    already exist in this app, so a corrected exercise stays corrected everywhere and nothing here
+    becomes a second, silently diverging copy of the corpus.
     """
 
-    course = models.ForeignKey(Course, related_name='lessons', on_delete=models.CASCADE)
+    # A string reference because `Chapter` is declared further down this file. Left in place rather
+    # than reordering the module: the declaration order here follows the order these models were
+    # added, and moving a class to satisfy a name lookup Django resolves lazily anyway would make
+    # the diff look like a rewrite.
+    chapter = models.ForeignKey('Chapter', related_name='lessons', on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
@@ -454,9 +472,6 @@ class Lesson(models.Model):
     # through at their own pace, and forcing a date would make those lie.
     scheduled_at = models.DateTimeField(null=True, blank=True)
     duration_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
-
-    exercises = models.ManyToManyField('exercises.Exercise', related_name='lessons', blank=True)
-    materials = models.ManyToManyField('materials.Material', related_name='lessons', blank=True)
 
     # Lesson notes visible only to active participants (and the instructor). The public course page
     # shows a lesson's title and description so somebody can judge whether to join; this is the part
@@ -467,7 +482,21 @@ class Lesson(models.Model):
         ordering = ['order', 'id']
 
     def __str__(self) -> str:
-        return f'{self.course.title} — {self.title}'
+        return f'{self.chapter.course.title} — {self.chapter.title} — {self.title}'
+
+    @property
+    def course(self):
+        """The course this belongs to, through its chapter.
+
+        A property rather than a denormalized column: a lesson's course is never independently
+        settable, and a second copy of it is a second thing that can disagree with the first.
+        """
+        return self.chapter.course
+
+    def is_visible_to(self, user) -> bool:
+        """A lesson is as visible as the chapter holding it — the gate lives one level up, because
+        "week 3 opens on the 14th" is one decision about a group of sessions."""
+        return self.chapter.is_visible_to(user)
 
 
 class Enrollment(models.Model):
@@ -609,9 +638,11 @@ class CourseItem(models.Model):
 
     course = models.ForeignKey(Course, related_name='items', on_delete=models.CASCADE)
     # Null means "in the course but not filed anywhere yet" — which is precisely where a
-    # participant's submission sits before somebody decides where it belongs.
-    chapter = models.ForeignKey(
-        Chapter, related_name='items', null=True, blank=True, on_delete=models.SET_NULL
+    # participant's submission sits before somebody decides where it belongs. Files into a Lesson
+    # now rather than straight into a Chapter, which is what makes the course three levels deep
+    # (chapter -> lesson -> item) instead of two.
+    lesson = models.ForeignKey(
+        'Lesson', related_name='items', null=True, blank=True, on_delete=models.SET_NULL
     )
 
     material = models.ForeignKey(
@@ -711,7 +742,7 @@ class CourseItem(models.Model):
                 and getattr(user, 'is_authenticated', False)
                 and self.submitted_by_id == user.pk
             )
-        if self.chapter and not self.chapter.is_visible_to(user):
+        if self.lesson and not self.lesson.is_visible_to(user):
             return False
         return True
 

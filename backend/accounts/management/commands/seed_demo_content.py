@@ -27,7 +27,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import ExperienceEntry, Profile, SkillEntry
-from courses.models import Enrollment, Lesson, Course
+from courses.models import Chapter, Enrollment, Lesson, Course
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, Tag
 from materials.models import Material
@@ -396,9 +396,14 @@ class Command(BaseCommand):
                 course.field = subject.discipline
                 course.save(update_fields=['field'])
 
+            # A lesson lives in a chapter now, so the seed makes one to hold them — a demo course
+            # with no chapter would render as empty, which is the opposite of this command's job.
+            chapter, _ = Chapter.objects.get_or_create(
+                course=course, title='Program', defaults={'order': 0}
+            )
             for order, (title, description, notes) in enumerate(spec['lessons'], start=1):
                 Lesson.objects.update_or_create(
-                    course=course,
+                    chapter=chapter,
                     title=title,
                     defaults={'description': description, 'participant_notes': notes, 'order': order},
                 )

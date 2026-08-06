@@ -26,14 +26,14 @@ import { apiClient, ApiError } from '$lib/api/client';
 function mapLesson(raw: any): Lesson {
 	return {
 		id: String(raw.id),
+		chapterId: String(raw.chapter ?? ''),
 		title: raw.title,
 		description: raw.description,
 		order: raw.order,
 		scheduledAt: raw.scheduled_at,
 		durationMinutes: raw.duration_minutes,
-		exerciseIds: (raw.exercise_ids ?? []).map(String),
-		materialIds: (raw.material_ids ?? []).map(String),
-		participantNotes: raw.participant_notes ?? ''
+		participantNotes: raw.participant_notes ?? '',
+		items: (raw.items ?? []).map(mapItem)
 	};
 }
 
@@ -45,7 +45,7 @@ function mapItem(raw: any): CourseItem {
 	return {
 		id: String(raw.id),
 		kind: raw.kind,
-		chapter: raw.chapter === null || raw.chapter === undefined ? null : String(raw.chapter),
+		lesson: raw.lesson === null || raw.lesson === undefined ? null : String(raw.lesson),
 		material: raw.material === null || raw.material === undefined ? null : String(raw.material),
 		exercise: raw.exercise === null || raw.exercise === undefined ? null : String(raw.exercise),
 		label: raw.label ?? '',
@@ -68,7 +68,7 @@ function mapChapter(raw: any): Chapter {
 		order: raw.order ?? 0,
 		unlocksAt: raw.unlocks_at ?? null,
 		isUnlocked: raw.is_unlocked ?? true,
-		items: (raw.items ?? []).map(mapItem)
+		lessons: (raw.lessons ?? []).map(mapLesson)
 	};
 }
 
@@ -300,6 +300,7 @@ export async function decideEnrollment(
 export async function addLesson(courseId: string, draft: LessonDraft): Promise<Lesson> {
 	return mapLesson(
 		await apiClient.post(`/courses/${encodeURIComponent(courseId)}/lessons/`, {
+			chapter: Number(draft.chapterId),
 			title: draft.title,
 			description: draft.description,
 			order: draft.order,
@@ -433,16 +434,38 @@ export async function decideCourseItem(
 	return mapItem(raw);
 }
 
-/** Filing an item into a chapter, or out of one — `chapterId: null` unfiles it. */
+/** Filing an item into a lesson, or out of one — `lessonId: null` unfiles it. */
 export async function moveCourseItem(
 	courseId: string,
 	itemId: string,
-	chapterId: string | null
+	lessonId: string | null
 ): Promise<CourseItem> {
 	const raw = await apiClient.patch<unknown>(`/courses/${courseId}/items/${itemId}/`, {
-		chapter: chapterId ? Number(chapterId) : null
+		lesson: lessonId ? Number(lessonId) : null
 	});
 	return mapItem(raw);
+}
+
+/** What drag-and-drop calls. Sends whole groups rather than one move, because a drag between two
+ * chapters changes both — see the backend's `CourseViewSet.reorder`. `''` is the unfiled group.
+ *
+ * `kind: 'chapter'` takes a flat list, since a chapter's only group is the course itself. */
+export async function reorderCourse(
+	courseId: string,
+	payload:
+		| { kind: 'chapter'; order: string[] }
+		| { kind: 'lesson' | 'item'; groups: Record<string, string[]> }
+): Promise<void> {
+	const body =
+		payload.kind === 'chapter'
+			? { kind: 'chapter', order: payload.order.map(Number) }
+			: {
+					kind: payload.kind,
+					groups: Object.fromEntries(
+						Object.entries(payload.groups).map(([group, ids]) => [group, ids.map(Number)])
+					)
+				};
+	await apiClient.post(`/courses/${encodeURIComponent(courseId)}/reorder/`, body);
 }
 
 export async function removeCourseItem(courseId: string, itemId: string): Promise<void> {
