@@ -15,6 +15,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import type { EdmatEvent, EventAttendee } from '$lib/types/event';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import EventUpdates from '$lib/components/event/EventUpdates.svelte';
 
 	let event = $state<EdmatEvent | null>(null);
 	let attendees = $state<EventAttendee[]>([]);
@@ -334,6 +335,11 @@
 					<p class="error" role="alert">{actionError}</p>
 				{/if}
 			</section>
+
+			<!-- Above the roster, because "the room has moved" is what somebody opens this page for
+			     once they have already decided to come, and below the answer buttons, because
+			     deciding whether to come is what everybody else opens it for. -->
+			<EventUpdates eventId={event.id} isHost={event.isHost} />
 
 			<section class="roster">
 				<h2>{m.events_attendees()}</h2>
