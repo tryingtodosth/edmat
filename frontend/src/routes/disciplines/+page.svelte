@@ -4,10 +4,18 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getBranchesForDiscipline, getDisciplines } from '$lib/services/taxonomy';
 	import DisciplineCard from '$lib/components/discipline/DisciplineCard.svelte';
+	import Loading from '$lib/components/shared/Loading.svelte';
+	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
+	import { cached } from '$lib/state/offlineCache.svelte';
 
 	let fields = $state<Discipline[]>([]);
 	let courseCounts = $state<Record<string, number>>({});
 	let loading = $state(true);
+	// A saved copy paints on the first frame, so this page opens with the disciplines you saw last
+	// time rather than an empty grid — and says so if the network never answers.
+	let savedAt = $state<number | null>(null);
+	let offline = $state(false);
+	let stale = $state(false);
 
 	// Anybody signed in may propose a discipline, and everybody else's proposal is live but
 	// `pending` until a moderator agrees. Rather than hiding those — which would make proposing one
@@ -17,15 +25,31 @@
 	let proposed = $derived(fields.filter((f) => f.status === 'pending'));
 
 	onMount(async () => {
-		fields = await getDisciplines();
+		await cached('disciplines', getDisciplines, (result) => {
+			if (!result.data) return;
+			fields = result.data;
+			// Content is on screen the moment there is any, cached or fresh — the spinner is for
+			// having nothing to show, not for "a request is in flight".
+			loading = false;
+			savedAt = result.fromCache ? result.savedAt : null;
+			offline = result.offline;
+			stale = result.stale;
+		}).catch(() => {
+			// Nothing cached and the network failed: the empty state is then the honest answer.
+		});
+		loading = false;
+
 		const counts: Record<string, number> = {};
 		await Promise.all(
 			fields.map(async (f) => {
-				counts[f.id] = (await getBranchesForDiscipline(f.id)).length;
+				try {
+					counts[f.id] = (await getBranchesForDiscipline(f.id)).length;
+				} catch {
+					counts[f.id] = 0;
+				}
 			})
 		);
 		courseCounts = counts;
-		loading = false;
 	});
 </script>
 
@@ -36,8 +60,11 @@
 <div class="page">
 	<h1>{m.nav_browse()}</h1>
 	{#if loading}
-		<p class="loading">{m.common_loading()}</p>
+		<Loading variant="card" count={3} />
 	{:else}
+		{#if offline}
+			<SavedCopyNotice {savedAt} {stale} />
+		{/if}
 		<div class="grid">
 			{#each settled as field (field.id)}
 				<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} />
@@ -74,8 +101,5 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 		gap: var(--space-3);
-	}
-	.loading {
-		color: var(--text-secondary);
 	}
 </style>
