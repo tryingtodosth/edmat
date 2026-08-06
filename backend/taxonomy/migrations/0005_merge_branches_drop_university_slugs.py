@@ -57,7 +57,7 @@ def merge(apps, schema_editor):
     SkillEntry = apps.get_model('accounts', 'SkillEntry')
     Service = apps.get_model('services', 'Service')
     Event = apps.get_model('events', 'Event')
-    TaughtCourse = apps.get_model('classroom', 'TaughtCourse')
+    TaughtCourse = apps.get_model('courses', 'TaughtCourse')
     CourseGrade = apps.get_model('identity', 'CourseGrade')
 
     for keep_slug, new_slug, absorb_slugs in MERGES:
@@ -161,7 +161,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('taxonomy', '0004_branch_drop_university'),
         ('accounts', '0014_rename_course_skillentry_branch_and_more'),
-        ('classroom', '0001_initial'),
+        ('courses', '0001_initial'),
         ('events', '0002_rename_field_event_discipline'),
         ('exercises', '0007_alter_exercise_options_rename_course_exercise_branch_and_more'),
         ('identity', '0001_initial'),

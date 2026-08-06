@@ -17,8 +17,8 @@ physicists. Those two are now two Courses pointing at one Branch, which is exact
 old model could not draw — it had to be two przedmiot rows with disjoint topic lists.
 
 That also frees the word `Course`, which previously meant a przedmiot here and a kurs in `classroom`,
-forcing that app's model to be called `TaughtCourse` and its route `/api/taught-courses/`. Both are
-now simply `Course` and `/api/courses/`.
+forcing that app's model to be called `TaughtCourse` and its route `/api/taught-courses/`. That app
+is now `courses`, its model is `Course`, and it serves `/api/courses/`.
 
 `Chapter` stays here rather than moving to `courses` with the offering, even though a textbook is
 chosen by whoever runs the class: the 42 chapter rows are corpus data imported from the source

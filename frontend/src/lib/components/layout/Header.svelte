@@ -229,7 +229,7 @@
 	<a href={resolve('/disciplines')} {onclick}>{m.nav_browse()}</a>
 	<a href={resolve('/materials')} {onclick}>{m.nav_materials()}</a>
 	{#if canClassroom}
-		<a href={resolve('/classroom')} {onclick}>{m.nav_classroom()}</a>
+		<a href={resolve('/courses')} {onclick}>{m.nav_classroom()}</a>
 	{/if}
 	{#if canEvents}
 		<a href={resolve('/events')} {onclick}>{m.nav_events()}</a>
@@ -268,7 +268,7 @@
 		</a>
 	{/if}
 	{#if canClassroom}
-		<a role="menuitem" class={itemClass} href={resolve('/classroom/new')} {onclick}>
+		<a role="menuitem" class={itemClass} href={resolve('/courses/new')} {onclick}>
 			{m.nav_add_course()}
 		</a>
 	{/if}

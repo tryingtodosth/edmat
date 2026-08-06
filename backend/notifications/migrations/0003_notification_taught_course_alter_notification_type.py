@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('classroom', '0002_enrollment_notify_taughtcourse_announce_new_lessons_and_more'),
+        ('courses', '0002_enrollment_notify_taughtcourse_announce_new_lessons_and_more'),
         ('notifications', '0002_notification_material_alter_notification_type'),
     ]
 
@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='notification',
             name='taught_course',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='classroom.taughtcourse'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='courses.taughtcourse'),
         ),
         migrations.AlterField(
             model_name='notification',

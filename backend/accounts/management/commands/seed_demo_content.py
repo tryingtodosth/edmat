@@ -27,7 +27,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import ExperienceEntry, Profile, SkillEntry
-from classroom.models import Enrollment, Lesson, TaughtCourse
+from courses.models import Enrollment, Lesson, Course
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, Tag
 from materials.models import Material
@@ -191,7 +191,7 @@ class Command(BaseCommand):
 
         if options['reset']:
             removed = User.objects.filter(username__startswith=SEED_USERNAME_PREFIX).delete()
-            TaughtCourse.objects.filter(title__in=[c['title'] for c in COURSES]).delete()
+            Course.objects.filter(title__in=[c['title'] for c in COURSES]).delete()
             self.stdout.write(f'Removed previously seeded demo content ({removed[0]} rows).')
 
         people = self._seed_people()
@@ -377,7 +377,7 @@ class Command(BaseCommand):
         courses = {}
         for spec in COURSES:
             owner = people[spec['owner']]
-            course, _ = TaughtCourse.objects.update_or_create(
+            course, _ = Course.objects.update_or_create(
                 title=spec['title'],
                 instructor=owner,
                 defaults={
@@ -406,12 +406,12 @@ class Command(BaseCommand):
 
         # One of each unlisted visibility, so "only you" and "private" are both things you can
         # actually see the effect of rather than read about.
-        TaughtCourse.objects.update_or_create(
+        Course.objects.update_or_create(
             title='Topologia — szkic',
             instructor=people['zofia'],
             defaults={'summary': 'Jeszcze nieopublikowany.', 'visibility': 'only_you'},
         )
-        TaughtCourse.objects.update_or_create(
+        Course.objects.update_or_create(
             title='Seminarium — tylko z linkiem',
             instructor=people['zofia'],
             defaults={
@@ -423,7 +423,7 @@ class Command(BaseCommand):
 
     def _seed_course_activity(self, courses: dict, people: dict) -> None:
         analiza, programowanie = courses['analiza'], courses['programowanie']
-        content_type = ContentType.objects.get_for_model(TaughtCourse)
+        content_type = ContentType.objects.get_for_model(Course)
 
         for key in ('piotr', 'zofia', 'jakub'):
             Enrollment.objects.update_or_create(

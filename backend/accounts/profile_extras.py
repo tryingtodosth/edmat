@@ -135,7 +135,7 @@ class UserActivityView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, pk):
-        from classroom.models import Enrollment, TaughtCourse
+        from courses.models import Enrollment, Course
         from community.models import Comment, Review
         from exercises.models import Exercise
 
@@ -193,12 +193,12 @@ class UserActivityView(APIView):
                 }
             )
 
-        for course in TaughtCourse.objects.filter(instructor_id=pk).prefetch_related('subjects'):
+        for course in Course.objects.filter(instructor_id=pk).prefetch_related('subjects'):
             items.append(
                 {
                     'kind': 'course_taught',
                     'title': course.title,
-                    'taught_course_id': course.pk,
+                    'course_id': course.pk,
                     'tags': [s.slug for s in course.subjects.all()],
                     'created_at': course.created_at.isoformat(),
                 }
@@ -213,7 +213,7 @@ class UserActivityView(APIView):
                 {
                     'kind': 'course_joined',
                     'title': enrollment.course.title,
-                    'taught_course_id': enrollment.course_id,
+                    'course_id': enrollment.course_id,
                     'tags': [s.slug for s in enrollment.course.subjects.all()],
                     'created_at': enrollment.requested_at.isoformat(),
                 }

@@ -52,7 +52,7 @@ class Profile(models.Model):
     # only the unfinished ones: "you have 3 of your 5" is a sentence somebody can act on, whereas a
     # cap that silently frees a slot when a course is marked finished is one people would discover
     # by accident. 0 means uncapped — the same convention
-    # `TaughtCourse.capacity` and `TaughtCourse.upload_quota_bytes` already use, so "no limit" reads
+    # `Course.capacity` and `Course.upload_quota_bytes` already use, so "no limit" reads
     # the same everywhere it appears.
     #
     # Uncapped by default, and lowered per account by an administrator in Django admin rather than

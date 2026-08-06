@@ -17,6 +17,6 @@ export * from './booking';
 export * from './message';
 export * from './featureFlag';
 export * from './identity';
-export * from './classroom';
+export * from './course';
 export * from './event';
 export * from './profileExtras';

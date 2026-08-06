@@ -115,8 +115,8 @@
 				? resolve('/exercises/[id]', { id: notification.exerciseId })
 				: notification.materialId
 					? resolve('/materials/[id]', { id: notification.materialId })
-					: notification.taughtCourseId
-						? resolve('/classroom/[id]', { id: notification.taughtCourseId })
+					: notification.courseId
+						? resolve('/courses/[id]', { id: notification.courseId })
 						: undefined
 	);
 

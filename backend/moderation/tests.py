@@ -1802,7 +1802,7 @@ class FeatureFlagTests(APITestCase):
             keys,
             {
                 'tutoring',
-                'classroom',
+                'courses',
                 'messaging',
                 'exercise_submissions',
                 'material_submissions',
@@ -1819,7 +1819,7 @@ class FeatureFlagTests(APITestCase):
                 by_key[k]
                 for k in (
                     'tutoring',
-                    'classroom',
+                    'courses',
                     'messaging',
                     'exercise_submissions',
                     'material_submissions',

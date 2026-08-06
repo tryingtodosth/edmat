@@ -9,7 +9,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from classroom.models import Enrollment, TaughtCourse
+from courses.models import Enrollment, Course
 from community.models import Review
 from exercises.models import Tag
 from taxonomy.models import Branch, Discipline
@@ -111,8 +111,8 @@ class ActivityFeedTests(ApiTestCase):
 
     def test_the_feed_merges_several_kinds_and_reports_which(self):
         Review.objects.create(exercise=self.exercise, author=self.me, rating=5, body='Dobre')
-        taught = TaughtCourse.objects.create(instructor=self.me, title='Analiza od zera', status='open')
-        joined = TaughtCourse.objects.create(instructor=self.other, title='Inny', status='open')
+        taught = Course.objects.create(instructor=self.me, title='Analiza od zera', status='open')
+        joined = Course.objects.create(instructor=self.other, title='Inny', status='open')
         Enrollment.objects.create(course=joined, participant=self.me, status='active')
 
         res = self.client.get(f'/api/users/{self.me.pk}/activity/')
@@ -169,7 +169,7 @@ class SeedDemoContentTests(ApiTestCase):
         self.assertTrue(ania.profile.bio)
         self.assertTrue(ania.profile.experience.exists())
         self.assertTrue(ania.profile.skills.exists())
-        self.assertTrue(TaughtCourse.objects.filter(instructor=ania).exists())
+        self.assertTrue(Course.objects.filter(instructor=ania).exists())
 
     def test_it_leaves_a_pending_request_for_the_instructor_to_act_on(self):
         from django.core.management import call_command
@@ -181,8 +181,8 @@ class SeedDemoContentTests(ApiTestCase):
         from django.core.management import call_command
 
         call_command('seed_demo_content', verbosity=0)
-        self.assertTrue(TaughtCourse.objects.filter(visibility='only_you').exists())
-        self.assertTrue(TaughtCourse.objects.filter(visibility='private').exists())
+        self.assertTrue(Course.objects.filter(visibility='only_you').exists())
+        self.assertTrue(Course.objects.filter(visibility='private').exists())
 
 
 class DisplayPreferenceTests(ApiTestCase):

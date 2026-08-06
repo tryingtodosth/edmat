@@ -6,7 +6,7 @@ per-type mute list) and the actor==recipient guard cannot be bypassed by a call 
 the same discipline that module's own doc comment already sets out for every other notifying app.
 
 **No `Notification` FK to `Booking`, deliberately.** The existing model carries an `exercise`,
-`material` and `taught_course` FK precisely because each of those has a real page to open. A booking
+`material` and `course` FK precisely because each of those has a real page to open. A booking
 does not: there is no per-booking route, and both parties' destination is the same one schedule page,
 which is also where the request is actually acted on. The frontend routes the four booking types
 there by type (NotificationCard.svelte), which is a genuinely simpler answer than a fifth nullable

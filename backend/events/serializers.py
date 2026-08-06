@@ -45,7 +45,7 @@ class EventSerializer(serializers.ModelSerializer):
 
     # The viewer's own relationship to this event, all resolved server-side. The client should never
     # work out "may I answer this?" for itself — a client that computes a permission is a client that
-    # can compute it wrongly, which is the same reasoning `TaughtCourseSerializer` records for
+    # can compute it wrongly, which is the same reasoning `CourseSerializer` records for
     # `can_enrol`.
     my_attendance = serializers.SerializerMethodField()
     is_host = serializers.SerializerMethodField()
@@ -120,7 +120,7 @@ class EventSerializer(serializers.ModelSerializer):
 class EventWriteSerializer(serializers.ModelSerializer):
     """Writes take slugs, not primary keys, for the taxonomy relations — the client already knows a
     subject by its slug everywhere else in this API, and making it look up an integer id first would
-    be a round trip for nothing. Same shape `TaughtCourseWriteSerializer` uses."""
+    be a round trip for nothing. Same shape `CourseWriteSerializer` uses."""
 
     subject_slugs = serializers.SlugRelatedField(
         source='subjects',

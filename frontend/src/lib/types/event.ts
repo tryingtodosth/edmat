@@ -1,6 +1,6 @@
 /** One-off happenings somebody organises and other people turn up to — mirrors `backend/events/`.
  *
- * Deliberately its own vocabulary rather than a reuse of `TaughtCourse`'s: an event has a host and
+ * Deliberately its own vocabulary rather than a reuse of `Course`'s: an event has a host and
  * attendances where a branch has an instructor and enrolments, and the two lifecycles genuinely
  * differ (nobody approves anybody into an event, and an event can be cancelled where a branch is
  * finished). See `backend/events/models.py` for why the two are separate models at all.

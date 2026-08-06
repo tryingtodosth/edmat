@@ -97,6 +97,27 @@ ldconfig -p | grep libmagic || sudo apt install -y libmagic1
 
 ### 3. Apply migrations (safe, additive, idempotent)
 
+> **One-time, and only for a database that predates the taxonomy split — run it BEFORE `migrate`.**
+>
+> ```bash
+> .venv/bin/python3 manage.py rename_classroom_app
+> ```
+>
+> The `classroom` app is now `courses`. An app label is not schema, so no migration can change it:
+> `django_migrations` records the old label on every applied row, and `migrate` stops on its own
+> consistency check before running anything —
+> `InconsistentMigrationHistory: ... applied before its dependency courses.0002_...`. That is
+> Django correctly refusing to proceed, not a problem to work around. The command renames the
+> tables, rewrites `django_migrations.app` and re-files the content types, all in one transaction.
+>
+> It is idempotent and safe on a database that never had the old app — it finds nothing and says
+> so — so leaving it in a deploy script costs nothing. It refuses outright if it finds both an old
+> and a new table, which means a half-finished attempt; restore the backup and start again.
+>
+> **Two migrations in this release cannot be reversed**: `taxonomy.0005` (the four przedmiot rows
+> collapsing into two branches, which discards which university each exercise came from) and
+> `courses.0007`. The backup taken in step 0 is the rollback.
+
 ```bash
 .venv/bin/python3 manage.py migrate
 .venv/bin/python3 manage.py import_legacy_corpus --dry-run   # confirm zero unexpected changes first

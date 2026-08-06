@@ -284,7 +284,7 @@ GOVERNABLE_NODE_MODELS = {'discipline': Discipline, 'branch': Branch}
 # — a genuine "kill switch" for an entire feature surface, not a per-course moderation tool.
 FEATURE_FLAG_CHOICES = [
     ('tutoring', 'Tutoring/services listings'),
-    ('classroom', 'User-run courses'),
+    ('courses', 'User-run courses'),
     ('messaging', 'User-to-user messaging'),
     ('exercise_submissions', 'New exercise submissions'),
     ('material_submissions', 'New material uploads'),

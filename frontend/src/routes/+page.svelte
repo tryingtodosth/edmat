@@ -22,13 +22,13 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type { Branch, Material, ResolvedExercise, Service } from '$lib/types';
-	import type { TaughtCourse } from '$lib/types/classroom';
+	import type { Course } from '$lib/types/course';
 	import type { EdmatEvent } from '$lib/types/event';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { getRecentExercises, getTopRatedExercises } from '$lib/services/exercises';
 	import { browseMaterials } from '$lib/services/materials';
-	import { getCourses } from '$lib/services/classroom';
+	import { getCourses } from '$lib/services/course';
 	import { getServices } from '$lib/services/tutoring';
 	import { getEvents } from '$lib/services/events';
 	import { getBranchById } from '$lib/services/taxonomy';
@@ -36,7 +36,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
-	import CourseCard from '$lib/components/classroom/CourseCard.svelte';
+	import CourseCard from '$lib/components/course/CourseCard.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import EventCard from '$lib/components/event/EventCard.svelte';
 
@@ -110,7 +110,7 @@
 	let recent = $state<ResolvedExercise[]>([]);
 	let coursesById = $state<Record<string, Branch>>({});
 	let materials = $state<Material[]>([]);
-	let taughtCourses = $state<TaughtCourse[]>([]);
+	let courses = $state<Course[]>([]);
 	let services = $state<Service[]>([]);
 	let events = $state<EdmatEvent[]>([]);
 
@@ -139,7 +139,7 @@
 			} else if (id === 'materials') {
 				materials = (await browseMaterials({ sort: 'recent' })).slice(0, 6);
 			} else if (id === 'branches') {
-				taughtCourses = (await getCourses({ openOnly: true })).slice(0, 6);
+				courses = (await getCourses({ openOnly: true })).slice(0, 6);
 			} else if (id === 'tutoring') {
 				services = (await getServices()).slice(0, 6);
 			} else if (id === 'events') {
@@ -255,13 +255,13 @@
 			<section class="section">
 				<div class="section__head">
 					<h2>{m.home_courses_heading()}</h2>
-					<a href={resolve('/classroom')}>{m.home_seeAll()}</a>
+					<a href={resolve('/courses')}>{m.home_seeAll()}</a>
 				</div>
-				{#if taughtCourses.length === 0}
-					<p class="status">{m.classroom_browseEmpty()}</p>
+				{#if courses.length === 0}
+					<p class="status">{m.course_browseEmpty()}</p>
 				{:else}
 					<div class="grid">
-						{#each taughtCourses as course (course.id)}
+						{#each courses as course (course.id)}
 							<CourseCard {course} />
 						{/each}
 					</div>

@@ -1,7 +1,7 @@
 """Events — public discovery, host-owned writes, and one answer per person.
 
 The permission split is the one this app already uses everywhere else (`ServiceViewSet`,
-`TaughtCourseViewSet`): anyone may read what is published, only the host may change it, and the
+`CourseViewSet`): anyone may read what is published, only the host may change it, and the
 scoping happens in the queryset rather than in after-the-fact checks — so somebody poking at another
 person's draft gets a 404, which is also the honest answer, since for them it does not exist.
 """

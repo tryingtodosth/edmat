@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('taxonomy', '0002_subtopic_subtopictranslation'),
         ('accounts', '0008_experienceentry_skillentry'),
-        ('classroom', '0001_initial'),
+        ('courses', '0001_initial'),
         ('events', '0001_initial'),
         ('exercises', '0001_initial'),
         ('identity', '0001_initial'),

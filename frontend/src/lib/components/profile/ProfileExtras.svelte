@@ -207,7 +207,7 @@
 
 	function hrefFor(item: ActivityItem): string | undefined {
 		if (item.exerciseId) return resolve('/exercises/[id]', { id: item.exerciseId });
-		if (item.taughtCourseId) return resolve('/classroom/[id]', { id: item.taughtCourseId });
+		if (item.courseId) return resolve('/courses/[id]', { id: item.courseId });
 		return undefined;
 	}
 
