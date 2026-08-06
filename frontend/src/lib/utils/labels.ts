@@ -189,7 +189,14 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		// "branches" that also governed events would be a setting whose label lies.
 		eventAttendance: 'notifyOnEvent',
 		eventUpdated: 'notifyOnEvent',
-		eventCancelled: 'notifyOnEvent'
+		eventCancelled: 'notifyOnEvent',
+		// Under the existing moderation-decision category rather than a new switch: somebody proposed
+		// a word and a moderator decided on it, which is the same kind of event as a decision on a
+		// submitted exercise.
+		taxonomyApproved: 'notifyOnModerationDecision',
+		taxonomyMerged: 'notifyOnModerationDecision',
+		taxonomyMoved: 'notifyOnModerationDecision',
+		taxonomyRejected: 'notifyOnModerationDecision'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -220,7 +227,11 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	bookingCancelled: m.notifPref_bookingCancelled,
 	eventAttendance: m.notifPref_eventAttendance,
 	eventUpdated: m.notifPref_eventUpdated,
-	eventCancelled: m.notifPref_eventCancelled
+	eventCancelled: m.notifPref_eventCancelled,
+	taxonomyApproved: m.notifPref_taxonomyApproved,
+	taxonomyMerged: m.notifPref_taxonomyMerged,
+	taxonomyMoved: m.notifPref_taxonomyMoved,
+	taxonomyRejected: m.notifPref_taxonomyRejected
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)

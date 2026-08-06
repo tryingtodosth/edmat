@@ -497,6 +497,7 @@ export interface RawMaterialReview {
 	rating: number;
 	body: string;
 	created_at: string;
+	reply_count: number;
 }
 
 export function mapMaterialReview(json: RawMaterialReview): MaterialReview {
@@ -506,7 +507,8 @@ export function mapMaterialReview(json: RawMaterialReview): MaterialReview {
 		userId: String(json.author),
 		rating: json.rating,
 		body: json.body || undefined,
-		createdAt: json.created_at
+		createdAt: json.created_at,
+		replyCount: json.reply_count
 	};
 }
 
@@ -520,6 +522,7 @@ export interface RawReview {
 	rating: number;
 	body: string;
 	created_at: string;
+	reply_count: number;
 }
 
 export function mapReview(json: RawReview): Review {
@@ -529,7 +532,8 @@ export function mapReview(json: RawReview): Review {
 		userId: String(json.author),
 		rating: json.rating,
 		body: undefinedIfEmpty(json.body),
-		createdAt: json.created_at
+		createdAt: json.created_at,
+		replyCount: json.reply_count
 	};
 }
 
@@ -542,6 +546,8 @@ export interface RawComment {
 	created_at: string;
 	is_removed: boolean;
 	is_auto_hidden: boolean;
+	is_edited: boolean;
+	removed_by_author: boolean;
 }
 
 /** `targetType`/`targetId` come from the calling context (every comment fetch/post in this app is
@@ -562,7 +568,9 @@ export function mapComment(
 		body: json.body,
 		createdAt: json.created_at,
 		isRemoved: json.is_removed,
-		isAutoHidden: json.is_auto_hidden
+		isAutoHidden: json.is_auto_hidden,
+		isEdited: json.is_edited,
+		removedByAuthor: json.removed_by_author
 	};
 }
 
@@ -817,7 +825,11 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	booking_cancelled: 'bookingCancelled',
 	event_attendance: 'eventAttendance',
 	event_updated: 'eventUpdated',
-	event_cancelled: 'eventCancelled'
+	event_cancelled: 'eventCancelled',
+	taxonomy_approved: 'taxonomyApproved',
+	taxonomy_merged: 'taxonomyMerged',
+	taxonomy_moved: 'taxonomyMoved',
+	taxonomy_rejected: 'taxonomyRejected'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -975,13 +987,9 @@ export function mapNotification(json: RawNotification): Notification {
 		exerciseId: json.exercise_id !== null ? String(json.exercise_id) : undefined,
 		materialId: json.material_id !== null ? String(json.material_id) : undefined,
 		courseId:
-			json.course_id !== null && json.course_id !== undefined
-				? String(json.course_id)
-				: undefined,
+			json.course_id !== null && json.course_id !== undefined ? String(json.course_id) : undefined,
 		eventId:
-			json.event_id !== null && json.event_id !== undefined
-				? String(json.event_id)
-				: undefined,
+			json.event_id !== null && json.event_id !== undefined ? String(json.event_id) : undefined,
 		note: json.note,
 		isRead: json.is_read,
 		createdAt: json.created_at
@@ -1205,6 +1213,7 @@ export interface RawServiceReview {
 	rating: number;
 	body: string;
 	created_at: string;
+	reply_count: number;
 }
 
 export function mapServiceReview(json: RawServiceReview): ServiceReview {
@@ -1214,7 +1223,8 @@ export function mapServiceReview(json: RawServiceReview): ServiceReview {
 		userId: String(json.author),
 		rating: json.rating,
 		body: json.body || undefined,
-		createdAt: json.created_at
+		createdAt: json.created_at,
+		replyCount: json.reply_count
 	};
 }
 

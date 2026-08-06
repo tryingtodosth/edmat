@@ -15,13 +15,20 @@ from django.shortcuts import get_object_or_404
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.views import APIView
 
 from exercises.models import Exercise, ExerciseTranslation
 from exercises.serializers import ExerciseTranslationSerializer
 from materials.models import Material
 from materials.validators import scan_for_malware
-from notifications.services import label_for_exercise, label_for_material, notify, notify_tag_followers
+from notifications.services import (
+    label_for_exercise,
+    label_for_material,
+    label_for_taxonomy_node,
+    notify,
+    notify_tag_followers,
+)
 from services.models import Service
 
 from .models import EditSuggestion, ExerciseSubmission, FeatureFlag, MaterialSubmission, NodeGovernor, Report
@@ -819,24 +826,51 @@ class FeatureFlagViewSet(mixins.ListModelMixin, mixins.UpdateModelMixin, viewset
 
 
 class TaxonomyProposalActionView(APIView):
-    """POST /api/moderation/taxonomy/<kind>/<pk>/ — approve or reject a proposed node.
+    """POST /api/moderation/taxonomy/<kind>/<pk>/ — decide on a proposed node.
 
-    Approving flips `status` and nothing else: the row has been live and referenceable since it was
-    proposed, so approval is an endorsement rather than a publication, and content already filed
-    against it does not move.
+    Four actions, and three of them are corrections rather than refusals. That shape is forced by
+    the design: a pending node is REAL and referenceable from the moment it is proposed (that is why
+    `status` lives on the node instead of in a submission table), so by the time anybody reviews it,
+    exercises and materials are filed under it.
 
-    Rejecting DELETES it. There is no draft to preserve and nothing to revise — a discipline is a
-    slug and a name — so a tombstone would only make every listing carry a third case it has to
-    remember to exclude. Content filed against a rejected node is not orphaned by this: `Topic` and
-    `Branch` cascade, which is the honest outcome, since the word it was filed under turned out not
-    to exist. A moderator about to delete a node that has content is told how much first.
+        approve            it is right           flip status, move nothing
+        merge  + target    it already exists     move its content onto the target, delete the husk
+        move   + target    right thing, wrong    re-parent it, content follows
+                           parent or level
+        reject + note      not a real thing      delete it — refused if anything is filed under it
+
+    "Duplicate" and "wrong level" were the obvious rejection REASONS, and both are wrong as
+    rejections: the moderator already knows the right answer, so the interface should let them apply
+    it rather than bounce it back for the proposer to redo. It also makes the reply carry the useful
+    fact — "your exercises are now under Analiza matematyczna" tells somebody where to go, where
+    "rejected: wrong level" only tells them they were wrong.
+
+    **Reject refuses when content is attached, and that is a bug fix.** `Exercise.branch` and
+    `Material.branch` are both `on_delete=CASCADE`, so the previous bare `node.delete()` meant a
+    moderator rejecting a branch with five exercises filed under it silently destroyed those five
+    exercises. A moderator who genuinely wants such a node gone can still have it, by moving or
+    deleting the content first — deliberately, rather than as a side effect of clicking Reject.
     """
 
     permission_classes = [IsModerator]
 
     KINDS = {'discipline': 'Discipline', 'branch': 'Branch', 'topic': 'Topic'}
 
+    @staticmethod
+    def _attached(node, kind):
+        """What would be destroyed if this node were deleted. Counted, not guessed."""
+        if kind == 'branch':
+            return {
+                'exercises': node.exercises.count(),
+                'materials': node.materials.count(),
+                'topics': node.topics.count(),
+            }
+        if kind == 'topic':
+            return {'exercises': node.exercises.count(), 'materials': node.material_coverage.count()}
+        return {'branches': node.branches.count()}
+
     def post(self, request, kind, pk):
+        from django.db import transaction
         from taxonomy import models as taxonomy_models
 
         if kind not in self.KINDS:
@@ -850,15 +884,130 @@ class TaxonomyProposalActionView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         decision = request.data.get('decision')
+        note = (request.data.get('note') or '').strip()
+
+        # Read both BEFORE anything happens: merge and reject delete the node, and a notification
+        # that has to name what was decided cannot go looking for it afterwards.
+        proposer = node.proposed_by
+        label = label_for_taxonomy_node(node)
+
+        def reply(notif_type, extra=''):
+            """Tell the proposer what was decided. `note` is the moderator's own words; `extra` is
+            the fact the decision itself produced (the target it went to), and both are worth
+            keeping, so they are joined rather than one overwriting the other."""
+            notify(
+                proposer,
+                notif_type,
+                actor=request.user,
+                target_label=label,
+                note=' — '.join(p for p in (extra, note) if p),
+            )
+
         if decision == 'approve':
             node.status = 'approved'
             node.save(update_fields=['status'])
-            return Response({'kind': kind, 'slug': node.slug, 'status': node.status})
+            reply('taxonomy_approved')
+            return Response({'kind': kind, 'slug': node.slug, 'status': 'approved'})
+
+        if decision in ('merge', 'move'):
+            target_slug = request.data.get('target')
+            if not target_slug:
+                raise DRFValidationError({'target': f'A {decision} needs somewhere to {decision} to.'})
+
+            if decision == 'merge':
+                target = model.objects.filter(slug=target_slug).exclude(pk=node.pk).first()
+                if target is None:
+                    raise DRFValidationError({'target': 'No such node to merge into.'})
+                target_label = label_for_taxonomy_node(target)
+                with transaction.atomic():
+                    self._move_content(node, target, kind)
+                    node.delete()
+                reply('taxonomy_merged', target_label)
+                return Response(
+                    {'kind': kind, 'slug': target.slug, 'status': 'merged', 'target': target.slug}
+                )
+
+            # move: re-parent, keeping everything filed under it.
+            parent_model = (
+                taxonomy_models.Discipline if kind == 'branch' else taxonomy_models.Branch
+            )
+            if kind == 'discipline':
+                raise DRFValidationError(
+                    {'target': 'A discipline has nothing above it to move under.'}
+                )
+            parent = parent_model.objects.filter(slug=target_slug).first()
+            if parent is None:
+                raise DRFValidationError({'target': 'No such parent.'})
+            setattr(node, 'discipline' if kind == 'branch' else 'branch', parent)
+            node.status = 'approved'
+            node.save()
+            reply('taxonomy_moved', label_for_taxonomy_node(parent))
+            return Response(
+                {'kind': kind, 'slug': node.slug, 'status': 'approved', 'target': parent.slug}
+            )
+
         if decision == 'reject':
+            attached = self._attached(node, kind)
+            if any(attached.values()):
+                # The guard that makes Reject safe. Refusing is the right answer rather than a
+                # confirm dialog: whoever filed that content is not the person clicking the button.
+                return Response(
+                    {
+                        'detail': 'has_attached_content',
+                        'attached': attached,
+                        'hint': 'Merge or move it instead, or clear its content first.',
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
             slug = node.slug
             node.delete()
-            return Response({'kind': kind, 'slug': slug, 'status': 'rejected'})
+            reply('taxonomy_rejected')
+            return Response({'kind': kind, 'slug': slug, 'status': 'rejected', 'note': note})
+
         return Response(
-            {'detail': 'decision must be "approve" or "reject".'},
+            {'detail': 'decision must be approve, merge, move or reject.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+    @staticmethod
+    def _move_content(node, target, kind):
+        """Re-point everything filed under `node` at `target`, so a merge loses nothing.
+
+        Collisions are real: two branches can hold a topic with the same slug, and `(branch, slug)`
+        is unique. A colliding child folds into the target's existing one rather than aborting the
+        merge — the same choice `taxonomy.0005` made when it collapsed four przedmiot rows.
+        """
+        if kind == 'branch':
+            for topic in node.topics.all():
+                twin = target.topics.filter(slug=topic.slug).first()
+                if twin is None:
+                    topic.branch = target
+                    topic.save(update_fields=['branch'])
+                else:
+                    for exercise in topic.exercises.all():
+                        exercise.topics.add(twin)
+                        exercise.topics.remove(topic)
+                    topic.delete()
+            last = target.exercises.order_by('-number').first()
+            number = (last.number if last else 0) + 1
+            for exercise in node.exercises.order_by('number'):
+                # `(branch, number)` is unique, so an incoming exercise is renumbered onto the end
+                # rather than colliding.
+                exercise.branch = target
+                exercise.number = number
+                exercise.save(update_fields=['branch', 'number'])
+                number += 1
+            for material in node.materials.all():
+                slug = material.slug
+                if target.materials.filter(slug=slug).exists():
+                    slug = f'{slug}-{node.slug}'[:50]
+                material.branch = target
+                material.slug = slug
+                material.save(update_fields=['branch', 'slug'])
+        elif kind == 'topic':
+            for exercise in node.exercises.all():
+                exercise.topics.add(target)
+                exercise.topics.remove(node)
+            node.material_coverage.update(topic=target)
+        else:
+            node.branches.update(discipline=target)
