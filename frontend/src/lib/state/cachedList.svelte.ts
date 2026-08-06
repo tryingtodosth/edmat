@@ -59,7 +59,7 @@ function readIndex(name: string): number[] {
 
 function touchIndex(name: string, page: number): void {
 	const pages = readIndex(name).filter((p) => p !== page);
-    pages.push(page);
+	pages.push(page);
 	while (pages.length > MAX_PAGES_PER_LIST) {
 		const evicted = pages.shift();
 		if (evicted !== undefined) writeCache(pageKey(name, evicted), null);
@@ -82,6 +82,12 @@ export function mergeRows<T extends Identified>(
 	const known = new Map(existing.map((row) => [row.item.id, row]));
 	const freshIds = new Set(fresh.map((item) => item.id));
 
+	// A first visit has nothing for a row to be new *against*, so every row would be announced as
+	// new — which is precisely the noise "what appeared since I last looked" exists to cut through,
+	// and it would be loudest on the one visit where it means least. Rows are still stamped with
+	// their confirmation time; they are just not counted as arrivals.
+	const hadPrevious = existing.length > 0;
+
 	const added: TrackedRow<T>[] = [];
 	const kept: TrackedRow<T>[] = [];
 
@@ -92,7 +98,7 @@ export function mergeRows<T extends Identified>(
 			// where it was, and stamp it as confirmed now.
 			kept.push({ item, confirmedAt: now, isNew: previous.isNew });
 		} else {
-			added.push({ item, confirmedAt: now, isNew: true });
+			added.push({ item, confirmedAt: now, isNew: hadPrevious });
 		}
 	}
 
@@ -195,4 +201,23 @@ export function fadeFor(confirmedAt: number, now = Date.now()): number {
 	if (age < AGING_MS) return 0.25;
 	if (age < OLD_MS) return 0.5;
 	return 0.7;
+}
+
+/** The dimmest a row is ever drawn. Below roughly this, ordinary body text stops clearing WCAG AA. */
+const MIN_OPACITY = 0.6;
+
+/**
+ * `fadeFor` as an actual CSS opacity, and deliberately NOT `1 - fadeFor(...)`.
+ *
+ * Rendering the raw fade would put the oldest rows at opacity 0.3, which drops normal body text
+ * from roughly 15:1 to roughly 2:1 against the page — well under the 4.5:1 this project measured
+ * and fixed its own colour tokens to clear (the accessibility audit that darkened
+ * `$light-status-success` for exactly this reason). A row nobody can read is not a row marked as
+ * stale, it is a row taken away, and staleness is the least important thing about it.
+ *
+ * So the same four steps are mapped onto `[MIN_OPACITY, 1]` instead: the gradient still reads at a
+ * glance and still disappears entirely when everything is current, and the floor stays legible.
+ */
+export function opacityFor(confirmedAt: number, now = Date.now()): number {
+	return 1 - fadeFor(confirmedAt, now) * (1 - MIN_OPACITY);
 }

@@ -7,17 +7,46 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import type { Course } from '$lib/types/course';
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
+	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
+	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
+	import StaleRow from '$lib/components/shared/StaleRow.svelte';
+	import { cachedList, type TrackedRow } from '$lib/state/cachedList.svelte';
 
-	let courses = $state<Course[]>([]);
+	let courses = $state<TrackedRow<Course>[]>([]);
 	let loading = $state(true);
 	let failed = $state(false);
 	let openOnly = $state(false);
+	let newCount = $state(0);
+	let offline = $state(false);
+
+	// When the network never answered, "saved copy from {when}" means the last time the server
+	// actually confirmed any of this — which the rows already carry per row, so there is nothing
+	// extra to store and no second clock that could disagree with the fade.
+	let savedAt = $derived(
+		courses.length ? Math.max(...courses.map((row) => row.confirmedAt)) : null
+	);
+	let stale = $derived(savedAt !== null && Date.now() - savedAt > 24 * 60 * 60 * 1000);
 
 	async function load() {
 		loading = true;
 		failed = false;
+		// The two filter states are cached separately: merging an open-only answer into the full list
+		// would silently drop every closed course as "no longer returned by the server", which is not
+		// what a checkbox means.
+		const name = openOnly ? 'courses:open' : 'courses:all';
 		try {
-			courses = await getCourses({ openOnly });
+			await cachedList<Course>(
+				name,
+				() => getCourses({ openOnly }),
+				(result) => {
+					courses = result.rows;
+					newCount = result.newCount;
+					offline = result.offline;
+					// Content is on screen the moment there is any, cached or fresh — the spinner is for
+					// having nothing to show, not for "a request is in flight".
+					loading = false;
+				}
+			);
 		} catch {
 			failed = true;
 		} finally {
@@ -64,9 +93,15 @@
 	{:else if courses.length === 0}
 		<p class="status">{m.course_browseEmpty()}</p>
 	{:else}
+		{#if offline}
+			<SavedCopyNotice {savedAt} {stale} />
+		{/if}
+		<NewSinceNotice count={newCount} />
 		<div class="grid">
-			{#each courses as course (course.id)}
-				<CourseCard {course} />
+			{#each courses as row (row.item.id)}
+				<StaleRow confirmedAt={row.confirmedAt}>
+					<CourseCard course={row.item} />
+				</StaleRow>
 			{/each}
 		</div>
 	{/if}

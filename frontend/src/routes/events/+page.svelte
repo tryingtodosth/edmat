@@ -9,22 +9,50 @@
 	import type { EdmatEvent } from '$lib/types/event';
 	import EventCard from '$lib/components/event/EventCard.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
+	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
+	import StaleRow from '$lib/components/shared/StaleRow.svelte';
+	import { cachedList, type TrackedRow } from '$lib/state/cachedList.svelte';
 
 	type Scope = 'upcoming' | 'past' | 'hosting' | 'attending';
 
 	let scope = $state<Scope>('upcoming');
-	let events = $state<EdmatEvent[]>([]);
+	let events = $state<TrackedRow<EdmatEvent>[]>([]);
 	let loading = $state(true);
 	let failed = $state(false);
+	let newCount = $state(0);
+	let offline = $state(false);
+
+	// See the courses browse page for why this is derived from the rows rather than stored: the per
+	// row confirmation time is already the honest answer, and a second clock could disagree with the
+	// fade drawn beside it.
+	let savedAt = $derived(events.length ? Math.max(...events.map((row) => row.confirmedAt)) : null);
+	let stale = $derived(savedAt !== null && Date.now() - savedAt > 24 * 60 * 60 * 1000);
 
 	async function load(current: Scope) {
 		loading = true;
 		failed = false;
+		// Each of the four filters is its own cached list. They are genuinely different questions —
+		// merging "past" into "upcoming" would have every finished event read as newly removed — and
+		// `hosting`/`attending` are the signed-in account's own, so they ride the same sign-out wipe
+		// every other cached response already does.
 		try {
-			events =
-				current === 'hosting' || current === 'attending'
-					? await getEvents({ mine: current })
-					: await getEvents({ when: current });
+			await cachedList<EdmatEvent>(
+				`events:${current}`,
+				() =>
+					current === 'hosting' || current === 'attending'
+						? getEvents({ mine: current })
+						: getEvents({ when: current }),
+				(result) => {
+					// A stale scope's answer must never land in the current one: switching filters
+					// fast enough leaves an earlier request still in flight.
+					if (current !== scope) return;
+					events = result.rows;
+					newCount = result.newCount;
+					offline = result.offline;
+					loading = false;
+				}
+			);
 		} catch {
 			failed = true;
 		} finally {
@@ -100,9 +128,15 @@
 				{scope === 'upcoming' ? m.events_browseEmpty() : m.events_pastEmpty()}
 			</p>
 		{:else}
+			{#if offline}
+				<SavedCopyNotice {savedAt} {stale} />
+			{/if}
+			<NewSinceNotice count={newCount} />
 			<div class="grid">
-				{#each events as event (event.id)}
-					<EventCard {event} />
+				{#each events as row (row.item.id)}
+					<StaleRow confirmedAt={row.confirmedAt}>
+						<EventCard event={row.item} />
+					</StaleRow>
 				{/each}
 			</div>
 		{/if}
