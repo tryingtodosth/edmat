@@ -50,17 +50,27 @@ bakes the rotation into the pixels first — the tag then has nothing left to sa
 white square would look correct in one theme and like a bright rectangle in the other. WebP supports
 alpha natively, so the honest answer is to keep it and let the page background show through in
 whichever theme the reader is actually using.
+
+**Where the code lives.** The four layers described above are now implemented in the top-level
+`imaging` module, because an event post's picture (`events/postimage.py`) needs exactly the same ones
+and a second copy of a *security bound* is how one path gets a fix and the other silently does not.
+What stays here is everything specific to an avatar: its own caps, and the square centre-crop, which
+is a presentation decision belonging to the round 48px frame that renders it rather than something
+every image upload should inherit.
 """
 
 from __future__ import annotations
 
-import uuid
-
-import magic
-from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.utils.translation import gettext_lazy as _
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
+
+from imaging import (
+    ALLOWED_IMAGE_TYPES,
+    MAX_IMAGE_PIXELS,
+    decode_for_reencode,
+    encode_webp,
+    validate_image_upload,
+)
 
 # 5 MB. Generous on purpose — the stored result is ~30-60 KB regardless (see AVATAR_SIZE below), so
 # this limit exists only to bound how much a single request can make the server read and decode, not
@@ -72,7 +82,11 @@ MAX_AVATAR_UPLOAD_BYTES = 5 * 1024 * 1024
 # uploader might use (a 100 MP phone sensor is ~11000x9000, but its JPEG would have to survive the
 # byte cap above first) and far below the point where decoding costs enough memory to matter. Pillow
 # allocates roughly 4 bytes per pixel for RGBA, so this bound caps a single decode at ~160 MB.
-MAX_AVATAR_PIXELS = 40_000_000
+#
+# An alias for `imaging.MAX_IMAGE_PIXELS` rather than its own number: the bound is the same one for
+# every upload, and two names holding two literals is how they end up disagreeing. Kept as a name
+# because it is part of this module's published surface.
+MAX_AVATAR_PIXELS = MAX_IMAGE_PIXELS
 
 # 512x512, not the 256 an avatar's largest on-screen appearance would naively suggest. Displays with
 # a 2x/3x device pixel ratio are the norm rather than the exception, so a 128 CSS-pixel avatar is
@@ -92,92 +106,38 @@ AVATAR_QUALITY = 82
 # The sniffed types accepted as INPUT — deliberately narrower than everything Pillow can decode.
 # Pillow supports a long tail of formats (TIFF, BMP, ICO, and more exotic ones) whose decoders see
 # far less security scrutiny than these three, and nothing about a profile picture needs them.
-ALLOWED_AVATAR_TYPES = {'image/png', 'image/jpeg', 'image/webp'}
-
-# libmagic only needs the file's leading bytes to identify a format; reading the whole upload into
-# memory to sniff it would defeat the point of having a size cap at all.
-_SNIFF_BYTES = 2048
-
-
-def _sniff_content_type(upload) -> str:
-    upload.seek(0)
-    head = upload.read(_SNIFF_BYTES)
-    upload.seek(0)
-    return magic.from_buffer(head, mime=True)
-
-
-def _open_within_pixel_budget(upload) -> Image.Image:
-    """`Image.open` is lazy — it parses the header and stops, so `.size` is available here WITHOUT
-    any pixel data having been decoded yet. That laziness is the whole reason the bomb check can
-    happen at all: checking dimensions after a full decode would mean the damage is already done."""
-    upload.seek(0)
-    try:
-        image = Image.open(upload)
-    except Image.DecompressionBombError as exc:  # Pillow's own outer bound, far above ours
-        raise ValidationError(_('That image is too large to process.')) from exc
-    except (UnidentifiedImageError, OSError) as exc:
-        raise ValidationError(_('That file could not be read as an image.')) from exc
-
-    width, height = image.size
-    if width * height > MAX_AVATAR_PIXELS:
-        raise ValidationError(
-            _('That image has too many pixels (%(w)dx%(h)d). Please use a smaller one.')
-            % {'w': width, 'h': height}
-        )
-    return image
+# Aliased for the same reason `MAX_AVATAR_PIXELS` is.
+ALLOWED_AVATAR_TYPES = ALLOWED_IMAGE_TYPES
 
 
 def validate_avatar_file(upload) -> None:
     """A real Django field validator, wired onto `Profile.avatar` itself — so an upload made through
     the Django admin (which never touches `process_avatar` below, since it assigns the file directly)
     still gets the size/type/bomb checks. It cannot give the admin path re-encoding, which is why the
-    API path deliberately does not rely on this and calls `process_avatar` instead."""
-    size = getattr(upload, 'size', None)
-    if size is not None and size > MAX_AVATAR_UPLOAD_BYTES:
-        raise ValidationError(
-            _('That image is %(size).1f MB. The maximum is %(max).0f MB.')
-            % {'size': size / (1024 * 1024), 'max': MAX_AVATAR_UPLOAD_BYTES / (1024 * 1024)}
-        )
+    API path deliberately does not rely on this and calls `process_avatar` instead.
 
-    sniffed = _sniff_content_type(upload)
-    if sniffed not in ALLOWED_AVATAR_TYPES:
-        raise ValidationError(
-            _('That file is not a PNG, JPEG, or WebP image (detected: %(type)s).')
-            % {'type': sniffed}
-        )
-
-    image = _open_within_pixel_budget(upload)
-    # `verify()` is a header/structure integrity check that reads no pixel data. It leaves the
-    # instance unusable afterward by design, which is fine — nothing else needs this one.
-    try:
-        image.verify()
-    except Exception as exc:  # Pillow raises a wide, undocumented range here, hence the broad catch
-        raise ValidationError(_('That image appears to be corrupt.')) from exc
-    finally:
-        upload.seek(0)
+    Kept as a named function at this exact import path rather than inlined into the field definition:
+    `accounts/migrations/0006_alter_profile_avatar.py` refers to `accounts.avatar.validate_avatar_file`
+    by name, and a historical migration cannot be made to point somewhere else.
+    """
+    validate_image_upload(
+        upload,
+        max_bytes=MAX_AVATAR_UPLOAD_BYTES,
+        allowed_types=ALLOWED_AVATAR_TYPES,
+        max_pixels=MAX_AVATAR_PIXELS,
+    )
 
 
 def process_avatar(upload) -> ContentFile:
-    """Validate, then throw the original away and build a fresh one. Returns a `ContentFile` whose
-    name is a random UUID plus the normalized extension — the uploader's own filename is discarded
-    entirely, exactly as `material_submission_upload_path` already does for a Material upload and for
-    the same reasons (a filename is untrusted input too: path separators, a double extension like
-    `avatar.webp.html`, or a collision with someone else's upload)."""
+    """Validate, then throw the original away and build a fresh one.
+
+    The square centre-crop is the one step that stays here rather than moving to `imaging`: it is a
+    property of how an avatar is *shown* (a small round frame), not of how an image is made safe, and
+    an event post's picture deliberately does the opposite (keeps its aspect ratio).
+    """
     validate_avatar_file(upload)
 
-    image = _open_within_pixel_budget(upload)
-
-    # Bake the EXIF rotation into the pixels before the tag is discarded with the rest of the
-    # metadata — see this module's own docstring for why skipping this silently rotates phone photos.
-    image = ImageOps.exif_transpose(image)
-
-    # Keep transparency where the source genuinely has it; everything else becomes plain RGB. `P`
-    # (palette) images can carry alpha via a `transparency` key rather than an alpha channel, so
-    # they're routed to RGBA rather than RGB to avoid dropping it.
-    if image.mode in ('RGBA', 'LA', 'P'):
-        image = image.convert('RGBA')
-    else:
-        image = image.convert('RGB')
+    image = decode_for_reencode(upload, max_pixels=MAX_AVATAR_PIXELS)
 
     # A center crop to a square, then one resize. The client-side cropper (frontend) normally means
     # the upload already arrives square, so this is usually a no-op — but it must exist regardless,
@@ -190,10 +150,4 @@ def process_avatar(upload) -> ContentFile:
         centering=(0.5, 0.5),
     )
 
-    buffer = ContentFile(b'')
-    # No `exif=`/`icc_profile=` argument is passed, so neither is written — the metadata strip is a
-    # property of not opting in, not a separate step that could be forgotten.
-    image.save(buffer, format=AVATAR_FORMAT, quality=AVATAR_QUALITY, method=6)
-    buffer.seek(0)
-    buffer.name = f'{uuid.uuid4().hex}{AVATAR_EXTENSION}'
-    return buffer
+    return encode_webp(image, quality=AVATAR_QUALITY)

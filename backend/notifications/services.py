@@ -50,6 +50,7 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'event_attendance': 'notify_on_event',
     'event_updated': 'notify_on_event',
     'event_cancelled': 'notify_on_event',
+    'event_posted': 'notify_on_event',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile

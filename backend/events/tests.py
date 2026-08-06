@@ -5,11 +5,16 @@ records: a broken create flow announces itself the first time somebody uses it, 
 to strangers, an over-capacity room, or a cancellation nobody was told about all fail silently.
 """
 
+import io
+import shutil
+import tempfile
 from datetime import timedelta
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.utils import timezone
+from PIL import Image
 from rest_framework.test import APIClient
 
 from moderation.models import FeatureFlag
@@ -17,7 +22,9 @@ from notifications.models import Notification
 from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
 
-from .models import Event, EventAttendance
+from .models import MAX_POST_LINKS, Event, EventAttendance, EventPost
+from .postimage import MAX_POST_IMAGE_EDGE
+from .services import POST_PREVIEW_CHARS
 
 
 class ApiTestCase(TestCase):
@@ -578,3 +585,395 @@ class ScheduleTests(ApiTestCase):
         response = self.as_(self.host).get('/api/my-schedule/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['events'], [])
+
+
+# ---------------------------------------------------------------------------------------------
+# Updates the host posts on an event
+# ---------------------------------------------------------------------------------------------
+
+
+def make_post_image_bytes(width: int = 2400, height: int = 1200, fmt: str = 'PNG') -> bytes:
+    """A real encoded image, deliberately non-square and patterned. A solid square would make a
+    working resize indistinguishable from a no-op, which is one of the things these tests check."""
+    image = Image.new('RGB', (width, height), (30, 120, 200))
+    for x in range(0, width, 80):
+        for y in range(0, height, 80):
+            image.paste((240, 200, 40), (x, y, x + 40, y + 40))
+    buffer = io.BytesIO()
+    image.save(buffer, fmt)
+    return buffer.getvalue()
+
+
+class PostTestCase(ApiTestCase):
+    """Its own temporary MEDIA_ROOT, applied per class so the directory survives every test in it and
+    is removed exactly once — the same arrangement `accounts/test_avatar.py` uses."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._media_root = tempfile.mkdtemp(prefix='edmat-event-post-test-')
+        cls._override = override_settings(MEDIA_ROOT=cls._media_root)
+        cls._override.enable()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls._override.disable()
+        shutil.rmtree(cls._media_root, ignore_errors=True)
+
+
+class PostWritingTests(PostTestCase):
+    def test_the_host_can_post_an_update(self):
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', {'body': 'Slides are up.'}, format='json'
+        )
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body['body'], 'Slides are up.')
+        self.assertEqual(body['author']['id'], self.host.pk)
+        self.assertFalse(body['is_edited'])
+        self.assertIsNone(body['edited_at'])
+
+    def test_an_update_with_nothing_in_it_is_refused(self):
+        """Not a pedantic check: an empty post is a notification sent to everybody who is coming,
+        carrying nothing. See `EventPost.clean`."""
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', {'body': '   '}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_links_alone_are_not_an_update(self):
+        """A bare URL with no sentence saying what it is asks the reader to click to find out, which
+        is what an announcement exists to save them."""
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {'body': '', 'links': ['https://example.com/slides']},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_picture_with_no_words_is_a_valid_update(self):
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {
+                'body': '',
+                'image': SimpleUploadedFile(
+                    'board.png', make_post_image_bytes(), content_type='image/png'
+                ),
+            },
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertTrue(response.json()['image_url'])
+
+    def test_nobody_but_the_host_may_post(self):
+        """404 rather than 403: whether somebody else's event has a posting endpoint is not
+        information a stranger needs."""
+        event = self.make_event()
+        for user in (self.goer, self.other):
+            response = self.as_(user).post(
+                f'/api/events/{event.pk}/posts/', {'body': 'hello'}, format='json'
+            )
+            self.assertEqual(response.status_code, 404)
+        self.assertEqual(EventPost.objects.count(), 0)
+
+    def test_an_anonymous_client_cannot_post(self):
+        event = self.make_event()
+        response = self.client.post(
+            f'/api/events/{event.pk}/posts/', {'body': 'hello'}, format='json'
+        )
+        self.assertIn(response.status_code, (401, 403))
+
+
+class PostReadingTests(PostTestCase):
+    def test_anybody_can_read_the_updates_on_a_published_event(self):
+        """Public on purpose. "The room has moved" is most useful to somebody still deciding whether
+        to come, and gating it behind an RSVP hides it from exactly those people."""
+        event = self.make_event()
+        self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', {'body': 'Room 5 now.'}, format='json'
+        )
+        response = self.client.get(f'/api/events/{event.pk}/posts/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([p['body'] for p in response.json()], ['Room 5 now.'])
+
+    def test_a_strangers_view_of_a_drafts_updates_is_a_404(self):
+        """Falls out of the event's own visibility rather than being checked again here — which is
+        the point of scoping visibility in the queryset."""
+        draft = self.make_event(status='draft')
+        self.as_(self.host).post(
+            f'/api/events/{draft.pk}/posts/', {'body': 'secret'}, format='json'
+        )
+        self.assertEqual(self.as_(self.other).get(f'/api/events/{draft.pk}/posts/').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/events/{draft.pk}/posts/').status_code, 404)
+        self.assertEqual(self.as_(self.host).get(f'/api/events/{draft.pk}/posts/').status_code, 200)
+
+    def test_the_newest_update_is_first(self):
+        """The opposite of the event list's own order, and deliberately so: a feed of updates is read
+        to answer "what has changed?", and the answer is at the top."""
+        event = self.make_event()
+        for line in ('first', 'second', 'third'):
+            self.as_(self.host).post(
+                f'/api/events/{event.pk}/posts/', {'body': line}, format='json'
+            )
+        rows = self.client.get(f'/api/events/{event.pk}/posts/').json()
+        self.assertEqual([p['body'] for p in rows], ['third', 'second', 'first'])
+
+
+class PostLinkTests(PostTestCase):
+    def _links_of(self, event, payload, fmt='json'):
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', payload, format=fmt
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        return response.json()['links']
+
+    def test_a_json_list_keeps_the_order_it_was_written_in(self):
+        event = self.make_event()
+        links = self._links_of(
+            event,
+            {'body': 'Materials', 'links': ['https://b.example/2', 'https://a.example/1']},
+        )
+        self.assertEqual(links, ['https://b.example/2', 'https://a.example/1'])
+
+    def test_repeated_form_fields_are_all_kept(self):
+        """The case DRF's own default `get_value` loses: on a QueryDict it reads the LAST value for a
+        repeated key, so three links would silently become one. See `PostLinksField.get_value`."""
+        event = self.make_event()
+        links = self._links_of(
+            event,
+            {
+                'body': 'Materials',
+                'links': ['https://a.example/1', 'https://b.example/2', 'https://c.example/3'],
+            },
+            fmt='multipart',
+        )
+        self.assertEqual(
+            links, ['https://a.example/1', 'https://b.example/2', 'https://c.example/3']
+        )
+
+    def test_one_field_holding_several_lines_is_split(self):
+        event = self.make_event()
+        links = self._links_of(
+            event,
+            {'body': 'Materials', 'links': 'https://a.example/1\nhttps://b.example/2\n'},
+            fmt='multipart',
+        )
+        self.assertEqual(links, ['https://a.example/1', 'https://b.example/2'])
+
+    def test_the_same_link_twice_is_stored_once(self):
+        event = self.make_event()
+        links = self._links_of(
+            event,
+            {'body': 'Materials', 'links': ['https://a.example/1', 'https://a.example/1']},
+        )
+        self.assertEqual(links, ['https://a.example/1'])
+
+    def test_something_that_is_not_a_url_is_refused(self):
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {'body': 'Materials', 'links': ['not a link']},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_more_links_than_a_post_may_carry_is_refused(self):
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {
+                'body': 'Materials',
+                'links': [f'https://example.com/{n}' for n in range(MAX_POST_LINKS + 1)],
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class PostImageTests(PostTestCase):
+    def test_the_stored_picture_is_re_encoded_and_bounded_but_keeps_its_shape(self):
+        """Three things at once, and all three matter. Re-encoding is what discards appended payloads
+        and EXIF; the bound is what stops a 24 megapixel phone photo being served to every reader;
+        and the aspect ratio surviving is what makes this different from an avatar, which is
+        centre-cropped square."""
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {
+                'body': 'The board',
+                'image': SimpleUploadedFile(
+                    'board.png', make_post_image_bytes(2400, 1200), content_type='image/png'
+                ),
+            },
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        post = EventPost.objects.get()
+        self.assertTrue(post.image.name.endswith('.webp'), post.image.name)
+        stored = Image.open(post.image.path)
+        self.assertEqual(stored.format, 'WEBP')
+        self.assertEqual(stored.size, (MAX_POST_IMAGE_EDGE, MAX_POST_IMAGE_EDGE // 2))
+
+    def test_a_picture_smaller_than_the_bound_is_not_stretched_up_to_it(self):
+        """`thumbnail` is shrink-only on purpose: upscaling adds bytes and invents detail the source
+        never had."""
+        event = self.make_event()
+        self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {
+                'body': 'small',
+                'image': SimpleUploadedFile(
+                    'small.png', make_post_image_bytes(320, 240), content_type='image/png'
+                ),
+            },
+            format='multipart',
+        )
+        stored = Image.open(EventPost.objects.get().image.path)
+        self.assertEqual(stored.size, (320, 240))
+
+    def test_a_file_that_is_not_an_image_is_refused(self):
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/',
+            {
+                'body': 'nope',
+                'image': SimpleUploadedFile(
+                    'payload.png', b'MZ\x90\x00\x03' * 200, content_type='image/png'
+                ),
+            },
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(EventPost.objects.count(), 0)
+
+
+class PostEditingTests(PostTestCase):
+    def _make_post(self, event, **payload):
+        payload.setdefault('body', 'Slides are up.')
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', payload, format='json'
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        return response.json()['id']
+
+    def test_editing_stamps_it_as_edited(self):
+        event = self.make_event()
+        post_id = self._make_post(event)
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/posts/{post_id}/',
+            {'body': 'Slides are up (fixed).'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body['body'], 'Slides are up (fixed).')
+        self.assertTrue(body['is_edited'])
+        self.assertIsNotNone(body['edited_at'])
+
+    def test_an_edit_that_names_only_the_body_leaves_the_links_alone(self):
+        """The PATCH trap: a partial edit must not read an absent field as an instruction to blank
+        it."""
+        event = self.make_event()
+        post_id = self._make_post(event, links=['https://a.example/1'])
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/posts/{post_id}/', {'body': 'reworded'}, format='json'
+        )
+        self.assertEqual(response.json()['links'], ['https://a.example/1'])
+
+    def test_sending_an_empty_link_list_does_clear_them(self):
+        """The other half of the rule above: absent means "leave alone", present-and-empty means
+        "remove", and the two have to be distinguishable."""
+        event = self.make_event()
+        post_id = self._make_post(event, links=['https://a.example/1'])
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/posts/{post_id}/', {'links': []}, format='json'
+        )
+        self.assertEqual(response.json()['links'], [])
+
+    def test_nobody_but_the_host_may_edit_or_delete(self):
+        event = self.make_event()
+        post_id = self._make_post(event)
+        url = f'/api/events/{event.pk}/posts/{post_id}/'
+        self.assertEqual(
+            self.as_(self.goer).patch(url, {'body': 'x'}, format='json').status_code, 404
+        )
+        self.assertEqual(self.as_(self.goer).delete(url).status_code, 404)
+        self.assertEqual(EventPost.objects.count(), 1)
+
+    def test_the_host_can_withdraw_an_update(self):
+        event = self.make_event()
+        post_id = self._make_post(event)
+        response = self.as_(self.host).delete(f'/api/events/{event.pk}/posts/{post_id}/')
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(EventPost.objects.count(), 0)
+
+    def test_an_edit_cannot_empty_a_post_out(self):
+        event = self.make_event()
+        post_id = self._make_post(event)
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/posts/{post_id}/', {'body': ''}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class PostNotificationTests(PostTestCase):
+    def _going(self, event, user):
+        EventAttendance.objects.create(event=event, attendee=user, status='going')
+
+    def test_everybody_holding_a_seat_is_told(self):
+        event = self.make_event()
+        self._going(event, self.goer)
+        self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', {'body': 'Slides are up.'}, format='json'
+        )
+        notification = Notification.objects.get(recipient=self.goer, type='event_posted')
+        self.assertEqual(notification.target_label, event.title)
+        self.assertEqual(notification.event_id, event.pk)
+        # The post's own words ride along, so the bell answers the question rather than only raising
+        # it.
+        self.assertEqual(notification.note, 'Slides are up.')
+
+    def test_somebody_who_declined_is_not_told(self):
+        event = self.make_event()
+        EventAttendance.objects.create(event=event, attendee=self.other, status='not_going')
+        self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', {'body': 'Slides are up.'}, format='json'
+        )
+        self.assertFalse(Notification.objects.filter(recipient=self.other).exists())
+
+    def test_a_draft_notifies_nobody(self):
+        draft = self.make_event(status='draft')
+        self._going(draft, self.goer)
+        self.as_(self.host).post(
+            f'/api/events/{draft.pk}/posts/', {'body': 'not announced yet'}, format='json'
+        )
+        self.assertFalse(Notification.objects.filter(type='event_posted').exists())
+
+    def test_an_edit_does_not_ring_the_bell_a_second_time(self):
+        """A host fixing a typo must not put a badge on forty people's bell again — the same
+        restraint `notify_attendees_of_change` shows by firing only when the time or place moved."""
+        event = self.make_event()
+        self._going(event, self.goer)
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', {'body': 'Slides are up.'}, format='json'
+        )
+        post_id = response.json()['id']
+        self.as_(self.host).patch(
+            f'/api/events/{event.pk}/posts/{post_id}/', {'body': 'Slides are up!'}, format='json'
+        )
+        self.assertEqual(Notification.objects.filter(type='event_posted').count(), 1)
+
+    def test_a_long_update_arrives_truncated_rather_than_whole(self):
+        event = self.make_event()
+        self._going(event, self.goer)
+        self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', {'body': 'x' * 400}, format='json'
+        )
+        note = Notification.objects.get(type='event_posted').note
+        self.assertTrue(note.endswith('…'))
+        self.assertLessEqual(len(note), POST_PREVIEW_CHARS + 1)

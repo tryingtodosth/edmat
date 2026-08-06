@@ -26,6 +26,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
+from .postimage import validate_post_image
+
 # An event's own lifecycle. Three values rather than a boolean `is_published` plus a boolean
 # `is_cancelled`, for the reason `Course.status` already records: two booleans make an illegal
 # state representable — cancelled but never published — that every read site then has to defend
@@ -200,6 +202,113 @@ class Event(models.Model):
         if self.is_full and not (already and already.status in ATTENDING_STATUSES):
             return 'full'
         return None
+
+
+#: The most links one post may carry. Not a storage bound — it is a shape bound. A post is an
+#: announcement somebody reads in a feed, and past a handful of links it has stopped being one and
+#: become a link dump, which is what the event's own `description` is for.
+MAX_POST_LINKS = 10
+
+
+class EventPost(models.Model):
+    """An update the host writes on an event after announcing it. A picture, some links, some words.
+
+    **Why this is not the event's `description`.** A description answers "what is this?" and is read
+    by somebody deciding whether to come; it is edited in place, and its history is of no interest.
+    An update answers "what has happened since?" — the room changed, the slides are up, here is the
+    recording, we are running twenty minutes late — and those are *appended*, dated, and read in
+    order. Folding them into the description would mean either losing every earlier one or growing a
+    single text field into an undated changelog nobody can skim.
+
+    **Why this is not a comment.** The `community.Comment` thread this project already has is a
+    conversation: anybody may write, and the reader's question is "what do people think?". This is a
+    broadcast from the one person running the thing, and the reader's question is "what do I need to
+    know?". Same shape, opposite direction — mixing them would bury "moved to room 5" under a
+    discussion, which is exactly the message that must not be buried.
+
+    **Why the host alone may write one.** Everything here goes out as a notification to everybody
+    holding a seat (see `services.notify_attendees_of_post`), and the right to interrupt forty
+    people's evening belongs to the person who organised it. Attendees are not silenced by this —
+    they have the event's own thread — they simply do not get the megaphone.
+    """
+
+    event = models.ForeignKey(Event, related_name='posts', on_delete=models.CASCADE)
+    # Nullable and SET_NULL, matching `Attachment.uploaded_by`: a deleted account must not take the
+    # announcement "the venue has moved" down with it, since the people who need that are the
+    # attendees, not the author.
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='event_posts',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+
+    body = models.TextField(blank=True)
+    # Re-encoded on the way in rather than stored as uploaded — `postimage.py` explains why, and the
+    # validator here is what keeps the admin path (which never reaches the API's processing) held to
+    # the size, type and decompression-bomb checks at least.
+    image = models.ImageField(
+        upload_to='event-posts/', blank=True, validators=[validate_post_image]
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    # An explicit stamp rather than `auto_now`, because the question a reader has is "was this
+    # changed after I read it?", and `auto_now` cannot answer it: it is set on the very first save
+    # too, so "edited" would have to be inferred from `updated_at != created_at`, which is true by a
+    # few microseconds for every post ever written. Null means never edited, and says so plainly.
+    edited_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        # Newest first — the opposite of `Event.Meta.ordering`, and deliberately so. An event list is
+        # read to answer "what is on next", so it runs soonest-first; a feed of updates is read to
+        # answer "what has changed?", and the answer is at the top.
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['event', '-created_at'])]
+
+    def __str__(self) -> str:
+        return f'{self.event.title} — {self.created_at:%Y-%m-%d}'
+
+    def clean(self):
+        # A post with neither words nor a picture is not an update, it is an empty notification sent
+        # to everybody who is coming. Links alone do not count: a bare URL with no sentence saying
+        # what it is asks the reader to click to find out, which is the thing an announcement exists
+        # to save them.
+        if not (self.body or '').strip() and not self.image:
+            raise ValidationError(
+                {'body': 'An update needs something to say — write a line, or attach a picture.'}
+            )
+
+    @property
+    def is_edited(self) -> bool:
+        return self.edited_at is not None
+
+
+class EventPostLink(models.Model):
+    """One link on one post.
+
+    Rows rather than a JSON list on the post, matching how every other repeated thing in this project
+    is stored: a `URLField` gets each one validated on the way in for free, and a list inside a text
+    column gets none of that and cannot be queried later without parsing it back out.
+
+    Deliberately a URL and nothing else — no title, no description. A label sounds useful until you
+    ask who writes it: the host, in a second field, for every link, most of which are self-describing
+    (a Zoom URL, a Drive folder, an arXiv paper). The frontend shows the host and path, which is what
+    somebody actually reads before deciding whether to click.
+    """
+
+    post = models.ForeignKey(EventPost, related_name='links', on_delete=models.CASCADE)
+    url = models.URLField(max_length=500)
+    # The order the host wrote them in. Stored rather than relying on insertion id, so a later edit
+    # that rewrites the set can put them back in a different order without deleting and recreating
+    # rows in a particular sequence.
+    position = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['position', 'id']
+
+    def __str__(self) -> str:
+        return self.url
 
 
 class EventAttendance(models.Model):
