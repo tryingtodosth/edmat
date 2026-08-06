@@ -1,20 +1,16 @@
 <script lang="ts">
-	// "N of these are new since you last looked" — the counterpart to the per-row fade that
-	// `cachedList` (lib/state/cachedList.svelte.ts) computes.
+	// "Three of these were not here last time." Shown above a list that merged fresh rows into the
+	// saved copy the reader already had (`cachedList.svelte.ts`).
 	//
-	// It exists because the merge is deliberately quiet: new rows are prepended in place rather than
-	// the list blinking and re-sorting, which is right for not losing the reader's place and wrong
-	// for telling them anything happened. One line above the list is the whole disclosure.
+	// It exists because the merge deliberately puts new rows at the TOP rather than re-sorting: that
+	// answers "what appeared since I last looked", but only if something says so — otherwise the
+	// order looks arbitrary, since it matches neither the name nor the date the list is nominally
+	// sorted by.
 	//
-	// Renders nothing at all when nothing is new, which is the normal case and should cost no space
-	// and no attention — the same restraint MaterialCard already applies to a price it does not have.
-	// It is also never shown on a first visit: `mergeRows` only counts a row as new when there was a
-	// previous list to be new *against*, so an opening visit says nothing rather than announcing
-	// every row as an arrival, which would be loudest on the one visit where it means least.
-	//
-	// NOTE FOR WHOEVER MERGES THIS: a parallel session was building a component at this same path
-	// while this was written. Same name on purpose — these are one component, and an add/add
-	// conflict here is a visible prompt to reconcile them rather than two copies drifting apart.
+	// The count is rendered after a colon rather than inside the sentence on purpose. "{n} new
+	// items" needs three different endings in Polish (1 nowy / 2-4 nowe / 5+ nowych), and a single
+	// interpolated form would be wrong for most values; a label plus a number is correct for every
+	// count in both locales.
 	import { m } from '$lib/paraglide/messages.js';
 
 	let { count }: { count: number } = $props();
@@ -22,15 +18,20 @@
 
 {#if count > 0}
 	<p class="new-since" role="status">
-		{m.common_newSinceLastVisit({ count: String(count) })}
+		{m.list_newSince()}: <strong>{count}</strong>
 	</p>
 {/if}
 
 <style lang="scss">
 	.new-since {
-		/* Informational, not a warning: something arrived, nothing is wrong. */
-		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
-		margin-bottom: var(--space-2);
+		color: var(--text-secondary);
+		padding: var(--space-2) var(--space-3);
+		border-left: 3px solid var(--accent);
+		background: var(--surface-2, transparent);
+		border-radius: var(--radius-sm, 4px);
+	}
+	strong {
+		color: var(--text-primary);
 	}
 </style>

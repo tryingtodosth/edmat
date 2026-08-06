@@ -38,7 +38,14 @@ export type NotificationType =
 	// called off. A decline is not a type — see the backend's own note on why.
 	| 'eventAttendance'
 	| 'eventUpdated'
-	| 'eventCancelled';
+	| 'eventCancelled'
+	// A proposed discipline/branch/topic got decided on (taxonomy/). Four, because the reader's next
+	// move differs: approved and rejected are finished, while merged and moved both mean "whatever
+	// you filed under this is somewhere else now" and `note` says where.
+	| 'taxonomyApproved'
+	| 'taxonomyMerged'
+	| 'taxonomyMoved'
+	| 'taxonomyRejected';
 
 export interface Notification {
 	id: string;

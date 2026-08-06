@@ -13,11 +13,22 @@
 	import MaterialFilterBar from '$lib/components/material/MaterialFilterBar.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
 	import RecommendedMaterials from '$lib/components/material/RecommendedMaterials.svelte';
+	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
+	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
+	import StaleRow from '$lib/components/shared/StaleRow.svelte';
+	import { cachedList, type TrackedRow } from '$lib/state/cachedList.svelte';
 
 	let fields = $state<Discipline[]>([]);
-	let materials = $state<Material[]>([]);
+	let materials = $state<TrackedRow<Material>[]>([]);
 	let filters = $state<MaterialBrowseFilters>({});
 	let loading = $state(true);
+	let newCount = $state(0);
+	let offline = $state(false);
+
+	let savedAt = $derived(
+		materials.length ? Math.max(...materials.map((row) => row.confirmedAt)) : null
+	);
+	let stale = $derived(savedAt !== null && Date.now() - savedAt > 24 * 60 * 60 * 1000);
 
 	$effect(() => {
 		getDisciplines().then((f) => (fields = f));
@@ -35,13 +46,43 @@
 		const topicId = filters.topicId;
 		const minLevel = filters.minLevel;
 		const sort = filters.sort;
+		const active = { query, type, tag, disciplineId, branchId, topicId, minLevel, sort };
 		loading = true;
-		browseMaterials({ query, type, tag, disciplineId, branchId, topicId, minLevel, sort }).then(
-			(list) => {
-				materials = list;
+		newCount = 0;
+		offline = false;
+
+		// Only the unfiltered view is cached, and that is a deliberate limit rather than a shortcut.
+		// Two reasons: a merge across two different queries is meaningless — every row the new filter
+		// excludes would be reported as "removed by the server" and every row it includes as "new
+		// since you last looked", when nothing changed but the question — and keeping a separate
+		// saved list per filter combination would spend the whole localStorage budget on searches
+		// nobody returns to. Somebody who has typed a query is also asking a live question, where
+		// showing them the previous answer first is the opposite of helpful.
+		const isDefaultView = Object.values(active).every((v) => v === undefined || v === '');
+
+		if (!isDefaultView) {
+			browseMaterials(active).then((list) => {
+				// Just fetched, so every row is current and draws at full strength — the wrapper is
+				// kept rather than branched around so both paths render through one template.
+				const now = Date.now();
+				materials = list.map((item) => ({ item, confirmedAt: now, isNew: false }));
+				loading = false;
+			});
+			return;
+		}
+
+		cachedList<Material>(
+			'materials:all',
+			() => browseMaterials(active),
+			(result) => {
+				materials = result.rows;
+				newCount = result.newCount;
+				offline = result.offline;
 				loading = false;
 			}
-		);
+		).catch(() => {
+			loading = false;
+		});
 	});
 </script>
 
@@ -59,16 +100,29 @@
 
 	<div class="layout">
 		<MaterialFilterBar bind:filters resultCount={materials.length} scope="global" {fields} />
-		<div class="grid">
-			{#if loading}
-				<p class="loading">{m.common_loading()}</p>
-			{:else if materials.length === 0}
-				<p class="empty">{m.home_noResults()}</p>
-			{:else}
-				{#each materials as material (material.id)}
-					<MaterialCard {material} />
-				{/each}
+		<!-- The two notices sit outside `.grid` deliberately: it is an auto-fill card grid, so a
+		     notice placed inside it becomes a 280px cell alongside the cards rather than a line
+		     spanning the results it describes. -->
+		<div class="results">
+			{#if !loading && materials.length > 0}
+				{#if offline}
+					<SavedCopyNotice {savedAt} {stale} />
+				{/if}
+				<NewSinceNotice count={newCount} />
 			{/if}
+			<div class="grid">
+				{#if loading}
+					<p class="loading">{m.common_loading()}</p>
+				{:else if materials.length === 0}
+					<p class="empty">{m.home_noResults()}</p>
+				{:else}
+					{#each materials as row (row.item.id)}
+						<StaleRow confirmedAt={row.confirmedAt}>
+							<MaterialCard material={row.item} />
+						</StaleRow>
+					{/each}
+				{/if}
+			</div>
 		</div>
 	</div>
 </div>
@@ -94,6 +148,14 @@
 		grid-template-columns: 280px 1fr;
 		gap: var(--space-4);
 		align-items: start;
+	}
+	// The filter bar and the results are the two columns of `.layout`, so the notices and the card
+	// grid have to be stacked inside one element to stay in the results column.
+	.results {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		min-width: 0;
 	}
 	.grid {
 		display: grid;

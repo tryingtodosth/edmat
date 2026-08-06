@@ -9,6 +9,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getBranchesForDiscipline, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { materialsUiStore } from '$lib/state/materialsUi.svelte';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 	import {
 		MATERIAL_SORTS,
 		MATERIAL_SORT_LABELS,
@@ -137,9 +138,7 @@
 						onchange={(e) => onFieldChange((e.target as HTMLSelectElement).value)}
 					>
 						<option value="">{m.materialFilters_field_all()}</option>
-						{#each fields as field (field.id)}
-							<option value={field.id}>{field.name}</option>
-						{/each}
+						<TaxonomyOptions nodes={fields} />
 					</select>
 				</label>
 
@@ -151,9 +150,7 @@
 						onchange={(e) => onCourseChange((e.target as HTMLSelectElement).value)}
 					>
 						<option value="">{m.materialFilters_course_all()}</option>
-						{#each branches as branch (branch.id)}
-							<option value={branch.id}>{branch.name}</option>
-						{/each}
+						<TaxonomyOptions nodes={branches} />
 					</select>
 				</label>
 			{/if}
@@ -162,9 +159,7 @@
 				<span>{m.filters_topic()}</span>
 				<select bind:value={filters.topicId} disabled={topicOptions.length === 0}>
 					<option value={undefined}>{m.filters_topic_all()}</option>
-					{#each topicOptions as topic (topic.id)}
-						<option value={topic.id}>{topic.name}</option>
-					{/each}
+					<TaxonomyOptions nodes={topicOptions} />
 				</select>
 			</label>
 

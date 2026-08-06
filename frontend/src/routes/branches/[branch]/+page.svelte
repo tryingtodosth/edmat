@@ -18,6 +18,8 @@
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
 	import MaterialFilterBar from '$lib/components/material/MaterialFilterBar.svelte';
+	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
+	import { isPending } from '$lib/utils/taxonomy';
 
 	let branch = $state<Branch | undefined>(undefined);
 	let field = $state<Discipline | undefined>(undefined);
@@ -42,7 +44,10 @@
 			return;
 		}
 		branch = c;
-		const [f, t] = await Promise.all([getDisciplineById(c.disciplineId), getTopicsForBranch(branchId)]);
+		const [f, t] = await Promise.all([
+			getDisciplineById(c.disciplineId),
+			getTopicsForBranch(branchId)
+		]);
 		field = f;
 		topics = t;
 		materials = await getMaterialsForBranch(branchId);
@@ -113,7 +118,12 @@
 		</nav>
 
 		<header>
-			<h1>{branch.name}</h1>
+			<!-- Same reasoning as the discipline page: the "Others" grouping is one page back, and
+			     nothing here would otherwise say this branch is still only a suggestion. -->
+			<h1>
+				{branch.name}
+				{#if isPending(branch)}<PendingBadge />{/if}
+			</h1>
 			<p>{branch.description}</p>
 		</header>
 

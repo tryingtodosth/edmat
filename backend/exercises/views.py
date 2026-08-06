@@ -16,6 +16,7 @@ from rest_framework.response import Response
 
 from community.models import Comment, Review
 from community.serializers import CommentSerializer, ReviewSerializer
+from community.views import reply_counts_for
 from moderation.services import is_governor_of_course
 from notifications.services import label_for_exercise, notify_comment_reply, notify_tag_followers
 
@@ -263,8 +264,11 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             # simply excluded outright, consistent with it also being excluded from
             # _annotated_exercises's own average_rating/review_count above (so the count shown here
             # always matches the number of rows actually returned).
-            qs = exercise.reviews.filter(is_removed=False, auto_hidden_at__isnull=True)
-            serializer = ReviewSerializer(qs, many=True)
+            qs = list(exercise.reviews.filter(is_removed=False, auto_hidden_at__isnull=True))
+            # One COUNT for the whole page rather than one per review — see reply_counts_for.
+            serializer = ReviewSerializer(
+                qs, many=True, context={'reply_counts': reply_counts_for(qs)}
+            )
             return Response(serializer.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)

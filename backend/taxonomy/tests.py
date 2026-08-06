@@ -3,6 +3,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from exercises.models import Exercise
+from notifications.models import Notification
 from testing.factories import make_branch, make_topic
 
 from taxonomy.models import (
@@ -228,3 +230,212 @@ class TaxonomyModerationTests(APITestCase):
 
     def test_a_nonsense_decision_is_refused(self):
         self.assertEqual(self._act('maybe').status_code, 400)
+
+
+class TaxonomyDecisionTests(APITestCase):
+    """Deciding on a proposal: approve, merge, move, reject.
+
+    The one that matters most is reject, because it is the only destructive action and
+    `Exercise.branch`/`Material.branch` both cascade — so a bare delete on a proposed branch with
+    exercises filed under it destroys those exercises. It used to.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user('student', password='pw')
+        self.moderator = User.objects.create_user('mod', password='pw', is_staff=True)
+        self.discipline = Discipline.objects.create(slug='matematyka')
+        DisciplineTranslation.objects.create(
+            discipline=self.discipline, locale='pl', name='Matematyka'
+        )
+        self.established = Branch.objects.create(slug='analiza', discipline=self.discipline)
+        self.proposed = Branch.objects.create(
+            slug='analiza-mat', discipline=self.discipline, status='pending', proposed_by=self.user
+        )
+
+    def _as_mod(self):
+        client = APIClient()
+        client.force_authenticate(self.moderator)
+        return client
+
+    def _decide(self, payload, kind='branch', pk=None):
+        return self._as_mod().post(
+            reverse(
+                'moderation-taxonomy-action',
+                kwargs={'kind': kind, 'pk': pk or self.proposed.pk},
+            ),
+            payload,
+            format='json',
+        )
+
+    def test_approve_flips_status(self):
+        self.assertEqual(self._decide({'decision': 'approve'}).status_code, 200)
+        self.proposed.refresh_from_db()
+        self.assertEqual(self.proposed.status, 'approved')
+
+    def test_rejecting_a_node_with_content_is_refused_rather_than_destroying_it(self):
+        """The bug this shape exists to prevent. Five exercises must not vanish because somebody
+        clicked Reject on the branch they were filed under."""
+        for number in range(1, 6):
+            Exercise.objects.create(
+                branch=self.proposed, number=number, difficulty='easy', original_locale='pl'
+            )
+        res = self._decide({'decision': 'reject'})
+        self.assertEqual(res.status_code, 409)
+        self.assertEqual(res.data['detail'], 'has_attached_content')
+        self.assertEqual(res.data['attached']['exercises'], 5)
+        self.assertEqual(Exercise.objects.filter(branch=self.proposed).count(), 5)
+        self.assertTrue(Branch.objects.filter(pk=self.proposed.pk).exists())
+
+    def test_an_empty_proposal_can_still_be_rejected(self):
+        res = self._decide({'decision': 'reject', 'note': 'not a branch of anything'})
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(Branch.objects.filter(pk=self.proposed.pk).exists())
+
+    def test_merge_moves_the_content_and_removes_the_duplicate(self):
+        """A duplicate is a correction, not a refusal: the exercises end up where they belong."""
+        Exercise.objects.create(
+            branch=self.established, number=1, difficulty='easy', original_locale='pl'
+        )
+        Exercise.objects.create(
+            branch=self.proposed, number=1, difficulty='easy', original_locale='pl'
+        )
+        res = self._decide({'decision': 'merge', 'target': 'analiza'})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['status'], 'merged')
+        self.assertFalse(Branch.objects.filter(pk=self.proposed.pk).exists())
+        # Both exercises survive, the incoming one renumbered past the end rather than colliding on
+        # the unique (branch, number).
+        self.assertEqual(
+            sorted(self.established.exercises.values_list('number', flat=True)), [1, 2]
+        )
+
+    def test_merge_needs_a_target(self):
+        self.assertEqual(self._decide({'decision': 'merge'}).status_code, 400)
+
+    def test_move_reparents_and_approves_keeping_content(self):
+        other = Discipline.objects.create(slug='fizyka')
+        Exercise.objects.create(
+            branch=self.proposed, number=1, difficulty='easy', original_locale='pl'
+        )
+        res = self._decide({'decision': 'move', 'target': 'fizyka'})
+        self.assertEqual(res.status_code, 200)
+        self.proposed.refresh_from_db()
+        self.assertEqual(self.proposed.discipline, other)
+        self.assertEqual(self.proposed.status, 'approved')
+        self.assertEqual(self.proposed.exercises.count(), 1, 'content follows the node')
+
+    def test_a_discipline_has_nothing_to_move_under(self):
+        pending = Discipline.objects.create(slug='chemia', status='pending')
+        res = self._decide({'decision': 'move', 'target': 'matematyka'}, kind='discipline', pk=pending.pk)
+        self.assertEqual(res.status_code, 400)
+
+    def test_an_ordinary_user_cannot_decide(self):
+        client = APIClient()
+        client.force_authenticate(self.user)
+        res = client.post(
+            reverse(
+                'moderation-taxonomy-action',
+                kwargs={'kind': 'branch', 'pk': self.proposed.pk},
+            ),
+            {'decision': 'approve'},
+            format='json',
+        )
+        self.assertIn(res.status_code, (403, 404))
+
+    def test_a_nonsense_decision_is_refused(self):
+        self.assertEqual(self._decide({'decision': 'maybe'}).status_code, 400)
+
+
+class TaxonomyDecisionReplyTests(APITestCase):
+    """Every decision answers the person who proposed it.
+
+    Without this, proposing a word is shouting into a hole: the node quietly changes status, or
+    quietly stops existing, and the one person who wanted to know is the one nobody told. Merge and
+    move carry where the content went, which is the only part of any of this that is actionable.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user('student', password='pw')
+        self.moderator = User.objects.create_user('mod', password='pw', is_staff=True)
+        self.discipline = Discipline.objects.create(slug='matematyka')
+        self.established = Branch.objects.create(slug='analiza', discipline=self.discipline)
+        self.proposed = Branch.objects.create(
+            slug='analiza-mat', discipline=self.discipline, status='pending', proposed_by=self.user
+        )
+
+    def _decide(self, payload, kind='branch', pk=None):
+        client = APIClient()
+        client.force_authenticate(self.moderator)
+        return client.post(
+            reverse(
+                'moderation-taxonomy-action',
+                kwargs={'kind': kind, 'pk': pk or self.proposed.pk},
+            ),
+            payload,
+            format='json',
+        )
+
+    def _notifications(self):
+        return list(Notification.objects.filter(recipient=self.user).order_by('id'))
+
+    def test_approving_tells_the_proposer(self):
+        self._decide({'decision': 'approve'})
+        [n] = self._notifications()
+        self.assertEqual(n.type, 'taxonomy_approved')
+        self.assertEqual(n.target_label, 'analiza-mat')
+        self.assertEqual(n.actor, self.moderator)
+
+    def test_merging_names_the_node_and_where_its_content_went(self):
+        """The label has to be read before the merge, because the merge deletes the node it names."""
+        BranchTranslation.objects.create(branch=self.established, locale='pl', name='Analiza')
+        self._decide({'decision': 'merge', 'target': 'analiza'})
+        [n] = self._notifications()
+        self.assertEqual(n.type, 'taxonomy_merged')
+        self.assertEqual(n.target_label, 'analiza-mat', 'the deleted node is still named')
+        self.assertEqual(n.note, 'Analiza', 'and so is the one it went into')
+
+    def test_moving_names_the_new_parent(self):
+        Discipline.objects.create(slug='fizyka')
+        self._decide({'decision': 'move', 'target': 'fizyka'})
+        [n] = self._notifications()
+        self.assertEqual(n.type, 'taxonomy_moved')
+        self.assertEqual(n.note, 'fizyka')
+
+    def test_rejecting_carries_the_moderators_reason(self):
+        self._decide({'decision': 'reject', 'note': 'that is a topic, not a branch'})
+        [n] = self._notifications()
+        self.assertEqual(n.type, 'taxonomy_rejected')
+        self.assertEqual(n.target_label, 'analiza-mat')
+        self.assertEqual(n.note, 'that is a topic, not a branch')
+
+    def test_a_correction_keeps_both_the_target_and_the_note(self):
+        """One must not overwrite the other: where it went and why are different facts."""
+        self._decide({'decision': 'merge', 'target': 'analiza', 'note': 'same thing'})
+        [n] = self._notifications()
+        self.assertEqual(n.note, 'analiza — same thing')
+
+    def test_a_refused_reject_notifies_nobody(self):
+        """Nothing happened, so there is nothing to report."""
+        Exercise.objects.create(
+            branch=self.proposed, number=1, difficulty='easy', original_locale='pl'
+        )
+        self.assertEqual(self._decide({'decision': 'reject'}).status_code, 409)
+        self.assertEqual(self._notifications(), [])
+
+    def test_a_node_nobody_proposed_notifies_nobody(self):
+        """Seeded and imported taxonomy has no `proposed_by`, and `notify` no-ops on a null
+        recipient — pinned here because this is the common case in the real corpus, not an edge."""
+        orphan = Branch.objects.create(
+            slug='orphan', discipline=self.discipline, status='pending'
+        )
+        self.assertEqual(self._decide({'decision': 'approve'}, pk=orphan.pk).status_code, 200)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_muting_moderation_decisions_silences_it(self):
+        """It rides on the existing category rather than a new switch, so the existing switch has to
+        actually govern it."""
+        profile = self.user.profile
+        profile.notify_on_moderation_decision = False
+        profile.save(update_fields=['notify_on_moderation_decision'])
+        self._decide({'decision': 'approve'})
+        self.assertEqual(self._notifications(), [])

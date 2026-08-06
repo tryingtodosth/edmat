@@ -1,56 +1,38 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Discipline } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getBranchesForDiscipline, getDisciplines } from '$lib/services/taxonomy';
 	import DisciplineCard from '$lib/components/discipline/DisciplineCard.svelte';
 	import Loading from '$lib/components/shared/Loading.svelte';
 	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
-	import { cached } from '$lib/state/offlineCache.svelte';
+	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
+	import { splitByStatus } from '$lib/utils/taxonomy';
 
-	let fields = $state<Discipline[]>([]);
-	let courseCounts = $state<Record<string, number>>({});
-	let loading = $state(true);
+	// Read from the preloaded tree rather than fetching here. The root layout has usually already
+	// warmed it, so this page paints on the first frame; `preload` is still called because a direct
+	// visit to this URL is the one case where it has not.
+	//
+	// It also replaces a real N+1: the branch count per card used to be one request PER discipline,
+	// which is the whole point of having every branch already in hand.
+	let fields = $derived(taxonomyStore.disciplines);
+	let courseCounts = $derived(
+		Object.fromEntries(fields.map((f) => [f.id, taxonomyStore.branchesFor(f.id).length]))
+	);
+	let loading = $derived(!taxonomyStore.loaded);
 	// A saved copy paints on the first frame, so this page opens with the disciplines you saw last
 	// time rather than an empty grid — and says so if the network never answers.
-	let savedAt = $state<number | null>(null);
-	let offline = $state(false);
-	let stale = $state(false);
+	let savedAt = $derived(taxonomyStore.savedAt);
+	let offline = $derived(taxonomyStore.offline);
+	let stale = $derived(false);
 
 	// Anybody signed in may propose a discipline, and everybody else's proposal is live but
 	// `pending` until a moderator agrees. Rather than hiding those — which would make proposing one
 	// useless until somebody wakes up — they are grouped under "Others", so the settled vocabulary
 	// reads as settled while a suggestion is still findable and filable against.
-	let settled = $derived(fields.filter((f) => f.status !== 'pending'));
-	let proposed = $derived(fields.filter((f) => f.status === 'pending'));
+	let grouped = $derived(splitByStatus(fields));
+	let settled = $derived(grouped.settled);
+	let proposed = $derived(grouped.proposed);
 
-	onMount(async () => {
-		await cached('disciplines', getDisciplines, (result) => {
-			if (!result.data) return;
-			fields = result.data;
-			// Content is on screen the moment there is any, cached or fresh — the spinner is for
-			// having nothing to show, not for "a request is in flight".
-			loading = false;
-			savedAt = result.fromCache ? result.savedAt : null;
-			offline = result.offline;
-			stale = result.stale;
-		}).catch(() => {
-			// Nothing cached and the network failed: the empty state is then the honest answer.
-		});
-		loading = false;
-
-		const counts: Record<string, number> = {};
-		await Promise.all(
-			fields.map(async (f) => {
-				try {
-					counts[f.id] = (await getBranchesForDiscipline(f.id)).length;
-				} catch {
-					counts[f.id] = 0;
-				}
-			})
-		);
-		courseCounts = counts;
-	});
+	onMount(() => taxonomyStore.preload());
 </script>
 
 <svelte:head>
@@ -77,7 +59,7 @@
 				<p class="hint">{m.taxonomy_propose_pending()}</p>
 				<div class="grid">
 					{#each proposed as field (field.id)}
-						<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} />
+						<DisciplineCard {field} courseCount={courseCounts[field.id] ?? 0} showPending={false} />
 					{/each}
 				</div>
 			</section>
@@ -101,5 +83,18 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 		gap: var(--space-3);
+	}
+	/* The "Others" section. Set apart rather than merely appended: a suggestion nobody has agreed
+	   to yet should not read as part of the settled vocabulary just because it sorts after it. */
+	.proposed {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding-top: var(--space-4);
+		border-top: 1px dashed var(--border-color);
+	}
+	.proposed .hint {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
 	}
 </style>

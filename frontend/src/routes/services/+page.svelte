@@ -33,6 +33,7 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 
 	let branches = $state<Branch[]>([]);
 	let courseFilter = $state('');
@@ -278,9 +279,7 @@
 					<span>{m.services_filterByBranch()}</span>
 					<select bind:value={courseFilter} onchange={handleCourseFilterChange}>
 						<option value="">{m.services_allBranches()}</option>
-						{#each branches as branch (branch.id)}
-							<option value={branch.id}>{branch.name}</option>
-						{/each}
+						<TaxonomyOptions nodes={branches} />
 					</select>
 				</label>
 				<label class="filter">

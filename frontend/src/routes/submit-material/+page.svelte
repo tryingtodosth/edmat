@@ -8,6 +8,8 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { MATERIAL_CURRENCIES, MATERIAL_TYPES, MATERIAL_TYPE_LABELS } from '$lib/utils/labels';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
+	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 
 	// "exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word document should be accepted
 	// too, scanned and kept safe" — the actual real content-type sniffing + optional malware scan
@@ -202,9 +204,7 @@
 				<label class="field">
 					<span>{m.submitMaterial_field_course()}</span>
 					<select bind:value={branchId}>
-						{#each branches as c (c.id)}
-							<option value={c.id}>{c.name}</option>
-						{/each}
+						<TaxonomyOptions nodes={branches} />
 					</select>
 				</label>
 
@@ -272,7 +272,10 @@
 					<span class="file-hint">{m.submitMaterial_sourceUrlHint()}</span>
 				</label>
 
-				{#if topics.length > 0}
+				<!-- Keyed on the branch rather than on `topics.length`, so the block still renders for a
+				     branch that has no topics yet — which is precisely when proposing one is the thing
+				     somebody needs, the same reasoning `/submit`'s own topic proposal already states. -->
+				{#if branchId}
 					<div class="field">
 						<span>{m.submitMaterial_field_coverage()} <em>({m.common_optional()})</em></span>
 						{#if coverage.length > 0}
@@ -294,9 +297,7 @@
 									aria-label={m.submitMaterial_coverageTopicLabel()}
 								>
 									<option value="">{m.submitMaterial_coverageTopicPlaceholder()}</option>
-									{#each availableCoverageTopics as topic (topic.id)}
-										<option value={topic.id}>{topic.name}</option>
-									{/each}
+									<TaxonomyOptions nodes={availableCoverageTopics} />
 								</select>
 								<input
 									type="text"
@@ -311,6 +312,19 @@
 							</div>
 						{/if}
 						<span class="file-hint">{m.submitMaterial_coverageHint()}</span>
+						<!-- Selecting the proposal, not merely refreshing the list: somebody who suggested
+						     a topic did so because they wanted to file this material under it.
+						     `proposeTaxonomyNode` answers with a SLUG, while a Topic's own frontend id is
+						     the numeric pk (`mapTopic`), so the id has to be resolved off the refreshed
+						     list rather than assumed equal to the slug. -->
+						<ProposeNodeButton
+							kind="topic"
+							parent={branchId}
+							onproposed={async (slug) => {
+								topics = await getTopicsForBranch(branchId);
+								coverageTopicId = topics.find((t) => t.slug === slug)?.id ?? '';
+							}}
+						/>
 					</div>
 				{/if}
 

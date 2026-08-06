@@ -83,7 +83,17 @@
 			m.notification_bookingCancelled({
 				actor: notification.actorDisplayName || m.notification_someone(),
 				title: notification.targetLabel
-			})
+			}),
+		// The four taxonomy decisions. Each says what happened and nothing more: for merge and move
+		// the destination is in `note`, which already renders as its own quoted line just below — the
+		// same division of labour a rejected submission and its moderator's reason already use, so
+		// none of these needs a second parameter. Deliberately unlinked: two of the three node kinds
+		// have a page and a topic has none, and three nullable FK columns to cover that is a worse
+		// trade than a card that reads plainly and does not navigate (see the booking note above).
+		taxonomyApproved: () => m.notification_taxonomyApproved({ title: notification.targetLabel }),
+		taxonomyMerged: () => m.notification_taxonomyMerged({ title: notification.targetLabel }),
+		taxonomyMoved: () => m.notification_taxonomyMoved({ title: notification.targetLabel }),
+		taxonomyRejected: () => m.notification_taxonomyRejected({ title: notification.targetLabel })
 	};
 
 	// A booking has no page of its own, and deliberately so: both parties' destination is the same
@@ -112,12 +122,12 @@
 				notification.eventId
 				? resolve('/events/[id]', { id: notification.eventId })
 				: notification.exerciseId
-				? resolve('/exercises/[id]', { id: notification.exerciseId })
-				: notification.materialId
-					? resolve('/materials/[id]', { id: notification.materialId })
-					: notification.courseId
-						? resolve('/courses/[id]', { id: notification.courseId })
-						: undefined
+					? resolve('/exercises/[id]', { id: notification.exerciseId })
+					: notification.materialId
+						? resolve('/materials/[id]', { id: notification.materialId })
+						: notification.courseId
+							? resolve('/courses/[id]', { id: notification.courseId })
+							: undefined
 	);
 
 	function handleClick() {
