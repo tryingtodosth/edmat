@@ -18,8 +18,11 @@ import secrets
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
+
+from materials.validators import validate_material_submission_file
 
 # These are two different questions, and until now they were one field. `draft` answered "who can
 # see this", while `open`/`running`/`finished` answered "how far along is it" — so an instructor who
@@ -276,7 +279,12 @@ class Course(models.Model):
 
     @property
     def uploaded_bytes(self) -> int:
-        """Total size of the material attached to this course.
+        """Total bytes this course has stored — its materials AND its attachments.
+
+        Both, deliberately. A quota that counted only one kind would be one somebody could route
+        around by uploading the other, which is not a quota. This was actually wrong for a while:
+        attachments were charged against `upload_quota_bytes` on the way in but never counted on the
+        way out, so the cap silently stopped applying after the first file.
 
         Summed live rather than kept as a running total on the row: a stored counter has to be
         correct after every add, every removal and every failed upload, and this is read on a
@@ -293,6 +301,8 @@ class Course(models.Model):
                 # A row whose file is missing from storage must not take the whole course page down;
                 # it contributes nothing to the total, which is the honest reading of "not there".
                 continue
+        for attachment in self.attachments.all():
+            total += attachment.size_bytes
         return total
 
     @property
@@ -861,3 +871,84 @@ class CourseNote(models.Model):
     def __str__(self) -> str:
         where = self.lesson.title if self.lesson_id else self.course.title
         return f'{self.author} — notes on {where}'
+
+
+class Attachment(models.Model):
+    """A file uploaded straight to a course, with its own page, its own reviews and its own thread.
+
+    Distinct from a Material, and the difference is who it is for. A Material is corpus content —
+    branch-scoped, discoverable from `/materials`, reviewed by anyone on the site, and it stays
+    useful to people who never join this course. An Attachment belongs to the course: last year's
+    exam paper, the slide deck from Tuesday, a scan of somebody's notes. It is not corpus, it is not
+    discoverable outside the course, and its discussion is a conversation between the people in the
+    room rather than a public review thread. Filing those as Materials would put a course's private
+    handouts into the site-wide library, which is a different and much worse thing than a missing
+    feature.
+
+    Storage is charged to the same `Course.upload_quota_bytes` a Material costs, so the cap an
+    administrator sets means "this course may store this much", not "this much per kind of upload"
+    — a per-kind cap is one somebody could route around by choosing the other kind.
+    """
+
+    course = models.ForeignKey(Course, related_name='attachments', on_delete=models.CASCADE)
+    file = models.FileField(
+        upload_to='course-attachments/', validators=[validate_material_submission_file]
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='course_attachments',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', 'id']
+
+    def __str__(self) -> str:
+        return f'{self.course.title} — {self.title}'
+
+    @property
+    def size_bytes(self) -> int:
+        """0 for a row whose file has gone missing from storage, matching `Course.uploaded_bytes`.
+        A page must not fail to render because a file was deleted underneath it."""
+        try:
+            return self.file.size
+        except (OSError, ValueError):
+            return 0
+
+    def is_visible_to(self, user) -> bool:
+        """Anyone who can be in the room. An attachment is course material in the ordinary sense —
+        it is not gated per-chapter the way `CourseItem` is, because it is not part of the running
+        order; it is the pile of files the course keeps."""
+        return self.course.is_member(user) or self.course.can_curate(user)
+
+
+class AttachmentReview(models.Model):
+    """A star rating and an optional written review on one attachment.
+
+    Its own small model with a direct FK, matching `community.Review` (Exercise),
+    `MaterialReview` and `ServiceReview` rather than inventing a generic one — the same restraint
+    those three already record: a review never needs to span more than the one content type it was
+    built for, so a GenericForeignKey would buy nothing and cost every query a join.
+    """
+
+    attachment = models.ForeignKey(Attachment, related_name='reviews', on_delete=models.CASCADE)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    body = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        # One review per person per attachment, same as every other review model here.
+        unique_together = [('attachment', 'author')]
+
+    def __str__(self) -> str:
+        return f'{self.rating}★ by {self.author} on {self.attachment}'

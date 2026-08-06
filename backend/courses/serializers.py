@@ -5,6 +5,8 @@ from taxonomy.models import Branch, Discipline
 
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
+    Attachment,
+    AttachmentReview,
     Chapter,
     CourseInvite,
     CourseItem,
@@ -529,3 +531,61 @@ class CourseNoteSerializer(serializers.ModelSerializer):
         model = CourseNote
         fields = ['id', 'lesson', 'body', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
+
+
+class AttachmentReviewSerializer(serializers.ModelSerializer):
+    author = ParticipantSerializer(read_only=True)
+
+    class Meta:
+        model = AttachmentReview
+        fields = ['id', 'author', 'rating', 'body', 'created_at']
+        read_only_fields = ['created_at']
+
+
+class AttachmentSerializer(serializers.ModelSerializer):
+    uploaded_by = ParticipantSerializer(read_only=True)
+    file_url = serializers.SerializerMethodField()
+    size_bytes = serializers.IntegerField(read_only=True)
+    review_count = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Attachment
+        fields = [
+            'id',
+            'title',
+            'description',
+            'file_url',
+            'size_bytes',
+            'uploaded_by',
+            'created_at',
+            'review_count',
+            'average_rating',
+        ]
+
+    def get_file_url(self, attachment) -> str:
+        """Absolute when a request is in context, so a client on another origin can follow it.
+
+        Deliberately not the raw storage name: that is a path, not a link, and every other file in
+        this API is already handed over as a URL."""
+        if not attachment.file:
+            return ''
+        request = self.context.get('request')
+        url = attachment.file.url
+        return request.build_absolute_uri(url) if request else url
+
+    def get_review_count(self, attachment) -> int:
+        return len(attachment.reviews.all())
+
+    def get_average_rating(self, attachment):
+        """None rather than 0 when nobody has reviewed it. Zero is a rating somebody gave; absence
+        is not, and a card that draws "0.0 stars" for an unreviewed file is telling a lie the data
+        never said."""
+        ratings = [review.rating for review in attachment.reviews.all()]
+        return round(sum(ratings) / len(ratings), 2) if ratings else None
+
+
+class AttachmentWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Attachment
+        fields = ['file', 'title', 'description']

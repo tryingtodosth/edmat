@@ -5,6 +5,8 @@
 // speaks of disciplines and branches, so the word is unambiguous and this file takes it.
 
 import type {
+	Attachment,
+	AttachmentReview,
 	Chapter,
 	ChapterDraft,
 	CourseInvite,
@@ -561,4 +563,120 @@ export async function saveMyCourseNote(
 		lesson: lessonId ? Number(lessonId) : null
 	});
 	return raw ? mapNote(raw) : null;
+}
+
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function mapAttachment(raw: any): Attachment {
+	return {
+		id: String(raw.id),
+		title: raw.title,
+		description: raw.description ?? '',
+		fileUrl: raw.file_url ?? '',
+		sizeBytes: raw.size_bytes ?? 0,
+		uploadedBy: raw.uploaded_by ? mapParticipant(raw.uploaded_by) : null,
+		createdAt: raw.created_at,
+		reviewCount: raw.review_count ?? 0,
+		averageRating: raw.average_rating ?? null
+	};
+}
+
+function mapAttachmentReview(raw: any): AttachmentReview {
+	return {
+		id: String(raw.id),
+		author: mapParticipant(raw.author),
+		rating: raw.rating,
+		body: raw.body ?? '',
+		createdAt: raw.created_at
+	};
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+export async function getAttachments(courseId: string): Promise<Attachment[]> {
+	const raw = await apiClient.get<unknown[]>(
+		`/courses/${encodeURIComponent(courseId)}/attachments/`
+	);
+	return raw.map(mapAttachment);
+}
+
+export async function getAttachment(
+	courseId: string,
+	attachmentId: string
+): Promise<Attachment | undefined> {
+	try {
+		return mapAttachment(
+			await apiClient.get(
+				`/courses/${encodeURIComponent(courseId)}/attachments/${encodeURIComponent(attachmentId)}/`
+			)
+		);
+	} catch (e) {
+		if (e instanceof ApiError && e.status === 404) return undefined;
+		throw e;
+	}
+}
+
+/** Multipart, because it carries a real file — `postForm` leaves the Content-Type to the browser,
+ * which is the only thing that knows the boundary. */
+export async function uploadAttachment(
+	courseId: string,
+	file: File,
+	title: string,
+	description = ''
+): Promise<Attachment> {
+	const form = new FormData();
+	form.append('file', file);
+	form.append('title', title);
+	form.append('description', description);
+	return mapAttachment(
+		await apiClient.postForm(`/courses/${encodeURIComponent(courseId)}/attachments/`, form)
+	);
+}
+
+export async function deleteAttachment(courseId: string, attachmentId: string): Promise<void> {
+	await apiClient.delete(
+		`/courses/${encodeURIComponent(courseId)}/attachments/${encodeURIComponent(attachmentId)}/`
+	);
+}
+
+export async function getAttachmentReviews(
+	courseId: string,
+	attachmentId: string
+): Promise<AttachmentReview[]> {
+	const raw = await apiClient.get<unknown[]>(
+		`/courses/${encodeURIComponent(courseId)}/attachments/${encodeURIComponent(attachmentId)}/reviews/`
+	);
+	return raw.map(mapAttachmentReview);
+}
+
+export async function reviewAttachment(
+	courseId: string,
+	attachmentId: string,
+	rating: number,
+	body = ''
+): Promise<AttachmentReview> {
+	return mapAttachmentReview(
+		await apiClient.post(
+			`/courses/${encodeURIComponent(courseId)}/attachments/${encodeURIComponent(attachmentId)}/reviews/`,
+			{ rating, body }
+		)
+	);
+}
+
+/** This attachment's own thread — deliberately not the course discussion and not a material's. */
+export async function getAttachmentComments(courseId: string, attachmentId: string) {
+	return apiClient.get<unknown[]>(
+		`/courses/${encodeURIComponent(courseId)}/attachments/${encodeURIComponent(attachmentId)}/comments/`
+	);
+}
+
+export async function postAttachmentComment(
+	courseId: string,
+	attachmentId: string,
+	body: string,
+	parentId?: string
+) {
+	return apiClient.post(
+		`/courses/${encodeURIComponent(courseId)}/attachments/${encodeURIComponent(attachmentId)}/comments/`,
+		{ body, parent: parentId ? Number(parentId) : null }
+	);
 }

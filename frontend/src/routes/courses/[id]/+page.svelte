@@ -22,10 +22,12 @@
 		getInvites,
 		getParticipants,
 		leaveCourse,
+		getAttachments,
 		getMyCourseNotes,
 		moveCourseItem,
 		reorderCourse,
 		saveMyCourseNote,
+		uploadAttachment,
 		muteCourse,
 		removeCourseItem,
 		removeCourseStaff,
@@ -34,6 +36,7 @@
 		submitCourseItem
 	} from '$lib/services/course';
 	import type {
+		Attachment,
 		CourseInvite,
 		CourseNote,
 		CourseStaffMember,
@@ -94,6 +97,9 @@
 
 	// The reader's own notes. Only ever their own — the API filters by author, so there is nothing
 	// here that could be pointed at somebody else's.
+	let attachments = $state<Attachment[]>([]);
+	let attachmentFile = $state<File | null>(null);
+	let attachmentTitle = $state('');
 	let myNotes = $state<CourseNote[]>([]);
 	let noteDraft = $state('');
 	let noteSaved = $state(false);
@@ -164,9 +170,17 @@
 				myNotes = [];
 				noteDraft = '';
 			}
+			// Members only, so a stranger's 404 here is the permission working rather than an error
+			// the page should show — the same soft failure the roster already uses.
+			try {
+				attachments = await getAttachments(id);
+			} catch {
+				attachments = [];
+			}
 		} else {
 			myNotes = [];
 			noteDraft = '';
+			attachments = [];
 		}
 
 		// The roster is not public, so this is expected to fail for a stranger — an empty list is the
@@ -649,6 +663,68 @@
 
 		<!-- The discussion. `canReadDiscussion`/`canPostDiscussion` are resolved server-side, because
 		     whether this viewer may read or post depends on the course's mode AND their membership. -->
+		<!-- The course's own files. Members only, and never listed for a stranger: an attachment is
+		     not corpus, it is the pile of files this course keeps. -->
+		{#if course.myEnrollmentStatus === 'active' || course.isInstructor || course.canCurate}
+			<section class="attachments-section">
+				<h2>{m.course_attachments_heading()}</h2>
+				{#if attachments.length === 0}
+					<p class="status">{m.course_attachments_empty()}</p>
+				{:else}
+					<ul class="attachments">
+						{#each attachments as attachment (attachment.id)}
+							<li>
+								<a
+									href={resolve('/courses/[id]/attachments/[attachmentId]', {
+										id: course.id,
+										attachmentId: attachment.id
+									})}
+								>
+									{attachment.title}
+								</a>
+								{#if attachment.averageRating !== null}
+									<span class="hint">{attachment.averageRating} ★</span>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{/if}
+
+				{#if course.canContribute}
+					<form
+						onsubmit={(e) => {
+							e.preventDefault();
+							const file = attachmentFile;
+							const title = attachmentTitle.trim();
+							if (!file || !title) return;
+							run(async () => {
+								await uploadAttachment(course!.id, file, title);
+								attachments = await getAttachments(course!.id);
+								attachmentFile = null;
+								attachmentTitle = '';
+							});
+						}}
+					>
+						<label class="field">
+							<span>{m.course_attachments_title()}</span>
+							<input type="text" bind:value={attachmentTitle} maxlength="200" />
+						</label>
+						<label class="field">
+							<span>{m.course_attachments_file()}</span>
+							<input
+								type="file"
+								onchange={(e) =>
+									(attachmentFile = (e.currentTarget as HTMLInputElement).files?.[0] ?? null)}
+							/>
+						</label>
+						<button type="submit" class="primary" disabled={busy}>
+							{m.course_attachments_upload()}
+						</button>
+					</form>
+				{/if}
+			</section>
+		{/if}
+
 		<!-- Private notes. Shown to anybody signed in who can open the course, including staff:
 		     running a course does not stop somebody wanting notes of their own on it. -->
 		{#if authStore.user}

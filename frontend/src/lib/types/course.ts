@@ -260,3 +260,30 @@ export interface CourseNote {
 	body: string;
 	updatedAt: string;
 }
+
+
+/** A file the course keeps — last year's exam, Tuesday's slides, somebody's scan.
+ *
+ * Not a Material: a Material is corpus content, branch-scoped and discoverable site-wide. An
+ * attachment belongs to this course, is readable only by people in it, and has its own thread
+ * rather than a public review page. */
+export interface Attachment {
+	id: string;
+	title: string;
+	description: string;
+	fileUrl: string;
+	sizeBytes: number;
+	uploadedBy: { id: string; displayName: string } | null;
+	createdAt: string;
+	reviewCount: number;
+	/** null, not 0, when nobody has reviewed it — zero is a rating somebody gave. */
+	averageRating: number | null;
+}
+
+export interface AttachmentReview {
+	id: string;
+	author: { id: string; displayName: string };
+	rating: number;
+	body: string;
+	createdAt: string;
+}

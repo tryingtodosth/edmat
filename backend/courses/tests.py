@@ -9,6 +9,7 @@ create flow announces itself immediately; a roster leaking to strangers does not
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -19,6 +20,7 @@ from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
 
 from .models import (
+    Attachment,
     Chapter,
     CourseInvite,
     CourseItem,
@@ -1420,3 +1422,107 @@ class PrivateNoteTests(ApiTestCase):
     def test_notes_need_an_account(self):
         res = APIClient().get(f'/api/courses/{self.course.pk}/notes/')
         self.assertIn(res.status_code, (401, 403))
+
+
+class AttachmentTests(ApiTestCase):
+    """Files a course keeps, with their own page, reviews and thread.
+
+    The line worth holding: an attachment is not corpus. A stranger who can see the public course
+    page still cannot read its files, because "last year's exam paper" is not something a course
+    publishes to the site.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+
+    @staticmethod
+    def _pdf_bytes(size: int) -> bytes:
+        """A real PDF signature, padded to the size a test wants.
+
+        `validate_material_submission_file` sniffs the actual bytes with libmagic rather than
+        trusting the name or the browser's Content-Type — which is the point of it — so a file of
+        `b'xxxx'` called `.pdf` is correctly refused. Padding after a genuine `%PDF-1.4` header
+        keeps the fixture honest while letting the quota tests choose a length."""
+        header = b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
+        return header + b'0' * max(0, size - len(header))
+
+    def _upload(self, who=None, name='exam.pdf', size=64):
+        return self.as_(who or self.instructor).post(
+            f'/api/courses/{self.course.pk}/attachments/',
+            {
+                'file': SimpleUploadedFile(
+                    name, self._pdf_bytes(size), content_type='application/pdf'
+                ),
+                'title': 'Last year exam',
+            },
+            format='multipart',
+        )
+
+    def test_staff_upload_and_everyone_in_the_room_can_list(self):
+        self.assertEqual(self._upload().status_code, 201)
+        rows = self.as_(self.student).get(f'/api/courses/{self.course.pk}/attachments/').data
+        self.assertEqual([r['title'] for r in rows], ['Last year exam'])
+        self.assertTrue(rows[0]['file_url'], 'a link, not a storage path')
+
+    def test_an_outsider_cannot_read_them(self):
+        self._upload()
+        res = self.as_(self.other).get(f'/api/courses/{self.course.pk}/attachments/')
+        self.assertEqual(res.status_code, 404, 'not corpus — membership is required')
+
+    def test_an_unreviewed_attachment_has_no_rating_rather_than_zero(self):
+        self._upload()
+        rows = self.as_(self.student).get(f'/api/courses/{self.course.pk}/attachments/').data
+        self.assertIsNone(rows[0]['average_rating'])
+        self.assertEqual(rows[0]['review_count'], 0)
+
+    def test_reviews_are_one_per_person_and_average(self):
+        attachment_id = self._upload().data['id']
+        base = f'/api/courses/{self.course.pk}/attachments/{attachment_id}/reviews/'
+        self.as_(self.student).post(base, {'rating': 4, 'body': 'useful'}, format='json')
+        self.as_(self.student).post(base, {'rating': 2}, format='json')  # edits, does not add
+        rows = self.as_(self.student).get(base).data
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['rating'], 2)
+
+    def test_an_attachment_has_its_own_thread(self):
+        """Its own, not the course's and not a material's — the whole reason it is a separate
+        target rather than another comment on the course."""
+        attachment_id = self._upload().data['id']
+        base = f'/api/courses/{self.course.pk}/attachments/{attachment_id}/comments/'
+        self.as_(self.student).post(base, {'body': 'Is task 3 a typo?'}, format='json')
+
+        on_attachment = self.as_(self.student).get(base).data
+        self.assertEqual([c['body'] for c in on_attachment], ['Is task 3 a typo?'])
+
+        on_course = self.as_(self.student).get(
+            f'/api/courses/{self.course.pk}/comments/'
+        ).data
+        self.assertEqual(on_course, [], 'the course discussion is a different conversation')
+
+    def test_the_uploader_can_remove_their_own_file(self):
+        attachment_id = self._upload(who=self.student).data['id']
+        res = self.as_(self.student).delete(
+            f'/api/courses/{self.course.pk}/attachments/{attachment_id}/'
+        )
+        self.assertEqual(res.status_code, 204)
+
+    def test_another_participant_cannot_remove_somebody_elses(self):
+        Enrollment.objects.create(course=self.course, participant=self.other, status='active')
+        attachment_id = self._upload(who=self.student).data['id']
+        res = self.as_(self.other).delete(
+            f'/api/courses/{self.course.pk}/attachments/{attachment_id}/'
+        )
+        self.assertEqual(res.status_code, 404)
+        self.assertTrue(Attachment.objects.filter(pk=attachment_id).exists())
+
+    def test_uploads_are_charged_against_the_courses_quota(self):
+        """The same cap a Material costs — a per-kind quota would be one somebody could route
+        around by choosing the other kind."""
+        self.course.upload_quota_bytes = 120
+        self.course.save()
+        self.assertEqual(self._upload(size=100).status_code, 201)
+        refused = self._upload(name='second.pdf', size=100)
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.data['detail'], 'upload_quota_exceeded')

@@ -13,6 +13,7 @@ from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from community.models import Comment
@@ -22,6 +23,8 @@ from notifications.services import notify, notify_course_participants
 
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
+    Attachment,
+    AttachmentReview,
     BLOCKING_ENROLLMENT_STATUSES,
     LISTED_VISIBILITIES,
     Chapter,
@@ -34,6 +37,9 @@ from .models import (
     Course,
 )
 from .serializers import (
+    AttachmentReviewSerializer,
+    AttachmentSerializer,
+    AttachmentWriteSerializer,
     ChapterSerializer,
     ChapterWriteSerializer,
     CourseInviteSerializer,
@@ -513,6 +519,162 @@ class CourseViewSet(viewsets.ModelViewSet):
         row.role = role
         row.save(update_fields=['role'])
         return Response(CourseStaffSerializer(row).data)
+
+    # --- attachments --------------------------------------------------------------------------
+
+    def _attachment_or_none(self, course, attachment_id, user):
+        attachment = course.attachments.filter(pk=attachment_id).first()
+        if attachment is None or not attachment.is_visible_to(user):
+            return None
+        return attachment
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        parser_classes=[MultiPartParser, FormParser, JSONParser],
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def attachments(self, request, pk=None):
+        """The course's own files, and uploading one.
+
+        Members only, on both verbs. An attachment is not corpus — it is the pile of files a course
+        keeps, frequently somebody's scan of last year's exam — so unlike a Material it is never
+        readable by a stranger who wandered in from the public directory.
+
+        Uploading follows `contribution_policy` rather than being staff-only: a course that already
+        lets participants offer materials has no reason to refuse a participant's file. What it does
+        NOT do is queue for review the way `CourseItem` does — an attachment is not entering the
+        site-wide library, so the review queue would be ceremony without a decision behind it.
+        """
+        course = self.get_object()
+        if not (course.is_member(request.user) or course.can_curate(request.user)):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'GET':
+            rows = course.attachments.select_related('uploaded_by__profile').prefetch_related(
+                'reviews'
+            )
+            return Response(
+                AttachmentSerializer(rows, many=True, context=self.get_serializer_context()).data
+            )
+
+        if not course.can_contribute(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        write = AttachmentWriteSerializer(data=request.data)
+        write.is_valid(raise_exception=True)
+
+        # Charged against the same quota a Material costs. A per-kind cap would be one somebody
+        # could route around by choosing the other kind, which is not a cap.
+        upload = write.validated_data.get('file')
+        left = course.upload_bytes_left
+        if left is not None and upload is not None and upload.size > left:
+            return Response(
+                {'detail': 'upload_quota_exceeded'}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        attachment = write.save(course=course, uploaded_by=request.user)
+        return Response(
+            AttachmentSerializer(attachment, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=['get', 'delete'],
+        url_path='attachments/(?P<attachment_id>[^/.]+)',
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def attachment_detail(self, request, pk=None, attachment_id=None):
+        course = self.get_object()
+        attachment = self._attachment_or_none(course, attachment_id, request.user)
+        if attachment is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'DELETE':
+            # Staff, or the person who put it there. Somebody who uploaded the wrong file should not
+            # have to ask an administrator to undo it.
+            if not (
+                course.can_curate(request.user) or attachment.uploaded_by_id == request.user.pk
+            ):
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            attachment.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        return Response(
+            AttachmentSerializer(attachment, context=self.get_serializer_context()).data
+        )
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='attachments/(?P<attachment_id>[^/.]+)/reviews',
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def attachment_reviews(self, request, pk=None, attachment_id=None):
+        """Ratings on one attachment. One per person, edited rather than duplicated."""
+        course = self.get_object()
+        attachment = self._attachment_or_none(course, attachment_id, request.user)
+        if attachment is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'GET':
+            return Response(
+                AttachmentReviewSerializer(
+                    attachment.reviews.select_related('author__profile'), many=True
+                ).data
+            )
+
+        write = AttachmentReviewSerializer(data=request.data)
+        write.is_valid(raise_exception=True)
+        review, _ = AttachmentReview.objects.update_or_create(
+            attachment=attachment,
+            author=request.user,
+            defaults={
+                'rating': write.validated_data['rating'],
+                'body': write.validated_data.get('body', ''),
+            },
+        )
+        return Response(AttachmentReviewSerializer(review).data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='attachments/(?P<attachment_id>[^/.]+)/comments',
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def attachment_comments(self, request, pk=None, attachment_id=None):
+        """This attachment's own thread — deliberately NOT a material's.
+
+        The same generic `Comment` mechanism, pointed at the Attachment rather than at a Material or
+        at the course itself, so a conversation about last year's exam paper stays with the paper
+        instead of being mixed into either the course-wide discussion or a site-wide material's
+        public review thread.
+        """
+        course = self.get_object()
+        attachment = self._attachment_or_none(course, attachment_id, request.user)
+        if attachment is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        content_type = ContentType.objects.get_for_model(Attachment)
+        thread = Comment.objects.filter(
+            content_type=content_type, object_id=attachment.pk, is_removed=False
+        ).select_related('author__profile')
+
+        if request.method == 'GET':
+            return Response(CommentSerializer(thread, many=True).data)
+
+        body = (request.data.get('body') or '').strip()
+        if not body:
+            raise DRFValidationError({'body': 'Write something first.'})
+        comment = Comment.objects.create(
+            content_type=content_type,
+            object_id=attachment.pk,
+            author=request.user,
+            body=body,
+            parent_id=request.data.get('parent') or None,
+        )
+        return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
 
     # --- private notes ------------------------------------------------------------------------
 
