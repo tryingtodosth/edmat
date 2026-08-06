@@ -59,6 +59,9 @@ export interface EdmatEvent {
 	/** Always 0 for anybody but the host — a decline is between the person who made it and the
 	 * person running the event. */
 	declinedCount: number;
+	/** How many updates the host has posted. Carried on the event itself so a listing can say an
+	 * event has news without fetching each one's feed. */
+	postCount: number;
 	/** `null` for an uncapped event, which is genuinely different from 0 (full). */
 	seatsLeft: number | null;
 	isFull: boolean;
@@ -84,6 +87,38 @@ export interface EventDraft {
 	onlineUrl?: string;
 	capacity?: number;
 	language?: string;
+}
+
+/** One update the host wrote on an event after announcing it — mirrors `backend/events/models.py`'s
+ * `EventPost`.
+ *
+ * Deliberately not the event's own `description`, and deliberately not a comment: a description
+ * answers "what is this?" and is edited in place, a comment is a conversation anybody may join, and
+ * this is a dated broadcast from the one person running the thing. See the backend model's own note.
+ */
+export interface EventPost {
+	id: string;
+	/** `null` for a post whose author has since deleted their account — the announcement outlives
+	 * them, because the people who need "the venue has moved" are the attendees. */
+	author: EventPerson | null;
+	body: string;
+	/** `''` when there is no picture, rather than null — every read site wants to ask `if (imageUrl)`
+	 * and an absent key would make that three checks instead of one. */
+	imageUrl: string;
+	links: string[];
+	createdAt: string;
+	/** `null` until somebody edits it. A real stamp rather than a comparison against `createdAt`,
+	 * which would read as "edited" for every post ever written — see the backend field's own note. */
+	editedAt: string | null;
+	isEdited: boolean;
+}
+
+/** What the host is composing. `image` is a browser `File` rather than a URL because it has not been
+ * uploaded yet — the service layer is what turns this into the multipart body. */
+export interface EventPostDraft {
+	body?: string;
+	image?: File | null;
+	links?: string[];
 }
 
 /** The thin projection `/api/my-schedule/` carries for events — a title, a time and an id to click,

@@ -69,6 +69,45 @@ def notify_attendees_of_cancellation(event, actor):
         )
 
 
+#: How much of a post's own text rides along in the notification. Long enough that "we are starting
+#: twenty minutes late" arrives whole — which is the case where reading the notification is the
+#: entire point and opening the page would be too slow to help.
+POST_PREVIEW_CHARS = 140
+
+
+def notify_attendees_of_post(post, actor):
+    """Everybody holding a seat, when the host writes an update.
+
+    Fired on the first publish of a post and never on an edit. A host fixing a typo must not put a
+    badge on forty people's bell a second time — the same restraint `notify_attendees_of_change`
+    already shows by firing only when the time or the place actually moved, rather than on every save.
+
+    The post's own opening words ride along in `note` rather than only its existence, on
+    `Notification.target_label`'s own reasoning: a notification that says "there is an update" and
+    makes you open a page to find out it was "the slides are up" spent your attention to tell you
+    nothing.
+    """
+    body = (post.body or '').strip()
+    preview = body[:POST_PREVIEW_CHARS].rstrip()
+    if len(body) > POST_PREVIEW_CHARS:
+        preview = f'{preview}…'
+    # A picture-only post is legal (see `EventPost.clean`), and has no words to preview. Falling back
+    # to the event's time keeps the note carrying *something* the reader can place, matching what
+    # every other event notification puts there.
+    if not preview:
+        preview = _when(post.event)
+
+    for attendee in going_attendees(post.event):
+        notify(
+            attendee,
+            'event_posted',
+            actor=actor,
+            target_label=post.event.title,
+            event=post.event,
+            note=preview,
+        )
+
+
 def notify_attendees_of_change(event, actor, note: str):
     """Everybody who said they were coming, when the time or the place moved.
 

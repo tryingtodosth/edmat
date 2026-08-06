@@ -7,6 +7,7 @@ person's draft gets a 404, which is also the honest answer, since for them it do
 """
 
 from django.db import IntegrityError, transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -14,16 +15,19 @@ from rest_framework.response import Response
 
 from moderation.permissions import feature_gate
 
-from .models import ATTENDING_STATUSES, PUBLIC_STATUSES, Event, EventAttendance
+from .models import ATTENDING_STATUSES, PUBLIC_STATUSES, Event, EventAttendance, EventPost
 from .serializers import (
     AttendanceWriteSerializer,
     EventAttendanceSerializer,
+    EventPostSerializer,
+    EventPostWriteSerializer,
     EventSerializer,
     EventWriteSerializer,
 )
 from .services import (
     notify_attendees_of_cancellation,
     notify_attendees_of_change,
+    notify_attendees_of_post,
     notify_host_of_response,
 )
 
@@ -48,7 +52,22 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
         qs = Event.objects.select_related('host', 'host__profile', 'discipline').prefetch_related(
-            'subjects', 'attendances'
+            'subjects',
+            'attendances',
+            # Two columns, because the only question asked of this on a list page is "how many?"
+            # (`EventSerializer.post_count`) — prefetching whole posts to count them would pull every
+            # body and image path for fifty events to render fifty numbers.
+            #
+            # `to_attr` is load-bearing rather than stylistic. Without it the deferred queryset lands
+            # in the related manager's own prefetch cache, and the manager chains further calls onto
+            # it — so `event.posts.select_related('author')` in the `posts` action below inherited the
+            # `.only()` and raised `FieldError: Field EventPost.author cannot be both deferred and
+            # traversed using select_related`. Found by the reading tests, not by inspection.
+            Prefetch(
+                'posts',
+                queryset=EventPost.objects.only('id', 'event'),
+                to_attr='counted_posts',
+            ),
         )
         qs = self._visible_to(qs, user)
         if self.action != 'list':
@@ -265,6 +284,88 @@ class EventViewSet(viewsets.ModelViewSet):
                 'event': EventSerializer(event, context=self.get_serializer_context()).data,
             }
         )
+
+    # ---- updates the host posts on the event ---------------------------------------------------
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        permission_classes=[permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate],
+    )
+    def posts(self, request, pk=None):
+        """The event's own feed of updates: read by anybody who can see the event, written by its
+        host alone.
+
+        Reading needs no permission check beyond the one `get_queryset` already did. That is the whole
+        benefit of scoping visibility in the queryset: a draft's posts are unreachable because the
+        draft is, and nothing here has to remember that rule separately. Publicly readable on purpose
+        — "the room has moved" is most useful to somebody still deciding whether to come, and gating
+        it behind an RSVP would hide it from exactly the people who have not answered yet.
+        """
+        event = self.get_object()
+
+        if request.method == 'GET':
+            rows = event.posts.select_related('author', 'author__profile').prefetch_related('links')
+            return Response(
+                EventPostSerializer(
+                    rows, many=True, context=self.get_serializer_context()
+                ).data
+            )
+
+        # 404 rather than 403, matching `_mine_or_404` and the rest of this viewset: whether somebody
+        # else's event has a posting endpoint is not information a stranger needs.
+        if event.host_id != request.user.pk:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        write = EventPostWriteSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        write.is_valid(raise_exception=True)
+        post = write.save(event=event, author=request.user)
+
+        # Only a published event notifies. Posting on a draft is a host writing notes on something
+        # nobody can see yet, and `going_attendees` would be empty anyway — but checking the status
+        # says so deliberately rather than relying on the list happening to be empty, which would
+        # start sending mail the day drafts gain attendees.
+        if event.status == 'published':
+            notify_attendees_of_post(post, request.user)
+
+        return Response(
+            EventPostSerializer(post, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=['patch', 'delete'],
+        url_path='posts/(?P<post_id>[^/.]+)',
+        permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate],
+    )
+    def post_detail(self, request, pk=None, post_id=None):
+        """Edit or withdraw one update. The host only — an update is a broadcast in their name.
+
+        Editing deliberately does NOT re-notify (see `notify_attendees_of_post`), and deleting never
+        did: the notification for a withdrawn post is left in place because it was true when it was
+        sent, and because a bell that silently un-rings is worse than one that leads to a post that
+        is gone.
+        """
+        event = self.get_object()
+        if event.host_id != request.user.pk:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        post = event.posts.filter(pk=post_id).first()
+        if post is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'DELETE':
+            post.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        write = EventPostWriteSerializer(
+            post, data=request.data, partial=True, context=self.get_serializer_context()
+        )
+        write.is_valid(raise_exception=True)
+        post = write.save()
+        return Response(EventPostSerializer(post, context=self.get_serializer_context()).data)
 
     @action(detail=True, methods=['get'])
     def attendees(self, request, pk=None):

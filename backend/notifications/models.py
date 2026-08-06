@@ -64,13 +64,19 @@ NOTIFICATION_TYPES = [
     ('booking_confirmed', 'Your booking was confirmed'),
     ('booking_declined', 'Your booking request was declined'),
     ('booking_cancelled', 'A booking was cancelled'),
-    # One-off events (events/). Three types, and the set is deliberately small: a host is told when
-    # somebody says they are coming, and everybody holding a seat is told when the event moves or is
-    # called off. A decline is deliberately NOT a type — see events/services.py for why telling a
-    # host about every "no" would make hosting a well-attended event unpleasant.
+    # One-off events (events/). A host is told when somebody says they are coming, and everybody
+    # holding a seat is told when the event moves, is called off, or the host posts an update. A
+    # decline is deliberately NOT a type — see events/services.py for why telling a host about every
+    # "no" would make hosting a well-attended event unpleasant.
     ('event_attendance', 'Somebody is coming to your event'),
     ('event_updated', 'An event you are going to has changed'),
     ('event_cancelled', 'An event you were going to was called off'),
+    # Kept separate from `event_updated` even though both mean "something about this event changed",
+    # because the two ask different things of the reader. `event_updated` fires when the time or the
+    # place moved — the reader must go and rearrange their evening. This fires when the host wrote
+    # something — the reader should go and read it. Collapsing them would make the urgent one
+    # indistinguishable from "the slides are up", which is how people learn to ignore both.
+    ('event_posted', 'A new update on an event you are going to'),
 ]
 
 

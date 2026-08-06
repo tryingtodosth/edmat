@@ -197,6 +197,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		taxonomyMerged: 'notifyOnModerationDecision',
 		taxonomyMoved: 'notifyOnModerationDecision',
 		taxonomyRejected: 'notifyOnModerationDecision'
+		eventPosted: 'notifyOnEvent'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -232,6 +233,7 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	taxonomyMerged: m.notifPref_taxonomyMerged,
 	taxonomyMoved: m.notifPref_taxonomyMoved,
 	taxonomyRejected: m.notifPref_taxonomyRejected
+	eventPosted: m.notifPref_eventPosted
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)

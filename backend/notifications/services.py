@@ -62,6 +62,7 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'taxonomy_merged': 'notify_on_moderation_decision',
     'taxonomy_moved': 'notify_on_moderation_decision',
     'taxonomy_rejected': 'notify_on_moderation_decision',
+    'event_posted': 'notify_on_event',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile

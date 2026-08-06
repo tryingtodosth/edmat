@@ -79,6 +79,9 @@
 			}),
 		eventUpdated: () => m.notification_eventUpdated({ title: notification.targetLabel }),
 		eventCancelled: () => m.notification_eventCancelled({ title: notification.targetLabel }),
+		// `note` carries the post's own opening words and renders on its own line below, so this says
+		// what happened rather than repeating it — the same restraint courseNewLesson follows.
+		eventPosted: () => m.notification_eventPosted({ title: notification.targetLabel }),
 		bookingCancelled: () =>
 			m.notification_bookingCancelled({
 				actor: notification.actorDisplayName || m.notification_someone(),

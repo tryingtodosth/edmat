@@ -33,9 +33,9 @@ export type NotificationType =
 	| 'bookingConfirmed'
 	| 'bookingDeclined'
 	| 'bookingCancelled'
-	// One-off events (events/). Three, and the set is deliberately small: the host is told when
-	// somebody says they are coming, and the people holding a seat are told when it moves or is
-	// called off. A decline is not a type — see the backend's own note on why.
+	// One-off events (events/). The host is told when somebody says they are coming, and the people
+	// holding a seat are told when it moves, is called off, or the host posts an update. A decline is
+	// not a type — see the backend's own note on why.
 	| 'eventAttendance'
 	| 'eventUpdated'
 	| 'eventCancelled'
@@ -46,6 +46,10 @@ export type NotificationType =
 	| 'taxonomyMerged'
 	| 'taxonomyMoved'
 	| 'taxonomyRejected';
+	// Kept apart from `eventUpdated` even though both mean "something changed". That one means the
+	// time or the place moved and the reader must rearrange their evening; this one means the host
+	// wrote something and the reader should go and read it. `note` carries its opening words.
+	| 'eventPosted';
 
 export interface Notification {
 	id: string;

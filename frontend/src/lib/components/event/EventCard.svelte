@@ -47,6 +47,11 @@
 		{m.events_byHost({ name: event.host.displayName })}
 		· {LOCATION_LABEL[event.locationKind]()}
 		· {seatsLine}
+		<!-- Only when there are any. A card reading "0 updates" spends a line to say nothing, and
+		     would put that line on every event on the page, since most events never get one. -->
+		{#if event.postCount > 0}
+			· <span class="updates">{m.eventPosts_count({ count: event.postCount })}</span>
+		{/if}
 	</p>
 	{#if event.isHost}
 		<span class="mine">{m.events_youAreHosting()}</span>
@@ -102,6 +107,12 @@
 	}
 	.mine {
 		font-size: var(--font-size-xs);
+		color: var(--accent);
+		font-weight: 600;
+	}
+	// Weighted up out of the muted meta line it sits in: "the room moved this morning" is the one
+	// thing on this card that can be newer than the card itself.
+	.updates {
 		color: var(--accent);
 		font-weight: 600;
 	}
