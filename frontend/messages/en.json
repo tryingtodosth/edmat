@@ -578,6 +578,8 @@
   "services_statusActive": "Active",
   "services_statusPaused": "Paused",
   "services_deleteConfirm": "Delete this listing? This can't be undone.",
+  "services_deleteHeading": "Delete listing",
+  "services_editListing": "Edit listing",
   "services_contact": "Contact",
   "services_contactSubject": "About your listing: {title}",
   "services_notFound": "Listing not found.",
