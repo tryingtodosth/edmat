@@ -577,6 +577,8 @@
   "services_statusActive": "Aktywna",
   "services_statusPaused": "Wstrzymana",
   "services_deleteConfirm": "Usunąć tę ofertę? Tej operacji nie można cofnąć.",
+  "services_deleteHeading": "Usuń ofertę",
+  "services_editListing": "Edytuj ofertę",
   "services_contact": "Skontaktuj się",
   "services_contactSubject": "W sprawie oferty: {title}",
   "services_notFound": "Nie znaleziono oferty.",
