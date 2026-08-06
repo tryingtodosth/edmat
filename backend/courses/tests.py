@@ -1526,3 +1526,68 @@ class AttachmentTests(ApiTestCase):
         refused = self._upload(name='second.pdf', size=100)
         self.assertEqual(refused.status_code, 400)
         self.assertEqual(refused.data['detail'], 'upload_quota_exceeded')
+
+
+class LessonDiscussionTests(ApiTestCase):
+    """A lesson holds its own conversation, alongside its materials and exercises.
+
+    What matters is that it is not a way around the course's own rules: a course whose discussion is
+    off, or participants-only, must not become readable one level down.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Week 1')
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Mon')
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+
+    def _url(self):
+        return f'/api/courses/{self.course.pk}/lessons/{self.lesson.pk}/comments/'
+
+    def test_a_participant_posts_and_reads(self):
+        posted = self.as_(self.student).post(
+            self._url(), {'body': 'Is task 3 a typo?'}, format='json'
+        )
+        self.assertEqual(posted.status_code, 201)
+        rows = self.as_(self.student).get(self._url()).data
+        self.assertEqual([c['body'] for c in rows], ['Is task 3 a typo?'])
+
+    def test_the_thread_is_the_lessons_own_not_the_courses(self):
+        """The whole point of putting it here: a question about Tuesday stays with Tuesday."""
+        self.as_(self.student).post(self._url(), {'body': 'about this lesson'}, format='json')
+        on_course = self.as_(self.student).get(f'/api/courses/{self.course.pk}/comments/').data
+        self.assertEqual(on_course, [], 'the course-wide thread is a different conversation')
+
+    def test_a_second_lesson_has_its_own_thread(self):
+        other = Lesson.objects.create(chapter=self.chapter, title='Tue')
+        self.as_(self.student).post(self._url(), {'body': 'monday'}, format='json')
+        rows = self.as_(self.student).get(
+            f'/api/courses/{self.course.pk}/lessons/{other.pk}/comments/'
+        ).data
+        self.assertEqual(rows, [])
+
+    def test_a_stranger_cannot_post(self):
+        res = self.as_(self.other).post(self._url(), {'body': 'hello'}, format='json')
+        self.assertIn(res.status_code, (403, 404))
+
+    def test_discussion_off_closes_the_lesson_thread_too(self):
+        self.course.discussion_mode = 'off'
+        self.course.save()
+        self.assertEqual(self.as_(self.student).get(self._url()).status_code, 404)
+
+    def test_an_empty_body_is_refused(self):
+        res = self.as_(self.student).post(self._url(), {'body': '   '}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_a_lesson_from_another_course_is_not_reachable_here(self):
+        elsewhere = Lesson.objects.create(
+            chapter=Chapter.objects.create(
+                course=self.make_course(title='Theirs'), title='Theirs'
+            ),
+            title='Their session',
+        )
+        res = self.as_(self.student).get(
+            f'/api/courses/{self.course.pk}/lessons/{elsewhere.pk}/comments/'
+        )
+        self.assertEqual(res.status_code, 404)

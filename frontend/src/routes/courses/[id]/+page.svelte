@@ -7,7 +7,6 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import {
 		addCourseStaff,
-		addLesson,
 		createChapter,
 		createInvite,
 		decideCourseItem,
@@ -87,13 +86,6 @@
 		].filter((item) => item.status === 'pending')
 	);
 
-	let newLessonTitle = $state('');
-	let newLessonNotes = $state('');
-	// A lesson lives in a chapter, so adding one has to say which. Defaults to the first chapter
-	// rather than to nothing: with a single chapter — which is most courses — the select is a
-	// formality and pre-filling it removes a step that has only one right answer.
-	let newLessonChapter = $state('');
-	let allLessons = $derived((course?.chapters ?? []).flatMap((c) => c.lessons));
 
 	let comments = $state<Comment[]>([]);
 
@@ -472,124 +464,22 @@
 
 		<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
 		     are the part worth joining for, and the API blanks them for anyone who has not. -->
-		<!-- Everything for running the course, in one place and shut by default.
-		     Before this the four management forms sat open between "Content" and "Lessons", so an
-		     owner met four empty forms demanding input before reaching anything readable — and the
-		     page they saw was nothing like the page they were publishing. Collapsed disclosures keep
-		     the course reading identically for everybody; managing it is a deliberate click.
-
-		     `<details>` rather than a bespoke accordion: it is keyboard- and screen-reader-correct for
-		     free, and this app has no accordion component to reuse. -->
+		<!-- Running the course lives on its own page now. It used to be four collapsed drawers here,
+		     which meant a participant scrolled past sections they cannot act on, and an instructor
+		     found the thing they came to do always shut. -->
 		{#if course.canCurate || course.canAdminister}
-			<section class="manage">
-				<h2>{m.course_manageHeading()}</h2>
+			<p class="manage-link">
+				<a href={resolve('/courses/[id]/manage', { id: course.id })}>
+					{m.course_manage_link()}
+				</a>
 				{#if course.pendingContributionCount > 0}
-					<!-- The one thing worth pulling out of a shut drawer: somebody is waiting on a
-					     decision, and a queue nobody is told about is a queue that stalls. -->
-					<p class="manage__badge">
+					<!-- Surfaced here rather than only on the manage page: a queue nobody is told about
+					     is a queue that stalls. -->
+					<span class="manage-link__badge">
 						{m.course_review_count({ count: course.pendingContributionCount })}
-					</p>
+					</span>
 				{/if}
-
-				{#if course.canCurate}
-					<details class="manage__group" open={course.pendingContributionCount > 0}>
-						<summary>{m.course_manage_review()}</summary>
-						{#if course.canCurate && pendingItems.length > 0}
-							<CourseReviewQueue
-								pending={pendingItems}
-								{busy}
-								ondecide={(itemId, decision, note) =>
-									act(
-										() => decideCourseItem(course!.id, itemId, decision, note),
-										(msg) => (contributeError = msg)
-									)}
-							/>
-						{/if}
-					</details>
-
-					<details class="manage__group">
-						<summary>{m.course_manage_content()}</summary>
-						{#if course.canCurate}
-							<section class="chapter-new">
-								<h2>{m.course_chapters_heading()}</h2>
-								<form onsubmit={addChapter}>
-									<label class="field">
-										<span>{m.course_chapters_title()}</span>
-										<input type="text" bind:value={newChapterTitle} maxlength="200" required />
-									</label>
-									<label class="field">
-										<span>{m.course_chapters_unlocksAt()}</span>
-										<input type="datetime-local" bind:value={newChapterUnlocksAt} />
-										<!-- Empty means open immediately, which is genuinely different from a date in the
-									     past: the first was never gated at all. -->
-										<span class="hint">{m.course_chapters_unlocksAtHint()}</span>
-									</label>
-									<button type="submit" class="small" disabled={busy}>
-										{m.course_chapters_add()}
-									</button>
-								</form>
-							</section>
-						{/if}
-						{#if course.canContribute}
-							<CourseContribute
-								{course}
-								{busy}
-								error={contributeError}
-								notice={contributeNotice}
-								onsubmit={contribute}
-							/>
-						{/if}
-					</details>
-				{/if}
-
-				{#if course.canAdminister}
-					<details class="manage__group">
-						<summary>{m.course_manage_people()}</summary>
-						{#if staff.length > 0}
-							<CourseStaffPanel
-								{course}
-								{staff}
-								error={staffError}
-								onadd={(userId, role) =>
-									act(
-										() => addCourseStaff(course!.id, userId, role),
-										(msg) => (staffError = msg)
-									)}
-								onrole={(staffId, role) =>
-									act(
-										() => setCourseStaffRole(course!.id, staffId, role),
-										(msg) => (staffError = msg)
-									)}
-								onremove={(staffId) =>
-									act(
-										() => removeCourseStaff(course!.id, staffId),
-										(msg) => (staffError = msg)
-									)}
-							/>
-						{/if}
-					</details>
-
-					<details class="manage__group">
-						<summary>{m.course_manage_invites()}</summary>
-						{#if course.canAdminister}
-							<CourseInvites
-								{invites}
-								error={inviteError}
-								oncreate={(draft) =>
-									act(
-										() => createInvite(course!.id, draft),
-										(msg) => (inviteError = msg)
-									)}
-								onrevoke={(inviteId) =>
-									act(
-										() => revokeInvite(course!.id, inviteId),
-										(msg) => (inviteError = msg)
-									)}
-							/>
-						{/if}
-					</details>
-				{/if}
-			</section>
+			</p>
 		{/if}
 
 		{#if course.canContribute && !course.canCurate}
@@ -603,86 +493,6 @@
 				/>
 			{/if}
 		{/if}
-
-		<section class="lessons">
-			<h2>{m.course_lessonsHeading()}</h2>
-			{#if course.lessons.length === 0}
-				<p class="status">{m.course_noLessons()}</p>
-			{:else}
-				<ol>
-					{#each course.lessons as lesson (lesson.id)}
-						<li>
-							<div class="lesson-head">
-								<strong>{lesson.title}</strong>
-								{#if lesson.scheduledAt}
-									<span class="meta">{new Date(lesson.scheduledAt).toLocaleString()}</span>
-								{/if}
-							</div>
-							{#if lesson.description}<p class="meta">{lesson.description}</p>{/if}
-							{#if lesson.participantNotes}
-								<p class="notes">{lesson.participantNotes}</p>
-							{:else if !isActive && !course.isInstructor}
-								<p class="meta locked">{m.course_notesForParticipants()}</p>
-							{/if}
-							{#if course.isInstructor}
-								<button
-									type="button"
-									class="danger small"
-									disabled={busy}
-									onclick={() => run(() => deleteLesson(course!.id, lesson.id))}
-								>
-									{m.course_deleteLesson()}
-								</button>
-							{/if}
-						</li>
-					{/each}
-				</ol>
-			{/if}
-
-			{#if course.isInstructor}
-				<form
-					class="add-lesson"
-					onsubmit={(e) => {
-						e.preventDefault();
-						const title = newLessonTitle.trim();
-						if (!title) return;
-						run(async () => {
-							const chapterId = newLessonChapter || course!.chapters[0]?.id;
-							if (!chapterId) return;
-							await addLesson(course!.id, {
-								chapterId,
-								title,
-								description: '',
-								order: allLessons.length + 1,
-								scheduledAt: null,
-								durationMinutes: null,
-								participantNotes: newLessonNotes
-							});
-							newLessonTitle = '';
-							newLessonNotes = '';
-						});
-					}}
-				>
-					<label class="field">
-						<span>{m.course_newLessonChapter()}</span>
-						<select bind:value={newLessonChapter}>
-							{#each course.chapters as chapter (chapter.id)}
-								<option value={chapter.id}>{chapter.title}</option>
-							{/each}
-						</select>
-					</label>
-					<label class="field">
-						<span>{m.course_newLessonTitle()}</span>
-						<input type="text" bind:value={newLessonTitle} maxlength="200" />
-					</label>
-					<label class="field">
-						<span>{m.course_newLessonNotes()}</span>
-						<textarea bind:value={newLessonNotes} rows="2"></textarea>
-					</label>
-					<button type="submit" class="primary" disabled={busy}>{m.course_addLesson()}</button>
-				</form>
-			{/if}
-		</section>
 
 		<!-- The discussion. `canReadDiscussion`/`canPostDiscussion` are resolved server-side, because
 		     whether this viewer may read or post depends on the course's mode AND their membership. -->
@@ -882,72 +692,10 @@
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;
 
-	.manage {
-		@include mix.card-surface;
-		padding: var(--space-4);
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-	.manage__badge {
-		align-self: flex-start;
-		font-size: var(--font-size-xs);
-		font-weight: 600;
-		color: var(--bg-surface);
-		background: var(--accent);
-		border-radius: var(--radius-sm);
-		padding: 2px var(--space-2);
-	}
-	.manage__group {
-		border: 1px solid var(--border-color);
-		border-radius: var(--radius-sm);
-	}
-	.manage__group > summary {
-		cursor: pointer;
-		padding: var(--space-2) var(--space-3);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-	}
-	.manage__group[open] > summary {
-		border-bottom: 1px solid var(--border-color);
-	}
-	.manage__group > :global(*:not(summary)) {
-		padding: var(--space-3);
-	}
 	/* The panels inside a drawer were written as top-level sections and carry their own h2, which at
 	   page size competed with the drawer label right above it. Demoted visually only — the heading
 	   level itself is left alone, since that is what a screen reader navigates by. */
-	.manage__group :global(h2) {
-		font-size: var(--font-size-sm);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--text-secondary);
-	}
 
-	.chapter-new form {
-		display: flex;
-		gap: var(--space-2);
-		align-items: flex-end;
-		flex-wrap: wrap;
-	}
-	.chapter-new .field {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-		font-size: var(--font-size-sm);
-	}
-	.chapter-new .hint {
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-	}
-	.chapter-new input {
-		@include mix.focus-ring;
-		padding: var(--space-1) var(--space-2);
-		border: 1px solid var(--border-color);
-		border-radius: var(--radius-sm);
-		background: var(--bg-surface);
-		color: var(--text-primary);
-	}
 
 	.page {
 		max-width: 800px;
@@ -978,20 +726,11 @@
 		gap: var(--space-2);
 		font-size: var(--font-size-sm);
 	}
-	.locked {
-		font-style: italic;
-	}
-	.notes {
-		border-left: 3px solid var(--accent);
-		padding-left: var(--space-3);
-		white-space: pre-wrap;
-	}
 	.error {
 		color: var(--status-danger);
 		font-size: var(--font-size-sm);
 	}
 	.enrol,
-	.lessons,
 	.roster,
 	.discussion-section,
 	.mute-section {
@@ -1000,6 +739,19 @@
 		gap: var(--space-2);
 		padding-top: var(--space-3);
 		border-top: 1px solid var(--border-color);
+	}
+	.manage-link {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		a {
+			color: var(--accent);
+			font-weight: 600;
+		}
+	}
+	.manage-link__badge {
+		font-size: var(--font-size-sm);
+		color: var(--status-danger);
 	}
 	.actions {
 		display: flex;
@@ -1033,7 +785,6 @@
 		padding: var(--space-1) var(--space-2);
 		font-size: var(--font-size-xs);
 	}
-	ol,
 	ul {
 		display: flex;
 		flex-direction: column;
@@ -1051,12 +802,6 @@
 		align-items: flex-start;
 		gap: var(--space-2);
 	}
-	.lesson-head {
-		display: flex;
-		gap: var(--space-2);
-		align-items: baseline;
-		justify-content: space-between;
-	}
 	.field {
 		display: flex;
 		flex-direction: column;
@@ -1072,11 +817,5 @@
 		border-radius: var(--radius-sm);
 		background: var(--bg-page);
 		font: inherit;
-	}
-	.add-lesson {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-		padding-top: var(--space-2);
 	}
 </style>

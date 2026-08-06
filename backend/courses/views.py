@@ -520,6 +520,53 @@ class CourseViewSet(viewsets.ModelViewSet):
         row.save(update_fields=['role'])
         return Response(CourseStaffSerializer(row).data)
 
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='lessons/(?P<lesson_id>[^/.]+)/comments',
+        permission_classes=[permissions.IsAuthenticatedOrReadOnly, _CoursesFeatureGate],
+    )
+    def lesson_comments(self, request, pk=None, lesson_id=None):
+        """A lesson's own conversation.
+
+        The same generic `Comment` used for exercises, materials and the course itself, pointed at
+        the Lesson — so "is task 3 a typo" stays with Tuesday's session instead of being mixed into
+        one course-wide thread where nobody can tell which week it is about. That is what makes a
+        lesson a set of materials, exercises AND its discussion rather than only the first two.
+
+        Read follows the course's own `discussion_mode`, and writing needs membership, so a lesson
+        thread cannot be a way around a course whose discussion is off or participants-only. The
+        chapter's lock applies as well: a locked week's conversation is part of its contents.
+        """
+        course = self.get_object()
+        lesson = Lesson.objects.filter(chapter__course=course, pk=lesson_id).first()
+        if lesson is None or not lesson.is_visible_to(request.user):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not course.discussion_visible_to(request.user):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        content_type = ContentType.objects.get_for_model(Lesson)
+        thread = Comment.objects.filter(
+            content_type=content_type, object_id=lesson.pk, is_removed=False
+        ).select_related('author__profile')
+
+        if request.method == 'GET':
+            return Response(CommentSerializer(thread, many=True).data)
+
+        if not course.discussion_writable_by(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        body = (request.data.get('body') or '').strip()
+        if not body:
+            raise DRFValidationError({'body': 'Write something first.'})
+        comment = Comment.objects.create(
+            content_type=content_type,
+            object_id=lesson.pk,
+            author=request.user,
+            body=body,
+            parent_id=request.data.get('parent') or None,
+        )
+        return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+
     # --- attachments --------------------------------------------------------------------------
 
     def _attachment_or_none(self, course, attachment_id, user):
