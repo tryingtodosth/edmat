@@ -59,6 +59,9 @@ export interface EdmatEvent {
 	/** Always 0 for anybody but the host — a decline is between the person who made it and the
 	 * person running the event. */
 	declinedCount: number;
+	/** How many updates the host has posted. Carried on the event itself so a listing can say an
+	 * event has news without fetching each one's feed. */
+	postCount: number;
 	/** `null` for an uncapped event, which is genuinely different from 0 (full). */
 	seatsLeft: number | null;
 	isFull: boolean;

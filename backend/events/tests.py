@@ -12,7 +12,9 @@ from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from PIL import Image
 from rest_framework.test import APIClient
@@ -978,6 +980,59 @@ class PostEditingTests(PostTestCase):
             f'/api/events/{event.pk}/posts/{post_id}/', {'image': ''}, format='multipart'
         )
         self.assertEqual(response.status_code, 400)
+
+
+class PostCountTests(PostTestCase):
+    """The count that makes the feature visible from a listing, and the prefetch that keeps it from
+    costing a query per event."""
+
+    def test_an_event_carries_how_many_updates_it_has(self):
+        event = self.make_event()
+        self.assertEqual(self.client.get(f'/api/events/{event.pk}/').json()['post_count'], 0)
+        for line in ('one', 'two'):
+            self.as_(self.host).post(
+                f'/api/events/{event.pk}/posts/', {'body': line}, format='json'
+            )
+        self.assertEqual(self.client.get(f'/api/events/{event.pk}/').json()['post_count'], 2)
+
+    def test_withdrawing_an_update_brings_the_count_back_down(self):
+        event = self.make_event()
+        response = self.as_(self.host).post(
+            f'/api/events/{event.pk}/posts/', {'body': 'one'}, format='json'
+        )
+        self.as_(self.host).delete(f'/api/events/{event.pk}/posts/{response.json()["id"]}/')
+        self.assertEqual(self.client.get(f'/api/events/{event.pk}/').json()['post_count'], 0)
+
+    def test_counting_the_updates_costs_no_queries_of_its_own(self):
+        """The check that gives the prefetch a reason to exist.
+
+        Deliberately compares five events WITHOUT updates against the same five WITH them, rather
+        than one event against five. The listing does still cost a query per event — `going_count()`
+        counts attendances per row — but that N+1 predates this field and is not what this test is
+        about. Holding the row count fixed and varying only whether they have posts isolates the one
+        claim being made: counting updates adds nothing per event.
+        """
+        events = [self.make_event(title=f'Event {index}') for index in range(5)]
+        with CaptureQueriesContext(connection) as without:
+            response = self.client.get('/api/events/?when=upcoming')
+        self.assertEqual(len(response.json()), 5)
+        self.assertEqual([e['post_count'] for e in response.json()], [0] * 5)
+
+        for event in events:
+            for line in ('one', 'two', 'three'):
+                self.as_(self.host).post(
+                    f'/api/events/{event.pk}/posts/', {'body': line}, format='json'
+                )
+
+        with CaptureQueriesContext(connection) as with_posts:
+            response = self.client.get('/api/events/?when=upcoming')
+        self.assertEqual([e['post_count'] for e in response.json()], [3] * 5)
+
+        self.assertEqual(
+            len(without.captured_queries),
+            len(with_posts.captured_queries),
+            'fifteen updates across five events must not add fifteen queries to the listing',
+        )
 
 
 class PostNotificationTests(PostTestCase):
