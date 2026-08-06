@@ -189,7 +189,8 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		// "branches" that also governed events would be a setting whose label lies.
 		eventAttendance: 'notifyOnEvent',
 		eventUpdated: 'notifyOnEvent',
-		eventCancelled: 'notifyOnEvent'
+		eventCancelled: 'notifyOnEvent',
+		eventPosted: 'notifyOnEvent'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -220,7 +221,8 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	bookingCancelled: m.notifPref_bookingCancelled,
 	eventAttendance: m.notifPref_eventAttendance,
 	eventUpdated: m.notifPref_eventUpdated,
-	eventCancelled: m.notifPref_eventCancelled
+	eventCancelled: m.notifPref_eventCancelled,
+	eventPosted: m.notifPref_eventPosted
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)

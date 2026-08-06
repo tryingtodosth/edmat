@@ -9,7 +9,9 @@ import type {
 	EventAttendanceStatus,
 	EventAttendee,
 	EventDraft,
-	EventPerson
+	EventPerson,
+	EventPost,
+	EventPostDraft
 } from '$lib/types/event';
 import { apiClient } from '$lib/api/client';
 
@@ -131,4 +133,88 @@ export async function respondToEvent(
 export async function getEventAttendees(id: string): Promise<EventAttendee[]> {
 	const raw = await apiClient.get<any[]>(`/events/${id}/attendees/`);
 	return raw.map(mapAttendee);
+}
+
+// ---- updates the host posts on the event ------------------------------------------------------
+
+function mapPost(raw: any): EventPost {
+	return {
+		id: String(raw.id),
+		// `null` rather than a blank person: the author genuinely can be gone (SET_NULL on the
+		// backend), and a nameless `{id:'', displayName:''}` would render as an empty byline instead
+		// of letting the card say the account was deleted.
+		author: raw.author ? mapPerson(raw.author) : null,
+		body: raw.body ?? '',
+		imageUrl: raw.image_url ?? '',
+		links: raw.links ?? [],
+		createdAt: raw.created_at,
+		editedAt: raw.edited_at ?? null,
+		isEdited: raw.is_edited ?? false
+	};
+}
+
+/** A post is sent as multipart whenever a file is involved, and as JSON otherwise.
+ *
+ * Not multipart always, even though it would be one code path: a form body turns every value into a
+ * string, so an empty link list would arrive as `''` rather than as "no links", and the backend's
+ * "absent means leave alone, present-and-empty means clear" rule (see its `update`) could not be
+ * expressed. JSON keeps that distinction exactly, so it is used wherever there is no file to force
+ * the issue.
+ */
+function postBody(draft: EventPostDraft): FormData | Record<string, unknown> {
+	const carriesFile = draft.image !== undefined;
+	if (!carriesFile) {
+		const body: Record<string, unknown> = {};
+		if (draft.body !== undefined) body.body = draft.body;
+		if (draft.links !== undefined) body.links = draft.links;
+		return body;
+	}
+
+	const form = new FormData();
+	if (draft.body !== undefined) form.set('body', draft.body);
+	// One repeated key per link, which is what `PostLinksField.get_value` reads with `getlist`. An
+	// empty list deliberately appends nothing, and the field then sees no `links` key at all — which
+	// on a CREATE is correct (no links) and is why clearing links on an EDIT goes through the JSON
+	// path above instead.
+	for (const link of draft.links ?? []) form.append('links', link);
+	// `null` is a real instruction ("remove the picture"), and an empty form value is how multipart
+	// can say it — the backend's `image` field is `allow_null`, and DRF reads a blank form field for
+	// a nullable file field as None.
+	form.set('image', draft.image ?? '');
+	return form;
+}
+
+export async function getEventPosts(eventId: string): Promise<EventPost[]> {
+	const raw = await apiClient.get<any[]>(`/events/${eventId}/posts/`);
+	return raw.map(mapPost);
+}
+
+export async function createEventPost(
+	eventId: string,
+	draft: EventPostDraft
+): Promise<EventPost> {
+	const body = postBody(draft);
+	const raw =
+		body instanceof FormData
+			? await apiClient.postForm<any>(`/events/${eventId}/posts/`, body)
+			: await apiClient.post<any>(`/events/${eventId}/posts/`, body);
+	return mapPost(raw);
+}
+
+export async function updateEventPost(
+	eventId: string,
+	postId: string,
+	draft: EventPostDraft
+): Promise<EventPost> {
+	const body = postBody(draft);
+	const path = `/events/${eventId}/posts/${postId}/`;
+	const raw =
+		body instanceof FormData
+			? await apiClient.patchForm<any>(path, body)
+			: await apiClient.patch<any>(path, body);
+	return mapPost(raw);
+}
+
+export async function deleteEventPost(eventId: string, postId: string): Promise<void> {
+	await apiClient.delete(`/events/${eventId}/posts/${postId}/`);
 }

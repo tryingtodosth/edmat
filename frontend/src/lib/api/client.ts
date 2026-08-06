@@ -92,6 +92,13 @@ export const apiClient = {
 	patch<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'PATCH', body: toBody(data) });
 	},
+	// `postForm`'s counterpart, for editing a record that carries a file. Needed the moment an upload
+	// is something you can CHANGE rather than only create — an event post whose picture the host
+	// wants to swap has no other route: the file cannot go through `patch`, because JSON has no way
+	// to carry it, and doing it as a second POST would mean the post briefly showing the old picture.
+	patchForm<T>(path: string, formData: FormData): Promise<T> {
+		return request<T>(path, { method: 'PATCH', body: formData });
+	},
 	// A genuine full-replace call (the materials-requirements governor edit, materials.ts's
 	// setMaterialRequirements) — PUT reads more honestly than PATCH for "replace this whole list,"
 	// and every prior HTTP-verb helper here already follows the same thin one-liner shape.
