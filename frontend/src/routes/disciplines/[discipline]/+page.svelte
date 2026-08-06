@@ -9,6 +9,7 @@
 	import BranchCard from '$lib/components/branch/BranchCard.svelte';
 	import { isPending, splitByStatus } from '$lib/utils/taxonomy';
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
+	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
 
 	let field = $state<Discipline | undefined>(undefined);
 	let branches = $state<Branch[]>([]);
@@ -22,14 +23,25 @@
 	async function load(disciplineId: string) {
 		loading = true;
 		notFound = false;
-		const f = await getDisciplineById(disciplineId);
+		// The preloaded tree answers both of these without a request, so a click from the index
+		// paints immediately. It still falls back to a direct fetch, because a deep link to this URL
+		// can arrive before the preload has finished — and because a node proposed in another tab
+		// would not be in the copy this one loaded.
+		await taxonomyStore.preload();
+		const f = taxonomyStore.disciplineById(disciplineId) ?? (await getDisciplineById(disciplineId));
 		if (!f) {
 			notFound = true;
 			loading = false;
 			return;
 		}
 		field = f;
-		branches = await getBranchesForDiscipline(disciplineId);
+		const known = taxonomyStore.branchesFor(disciplineId);
+		branches = known.length > 0 ? known : await getBranchesForDiscipline(disciplineId);
+		loading = false;
+
+		// Exercise counts are genuinely per-branch and not part of the taxonomy, so they stay a
+		// fetch — but after `loading` is cleared, so the grid is on screen while they arrive rather
+		// than the whole page waiting on them.
 		const counts: Record<string, number> = {};
 		await Promise.all(
 			branches.map(async (c) => {
@@ -37,7 +49,6 @@
 			})
 		);
 		exerciseCounts = counts;
-		loading = false;
 	}
 
 	// See routes/exercises/[id]/+page.svelte's own note on why this guard exists — an
