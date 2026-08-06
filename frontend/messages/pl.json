@@ -40,7 +40,7 @@
   "nav_mainNavigation": "Nawigacja główna",
   "nav_breadcrumb": "Ścieżka nawigacji",
   "footer_sourceNote": "Treść zainicjowana bazą zadań z kursów matematyki i informatyki Uniwersytetu Warszawskiego.",
-  "footer_phaseNote": "Prototyp — Faza 1, w pełni zamockowany frontend. Nic tu jeszcze nie zapisuje się na prawdziwym serwerze.",
+  "footer_phaseNote": "Prototyp — to prawdziwy serwer, a to, co tu zapiszesz, naprawdę zostaje zapisane.",
   "random_quickRoll": "Losowe zadanie",
   "random_openFilters": "Filtruj losowe zadanie",
   "random_heading": "Losowe zadanie",
@@ -1262,5 +1262,10 @@
   "notifPref_materialSubmissionApproved": "Materiał przyjęty",
   "notification_materialSubmissionRejected": "Twój materiał „{title}\" nie został opublikowany.",
   "notifPref_materialSubmissionRejected": "Materiał odrzucony",
-  "taxonomy_propose_materialType": "Zaproponuj rodzaj"
+  "taxonomy_propose_materialType": "Zaproponuj rodzaj",
+  "course_tab_content": "Treść",
+  "course_tab_attachments": "Pliki",
+  "course_tab_notes": "Moje notatki",
+  "course_tab_discussion": "Dyskusja",
+  "course_tab_people": "Osoby"
 }
