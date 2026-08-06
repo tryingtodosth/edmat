@@ -10,12 +10,13 @@
 	import { getBranchesForDiscipline, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { materialsUiStore } from '$lib/state/materialsUi.svelte';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
-	import {
-		MATERIAL_SORTS,
-		MATERIAL_SORT_LABELS,
-		MATERIAL_TYPES,
-		MATERIAL_TYPE_LABELS
-	} from '$lib/utils/labels';
+	import { MATERIAL_SORTS, MATERIAL_SORT_LABELS } from '$lib/utils/labels';
+	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
+
+	// Same slug-as-id mapping the submit form uses — see its own note.
+	let typeOptions = $derived(
+		materialTypesStore.list.map((t) => ({ id: t.slug, name: t.name, status: t.status }))
+	);
 
 	let {
 		filters = $bindable(),
@@ -112,9 +113,7 @@
 		<span>{m.materialFilters_type()}</span>
 		<select bind:value={filters.type}>
 			<option value={undefined}>{m.materialFilters_type_all()}</option>
-			{#each MATERIAL_TYPES as type (type)}
-				<option value={type}>{MATERIAL_TYPE_LABELS[type]()}</option>
-			{/each}
+			<TaxonomyOptions nodes={typeOptions} />
 		</select>
 	</label>
 

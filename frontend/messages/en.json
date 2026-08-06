@@ -1261,5 +1261,6 @@
   "notification_materialSubmissionApproved": "Your material \"{title}\" was published.",
   "notifPref_materialSubmissionApproved": "Material upload approved",
   "notification_materialSubmissionRejected": "Your material \"{title}\" was not published.",
-  "notifPref_materialSubmissionRejected": "Material upload rejected"
+  "notifPref_materialSubmissionRejected": "Material upload rejected",
+  "taxonomy_propose_materialType": "Suggest a kind"
 }

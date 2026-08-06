@@ -4,7 +4,7 @@ import time
 
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from community.models import Comment
 from exercises.models import Tag
@@ -14,12 +14,20 @@ from materials.models import (
     MaterialRequirement,
     MaterialRequirementVote,
     MaterialReview,
+    MaterialType,
     MaterialView,
 )
 from materials.services import get_recommended_materials
 from moderation.models import NodeGovernor
 from taxonomy.models import Branch
-from testing.factories import make_course, make_exercise, make_material, make_topic, make_user
+from testing.factories import (
+    make_branch,
+    make_course,
+    make_exercise,
+    make_material,
+    make_topic,
+    make_user,
+)
 
 
 class MaterialListingTests(APITestCase):
@@ -840,3 +848,159 @@ class MaterialCommentsTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
+
+
+class MaterialTypeVocabularyTests(APITestCase):
+    """The thirteen hardcoded `choices` are now rows anybody can add to.
+
+    The properties that matter: the built-ins survived the migration with both languages intact
+    (otherwise every Polish label would silently have become English the moment the UI started
+    reading names from the API), a pending type is usable immediately, and merging a duplicate
+    re-points the materials filed under it rather than orphaning them.
+    """
+
+    def setUp(self):
+        self.user = make_user('type-student')
+        self.moderator = make_user('type-mod', is_staff=True)
+        self.branch = make_branch()
+
+    def _client(self, who=None):
+        client = APIClient()
+        if who:
+            client.force_authenticate(who)
+        return client
+
+    def _propose(self, who, name):
+        return self._client(who).post(
+            reverse('taxonomy-propose'),
+            {'kind': 'material_type', 'name': name},
+            format='json',
+        )
+
+    def _decide(self, node, decision, **extra):
+        return self._client(self.moderator).post(
+            reverse('moderation-taxonomy-action', kwargs={'kind': 'material_type', 'pk': node.pk}),
+            {'decision': decision, **extra},
+            format='json',
+        )
+
+    def test_the_builtin_types_survived_with_both_languages(self):
+        script = MaterialType.objects.get(slug='script')
+        self.assertEqual(script.status, 'approved')
+        self.assertEqual(script.translations.get(locale='pl').name, 'Skrypt')
+        self.assertEqual(script.translations.get(locale='en').name, 'Course script')
+
+    def test_the_list_is_public_and_resolves_the_readers_language(self):
+        rows = self.client.get('/api/material-types/', {'lang': 'en'}).data
+        self.assertEqual({r['slug']: r['name'] for r in rows}['script'], 'Course script')
+        rows = self.client.get('/api/material-types/', {'lang': 'pl'}).data
+        self.assertEqual({r['slug']: r['name'] for r in rows}['script'], 'Skrypt')
+
+    def test_anybody_signed_in_can_propose_one(self):
+        res = self._propose(self.user, 'Lab notebook')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data['status'], 'pending')
+        node = MaterialType.objects.get(slug='lab-notebook')
+        self.assertEqual(node.proposed_by, self.user)
+        self.assertEqual(node.translations.get(locale='pl').name, 'Lab notebook')
+
+    def test_a_moderators_own_proposal_is_live_at_once(self):
+        self.assertEqual(self._propose(self.moderator, 'Cheat sheet').data['status'], 'approved')
+
+    def test_proposing_needs_an_account(self):
+        res = self._client().post(
+            reverse('taxonomy-propose'),
+            {'kind': 'material_type', 'name': 'Lab notebook'},
+            format='json',
+        )
+        self.assertIn(res.status_code, (401, 403))
+
+    def test_a_pending_type_is_listed_so_the_picker_can_group_it(self):
+        self._propose(self.user, 'Lab notebook')
+        rows = self.client.get('/api/material-types/').data
+        self.assertEqual({r['slug']: r['status'] for r in rows}['lab-notebook'], 'pending')
+
+    def test_a_material_can_be_filed_under_a_pending_type_right_away(self):
+        """The whole reason a proposal is real rather than parked in a side table."""
+        from materials.validators import validate_material_type
+
+        self._propose(self.user, 'Lab notebook')
+        self.assertEqual(validate_material_type('lab-notebook'), 'lab-notebook')
+
+    def test_a_type_nobody_proposed_is_refused(self):
+        from django.core.exceptions import ValidationError
+
+        from materials.validators import validate_material_type
+
+        with self.assertRaises(ValidationError):
+            validate_material_type('not-a-real-type')
+
+    def test_a_duplicate_proposal_is_refused(self):
+        self.assertEqual(
+            self._propose(self.user, 'Syllabus').status_code, status.HTTP_400_BAD_REQUEST
+        )
+
+    def test_approving_makes_it_settled(self):
+        self._propose(self.user, 'Lab notebook')
+        node = MaterialType.objects.get(slug='lab-notebook')
+        self.assertEqual(self._decide(node, 'approve').status_code, status.HTTP_200_OK)
+        node.refresh_from_db()
+        self.assertEqual(node.status, 'approved')
+
+    def test_merging_a_duplicate_repoints_the_materials_filed_under_it(self):
+        """A slug column, so nothing cascades — which is exactly why the merge has to rewrite it."""
+        self._propose(self.user, 'Skrypt kursu')
+        node = MaterialType.objects.get(slug='skrypt-kursu')
+        material = make_material(self.branch)
+        material.type = 'skrypt-kursu'
+        material.save(update_fields=['type'])
+
+        self.assertEqual(self._decide(node, 'merge', target='script').status_code, 200)
+        material.refresh_from_db()
+        self.assertEqual(material.type, 'script', 'the material followed the merge')
+        self.assertFalse(MaterialType.objects.filter(slug='skrypt-kursu').exists())
+
+    def test_rejecting_a_type_that_materials_use_is_refused(self):
+        """Deleting the row would not delete the materials — it would leave them naming a type
+        nobody can look up, which is its own kind of quiet damage."""
+        self._propose(self.user, 'Lab notebook')
+        node = MaterialType.objects.get(slug='lab-notebook')
+        material = make_material(self.branch)
+        material.type = 'lab-notebook'
+        material.save(update_fields=['type'])
+
+        res = self._decide(node, 'reject')
+        self.assertEqual(res.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(res.data['attached']['materials'], 1)
+        self.assertTrue(MaterialType.objects.filter(slug='lab-notebook').exists())
+
+    def test_an_unused_type_can_be_rejected(self):
+        self._propose(self.user, 'Lab notebook')
+        node = MaterialType.objects.get(slug='lab-notebook')
+        self.assertEqual(self._decide(node, 'reject', note='not a kind of thing').status_code, 200)
+        self.assertFalse(MaterialType.objects.filter(slug='lab-notebook').exists())
+
+    def test_a_type_has_nothing_to_move_under(self):
+        self._propose(self.user, 'Lab notebook')
+        node = MaterialType.objects.get(slug='lab-notebook')
+        self.assertEqual(
+            self._decide(node, 'move', target='script').status_code, status.HTTP_400_BAD_REQUEST
+        )
+
+    def test_a_pending_type_reaches_the_moderation_queue(self):
+        self._propose(self.user, 'Lab notebook')
+        res = self._client(self.moderator).get(reverse('moderation-queue'))
+        self.assertIn(
+            'material_type', {row['kind'] for row in res.data['taxonomy_proposals']}
+        )
+
+    def test_the_proposer_is_told_what_was_decided(self):
+        """It rides on the same reply every other proposal decision already sends."""
+        from notifications.models import Notification
+
+        self._propose(self.user, 'Lab notebook')
+        node = MaterialType.objects.get(slug='lab-notebook')
+        self._decide(node, 'approve')
+        [n] = Notification.objects.filter(recipient=self.user)
+        self.assertEqual(n.type, 'taxonomy_approved')
+        self.assertEqual(n.target_label, 'Lab notebook')

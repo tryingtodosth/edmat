@@ -12,7 +12,14 @@ export type CommentTargetType =
 	| 'service'
 	// A branch run by a user (classroom.Course) — the same generic Comment mechanism, so the
 	// thread, the tree builder and the report flow all come for free.
-	| 'taughtCourse';
+	| 'taughtCourse'
+	// The three review kinds. Replying to somebody's review is not a new kind of object — it is a
+	// Comment whose target happens to be a Review, which is why it inherits the same threading,
+	// reporting and moderation everything else here already has. All three exist because
+	// ReviewList.svelte renders all three from one component.
+	| 'review'
+	| 'materialReview'
+	| 'serviceReview';
 
 export interface Comment {
 	id: string;
@@ -27,4 +34,11 @@ export interface Comment {
 	// independent of — and possibly without ever becoming — isRemoved. Distinct on purpose: this is
 	// reversible ("restore," a moderator decided the reports were unfounded), isRemoved isn't.
 	isAutoHidden: boolean;
+	// True once the author has edited it. Surfaced because a comment can already have replies
+	// answering what it used to say — see the backend field's own note.
+	isEdited: boolean;
+	// The author took it down themselves, as opposed to a moderator removing it. Both blank the
+	// body; only this decides which of the two the reader is told, and telling them the wrong one
+	// is a placeholder that lies about what happened to somebody's words.
+	removedByAuthor: boolean;
 }

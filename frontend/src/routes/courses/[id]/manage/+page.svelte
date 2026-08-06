@@ -150,9 +150,7 @@
 								title,
 								description: '',
 								order: (course!.chapters?.length ?? 0) + 1,
-								unlocksAt: newChapterUnlocksAt
-									? new Date(newChapterUnlocksAt).toISOString()
-									: null
+								unlocksAt: newChapterUnlocksAt ? new Date(newChapterUnlocksAt).toISOString() : null
 							}),
 						(msg) => (staffError = msg)
 					).then(() => {
@@ -190,8 +188,7 @@
 					)}
 				onrole={(staffId, role) =>
 					act(
-						() =>
-							setCourseStaffRole(course!.id, staffId, role as Exclude<StaffRole, 'owner'>),
+						() => setCourseStaffRole(course!.id, staffId, role as Exclude<StaffRole, 'owner'>),
 						(msg) => (staffError = msg)
 					)}
 				onremove={(staffId) =>

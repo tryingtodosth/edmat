@@ -17,6 +17,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import { proposeTaxonomyNode } from '$lib/services/taxonomy';
+	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
 
 	let {
@@ -24,7 +25,10 @@
 		parent,
 		onproposed
 	}: {
-		kind: 'discipline' | 'branch' | 'topic';
+		// `material_type` is not a taxonomy node, but it is proposed through the same endpoint with
+		// the same rules — a moderator's own suggestion is live at once, everybody else's is real but
+		// pending — so it reuses this button rather than growing a near-identical second one.
+		kind: 'discipline' | 'branch' | 'topic' | 'material_type';
 		/** Slug of the containing node — a discipline for a branch, a branch for a topic. */
 		parent?: string;
 		/** Called with the new slug so the caller can select what was just proposed. */
@@ -42,7 +46,9 @@
 			? m.taxonomy_propose_discipline()
 			: kind === 'branch'
 				? m.taxonomy_propose_branch()
-				: m.taxonomy_propose_topic()
+				: kind === 'material_type'
+					? m.taxonomy_propose_materialType()
+					: m.taxonomy_propose_topic()
 	);
 
 	function reset() {
@@ -70,7 +76,8 @@
 			// `notifications.svelte.ts` already records for its own live stream: one integration point
 			// cannot drift, four that each have to remember can. A topic is skipped because the tree
 			// holds disciplines and branches only, so refreshing it would be a round trip for nothing.
-			if (kind !== 'topic') await taxonomyStore.refresh();
+			if (kind === 'material_type') await materialTypesStore.refresh();
+			else if (kind !== 'topic') await taxonomyStore.refresh();
 			onproposed?.(created.slug, created.status);
 			// Left open on success so the outcome is readable — an approved proposal and one waiting
 			// for review are different answers, and a dialog that vanishes tells you neither.

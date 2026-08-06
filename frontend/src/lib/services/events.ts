@@ -190,10 +190,7 @@ export async function getEventPosts(eventId: string): Promise<EventPost[]> {
 	return raw.map(mapPost);
 }
 
-export async function createEventPost(
-	eventId: string,
-	draft: EventPostDraft
-): Promise<EventPost> {
+export async function createEventPost(eventId: string, draft: EventPostDraft): Promise<EventPost> {
 	const body = postBody(draft);
 	const raw =
 		body instanceof FormData

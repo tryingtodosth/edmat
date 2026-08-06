@@ -39,10 +39,7 @@ export async function getUserActivity(userId: string): Promise<ActivityFeed> {
 			title: i.title,
 			exerciseId:
 				i.exercise_id !== undefined && i.exercise_id !== null ? String(i.exercise_id) : undefined,
-			courseId:
-				i.course_id !== undefined && i.course_id !== null
-					? String(i.course_id)
-					: undefined,
+			courseId: i.course_id !== undefined && i.course_id !== null ? String(i.course_id) : undefined,
 			rating: i.rating,
 			tags: i.tags ?? [],
 			createdAt: i.created_at ?? null

@@ -5,15 +5,24 @@
 		placeholder,
 		submitLabel,
 		onSubmit,
-		onCancel
+		onCancel,
+		// Prefilled when this form is editing something that already exists rather than composing
+		// something new — an edit box that starts empty is one that quietly invites you to retype
+		// what you already wrote.
+		initialBody = ''
 	}: {
 		placeholder: string;
 		submitLabel: string;
 		onSubmit: (body: string) => void;
 		onCancel?: () => void;
+		initialBody?: string;
 	} = $props();
 
-	let body = $state('');
+	// Seeded once, deliberately: an edit box is mounted fresh each time editing starts, so what is
+	// wanted here is the value at that moment and not a live link back to the prop — which would
+	// overwrite whatever the person had typed if the prop ever changed underneath them.
+	// svelte-ignore state_referenced_locally
+	let body = $state(initialBody);
 
 	function submit() {
 		const trimmed = body.trim();

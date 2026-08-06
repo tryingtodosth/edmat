@@ -88,9 +88,7 @@
 			{m.course_join_body({ name: preview.instructorName, title: preview.courseTitle })}
 		</p>
 		<p class="hint">
-			{preview.role === 'participant'
-				? m.course_join_asParticipant()
-				: m.course_join_asStaff()}
+			{preview.role === 'participant' ? m.course_join_asParticipant() : m.course_join_asStaff()}
 		</p>
 
 		{#if !preview.isUsable}

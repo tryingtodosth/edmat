@@ -68,6 +68,9 @@ export interface ServiceReview {
 	rating: number;
 	body?: string;
 	createdAt: string;
+	// How many comments hang off this review. Carried on the review itself so a conversation
+	// under it is visible without opening every review in turn.
+	replyCount: number;
 }
 
 /** "Add to watchlist to compare certain listings" — one row per (user, service) the CURRENT user

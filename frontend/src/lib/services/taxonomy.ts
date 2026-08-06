@@ -1,11 +1,6 @@
 import type { Branch, Discipline, Topic } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
-import {
-	mapBranch,
-	mapDiscipline,
-	type RawBranch,
-	type RawDiscipline
-} from '$lib/api/mappers';
+import { mapBranch, mapDiscipline, type RawBranch, type RawDiscipline } from '$lib/api/mappers';
 import { getLocale } from '$lib/paraglide/runtime';
 
 // Every taxonomy request carries `?lang=`, resolved HERE from the interface locale rather than
@@ -86,7 +81,7 @@ export async function getTopicsForBranch(branchId: string): Promise<Topic[]> {
  * usable straight away — the browse UI groups pending nodes under "others" rather than hiding them,
  * because a word nobody can use until it is reviewed helps nobody. */
 export async function proposeTaxonomyNode(payload: {
-	kind: 'discipline' | 'branch' | 'topic';
+	kind: 'discipline' | 'branch' | 'topic' | 'material_type';
 	name: string;
 	slug?: string;
 	/** The containing node's slug — a discipline for a branch, a branch for a topic. */

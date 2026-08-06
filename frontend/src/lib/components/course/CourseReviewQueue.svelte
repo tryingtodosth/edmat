@@ -43,9 +43,7 @@
 				<li>
 					<div class="row">
 						<span class="kind">
-							{item.kind === 'material'
-								? m.course_items_material()
-								: m.course_items_exercise()}
+							{item.kind === 'material' ? m.course_items_material() : m.course_items_exercise()}
 						</span>
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the href is built by a helper that calls resolve() itself; the rule only sees the attribute -->
 						<a href={href(item)}>{item.label}</a>

@@ -857,6 +857,18 @@ class TaxonomyProposalActionView(APIView):
     KINDS = {'discipline': 'Discipline', 'branch': 'Branch', 'topic': 'Topic'}
 
     @staticmethod
+    def _model_for(kind):
+        """`material_type` lives in the materials app, the other three in taxonomy. Imported here
+        rather than at module scope because materials.models imports taxonomy.models."""
+        from taxonomy import models as taxonomy_models
+
+        if kind == 'material_type':
+            from materials.models import MaterialType
+
+            return MaterialType
+        return getattr(taxonomy_models, TaxonomyProposalActionView.KINDS[kind])
+
+    @staticmethod
     def _attached(node, kind):
         """What would be destroyed if this node were deleted. Counted, not guessed."""
         if kind == 'branch':
@@ -867,18 +879,27 @@ class TaxonomyProposalActionView(APIView):
             }
         if kind == 'topic':
             return {'exercises': node.exercises.count(), 'materials': node.material_coverage.count()}
+        if kind == 'material_type':
+            # `Material.type` is a slug column, not a ForeignKey, so deleting the row would not take
+            # the materials with it — it would leave them naming a type nobody can look up. Counted
+            # the same way and refused the same way, because the outcome is still data nobody
+            # intended to break.
+            from materials.models import Material
+
+            return {'materials': Material.objects.filter(type=node.slug).count()}
         return {'branches': node.branches.count()}
 
     def post(self, request, kind, pk):
         from django.db import transaction
         from taxonomy import models as taxonomy_models
 
-        if kind not in self.KINDS:
+        decidable = {**self.KINDS, 'material_type': 'MaterialType'}
+        if kind not in decidable:
             return Response(
-                {'detail': f'Expected one of {sorted(self.KINDS)}.'},
+                {'detail': f'Expected one of {sorted(decidable)}.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        model = getattr(taxonomy_models, self.KINDS[kind])
+        model = self._model_for(kind)
         node = model.objects.filter(pk=pk, status='pending').first()
         if node is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -928,13 +949,13 @@ class TaxonomyProposalActionView(APIView):
                 )
 
             # move: re-parent, keeping everything filed under it.
+            if kind in ('discipline', 'material_type'):
+                raise DRFValidationError(
+                    {'target': f'A {kind.replace("_", " ")} has nothing above it to move under.'}
+                )
             parent_model = (
                 taxonomy_models.Discipline if kind == 'branch' else taxonomy_models.Branch
             )
-            if kind == 'discipline':
-                raise DRFValidationError(
-                    {'target': 'A discipline has nothing above it to move under.'}
-                )
             parent = parent_model.objects.filter(slug=target_slug).first()
             if parent is None:
                 raise DRFValidationError({'target': 'No such parent.'})
@@ -977,7 +998,17 @@ class TaxonomyProposalActionView(APIView):
         is unique. A colliding child folds into the target's existing one rather than aborting the
         merge — the same choice `taxonomy.0005` made when it collapsed four przedmiot rows.
         """
-        if kind == 'branch':
+        if kind == 'material_type':
+            # A slug column, so "re-point" is literally rewriting the string every material holds.
+            # This is what makes merging a duplicate type safe: nothing is orphaned, and the
+            # reject-with-content guard never has to fire for a case a merge can simply fix.
+            from materials.models import Material
+
+            Material.objects.filter(type=node.slug).update(type=target.slug)
+            from moderation.models import MaterialSubmission
+
+            MaterialSubmission.objects.filter(type=node.slug).update(type=target.slug)
+        elif kind == 'branch':
             for topic in node.topics.all():
                 twin = target.topics.filter(slug=topic.slug).first()
                 if twin is None:

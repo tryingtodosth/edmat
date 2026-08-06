@@ -8,6 +8,7 @@
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
+	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
 
@@ -23,6 +24,9 @@
 	// first of those to open already has it, instead of each paying its own round trip. Public, like
 	// the flags above, so it does not wait on a session; `preload` never rejects.
 	onMount(() => taxonomyStore.preload());
+	// The material-type vocabulary, for the same reason and at the same cost: it is small, it is
+	// wanted by every material card's badge, and a proposed type has no message key to fall back on.
+	onMount(() => materialTypesStore.preload());
 	// Restores the session from a persisted token (token.svelte.ts) — Phase 3's real login now
 	// survives a reload, unlike Phase 1's deliberately session-only mock auth. Notifications are
 	// only worth fetching once a real session actually resolves — a fresh, momentarily-unauthenticated

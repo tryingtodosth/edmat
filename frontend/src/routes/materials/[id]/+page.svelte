@@ -347,7 +347,7 @@
 					})}
 				</p>
 			{/if}
-			<ReviewList {reviews} {usersById} showReportButton={false} />
+			<ReviewList {reviews} {usersById} showReportButton={false} commentTarget="materialReview" />
 			{#if authStore.isAuthenticated}
 				{#if submissionNotice === 'review'}
 					<p class="notice">{m.review_thanks()}</p>

@@ -245,9 +245,9 @@
 				startDrag(e, 'chapter', chapter.id, '');
 			}}
 			ondragover={(e) => {
-								e.preventDefault();
-								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-							}}
+				e.preventDefault();
+				if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+			}}
 			ondrop={(e) => {
 				e.stopPropagation();
 				dropOn('chapter', '', chapter.id);
@@ -292,9 +292,9 @@
 				<ol
 					class="lessons"
 					ondragover={(e) => {
-								e.preventDefault();
-								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-							}}
+						e.preventDefault();
+						if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+					}}
 					ondrop={(e) => {
 						e.stopPropagation();
 						dropOn('lesson', chapter.id, null);
@@ -378,9 +378,9 @@
 												startDrag(e, 'item', item.id, lesson.id);
 											}}
 											ondragover={(e) => {
-								e.preventDefault();
-								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-							}}
+												e.preventDefault();
+												if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+											}}
 											ondrop={(e) => {
 												e.stopPropagation();
 												dropOn('item', lesson.id, item.id);
@@ -394,9 +394,9 @@
 								<p
 									class="empty"
 									ondragover={(e) => {
-								e.preventDefault();
-								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-							}}
+										e.preventDefault();
+										if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+									}}
 									ondrop={() => dropOn('item', lesson.id, null)}
 									role="presentation"
 								>
@@ -418,9 +418,9 @@
 					class="empty empty--droppable"
 					role="presentation"
 					ondragover={(e) => {
-								e.preventDefault();
-								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-							}}
+						e.preventDefault();
+						if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+					}}
 					ondrop={(e) => {
 						e.stopPropagation();
 						dropOn('lesson', chapter.id, null);

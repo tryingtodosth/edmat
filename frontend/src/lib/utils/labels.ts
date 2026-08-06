@@ -7,8 +7,8 @@ import type {
 	Difficulty,
 	DonationPlatform,
 	FeatureFlagKey,
+	BuiltinMaterialType,
 	MaterialSort,
-	MaterialType,
 	NotificationType,
 	SourceType
 } from '$lib/types';
@@ -97,7 +97,7 @@ export const DONATION_PLATFORM_ICONS: Record<DonationPlatform, string> = {
 // The submit-material form's own type picker needed an iterable list alongside the label map above
 // — MATERIAL_TYPE_LABELS only ever had a reader (MaterialCard.svelte's badge), never a `<select>`
 // needing every possible value, until this form existed.
-export const MATERIAL_TYPES: MaterialType[] = [
+export const MATERIAL_TYPES: BuiltinMaterialType[] = [
 	'script',
 	'examCollection',
 	'midtermCollection',
@@ -113,7 +113,10 @@ export const MATERIAL_TYPES: MaterialType[] = [
 	'other'
 ];
 
-export const MATERIAL_TYPE_LABELS: Record<MaterialType, () => string> = {
+// Keyed by the BUILT-IN union, not the open one: these thirteen have curated wording in both
+// locales and a proposed type never will. `materialTypesStore.nameFor()` is what resolves a
+// label safely for either — indexing this map directly throws for anything not in it.
+export const MATERIAL_TYPE_LABELS: Record<BuiltinMaterialType, () => string> = {
 	script: m.materialType_script,
 	examCollection: m.materialType_examCollection,
 	midtermCollection: m.materialType_midtermCollection,

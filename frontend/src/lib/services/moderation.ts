@@ -188,13 +188,23 @@ export function mapTaxonomyProposal(raw: any): TaxonomyProposal {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-/** Approve keeps the node and flips its status; reject deletes it. There is no draft to preserve —
- * a discipline is a slug and a name — so a tombstone would only make every listing carry a third
- * case to exclude. */
+/** Decide on a proposed taxonomy node.
+ *
+ * Three of the four are corrections rather than refusals, because a pending node is real from the
+ * moment it is proposed and has content filed under it by the time anybody reviews:
+ *
+ *   approve          it is right
+ *   merge  + target  a duplicate — its content moves onto the target, the husk is deleted
+ *   move   + target  right thing, wrong parent — re-parented, content follows
+ *   reject           not a real thing — refused (409) if anything is filed under it
+ *
+ * A 409 is not a failure to report as broken: it means the node still holds content, and the
+ * caller should offer merge or move instead. */
 export async function decideTaxonomyProposal(
 	kind: string,
 	id: number,
-	decision: 'approve' | 'reject'
+	decision: 'approve' | 'merge' | 'move' | 'reject',
+	options: { target?: string; note?: string } = {}
 ): Promise<void> {
-	await apiClient.post(`/moderation/taxonomy/${kind}/${id}/`, { decision });
+	await apiClient.post(`/moderation/taxonomy/${kind}/${id}/`, { decision, ...options });
 }

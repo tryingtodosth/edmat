@@ -86,7 +86,6 @@
 		].filter((item) => item.status === 'pending')
 	);
 
-
 	let comments = $state<Comment[]>([]);
 
 	// The reader's own notes. Only ever their own — the API filters by author, so there is nothing
@@ -392,9 +391,7 @@
 					disabled={busy}
 					onclick={() => run(() => enrol(course!.id, requestNote))}
 				>
-					{course.enrollmentPolicy === 'approval'
-						? m.course_requestToJoin()
-						: m.course_join()}
+					{course.enrollmentPolicy === 'approval' ? m.course_requestToJoin() : m.course_join()}
 				</button>
 			{:else if course.enrollmentBlockReason}
 				<p class="note">{REFUSAL[course.enrollmentBlockReason]?.() ?? m.common_error_generic()}</p>
@@ -578,8 +575,7 @@
 						bind:value={noteDraft}
 						rows="4"
 						placeholder={m.course_notes_placeholder()}
-						oninput={() => (noteSaved = false)}
-					></textarea>
+						oninput={() => (noteSaved = false)}></textarea>
 					<div class="notes-actions">
 						<button type="submit" class="primary" disabled={busy}>{m.course_notes_save()}</button>
 						{#if noteSaved}
@@ -695,7 +691,6 @@
 	/* The panels inside a drawer were written as top-level sections and carry their own h2, which at
 	   page size competed with the drawer label right above it. Demoted visually only — the heading
 	   level itself is left alone, since that is what a screen reader navigates by. */
-
 
 	.page {
 		max-width: 800px;

@@ -338,6 +338,14 @@ export function mapExerciseTranslation(json: RawExerciseTranslation): ExerciseTr
 
 // ---- materials ------------------------------------------------------------------------------
 
+export interface RawMaterialType {
+	id: number;
+	slug: string;
+	order: number;
+	status: 'pending' | 'approved';
+	name: string;
+}
+
 const BACKEND_TO_FRONTEND_MATERIAL_TYPE: Record<string, MaterialType> = {
 	script: 'script',
 	exam_collection: 'examCollection',
@@ -358,6 +366,8 @@ const BACKEND_TO_FRONTEND_MATERIAL_TYPE: Record<string, MaterialType> = {
 // silently drift apart the moment a new material type is ever added on one side and not the other.
 // Needed for the material-submission upload form (submitMaterial, materials.ts), which sends a
 // type value INTO the backend rather than only ever reading one back out.
+/** Callers should use `toBackendMaterialType` rather than indexing this directly — a proposed
+ * type is absent from it and is already a backend slug. */
 export const FRONTEND_TO_BACKEND_MATERIAL_TYPE = Object.fromEntries(
 	Object.entries(BACKEND_TO_FRONTEND_MATERIAL_TYPE).map(([backend, frontend]) => [
 		frontend,
@@ -465,7 +475,10 @@ export function mapMaterial(json: RawMaterial): Material {
 		id: String(json.id),
 		branchId: json.branch_slug,
 		slug: json.slug,
-		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? 'other',
+		// A proposed type has no camelCase alias, so it passes through as its own slug. This used
+		// to be `?? 'other'`, which was right while the set was closed and became a silent lie the
+		// moment it was not: a material filed under a brand-new kind would have displayed as Other.
+		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? json.type,
 		title: json.title,
 		description: json.description,
 		coverage: json.coverage.map(mapMaterialCoverage),
@@ -632,7 +645,10 @@ export function mapMaterialSubmission(json: RawMaterialSubmission): MaterialSubm
 		id: String(json.id),
 		branchId: json.branch,
 		submittedByUserId: String(json.submitted_by),
-		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? 'other',
+		// A proposed type has no camelCase alias, so it passes through as its own slug. This used
+		// to be `?? 'other'`, which was right while the set was closed and became a silent lie the
+		// moment it was not: a material filed under a brand-new kind would have displayed as Other.
+		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? json.type,
 		title: json.title,
 		description: json.description,
 		locale: json.locale,

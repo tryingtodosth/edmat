@@ -31,7 +31,8 @@
 	import { getExercisesByIds } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
-	import { MATERIAL_TYPE_LABELS, FEATURE_FLAG_LABELS } from '$lib/utils/labels';
+	import { FEATURE_FLAG_LABELS } from '$lib/utils/labels';
+	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import { resolve } from '$app/paths';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 
@@ -47,6 +48,35 @@
 	let flagTogglePending = $state<Record<string, boolean>>({});
 	let flagError = $state('');
 	let taxonomyProposals = $state<TaxonomyProposal[]>([]);
+	/** Which proposal is mid-correction, and where it is going. */
+	let correcting = $state<{ id: number; kind: string; action: 'merge' | 'move' } | null>(null);
+	let correctionTarget = $state('');
+	/** What a refused reject was holding — shown instead of an error, because "it still has five
+	 * exercises under it" is the actionable half. */
+	let blockedBy = $state<Record<string, number> | null>(null);
+
+	async function decideProposal(
+		proposal: TaxonomyProposal,
+		decision: 'approve' | 'merge' | 'move' | 'reject',
+		target?: string
+	) {
+		blockedBy = null;
+		try {
+			await decideTaxonomyProposal(proposal.kind, proposal.id, decision, { target });
+			correcting = null;
+			correctionTarget = '';
+			await load();
+		} catch (e) {
+			// A 409 means the node still holds content — not a breakage, a redirection towards merge
+			// or move. Anything else is a real error and keeps the existing behaviour.
+			const body = (e as { body?: { detail?: string; attached?: Record<string, number> } })?.body;
+			if (body?.detail === 'has_attached_content') {
+				blockedBy = body.attached ?? {};
+			} else {
+				throw e;
+			}
+		}
+	}
 	let reports = $state<ReportGroup[]>([]);
 	let submissions = $state<ExerciseSubmission[]>([]);
 	let materialSubmissions = $state<MaterialSubmission[]>([]);
@@ -282,6 +312,16 @@
 		{#if taxonomyProposals.length > 0}
 			<section class="taxonomy-proposals">
 				<h2>{m.moderation_taxonomy_heading()}</h2>
+				{#if blockedBy}
+					<p class="blocked">
+						{m.moderation_taxonomy_blocked({
+							what: Object.entries(blockedBy)
+								.filter(([, n]) => n > 0)
+								.map(([k, n]) => `${n} ${k}`)
+								.join(', ')
+						})}
+					</p>
+				{/if}
 				<ul>
 					{#each taxonomyProposals as proposal (proposal.kind + proposal.id)}
 						<li>
@@ -294,23 +334,63 @@
 							<button
 								type="button"
 								class="link"
-								onclick={async () => {
-									await decideTaxonomyProposal(proposal.kind, proposal.id, 'approve');
-									await load();
-								}}
+								onclick={() => decideProposal(proposal, 'approve')}
 							>
 								{m.moderation_taxonomy_approve()}
 							</button>
+							<!-- Merge and move sit beside approve rather than under a "reason" dropdown:
+							     a duplicate or a misplaced node is something the moderator can FIX, and
+							     bouncing it back for the proposer to redo helps nobody. -->
+							<button
+								type="button"
+								class="link"
+								onclick={() => {
+									correcting = { id: proposal.id, kind: proposal.kind, action: 'merge' };
+									correctionTarget = '';
+								}}
+							>
+								{m.moderation_taxonomy_merge()}
+							</button>
+							{#if proposal.kind !== 'discipline'}
+								<button
+									type="button"
+									class="link"
+									onclick={() => {
+										correcting = { id: proposal.id, kind: proposal.kind, action: 'move' };
+										correctionTarget = '';
+									}}
+								>
+									{m.moderation_taxonomy_move()}
+								</button>
+							{/if}
 							<button
 								type="button"
 								class="link danger"
-								onclick={async () => {
-									await decideTaxonomyProposal(proposal.kind, proposal.id, 'reject');
-									await load();
-								}}
+								onclick={() => decideProposal(proposal, 'reject')}
 							>
 								{m.moderation_taxonomy_reject()}
 							</button>
+
+							{#if correcting?.id === proposal.id}
+								<form
+									class="correction"
+									onsubmit={(e) => {
+										e.preventDefault();
+										if (correctionTarget.trim())
+											decideProposal(proposal, correcting!.action, correctionTarget.trim());
+									}}
+								>
+									<input
+										type="text"
+										bind:value={correctionTarget}
+										placeholder={m.moderation_taxonomy_targetSlug()}
+									/>
+									<button type="submit" class="link">{m.common_confirm()}</button>
+									<button type="button" class="link" onclick={() => (correcting = null)}>
+										{m.course_edit_cancel()}
+									</button>
+								</form>
+							{/if}
 						</li>
 					{/each}
 				</ul>
@@ -531,7 +611,7 @@
 						{#each materialSubmissions as s (s.id)}
 							<li class="queue-item">
 								<div class="report-header">
-									<span class="report-kind">{MATERIAL_TYPE_LABELS[s.type]()}</span>
+									<span class="report-kind">{materialTypesStore.nameFor(s.type)}</span>
 									{#if s.scanStatus === 'skipped'}
 										<span class="scan-badge scan-badge--skipped"
 											>{m.moderation_material_scanSkipped()}</span
@@ -809,12 +889,21 @@
 		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
+	.taxonomy-proposals .correction {
+		display: flex;
+		gap: var(--space-2);
+		align-items: center;
+		flex-basis: 100%;
+	}
+	.blocked {
+		color: var(--status-warning, var(--status-danger));
+		font-size: var(--font-size-sm);
+	}
 	.taxonomy-proposals .kind {
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);
 		text-transform: uppercase;
 	}
-
 
 	.page {
 		max-width: 780px;

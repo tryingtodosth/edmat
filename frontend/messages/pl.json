@@ -1261,5 +1261,6 @@
   "notification_materialSubmissionApproved": "Twój materiał „{title}\" został opublikowany.",
   "notifPref_materialSubmissionApproved": "Materiał przyjęty",
   "notification_materialSubmissionRejected": "Twój materiał „{title}\" nie został opublikowany.",
-  "notifPref_materialSubmissionRejected": "Materiał odrzucony"
+  "notifPref_materialSubmissionRejected": "Materiał odrzucony",
+  "taxonomy_propose_materialType": "Zaproponuj rodzaj"
 }
