@@ -40,7 +40,7 @@
   "nav_mainNavigation": "Main navigation",
   "nav_breadcrumb": "Breadcrumb",
   "footer_sourceNote": "Content seeded from the University of Warsaw math & CS course exercise corpus.",
-  "footer_phaseNote": "Prototype — Phase 1, fully mocked frontend. Nothing here is saved on a real server yet.",
+  "footer_phaseNote": "Prototype — this is a real server, and what you save here really is stored.",
   "random_quickRoll": "Random exercise",
   "random_openFilters": "Filter random exercise",
   "random_heading": "Random exercise",
@@ -1262,5 +1262,10 @@
   "notifPref_materialSubmissionApproved": "Material upload approved",
   "notification_materialSubmissionRejected": "Your material \"{title}\" was not published.",
   "notifPref_materialSubmissionRejected": "Material upload rejected",
-  "taxonomy_propose_materialType": "Suggest a kind"
+  "taxonomy_propose_materialType": "Suggest a kind",
+  "course_tab_content": "Content",
+  "course_tab_attachments": "Files",
+  "course_tab_notes": "My notes",
+  "course_tab_discussion": "Discussion",
+  "course_tab_people": "People"
 }

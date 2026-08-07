@@ -30,6 +30,7 @@
 	} from '$lib/services/course';
 	import type { Attachment, CourseNote, Enrollment, Course } from '$lib/types/course';
 	import CourseContent from '$lib/components/course/CourseContent.svelte';
+	import Tabs, { type TabDef } from '$lib/components/shared/Tabs.svelte';
 	import CourseContribute from '$lib/components/course/CourseContribute.svelte';
 	import type { Comment, User } from '$lib/types';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
@@ -258,6 +259,33 @@
 		);
 	}
 
+	// Which sections exist depends on who is looking: a stranger gets content only, and the API has
+	// already decided the rest. A tab nobody can open would be a promise the page cannot keep.
+	let courseTabs = $derived.by(() => {
+		if (!course) return [];
+		const tabs: TabDef[] = [{ id: 'content', label: m.course_tab_content() }];
+		if (course.myEnrollmentStatus === 'active' || course.isInstructor || course.canCurate)
+			tabs.push({ id: 'attachments', label: m.course_tab_attachments() });
+		if (authStore.user) tabs.push({ id: 'notes', label: m.course_tab_notes() });
+		if (course.canReadDiscussion) tabs.push({ id: 'discussion', label: m.course_tab_discussion() });
+		if (course.isInstructor || course.myEnrollmentStatus === 'active')
+			tabs.push({
+				id: 'people',
+				label: m.course_tab_people(),
+				// The instructor's own waiting requests, on the tab that answers them.
+				badge: course.isInstructor ? pendingRequests.length : undefined
+			});
+		return tabs;
+	});
+
+	// Read from the URL every render rather than latched at mount: `course` and `authStore` both
+	// resolve asynchronously, so anything captured at mount answers with what was true before either
+	// arrived. An unknown or now-hidden tab falls back to content, so a stale link still lands.
+	let activeTab = $derived.by(() => {
+		const asked = page.url.searchParams.get('tab');
+		return asked && courseTabs.some((t) => t.id === asked) ? asked : 'content';
+	});
+
 	let isPending = $derived(course?.myEnrollmentStatus === 'pending');
 	let isActive = $derived(course?.myEnrollmentStatus === 'active');
 	let pendingRequests = $derived(participants.filter((p) => p.status === 'pending'));
@@ -358,318 +386,353 @@
 			{/if}
 		</section>
 
-		<!-- Content: chapters and the materials/exercises filed under them. Rendered for everybody,
+		<!-- Outside the tabs on purpose. The manage link is navigation to another page and is
+		     relevant whichever tab you are on; the notify checkbox governs notifications about both
+		     lessons AND posts, so it belongs to no single tab, and one line is small enough to sit
+		     here rather than be filed somewhere half-right. -->
+		<div class="course-actions">
+			{#if course.canCurate || course.canAdminister}
+				<p class="manage-link">
+					<a href={resolve('/courses/[id]/manage', { id: course.id })}>
+						{m.course_manage_link()}
+					</a>
+					{#if course.pendingContributionCount > 0}
+						<!-- Surfaced here rather than only on the manage page: a queue nobody is told about
+						     is a queue that stalls. -->
+						<span class="manage-link__badge">
+							{m.course_review_count({ count: course.pendingContributionCount })}
+						</span>
+					{/if}
+				</p>
+			{/if}
+			<!-- Per-course mute: stay in, stop hearing about it. Only ever offered to somebody who is
+			     actually in the course, since there is nothing to mute otherwise. -->
+			{#if isActive}
+				<section class="mute-section">
+					<label class="mute">
+						<input
+							type="checkbox"
+							checked={course.notifyMe ?? true}
+							disabled={busy}
+							onchange={(e) => run(() => muteCourse(course!.id, e.currentTarget.checked))}
+						/>
+						<span>{m.course_notifyMe()}</span>
+					</label>
+				</section>
+			{/if}
+		</div>
+
+		<!-- Six stacked sections became five tabs. Everything past the first screenful was invisible:
+		     a participant scrolled through content they cannot act on to reach the discussion, and
+		     the roster was below all of it. -->
+		<Tabs
+			tabs={courseTabs}
+			active={activeTab}
+			defaultTab="content"
+			idPrefix="coursetab"
+			panelPrefix="coursetabpanel"
+		/>
+
+		<div
+			role="tabpanel"
+			id="coursetabpanel-{activeTab}"
+			aria-labelledby="coursetab-{activeTab}"
+			tabindex="-1"
+			class="tab-panel"
+		>
+			{#if activeTab === 'content'}
+				<!-- Content: chapters and the materials/exercises filed under them. Rendered for everybody,
 		     including a stranger, because what a course contains is part of deciding to join — the
 		     server has already decided which items and which locked chapters this viewer may see. -->
-		<!-- Seven curator actions on this page write to `staffError` — reordering, moving an item,
+				<!-- Seven curator actions on this page write to `staffError` — reordering, moving an item,
 		     renaming or deleting a chapter, creating one — and none of them showed it. A refusal
 		     from the server was swallowed, so a drag that the server rejected looked exactly like a
 		     drag that worked until the page was reloaded. Same bug the bookings page had. -->
-		{#if staffError}
-			<p class="error staff-error">{staffError}</p>
-		{/if}
+				{#if staffError}
+					<p class="error staff-error">{staffError}</p>
+				{/if}
 
-		<CourseContent
-			{course}
-			onmove={course.canCurate
-				? (itemId, lessonId) =>
+				<CourseContent
+					{course}
+					onmove={course.canCurate
+						? (itemId, lessonId) =>
+								act(
+									() => moveCourseItem(course!.id, itemId, lessonId),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					onreorder={course.canCurate
+						? (payload) =>
+								act(
+									() => reorderCourse(course!.id, payload),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					onremove={(itemId) =>
 						act(
-							() => moveCourseItem(course!.id, itemId, lessonId),
-							(msg) => (staffError = msg)
-						)
-				: undefined}
-			onreorder={course.canCurate
-				? (payload) =>
-						act(
-							() => reorderCourse(course!.id, payload),
-							(msg) => (staffError = msg)
-						)
-				: undefined}
-			onremove={(itemId) =>
-				act(
-					() => removeCourseItem(course!.id, itemId),
-					(msg) => (contributeError = msg)
-				)}
-			oneditchapter={course.canCurate
-				? (chapterId, patch) =>
-						act(
-							() => updateChapter(course!.id, chapterId, patch),
-							(msg) => (staffError = msg)
-						)
-				: undefined}
-			oneditlesson={course.canCurate
-				? (lessonId, patch) =>
-						act(
-							() => updateLesson(course!.id, lessonId, patch),
-							(msg) => (staffError = msg)
-						)
-				: undefined}
-			ondeletelesson={course.canCurate
-				? (lessonId) =>
-						act(
-							() => deleteLesson(course!.id, lessonId),
-							(msg) => (staffError = msg)
-						)
-				: undefined}
-			ondeletechapter={course.canCurate
-				? (chapterId) =>
-						act(
-							() => deleteChapter(course!.id, chapterId),
-							(msg) => (staffError = msg)
-						)
-				: undefined}
-		/>
+							() => removeCourseItem(course!.id, itemId),
+							(msg) => (contributeError = msg)
+						)}
+					oneditchapter={course.canCurate
+						? (chapterId, patch) =>
+								act(
+									() => updateChapter(course!.id, chapterId, patch),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					oneditlesson={course.canCurate
+						? (lessonId, patch) =>
+								act(
+									() => updateLesson(course!.id, lessonId, patch),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					ondeletelesson={course.canCurate
+						? (lessonId) =>
+								act(
+									() => deleteLesson(course!.id, lessonId),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					ondeletechapter={course.canCurate
+						? (chapterId) =>
+								act(
+									() => deleteChapter(course!.id, chapterId),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+				/>
 
-		<!-- Creating a chapter. The handler for this was written and never rendered, so a curator
+				<!-- Creating a chapter. The handler for this was written and never rendered, so a curator
 		     could rename and delete chapters through CourseContent but had no way to make one — a
 		     course whose structure could only ever shrink. It sits directly under the content it
 		     adds to, rather than on the manage page, because it is the one curator action whose
 		     result appears right here. -->
-		{#if course.canCurate}
-			<form class="add-chapter" onsubmit={addChapter}>
-				<h3>{m.course_chapters_heading()}</h3>
-				<div class="add-chapter__row">
-					<label>
-						<span>{m.course_chapters_title()}</span>
-						<input type="text" bind:value={newChapterTitle} maxlength="200" required />
-					</label>
-					<label>
-						<span>{m.course_chapters_unlocksAt()}</span>
-						<!-- Optional, and empty means never gated — genuinely different from a date that
+				{#if course.canCurate}
+					<form class="add-chapter" onsubmit={addChapter}>
+						<div class="add-chapter__row">
+							<label>
+								<span>{m.course_chapters_title()}</span>
+								<input type="text" bind:value={newChapterTitle} maxlength="200" required />
+							</label>
+							<label>
+								<span>{m.course_chapters_unlocksAt()}</span>
+								<!-- Optional, and empty means never gated — genuinely different from a date that
 						     has already passed, which is why it is not defaulted to today. -->
-						<input type="datetime-local" bind:value={newChapterUnlocksAt} />
-						<small>{m.course_chapters_unlocksAtHint()}</small>
-					</label>
-					<button type="submit" class="primary" disabled={busy || !newChapterTitle.trim()}>
-						{m.course_chapters_add()}
-					</button>
-				</div>
-			</form>
-		{/if}
-
-		<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
-		     are the part worth joining for, and the API blanks them for anyone who has not. -->
-		<!-- Running the course lives on its own page now. It used to be four collapsed drawers here,
-		     which meant a participant scrolled past sections they cannot act on, and an instructor
-		     found the thing they came to do always shut. -->
-		{#if course.canCurate || course.canAdminister}
-			<p class="manage-link">
-				<a href={resolve('/courses/[id]/manage', { id: course.id })}>
-					{m.course_manage_link()}
-				</a>
-				{#if course.pendingContributionCount > 0}
-					<!-- Surfaced here rather than only on the manage page: a queue nobody is told about
-					     is a queue that stalls. -->
-					<span class="manage-link__badge">
-						{m.course_review_count({ count: course.pendingContributionCount })}
-					</span>
-				{/if}
-			</p>
-		{/if}
-
-		{#if course.canContribute && !course.canCurate}
-			{#if true}
-				<CourseContribute
-					{course}
-					{busy}
-					error={contributeError}
-					notice={contributeNotice}
-					onsubmit={contribute}
-				/>
-			{/if}
-		{/if}
-
-		<!-- The discussion. `canReadDiscussion`/`canPostDiscussion` are resolved server-side, because
-		     whether this viewer may read or post depends on the course's mode AND their membership. -->
-		<!-- The course's own files. Members only, and never listed for a stranger: an attachment is
-		     not corpus, it is the pile of files this course keeps. -->
-		{#if course.myEnrollmentStatus === 'active' || course.isInstructor || course.canCurate}
-			<section class="attachments-section">
-				<h2>{m.course_attachments_heading()}</h2>
-				{#if attachments.length === 0}
-					<p class="status">{m.course_attachments_empty()}</p>
-				{:else}
-					<ul class="attachments">
-						{#each attachments as attachment (attachment.id)}
-							<li>
-								<a
-									href={resolve('/courses/[id]/attachments/[attachmentId]', {
-										id: course.id,
-										attachmentId: attachment.id
-									})}
-								>
-									{attachment.title}
-								</a>
-								{#if attachment.averageRating !== null}
-									<span class="hint">{attachment.averageRating} ★</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				{/if}
-
-				{#if course.canContribute}
-					<form
-						onsubmit={(e) => {
-							e.preventDefault();
-							const file = attachmentFile;
-							const title = attachmentTitle.trim();
-							if (!file || !title) return;
-							run(async () => {
-								await uploadAttachment(course!.id, file, title);
-								attachments = await getAttachments(course!.id);
-								attachmentFile = null;
-								attachmentTitle = '';
-							});
-						}}
-					>
-						<label class="field">
-							<span>{m.course_attachments_title()}</span>
-							<input type="text" bind:value={attachmentTitle} maxlength="200" />
-						</label>
-						<label class="field">
-							<span>{m.course_attachments_file()}</span>
-							<input
-								type="file"
-								onchange={(e) =>
-									(attachmentFile = (e.currentTarget as HTMLInputElement).files?.[0] ?? null)}
-							/>
-						</label>
-						<button type="submit" class="primary" disabled={busy}>
-							{m.course_attachments_upload()}
-						</button>
+								<input type="datetime-local" bind:value={newChapterUnlocksAt} />
+							</label>
+							<button type="submit" class="primary" disabled={busy || !newChapterTitle.trim()}>
+								{m.course_chapters_add()}
+							</button>
+						</div>
+						<small class="add-chapter__hint">{m.course_chapters_unlocksAtHint()}</small>
 					</form>
 				{/if}
-			</section>
-		{/if}
 
-		<!-- Private notes. Shown to anybody signed in who can open the course, including staff:
-		     running a course does not stop somebody wanting notes of their own on it. -->
-		{#if authStore.user}
-			<section class="notes-section">
-				<h2>{m.course_notes_heading()}</h2>
-				<p class="hint">{m.course_notes_privateHint()}</p>
-				<form
-					onsubmit={(e) => {
-						e.preventDefault();
-						run(async () => {
-							await saveMyCourseNote(course!.id, noteDraft);
-							myNotes = await getMyCourseNotes(course!.id);
-							noteSaved = true;
-						});
-					}}
-				>
-					<textarea
-						bind:value={noteDraft}
-						rows="4"
-						placeholder={m.course_notes_placeholder()}
-						oninput={() => (noteSaved = false)}></textarea>
-					<div class="notes-actions">
-						<button type="submit" class="primary" disabled={busy}>{m.course_notes_save()}</button>
-						{#if noteSaved}
-							<span class="hint">{m.course_notes_saved()}</span>
+				<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
+		     are the part worth joining for, and the API blanks them for anyone who has not. -->
+				<!-- Running the course lives on its own page now. It used to be four collapsed drawers here,
+		     which meant a participant scrolled past sections they cannot act on, and an instructor
+		     found the thing they came to do always shut. -->
+				{#if course.canContribute && !course.canCurate}
+					{#if true}
+						<CourseContribute
+							{course}
+							{busy}
+							error={contributeError}
+							notice={contributeNotice}
+							onsubmit={contribute}
+						/>
+					{/if}
+				{/if}
+			{/if}
+
+			{#if activeTab === 'attachments'}
+				<!-- The course's own files. Members only, and never listed for a stranger: an attachment is
+		     not corpus, it is the pile of files this course keeps. -->
+				{#if course.myEnrollmentStatus === 'active' || course.isInstructor || course.canCurate}
+					<section class="attachments-section">
+						<h2>{m.course_attachments_heading()}</h2>
+						{#if attachments.length === 0}
+							<p class="status">{m.course_attachments_empty()}</p>
+						{:else}
+							<ul class="attachments">
+								{#each attachments as attachment (attachment.id)}
+									<li>
+										<a
+											href={resolve('/courses/[id]/attachments/[attachmentId]', {
+												id: course.id,
+												attachmentId: attachment.id
+											})}
+										>
+											{attachment.title}
+										</a>
+										{#if attachment.averageRating !== null}
+											<span class="hint">{attachment.averageRating} ★</span>
+										{/if}
+									</li>
+								{/each}
+							</ul>
 						{/if}
-					</div>
-				</form>
-			</section>
-		{/if}
 
-		{#if course.canReadDiscussion}
-			<section class="discussion-section">
-				<h2>{m.course_discussionHeading()}</h2>
-				{#if course.canPostDiscussion}
-					<DiscussionThread {comments} {usersById} onSubmit={postComment} />
-				{:else}
-					<!-- A public thread: readable by anyone, writable only by the people in the course. -->
-					<p class="status">{m.course_discussionReadOnly()}</p>
-					<DiscussionThread {comments} {usersById} onSubmit={() => {}} />
+						{#if course.canContribute}
+							<form
+								onsubmit={(e) => {
+									e.preventDefault();
+									const file = attachmentFile;
+									const title = attachmentTitle.trim();
+									if (!file || !title) return;
+									run(async () => {
+										await uploadAttachment(course!.id, file, title);
+										attachments = await getAttachments(course!.id);
+										attachmentFile = null;
+										attachmentTitle = '';
+									});
+								}}
+							>
+								<label class="field">
+									<span>{m.course_attachments_title()}</span>
+									<input type="text" bind:value={attachmentTitle} maxlength="200" />
+								</label>
+								<label class="field">
+									<span>{m.course_attachments_file()}</span>
+									<input
+										type="file"
+										onchange={(e) =>
+											(attachmentFile = (e.currentTarget as HTMLInputElement).files?.[0] ?? null)}
+									/>
+								</label>
+								<button type="submit" class="primary" disabled={busy}>
+									{m.course_attachments_upload()}
+								</button>
+							</form>
+						{/if}
+					</section>
 				{/if}
-			</section>
-		{:else if course.discussionMode !== 'off'}
-			<section class="discussion-section">
-				<h2>{m.course_discussionHeading()}</h2>
-				<p class="status">{m.course_discussionParticipantsOnly()}</p>
-			</section>
-		{/if}
+			{/if}
 
-		<!-- Per-course mute: stay in, stop hearing about it. Only ever offered to somebody who is
-		     actually in the course, since there is nothing to mute otherwise. -->
-		{#if isActive}
-			<section class="mute-section">
-				<label class="mute">
-					<input
-						type="checkbox"
-						checked={course.notifyMe ?? true}
-						disabled={busy}
-						onchange={(e) => run(() => muteCourse(course!.id, e.currentTarget.checked))}
-					/>
-					<span>{m.course_notifyMe()}</span>
-				</label>
-			</section>
-		{/if}
-
-		<!-- The roster, and — for the instructor only — the requests waiting on a decision. -->
-		{#if course.isInstructor || isActive}
-			<section class="roster">
-				<h2>{m.course_participantsHeading({ count: activeParticipants.length })}</h2>
-				{#if activeParticipants.length === 0}
-					<p class="status">{m.course_noParticipants()}</p>
-				{:else}
-					<ul>
-						{#each activeParticipants as row (row.id)}
-							<li>
-								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal route with a dynamic id segment -->
-								<a href={`${resolve('/users')}/${row.participant.id}`}
-									>{row.participant.displayName}</a
+			{#if activeTab === 'notes'}
+				<!-- Private notes. Shown to anybody signed in who can open the course, including staff:
+		     running a course does not stop somebody wanting notes of their own on it. -->
+				{#if authStore.user}
+					<section class="notes-section">
+						<h2>{m.course_notes_heading()}</h2>
+						<p class="hint">{m.course_notes_privateHint()}</p>
+						<form
+							onsubmit={(e) => {
+								e.preventDefault();
+								run(async () => {
+									await saveMyCourseNote(course!.id, noteDraft);
+									myNotes = await getMyCourseNotes(course!.id);
+									noteSaved = true;
+								});
+							}}
+						>
+							<textarea
+								bind:value={noteDraft}
+								rows="4"
+								placeholder={m.course_notes_placeholder()}
+								oninput={() => (noteSaved = false)}></textarea>
+							<div class="notes-actions">
+								<button type="submit" class="primary" disabled={busy}
+									>{m.course_notes_save()}</button
 								>
-								{#if course.isInstructor}
-									<button
-										type="button"
-										class="danger small"
-										disabled={busy}
-										onclick={() => run(() => decideEnrollment(course!.id, row.id, 'remove'))}
-									>
-										{m.course_remove()}
-									</button>
+								{#if noteSaved}
+									<span class="hint">{m.course_notes_saved()}</span>
 								{/if}
-							</li>
-						{/each}
-					</ul>
+							</div>
+						</form>
+					</section>
 				{/if}
+			{/if}
 
-				{#if course.isInstructor && pendingRequests.length > 0}
-					<h2>{m.course_requestsHeading({ count: pendingRequests.length })}</h2>
-					<ul>
-						{#each pendingRequests as row (row.id)}
-							<li class="request">
-								<div>
-									<strong>{row.participant.displayName}</strong>
-									{#if row.requestNote}<p class="meta">{row.requestNote}</p>{/if}
-								</div>
-								<div class="actions">
-									<button
-										type="button"
-										class="primary small"
-										disabled={busy}
-										onclick={() => run(() => decideEnrollment(course!.id, row.id, 'approve'))}
-									>
-										{m.course_approve()}
-									</button>
-									<button
-										type="button"
-										class="small"
-										disabled={busy}
-										onclick={() => run(() => decideEnrollment(course!.id, row.id, 'decline'))}
-									>
-										{m.course_decline()}
-									</button>
-								</div>
-							</li>
-						{/each}
-					</ul>
+			{#if activeTab === 'discussion'}
+				<!-- The discussion. `canReadDiscussion`/`canPostDiscussion` are resolved server-side, because
+		     whether this viewer may read or post depends on the course's mode AND their membership. -->
+				{#if course.canReadDiscussion}
+					<section class="discussion-section">
+						<h2>{m.course_discussionHeading()}</h2>
+						{#if course.canPostDiscussion}
+							<DiscussionThread {comments} {usersById} onSubmit={postComment} />
+						{:else}
+							<!-- A public thread: readable by anyone, writable only by the people in the course. -->
+							<p class="status">{m.course_discussionReadOnly()}</p>
+							<DiscussionThread {comments} {usersById} onSubmit={() => {}} />
+						{/if}
+					</section>
+				{:else if course.discussionMode !== 'off'}
+					<section class="discussion-section">
+						<h2>{m.course_discussionHeading()}</h2>
+						<p class="status">{m.course_discussionParticipantsOnly()}</p>
+					</section>
 				{/if}
-			</section>
-		{/if}
+			{/if}
+
+			{#if activeTab === 'people'}
+				<!-- The roster, and — for the instructor only — the requests waiting on a decision. -->
+				{#if course.isInstructor || isActive}
+					<section class="roster">
+						<h2>{m.course_participantsHeading({ count: activeParticipants.length })}</h2>
+						{#if activeParticipants.length === 0}
+							<p class="status">{m.course_noParticipants()}</p>
+						{:else}
+							<ul>
+								{#each activeParticipants as row (row.id)}
+									<li>
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal route with a dynamic id segment -->
+										<a href={`${resolve('/users')}/${row.participant.id}`}
+											>{row.participant.displayName}</a
+										>
+										{#if course.isInstructor}
+											<button
+												type="button"
+												class="danger small"
+												disabled={busy}
+												onclick={() => run(() => decideEnrollment(course!.id, row.id, 'remove'))}
+											>
+												{m.course_remove()}
+											</button>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+
+						{#if course.isInstructor && pendingRequests.length > 0}
+							<h2>{m.course_requestsHeading({ count: pendingRequests.length })}</h2>
+							<ul>
+								{#each pendingRequests as row (row.id)}
+									<li class="request">
+										<div>
+											<strong>{row.participant.displayName}</strong>
+											{#if row.requestNote}<p class="meta">{row.requestNote}</p>{/if}
+										</div>
+										<div class="actions">
+											<button
+												type="button"
+												class="primary small"
+												disabled={busy}
+												onclick={() => run(() => decideEnrollment(course!.id, row.id, 'approve'))}
+											>
+												{m.course_approve()}
+											</button>
+											<button
+												type="button"
+												class="small"
+												disabled={busy}
+												onclick={() => run(() => decideEnrollment(course!.id, row.id, 'decline'))}
+											>
+												{m.course_decline()}
+											</button>
+										</div>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</section>
+				{/if}
+			{/if}
+		</div>
 	{/if}
 </div>
 
@@ -722,6 +785,28 @@
 		gap: var(--space-2);
 		padding-top: var(--space-3);
 		border-top: 1px solid var(--border-color);
+	}
+	.add-chapter {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding-top: var(--space-3);
+		border-top: 1px dashed var(--border-color);
+	}
+	.add-chapter__row {
+		display: flex;
+		gap: var(--space-3);
+		align-items: flex-end;
+		flex-wrap: wrap;
+	}
+	.add-chapter__row label {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.add-chapter__hint {
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
 	}
 	.manage-link {
 		display: flex;

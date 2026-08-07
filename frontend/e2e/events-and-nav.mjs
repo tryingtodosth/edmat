@@ -663,7 +663,9 @@ const drawer = phone.locator('#site-drawer');
 check('it opens a drawer', await drawer.isVisible());
 const drawerText = (await drawer.innerText()).replace(/\n+/g, ' | ');
 for (const [label, needle] of [
-	['the browse links', /Browse fields/i],
+	// Was /Browse fields/ — the taxonomy rename made the nav say Disciplines, and this assertion
+	// was never updated, so it failed on wording rather than on anything being missing.
+	['the browse links', /Disciplines/i],
 	['the events link', /\bEvents\b/],
 	['the create actions', /Host an event/i],
 	['the account items', /Log out/i],
