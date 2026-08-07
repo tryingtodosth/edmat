@@ -38,16 +38,63 @@ import MarkdownIt from 'markdown-it';
 
 const md: MarkdownIt = new MarkdownIt({ html: true, linkify: true, breaks: false });
 
-// Matches the exact delimiter convention the source corpus already uses — \( \) inline, \[ \]
-// display — never $ $ or $$ $$, so a stray dollar sign in ordinary prose is never misread as math.
+// The delimiter convention the source corpus already uses — \( \) inline, \[ \] display. These two
+// are unambiguous: nothing in ordinary prose accidentally contains them.
 const DISPLAY_MATH = /\\\[([\s\S]+?)\\\]/g;
 const INLINE_MATH = /\\\(([\s\S]+?)\\\)/g;
+
+// $$ $$ display and $ $ inline, added later — a real, user-reported bug, not a stylistic widening.
+// This file used to reject the dollar convention outright, reasoning that "a stray dollar sign in
+// ordinary prose is never misread as math". That reasoning defended against the wrong failure: the
+// people who hit this are students typing an exercise into /submit, and `$x^2$` is what essentially
+// every LaTeX-literate person types by hand — so the cost of refusing it was that their math
+// silently rendered as literal dollar signs, with the preview honestly showing them exactly the
+// nothing they would get. A rendering convention nobody uses is not safer than one everybody does.
+//
+// The stray-dollar worry is answered by guarding the INLINE form rather than by banning it, using
+// the same rules markdown-it-katex/remark-math settled on for the identical problem:
+//   - the opening $ is not itself escaped (`\$`) and not part of a `$$` run — `(^|[^\\$])`;
+//   - the content neither starts nor ends with whitespace, so "$ 5" / "5 $" are never math;
+//   - the content contains no further `$`, so one match can never span two unrelated ones;
+//   - the closing $ is not followed by a digit — which is what keeps "costs $5 and $10" prose.
+// Checked against the real 742-exercise corpus before enabling: 3759 title/statement/hint/answer/
+// solution/description fields, ZERO of which contain a dollar sign at all, so no migrated content
+// can change meaning under this. The only surfaces that render through here are exercise content
+// and titles (grepped: MathContent/MathTitle have no comment, review, listing or message call
+// site), so a price written in prose never reaches this code in the first place.
+//
+// No lookbehind anywhere, deliberately — the preceding character is captured as a group and put
+// back by the caller instead. Lookbehind only reached Safari in 16.4, and a regex that silently
+// throws at module scope would take down every page that renders any content at all.
+const DISPLAY_MATH_DOLLAR = /\$\$([\s\S]+?)\$\$/g;
+const INLINE_MATH_DOLLAR = /(^|[^\\$])\$([^\s$](?:[^$]*[^\s$])?)\$(?!\d)/g;
 
 // Purely alphanumeric, no markdown-significant punctuation (no `*_[]()` etc.) — CommonMark never
 // escapes, emphasizes, or otherwise transforms a plain run of letters/digits, so this token is
 // guaranteed to survive markdown-it's inline parsing completely unchanged, regardless of whether it
 // ends up inside a `<p>`, a list item, or anywhere else markdown-it decides to place it.
 const PLACEHOLDER_RE = /EDMATHPLACEHOLDERx(\d+)xEND/g;
+
+/**
+ * Replaces every math segment in `source` with whatever `stash` returns for it, in the one order
+ * that is correct: the display form of each convention before its own inline form (so `$$…$$` is
+ * never chewed apart by the `$…$` rule), and the unambiguous backslash conventions before the
+ * dollar ones.
+ *
+ * Shared by both renderers below, which differ only in what they stash — the ORDER is the part
+ * that is easy to get subtly wrong and must not exist in two places that can drift.
+ */
+function extractMath(source: string, stash: (tex: string, displayMode: boolean) => string): string {
+	return (
+		source
+			.replace(DISPLAY_MATH, (_m, tex) => stash(tex, true))
+			.replace(INLINE_MATH, (_m, tex) => stash(tex, false))
+			.replace(DISPLAY_MATH_DOLLAR, (_m, tex) => stash(tex, true))
+			// `before` is the character preceding the opening `$`, captured rather than looked behind
+			// (see INLINE_MATH_DOLLAR's own note) — it is not part of the formula and goes straight back.
+			.replace(INLINE_MATH_DOLLAR, (_m, before, tex) => before + stash(tex, false))
+	);
+}
 
 function safeKatex(tex: string, displayMode: boolean): string {
 	try {
@@ -75,9 +122,7 @@ export function renderContent(source: string | undefined | null): string {
 		return token;
 	}
 
-	const protectedSource = source
-		.replace(DISPLAY_MATH, (_m, tex) => stash(tex, true))
-		.replace(INLINE_MATH, (_m, tex) => stash(tex, false));
+	const protectedSource = extractMath(source, stash);
 
 	const html = md.render(protectedSource);
 	const withMath = html.replace(PLACEHOLDER_RE, (_m, i) => renderedSegments[Number(i)]);
@@ -112,9 +157,9 @@ export function renderTitle(source: string | undefined | null): string {
 
 	// Placeholder tokens are pure alphanumeric (see PLACEHOLDER_RE's own note above) — safe to
 	// HTML-escape the surrounding plain text AFTER stashing without touching the tokens themselves.
-	const withPlaceholders = source
-		.replace(DISPLAY_MATH, (_m, tex) => stash(tex))
-		.replace(INLINE_MATH, (_m, tex) => stash(tex));
+	// The display/inline distinction is discarded on purpose (see this function's own note) — the
+	// shared extractor still reports it, and this is the one caller that ignores it.
+	const withPlaceholders = extractMath(source, (tex) => stash(tex));
 	const escaped = withPlaceholders
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')

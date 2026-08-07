@@ -222,7 +222,7 @@
   "submit_successPublished": "Published! Your exercise is live now — thanks for contributing.",
   "submit_viewExercise": "View exercise",
   "submit_loginRequired": "You need to log in to submit an exercise.",
-  "submit_markdownHint": "Supports Markdown and LaTeX (\\( \\) inline, \\[ \\] display).",
+  "submit_markdownHint": "Supports Markdown and LaTeX — $…$ or \\( \\) inline, $$…$$ or \\[ \\] display.",
   "submitMaterial_heading": "Submit a material",
   "submitMaterial_subtitle": "Exams, tests, and other materials are reviewed by a moderator before they're published. Accepted formats: PDF, PNG, JPEG, LaTeX (.tex), Word (.doc/.docx), or OpenDocument Text (.odt) — every upload's file type is verified, and malware scanning runs automatically wherever a scanner is configured.",
   "submitMaterial_field_course": "Branch",

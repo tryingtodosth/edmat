@@ -184,29 +184,58 @@
 			<input type="number" bind:value={capacity} min="0" max="10000" />
 			<small>{m.events_form_capacityHint()}</small>
 		</label>
-		<label class="field">
-			<span>{m.events_form_field()}</span>
-			<select bind:value={disciplineSlug} onchange={onFieldChange}>
+		<!-- A div, not the <label> this used to be: the propose trigger is a real <button>, and a button
+		     inside a label means every click on it ALSO activates the label's own control — so opening
+		     the proposal dialog was quietly re-focusing (and on some browsers re-opening) the select
+		     underneath it. The label now points at the select by id instead, and the trigger sits on the
+		     label's own row, where it reads as a footnote about this field rather than a second form
+		     action. `.field-heading` wraps, so a narrow screen drops it to its own line. -->
+		<div class="field">
+			<div class="field-heading">
+				<label for="event-discipline">{m.events_form_field()}</label>
+				<!-- A Discipline's own frontend id IS its slug (`mapDiscipline`), so what the proposal
+				     answers with can be selected directly — unlike a Topic, whose id is a numeric pk. -->
+				<ProposeNodeButton
+					kind="discipline"
+					onproposed={async (slug) => {
+						fields = await getDisciplines();
+						disciplineSlug = slug;
+						onFieldChange();
+					}}
+				/>
+			</div>
+			<select id="event-discipline" bind:value={disciplineSlug} onchange={onFieldChange}>
 				<option value="">{m.events_form_none()}</option>
 				<TaxonomyOptions nodes={fields} />
 			</select>
-			<!-- A Discipline's own frontend id IS its slug (`mapDiscipline`), so what the proposal
-			     answers with can be selected directly — unlike a Topic, whose id is a numeric pk. -->
-			<ProposeNodeButton
-				kind="discipline"
-				onproposed={async (slug) => {
-					fields = await getDisciplines();
-					disciplineSlug = slug;
-					onFieldChange();
-				}}
-			/>
-		</label>
+		</div>
 	</div>
 
 	<!-- A checkbox group rather than `<select multiple>`: multi-select is a control most people do not
 	     know they have to hold a modifier key for, and at this catalogue's size the whole list fits. -->
-	<fieldset class="subjects">
-		<legend>{m.events_form_subjects()}</legend>
+	<!-- `aria-labelledby` naming the legend's own TEXT, not the legend itself, is load-bearing here:
+	     a group's accessible name is its legend's text content, and the propose trigger now lives
+	     inside that legend — so without this every checkbox in the group would announce as
+	     "Subjects Not in the list? Suggest one, checkbox". Pointing at the span excludes the button
+	     from the name while leaving it exactly where it reads best. -->
+	<fieldset class="subjects" aria-labelledby="event-subjects-legend">
+		<legend>
+			<span id="event-subjects-legend">{m.events_form_subjects()}</span>
+			<!-- Only once a field is chosen: the backend requires a parent for a branch proposal, so
+			     offering this against "None" could only ever produce a refusal. In the legend rather
+			     than below the list because a field with no subjects yet is exactly when somebody needs
+			     to suggest one — and the legend renders whether the list is empty or not. -->
+			{#if disciplineSlug}
+				<ProposeNodeButton
+					kind="branch"
+					parent={disciplineSlug}
+					onproposed={async (slug) => {
+						branches = await getAllBranches();
+						if (!subjectSlugs.includes(slug)) subjectSlugs = [...subjectSlugs, slug];
+					}}
+				/>
+			{/if}
+		</legend>
 		{#if subjectChoices.length === 0}
 			<p class="empty">{m.events_form_subjectsEmpty()}</p>
 		{:else}
@@ -241,20 +270,6 @@
 			{/if}
 		{/if}
 		<small>{m.events_form_subjectsHint()}</small>
-		<!-- Only once a field is chosen: the backend requires a parent for a branch proposal, so
-		     offering this against "None" could only ever produce a refusal. Rendered outside the
-		     empty/non-empty branch above because a field with no subjects yet is exactly when
-		     somebody needs to suggest one. -->
-		{#if disciplineSlug}
-			<ProposeNodeButton
-				kind="branch"
-				parent={disciplineSlug}
-				onproposed={async (slug) => {
-					branches = await getAllBranches();
-					if (!subjectSlugs.includes(slug)) subjectSlugs = [...subjectSlugs, slug];
-				}}
-			/>
-		{/if}
 	</fieldset>
 
 	<label class="check">
@@ -286,6 +301,26 @@
 		flex-wrap: wrap;
 		.field {
 			flex: 1 1 12rem;
+		}
+		// Beside its own label rather than at the column's far edge — a field sharing a row with
+		// another has a neighbour's label right there, and a right-aligned trigger reads as if it
+		// belonged to that one. Also matches the subjects legend directly below.
+		.field-heading {
+			justify-content: flex-start;
+		}
+	}
+	// Label on the left, the quiet propose trigger on the right. `wrap` is the whole responsive
+	// story: when the two no longer fit side by side the trigger drops to its own line rather than
+	// crushing the label, and the control still sits underneath both.
+	.field-heading {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-1) var(--space-2);
+		label {
+			font-size: var(--font-size-sm);
+			font-weight: 600;
 		}
 	}
 	.field {
@@ -324,7 +359,14 @@
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-sm);
 		padding: var(--space-3);
+		// A flex row so the propose trigger sits beside the group's own name. Not `space-between`:
+		// a <legend> is shrink-to-fit rather than the width of the fieldset, so there is no spare
+		// room to push anything to a right edge — the trigger simply follows the text.
 		legend {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: baseline;
+			gap: var(--space-1) var(--space-2);
 			font-size: var(--font-size-sm);
 			font-weight: 600;
 			padding: 0 var(--space-1);

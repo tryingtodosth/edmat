@@ -222,7 +222,7 @@
   "submit_successPublished": "Opublikowano! Twoje zadanie jest już widoczne — dziękujemy za wkład.",
   "submit_viewExercise": "Zobacz zadanie",
   "submit_loginRequired": "Musisz się zalogować, aby dodać zadanie.",
-  "submit_markdownHint": "Obsługuje Markdown i LaTeX (\\( \\) w linii, \\[ \\] blokowo).",
+  "submit_markdownHint": "Obsługuje Markdown i LaTeX — $…$ lub \\( \\) w linii, $$…$$ lub \\[ \\] blokowo.",
   "submitMaterial_heading": "Dodaj materiał do działu",
   "submitMaterial_subtitle": "Egzaminy, testy i inne materiały są sprawdzane przez moderatora, zanim zostaną opublikowane. Akceptowane formaty: PDF, PNG, JPEG, LaTeX (.tex), Word (.doc/.docx) lub OpenDocument Text (.odt) — typ każdego przesłanego pliku jest weryfikowany, a skanowanie antywirusowe uruchamia się automatycznie wszędzie tam, gdzie skaner jest skonfigurowany.",
   "submitMaterial_field_course": "Dział",
