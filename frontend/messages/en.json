@@ -1292,5 +1292,19 @@
   "course_tab_attachments": "Files",
   "course_tab_notes": "My notes",
   "course_tab_discussion": "Discussion",
-  "course_tab_people": "People"
+  "course_tab_people": "People",
+  "courseFeedback_lessonHeading": "Discussion and ratings",
+  "courseFeedback_chapterHeading": "Discussion and ratings for this chapter",
+  "courseFeedback_discussionHeading": "Discussion",
+  "courseFeedback_ratingsHeading": "Ratings",
+  "courseFeedback_yourRating": "Your rating",
+  "courseFeedback_bodyPlaceholder": "Say why, if you want to (optional)",
+  "courseFeedback_save": "Save rating",
+  "courseFeedback_saveError": "That rating could not be saved. Try again.",
+  "courseFeedback_noRatings": "Nobody has rated this yet.",
+  "courseFeedback_membersOnly": "Only people taking part in this course can rate it.",
+  "courseFeedback_readOnly": "You can read this discussion, but only people taking part can post.",
+  "courseFeedback_discussionClosed": "The discussion is closed for this course.",
+  "courseFeedback_ratingCount": "{count} rating(s)",
+  "courseFeedback_starLabel": "{count} out of 5"
 }

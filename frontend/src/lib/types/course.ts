@@ -99,6 +99,10 @@ export interface Chapter {
 	/** Empty for a participant while the chapter is locked. The chapter itself still renders, so a
 	 * course never looks shorter than it is. */
 	lessons: Lesson[];
+	/** How the week as a whole was rated — a different judgement from any one session's, which is
+	 * why both exist rather than a chapter's score being an average of whichever lessons happened
+	 * to be rated. Present even while locked: it is about the chapter, like its title. */
+	reviews: RatingSummary;
 	/** Content filed straight into the chapter rather than into one of its lessons — a reading for
 	 * the whole week belongs to the week, not to any one session in it. Empty while locked, exactly
 	 * as `lessons` is. */
@@ -195,6 +199,27 @@ export interface Lesson {
 	items: CourseItem[];
 	/** Empty while the holding chapter is locked, exactly as `items` is. */
 	exerciseSets: LessonExerciseSet[];
+	/** How this session was rated, as a summary only. The reviews themselves are their own
+	 * request, made when somebody actually opens them — a twelve-week course would otherwise
+	 * serialize every rating anybody ever left just to draw the page once. */
+	reviews: RatingSummary;
+}
+
+export interface RatingSummary {
+	count: number;
+	/** null, not 0, when nobody has rated it — zero would read as "everybody hated it" rather than
+	 * "nobody has said", and those are not the same thing to show a reader. */
+	average: number | null;
+}
+
+/** A rating on one session or one week. Same shape as `AttachmentReview`, and deliberately its own
+ * type rather than a shared one: they come from different endpoints and can diverge. */
+export interface CourseFeedbackReview {
+	id: string;
+	author: { id: string; displayName: string };
+	rating: number;
+	body: string;
+	createdAt: string;
 }
 
 export interface Course {

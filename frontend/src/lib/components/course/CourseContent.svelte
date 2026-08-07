@@ -13,6 +13,8 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
+	import MathContent from '$lib/components/shared/MathContent.svelte';
+	import LessonFeedback from '$lib/components/course/LessonFeedback.svelte';
 	import { getSetsForUser } from '$lib/services/exerciseSets';
 	import type { ExerciseSet } from '$lib/types';
 	import type { Chapter, CourseItem, Course, Lesson, LessonExerciseSet } from '$lib/types/course';
@@ -406,7 +408,11 @@
 				{/if}
 			</header>
 			{#if chapter.description}
-				<p class="description">{chapter.description}</p>
+				<!-- Markdown + LaTeX, the same renderer an exercise uses. This printed as literal
+				     text before, so a link somebody wrote showed as brackets and parentheses.
+				     Sanitized server-side on save too (Chapter.save) — the rendering pass here is
+				     not the only thing between a description and a reader's browser. -->
+				<div class="description"><MathContent source={chapter.description} /></div>
 			{/if}
 
 			{#if chapter.items.length > 0}
@@ -498,10 +504,10 @@
 								{/if}
 							</div>
 							{#if lesson.description}
-								<p class="description">{lesson.description}</p>
+								<div class="description"><MathContent source={lesson.description} /></div>
 							{/if}
 							{#if lesson.participantNotes}
-								<p class="notes">{lesson.participantNotes}</p>
+								<div class="notes"><MathContent source={lesson.participantNotes} /></div>
 							{/if}
 							{#if lesson.items.length > 0}
 								<ul class="items">
@@ -554,6 +560,18 @@
 									{/if}
 								</div>
 							{/if}
+
+							<!-- The session's own conversation and ratings, at the end of it: you read
+								     Tuesday, then you ask about Tuesday. Collapsed, and it loads nothing until
+								     opened — a twelve-week course draws a dozen of these. -->
+							<LessonFeedback
+								courseId={course.id}
+								target="lesson"
+								targetId={lesson.id}
+								summary={lesson.reviews}
+								canWrite={course.canPostDiscussion}
+								canReadDiscussion={course.canReadDiscussion}
+							/>
 						</li>
 					{/each}
 				</ol>
@@ -580,6 +598,19 @@
 					{m.course_chapter_dropHere()}
 				</p>
 			{/if}
+
+			<!-- The week's own conversation and ratings, below everything in it. A different
+			     question from any one session's: "how should we approach week 3" belongs here,
+			     "is task 3 a typo" belongs to Tuesday. Shown on a locked week too — the chapter
+			     itself renders when locked, and its thread refuses on its own terms. -->
+			<LessonFeedback
+				courseId={course.id}
+				target="chapter"
+				targetId={chapter.id}
+				summary={chapter.reviews}
+				canWrite={course.canPostDiscussion}
+				canReadDiscussion={course.canReadDiscussion}
+			/>
 
 			{#if course.canCurate && ondeletechapter}
 				<div class="chapter-actions">

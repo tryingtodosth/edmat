@@ -1292,5 +1292,19 @@
   "course_tab_attachments": "Pliki",
   "course_tab_notes": "Moje notatki",
   "course_tab_discussion": "Dyskusja",
-  "course_tab_people": "Osoby"
+  "course_tab_people": "Osoby",
+  "courseFeedback_lessonHeading": "Dyskusja i oceny",
+  "courseFeedback_chapterHeading": "Dyskusja i oceny tego rozdziału",
+  "courseFeedback_discussionHeading": "Dyskusja",
+  "courseFeedback_ratingsHeading": "Oceny",
+  "courseFeedback_yourRating": "Twoja ocena",
+  "courseFeedback_bodyPlaceholder": "Napisz dlaczego, jeśli chcesz (opcjonalnie)",
+  "courseFeedback_save": "Zapisz ocenę",
+  "courseFeedback_saveError": "Nie udało się zapisać oceny. Spróbuj ponownie.",
+  "courseFeedback_noRatings": "Nikt jeszcze tego nie ocenił.",
+  "courseFeedback_membersOnly": "Ocenić może tylko osoba biorąca udział w tym kursie.",
+  "courseFeedback_readOnly": "Możesz czytać tę dyskusję, ale pisać mogą tylko uczestnicy.",
+  "courseFeedback_discussionClosed": "Dyskusja w tym kursie jest wyłączona.",
+  "courseFeedback_ratingCount": "Liczba ocen: {count}",
+  "courseFeedback_starLabel": "{count} na 5"
 }

@@ -13,6 +13,12 @@ export type CommentTargetType =
 	// A branch run by a user (classroom.Course) — the same generic Comment mechanism, so the
 	// thread, the tree builder and the report flow all come for free.
 	| 'taughtCourse'
+	// One session, and one week, inside such a course. Both exist because they are different
+	// conversations: "is task 3 a typo" belongs to Tuesday, "how should we approach this week"
+	// belongs to the week, and folding them together puts the second in whichever lesson happens
+	// to be first.
+	| 'courseLesson'
+	| 'courseChapter'
 	// The three review kinds. Replying to somebody's review is not a new kind of object — it is a
 	// Comment whose target happens to be a Review, which is why it inherits the same threading,
 	// reporting and moderation everything else here already has. All three exist because

@@ -25,12 +25,14 @@ from testing.factories import make_exercise
 from .models import (
     Attachment,
     Chapter,
+    ChapterReview,
     CourseInvite,
     CourseItem,
     CourseStaff,
     Enrollment,
     Lesson,
     LessonExerciseSet,
+    LessonReview,
     Course,
 )
 
@@ -1576,9 +1578,17 @@ class LessonDiscussionTests(ApiTestCase):
         self.assertIn(res.status_code, (403, 404))
 
     def test_discussion_off_closes_the_lesson_thread_too(self):
+        """403 rather than the 404 this used to answer.
+
+        The refusal is the same one the course-wide thread has always given, and it used to differ
+        here purely because the two actions were written at different times. 403 is also the
+        truthful answer: the lesson exists and the course detail says so, so 404 would be a lie the
+        caller can disprove, and a client cannot tell "the discussion is closed" from "no such
+        lesson" if both come back the same.
+        """
         self.course.discussion_mode = 'off'
         self.course.save()
-        self.assertEqual(self.as_(self.student).get(self._url()).status_code, 404)
+        self.assertEqual(self.as_(self.student).get(self._url()).status_code, 403)
 
     def test_an_empty_body_is_refused(self):
         res = self.as_(self.student).post(self._url(), {'body': '   '}, format='json')
@@ -2123,15 +2133,27 @@ class LessonExerciseSetTests(ApiTestCase):
         self.assertEqual(len(self.as_(self.instructor).get(self.link_url()).data), 1)
 
     def test_a_locked_chapter_does_not_leak_through_the_flat_lessons_list(self):
-        """`CourseSerializer.get_lessons` returns every lesson with no chapter-lock filter of its
-        own, so this field has to answer the question itself rather than trusting its caller."""
+        """The flat `lessons` field used to return every lesson regardless of its chapter's lock.
+
+        This test was written when that was still true, and asserted the narrower thing that was
+        then available: that `exercise_sets` filtered itself even though its caller did not. The
+        caller is fixed now, so the honest assertion is the stronger one — a locked week's lesson is
+        not in the flat list at all. `get_exercise_sets` still filters independently, which
+        `test_a_locked_chapter_hides_its_linked_sets_from_a_participant_but_not_from_staff` covers
+        directly; belt and braces both stay.
+        """
         self.link(self.make_set())
         self.chapter.unlocks_at = timezone.now() + timedelta(days=7)
         self.chapter.save(update_fields=['unlocks_at'])
 
         response = self.as_(self.participant).get(f'/api/courses/{self.course.pk}/')
         flat = [lesson for lesson in response.data['lessons'] if lesson['id'] == self.lesson.pk]
-        self.assertEqual(flat[0]['exercise_sets'], [])
+        self.assertEqual(flat, [], 'a locked week is not in the flat lesson list')
+        staff = self.as_(self.instructor).get(f'/api/courses/{self.course.pk}/')
+        self.assertTrue(
+            [lesson for lesson in staff.data['lessons'] if lesson['id'] == self.lesson.pk],
+            'staff still see it — they are the people preparing it',
+        )
 
     def test_an_unpublished_exercise_is_dropped_for_a_participant_and_kept_for_a_curator(self):
         """A moderator unpublishes an exercise when something is wrong with it, usually its
@@ -2198,3 +2220,237 @@ class LessonExerciseSetTests(ApiTestCase):
             format='json',
         )
         self.assertEqual(response.status_code, 404)
+
+
+class CourseThreadFixture(ApiTestCase):
+    """One course with a chapter, a lesson and an enrolled student — shared by the three classes
+    below, which all need exactly this and nothing more."""
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Week 1')
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Mon')
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+
+    def lesson_thread(self, lesson=None):
+        return f'/api/courses/{self.course.pk}/lessons/{(lesson or self.lesson).pk}/comments/'
+
+    def chapter_thread(self, chapter=None):
+        return f'/api/courses/{self.course.pk}/chapters/{(chapter or self.chapter).pk}/comments/'
+
+    def lock(self, chapter=None):
+        target = chapter or self.chapter
+        target.unlocks_at = timezone.now() + timedelta(days=7)
+        target.save(update_fields=['unlocks_at'])
+
+
+class LessonThreadParentTests(CourseThreadFixture):
+    """The lesson thread used to build its `Comment` by hand, passing `parent_id` straight from the
+    request body — so a reply could name a comment in a different thread entirely and silently
+    attach there, and a made-up id was an unhandled IntegrityError rather than a 400. It goes
+    through the shared helper now; these pin what that bought."""
+
+    def test_a_reply_threads(self):
+        root = self.as_(self.student).post(
+            self.lesson_thread(), {'body': 'why is step 3 like that'}, format='json'
+        ).data
+        reply = self.as_(self.instructor).post(
+            self.lesson_thread(), {'body': 'typo, fixed', 'parent': root['id']}, format='json'
+        )
+        self.assertEqual(reply.status_code, 201)
+        self.assertEqual(reply.data['parent'], root['id'])
+
+    def test_a_parent_from_another_lessons_thread_is_refused(self):
+        other = Lesson.objects.create(chapter=self.chapter, title='Tue')
+        elsewhere = self.as_(self.student).post(
+            self.lesson_thread(other), {'body': 'about tuesday'}, format='json'
+        ).data
+        res = self.as_(self.student).post(
+            self.lesson_thread(), {'body': 'sneaking in', 'parent': elsewhere['id']}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('parent', res.data)
+
+    def test_a_parent_from_the_courses_own_thread_is_refused(self):
+        """Same id space, different content type — the check has to compare both."""
+        on_course = self.as_(self.student).post(
+            f'/api/courses/{self.course.pk}/comments/', {'body': 'course-wide'}, format='json'
+        ).data
+        res = self.as_(self.student).post(
+            self.lesson_thread(), {'body': 'nope', 'parent': on_course['id']}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+
+    def test_a_parent_that_does_not_exist_is_a_400_not_a_500(self):
+        res = self.as_(self.student).post(
+            self.lesson_thread(), {'body': 'hi', 'parent': 999999}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+
+
+class ChapterDiscussionTests(CourseThreadFixture):
+    """A week's own conversation, separate from any one session inside it."""
+
+    def test_a_participant_posts_and_reads(self):
+        posted = self.as_(self.student).post(
+            self.chapter_thread(), {'body': 'how should we approach this week?'}, format='json'
+        )
+        self.assertEqual(posted.status_code, 201)
+        rows = self.as_(self.student).get(self.chapter_thread()).data
+        self.assertEqual([c['body'] for c in rows], ['how should we approach this week?'])
+
+    def test_it_is_not_the_lessons_thread_and_not_the_courses(self):
+        self.as_(self.student).post(self.chapter_thread(), {'body': 'week'}, format='json')
+        self.assertEqual(self.as_(self.student).get(self.lesson_thread()).data, [])
+        self.assertEqual(
+            self.as_(self.student).get(f'/api/courses/{self.course.pk}/comments/').data, []
+        )
+
+    def test_a_second_chapter_has_its_own_thread(self):
+        other = Chapter.objects.create(course=self.course, title='Week 2')
+        self.as_(self.student).post(self.chapter_thread(), {'body': 'week one'}, format='json')
+        self.assertEqual(self.as_(self.student).get(self.chapter_thread(other)).data, [])
+
+    def test_discussion_off_closes_it(self):
+        self.course.discussion_mode = 'off'
+        self.course.save()
+        self.assertEqual(self.as_(self.student).get(self.chapter_thread()).status_code, 403)
+
+    def test_a_stranger_cannot_post(self):
+        res = self.as_(self.other).post(self.chapter_thread(), {'body': 'hello'}, format='json')
+        self.assertIn(res.status_code, (403, 404))
+
+    def test_a_locked_week_hides_its_conversation_from_a_participant_not_from_staff(self):
+        """A locked chapter still shows its title and unlock date; its discussion is contents."""
+        self.lock()
+        self.assertEqual(self.as_(self.student).get(self.chapter_thread()).status_code, 404)
+        self.assertEqual(self.as_(self.instructor).get(self.chapter_thread()).status_code, 200)
+
+    def test_a_chapter_from_another_course_is_not_reachable_here(self):
+        elsewhere = Chapter.objects.create(course=self.make_course(title='Theirs'), title='Theirs')
+        res = self.as_(self.student).get(self.chapter_thread(elsewhere))
+        self.assertEqual(res.status_code, 404)
+
+    def test_a_parent_from_a_different_chapter_is_refused(self):
+        other = Chapter.objects.create(course=self.course, title='Week 2')
+        elsewhere = self.as_(self.student).post(
+            self.chapter_thread(other), {'body': 'week two'}, format='json'
+        ).data
+        res = self.as_(self.student).post(
+            self.chapter_thread(), {'body': 'no', 'parent': elsewhere['id']}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+
+
+class LessonAndChapterReviewTests(CourseThreadFixture):
+    """Ratings on a session and on a week. Deliberately two models: "Tuesday was unclear" and
+    "week 3 was worth it" are different judgements."""
+
+    def lesson_reviews(self):
+        return f'/api/courses/{self.course.pk}/lessons/{self.lesson.pk}/reviews/'
+
+    def chapter_reviews(self):
+        return f'/api/courses/{self.course.pk}/chapters/{self.chapter.pk}/reviews/'
+
+    def test_a_participant_rates_a_lesson(self):
+        res = self.as_(self.student).post(
+            self.lesson_reviews(), {'rating': 4, 'body': 'clear enough'}, format='json'
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(LessonReview.objects.count(), 1)
+
+    def test_rating_again_edits_rather_than_duplicating(self):
+        self.as_(self.student).post(self.lesson_reviews(), {'rating': 2}, format='json')
+        self.as_(self.student).post(self.lesson_reviews(), {'rating': 5}, format='json')
+        self.assertEqual(LessonReview.objects.count(), 1)
+        self.assertEqual(LessonReview.objects.get().rating, 5)
+
+    def test_a_rating_outside_one_to_five_is_refused(self):
+        for bad in (0, 6):
+            res = self.as_(self.student).post(
+                self.lesson_reviews(), {'rating': bad}, format='json'
+            )
+            self.assertEqual(res.status_code, 400, f'{bad} should be refused')
+
+    def test_somebody_not_in_the_course_cannot_rate_it(self):
+        """Reading a public course is open to the internet; rating a session in it is not."""
+        res = self.as_(self.other).post(self.lesson_reviews(), {'rating': 5}, format='json')
+        self.assertEqual(res.status_code, 403)
+
+    def test_anonymous_cannot_rate(self):
+        res = self.client.post(self.lesson_reviews(), {'rating': 5}, format='json')
+        self.assertIn(res.status_code, (401, 403))
+
+    def test_a_chapter_review_is_a_different_thing_from_a_lesson_review(self):
+        self.as_(self.student).post(self.lesson_reviews(), {'rating': 1}, format='json')
+        self.as_(self.student).post(self.chapter_reviews(), {'rating': 5}, format='json')
+        self.assertEqual(LessonReview.objects.get().rating, 1)
+        self.assertEqual(ChapterReview.objects.get().rating, 5)
+
+    def test_the_course_detail_carries_the_summary(self):
+        self.as_(self.student).post(self.lesson_reviews(), {'rating': 4}, format='json')
+        self.as_(self.instructor).post(self.lesson_reviews(), {'rating': 2}, format='json')
+        detail = self.as_(self.student).get(f'/api/courses/{self.course.pk}/').data
+        lesson = detail['chapters'][0]['lessons'][0]
+        self.assertEqual(lesson['reviews'], {'count': 2, 'average': 3.0})
+
+    def test_an_unrated_lesson_reports_no_average_rather_than_zero(self):
+        """Zero would read as "everybody hated it" instead of "nobody has said"."""
+        detail = self.as_(self.student).get(f'/api/courses/{self.course.pk}/').data
+        self.assertEqual(detail['chapters'][0]['lessons'][0]['reviews'],
+                         {'count': 0, 'average': None})
+
+    def test_a_locked_week_hides_its_ratings_from_a_participant_not_from_staff(self):
+        self.lock()
+        self.assertEqual(self.as_(self.student).get(self.chapter_reviews()).status_code, 404)
+        self.assertEqual(self.as_(self.instructor).get(self.chapter_reviews()).status_code, 200)
+
+    def test_a_review_body_is_sanitized_on_the_way_in(self):
+        self.as_(self.student).post(
+            self.lesson_reviews(),
+            {'rating': 3, 'body': 'fine <script>alert(1)</script>'},
+            format='json',
+        )
+        self.assertNotIn('<script>', LessonReview.objects.get().body)
+
+
+class LessonAndChapterMarkdownTests(CourseThreadFixture):
+    """These three fields render as Markdown now. They were safe while Svelte printed them through
+    escaping braces — nothing could leave a text node — so the server-side pass had to land in the
+    same change as the rendering rather than after it."""
+
+    def test_a_script_tag_in_a_lesson_description_does_not_survive(self):
+        lesson = Lesson.objects.create(
+            chapter=self.chapter, title='X', description='hi <script>alert(1)</script>'
+        )
+        self.assertNotIn('<script>', lesson.description)
+        self.assertIn('hi', lesson.description)
+
+    def test_participant_notes_are_sanitized_too(self):
+        lesson = Lesson.objects.create(
+            chapter=self.chapter,
+            title='X',
+            participant_notes='<img src=x onerror=alert(1)>notes',
+        )
+        self.assertNotIn('onerror', lesson.participant_notes)
+
+    def test_a_chapter_description_is_sanitized(self):
+        chapter = Chapter.objects.create(
+            course=self.course, title='W', description='<iframe src="evil"></iframe>week'
+        )
+        self.assertNotIn('<iframe', chapter.description)
+
+    def test_ordinary_markdown_is_left_alone(self):
+        """The sanitizer must not eat the feature it is protecting: a link and emphasis are the
+        two things somebody writing a lesson description will actually type."""
+        body = 'see [the notes](https://example.edu/notes.pdf) and **bring a calculator**'
+        lesson = Lesson.objects.create(chapter=self.chapter, title='X', description=body)
+        self.assertEqual(lesson.description, body)
+
+    def test_latex_survives(self):
+        """Course text goes through the same renderer as an exercise, so a formula in a lesson
+        description has to come out the other side intact."""
+        body = r'integrate \( \int_0^1 x^2 dx \) before Tuesday'
+        lesson = Lesson.objects.create(chapter=self.chapter, title='X', description=body)
+        self.assertEqual(lesson.description, body)

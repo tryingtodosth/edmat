@@ -12,6 +12,7 @@ import type {
 	CourseInvite,
 	CourseInviteDraft,
 	CourseItem,
+	CourseFeedbackReview,
 	CourseNote,
 	CourseStaffMember,
 	Enrollment,
@@ -21,6 +22,7 @@ import type {
 	LessonDraft,
 	LessonExerciseSet,
 	LessonSetExercise,
+	RatingSummary,
 	StaffRole,
 	Course,
 	TaughtCourseDraft
@@ -39,7 +41,27 @@ function mapLesson(raw: any): Lesson {
 		durationMinutes: raw.duration_minutes,
 		participantNotes: raw.participant_notes ?? '',
 		items: (raw.items ?? []).map(mapItem),
-		exerciseSets: (raw.exercise_sets ?? []).map(mapLessonExerciseSet)
+		exerciseSets: (raw.exercise_sets ?? []).map(mapLessonExerciseSet),
+		reviews: mapRatingSummary(raw.reviews)
+	};
+}
+
+/** Defaults to "nobody has rated this" rather than to zero, and tolerates the field being absent
+ * so an older response shape cannot make the page render a 0★ average that nobody gave. */
+function mapRatingSummary(raw: any): RatingSummary {
+	return {
+		count: raw?.count ?? 0,
+		average: raw?.average ?? null
+	};
+}
+
+function mapCourseFeedbackReview(raw: any): CourseFeedbackReview {
+	return {
+		id: String(raw.id),
+		author: mapParticipant(raw.author),
+		rating: raw.rating,
+		body: raw.body ?? '',
+		createdAt: raw.created_at
 	};
 }
 
@@ -112,7 +134,8 @@ function mapChapter(raw: any): Chapter {
 		unlocksAt: raw.unlocks_at ?? null,
 		isUnlocked: raw.is_unlocked ?? true,
 		lessons: (raw.lessons ?? []).map(mapLesson),
-		items: (raw.items ?? []).map(mapItem)
+		items: (raw.items ?? []).map(mapItem),
+		reviews: mapRatingSummary(raw.reviews)
 	};
 }
 
@@ -795,6 +818,65 @@ export async function reviewAttachment(
 			`/courses/${encodeURIComponent(courseId)}/attachments/${encodeURIComponent(attachmentId)}/reviews/`,
 			{ rating, body }
 		)
+	);
+}
+
+/* --- a lesson's or a chapter's own thread and ratings ------------------------------------------
+ *
+ * One pair of functions taking the target kind rather than four near-identical ones: the URL is the
+ * only thing that differs, and four copies is four places for the parent-id conversion below to be
+ * got wrong in. `parent` is sent as a number because the API's comment ids are numeric PKs, while
+ * this app carries every id as an opaque string — the conversion belongs here, at the boundary,
+ * rather than in a component.
+ */
+export type CourseFeedbackTarget = 'lesson' | 'chapter';
+
+function feedbackPath(courseId: string, target: CourseFeedbackTarget, targetId: string) {
+	const segment = target === 'lesson' ? 'lessons' : 'chapters';
+	return `/courses/${encodeURIComponent(courseId)}/${segment}/${encodeURIComponent(targetId)}`;
+}
+
+export async function getCourseTargetComments(
+	courseId: string,
+	target: CourseFeedbackTarget,
+	targetId: string
+) {
+	return apiClient.get<unknown[]>(`${feedbackPath(courseId, target, targetId)}/comments/`);
+}
+
+export async function postCourseTargetComment(
+	courseId: string,
+	target: CourseFeedbackTarget,
+	targetId: string,
+	body: string,
+	parentId?: string
+) {
+	return apiClient.post(`${feedbackPath(courseId, target, targetId)}/comments/`, {
+		body,
+		parent: parentId ? Number(parentId) : null
+	});
+}
+
+export async function getCourseTargetReviews(
+	courseId: string,
+	target: CourseFeedbackTarget,
+	targetId: string
+): Promise<CourseFeedbackReview[]> {
+	const raw = await apiClient.get<unknown[]>(
+		`${feedbackPath(courseId, target, targetId)}/reviews/`
+	);
+	return raw.map(mapCourseFeedbackReview);
+}
+
+export async function reviewCourseTarget(
+	courseId: string,
+	target: CourseFeedbackTarget,
+	targetId: string,
+	rating: number,
+	body = ''
+): Promise<CourseFeedbackReview> {
+	return mapCourseFeedbackReview(
+		await apiClient.post(`${feedbackPath(courseId, target, targetId)}/reviews/`, { rating, body })
 	);
 }
 

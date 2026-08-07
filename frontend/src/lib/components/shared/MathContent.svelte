@@ -20,6 +20,20 @@
 		line-height: 1.65;
 		overflow-wrap: break-word;
 
+		// The global reset makes every anchor `color: inherit; text-decoration: none`, which is
+		// right where a whole card or nav row is the link and wrong inside prose: a link written
+		// as Markdown rendered as an ordinary-looking word, so nobody could tell it was one.
+		// Scoped to rendered content rather than fixed in the reset, because the reset's choice is
+		// deliberate everywhere else.
+		:global(a) {
+			color: var(--accent);
+			text-decoration: underline;
+		}
+		:global(a:hover),
+		:global(a:focus-visible) {
+			text-decoration-thickness: 2px;
+		}
+
 		:global(p) {
 			margin: 0 0 var(--space-3) 0;
 		}

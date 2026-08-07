@@ -8,6 +8,8 @@ from .models import (
     Attachment,
     AttachmentReview,
     Chapter,
+    ChapterReview,
+    LessonReview,
     CourseInvite,
     CourseItem,
     CourseNote,
@@ -159,10 +161,24 @@ class LessonExerciseSetSerializer(serializers.ModelSerializer):
         return pinned != current
 
 
+def rating_summary(reviews) -> dict:
+    """{count, average} for a set of reviews, read off `.all()` so a prefetch is honoured.
+
+    Reading `.all()` rather than calling `.aggregate()` is deliberate: an aggregate always issues
+    its own query, which on a course detail page is one per lesson plus one per chapter — the exact
+    N+1 shape the moderation queue was measured making. Off a prefetched cache this costs nothing.
+    """
+    ratings = [review.rating for review in reviews.all()]
+    if not ratings:
+        return {'count': 0, 'average': None}
+    return {'count': len(ratings), 'average': round(sum(ratings) / len(ratings), 2)}
+
+
 class LessonSerializer(serializers.ModelSerializer):
     participant_notes = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
     exercise_sets = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = Lesson
@@ -177,7 +193,14 @@ class LessonSerializer(serializers.ModelSerializer):
             'participant_notes',
             'items',
             'exercise_sets',
+            'reviews',
         ]
+
+    def get_reviews(self, lesson) -> dict:
+        """The summary only — count and average. The reviews themselves are their own endpoint,
+        because a course with twelve weeks of sessions would otherwise serialize every rating
+        anybody ever left on any of them just to draw one page."""
+        return rating_summary(lesson.reviews)
 
     def get_exercise_sets(self, lesson):
         """Filtered by each link's own `is_visible_to`, not by the caller having already checked.
@@ -343,8 +366,29 @@ class CourseSerializer(serializers.ModelSerializer):
         )
 
     def get_lessons(self, course):
+        """Every lesson the reader may actually see, flat.
+
+        The chapter filter is the whole point and was missing: this field used to return every
+        lesson in the course regardless of its chapter's lock, which meant `participant_notes` for a
+        week that had not opened yet went over the wire to any participant. Invisible in the UI —
+        the frontend renders `chapter.lessons` — and live to anything reading the API directly.
+        `ChapterSerializer.get_lessons` has always been correct; this one is now too, and
+        `LessonSerializer.get_items`' assumption that the lock was applied one level up finally
+        holds on both paths rather than only the nested one.
+        """
+        user = getattr(self.context.get('request'), 'user', None)
+        # This is a fresh query rather than the course's own prefetched chapters, so it needs its
+        # own `reviews` prefetch or the rating summary costs one query per lesson here even though
+        # the nested path is already covered.
+        lessons = [
+            lesson
+            for lesson in Lesson.objects.filter(chapter__course=course)
+            .select_related('chapter')
+            .prefetch_related('reviews', 'items', 'exercise_sets__exercises__exercise')
+            if lesson.is_visible_to(user)
+        ]
         return LessonSerializer(
-            Lesson.objects.filter(chapter__course=course),
+            lessons,
             many=True,
             context={**self.context, 'is_participant': self._is_participant(course)},
         ).data
@@ -627,6 +671,7 @@ class ChapterSerializer(serializers.ModelSerializer):
     is_unlocked = serializers.SerializerMethodField()
     lessons = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = Chapter
@@ -639,7 +684,13 @@ class ChapterSerializer(serializers.ModelSerializer):
             'is_unlocked',
             'lessons',
             'items',
+            'reviews',
         ]
+
+    def get_reviews(self, chapter) -> dict:
+        """Summary only, same as a lesson's — and present on a locked chapter too, since the count
+        is about the chapter rather than its contents, exactly like its title and unlock date."""
+        return rating_summary(chapter.reviews)
 
     def _user(self):
         request = self.context.get('request')
@@ -753,6 +804,24 @@ class AttachmentReviewSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AttachmentReview
+        fields = ['id', 'author', 'rating', 'body', 'created_at']
+        read_only_fields = ['created_at']
+
+
+class LessonReviewSerializer(serializers.ModelSerializer):
+    author = ParticipantSerializer(read_only=True)
+
+    class Meta:
+        model = LessonReview
+        fields = ['id', 'author', 'rating', 'body', 'created_at']
+        read_only_fields = ['created_at']
+
+
+class ChapterReviewSerializer(serializers.ModelSerializer):
+    author = ParticipantSerializer(read_only=True)
+
+    class Meta:
+        model = ChapterReview
         fields = ['id', 'author', 'rating', 'body', 'created_at']
         read_only_fields = ['created_at']
 
