@@ -137,6 +137,12 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
             'estimated_minutes',
             'scan_status',
             'scan_detail',
+            # Surfaced rather than kept internal: the reject response is delivered straight back to
+            # the moderator who just decided, and a `file` that has quietly become null with nothing
+            # to explain it reads as a bug. These two say what actually happened — see
+            # `_reclaim_rejected_material_file` (moderation/views.py).
+            'file_reclaimed_at',
+            'reclaimed_file_bytes',
             'status',
             'reviewed_by',
             'review_note',
@@ -147,6 +153,8 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
             'submitted_by',
             'scan_status',
             'scan_detail',
+            'file_reclaimed_at',
+            'reclaimed_file_bytes',
             'status',
             'reviewed_by',
             'review_note',

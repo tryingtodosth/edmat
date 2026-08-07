@@ -60,6 +60,27 @@ class Profile(models.Model):
     # reputation; none of that is built, and defaulting everyone to a number nothing can yet raise
     # would cap real people on the strength of a design note.
     max_courses = models.PositiveSmallIntegerField(default=0)
+
+    # How many bytes of uploaded MATERIAL this account may hold on the server at once — the
+    # per-person counterpart to `TaughtCourse.upload_quota_bytes`, which caps one course.
+    #
+    # The two do not overlap, and the gap between them is why this exists. That one is enforced on
+    # the course-content path alone (`TaughtCourseViewSet.items`, classroom/views.py); the main
+    # upload route, `POST /api/material-submissions/`, never consulted it and had no aggregate limit
+    # of its own at all, so one account was bounded only by the 25MB per-file cap
+    # (`MAX_MATERIAL_SUBMISSION_SIZE_BYTES`) times however many requests it cared to make. On a
+    # university box with a shared filesystem that is the whole disk, one account at a time.
+    #
+    # 0 means uncapped, the same convention `max_courses` above and `TaughtCourse.capacity`/
+    # `.upload_quota_bytes` already use, so "no limit" reads identically everywhere it appears. And
+    # uncapped is the DEFAULT, deliberately: nobody's existing behaviour changes until an
+    # administrator picks a number in Django admin. The reasoning is the one `max_courses` gives
+    # just above and the `material_uploads_verified_only` flag's own migration (moderation/0011)
+    # states for a differently-shaped restriction — provisioning a limit must never quietly narrow
+    # somebody's access on the strength of its mere existence, and there is no reputation system
+    # built that could raise a number set on everybody's behalf.
+    material_upload_quota_bytes = models.PositiveBigIntegerField(default=0)
+
     joined_at = models.DateTimeField(auto_now_add=True)
 
     # Privacy: whether GET /api/users/{id}/'s own dedicated profile page shows anything beyond a
@@ -118,6 +139,65 @@ class Profile(models.Model):
     # both exist side by side rather than the app forcing one shape.
     offers_tutoring = models.BooleanField(default=False)
     tutoring_note = models.CharField(max_length=200, blank=True)
+
+    @property
+    def material_upload_bytes(self) -> int:
+        """Total bytes this account currently occupies with material submissions.
+
+        Summed live from storage rather than kept as a running total on the row — deliberately the
+        same shape as `TaughtCourse.uploaded_bytes` (classroom/models.py) rather than a second
+        answer to the same question, and for the same reason, which is worth restating because the
+        obvious objection ("that is one `stat()` per submission") is real:
+
+        A stored counter has to stay correct after every upload, every rejection that reclaims a
+        file, every upload that failed validation halfway, and every deletion an administrator makes
+        in Django admin. Each of those is a place it can drift, and a drifted counter is invisible:
+        it either refuses uploads that would have fitted or admits ones that do not, with nothing on
+        the row to say which. A live sum cannot be wrong about what is actually on disk, and what is
+        actually on disk is the only thing a byte quota is trying to bound.
+
+        The cost is bounded by where this is read: once per upload request (alongside a malware scan
+        that is orders of magnitude more expensive) and on the Django admin changelist. Neither is
+        hot, and one account's submissions number in the tens — keeping that true is the point of
+        the quota. If this ever does become hot, the first move is a `file_size` column written at
+        upload time plus a single `Sum()` aggregate, which is still derived from real rows and so
+        still cannot drift, unlike a counter kept here.
+
+        **Every submission counts, whatever its status, and that is a decision rather than a
+        shortcut.** An approved one still counts because its bytes are still on disk — the published
+        `Material` points at the very same stored path (`_apply_material_submission` copies the
+        reference, never the file) — and exempting approved uploads would leave the cap bounding
+        nothing at all over a long enough membership. A rejected one whose blob has been reclaimed
+        needs no status filter to stop counting: it has no file left, so it contributes zero on its
+        own. The quota measures disk, not decisions.
+        """
+        # Imported here rather than at module scope so the model-import graph stays one-way:
+        # `moderation` already imports `materials`, which imports `taxonomy`, and nothing in that
+        # chain imports `accounts` — keeping this app a leaf is cheaper than reasoning about a cycle
+        # every time somebody adds an import over there.
+        from moderation.models import MaterialSubmission
+
+        total = 0
+        for submission in MaterialSubmission.objects.filter(submitted_by=self.user).only('file'):
+            stored = submission.file
+            if not stored:
+                continue
+            try:
+                total += stored.size
+            except (OSError, ValueError):
+                # A row whose file is missing from storage must not take an upload (or the admin
+                # changelist) down with it; it occupies nothing, which is the honest reading of
+                # "not there" — the same handling `TaughtCourse.uploaded_bytes` already gives it.
+                continue
+        return total
+
+    @property
+    def material_upload_bytes_left(self) -> int | None:
+        """None when uncapped — deliberately not 0, which would read as "full", the same distinction
+        `TaughtCourse.upload_bytes_left`/`seats_left` already draw for their own limits."""
+        if not self.material_upload_quota_bytes:
+            return None
+        return max(self.material_upload_quota_bytes - self.material_upload_bytes, 0)
 
     def __str__(self) -> str:
         return self.display_name or self.user.username

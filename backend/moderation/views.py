@@ -175,6 +175,22 @@ class MaterialSubmissionViewSet(viewsets.ModelViewSet):
             perms.append(RequireVerifiedContributorForMaterialUploads())
         return perms
 
+    def get_throttles(self):
+        """Scopes the tighter `material_submission` budget (config/settings.py's own
+        DEFAULT_THROTTLE_RATES) to `create` alone.
+
+        Set here rather than as a plain class attribute — the shape `AvatarView.throttle_scope`
+        uses, which is a single-purpose APIView and so has nothing to distinguish — because a
+        ViewSet's actions are not all the same request: reading back one's own past submissions is
+        an ordinary cheap GET that should keep the loose global `user` budget, while `create` writes
+        up to 25MB to disk and runs a malware scan over it. `ScopedRateThrottle` reads
+        `throttle_scope` off the view at request time and treats a falsy one as "not scoped at all",
+        and `self.action` is already resolved by the time DRF asks for throttles (`initialize_request`
+        sets it before `initial()` runs), so this is the honest place to make that distinction.
+        """
+        self.throttle_scope = 'material_submission' if self.action == 'create' else None
+        return super().get_throttles()
+
     def get_queryset(self):
         qs = MaterialSubmission.objects.all()
         if not self.request.user.is_staff:
@@ -194,6 +210,7 @@ class MaterialSubmissionViewSet(viewsets.ModelViewSet):
         from django.conf import settings
         from rest_framework.exceptions import ValidationError
 
+        self._check_storage_allowance(serializer)
         submission = serializer.save(submitted_by=self.request.user)
         outcome = scan_for_malware(submission.file)
         if not outcome.scanned and getattr(settings, 'MATERIAL_SCAN_REQUIRED', False):
@@ -205,6 +222,63 @@ class MaterialSubmissionViewSet(viewsets.ModelViewSet):
         submission.scan_status = 'clean' if outcome.scanned else 'skipped'
         submission.scan_detail = outcome.detail
         submission.save(update_fields=['scan_status', 'scan_detail'])
+
+    def _check_storage_allowance(self, serializer):
+        """`Profile.material_upload_quota_bytes` — the per-account total, enforced here because this
+        is the only place a new submission's bytes are ever admitted.
+
+        Sits alongside the per-FILE cap rather than instead of it: `MAX_MATERIAL_SUBMISSION_SIZE_BYTES`
+        (materials/validators.py, a real field validator that has already run by the time this is
+        reached) bounds ONE upload at 25MB, which says nothing about how many an account may make.
+        This is the aggregate half, and it is the half the material-submission path never had —
+        `TaughtCourse.upload_quota_bytes` bounds a course's stored bytes on the course-content path,
+        and nothing bounded a person's.
+
+        **The incoming file is weighed too**, so an account sitting just under its allowance refuses
+        what would take it over rather than accepting it and going over silently — the same rule the
+        course-side check (classroom/views.py) already states, kept identical on purpose, because
+        two quota checks that round differently is a bug nobody would ever look for.
+
+        **Checked before `serializer.save()`, which is what actually writes the file to storage.**
+        The course-side check has the same ordering for a different reason (its file already exists,
+        being an already-stored Material); here it genuinely matters — refusing after the save would
+        mean writing bytes only to unlink them, which is exactly the disk pressure the quota exists
+        to prevent, and would leave a real orphan behind if the unlink ever failed.
+
+        The refusal names the three numbers a person needs to act on it (used, allowance, and the
+        size of the file being refused). A bare "quota exceeded" leaves somebody guessing whether to
+        compress the file, split it, or ask for more room.
+        """
+        profile = getattr(self.request.user, 'profile', None)
+        quota = getattr(profile, 'material_upload_quota_bytes', 0) or 0
+        if not quota:
+            return
+
+        incoming = serializer.validated_data.get('file')
+        try:
+            incoming_size = incoming.size if incoming else 0
+        except (OSError, ValueError):
+            incoming_size = 0
+
+        used = profile.material_upload_bytes
+        if used + incoming_size <= quota:
+            return
+
+        from rest_framework.exceptions import ValidationError
+
+        def _mb(value):
+            return f'{value / (1024 * 1024):.1f}MB'
+
+        raise ValidationError(
+            {
+                'file': [
+                    f'This upload would take you past your storage allowance — you are using '
+                    f'{_mb(used)} of {_mb(quota)}, and this file is {_mb(incoming_size)}. '
+                    f'A moderator can raise the allowance, and rejected uploads give their space '
+                    f'back.'
+                ]
+            }
+        )
 
 
 class ReportViewSet(viewsets.ModelViewSet):
@@ -441,6 +515,84 @@ def _apply_material_submission(submission, reviewer):
     return material
 
 
+def _reclaim_rejected_material_file(submission) -> None:
+    """Drops the stored blob of a just-rejected MaterialSubmission, keeping the row and everything
+    else on it.
+
+    **This is a deliberate resolution of a real tension, not an oversight in either direction.**
+    CLAUDE.md's own non-functional requirements say, in as many words: "No silent data loss on
+    moderation — rejecting a submission should keep a record of what was rejected and why, not just
+    delete it." Against that sits the fact that nothing in this codebase has ever deleted a
+    `MaterialSubmission.file`, so a rejected 25MB upload occupied disk on a shared university box
+    permanently, for a file no reader would ever be shown. Both concerns are real. What resolves
+    them is noticing that they are about different things: the requirement is about the RECORD —
+    who submitted what, when, and was it accepted, which is part of the trust model — and the disk
+    is about the BYTES, which the record does not consist of.
+
+    So: the row survives untouched, with its title, description, declared author and `source_url`,
+    its requirements, its recorded scan outcome, the moderator who decided and the note saying why.
+    Everything a moderator or a submitter could later need to know WHAT was rejected and on what
+    grounds is still there and still queryable. Only the blob goes, and `file_reclaimed_at`/
+    `reclaimed_file_bytes` record that it went and how big it was, so the row never reads as though
+    it never had a file. That is the opposite of silent.
+
+    **Three alternatives, and why each was rejected:**
+
+    - *Keep the bytes.* The status quo, and the actual hole: nothing in this app can ever serve them
+      again. A rejected submission can never be re-approved — `ModerationActionView`'s claim step
+      requires `status='pending'`, so rejection is already terminal and already irreversible today —
+      and `_apply_material_submission` is the only thing that ever hands the file to a published
+      `Material`. The file was therefore already unreachable through every path except its raw
+      `MEDIA_ROOT` URL, which is worse than useless: a refused upload staying quietly downloadable
+      at a guessable-to-its-uploader path is a small leak on top of the disk cost.
+    - *A grace period.* Attractive, and undeliverable here: expiring anything needs scheduled work
+      (cron or a task queue), which this project has nowhere to run — the same constraint already
+      recorded for event reminders (CLAUDE.md 17V.7). A grace period nothing sweeps is just the
+      status quo with a comment claiming otherwise, which is the failure mode this codebase is
+      least willing to ship.
+    - *Only on a separate, explicit "reject and delete" action.* It splits one decision into two
+      and makes the safe-for-disk path the one a busy moderator has to remember, so the default
+      would stay "keep 25MB forever" for exactly the rejections nobody thought hard about — which is
+      most of them. Rejection already means "this is not going to be published here"; reclaiming the
+      bytes is that decision's honest consequence rather than a second, optional one.
+
+    **If an appeal path is ever built it must be a re-upload, not an un-reject** — the metadata
+    survives to make that conversation possible ("you rejected this, here it is again"), and the
+    bytes are the submitter's own to send again. That is stated here rather than left implied,
+    because it is the one thing this function makes impossible.
+
+    Defensive on both counts a mistake would be expensive: a row that already has a
+    `resulting_material` is left completely alone (a published `Material` holds the SAME stored
+    path, so deleting here would take a live material's file with it — unreachable today, since the
+    claim step guarantees this row was `pending`, and cheap to guarantee anyway), and a storage
+    backend that has already lost the file still gets the row marked, since the outcome it records
+    is true either way.
+    """
+    from django.utils import timezone
+
+    if submission.file_reclaimed_at is not None or submission.resulting_material_id:
+        return
+    stored = submission.file
+    if not stored:
+        return
+
+    try:
+        size = stored.size
+    except (OSError, ValueError):
+        size = 0
+    try:
+        stored.delete(save=False)
+    except (OSError, ValueError):
+        pass
+    # `FieldFile.delete` sets the field to None on the instance, and this column is NOT NULL — an
+    # empty string is what "no file" is stored as everywhere else in Django, so normalize rather
+    # than saving a None the database would refuse.
+    submission.file = ''
+    submission.file_reclaimed_at = timezone.now()
+    submission.reclaimed_file_bytes = size
+    submission.save(update_fields=['file', 'file_reclaimed_at', 'reclaimed_file_bytes'])
+
+
 def _publish_translation(translation):
     """Promotes a pending translation to published, superseding whatever was previously published
     for the same (exercise, locale) — `ExerciseTranslation`'s own partial unique constraint
@@ -611,6 +763,15 @@ class ModerationActionView(APIView):
             except Exception:
                 model.objects.filter(pk=pk).update(status='pending', reviewed_by=None, review_note='')
                 raise
+        elif decision == 'reject' and kind == 'material':
+            # A rejected upload's bytes are reclaimed, its row and every other field kept — see
+            # `_reclaim_rejected_material_file` for the full reasoning, including why this is not
+            # the "silent data loss on moderation" CLAUDE.md's own non-functional requirements
+            # forbid. Deliberately outside the try/except above: that block exists to un-claim a row
+            # whose apply logic failed, and there is nothing to un-claim here — a rejection is
+            # complete the moment the claim lands, and a failure to unlink a file must not hand the
+            # row back to the queue as though the moderator had never decided.
+            _reclaim_rejected_material_file(obj)
 
         outcome = 'rejected' if decision == 'reject' else 'approved'
         self._notify_decision(kind, obj, request.user, outcome, review_note)

@@ -157,6 +157,17 @@ class MaterialSubmission(models.Model):
     estimated_minutes = models.PositiveIntegerField(null=True, blank=True)
     scan_status = models.CharField(max_length=10, choices=SCAN_STATUS_CHOICES, default='skipped')
     scan_detail = models.CharField(max_length=300, blank=True)
+    # Set when a rejection drops this submission's stored blob — see
+    # `_reclaim_rejected_material_file` (moderation/views.py) for the full reasoning, including why
+    # the ROW and every other field on it deliberately survive.
+    #
+    # These two exist so the record never quietly lies about itself. Without them, a reclaimed
+    # submission is indistinguishable from one that somehow never had a file at all, and a reader
+    # asking "where did the PDF go?" has nothing to read. `file_reclaimed_at` is the answer to
+    # "was there one, and what happened to it"; `reclaimed_file_bytes` is the only place its size
+    # survives at all, since size is a property of bytes that are no longer there.
+    file_reclaimed_at = models.DateTimeField(null=True, blank=True)
+    reclaimed_file_bytes = models.PositiveBigIntegerField(default=0)
     status = models.CharField(max_length=10, choices=REVIEW_STATUS_CHOICES, default='pending')
     reviewed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL

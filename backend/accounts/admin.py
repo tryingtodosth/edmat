@@ -14,20 +14,51 @@ class DonationLinkInline(admin.TabularInline):
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
-    # `max_courses` is editable straight from the changelist: raising or lowering somebody's ceiling
-    # is a one-number decision, and making an administrator open each profile in turn to do it is
-    # how a limit ends up being managed in the database instead.
+    # `max_courses` and `material_upload_quota_bytes` are both editable straight from the
+    # changelist: raising or lowering somebody's ceiling is a one-number decision, and making an
+    # administrator open each profile in turn to do it is how a limit ends up being managed in the
+    # database instead.
+    #
+    # `material_upload_used` sits beside the quota for the same reason `TaughtCourseAdmin` puts
+    # `uploaded_mb` next to `upload_quota_bytes`: a quota with nothing to compare it against is a
+    # number nobody can choose sensibly. Somebody deciding what to allow needs to see what people
+    # actually store — 4MB or 400MB is the whole difference between a limit that bites and one that
+    # is decoration.
     list_display = [
         'user',
         'display_name',
         'preferred_locale',
         'is_verified_contributor',
         'max_courses',
+        'material_upload_quota_bytes',
+        'material_upload_used',
         'joined_at',
     ]
-    list_editable = ['max_courses']
+    list_editable = ['max_courses', 'material_upload_quota_bytes']
     list_filter = ['is_verified_contributor', 'preferred_locale']
     inlines = [DonationLinkInline]
+
+    @admin.display(description='Material uploads (used / allowed)')
+    def material_upload_used(self, obj):
+        """Both halves in one cell, in MB, because they are only meaningful against each other.
+
+        The quota column beside it stays in raw bytes — it is the editable one, and an administrator
+        typing a limit should type the unit the field actually stores rather than one this display
+        rounds; `TaughtCourseAdmin` draws the same line between `upload_quota_bytes` and
+        `uploaded_mb`. "no limit" rather than a bare 0 for the uncapped case, since 0 in a column
+        headed "allowed" reads as "nothing allowed", which is the opposite of what it means.
+
+        This costs a `stat()` per submission per row (`Profile.material_upload_bytes` sums live —
+        see its own comment for why that is the right call). A changelist of 100 profiles is not a
+        hot path and this is the one screen where the number is the point; if it ever does get slow,
+        the fix is the stored-size column that property already names, not a cached figure here that
+        could disagree with the check the upload path actually enforces.
+        """
+        used_mb = obj.material_upload_bytes / (1024 * 1024)
+        if not obj.material_upload_quota_bytes:
+            return f'{used_mb:.1f}MB / no limit'
+        allowed_mb = obj.material_upload_quota_bytes / (1024 * 1024)
+        return f'{used_mb:.1f}MB / {allowed_mb:.1f}MB'
 
 
 admin.site.unregister(User)

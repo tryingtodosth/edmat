@@ -503,6 +503,22 @@ REST_FRAMEWORK = {
         # changing their profile picture needs, and low enough that the decode cost can't be used as
         # a CPU-exhaustion lever by a logged-in account.
         'avatar': '20/hour',
+        # Material upload (`POST /api/material-submissions/`, wired onto the `create` action alone by
+        # MaterialSubmissionViewSet.get_throttles). The most disk-expensive write in the app: up to
+        # 25MB per request (`MAX_MATERIAL_SUBMISSION_SIZE_BYTES`), stored permanently, plus a
+        # malware scan over every byte of it.
+        #
+        # 20/hour is picked against what a real contributor does rather than against a round number:
+        # somebody uploading a semester's worth of past papers in one sitting might genuinely file a
+        # dozen, and 20 leaves room for that without leaving the ceiling where it was. Before this
+        # scope existed the only limit was the global `user` 3000/hour, which at 25MB a request is
+        # tens of gigabytes an hour from one account; this brings the worst case to ~500MB/hour.
+        #
+        # That is still a lot, and deliberately so — this throttle bounds the RATE (and the scan CPU
+        # that rides on it), while `Profile.material_upload_quota_bytes` is what bounds the TOTAL.
+        # Neither substitutes for the other: a rate limit alone permits unbounded growth given time,
+        # and a byte quota alone permits burning a whole allowance plus a scan queue in one second.
+        'material_submission': '20/hour',
         # Address lookup proxies to Nominatim (OpenStreetMap), whose usage policy caps the WHOLE
         # application at 1 request/second. services/geocoding.py enforces that globally and caches
         # results for a day; this per-user scope is the second layer, so one account typing in the

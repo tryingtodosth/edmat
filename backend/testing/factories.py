@@ -72,6 +72,22 @@ def make_exercise(branch, number, *, difficulty='medium', locale='pl', title=Non
     return exercise
 
 
+def pdf_bytes(size: int) -> bytes:
+    """A real, sniffable PDF of an EXACT byte length — for anything testing a byte quota, where the
+    size has to be a number the test itself chose rather than whatever a fixture happened to weigh.
+
+    The header is genuine and load-bearing: `materials/validators.py` sniffs the first few KB with
+    libmagic and rejects anything whose real content doesn't match its extension, so padding alone
+    (or a placeholder string) would be refused before any quota arithmetic was ever reached.
+    Verified against the real validator rather than assumed — a `%PDF-1.4` header followed by
+    filler still sniffs as `application/pdf` at every size these tests use.
+    """
+    header = b'%PDF-1.4\n'
+    if size <= len(header):
+        raise ValueError(f'a sniffable PDF needs at least {len(header) + 1} bytes')
+    return header + b'0' * (size - len(header))
+
+
 def make_material(branch, slug='test-material', *, type='script', locale='pl', title=None, description=''):
     """`Material.file` just needs SOME stored path for tests — `FileField.url` builds a URL from
     `MEDIA_URL` + the stored name without ever checking the file exists on disk, and nothing in
