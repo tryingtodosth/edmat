@@ -5330,6 +5330,36 @@ resized 2400×1200 → 1600×800, and the count rendering on the browse card.
    both referencing it — a real, broken-fresh-clone gap, now fixed with a real, committed file
    (`Django<5.3,>=5.2`, `djangorestframework<3.17,>=3.16`, `django-cors-headers<5.0,>=4.4`,
    `django-filter<25.0,>=24.3`, `Pillow<11.0,>=10.4`, `PyYAML<7.0,>=6.0`).
+
+   **Recurred a third time, and resolved differently on 2026-08-07 — by removing the duplication
+   itself rather than rebuilding it again.** Three venv directories were present: the root `.venv`
+   (working), `venv/` (Python 3.14, `bin/python` a dangling symlink to an interpreter not on this
+   machine — the same copied-from-another-machine artifact this item describes above), and
+   `backend/.venv` (a second working one). The last two were deleted, leaving one. `backend/.venv`
+   was safe to remove because its only unique packages were *older* versions of ones the root venv
+   already had newer (`django-filter` 24.3, DRF 3.16.1, Pillow 10.4); verified before deleting by
+   diffing both package sets, confirming `run.sh` already used the root venv, and running
+   `manage.py check` plus `manage.py test taxonomy accounts` under it.
+
+   **The two `requirements.txt` files were the real reason this kept recurring, and they are now one
+   list.** They had drifted materially: the root file (the one `README.md` step 1 and `setup.sh`
+   install from) was missing `django-postman`, `python-magic`, `clamd` and `bleach` entirely, so a
+   genuinely clean clone could not boot the backend — `ModuleNotFoundError: No module named
+   'postman'` — while the existing `.venv` worked only because those packages had been hand-installed
+   into it. `backend/requirements.txt` is now the single source, and the root file is a one-line `-r
+   backend/requirements.txt` include. **Deliberately an include rather than a single file**, because
+   neither location can serve both consumers: `deploy/DEPLOYMENT.md`'s own step 1 rsyncs only
+   `backend/`, `frontend/` and `deploy/`, so the root file never reaches the server, while local dev
+   must install from the root because that is where a fresh clone's `.venv` lives. Three stale upper
+   bounds in `backend/requirements.txt` were also raised to admit the versions actually installed and
+   passing tests (DRF `<3.17`→`<3.18`, `django-filter` `<25.0`→`<27.0`, `Pillow` `<11.0`→`<13.0`) —
+   the pins had gone stale, not the packages.
+
+   **Still open, and it is what would stop a fourth recurrence:** nothing *exercises* the
+   requirements file on a clean machine, so the same drift can recur silently — exactly as it did
+   here, where a hand-patched venv masked a broken file for an unknown length of time. Only a
+   clean-clone install catches that, and no CI runs one (QA.md's own "§3 What I'd do next" carries
+   this).
 6. ⚠️ **Hosting/deployment target** — not decided; affects the `adapter-node` choice's own specifics
    once Phase 3 starts, but doesn't block Phase 1 or 2 (both now built).
 7. ⚠️ **Locales beyond en/pl** — the data model (`ExerciseTranslation.locale` is a free string, not

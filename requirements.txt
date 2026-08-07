@@ -1,11 +1,14 @@
-asgiref==3.12.1
-clamd==1.0.2
-Django==5.2.16
-django-cors-headers==4.9.0
-django-filter==26.1
-django-postman==4.6
-djangorestframework==3.17.1
-pillow==12.3.0
-python-magic==0.4.27
-PyYAML==6.0.3
-sqlparse==0.5.5
+# The real dependency list lives in backend/requirements.txt — this file is a pointer to it, not a
+# second copy.
+#
+# Why a pointer rather than one file in one place: the two are installed by genuinely different
+# consumers, and neither location can serve both.
+#   - Local dev installs from HERE (README.md step 1, and setup.sh), because the venv is the repo
+#     root's own .venv and that is where a fresh clone starts.
+#   - The server installs from backend/ (deploy/DEPLOYMENT.md step 2, `cd backend && pip install -r
+#     requirements.txt`), and the deploy rsyncs only backend/, frontend/ and deploy/ — this root
+#     file never reaches the server at all, so it cannot be the canonical one.
+# Making this an include gives both consumers the same list while leaving exactly one place to edit.
+# Adding a dependency here instead of in backend/requirements.txt would ship a backend that boots in
+# development and fails on the server, which is the exact drift this replaces (see QA.md §2A).
+-r backend/requirements.txt

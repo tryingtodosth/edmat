@@ -27,8 +27,13 @@ these without an answer first.
    may have landed here by accident. Left untouched — decide whether it belongs here at all, should be
    moved out, or at minimum gitignored so a future `git add -A` doesn't try to commit 177 MB of
    unrelated data.
-3. **Which `requirements.txt` is canonical — root or `backend/`?** They've drifted apart materially
-   (see Fix #1 below) — not just cosmetically. Pick one source of truth.
+3. ✅ **Which `requirements.txt` is canonical — root or `backend/`? Resolved (2026-08-07):
+   `backend/requirements.txt`**, with the root file reduced to a one-line `-r backend/requirements.txt`
+   include. Not the "consolidate to one file" this originally proposed, because that turned out to
+   break the server: **the deploy rsyncs only `backend/`, `frontend/` and `deploy/`**
+   (`deploy/DEPLOYMENT.md` step 1), so the root file never reaches it and cannot be canonical, while
+   local dev installs from the root because that is where a fresh clone's `.venv` lives (`README.md`
+   step 1, `setup.sh:84`). An include is what serves both consumers from one list. See Fix #1 below.
 4. **Is this still heading toward a real public launch, or staying a personal/prototype deployment?**
    Almost everything in `LAUNCHCHECKLIST.md`'s 🔴/🟠/🟡 sections only matters if the answer is "public
    launch" — worth a real answer since it reprioritizes everything below (e.g., password reset/email
@@ -57,24 +62,41 @@ these without an answer first.
 
 ### 2A. Newly found this session — nobody had flagged these
 
-1. **🔴 A fresh clone following `README.md`'s own documented setup is currently broken.** The root
-   `.venv` (the one `README.md` step 1 tells you to build, `python3 -m venv .venv` +
-   `.venv/bin/pip install -r requirements.txt`) cannot boot the backend at all —
+1. ✅ **🔴 A fresh clone following `README.md`'s own documented setup is currently broken — fixed
+   (2026-08-07).** The root `.venv` (the one `README.md` step 1 tells you to build, `python3 -m venv
+   .venv` + `.venv/bin/pip install -r requirements.txt`) could not boot the backend at all —
    `ModuleNotFoundError: No module named 'postman'`. Root cause: `INSTALLED_APPS`
    (`backend/config/settings.py`) has required `'services'`, `'messaging'`, `'django.contrib.sites'`,
    and `'postman'` since the Section 17P messaging feature landed, but the **root**
    `requirements.txt` was never updated to include `django-postman`, `python-magic`, or `clamd` — it
-   only has the original Phase 2 dependency set. `backend/requirements.txt` *does* have all of them
-   (and is what the actually-working `backend/.venv` was built from), but nothing in `README.md`
-   tells a fresh user to use that file instead of the root one. **This means the documented setup
-   path — the one thing every other claim in `CLAUDE.md` assumes works — currently fails on a clean
-   clone.** Fix: consolidate to one real `requirements.txt` (decision #3 above) and update
-   `README.md` if the path changes.
-2. **The two requirements files also disagree on pinned versions, not just contents** — root pins
-   exact versions (`Django==5.2.16`, `django-filter==26.1`), `backend/` uses ranges
-   (`Django>=5.2,<5.3`, `django-filter>=24.3,<25.0`) — `django-filter==26.1` in root actively
-   violates `backend/`'s own `<25.0` ceiling. Whichever file survives decision #3, this needs
-   reconciling, not just merging the missing packages in.
+   only had the original Phase 2 dependency set. `backend/requirements.txt` *did* have all of them
+   (and is what the then-existing `backend/.venv` was built from), but nothing in `README.md` told a
+   fresh user to use that file instead of the root one.
+
+   **Fixed by making the root file a one-line `-r backend/requirements.txt` include** rather than the
+   consolidate-to-one-file this originally proposed — see decision #3 above for why one file cannot
+   serve both consumers. `README.md` needed no change: its step 1 command is unchanged and now
+   resolves to the complete list. Verified by `pip install --dry-run` against the root file, which
+   follows the include and reports all 10 requirements satisfied.
+
+   **Note on the two related symptoms, both since gone:** the missing packages had at some point been
+   installed into the root `.venv` by hand, so that venv booted fine even while the file it was
+   nominally built from did not describe it — the defect survived only on a *clean* clone. And
+   `backend/.venv`, named above as "the actually-working one", was deleted on 2026-08-07 as a
+   duplicate; the root `.venv` is now the only one, and the file backing it is finally complete.
+2. ✅ **The two requirements files also disagree on pinned versions, not just contents — fixed
+   (2026-08-07).** Root pinned exact versions (`Django==5.2.16`, `django-filter==26.1`) while
+   `backend/` used ranges (`Django>=5.2,<5.3`, `django-filter>=24.3,<25.0`), and `django-filter==26.1`
+   in root actively violated `backend/`'s own `<25.0` ceiling.
+
+   Resolved in the direction the *working* environment pointed, not the file's: three of `backend/`'s
+   ceilings were stale rather than deliberate, and the installed, test-passing versions had already
+   moved past them — `djangorestframework` 3.17.1 against `<3.17`, `django-filter` 26.1 against
+   `<25.0`, `Pillow` 12.3.0 against `<11.0`. Ceilings raised to the next major (`<3.18`, `<27.0`,
+   `<13.0`); the other seven pins already admitted their installed versions and were left alone. The
+   root file's exact pins disappear with the file's contents, so the two can no longer disagree.
+   `asgiref` and `sqlparse` are dropped with them — both are Django's own transitive dependencies and
+   were never direct requirements of this project.
 3. **Registration's "Preferred interface language" field still has no effect on the interface** —
    `LAUNCHCHECKLIST.md` flagged this during the webek4 deploy session and marked it unconfirmed-fixed.
    Re-checked directly this session: `register/+page.svelte` still never calls `setLocale(...)`
@@ -183,11 +205,23 @@ Not gaps that block anything — genuine feature ideas, some adjacent to what `C
 - **A CI pipeline** running `manage.py test`, `npm run check`/`lint`/`build`, and (once it exists) the
   frontend suite above, on every push — closing the exact gap `CLAUDE.md`'s own "Left open" notes
   flag repeatedly (§17L, §17F) as never done.
-- **Consolidate the two venvs into one, and document which is canonical** — this has already caused
-  real confusion twice (§18 item 5's own "recurred" note, and this session's own Fix 2A #1 finding a
-  *third* occurrence of essentially the same class of problem). A single, root-level, README-matching
-  venv with a requirements file that's actually exercised by CI would end this recurring category of
-  bug for good.
+- ✅ **Consolidate the two venvs into one, and document which is canonical — done (2026-08-07),
+  except for the CI half.** This had already caused real confusion twice (§18 item 5's own "recurred"
+  note, and this session's own Fix 2A #1 finding a *third* occurrence of essentially the same class
+  of problem). There are now three fewer moving parts: `venv/` (Python 3.14, a dangling `bin/python`
+  symlink to an interpreter not on this machine — a copy from another user's machine, the same
+  recurrence §18 item 5 describes) and `backend/.venv` (a duplicate whose only unique packages were
+  *older* versions of ones the root venv already had newer) were both deleted, leaving the single
+  root-level, README-matching `.venv`; and the requirements file behind it is now complete and
+  single-sourced (Fix 2A #1/#2 above). Verified before deleting: the root venv passes `manage.py
+  check` and `manage.py test taxonomy accounts`, `run.sh` already pointed at it, and both deleted
+  directories were gitignored.
+
+  **The CI half is the part that remains, and it is what would make this stick** — nothing yet
+  *exercises* the requirements file on a clean machine, so the same drift can recur silently. Note
+  this was never purely hypothetical: the reason Fix 2A #1's defect survived unnoticed is that the
+  packages had been hand-installed into the root venv, so the environment worked while the file
+  describing it did not. Only a clean-clone install catches that, and nothing runs one.
 - **A manual keyboard-only and screen-reader pass.** `axe-core` (§17E) is real and already found four
   genuine bugs, but its own documented ~30% real-world coverage means a real accessibility audit is
   still only partially done — the remaining ~70% needs a human pass, not more automated tooling.
