@@ -58,14 +58,24 @@ export interface CourseStaffMember {
 	addedAt: string;
 }
 
+/** The four things a course can point at. A reader needs to know which before clicking: a corpus
+ * material, a corpus exercise, a file belonging to this course, or a one-off event. */
+export type CourseItemKind = 'material' | 'exercise' | 'attachment' | 'event';
+
 export interface CourseItem {
 	id: string;
-	kind: 'material' | 'exercise';
+	kind: CourseItemKind;
+	/** Filed into a lesson, or straight into a chapter, or neither — never both. Null on both means
+	 * unfiled, which is where a participant's submission sits before somebody files it. */
 	lesson: string | null;
+	chapter: string | null;
 	material: string | null;
 	exercise: string | null;
-	/** Enough to recognise the thing without a second request — a material's resolved title, or an
-	 * exercise's subject-and-number, which is the only name an exercise has ever had here. */
+	attachment: string | null;
+	event: string | null;
+	/** Enough to recognise the thing without a second request — a material's resolved title, an
+	 * exercise's subject-and-number (the only name an exercise has ever had here), or an attachment's
+	 * or event's own plain title. */
 	label: string;
 	order: number;
 	note: string;
@@ -89,6 +99,10 @@ export interface Chapter {
 	/** Empty for a participant while the chapter is locked. The chapter itself still renders, so a
 	 * course never looks shorter than it is. */
 	lessons: Lesson[];
+	/** Content filed straight into the chapter rather than into one of its lessons — a reading for
+	 * the whole week belongs to the week, not to any one session in it. Empty while locked, exactly
+	 * as `lessons` is. */
+	items: CourseItem[];
 }
 
 export interface CourseInvite {

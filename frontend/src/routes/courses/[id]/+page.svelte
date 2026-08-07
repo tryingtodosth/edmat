@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
+		addLesson,
 		createChapter,
 		decideEnrollment,
 		deleteChapter,
@@ -28,7 +29,13 @@
 		removeCourseItem,
 		submitCourseItem
 	} from '$lib/services/course';
-	import type { Attachment, CourseNote, Enrollment, Course } from '$lib/types/course';
+	import type {
+		Attachment,
+		CourseNote,
+		Enrollment,
+		Course,
+		CourseItemKind
+	} from '$lib/types/course';
 	import CourseContent from '$lib/components/course/CourseContent.svelte';
 	import Tabs, { type TabDef } from '$lib/components/shared/Tabs.svelte';
 	import CourseContribute from '$lib/components/course/CourseContribute.svelte';
@@ -205,9 +212,10 @@
 	}
 
 	async function contribute(input: {
-		kind: 'material' | 'exercise';
+		kind: CourseItemKind;
 		id: string;
 		chapterId: string | null;
+		lessonId: string | null;
 		note: string;
 	}) {
 		contributeNotice = '';
@@ -217,7 +225,10 @@
 			await submitCourseItem(page.params.id!, {
 				materialId: input.kind === 'material' ? input.id : undefined,
 				exerciseId: input.kind === 'exercise' ? input.id : undefined,
+				attachmentId: input.kind === 'attachment' ? input.id : undefined,
+				eventId: input.kind === 'event' ? input.id : undefined,
 				chapterId: input.chapterId,
+				lessonId: input.lessonId,
 				note: input.note
 			});
 			// Which message is right depends on whether it published or queued — telling somebody it
@@ -455,9 +466,9 @@
 				<CourseContent
 					{course}
 					onmove={course.canCurate
-						? (itemId, lessonId) =>
+						? (itemId, target) =>
 								act(
-									() => moveCourseItem(course!.id, itemId, lessonId),
+									() => moveCourseItem(course!.id, itemId, target),
 									(msg) => (staffError = msg)
 								)
 						: undefined}
@@ -491,6 +502,22 @@
 						? (lessonId) =>
 								act(
 									() => deleteLesson(course!.id, lessonId),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					onaddlesson={course.canCurate
+						? (chapterId, draft) =>
+								act(
+									() =>
+										addLesson(course!.id, {
+											...draft,
+											chapterId,
+											// A new lesson goes to the end of its chapter, which is what
+											// adding one means; dragging is how it moves from there.
+											order: course!.chapters.find((c) => c.id === chapterId)?.lessons.length ?? 0,
+											scheduledAt: null,
+											durationMinutes: null
+										}),
 									(msg) => (staffError = msg)
 								)
 						: undefined}
@@ -534,16 +561,21 @@
 				<!-- Running the course lives on its own page now. It used to be four collapsed drawers here,
 		     which meant a participant scrolled past sections they cannot act on, and an instructor
 		     found the thing they came to do always shut. -->
-				{#if course.canContribute && !course.canCurate}
-					{#if true}
-						<CourseContribute
-							{course}
-							{busy}
-							error={contributeError}
-							notice={contributeNotice}
-							onsubmit={contribute}
-						/>
-					{/if}
+				<!-- Shown to curators too, which it was not. The condition used to be
+				     `canContribute && !canCurate`, so the one group of people whose job is filling a
+				     course in had no way to add anything to it from this page — and the form's own
+				     chapter picker, gated on `canCurate`, could therefore never render at all. That is
+				     also why nobody noticed the picker did nothing: it was unreachable. Staff never
+				     queue behind themselves, which the server already decides, so this stays one form
+				     rather than two. -->
+				{#if course.canContribute}
+					<CourseContribute
+						{course}
+						{busy}
+						error={contributeError}
+						notice={contributeNotice}
+						onsubmit={contribute}
+					/>
 				{/if}
 			{/if}
 
