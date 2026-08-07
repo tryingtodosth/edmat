@@ -5,7 +5,6 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
-	import { DEMO_PASSWORD } from '$lib/demo';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
 
 	let email = $state('');
@@ -57,7 +56,16 @@
 		<button type="submit" class="submit" disabled={submitting}>{m.auth_login_submit()}</button>
 	</form>
 
-	<p class="demo-note">{m.auth_login_demoNote({ password: DEMO_PASSWORD })}</p>
+	<!-- The note is blank in both locales on this deployment: a live public site should not publish
+	     the shared demo password, least of all next to a moderator account. Rendered only when it
+	     actually says something, so an emptied note leaves no stray gap above the divider — and so
+	     re-filling the key in en.json/pl.json is all it takes to bring a hint back. The password is
+	     deliberately no longer passed in: an argument to a message that ignores it still ships the
+	     literal string in the page's own JS chunk, which is exactly what emptying the text is
+	     meant to stop. -->
+	{#if m.auth_login_demoNote().trim()}
+		<p class="demo-note">{m.auth_login_demoNote()}</p>
+	{/if}
 
 	<!-- Below the real form, not above it: the working way in should be the first thing on the
 	     page, and a row of drafts sitting on top of it would put the unfinished half first. -->

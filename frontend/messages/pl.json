@@ -280,7 +280,7 @@
   "auth_login_submit": "Zaloguj się",
   "auth_login_noAccount": "Nie masz jeszcze konta?",
   "auth_login_registerLink": "Zarejestruj się",
-  "auth_login_demoNote": "Wszystkie konta demonstracyjne używają hasła „{password}” — spróbuj kasia@edmat.example (moderatorka) lub ola@edmat.example.",
+  "auth_login_demoNote": " ",
   "auth_login_error": "Nieprawidłowy email lub hasło.",
   "auth_register_heading": "Utwórz konto",
   "auth_register_displayName": "Nazwa wyświetlana",

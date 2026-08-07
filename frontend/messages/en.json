@@ -280,7 +280,7 @@
   "auth_login_submit": "Log in",
   "auth_login_noAccount": "No account yet?",
   "auth_login_registerLink": "Sign up",
-  "auth_login_demoNote": "Demo accounts all use the password “{password}” — try kasia@edmat.example (moderator) or ola@edmat.example.",
+  "auth_login_demoNote": " ",
   "auth_login_error": "Incorrect email or password.",
   "auth_register_heading": "Create an account",
   "auth_register_displayName": "Display name",
