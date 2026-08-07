@@ -19,8 +19,11 @@
 		leaveCourse,
 		getAttachments,
 		getMyCourseNotes,
+		linkSetToLesson,
 		moveCourseItem,
+		refreshLinkedSet,
 		reorderCourse,
+		unlinkSetFromLesson,
 		saveMyCourseNote,
 		updateChapter,
 		updateLesson,
@@ -525,6 +528,27 @@
 						? (chapterId) =>
 								act(
 									() => deleteChapter(course!.id, chapterId),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					onlinkset={course.canCurate
+						? (lessonId, setSlug) =>
+								act(
+									() => linkSetToLesson(course!.id, lessonId, setSlug),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					onrefreshset={course.canCurate
+						? (lessonId, linkId) =>
+								act(
+									() => refreshLinkedSet(course!.id, lessonId, linkId),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					onunlinkset={course.canCurate
+						? (lessonId, linkId) =>
+								act(
+									() => unlinkSetFromLesson(course!.id, lessonId, linkId),
 									(msg) => (staffError = msg)
 								)
 						: undefined}

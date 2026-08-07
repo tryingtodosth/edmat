@@ -1055,3 +1055,136 @@ class AttachmentReview(models.Model):
 
     def __str__(self) -> str:
         return f'{self.rating}★ by {self.author} on {self.attachment}'
+
+
+class LessonExerciseSet(models.Model):
+    """A whole `study.ExerciseSet` placed in a lesson — "these ten are this week's homework".
+
+    **The membership is PINNED when the set is linked; the exercises themselves are referenced
+    live.** Every row in `exercises` is a real FK to `exercises.Exercise`, so a corrected statement,
+    a fixed solution or a moderator's unpublish reaches the lesson at once, exactly as it does for
+    `CourseItem`. What does NOT travel is a later change to WHICH exercises the set contains.
+
+    That is deliberately a narrower reading of this project's "content is referenced, never copied"
+    rule than `Lesson` and `CourseItem` apply, and the reason is that the rule is about the corpus
+    and this is not. "A corrected exercise stays corrected everywhere" is a statement about the
+    exercise row, and pinning membership keeps it true in full. Which exercises somebody picked is a
+    curatorial decision about this course, and an `ExerciseSet` belongs to exactly one person who
+    may have no role here at all:
+
+    * Every other write to a lesson's contents goes through `Course.can_curate`. A live link would
+      hand somebody outside the course a standing, unreviewed channel into its contents — a
+      permission hole rather than a gap in a convention. Under `contribution_policy='approval'` it
+      is worse: what a curator approved would keep changing after they approved it.
+    * The owner can also unshare the set, delete it, or cut it down to two exercises. Live, each of
+      those silently empties or rewrites a week students have already started on. Pinned, none of
+      them can — which is why `exercise_set` is SET_NULL rather than CASCADE: a deleted set must
+      leave the homework standing.
+
+    Liveness is still available, under the course's own control rather than a stranger's: a curator
+    re-copies on demand (`refreshed_at`), and is told when the source has moved on since. The UI
+    says all of this in words, in both locales, because a reader must never have to guess which of
+    the two kinds of link they are looking at.
+    """
+
+    lesson = models.ForeignKey(Lesson, related_name='exercise_sets', on_delete=models.CASCADE)
+    # Provenance and the "update from the source" affordance — never the contents.
+    exercise_set = models.ForeignKey(
+        'study.ExerciseSet',
+        related_name='course_links',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    # The set's name as it read when it was copied. Stored rather than resolved through the FK for
+    # the same reason the exercises are: the source may be renamed, unshared or deleted, and a
+    # lesson whose homework is headed by a blank is worse than one headed by a stale name.
+    title = models.CharField(max_length=200)
+    note = models.CharField(max_length=500, blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    linked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='course_set_links',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    linked_at = models.DateTimeField(auto_now_add=True)
+    # Null for a link nobody has re-copied — genuinely different from "refreshed at the moment it
+    # was linked", and the difference is what tells a curator whether they have looked since.
+    refreshed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+        constraints = [
+            # The same set twice in one lesson is one decision recorded twice with no way to say
+            # which is meant. Partial, because NULLs do not compare equal in SQL: once a source set
+            # is deleted every surviving link holds `exercise_set = NULL`, and a plain unique index
+            # over both columns would then permit exactly one of them to exist.
+            models.UniqueConstraint(
+                fields=['lesson', 'exercise_set'],
+                condition=models.Q(exercise_set__isnull=False),
+                name='unique_set_per_lesson',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.lesson.title} — {self.title}'
+
+    @property
+    def course(self):
+        return self.lesson.chapter.course
+
+    def is_visible_to(self, user) -> bool:
+        """As visible as the lesson holding it, which is as visible as its chapter.
+
+        The chapter lock is the whole of the gate, exactly as it is for `CourseItem`: staff read a
+        locked week early because they are the people preparing it, and a participant does not.
+        There is no per-link status to check — a link is placed by a curator and never offered for
+        review, so it has no pending state of its own.
+        """
+        return self.lesson.is_visible_to(user)
+
+    def visible_exercises(self, user, *, can_curate=None):
+        """The pinned rows this viewer should actually be shown.
+
+        Unpublished exercises are dropped for anybody who cannot curate this course. `CourseItem`
+        does not make this check and should: an exercise is unpublished when a moderator has pulled
+        it, usually because its solution is wrong, which is the single worst thing to leave sitting
+        in somebody's homework. Curators keep seeing it, because they are the people who can replace
+        it and a list that silently got shorter tells them nothing.
+
+        `can_curate` may be passed in already answered. The question is about the viewer and the
+        course, never about this row, so a response rendering a dozen links should ask it once
+        rather than a dozen times — `Course.role_of` walks a related manager, and reaching it from
+        here goes `lesson -> chapter -> course` and so cannot reuse the caller's own prefetch.
+        """
+        rows = list(self.exercises.all())
+        if self.course.can_curate(user) if can_curate is None else can_curate:
+            return rows
+        return [row for row in rows if row.exercise.published]
+
+
+class LessonSetExercise(models.Model):
+    """One exercise pinned into a lesson's linked set, in the order it was copied in.
+
+    A through-model carrying its own `order` rather than a plain M2M, mirroring
+    `study.ExerciseSetItem` itself: a problem set is a sequence, and Django's automatic join table
+    has nowhere to say so.
+    """
+
+    link = models.ForeignKey(
+        LessonExerciseSet, related_name='exercises', on_delete=models.CASCADE
+    )
+    exercise = models.ForeignKey(
+        'exercises.Exercise', related_name='course_set_links', on_delete=models.CASCADE
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        unique_together = [('link', 'exercise')]
+
+    def __str__(self) -> str:
+        return f'{self.link.title} — {self.exercise}'

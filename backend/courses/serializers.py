@@ -14,6 +14,8 @@ from .models import (
     CourseStaff,
     Enrollment,
     Lesson,
+    LessonExerciseSet,
+    LessonSetExercise,
     Course,
 )
 
@@ -50,9 +52,117 @@ def is_participant_of(course, user) -> bool:
     ).exists()
 
 
+class LessonSetExerciseSerializer(serializers.ModelSerializer):
+    """One pinned exercise, named the way every other exercise reference in this API is.
+
+    An exercise has never had a title in this project — it is identified by its subject and number,
+    which is exactly what `Exercise.__str__` composes, so this reuses it rather than inventing a
+    second naming scheme, exactly as `CourseItemSerializer.get_label` already does.
+    """
+
+    label = serializers.SerializerMethodField()
+    published = serializers.BooleanField(source='exercise.published', read_only=True)
+
+    class Meta:
+        model = LessonSetExercise
+        fields = ['id', 'exercise', 'label', 'order', 'published']
+
+    def get_label(self, row) -> str:
+        return str(row.exercise)
+
+
+class LessonExerciseSetSerializer(serializers.ModelSerializer):
+    exercises = serializers.SerializerMethodField()
+    linked_by = ParticipantSerializer(read_only=True)
+    # The source's own slug, or null once it has been deleted or the viewer cannot read it. A link
+    # whose source is gone keeps working — that is the point of pinning — so this is genuinely
+    # optional rather than an error state.
+    source_slug = serializers.SerializerMethodField()
+    source_exists = serializers.SerializerMethodField()
+    has_drifted = serializers.SerializerMethodField()
+    hidden_exercise_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LessonExerciseSet
+        fields = [
+            'id',
+            'lesson',
+            'title',
+            'note',
+            'order',
+            'exercises',
+            'linked_by',
+            'linked_at',
+            'refreshed_at',
+            'source_slug',
+            'source_exists',
+            'has_drifted',
+            'hidden_exercise_count',
+        ]
+
+    def _user(self):
+        request = self.context.get('request')
+        return getattr(request, 'user', None)
+
+    def _can_curate(self, link) -> bool:
+        """Asked once per course per response, not once per field per row.
+
+        DRF reuses ONE child serializer across every row under `many=True`, so caching on `self`
+        would be a real bug here — this project has already been bitten by exactly that. The cache
+        lives in the request-scoped context and is keyed by course, so two links can never read each
+        other's answer.
+        """
+        cache = self.context.setdefault('_lesson_set_curate_cache', {})
+        course = link.course
+        if course.pk not in cache:
+            cache[course.pk] = course.can_curate(self._user())
+        return cache[course.pk]
+
+    def get_exercises(self, link):
+        """Filtered per viewer: an unpublished exercise is dropped for anybody who cannot curate.
+
+        `CourseItem.is_visible_to` does not make the equivalent check on its own referenced object;
+        this deliberately does — see `LessonExerciseSet.visible_exercises`.
+        """
+        return LessonSetExerciseSerializer(
+            link.visible_exercises(self._user(), can_curate=self._can_curate(link)),
+            many=True,
+            context=self.context,
+        ).data
+
+    def get_hidden_exercise_count(self, link) -> int:
+        """How many pinned exercises this viewer is NOT being shown, because a moderator pulled
+        them. Stated as a number rather than silently swallowed, so a shorter list is explained."""
+        shown = link.visible_exercises(self._user(), can_curate=self._can_curate(link))
+        return len(link.exercises.all()) - len(shown)
+
+    def get_source_slug(self, link) -> str | None:
+        return link.exercise_set.slug if link.exercise_set_id else None
+
+    def get_source_exists(self, link) -> bool:
+        return bool(link.exercise_set_id)
+
+    def get_has_drifted(self, link) -> bool:
+        """Whether the source set now holds a different list than what was pinned — curators only.
+
+        Anybody else has nothing to do with the answer: they cannot re-copy, and the source is
+        somebody else's private list. False for a source that is gone, or one this viewer may not
+        read, because "drifted" is not a claim that can be made about a set nobody can see.
+        """
+        source = link.exercise_set
+        if source is None or not self._can_curate(link):
+            return False
+        pinned = [row.exercise_id for row in link.exercises.all()]
+        current = list(
+            source.exercisesetitem_set.order_by('order', 'id').values_list('exercise_id', flat=True)
+        )
+        return pinned != current
+
+
 class LessonSerializer(serializers.ModelSerializer):
     participant_notes = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
+    exercise_sets = serializers.SerializerMethodField()
 
     class Meta:
         model = Lesson
@@ -66,7 +176,21 @@ class LessonSerializer(serializers.ModelSerializer):
             'duration_minutes',
             'participant_notes',
             'items',
+            'exercise_sets',
         ]
+
+    def get_exercise_sets(self, lesson):
+        """Filtered by each link's own `is_visible_to`, not by the caller having already checked.
+
+        That matters here specifically: `CourseSerializer.get_lessons` returns every lesson flat,
+        with no chapter-lock filter of its own, so a locked chapter's lessons DO reach this
+        serializer by that route. Asking each link the question itself is what keeps this field
+        correct on both paths rather than only on the nested one.
+        """
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        visible = [link for link in lesson.exercise_sets.all() if link.is_visible_to(user)]
+        return LessonExerciseSetSerializer(visible, many=True, context=self.context).data
 
     def get_items(self, lesson):
         """Filtered per viewer, not per lesson: a pending contribution is visible to staff and to

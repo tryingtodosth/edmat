@@ -17,8 +17,10 @@ from rest_framework.test import APIClient
 from events.models import Event
 from materials.models import Material, MaterialTranslation
 from notifications.models import Notification
+from study.models import ExerciseSet, ExerciseSetItem
 from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
+from testing.factories import make_exercise
 
 from .models import (
     Attachment,
@@ -28,6 +30,7 @@ from .models import (
     CourseStaff,
     Enrollment,
     Lesson,
+    LessonExerciseSet,
     Course,
 )
 
@@ -1870,3 +1873,328 @@ class ItemFilingTests(ApiTestCase):
         item.refresh_from_db()
         self.assertEqual(item.lesson_id, self.lesson.pk)
         self.assertIsNone(item.chapter_id)
+
+
+class LessonExerciseSetTests(ApiTestCase):
+    """A whole ExerciseSet pinned into a lesson.
+
+    The property nearly every test here exists to hold is that the pin is a PIN: an `ExerciseSet`
+    belongs to one person, who may have no role on this course, and the lesson's homework must not
+    change because they edited their own list. So the ones that matter are the negatives — the
+    source edited, unshared, emptied or deleted, and the lesson unmoved through all four.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Tydzień 1')
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Wtorek')
+        self.participant = self.student
+        Enrollment.objects.create(
+            course=self.course, participant=self.participant, status='active'
+        )
+        self.first = make_exercise(self.subject, 1)
+        self.second = make_exercise(self.subject, 2)
+
+    def make_set(self, owner=None, *, name='Kolokwium 2', exercises=None, is_public=True):
+        exercise_set = ExerciseSet.objects.create(
+            owner=owner or self.instructor, name=name, is_public=is_public
+        )
+        for order, exercise in enumerate(exercises if exercises is not None else [self.first, self.second]):
+            ExerciseSetItem.objects.create(
+                exercise_set=exercise_set, exercise=exercise, order=order
+            )
+        return exercise_set
+
+    def link_url(self, lesson=None):
+        return (
+            f'/api/courses/{self.course.pk}/lessons/{(lesson or self.lesson).pk}/exercise-sets/'
+        )
+
+    def link(self, exercise_set, as_user=None):
+        return self.as_(as_user or self.instructor).post(
+            self.link_url(), {'set': exercise_set.slug}, format='json'
+        )
+
+    # --- linking ---------------------------------------------------------------------------------
+
+    def test_a_curator_links_their_own_private_set(self):
+        """Private is fine when it is YOUR set: publishing it to your own course is the decision
+        you are making, and there is no third party to surprise."""
+        exercise_set = self.make_set(is_public=False)
+        response = self.link(exercise_set)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['title'], 'Kolokwium 2')
+        self.assertEqual(
+            [row['exercise'] for row in response.data['exercises']],
+            [self.first.pk, self.second.pk],
+        )
+
+    def test_somebody_elses_shared_set_can_be_linked(self):
+        exercise_set = self.make_set(owner=self.other)
+        self.assertEqual(self.link(exercise_set).status_code, 201)
+
+    def test_somebody_elses_private_set_cannot_be_linked(self):
+        """Reported as missing rather than forbidden — for this caller it genuinely is."""
+        exercise_set = self.make_set(owner=self.other, is_public=False)
+        response = self.link(exercise_set)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(LessonExerciseSet.objects.count(), 0)
+
+    def test_an_unknown_slug_is_refused(self):
+        response = self.as_(self.instructor).post(
+            self.link_url(), {'set': 'no-such-set'}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_an_empty_set_is_refused(self):
+        """Pinning nothing records a decision with no content in it, and the curator would have to
+        notice the empty block to learn that nothing happened."""
+        response = self.link(self.make_set(exercises=[]))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(LessonExerciseSet.objects.count(), 0)
+
+    def test_the_same_set_cannot_be_linked_to_one_lesson_twice(self):
+        exercise_set = self.make_set()
+        self.assertEqual(self.link(exercise_set).status_code, 201)
+        again = self.link(exercise_set)
+        self.assertEqual(again.status_code, 400)
+        self.assertEqual(again.data['detail'], 'already_linked')
+
+    def test_a_participant_cannot_link_a_set(self):
+        response = self.link(self.make_set(owner=self.participant), as_user=self.participant)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(LessonExerciseSet.objects.count(), 0)
+
+    def test_an_anonymous_visitor_cannot_link_a_set(self):
+        exercise_set = self.make_set()
+        response = self.client.post(
+            self.link_url(), {'set': exercise_set.slug}, format='json'
+        )
+        self.assertIn(response.status_code, (401, 403))
+        self.assertEqual(LessonExerciseSet.objects.count(), 0)
+
+    def test_a_lesson_from_another_course_is_not_reachable_here(self):
+        other_course = self.make_course(title='Inny kurs')
+        other_lesson = Lesson.objects.create(
+            chapter=Chapter.objects.create(course=other_course, title='T1'), title='Środa'
+        )
+        response = self.as_(self.instructor).post(
+            self.link_url(other_lesson), {'set': self.make_set().slug}, format='json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    # --- the pin holds ----------------------------------------------------------------------------
+
+    def test_editing_the_source_set_afterwards_does_not_change_the_lesson(self):
+        """The whole decision, in one test. The set's owner is not course staff, and a lesson whose
+        homework changed because they edited their own list would be a permission hole."""
+        exercise_set = self.make_set(owner=self.other)
+        self.link(exercise_set)
+        exercise_set.exercisesetitem_set.filter(exercise=self.second).delete()
+        ExerciseSetItem.objects.create(
+            exercise_set=exercise_set, exercise=make_exercise(self.subject, 3), order=9
+        )
+
+        response = self.client.get(self.link_url())
+        self.assertEqual(
+            [row['exercise'] for row in response.data[0]['exercises']],
+            [self.first.pk, self.second.pk],
+        )
+
+    def test_deleting_the_source_set_leaves_the_homework_standing(self):
+        exercise_set = self.make_set(owner=self.other)
+        self.link(exercise_set)
+        exercise_set.delete()
+
+        response = self.client.get(self.link_url())
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data[0]['exercises']), 2)
+        self.assertFalse(response.data[0]['source_exists'])
+        self.assertEqual(response.data[0]['title'], 'Kolokwium 2')
+
+    def test_unsharing_the_source_does_not_hide_the_linked_set(self):
+        exercise_set = self.make_set(owner=self.other)
+        self.link(exercise_set)
+        exercise_set.is_public = False
+        exercise_set.save(update_fields=['is_public'])
+
+        response = self.client.get(self.link_url())
+        self.assertEqual(len(response.data[0]['exercises']), 2)
+
+    # --- re-copying, which is how liveness stays under the course's control ------------------------
+
+    def test_refresh_takes_the_sources_current_list(self):
+        exercise_set = self.make_set(owner=self.other)
+        created = self.link(exercise_set)
+        third = make_exercise(self.subject, 3)
+        ExerciseSetItem.objects.create(exercise_set=exercise_set, exercise=third, order=2)
+
+        response = self.as_(self.instructor).patch(
+            f'{self.link_url()}{created.data["id"]}/', {'refresh': True}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row['exercise'] for row in response.data['exercises']],
+            [self.first.pk, self.second.pk, third.pk],
+        )
+        self.assertIsNotNone(response.data['refreshed_at'])
+
+    def test_a_participant_cannot_refresh(self):
+        created = self.link(self.make_set())
+        response = self.as_(self.participant).patch(
+            f'{self.link_url()}{created.data["id"]}/', {'refresh': True}, format='json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_refresh_is_refused_once_the_source_is_unshared(self):
+        """Re-checked rather than trusted from link time: re-copying from a list its owner has since
+        withdrawn would pull content back out of something they closed."""
+        exercise_set = self.make_set(owner=self.other)
+        created = self.link(exercise_set)
+        exercise_set.is_public = False
+        exercise_set.save(update_fields=['is_public'])
+
+        response = self.as_(self.instructor).patch(
+            f'{self.link_url()}{created.data["id"]}/', {'refresh': True}, format='json'
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['detail'], 'source_not_shared')
+
+    def test_refresh_is_refused_once_the_source_is_gone(self):
+        exercise_set = self.make_set(owner=self.other)
+        created = self.link(exercise_set)
+        exercise_set.delete()
+
+        response = self.as_(self.instructor).patch(
+            f'{self.link_url()}{created.data["id"]}/', {'refresh': True}, format='json'
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['detail'], 'source_gone')
+
+    def test_drift_is_reported_to_a_curator_and_to_nobody_else(self):
+        """A participant cannot re-copy and the source is somebody else's private list, so the
+        answer is not theirs to have."""
+        exercise_set = self.make_set(owner=self.other)
+        self.link(exercise_set)
+        ExerciseSetItem.objects.create(
+            exercise_set=exercise_set, exercise=make_exercise(self.subject, 3), order=2
+        )
+
+        curator = self.as_(self.instructor).get(self.link_url())
+        self.assertTrue(curator.data[0]['has_drifted'])
+        participant = self.as_(self.participant).get(self.link_url())
+        self.assertFalse(participant.data[0]['has_drifted'])
+
+    # --- unlinking and editing --------------------------------------------------------------------
+
+    def test_unlinking_removes_the_link_and_leaves_the_source_alone(self):
+        exercise_set = self.make_set()
+        created = self.link(exercise_set)
+        response = self.as_(self.instructor).delete(f'{self.link_url()}{created.data["id"]}/')
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(LessonExerciseSet.objects.count(), 0)
+        self.assertEqual(ExerciseSet.objects.filter(pk=exercise_set.pk).count(), 1)
+
+    def test_a_participant_cannot_unlink(self):
+        created = self.link(self.make_set())
+        response = self.as_(self.participant).delete(f'{self.link_url()}{created.data["id"]}/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(LessonExerciseSet.objects.count(), 1)
+
+    def test_the_title_can_be_rewritten_and_may_not_be_emptied(self):
+        created = self.link(self.make_set())
+        url = f'{self.link_url()}{created.data["id"]}/'
+        renamed = self.as_(self.instructor).patch(
+            url, {'title': 'Praca domowa 3'}, format='json'
+        )
+        self.assertEqual(renamed.data['title'], 'Praca domowa 3')
+        blanked = self.as_(self.instructor).patch(url, {'title': '   '}, format='json')
+        self.assertEqual(blanked.status_code, 400)
+
+    # --- visibility -------------------------------------------------------------------------------
+
+    def test_a_locked_chapter_hides_its_linked_sets_from_a_participant_but_not_from_staff(self):
+        self.link(self.make_set())
+        self.chapter.unlocks_at = timezone.now() + timedelta(days=7)
+        self.chapter.save(update_fields=['unlocks_at'])
+
+        self.assertEqual(len(self.as_(self.participant).get(self.link_url()).data), 0)
+        self.assertEqual(len(self.as_(self.instructor).get(self.link_url()).data), 1)
+
+    def test_a_locked_chapter_does_not_leak_through_the_flat_lessons_list(self):
+        """`CourseSerializer.get_lessons` returns every lesson with no chapter-lock filter of its
+        own, so this field has to answer the question itself rather than trusting its caller."""
+        self.link(self.make_set())
+        self.chapter.unlocks_at = timezone.now() + timedelta(days=7)
+        self.chapter.save(update_fields=['unlocks_at'])
+
+        response = self.as_(self.participant).get(f'/api/courses/{self.course.pk}/')
+        flat = [lesson for lesson in response.data['lessons'] if lesson['id'] == self.lesson.pk]
+        self.assertEqual(flat[0]['exercise_sets'], [])
+
+    def test_an_unpublished_exercise_is_dropped_for_a_participant_and_kept_for_a_curator(self):
+        """A moderator unpublishes an exercise when something is wrong with it, usually its
+        solution — the last thing that should stay sitting in somebody's homework. The curator keeps
+        seeing it because they are the person who can replace it."""
+        self.link(self.make_set())
+        self.second.published = False
+        self.second.save(update_fields=['published'])
+
+        participant = self.as_(self.participant).get(self.link_url()).data[0]
+        self.assertEqual([row['exercise'] for row in participant['exercises']], [self.first.pk])
+        self.assertEqual(participant['hidden_exercise_count'], 1)
+
+        curator = self.as_(self.instructor).get(self.link_url()).data[0]
+        self.assertEqual(len(curator['exercises']), 2)
+        self.assertEqual(curator['hidden_exercise_count'], 0)
+
+    # --- reordering -------------------------------------------------------------------------------
+
+    def test_linked_sets_take_the_order_they_are_given(self):
+        first = self.link(self.make_set(name='A')).data['id']
+        second = self.link(self.make_set(name='B', exercises=[self.first])).data['id']
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/reorder/',
+            {'kind': 'lesson_set', 'groups': {str(self.lesson.pk): [second, first]}},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row['id'] for row in self.client.get(self.link_url()).data], [second, first]
+        )
+
+    def test_a_linked_set_from_another_course_cannot_be_reordered_into_this_one(self):
+        other_course = self.make_course(title='Inny kurs')
+        other_lesson = Lesson.objects.create(
+            chapter=Chapter.objects.create(course=other_course, title='T1'), title='Środa'
+        )
+        stray = LessonExerciseSet.objects.create(lesson=other_lesson, title='Nie ten kurs')
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/reorder/',
+            {'kind': 'lesson_set', 'groups': {str(self.lesson.pk): [stray.pk]}},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        stray.refresh_from_db()
+        self.assertEqual(stray.lesson_id, other_lesson.pk)
+
+    def test_a_linked_set_cannot_be_left_without_a_lesson(self):
+        """`LessonExerciseSet.lesson` is NOT NULL, so the unfiled group has no meaning here — and
+        refusing it up front beats an IntegrityError from the save."""
+        created = self.link(self.make_set()).data['id']
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/reorder/',
+            {'kind': 'lesson_set', 'groups': {'': [created]}},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_participant_cannot_reorder_linked_sets(self):
+        created = self.link(self.make_set()).data['id']
+        response = self.as_(self.participant).post(
+            f'/api/courses/{self.course.pk}/reorder/',
+            {'kind': 'lesson_set', 'groups': {str(self.lesson.pk): [created]}},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 404)
