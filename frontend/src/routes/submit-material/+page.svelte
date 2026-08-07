@@ -221,24 +221,28 @@
 				</label>
 
 				<div class="field-row">
+					<!-- The propose trigger sits on the label's own row rather than below the control, so it
+					     reads as a footnote about this one field instead of a second action belonging to
+					     the form. `.field-heading` wraps — and this field is a grid column barely half the
+					     form wide, so it genuinely does wrap here rather than only on a phone. -->
 					<div class="field">
-						<label>
-							<span>{m.submitMaterial_field_type()}</span>
-							<!-- The vocabulary, not a fixed list: anything somebody has proposed appears under
-							     "Others" via TaxonomyOptions, exactly as a proposed discipline does. -->
-							<select bind:value={type}>
-								<TaxonomyOptions nodes={typeOptions} />
-							</select>
-						</label>
-						<!-- The case this exists for: a document that is genuinely not one of the thirteen
-						     kinds somebody guessed at from a seven-material corpus. -->
-						<ProposeNodeButton
-							kind="material_type"
-							onproposed={async (slug) => {
-								await materialTypesStore.refresh();
-								type = slug;
-							}}
-						/>
+						<div class="field-heading">
+							<label for="submit-material-type">{m.submitMaterial_field_type()}</label>
+							<!-- The case this exists for: a document that is genuinely not one of the thirteen
+							     kinds somebody guessed at from a seven-material corpus. -->
+							<ProposeNodeButton
+								kind="material_type"
+								onproposed={async (slug) => {
+									await materialTypesStore.refresh();
+									type = slug;
+								}}
+							/>
+						</div>
+						<!-- The vocabulary, not a fixed list: anything somebody has proposed appears under
+						     "Others" via TaxonomyOptions, exactly as a proposed discipline does. -->
+						<select id="submit-material-type" bind:value={type}>
+							<TaxonomyOptions nodes={typeOptions} />
+						</select>
 					</div>
 					<label class="field">
 						<span>{m.submitMaterial_field_language()}</span>
@@ -295,7 +299,22 @@
 				     somebody needs, the same reasoning `/submit`'s own topic proposal already states. -->
 				{#if branchId}
 					<div class="field">
-						<span>{m.submitMaterial_field_coverage()} <em>({m.common_optional()})</em></span>
+						<div class="field-heading">
+							<span>{m.submitMaterial_field_coverage()} <em>({m.common_optional()})</em></span>
+							<!-- Selecting the proposal, not merely refreshing the list: somebody who suggested
+							     a topic did so because they wanted to file this material under it.
+							     `proposeTaxonomyNode` answers with a SLUG, while a Topic's own frontend id is
+							     the numeric pk (`mapTopic`), so the id has to be resolved off the refreshed
+							     list rather than assumed equal to the slug. -->
+							<ProposeNodeButton
+								kind="topic"
+								parent={branchId}
+								onproposed={async (slug) => {
+									topics = await getTopicsForBranch(branchId);
+									coverageTopicId = topics.find((t) => t.slug === slug)?.id ?? '';
+								}}
+							/>
+						</div>
 						{#if coverage.length > 0}
 							<ul class="requirements-list">
 								{#each coverage as entry (entry.topicId)}
@@ -330,19 +349,6 @@
 							</div>
 						{/if}
 						<span class="file-hint">{m.submitMaterial_coverageHint()}</span>
-						<!-- Selecting the proposal, not merely refreshing the list: somebody who suggested
-						     a topic did so because they wanted to file this material under it.
-						     `proposeTaxonomyNode` answers with a SLUG, while a Topic's own frontend id is
-						     the numeric pk (`mapTopic`), so the id has to be resolved off the refreshed
-						     list rather than assumed equal to the slug. -->
-						<ProposeNodeButton
-							kind="topic"
-							parent={branchId}
-							onproposed={async (slug) => {
-								topics = await getTopicsForBranch(branchId);
-								coverageTopicId = topics.find((t) => t.slug === slug)?.id ?? '';
-							}}
-						/>
 					</div>
 				{/if}
 
@@ -459,10 +465,27 @@
 			font-weight: 400;
 		}
 	}
+	// Label on the left, the quiet propose trigger on the right. `wrap` is the whole responsive
+	// story: when the two no longer fit side by side the trigger drops to its own line rather than
+	// crushing the label, and the control still sits underneath both.
+	.field-heading {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-1) var(--space-2);
+	}
 	.field-row {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
 		gap: var(--space-2);
+
+		// Inside a half-width grid column there is no useful far side to push the trigger to —
+		// right-aligning it only parks it hard against the NEXT column's label, which reads as if it
+		// belonged to that field instead. Keep it next to the label it actually describes.
+		.field-heading {
+			justify-content: flex-start;
+		}
 	}
 	input,
 	select,
