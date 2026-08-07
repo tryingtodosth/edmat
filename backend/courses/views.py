@@ -20,6 +20,7 @@ from community.models import Comment
 from community.serializers import CommentSerializer
 from moderation.permissions import feature_gate
 from notifications.services import notify, notify_course_participants
+from study.models import ExerciseSet
 
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
@@ -34,6 +35,8 @@ from .models import (
     CourseStaff,
     Enrollment,
     Lesson,
+    LessonExerciseSet,
+    LessonSetExercise,
     Course,
 )
 from .serializers import (
@@ -51,6 +54,7 @@ from .serializers import (
     CourseStaffSerializer,
     EnrollmentSerializer,
     InvitePreviewSerializer,
+    LessonExerciseSetSerializer,
     LessonSerializer,
     LessonWriteSerializer,
     CourseSerializer,
@@ -67,7 +71,16 @@ class CourseViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = (
             Course.objects.select_related('instructor', 'instructor__profile', 'field')
-            .prefetch_related('subjects', 'chapters__lessons__items', 'enrollments')
+            .prefetch_related(
+                'subjects',
+                'chapters__lessons__items',
+                # `exercise` because every pinned row is rendered by name and checked for
+                # `published`, and `exercise_set` because a curator is told whether the source has
+                # drifted — without these a course page pays a query per pinned exercise.
+                'chapters__lessons__exercise_sets__exercises__exercise',
+                'chapters__lessons__exercise_sets__exercise_set__exercisesetitem_set',
+                'enrollments',
+            )
             .all()
         )
 
@@ -435,6 +448,149 @@ class CourseViewSet(viewsets.ModelViewSet):
         write.save()
         return Response(LessonSerializer(lesson, context={'is_participant': True}).data)
 
+    # --- a whole exercise set, linked into a lesson ------------------------------------------------
+
+    def _lesson_or_none(self, course, lesson_id):
+        return Lesson.objects.filter(chapter__course=course, pk=lesson_id).first()
+
+    @staticmethod
+    def _pin(link, source):
+        """Copy the source set's current membership onto the link, in its own order.
+
+        A full replace rather than a diff, for the same reason the material-requirements endpoint
+        replaces rather than patches: the caller is asking for "what the set says now", and a diff
+        would have to decide what to do about an exercise a curator had deliberately not got.
+        """
+        link.exercises.all().delete()
+        rows = source.exercisesetitem_set.order_by('order', 'id')
+        LessonSetExercise.objects.bulk_create(
+            [
+                LessonSetExercise(link=link, exercise_id=row.exercise_id, order=position)
+                for position, row in enumerate(rows)
+            ]
+        )
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='lessons/(?P<lesson_id>[^/.]+)/exercise-sets',
+        permission_classes=[permissions.IsAuthenticatedOrReadOnly, _CoursesFeatureGate],
+    )
+    def lesson_exercise_sets(self, request, pk=None, lesson_id=None):
+        """The sets pinned into one lesson, and pinning another one.
+
+        GET is filtered by each link's own `is_visible_to`, so a locked chapter's homework is staff-
+        only exactly as its items are. POST is `can_curate` — the same gate every other write to a
+        lesson's contents already uses, not a new one.
+        """
+        course = self.get_object()
+        lesson = self._lesson_or_none(course, lesson_id)
+        if lesson is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'GET':
+            visible = [
+                link for link in lesson.exercise_sets.all() if link.is_visible_to(request.user)
+            ]
+            return Response(
+                LessonExerciseSetSerializer(
+                    visible, many=True, context=self.get_serializer_context()
+                ).data
+            )
+
+        if not course.can_curate(request.user):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        slug = str(request.data.get('set', '')).strip()
+        if not slug:
+            raise DRFValidationError({'set': 'Name the set to link.'})
+        source = ExerciseSet.objects.filter(slug=slug).first()
+        # Readable by the person linking it, which is the same rule `ExerciseSetViewSet.retrieve`
+        # already applies: a public set, or your own. A set nobody here can read is reported as
+        # missing rather than as forbidden, matching the queryset-scoping convention this viewset
+        # uses everywhere else — for this caller it genuinely does not exist.
+        if source is None or not (source.is_public or source.owner_id == request.user.pk):
+            raise DRFValidationError({'set': 'No such set, or it has not been shared.'})
+        if not source.exercisesetitem_set.exists():
+            # Pinning an empty set stores a decision with no content in it, and the curator would
+            # have to notice the empty block themselves to learn nothing happened.
+            raise DRFValidationError({'set': 'That set has no exercises in it.'})
+        if lesson.exercise_sets.filter(exercise_set=source).exists():
+            return Response({'detail': 'already_linked'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            link = LessonExerciseSet.objects.create(
+                lesson=lesson,
+                exercise_set=source,
+                title=source.name,
+                note=str(request.data.get('note', ''))[:500],
+                order=lesson.exercise_sets.count(),
+                linked_by=request.user,
+            )
+            self._pin(link, source)
+        return Response(
+            LessonExerciseSetSerializer(link, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=['patch', 'delete'],
+        url_path='lessons/(?P<lesson_id>[^/.]+)/exercise-sets/(?P<link_id>[^/.]+)',
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def lesson_exercise_set_detail(self, request, pk=None, lesson_id=None, link_id=None):
+        """Re-copying from the source, retitling, or unlinking. Curators only.
+
+        `refresh` is what makes a pinned link liveable-with: the course decides when to take the
+        source's current list, rather than the set's owner deciding for it. Everything else is a
+        plain edit, the same "a named action, or else a partial update" shape `item_detail` uses.
+        """
+        course = self.get_object()
+        if not course.can_curate(request.user):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        lesson = self._lesson_or_none(course, lesson_id)
+        if lesson is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        link = lesson.exercise_sets.filter(pk=link_id).first()
+        if link is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'DELETE':
+            link.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        if request.data.get('refresh'):
+            source = link.exercise_set
+            if source is None:
+                return Response({'detail': 'source_gone'}, status=status.HTTP_409_CONFLICT)
+            # Re-checked rather than trusted from link time: the owner may have unshared it since,
+            # and re-copying then would pull content out of a list they have withdrawn.
+            if not (source.is_public or source.owner_id == request.user.pk):
+                return Response({'detail': 'source_not_shared'}, status=status.HTTP_409_CONFLICT)
+            if not source.exercisesetitem_set.exists():
+                return Response({'detail': 'source_empty'}, status=status.HTTP_409_CONFLICT)
+            with transaction.atomic():
+                self._pin(link, source)
+                link.title = source.name
+                link.refreshed_at = timezone.now()
+                link.save(update_fields=['title', 'refreshed_at'])
+            return Response(
+                LessonExerciseSetSerializer(link, context=self.get_serializer_context()).data
+            )
+
+        if 'title' in request.data:
+            title = str(request.data['title']).strip()[:200]
+            if not title:
+                raise DRFValidationError({'title': 'A linked set needs a name.'})
+            link.title = title
+        if 'note' in request.data:
+            link.note = str(request.data['note'])[:500]
+        link.save(update_fields=['title', 'note'])
+        return Response(
+            LessonExerciseSetSerializer(link, context=self.get_serializer_context()).data
+        )
+
     # --- staff ------------------------------------------------------------------------------------
 
     @action(detail=True, methods=['get', 'post'], permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate])
@@ -780,7 +936,13 @@ class CourseViewSet(viewsets.ModelViewSet):
         'chapter': (Chapter, None, 'course'),
         'lesson': (Lesson, 'chapter_id', 'chapter__course'),
         'item': (CourseItem, 'lesson_id', 'course'),
+        # A linked set sits in a lesson exactly as an item does, so it reorders through the same
+        # endpoint rather than growing a fourth near-identical one.
+        'lesson_set': (LessonExerciseSet, 'lesson_id', 'lesson__chapter__course'),
     }
+
+    #: Kinds whose parent column is NOT NULL, so the unfiled group `""` is meaningless for them.
+    _PARENT_REQUIRED = frozenset({'lesson', 'lesson_set'})
 
     @action(
         detail=True,
@@ -863,10 +1025,14 @@ class CourseViewSet(viewsets.ModelViewSet):
             unknown = [g for g in groups if g != '' and str(g) not in allowed_parents]
             if unknown:
                 raise DRFValidationError({'groups': f'Not a group in this course: {unknown}.'})
-            if kind == 'lesson' and '' in groups:
+            if kind in self._PARENT_REQUIRED and '' in groups:
                 # A lesson without a chapter has nowhere to be drawn — `Lesson.chapter` is NOT NULL
-                # precisely so the middle level always has a parent.
-                raise DRFValidationError({'groups': 'A lesson must belong to a chapter.'})
+                # precisely so the middle level always has a parent, and `LessonExerciseSet.lesson`
+                # is NOT NULL for the same reason. Refused here rather than left to surface as an
+                # IntegrityError from the save below.
+                raise DRFValidationError(
+                    {'groups': 'This must belong to a chapter or a lesson.'}
+                )
 
         with transaction.atomic():
             for parent_id, ids in groups.items():

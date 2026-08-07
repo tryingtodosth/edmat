@@ -137,6 +137,50 @@ export interface InvitePreview {
  * This used to sit beside Chapter and point at exercises and materials with two id arrays. Those
  * are gone: content lives in `CourseItem`, which is the half that can also say "a participant
  * offered this and it is waiting for review". */
+/** One exercise pinned into a lesson's linked set. */
+export interface LessonSetExercise {
+	id: string;
+	/** The exercise itself, still a live reference — a corrected statement reaches the lesson. */
+	exercise: string;
+	/** Subject and number, the only name an exercise has ever had here. */
+	label: string;
+	order: number;
+	published: boolean;
+}
+
+/** A whole `ExerciseSet` placed in a lesson — "these ten are this week's homework".
+ *
+ * **The membership is a snapshot taken when the set was linked; the exercises are live references.**
+ * A corrected exercise reaches the lesson at once, and a later change to WHICH exercises the source
+ * set holds does not. That is the point rather than a limitation: an `ExerciseSet` belongs to one
+ * person who may have no role on the course, and a lesson whose homework changed because they
+ * edited their own list would put course content outside course staff's control. `hasDrifted` and
+ * the refresh action are how the course takes an update when it decides to. */
+export interface LessonExerciseSet {
+	id: string;
+	lessonId: string;
+	/** The source's name as it read when it was copied — kept, so a deleted or renamed source does
+	 * not leave the block headed by a blank. */
+	title: string;
+	note: string;
+	order: number;
+	exercises: LessonSetExercise[];
+	linkedBy: Participant | null;
+	linkedAt: string;
+	/** Null for a link nobody has re-copied — genuinely different from "refreshed the moment it was
+	 * linked", and the difference is what tells a curator whether they have looked since. */
+	refreshedAt: string | null;
+	/** The source set's own share slug, or null once it is gone or unreadable to this viewer. */
+	sourceSlug: string | null;
+	sourceExists: boolean;
+	/** Whether the source now holds a different list than what was pinned. Always false for anybody
+	 * who cannot curate: they cannot re-copy, and the source is somebody else's private list. */
+	hasDrifted: boolean;
+	/** Pinned exercises this viewer is not being shown, because a moderator unpublished them. A
+	 * number rather than a silently shorter list, so the gap is explained. */
+	hiddenExerciseCount: number;
+}
+
 export interface Lesson {
 	id: string;
 	chapterId: string;
@@ -149,6 +193,8 @@ export interface Lesson {
 	 * client ever has to branch on whether a key exists. */
 	participantNotes: string;
 	items: CourseItem[];
+	/** Empty while the holding chapter is locked, exactly as `items` is. */
+	exerciseSets: LessonExerciseSet[];
 }
 
 export interface Course {

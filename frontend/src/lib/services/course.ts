@@ -19,6 +19,8 @@ import type {
 	InvitePreview,
 	Lesson,
 	LessonDraft,
+	LessonExerciseSet,
+	LessonSetExercise,
 	StaffRole,
 	Course,
 	TaughtCourseDraft
@@ -36,7 +38,36 @@ function mapLesson(raw: any): Lesson {
 		scheduledAt: raw.scheduled_at,
 		durationMinutes: raw.duration_minutes,
 		participantNotes: raw.participant_notes ?? '',
-		items: (raw.items ?? []).map(mapItem)
+		items: (raw.items ?? []).map(mapItem),
+		exerciseSets: (raw.exercise_sets ?? []).map(mapLessonExerciseSet)
+	};
+}
+
+function mapLessonSetExercise(raw: any): LessonSetExercise {
+	return {
+		id: String(raw.id),
+		exercise: String(raw.exercise),
+		label: raw.label ?? '',
+		order: raw.order ?? 0,
+		published: raw.published ?? true
+	};
+}
+
+function mapLessonExerciseSet(raw: any): LessonExerciseSet {
+	return {
+		id: String(raw.id),
+		lessonId: String(raw.lesson),
+		title: raw.title ?? '',
+		note: raw.note ?? '',
+		order: raw.order ?? 0,
+		exercises: (raw.exercises ?? []).map(mapLessonSetExercise),
+		linkedBy: raw.linked_by ? mapParticipant(raw.linked_by) : null,
+		linkedAt: raw.linked_at,
+		refreshedAt: raw.refreshed_at ?? null,
+		sourceSlug: raw.source_slug ?? null,
+		sourceExists: raw.source_exists ?? false,
+		hasDrifted: raw.has_drifted ?? false,
+		hiddenExerciseCount: raw.hidden_exercise_count ?? 0
 	};
 }
 
@@ -351,6 +382,71 @@ export async function deleteLesson(courseId: string, lessonId: string): Promise<
 	);
 }
 
+/* --- a whole exercise set, linked into a lesson --------------------------------------------- */
+//
+// The link is a SNAPSHOT of which exercises the set held, not a live view of it — see the
+// `LessonExerciseSet` type and the model docstring for why. `refreshLinkedSet` is how a curator
+// takes the source's current list, which keeps that decision with the course rather than with
+// whoever happens to own the set.
+
+function lessonSetsUrl(courseId: string, lessonId: string): string {
+	return `/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/exercise-sets/`;
+}
+
+export async function getLinkedSets(
+	courseId: string,
+	lessonId: string
+): Promise<LessonExerciseSet[]> {
+	const raw = await apiClient.get<unknown[]>(lessonSetsUrl(courseId, lessonId));
+	return raw.map(mapLessonExerciseSet);
+}
+
+/** `setSlug` is the set's own share slug (`ExerciseSet.slug`), which is what every other reference
+ * to a set in this app already uses — never its numeric row id. */
+export async function linkSetToLesson(
+	courseId: string,
+	lessonId: string,
+	setSlug: string,
+	note = ''
+): Promise<LessonExerciseSet> {
+	return mapLessonExerciseSet(
+		await apiClient.post(lessonSetsUrl(courseId, lessonId), { set: setSlug, note })
+	);
+}
+
+export async function refreshLinkedSet(
+	courseId: string,
+	lessonId: string,
+	linkId: string
+): Promise<LessonExerciseSet> {
+	return mapLessonExerciseSet(
+		await apiClient.patch(`${lessonSetsUrl(courseId, lessonId)}${encodeURIComponent(linkId)}/`, {
+			refresh: true
+		})
+	);
+}
+
+export async function renameLinkedSet(
+	courseId: string,
+	lessonId: string,
+	linkId: string,
+	title: string
+): Promise<LessonExerciseSet> {
+	return mapLessonExerciseSet(
+		await apiClient.patch(`${lessonSetsUrl(courseId, lessonId)}${encodeURIComponent(linkId)}/`, {
+			title
+		})
+	);
+}
+
+export async function unlinkSetFromLesson(
+	courseId: string,
+	lessonId: string,
+	linkId: string
+): Promise<void> {
+	await apiClient.delete(`${lessonSetsUrl(courseId, lessonId)}${encodeURIComponent(linkId)}/`);
+}
+
 export type { EnrollmentStatus };
 
 /* --- who runs the course ------------------------------------------------------------------- */
@@ -500,7 +596,7 @@ export async function reorderCourse(
 	courseId: string,
 	payload:
 		| { kind: 'chapter'; order: string[] }
-		| { kind: 'lesson' | 'item'; groups: Record<string, string[]> }
+		| { kind: 'lesson' | 'item' | 'lesson_set'; groups: Record<string, string[]> }
 ): Promise<void> {
 	const body =
 		payload.kind === 'chapter'

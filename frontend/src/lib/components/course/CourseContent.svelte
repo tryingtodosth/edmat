@@ -13,7 +13,9 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
-	import type { Chapter, CourseItem, Course, Lesson } from '$lib/types/course';
+	import { getSetsForUser } from '$lib/services/exerciseSets';
+	import type { ExerciseSet } from '$lib/types';
+	import type { Chapter, CourseItem, Course, Lesson, LessonExerciseSet } from '$lib/types/course';
 
 	let {
 		course,
@@ -24,6 +26,9 @@
 		oneditlesson,
 		ondeletelesson,
 		onaddlesson,
+		onlinkset,
+		onunlinkset,
+		onrefreshset,
 		onreorder
 	}: {
 		course: Course;
@@ -49,14 +54,47 @@
 			chapterId: string,
 			draft: { title: string; description: string; participantNotes: string }
 		) => void;
+		/** Pin a whole saved set into a lesson, by the set's own share slug. */
+		onlinkset?: (lessonId: string, setSlug: string) => void;
+		onunlinkset?: (lessonId: string, linkId: string) => void;
+		/** Re-copy the source set's current list. Only meaningful while the source still exists and
+		 * is still readable — the server refuses with a 409 otherwise, and says which. */
+		onrefreshset?: (lessonId: string, linkId: string) => void;
 		/** Whole groups, never a single move — a drag between two lessons changes both, and the
 		 * server takes them together so there is no moment where an item is in both or neither. */
 		onreorder?: (
 			payload:
 				| { kind: 'chapter'; order: string[] }
-				| { kind: 'lesson' | 'item'; groups: Record<string, string[]> }
+				| { kind: 'lesson' | 'item' | 'lesson_set'; groups: Record<string, string[]> }
 		) => void;
 	} = $props();
+
+	// --- linking a saved set into a lesson ---------------------------------------------------------
+	// Which lesson's "link a set" dialog is open, keyed by lesson for the same reason `addingLessonIn`
+	// is keyed by chapter: the button appears once per lesson and a shared boolean would open all of
+	// them at once.
+	let linkingIn = $state<string | null>(null);
+	let mySets = $state<ExerciseSet[]>([]);
+	let mySetsLoaded = $state(false);
+	let pickedSlug = $state('');
+
+	async function beginLinkSet(lessonId: string) {
+		linkingIn = lessonId;
+		pickedSlug = '';
+		if (mySetsLoaded) return;
+		// Only the curator's OWN sets are offered as a list — there is no way to enumerate somebody
+		// else's, by design. A set a colleague shared is linked by pasting the slug from its link,
+		// which is the same thing that link already is.
+		mySets = await getSetsForUser('');
+		mySetsLoaded = true;
+	}
+
+	function saveLinkSet() {
+		const slug = pickedSlug.trim();
+		if (!slug || !linkingIn) return;
+		onlinkset?.(linkingIn, slug);
+		linkingIn = null;
+	}
 
 	// --- drag and drop, staff only ---------------------------------------------------------------
 	// Native HTML5 drag events rather than a library: three sortable lists is not enough to justify
@@ -65,10 +103,10 @@
 	//
 	// Guarded on `canCurate` at every entry point, not only by hiding the handle — a hidden control
 	// is not a permission, and the server checks again regardless.
-	type Dragged = { kind: 'chapter' | 'lesson' | 'item'; id: string; from: string };
+	type Dragged = { kind: 'chapter' | 'lesson' | 'item' | 'lesson_set'; id: string; from: string };
 	type ReorderPayload =
 		| { kind: 'chapter'; order: string[] }
-		| { kind: 'lesson' | 'item'; groups: Record<string, string[]> };
+		| { kind: 'lesson' | 'item' | 'lesson_set'; groups: Record<string, string[]> };
 
 	let dragged = $state<Dragged | null>(null);
 
@@ -197,7 +235,8 @@
 
 		// Both the group it left and the group it joined go in one payload. Sending only the target
 		// would leave the source's remaining rows numbered around a gap.
-		const groupsOf = kind === 'lesson' ? lessonGroups() : itemGroups();
+		const groupsOf =
+			kind === 'lesson' ? lessonGroups() : kind === 'lesson_set' ? setGroups() : itemGroups();
 		const target = resequence(groupsOf[group] ?? [], id, beforeId);
 		const groups: Record<string, string[]> = { [group]: target };
 		if (from !== group) groups[from] = (groupsOf[from] ?? []).filter((x) => x !== id);
@@ -218,6 +257,18 @@
 
 	function lessonGroups(): Record<string, string[]> {
 		return Object.fromEntries(chapters.map((c) => [c.id, c.lessons.map((l) => l.id)]));
+	}
+
+	/** A linked set only ever lives in a lesson — `LessonExerciseSet.lesson` is NOT NULL — so unlike
+	 * `itemGroups` there is no `''` unfiled group here for one to be dropped into. */
+	function setGroups(): Record<string, string[]> {
+		const groups: Record<string, string[]> = {};
+		for (const chapter of chapters) {
+			for (const lesson of chapter.lessons) {
+				groups[lesson.id] = lesson.exerciseSets.map((link) => link.id);
+			}
+		}
+		return groups;
 	}
 
 	function itemGroups(): Record<string, string[]> {
@@ -487,6 +538,22 @@
 									{m.course_items_empty()}
 								</p>
 							{/if}
+
+							{#if lesson.exerciseSets.length > 0 || (course.canCurate && onlinkset)}
+								<div class="sets">
+									{#if lesson.exerciseSets.length > 0}
+										<h5>{m.course_sets_heading()}</h5>
+									{/if}
+									{#each lesson.exerciseSets as link (link.id)}
+										{@render linkedSet(lesson, link)}
+									{/each}
+									{#if course.canCurate && onlinkset}
+										<button type="button" class="link" onclick={() => beginLinkSet(lesson.id)}>
+											{m.course_sets_link()}
+										</button>
+									{/if}
+								</div>
+							{/if}
 						</li>
 					{/each}
 				</ol>
@@ -665,6 +732,110 @@
 	</li>
 {/snippet}
 
+{#snippet linkedSet(lesson: Lesson, link: LessonExerciseSet)}
+	<!-- The provenance line is not decoration. A linked set is a COPY of what the source held when
+	     it was linked, and the one thing a reader must never have to guess is whether the block in
+	     front of them tracks somebody else's list or does not. So it says so, every time. -->
+	<article
+		class="set"
+		draggable={course.canCurate}
+		ondragstart={(e) => {
+			e.stopPropagation();
+			startDrag(e, 'lesson_set', link.id, lesson.id);
+		}}
+		ondragover={(e) => {
+			e.preventDefault();
+			if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		}}
+		ondrop={(e) => {
+			e.stopPropagation();
+			dropOn('lesson_set', lesson.id, link.id);
+		}}
+	>
+		<header class="set__head">
+			{#if course.canCurate}
+				<span class="grip" aria-hidden="true">⠿</span>
+			{/if}
+			<h6>{link.title}</h6>
+			{#if course.canCurate && link.hasDrifted && onrefreshset}
+				<span class="pill pill--pending">{m.course_sets_drifted()}</span>
+				<button type="button" class="link" onclick={() => onrefreshset?.(lesson.id, link.id)}>
+					{m.course_sets_refresh()}
+				</button>
+			{/if}
+			{#if course.canCurate && onunlinkset}
+				<button type="button" class="link danger" onclick={() => onunlinkset?.(lesson.id, link.id)}>
+					{m.course_sets_unlink()}
+				</button>
+			{/if}
+		</header>
+
+		<p class="set__provenance">
+			{m.course_sets_copiedOn({ when: when(link.refreshedAt ?? link.linkedAt) })}
+			{#if !link.sourceExists}
+				<span class="set__gone">{m.course_sets_sourceGone()}</span>
+			{/if}
+		</p>
+
+		{#if link.note}
+			<p class="note">{link.note}</p>
+		{/if}
+
+		<ul class="set__exercises">
+			{#each link.exercises as row (row.id)}
+				<li>
+					<a href={resolve('/exercises/[id]', { id: row.exercise })}>{row.label}</a>
+					{#if !row.published}
+						<!-- Only a curator ever sees one of these; everybody else has it filtered out
+						     server-side and is told the count instead. -->
+						<span class="pill pill--rejected">{m.course_sets_withdrawn()}</span>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+
+		{#if link.hiddenExerciseCount > 0}
+			<p class="set__hidden">
+				{m.course_sets_hidden({ count: link.hiddenExerciseCount })}
+			</p>
+		{/if}
+	</article>
+{/snippet}
+
+{#if linkingIn}
+	<ModalShell title={m.course_sets_dialogTitle()} onClose={() => (linkingIn = null)}>
+		<form
+			class="modal-form"
+			onsubmit={(e) => {
+				e.preventDefault();
+				saveLinkSet();
+			}}
+		>
+			<p class="hint">{m.course_sets_dialogHint()}</p>
+			<label class="field">
+				<span>{m.course_sets_pick()}</span>
+				<select bind:value={pickedSlug}>
+					<option value="">{m.course_sets_pickNone()}</option>
+					{#each mySets as saved (saved.id)}
+						<option value={saved.id}>{saved.name}</option>
+					{/each}
+				</select>
+			</label>
+			<label class="field">
+				<span>{m.course_sets_slug()}</span>
+				<input type="text" bind:value={pickedSlug} maxlength="16" />
+				<span class="hint">{m.course_sets_slugHint()}</span>
+			</label>
+			<div class="modal-actions">
+				<button type="submit" class="primary">{m.course_sets_confirm()}</button>
+				<button type="button" class="link" onclick={() => (linkingIn = null)}>
+					{m.course_edit_cancel()}
+				</button>
+			</div>
+		</form>
+	</ModalShell>
+{/if}
+
 <style lang="scss">
 	.content {
 		display: flex;
@@ -797,6 +968,58 @@
 		align-items: center;
 		gap: var(--space-2);
 		flex-wrap: wrap;
+	}
+
+	/* A linked set is a block, not another row in the item list: it is one decision holding many
+	   exercises, and flattening it would make ten pinned exercises indistinguishable from ten
+	   separately-added items — which is exactly the thing the reader needs to be able to tell. */
+	.sets {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+	}
+	.sets h5 {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	.set {
+		width: 100%;
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		padding: var(--space-2);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.set__head {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+	.set__head h6 {
+		font-weight: 600;
+		font-size: var(--font-size-sm);
+	}
+	.set__provenance {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.set__gone {
+		display: block;
+	}
+	.set__exercises {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		font-size: var(--font-size-sm);
+	}
+	.set__hidden {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 	.move select {
 		font-size: var(--font-size-xs);
