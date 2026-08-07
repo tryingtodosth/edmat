@@ -127,15 +127,31 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
+	// Deliberately quiet. This sits beside a field label on forms whose actual job is submitting an
+	// exercise, a material or an event — proposing a missing taxonomy node is the rare escape hatch,
+	// not the next step, and an accent-coloured permanently-underlined link competed with the form's
+	// own primary action for attention every time. It reads as secondary text until pointed at,
+	// which is when somebody is actually looking for it.
 	.propose-trigger {
+		@include mix.focus-ring;
 		align-self: flex-start;
 		background: none;
 		border: none;
 		padding: 0;
-		font-size: var(--font-size-sm);
-		color: var(--accent);
-		text-decoration: underline;
+		font-size: var(--font-size-xs);
+		font-weight: 400;
+		line-height: 1.4;
+		color: var(--text-secondary);
+		text-decoration: none;
 		cursor: pointer;
+
+		&:hover,
+		&:focus-visible {
+			color: var(--accent);
+			text-decoration: underline;
+		}
 	}
 	.field {
 		display: flex;

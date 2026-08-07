@@ -162,41 +162,49 @@
 			{/if}
 
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
+				<!-- The propose trigger sits on the label's own row rather than below the control. Under
+				     it, it read as a second action belonging to the form; beside the label it reads as a
+				     footnote about that one field, which is what it is. `.field-heading` wraps, so on a
+				     narrow screen the trigger drops onto its own line instead of squeezing the label. -->
 				<div class="field">
-					<label>
-						<span>{m.submit_field_field()}</span>
-						<select value={disciplineId} onchange={(e) => onFieldChange(e.currentTarget.value)}>
-							<TaxonomyOptions nodes={fields} />
-						</select>
-					</label>
-					<!-- Selecting what was just proposed rather than only refreshing the list: somebody
-					     who suggested a discipline did so BECAUSE they wanted to file under it. -->
-					<ProposeNodeButton
-						kind="discipline"
-						onproposed={async (slug) => {
-							fields = await getDisciplines();
-							await onFieldChange(slug);
-						}}
-					/>
+					<div class="field-heading">
+						<label for="submit-discipline">{m.submit_field_field()}</label>
+						<!-- Selecting what was just proposed rather than only refreshing the list: somebody
+						     who suggested a discipline did so BECAUSE they wanted to file under it. -->
+						<ProposeNodeButton
+							kind="discipline"
+							onproposed={async (slug) => {
+								fields = await getDisciplines();
+								await onFieldChange(slug);
+							}}
+						/>
+					</div>
+					<select
+						id="submit-discipline"
+						value={disciplineId}
+						onchange={(e) => onFieldChange(e.currentTarget.value)}
+					>
+						<TaxonomyOptions nodes={fields} />
+					</select>
 				</div>
 
 				<div class="field">
-					<label>
-						<span>{m.submit_field_course()}</span>
-						<select bind:value={branchId}>
-							<TaxonomyOptions nodes={branches} />
-						</select>
-					</label>
-					{#if disciplineId}
-						<ProposeNodeButton
-							kind="branch"
-							parent={disciplineId}
-							onproposed={async (slug) => {
-								branches = await getBranchesForDiscipline(disciplineId);
-								branchId = slug;
-							}}
-						/>
-					{/if}
+					<div class="field-heading">
+						<label for="submit-branch">{m.submit_field_course()}</label>
+						{#if disciplineId}
+							<ProposeNodeButton
+								kind="branch"
+								parent={disciplineId}
+								onproposed={async (slug) => {
+									branches = await getBranchesForDiscipline(disciplineId);
+									branchId = slug;
+								}}
+							/>
+						{/if}
+					</div>
+					<select id="submit-branch" bind:value={branchId}>
+						<TaxonomyOptions nodes={branches} />
+					</select>
 				</div>
 
 				<label class="field">
@@ -232,7 +240,21 @@
 
 				{#if topics.length}
 					<div class="field">
-						<span>{m.submit_field_topics()}</span>
+						<div class="field-heading">
+							<span>{m.submit_field_topics()}</span>
+							<!-- The case this whole feature exists for: an exercise on measure theory with no
+							     `teoria-miary` topic to file it under. Offered even when the list is empty,
+							     which is exactly when it is most needed. -->
+							{#if branchId}
+								<ProposeNodeButton
+									kind="topic"
+									parent={branchId}
+									onproposed={async () => {
+										topics = await getTopicsForBranch(branchId);
+									}}
+								/>
+							{/if}
+						</div>
 						{#if selectedTopicIds.length > 0}
 							<ul class="chip-list">
 								{#each selectedTopicIds as id (id)}
@@ -254,18 +276,6 @@
 								<option value="" disabled>{m.submit_topicsAddPlaceholder()}</option>
 								<TaxonomyOptions nodes={availableTopics} />
 							</select>
-						{/if}
-						<!-- The case this whole feature exists for: an exercise on measure theory with no
-						     `teoria-miary` topic to file it under. Offered even when the list is empty,
-						     which is exactly when it is most needed. -->
-						{#if branchId}
-							<ProposeNodeButton
-								kind="topic"
-								parent={branchId}
-								onproposed={async () => {
-									topics = await getTopicsForBranch(branchId);
-								}}
-							/>
 						{/if}
 					</div>
 				{/if}
@@ -329,8 +339,35 @@
 					{m.submit_preview()}
 				</button>
 				{#if showPreview}
+					<!-- Every field the reader will eventually see, not the statement alone. Previewing the
+					     statement only left the three fields where the fiddliest LaTeX usually goes — a
+					     hint's inline fragment, an answer, a multi-step solution — unverifiable until after
+					     the thing had been submitted, which is exactly when it stops being editable.
+					     The optional three are omitted entirely when empty rather than rendered as an empty
+					     labelled box, the same restraint MaterialCard already applies to a price nobody set. -->
 					<div class="preview">
-						<MathContent source={statement || '*(empty)*'} />
+						<section>
+							<h2>{m.submit_field_statement()}</h2>
+							<MathContent source={statement || '*(empty)*'} />
+						</section>
+						{#if hint.trim()}
+							<section>
+								<h2>{m.submit_field_hint()}</h2>
+								<MathContent source={hint} />
+							</section>
+						{/if}
+						{#if answer.trim()}
+							<section>
+								<h2>{m.submit_field_answer()}</h2>
+								<MathContent source={answer} />
+							</section>
+						{/if}
+						{#if solution.trim()}
+							<section>
+								<h2>{m.submit_field_solution()}</h2>
+								<MathContent source={solution} />
+							</section>
+						{/if}
 					</div>
 				{/if}
 
@@ -380,6 +417,16 @@
 			color: var(--text-secondary);
 			font-weight: 400;
 		}
+	}
+	// Label on the left, the quiet propose trigger on the right. `wrap` is the whole responsive
+	// story: when the two no longer fit side by side the trigger drops to its own line rather than
+	// crushing the label, and the control still sits underneath both.
+	.field-heading {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-1) var(--space-2);
 	}
 	.field-row {
 		display: grid;
@@ -437,6 +484,24 @@
 	.preview {
 		@include mix.card-surface;
 		padding: var(--space-3);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+
+		h2 {
+			font-size: var(--font-size-xs);
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			color: var(--text-secondary);
+			margin-bottom: var(--space-1);
+		}
+		// A rule between sections, not around each — the point of the preview is reading the four
+		// fields as one exercise, which is how they will actually be read.
+		section + section {
+			border-top: 1px solid var(--border-color);
+			padding-top: var(--space-3);
+		}
 	}
 	.submit {
 		@include mix.button-primary;
