@@ -508,6 +508,21 @@ class Lesson(models.Model):
         "week 3 opens on the 14th" is one decision about a group of sessions."""
         return self.chapter.is_visible_to(user)
 
+    def save(self, *args, **kwargs):
+        """Sanitize the two fields that render as Markdown.
+
+        These were safe while the frontend printed them through Svelte's escaping braces — nothing
+        could get out of a text node. Rendering them turns them into an injection surface, so the
+        server-side pass has to land in the same change as the rendering, not after it. `title` is
+        deliberately left alone: it still renders escaped, and running it through the sanitizer
+        would mangle an honest "a < b" for no gain.
+        """
+        from config.sanitize import sanitize_content
+
+        self.description = sanitize_content(self.description)
+        self.participant_notes = sanitize_content(self.participant_notes)
+        return super().save(*args, **kwargs)
+
 
 class Enrollment(models.Model):
     course = models.ForeignKey(Course, related_name='enrollments', on_delete=models.CASCADE)
@@ -632,6 +647,14 @@ class Chapter(models.Model):
         if self.is_unlocked():
             return True
         return self.course.can_curate(user)
+
+    def save(self, *args, **kwargs):
+        """Same reasoning as `Lesson.save` — `description` renders as Markdown now, so it is
+        sanitized on the way in rather than trusted to the one client that happens to render it."""
+        from config.sanitize import sanitize_content
+
+        self.description = sanitize_content(self.description)
+        return super().save(*args, **kwargs)
 
 
 class CourseItem(models.Model):
@@ -1055,6 +1078,73 @@ class AttachmentReview(models.Model):
 
     def __str__(self) -> str:
         return f'{self.rating}★ by {self.author} on {self.attachment}'
+
+
+class LessonReview(models.Model):
+    """A star rating and an optional written review on one lesson.
+
+    Its own small model with a direct FK, matching `AttachmentReview` directly above and
+    `community.Review`/`MaterialReview`/`ServiceReview` before it — a review has never needed to
+    span more than the one content type it was built for, so a GenericForeignKey would buy nothing
+    and cost every query a join. (`Comment` is generic for the opposite reason: a thread genuinely
+    does hang off eight different things.)
+
+    What it rates is the session as taught — "was this week's material any good" — not the
+    exercises inside it, which carry their own ratings and would otherwise be scored twice.
+    """
+
+    lesson = models.ForeignKey(Lesson, related_name='reviews', on_delete=models.CASCADE)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    body = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        # One review per person per lesson, same as every other review model here.
+        unique_together = [('lesson', 'author')]
+
+    def __str__(self) -> str:
+        return f'{self.rating}★ by {self.author} on {self.lesson}'
+
+    def save(self, *args, **kwargs):
+        from config.sanitize import sanitize_content
+
+        self.body = sanitize_content(self.body)
+        return super().save(*args, **kwargs)
+
+
+class ChapterReview(models.Model):
+    """The same, one level up: a rating of a whole week/unit rather than a single session.
+
+    Both exist rather than only one because they answer different questions. "Tuesday's session was
+    unclear" and "week 3 as a whole was worth it" are not the same judgement, and folding them
+    together would mean a chapter's score was really an average of whichever lessons happened to be
+    rated — a number nobody chose.
+    """
+
+    chapter = models.ForeignKey(Chapter, related_name='reviews', on_delete=models.CASCADE)
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    body = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = [('chapter', 'author')]
+
+    def __str__(self) -> str:
+        return f'{self.rating}★ by {self.author} on {self.chapter}'
+
+    def save(self, *args, **kwargs):
+        from config.sanitize import sanitize_content
+
+        self.body = sanitize_content(self.body)
+        return super().save(*args, **kwargs)
 
 
 class LessonExerciseSet(models.Model):

@@ -18,6 +18,7 @@ from rest_framework.response import Response
 
 from community.models import Comment
 from community.serializers import CommentSerializer
+from community.views import comment_thread_response
 from moderation.permissions import feature_gate
 from notifications.services import notify, notify_course_participants
 from study.models import ExerciseSet
@@ -29,6 +30,7 @@ from .models import (
     BLOCKING_ENROLLMENT_STATUSES,
     LISTED_VISIBILITIES,
     Chapter,
+    ChapterReview,
     CourseInvite,
     CourseItem,
     CourseNote,
@@ -36,6 +38,7 @@ from .models import (
     Enrollment,
     Lesson,
     LessonExerciseSet,
+    LessonReview,
     LessonSetExercise,
     Course,
 )
@@ -43,6 +46,7 @@ from .serializers import (
     AttachmentReviewSerializer,
     AttachmentSerializer,
     AttachmentWriteSerializer,
+    ChapterReviewSerializer,
     ChapterSerializer,
     is_participant_of,
     ChapterWriteSerializer,
@@ -55,6 +59,7 @@ from .serializers import (
     EnrollmentSerializer,
     InvitePreviewSerializer,
     LessonExerciseSetSerializer,
+    LessonReviewSerializer,
     LessonSerializer,
     LessonWriteSerializer,
     CourseSerializer,
@@ -79,6 +84,12 @@ class CourseViewSet(viewsets.ModelViewSet):
                 # drifted — without these a course page pays a query per pinned exercise.
                 'chapters__lessons__exercise_sets__exercises__exercise',
                 'chapters__lessons__exercise_sets__exercise_set__exercisesetitem_set',
+                # The rating summaries on every lesson and every chapter. `rating_summary` reads
+                # `.all()` precisely so these prefetches serve it; without them a twelve-week course
+                # pays a query per session and per week to draw two small numbers — the same N+1
+                # shape the moderation queue was once measured making.
+                'chapters__lessons__reviews',
+                'chapters__reviews',
                 'enrollments',
             )
             .all()
@@ -399,11 +410,22 @@ class CourseViewSet(viewsets.ModelViewSet):
                 course.is_staff_member(request.user)
                 or (mine and mine.status in ACTIVE_ENROLLMENT_STATUSES)
             )
+            # Same chapter-lock filter `CourseSerializer.get_lessons` needed: without it this
+            # action hands back every lesson in the course regardless of whether its week has
+            # opened. Its context also omits `request`, which is why `get_items` returned nothing
+            # here for everybody — that was masking the leak rather than preventing it.
+            visible = [
+                lesson
+                for lesson in Lesson.objects.filter(chapter__course=course)
+                .select_related('chapter')
+                .prefetch_related('reviews')
+                if lesson.is_visible_to(request.user)
+            ]
             return Response(
                 LessonSerializer(
-                    Lesson.objects.filter(chapter__course=course),
+                    visible,
                     many=True,
-                    context={'is_participant': is_participant},
+                    context={'request': request, 'is_participant': is_participant},
                 ).data
             )
 
@@ -700,29 +722,135 @@ class CourseViewSet(viewsets.ModelViewSet):
         if lesson is None or not lesson.is_visible_to(request.user):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not course.discussion_visible_to(request.user):
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        content_type = ContentType.objects.get_for_model(Lesson)
-        thread = Comment.objects.filter(
-            content_type=content_type, object_id=lesson.pk, is_removed=False
-        ).select_related('author__profile')
-
-        if request.method == 'GET':
-            return Response(CommentSerializer(thread, many=True).data)
-
-        if not course.discussion_writable_by(request.user):
+            # 403, matching the course-wide thread. This used to answer 404 for the identical
+            # condition — the same refusal with two different answers depending on which thread you
+            # asked. 403 is also the truthful one here: the lesson demonstrably exists, since the
+            # course detail lists it, so pretending otherwise tells the caller nothing and misleads
+            # a client trying to distinguish "closed" from "gone".
             return Response(status=status.HTTP_403_FORBIDDEN)
-        body = (request.data.get('body') or '').strip()
-        if not body:
-            raise DRFValidationError({'body': 'Write something first.'})
-        comment = Comment.objects.create(
-            content_type=content_type,
-            object_id=lesson.pk,
-            author=request.user,
-            body=body,
-            parent_id=request.data.get('parent') or None,
+        if request.method == 'POST' and not course.discussion_writable_by(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        # Through the shared helper rather than the hand-rolled create this used to do. That create
+        # passed `parent_id` straight from the request body, so a reply could name a comment in an
+        # entirely different thread — or a different content type's thread — and silently attach
+        # there; there was no FK-existence check either, so a made-up id was a 500. The helper does
+        # both, and is the same code path every other thread in this app now goes through.
+        return comment_thread_response(request, lesson)
+
+    def _visible_lesson_or_none(self, course, lesson_id, user):
+        """Deliberately NOT `_lesson_or_none` above, which only resolves the row.
+
+        Both are wanted: the exercise-set endpoints resolve the lesson and then filter each link
+        individually, while a thread or a rating is about the lesson itself and so needs the
+        chapter's lock applied to the lesson before anything else happens.
+        """
+        lesson = Lesson.objects.filter(chapter__course=course, pk=lesson_id).first()
+        if lesson is None or not lesson.is_visible_to(user):
+            return None
+        return lesson
+
+    def _chapter_or_none(self, course, chapter_id, user):
+        """A chapter the reader may see the CONTENTS of.
+
+        Deliberately stricter than "the chapter exists": a locked week still renders its title and
+        unlock date through the course detail, but its discussion and its reviews are contents, so
+        they follow `is_visible_to` like everything else inside it.
+        """
+        chapter = course.chapters.filter(pk=chapter_id).first()
+        if chapter is None or not chapter.is_visible_to(user):
+            return None
+        return chapter
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='chapters/(?P<chapter_id>[^/.]+)/comments',
+        permission_classes=[permissions.IsAuthenticatedOrReadOnly, _CoursesFeatureGate],
+    )
+    def chapter_comments(self, request, pk=None, chapter_id=None):
+        """A chapter's own conversation — the week, rather than one session inside it.
+
+        Both exist because they are different conversations: "does anyone else find Tuesday's proof
+        confusing" belongs to Tuesday, while "how should we approach week 3" belongs to the week.
+        Folding them together would put the second in whichever lesson happened to be first.
+
+        The gates are the lesson thread's, unchanged: the course's `discussion_mode` decides who
+        reads, membership decides who writes, and the chapter's own lock applies on top — a locked
+        week's conversation is part of its contents.
+        """
+        course = self.get_object()
+        chapter = self._chapter_or_none(course, chapter_id, request.user)
+        if chapter is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not course.discussion_visible_to(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if request.method == 'POST' and not course.discussion_writable_by(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        return comment_thread_response(request, chapter)
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='lessons/(?P<lesson_id>[^/.]+)/reviews',
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def lesson_reviews(self, request, pk=None, lesson_id=None):
+        """Ratings on one session. One per person, edited rather than duplicated.
+
+        Writing needs membership — rating a session you were never in is not a review of anything —
+        and that is a stricter test than merely being able to read the course, which a public
+        course grants to the whole internet.
+        """
+        course = self.get_object()
+        lesson = self._visible_lesson_or_none(course, lesson_id, request.user)
+        if lesson is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return self._review_response(
+            request, course, LessonReviewSerializer, LessonReview, {'lesson': lesson}
         )
-        return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        url_path='chapters/(?P<chapter_id>[^/.]+)/reviews',
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def chapter_reviews(self, request, pk=None, chapter_id=None):
+        """The same, for a whole week rather than one session."""
+        course = self.get_object()
+        chapter = self._chapter_or_none(course, chapter_id, request.user)
+        if chapter is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return self._review_response(
+            request, course, ChapterReviewSerializer, ChapterReview, {'chapter': chapter}
+        )
+
+    def _review_response(self, request, course, serializer_class, model, target):
+        """Shared body for the two review endpoints above.
+
+        One implementation rather than two near-identical ones, for the same reason
+        `comment_thread_response` exists: the interesting part is the membership gate and the
+        one-per-person upsert, and a second copy is a second place for those to drift.
+        """
+        if request.method == 'GET':
+            rows = model.objects.filter(**target).select_related('author__profile')
+            return Response(serializer_class(rows, many=True).data)
+
+        if not (course.is_member(request.user) or course.can_curate(request.user)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+
+        write = serializer_class(data=request.data)
+        write.is_valid(raise_exception=True)
+        review, _ = model.objects.update_or_create(
+            author=request.user,
+            **target,
+            defaults={
+                'rating': write.validated_data['rating'],
+                'body': write.validated_data.get('body', ''),
+            },
+        )
+        return Response(serializer_class(review).data, status=status.HTTP_201_CREATED)
 
     # --- attachments --------------------------------------------------------------------------
 
