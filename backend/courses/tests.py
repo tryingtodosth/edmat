@@ -14,6 +14,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from events.models import Event
 from materials.models import Material, MaterialTranslation
 from notifications.models import Notification
 from taxonomy.models import Branch, Discipline
@@ -1591,3 +1592,281 @@ class LessonDiscussionTests(ApiTestCase):
             f'/api/courses/{self.course.pk}/lessons/{elsewhere.pk}/comments/'
         )
         self.assertEqual(res.status_code, 404)
+
+
+class ItemFilingTests(ApiTestCase):
+    """Where a piece of content sits, and what may be linked in the first place.
+
+    An item files into a lesson OR straight into a chapter, and references exactly one of four
+    kinds. Both halves are easy to get wrong in ways that fail quietly — a filing target the server
+    ignores looks identical to one it honoured until somebody reloads the page — so these pin the
+    refusals rather than the happy path.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Tydzień 1')
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Wtorek')
+        self.material = self.make_material('skrypt', 'Skrypt')
+
+    def _attachment(self, course=None):
+        return Attachment.objects.create(
+            course=course or self.course,
+            title='Kolokwium 2023',
+            file=SimpleUploadedFile('k.pdf', b'%PDF-1.4 test', content_type='application/pdf'),
+            uploaded_by=self.instructor,
+        )
+
+    def _event(self, status='published', host=None):
+        return Event.objects.create(
+            host=host or self.instructor,
+            title='Wykład gościnny',
+            status=status,
+            starts_at=timezone.now() + timedelta(days=3),
+            location_kind='online',
+            online_url='https://example.org/talk',
+        )
+
+    # --- filing into a chapter, which used to be silently dropped ---------------------------------
+
+    def test_an_item_can_be_filed_straight_into_a_chapter(self):
+        """The regression this feature exists for.
+
+        `chapter` was absent from the write serializer's field list, so DRF discarded it without a
+        word: the contribute form offered a chapter picker, and every item it created landed
+        unfiled. A 201 proved nothing, which is why this asserts the stored row.
+        """
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/',
+            {'material': self.material.pk, 'chapter': self.chapter.pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['chapter'], self.chapter.pk)
+        item = CourseItem.objects.get(pk=response.data['id'])
+        self.assertEqual(item.chapter_id, self.chapter.pk)
+        self.assertIsNone(item.lesson_id)
+
+    def test_an_item_cannot_be_filed_into_a_lesson_and_a_chapter_at_once(self):
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/',
+            {
+                'material': self.material.pk,
+                'chapter': self.chapter.pk,
+                'lesson': self.lesson.pk,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(CourseItem.objects.count(), 0)
+
+    def test_a_chapter_from_another_course_is_refused(self):
+        elsewhere = Chapter.objects.create(
+            course=self.make_course(title='Inny kurs'), title='Nie ten'
+        )
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/',
+            {'material': self.material.pk, 'chapter': elsewhere.pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('chapter', response.data)
+
+    def test_participant_notes_survive_the_nested_chapter_shape(self):
+        """A second pre-existing bug, found while checking that a new lesson's notes were stored.
+
+        `CourseSerializer.get_lessons` worked out `is_participant` and passed it down, but
+        `ChapterSerializer.get_lessons` handed on a context that never contained it — so in the
+        chapter -> lesson shape the course page actually renders, every lesson's notes were blank for
+        everybody, including the staff who wrote them. The flat list was right and the nested one was
+        not, which is why it survived: both exist on the same response.
+        """
+        self.lesson.participant_notes = 'Bring the worksheet.'
+        self.lesson.save(update_fields=['participant_notes'])
+
+        staff = self.as_(self.instructor).get(f'/api/courses/{self.course.pk}/')
+        nested = staff.data['chapters'][0]['lessons'][0]
+        self.assertEqual(nested['participant_notes'], 'Bring the worksheet.')
+
+        Enrollment.objects.create(
+            course=self.course, participant=self.student, status='active'
+        )
+        joined = self.as_(self.student).get(f'/api/courses/{self.course.pk}/')
+        self.assertEqual(
+            joined.data['chapters'][0]['lessons'][0]['participant_notes'],
+            'Bring the worksheet.',
+        )
+
+        # And still withheld from somebody who is not in the course — the fix must not open it up.
+        outsider = self.as_(self.other).get(f'/api/courses/{self.course.pk}/')
+        self.assertEqual(outsider.data['chapters'][0]['lessons'][0]['participant_notes'], '')
+
+    def test_a_course_holding_any_item_still_renders(self):
+        """A pre-existing 500, fixed here as a side effect and pinned so it cannot come back.
+
+        `CourseSerializer.get_unfiled_items` already filtered on `item.chapter_id` while `CourseItem`
+        had no such field, so reading it raised `AttributeError` — a 500 on the course detail of ANY
+        course containing content. It survived because the expression sits inside a loop over the
+        course's items: with none, the body never runs, and every fixture that had items reached them
+        through `/items/` rather than the course itself. Reproduced against the running server before
+        fixing: 200 with no items, 500 the moment one existed.
+        """
+        CourseItem.objects.create(course=self.course, material=self.material)
+        response = self.as_(self.instructor).get(f'/api/courses/{self.course.pk}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([i['label'] for i in response.data['unfiled_items']], ['Skrypt'])
+
+    def test_a_filed_item_is_not_also_reported_as_unfiled(self):
+        """Filed either way is filed. Reporting it as unfiled draws it twice on the page — once where
+        it belongs and once in the loose pile underneath.
+
+        The lesson half is a real bug this caught: `get_unfiled_items` tested `chapter_id is None`
+        alone, and a lesson-filed row genuinely has no chapter, so every lesson's contents were
+        duplicated into the unfiled list. Found by looking at the rendered page, not by an assertion.
+        """
+        CourseItem.objects.create(
+            course=self.course, chapter=self.chapter, material=self.material
+        )
+        other = self.make_material('zadania', 'Zadania')
+        CourseItem.objects.create(course=self.course, lesson=self.lesson, material=other)
+
+        response = self.as_(self.instructor).get(f'/api/courses/{self.course.pk}/')
+        self.assertEqual(response.data['unfiled_items'], [])
+
+        # And something genuinely filed nowhere still shows up there.
+        loose = self.make_material('luzem', 'Luzem')
+        CourseItem.objects.create(course=self.course, material=loose)
+        again = self.as_(self.instructor).get(f'/api/courses/{self.course.pk}/')
+        self.assertEqual([i['label'] for i in again.data['unfiled_items']], ['Luzem'])
+
+    def test_a_chapter_filed_item_is_returned_on_its_chapter(self):
+        CourseItem.objects.create(
+            course=self.course, chapter=self.chapter, material=self.material
+        )
+        response = self.client.get(f'/api/courses/{self.course.pk}/')
+        chapter = response.data['chapters'][0]
+        self.assertEqual([i['label'] for i in chapter['items']], ['Skrypt'])
+
+    # --- the lock reaches an item filed one level up ----------------------------------------------
+
+    def test_a_locked_chapter_hides_its_own_items_from_a_participant_but_not_from_staff(self):
+        """Filing one level up must not be a way around the lock.
+
+        The gate is a statement about the week; an item that escaped it by sitting on the chapter
+        rather than in a lesson would make the whole thing worthless.
+        """
+        self.chapter.unlocks_at = timezone.now() + timedelta(days=7)
+        self.chapter.save(update_fields=['unlocks_at'])
+        CourseItem.objects.create(
+            course=self.course, chapter=self.chapter, material=self.material
+        )
+        Enrollment.objects.create(
+            course=self.course, participant=self.student, status='active'
+        )
+
+        theirs = self.as_(self.student).get(f'/api/courses/{self.course.pk}/')
+        self.assertEqual(theirs.data['chapters'][0]['items'], [])
+        # And it is still listed as a chapter, with its date — the course must not look shorter.
+        self.assertFalse(theirs.data['chapters'][0]['is_unlocked'])
+
+        staff = self.as_(self.instructor).get(f'/api/courses/{self.course.pk}/')
+        self.assertEqual(len(staff.data['chapters'][0]['items']), 1)
+
+    # --- the two new kinds ------------------------------------------------------------------------
+
+    def test_a_course_file_can_be_linked_into_a_lesson(self):
+        attachment = self._attachment()
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/',
+            {'attachment': attachment.pk, 'lesson': self.lesson.pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['kind'], 'attachment')
+        self.assertEqual(response.data['label'], 'Kolokwium 2023')
+
+    def test_another_courses_file_is_refused(self):
+        """An attachment is deliberately not discoverable outside its own course, so linking one in
+        would publish it to a roster it was never shared with."""
+        elsewhere = self._attachment(course=self.make_course(title='Inny kurs'))
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/',
+            {'attachment': elsewhere.pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('attachment', response.data)
+
+    def test_an_event_can_be_linked_into_a_chapter(self):
+        event = self._event()
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/',
+            {'event': event.pk, 'chapter': self.chapter.pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['kind'], 'event')
+        self.assertEqual(response.data['label'], 'Wykład gościnny')
+
+    def test_somebody_elses_published_event_can_be_linked(self):
+        """Not an ownership check on purpose: pointing a course at somebody else's guest lecture is
+        the normal case, not an error."""
+        event = self._event(host=self.other)
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/', {'event': event.pk}, format='json'
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_a_draft_event_is_refused(self):
+        """It is not announced yet — linking it would publish somebody's unfinished plan."""
+        event = self._event(status='draft')
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/', {'event': event.pk}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('event', response.data)
+
+    def test_exactly_one_kind_is_required(self):
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/', {}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(CourseItem.objects.count(), 0)
+
+    def test_two_kinds_at_once_are_refused(self):
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/',
+            {'material': self.material.pk, 'event': self._event().pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_the_same_event_cannot_be_linked_twice(self):
+        event = self._event()
+        first = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/', {'event': event.pk}, format='json'
+        )
+        self.assertEqual(first.status_code, 201)
+        again = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/items/', {'event': event.pk}, format='json'
+        )
+        self.assertEqual(again.status_code, 400)
+        self.assertEqual(again.data['detail'], 'already_in_course')
+
+    # --- reorder must not leave a row holding both targets ----------------------------------------
+
+    def test_dragging_a_chapter_filed_item_into_a_lesson_clears_its_chapter(self):
+        """Otherwise the row holds both, which the database refuses outright — a 500 on a drag."""
+        item = CourseItem.objects.create(
+            course=self.course, chapter=self.chapter, material=self.material
+        )
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/reorder/',
+            {'kind': 'item', 'groups': {str(self.lesson.pk): [item.pk]}},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertEqual(item.lesson_id, self.lesson.pk)
+        self.assertIsNone(item.chapter_id)

@@ -44,13 +44,22 @@ function mapParticipant(raw: any) {
 	return { id: String(raw?.id ?? ''), displayName: raw?.display_name ?? '' };
 }
 
+/** Backend ids arrive as numbers and are opaque strings everywhere above `lib/api`; null and
+ * undefined both mean "not set", and collapsing them here keeps every call site from re-checking. */
+function optionalId(value: unknown): string | null {
+	return value === null || value === undefined ? null : String(value);
+}
+
 function mapItem(raw: any): CourseItem {
 	return {
 		id: String(raw.id),
 		kind: raw.kind,
-		lesson: raw.lesson === null || raw.lesson === undefined ? null : String(raw.lesson),
-		material: raw.material === null || raw.material === undefined ? null : String(raw.material),
-		exercise: raw.exercise === null || raw.exercise === undefined ? null : String(raw.exercise),
+		lesson: optionalId(raw.lesson),
+		chapter: optionalId(raw.chapter),
+		material: optionalId(raw.material),
+		exercise: optionalId(raw.exercise),
+		attachment: optionalId(raw.attachment),
+		event: optionalId(raw.event),
 		label: raw.label ?? '',
 		order: raw.order ?? 0,
 		note: raw.note ?? '',
@@ -71,7 +80,8 @@ function mapChapter(raw: any): Chapter {
 		order: raw.order ?? 0,
 		unlocksAt: raw.unlocks_at ?? null,
 		isUnlocked: raw.is_unlocked ?? true,
-		lessons: (raw.lessons ?? []).map(mapLesson)
+		lessons: (raw.lessons ?? []).map(mapLesson),
+		items: (raw.items ?? []).map(mapItem)
 	};
 }
 
@@ -424,9 +434,15 @@ export async function getCourseItems(courseId: string): Promise<CourseItem[]> {
 }
 
 export interface CourseItemSubmission {
+	/** Exactly one of these four — the server refuses anything else, and so does the database. */
 	materialId?: string;
 	exerciseId?: string;
+	attachmentId?: string;
+	eventId?: string;
+	/** Where it goes. At most one: a lesson already belongs to a chapter, so sending both would state
+	 * the same fact twice with two chances to disagree. Neither means unfiled. */
 	chapterId?: string | null;
+	lessonId?: string | null;
 	note?: string;
 }
 
@@ -437,7 +453,12 @@ export async function submitCourseItem(
 	const body: Record<string, unknown> = { note: submission.note ?? '' };
 	if (submission.materialId) body.material = Number(submission.materialId);
 	if (submission.exerciseId) body.exercise = Number(submission.exerciseId);
-	if (submission.chapterId) body.chapter = Number(submission.chapterId);
+	if (submission.attachmentId) body.attachment = Number(submission.attachmentId);
+	if (submission.eventId) body.event = Number(submission.eventId);
+	// A lesson wins if both somehow arrive, rather than sending both and letting the server refuse
+	// the whole request: the caller asked for the more specific of the two.
+	if (submission.lessonId) body.lesson = Number(submission.lessonId);
+	else if (submission.chapterId) body.chapter = Number(submission.chapterId);
 	const raw = await apiClient.post<unknown>(`/courses/${courseId}/items/`, body);
 	return mapItem(raw);
 }
@@ -459,10 +480,14 @@ export async function decideCourseItem(
 export async function moveCourseItem(
 	courseId: string,
 	itemId: string,
-	lessonId: string | null
+	target: { lessonId: string | null; chapterId: string | null }
 ): Promise<CourseItem> {
+	// BOTH are always sent, including the null one. Sending only the field being set would leave the
+	// other holding its old value, so moving a chapter-filed item into a lesson would produce a row
+	// claiming both — which the `course_item_one_filing_target` constraint refuses outright.
 	const raw = await apiClient.patch<unknown>(`/courses/${courseId}/items/${itemId}/`, {
-		lesson: lessonId ? Number(lessonId) : null
+		lesson: target.lessonId ? Number(target.lessonId) : null,
+		chapter: target.chapterId ? Number(target.chapterId) : null
 	});
 	return mapItem(raw);
 }

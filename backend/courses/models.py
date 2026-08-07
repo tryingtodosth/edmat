@@ -635,7 +635,7 @@ class Chapter(models.Model):
 
 
 class CourseItem(models.Model):
-    """One material or exercise placed in a course.
+    """One piece of content placed in a course.
 
     Deliberately one model for two jobs that turn out to be the same job: "staff add content to a
     chapter" and "a participant offers content for review" differ only in what `status` starts as.
@@ -644,15 +644,28 @@ class CourseItem(models.Model):
 
     Content is *referenced*, never copied, exactly as `Lesson` already does: a corrected exercise
     stays corrected everywhere, and a course never becomes a silently diverging fork of the corpus.
+
+    **Four kinds, exactly one per row**, because they are genuinely different things a course points
+    at and a reader needs to know which they are looking at before clicking: a corpus `material`, a
+    corpus `exercise`, an `attachment` (a file belonging to this course — last year's paper, Tuesday's
+    slides), or an `event` (a one-off happening people turn up to). Four nullable FKs with a check
+    constraint rather than a GenericForeignKey: the set is small, closed and known, and every query
+    here wants to join and prefetch the real row, which a generic relation cannot do.
     """
 
     course = models.ForeignKey(Course, related_name='items', on_delete=models.CASCADE)
-    # Null means "in the course but not filed anywhere yet" — which is precisely where a
-    # participant's submission sits before somebody decides where it belongs. Files into a Lesson
-    # now rather than straight into a Chapter, which is what makes the course three levels deep
-    # (chapter -> lesson -> item) instead of two.
+    # Null on BOTH means "in the course but not filed anywhere yet" — which is precisely where a
+    # participant's submission sits before somebody decides where it belongs.
+    #
+    # An item files into a lesson OR straight into a chapter, never both. Both targets are real
+    # because both are how courses are actually run: a reading everybody does before week 3 starts
+    # belongs to the week, not to any one session in it, while Tuesday's worksheet belongs to
+    # Tuesday. Forcing the first into an invented "general" lesson would be a lesson nobody teaches.
     lesson = models.ForeignKey(
         'Lesson', related_name='items', null=True, blank=True, on_delete=models.SET_NULL
+    )
+    chapter = models.ForeignKey(
+        'Chapter', related_name='items', null=True, blank=True, on_delete=models.SET_NULL
     )
 
     material = models.ForeignKey(
@@ -664,6 +677,27 @@ class CourseItem(models.Model):
     )
     exercise = models.ForeignKey(
         'exercises.Exercise',
+        related_name='course_items',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
+    # CASCADE like the two above: an attachment lives in this course, so a row pointing at a deleted
+    # one is meaningless rather than merely unfiled.
+    attachment = models.ForeignKey(
+        'Attachment',
+        related_name='course_items',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
+    # CASCADE too, but for a different reason worth stating: an event is NOT owned by the course —
+    # it has its own host and its own page, and a course merely points at it. Deleting the event
+    # still has to take the pointer with it, because a course listing a talk that no longer exists
+    # is worse than one that never listed it. Cancelling, which is the normal ending for an event,
+    # deletes nothing and correctly leaves the link in place saying it is cancelled.
+    event = models.ForeignKey(
+        'events.Event',
         related_name='course_items',
         null=True,
         blank=True,
@@ -700,19 +734,50 @@ class CourseItem(models.Model):
     class Meta:
         ordering = ['order', 'created_at', 'id']
         constraints = [
-            # Exactly one of the two, enforced by the database. A row with neither is meaningless and
-            # a row with both is ambiguous about what it even is.
+            # Exactly one of the four, enforced by the database. A row with none is meaningless and a
+            # row with two is ambiguous about what it even is. Spelled out as four explicit branches
+            # rather than something clever: this is the constraint most likely to be read by somebody
+            # adding a fifth kind, and it should show them exactly what to write.
             models.CheckConstraint(
                 condition=(
-                    models.Q(material__isnull=False, exercise__isnull=True)
-                    | models.Q(material__isnull=True, exercise__isnull=False)
+                    models.Q(
+                        material__isnull=False,
+                        exercise__isnull=True,
+                        attachment__isnull=True,
+                        event__isnull=True,
+                    )
+                    | models.Q(
+                        material__isnull=True,
+                        exercise__isnull=False,
+                        attachment__isnull=True,
+                        event__isnull=True,
+                    )
+                    | models.Q(
+                        material__isnull=True,
+                        exercise__isnull=True,
+                        attachment__isnull=False,
+                        event__isnull=True,
+                    )
+                    | models.Q(
+                        material__isnull=True,
+                        exercise__isnull=True,
+                        attachment__isnull=True,
+                        event__isnull=False,
+                    )
                 ),
                 name='course_item_exactly_one_target',
             ),
-            # The same thing cannot be in the same course twice. Two partial constraints rather than
-            # one over both columns, because NULLs do not compare equal in SQL — a single
-            # (course, material, exercise) unique index would happily allow the same exercise ten
-            # times, since `material` is NULL in every one of those rows.
+            # A lesson already belongs to a chapter, so a row carrying both would be stating the
+            # same fact twice with two chances to disagree — and nothing could say which one meant
+            # it. Either is allowed to be null: that is an unfiled item.
+            models.CheckConstraint(
+                condition=models.Q(lesson__isnull=True) | models.Q(chapter__isnull=True),
+                name='course_item_one_filing_target',
+            ),
+            # The same thing cannot be in the same course twice. One partial constraint per kind
+            # rather than one over all the columns, because NULLs do not compare equal in SQL — a
+            # single (course, material, exercise, ...) unique index would happily allow the same
+            # exercise ten times, since `material` is NULL in every one of those rows.
             models.UniqueConstraint(
                 fields=['course', 'material'],
                 condition=models.Q(material__isnull=False),
@@ -723,18 +788,52 @@ class CourseItem(models.Model):
                 condition=models.Q(exercise__isnull=False),
                 name='unique_exercise_per_course',
             ),
+            models.UniqueConstraint(
+                fields=['course', 'attachment'],
+                condition=models.Q(attachment__isnull=False),
+                name='unique_attachment_per_course',
+            ),
+            models.UniqueConstraint(
+                fields=['course', 'event'],
+                condition=models.Q(event__isnull=False),
+                name='unique_event_per_course',
+            ),
         ]
 
     def __str__(self) -> str:
-        return f'{self.course.title} — {self.material_id or self.exercise_id}'
+        return f'{self.course.title} — {self.kind}'
 
     def clean(self):
-        if bool(self.material_id) == bool(self.exercise_id):
-            raise ValidationError('An item must reference exactly one material or one exercise.')
+        targets = [self.material_id, self.exercise_id, self.attachment_id, self.event_id]
+        if sum(1 for t in targets if t) != 1:
+            raise ValidationError(
+                'An item must reference exactly one material, exercise, attachment or event.'
+            )
+        if self.lesson_id and self.chapter_id:
+            raise ValidationError('An item files into a lesson or a chapter, not both.')
 
     @property
     def kind(self) -> str:
-        return 'material' if self.material_id else 'exercise'
+        if self.material_id:
+            return 'material'
+        if self.exercise_id:
+            return 'exercise'
+        if self.attachment_id:
+            return 'attachment'
+        return 'event'
+
+    @property
+    def parent_chapter(self):
+        """The chapter gating this item, whichever way it was filed.
+
+        One place to ask, so every caller stops having to know that an item reaches its chapter by
+        two different routes.
+        """
+        if self.chapter_id:
+            return self.chapter
+        if self.lesson_id:
+            return self.lesson.chapter
+        return None
 
     def is_visible_to(self, user) -> bool:
         """Approved, and in a chapter that has opened.
@@ -752,7 +851,11 @@ class CourseItem(models.Model):
                 and getattr(user, 'is_authenticated', False)
                 and self.submitted_by_id == user.pk
             )
-        if self.lesson and not self.lesson.is_visible_to(user):
+        # Asked of whichever target it was filed into. An item filed straight into a chapter is
+        # gated by that chapter exactly as one inside a lesson is — the lock is a statement about
+        # the week, and routing around it by filing one level up would make it worthless.
+        gate = self.parent_chapter
+        if gate and not gate.is_visible_to(user):
             return False
         return True
 

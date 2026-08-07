@@ -12,6 +12,7 @@
 	// here. A client that re-derived that would be a client that could get it wrong.
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import type { Chapter, CourseItem, Course, Lesson } from '$lib/types/course';
 
 	let {
@@ -22,16 +23,32 @@
 		oneditchapter,
 		oneditlesson,
 		ondeletelesson,
+		onaddlesson,
 		onreorder
 	}: {
 		course: Course;
-		onmove?: (itemId: string, lessonId: string | null) => void;
+		/** Both ids, because an item files into a lesson OR a chapter and the caller must be able to
+		 * say which — and to clear the other, or the row would hold both and the database refuses. */
+		onmove?: (
+			itemId: string,
+			target: { lessonId: string | null; chapterId: string | null }
+		) => void;
 		onremove?: (itemId: string) => void;
 		ondeletechapter?: (chapterId: string) => void;
-		/** Rename a chapter or retime its unlock. Staff only — the server checks again regardless. */
-		oneditchapter?: (chapterId: string, patch: { title: string; unlocksAt: string | null }) => void;
+		/** Rename a chapter, rewrite its description or retime its unlock. Staff only — the server
+		 * checks again regardless. */
+		oneditchapter?: (
+			chapterId: string,
+			patch: { title: string; description: string; unlocksAt: string | null }
+		) => void;
 		oneditlesson?: (lessonId: string, patch: { title: string; participantNotes: string }) => void;
 		ondeletelesson?: (lessonId: string) => void;
+		/** Create a lesson inside a chapter. A lesson has nowhere else to live — `Lesson.chapter` is
+		 * NOT NULL — so this is offered per chapter rather than once for the whole course. */
+		onaddlesson?: (
+			chapterId: string,
+			draft: { title: string; description: string; participantNotes: string }
+		) => void;
 		/** Whole groups, never a single move — a drag between two lessons changes both, and the
 		 * server takes them together so there is no moment where an item is in both or neither. */
 		onreorder?: (
@@ -78,6 +95,7 @@
 		editingChapter = chapter.id;
 		draftTitle = chapter.title;
 		draftUnlocksAt = toLocalInput(chapter.unlocksAt);
+		draftDescription = chapter.description;
 	}
 
 	function beginLessonEdit(lesson: Lesson) {
@@ -92,9 +110,38 @@
 		if (!title) return;
 		oneditchapter?.(chapterId, {
 			title,
+			description: draftDescription.trim(),
 			unlocksAt: draftUnlocksAt ? new Date(draftUnlocksAt).toISOString() : null
 		});
 		editingChapter = null;
+	}
+
+	// --- adding a lesson ---------------------------------------------------------------------------
+	// Which chapter's "add a lesson" dialog is open, or null for none. Keyed by chapter rather than a
+	// bare boolean because the button appears once per chapter and the dialog has to know which one
+	// it is filling — a shared boolean would open every chapter's dialog at once.
+	let addingLessonIn = $state<string | null>(null);
+	let newLessonTitle = $state('');
+	let newLessonDescription = $state('');
+	let newLessonNotes = $state('');
+	let draftDescription = $state('');
+
+	function beginAddLesson(chapterId: string) {
+		addingLessonIn = chapterId;
+		newLessonTitle = '';
+		newLessonDescription = '';
+		newLessonNotes = '';
+	}
+
+	function saveNewLesson() {
+		const title = newLessonTitle.trim();
+		if (!title || !addingLessonIn) return;
+		onaddlesson?.(addingLessonIn, {
+			title,
+			description: newLessonDescription.trim(),
+			participantNotes: newLessonNotes.trim()
+		});
+		addingLessonIn = null;
 	}
 
 	function saveLesson(lessonId: string) {
@@ -186,9 +233,47 @@
 	let hasAnything = $derived(chapters.length > 0 || unfiled.length > 0);
 
 	function itemHref(item: CourseItem): string {
-		return item.kind === 'material'
-			? resolve('/materials/[id]', { id: item.material ?? '' })
-			: resolve('/exercises/[id]', { id: item.exercise ?? '' });
+		if (item.kind === 'material') return resolve('/materials/[id]', { id: item.material ?? '' });
+		if (item.kind === 'exercise') return resolve('/exercises/[id]', { id: item.exercise ?? '' });
+		if (item.kind === 'attachment') {
+			// A course file has no page of its own outside the course — that is the whole point of an
+			// attachment rather than a Material — so it is addressed through the course holding it.
+			return resolve('/courses/[id]/attachments/[attachmentId]', {
+				id: course.id,
+				attachmentId: item.attachment ?? ''
+			});
+		}
+		return resolve('/events/[id]', { id: item.event ?? '' });
+	}
+
+	/** The `kind:id` the move select should currently show. Prefixed for the same reason the options
+	 * are: chapter 7 and lesson 7 are different destinations that share a number. */
+	function moveValue(item: CourseItem): string {
+		if (item.lesson) return `lesson:${item.lesson}`;
+		if (item.chapter) return `chapter:${item.chapter}`;
+		return '';
+	}
+
+	function onMoveChange(item: CourseItem, event: Event) {
+		const raw = (event.currentTarget as HTMLSelectElement).value;
+		if (!raw) {
+			onmove?.(item.id, { lessonId: null, chapterId: null });
+			return;
+		}
+		const [kind, id] = raw.split(':');
+		onmove?.(
+			item.id,
+			kind === 'lesson' ? { lessonId: id, chapterId: null } : { lessonId: null, chapterId: id }
+		);
+	}
+
+	/** What kind of thing this is, in words. A reader needs it before clicking: a corpus exercise and
+	 * a one-off event behave nothing alike once you follow the link. */
+	function kindLabel(item: CourseItem): string {
+		if (item.kind === 'material') return m.course_items_material();
+		if (item.kind === 'exercise') return m.course_items_exercise();
+		if (item.kind === 'attachment') return m.course_items_attachment();
+		return m.course_items_event();
 	}
 
 	/** A date somebody can read, in their own locale rather than an ISO string. */
@@ -254,35 +339,34 @@
 			}}
 		>
 			<header>
-				{#if editingChapter === chapter.id}
-					<form
-						class="edit-row"
-						onsubmit={(e) => {
-							e.preventDefault();
-							saveChapter(chapter.id);
-						}}
-					>
-						<input type="text" bind:value={draftTitle} maxlength="200" />
-						<input type="datetime-local" bind:value={draftUnlocksAt} />
-						<button type="submit" class="link">{m.course_edit_save()}</button>
-						<button type="button" class="link" onclick={() => (editingChapter = null)}>
-							{m.course_edit_cancel()}
-						</button>
-					</form>
-				{:else}
-					<h3>{chapter.title}</h3>
-					{#if !chapter.isUnlocked}
-						<span class="lock" title={when(chapter.unlocksAt)}>🔒 {lockLabel(chapter)}</span>
-					{/if}
-					{#if course.canCurate && oneditchapter}
-						<button type="button" class="link" onclick={() => beginChapterEdit(chapter)}>
-							{m.course_edit_edit()}
-						</button>
-					{/if}
+				<h3>{chapter.title}</h3>
+				{#if !chapter.isUnlocked}
+					<span class="lock" title={when(chapter.unlocksAt)}>🔒 {lockLabel(chapter)}</span>
+				{/if}
+				{#if course.canCurate && oneditchapter}
+					<button type="button" class="link" onclick={() => beginChapterEdit(chapter)}>
+						{m.course_edit_edit()}
+					</button>
+				{/if}
+				{#if course.canCurate && onaddlesson}
+					<button type="button" class="link" onclick={() => beginAddLesson(chapter.id)}>
+						{m.course_addLesson()}
+					</button>
 				{/if}
 			</header>
 			{#if chapter.description}
 				<p class="description">{chapter.description}</p>
+			{/if}
+
+			{#if chapter.items.length > 0}
+				<!-- Content filed against the week itself rather than any one session in it. Drawn
+				     above the lessons because that is what it is: the thing to read before Tuesday,
+				     not something that comes after it. -->
+				<ul class="items items--chapter">
+					{#each chapter.items as item (item.id)}
+						{@render itemRow(item)}
+					{/each}
+				</ul>
 			{/if}
 
 			{#if chapter.lessons.length > 0}
@@ -457,11 +541,85 @@
 	{/if}
 </section>
 
+{#if editingChapter !== null}
+	<!-- A dialog rather than the inline row this used to be. Editing a chapter means a title, a
+	     description and an unlock date — three fields that never fitted on the header line, so the
+	     inline form dropped the description entirely and a chapter's description could not be
+	     changed at all once it existed. -->
+	<ModalShell title={m.course_chapters_editTitle()} onClose={() => (editingChapter = null)}>
+		<form
+			class="modal-form"
+			onsubmit={(e) => {
+				e.preventDefault();
+				saveChapter(editingChapter!);
+			}}
+		>
+			<label class="field">
+				<span>{m.course_chapters_title()}</span>
+				<!-- Focused on open: a dialog opened by a deliberate click should put the cursor where
+				     the person is about to type, and it also moves focus INTO the dialog, which is what
+				     makes Escape and the tab order behave. The blanket warning is about autofocus on an
+				     ordinary page, where it steals focus nobody asked it to move. -->
+				<!-- svelte-ignore a11y_autofocus -->
+				<input type="text" bind:value={draftTitle} maxlength="200" required autofocus />
+			</label>
+			<label class="field">
+				<span>{m.course_chapters_description()}</span>
+				<textarea bind:value={draftDescription} rows="3"></textarea>
+			</label>
+			<label class="field">
+				<span>{m.course_chapters_unlocksAt()}</span>
+				<input type="datetime-local" bind:value={draftUnlocksAt} />
+				<span class="hint">{m.course_chapters_unlocksAtHint()}</span>
+			</label>
+			<div class="modal-actions">
+				<button type="submit" class="primary">{m.course_edit_save()}</button>
+				<button type="button" class="link" onclick={() => (editingChapter = null)}>
+					{m.course_edit_cancel()}
+				</button>
+			</div>
+		</form>
+	</ModalShell>
+{/if}
+
+{#if addingLessonIn !== null}
+	<ModalShell title={m.course_addLesson()} onClose={() => (addingLessonIn = null)}>
+		<form
+			class="modal-form"
+			onsubmit={(e) => {
+				e.preventDefault();
+				saveNewLesson();
+			}}
+		>
+			<label class="field">
+				<span>{m.course_newLessonTitle()}</span>
+				<!-- Focused on open, same as the chapter dialog above. -->
+				<!-- svelte-ignore a11y_autofocus -->
+				<input type="text" bind:value={newLessonTitle} maxlength="200" required autofocus />
+			</label>
+			<label class="field">
+				<span>{m.course_newLessonDescription()}</span>
+				<textarea bind:value={newLessonDescription} rows="2"></textarea>
+				<span class="hint">{m.course_newLessonDescriptionHint()}</span>
+			</label>
+			<label class="field">
+				<span>{m.course_newLessonNotes()}</span>
+				<textarea bind:value={newLessonNotes} rows="2"></textarea>
+				<span class="hint">{m.course_newLessonNotesHint()}</span>
+			</label>
+			<div class="modal-actions">
+				<button type="submit" class="primary">{m.course_addLesson()}</button>
+				<button type="button" class="link" onclick={() => (addingLessonIn = null)}>
+					{m.course_edit_cancel()}
+				</button>
+			</div>
+		</form>
+	</ModalShell>
+{/if}
+
 {#snippet itemRow(item: CourseItem)}
 	<li class="item" class:item--pending={item.status !== 'approved'}>
-		<span class="kind">
-			{item.kind === 'material' ? m.course_items_material() : m.course_items_exercise()}
-		</span>
+		<span class="kind">{kindLabel(item)}</span>
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the href is built by a helper that calls resolve() itself; the rule only sees the attribute -->
 		<a class="label" href={itemHref(item)}>{item.label}</a>
 
@@ -478,19 +636,22 @@
 		{#if course.canCurate && onmove}
 			<!-- Kept alongside drag-and-drop rather than replaced by it: a select works on a phone
 			     and from a keyboard, and dragging does neither. The drag handles are the shortcut,
-			     not the only way in. -->
+			     not the only way in.
+			     Values are prefixed because the two target kinds have their own id sequences, so a
+			     bare "7" cannot say whether it means chapter 7 or lesson 7. -->
 			<label class="move">
 				<span class="visually-hidden">{m.course_items_moveTo()}</span>
-				<select
-					value={item.lesson ?? ''}
-					onchange={(event) =>
-						onmove?.(item.id, (event.currentTarget as HTMLSelectElement).value || null)}
-				>
+				<select value={moveValue(item)} onchange={(event) => onMoveChange(item, event)}>
 					<option value="">{m.course_items_moveNone()}</option>
 					{#each chapters as chapter (chapter.id)}
-						{#each chapter.lessons as lesson (lesson.id)}
-							<option value={lesson.id}>{chapter.title} — {lesson.title}</option>
-						{/each}
+						<optgroup label={chapter.title}>
+							<!-- The chapter itself is a real destination, not just a heading: a reading
+							     for the whole week belongs to the week, not to any one session in it. -->
+							<option value="chapter:{chapter.id}">{m.course_items_moveWholeChapter()}</option>
+							{#each chapter.lessons as lesson (lesson.id)}
+								<option value="lesson:{lesson.id}">{lesson.title}</option>
+							{/each}
+						</optgroup>
 					{/each}
 				</select>
 			</label>
@@ -549,6 +710,45 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
+	}
+	/* Content filed against the chapter itself. Indented like a lesson so the nesting reads, but
+	   without a lesson's own heading — it belongs to the week, not to a session. */
+	.items--chapter {
+		margin: var(--space-2) 0;
+		padding-left: var(--space-3);
+		border-left: 2px solid var(--border-color);
+	}
+	.modal-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.modal-form .field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.modal-form .field > span:first-child {
+		font-weight: 600;
+		font-size: var(--font-size-sm);
+	}
+	.modal-form input,
+	.modal-form textarea {
+		width: 100%;
+		font: inherit;
+		padding: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--text-primary);
+	}
+	.modal-form textarea {
+		resize: vertical;
+	}
+	.modal-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
 	}
 	.item {
 		display: flex;

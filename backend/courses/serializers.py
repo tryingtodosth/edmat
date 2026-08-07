@@ -35,6 +35,21 @@ class ParticipantSerializer(serializers.Serializer):
         return (profile.display_name if profile and profile.display_name else user.username)
 
 
+def is_participant_of(course, user) -> bool:
+    """Whether this viewer is "in the room" for the participant-only lesson notes.
+
+    Module-level so the viewset's own chapter endpoints share the one definition with
+    `CourseSerializer` rather than growing a third copy that can disagree with the other two.
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return False
+    if course.is_staff_member(user):
+        return True
+    return course.enrollments.filter(
+        participant=user, status__in=ACTIVE_ENROLLMENT_STATUSES
+    ).exists()
+
+
 class LessonSerializer(serializers.ModelSerializer):
     participant_notes = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
@@ -187,18 +202,27 @@ class CourseSerializer(serializers.ModelSerializer):
                 return enrollment
         return None
 
-    def get_lessons(self, course):
+    def _is_participant(self, course) -> bool:
+        """Whether this viewer is "in the room", and so may read the participant-only lesson notes.
+
+        One definition, used by both the flat `lessons` list and the nested chapter -> lesson one.
+        It used to live only in `get_lessons`, so the nested copy — which is the shape the course
+        page actually renders — passed a context with no `is_participant` in it at all and blanked
+        every lesson's notes for everybody, including the staff who wrote them.
+        """
         enrollment = self._my_enrollment(course)
-        # "In the room" now includes every member of staff, not only the owner — an assistant who
-        # cannot read the lesson notes they are supposed to be teaching from is not an assistant.
-        is_participant = bool(
+        # "In the room" includes every member of staff, not only the owner — an assistant who cannot
+        # read the lesson notes they are supposed to be teaching from is not an assistant.
+        return bool(
             (enrollment and enrollment.status in ACTIVE_ENROLLMENT_STATUSES)
             or course.is_staff_member(self._user())
         )
+
+    def get_lessons(self, course):
         return LessonSerializer(
             Lesson.objects.filter(chapter__course=course),
             many=True,
-            context={**self.context, 'is_participant': is_participant},
+            context={**self.context, 'is_participant': self._is_participant(course)},
         ).data
 
     def get_my_enrollment_status(self, course) -> str | None:
@@ -243,20 +267,29 @@ class CourseSerializer(serializers.ModelSerializer):
         return course.contribution_needs_approval(self._user())
 
     def get_chapters(self, course):
-        return ChapterSerializer(course.chapters.all(), many=True, context=self.context).data
+        return ChapterSerializer(
+            course.chapters.all(),
+            many=True,
+            context={**self.context, 'is_participant': self._is_participant(course)},
+        ).data
 
     def get_unfiled_items(self, course):
-        """Content in the course but in no chapter.
+        """Content in the course and filed nowhere — in no lesson AND in no chapter.
 
         Its own field rather than a nameless chapter, because "not filed yet" is a real state — it is
         where a participant's submission lands before anybody decides which week it belongs to, and a
         course that uses no chapters at all keeps everything here quite legitimately.
+
+        BOTH targets have to be null. Testing only one draws every item filed the other way a second
+        time, in the loose pile underneath the chapter it is already sitting in — which is what
+        happened while this read `chapter_id is None` alone: a lesson's contents were also reported
+        as unfiled, because a lesson-filed row genuinely has no chapter of its own.
         """
         user = self._user()
         visible = [
             item
             for item in course.items.all()
-            if item.chapter_id is None and item.is_visible_to(user)
+            if item.lesson_id is None and item.chapter_id is None and item.is_visible_to(user)
         ]
         return CourseItemSerializer(visible, many=True, context=self.context).data
 
@@ -369,8 +402,11 @@ class CourseItemSerializer(serializers.ModelSerializer):
             'id',
             'kind',
             'lesson',
+            'chapter',
             'material',
             'exercise',
+            'attachment',
+            'event',
             'label',
             'order',
             'note',
@@ -393,39 +429,80 @@ class CourseItemSerializer(serializers.ModelSerializer):
         An exercise has never had a title in this project: it is identified by its subject and
         number, which is exactly what `Exercise.__str__` composes, so this reuses that rather than
         inventing a second naming scheme for the same row.
+
+        An attachment and an event both carry a plain `title` of their own, so neither needs
+        resolving — they are course-local and single-language by construction.
         """
         if item.material_id:
             translation = resolve_translation(
                 item.material.translations, request_locale(self.context)
             )
             return translation.title if translation else item.material.slug
-        return str(item.exercise)
+        if item.exercise_id:
+            return str(item.exercise)
+        if item.attachment_id:
+            return item.attachment.title
+        return item.event.title
 
 
 class CourseItemWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseItem
-        fields = ['lesson', 'material', 'exercise', 'order', 'note']
+        fields = ['lesson', 'chapter', 'material', 'exercise', 'attachment', 'event', 'order', 'note']
 
     def validate(self, attrs):
-        material = attrs.get('material', getattr(self.instance, 'material', None))
-        exercise = attrs.get('exercise', getattr(self.instance, 'exercise', None))
-        if bool(material) == bool(exercise):
+        def resolved(name):
+            return attrs.get(name, getattr(self.instance, name, None))
+
+        targets = {name: resolved(name) for name in ('material', 'exercise', 'attachment', 'event')}
+        chosen = [name for name, value in targets.items() if value]
+        if len(chosen) != 1:
             raise serializers.ValidationError(
-                'Reference exactly one of material or exercise.'
+                'Reference exactly one of material, exercise, attachment or event.'
             )
-        # A lesson from another course would file this item somewhere its own course cannot see.
-        # The database cannot express that constraint across three hops, so it is checked here.
-        lesson = attrs.get('lesson')
+
         course = self.context.get('course')
+
+        # A lesson or chapter from another course would file this item somewhere its own course
+        # cannot see. The database cannot express that constraint across the join, so it is checked
+        # here. Read from `attrs` rather than `resolved`, because only a value being *set* by this
+        # request needs checking — one already stored was checked when it was stored.
+        lesson = attrs.get('lesson')
+        chapter = attrs.get('chapter')
         if lesson and course and lesson.chapter.course_id != course.pk:
             raise serializers.ValidationError({'lesson': 'That lesson belongs to another course.'})
+        if chapter and course and chapter.course_id != course.pk:
+            raise serializers.ValidationError({'chapter': 'That chapter belongs to another course.'})
+        if resolved('lesson') and resolved('chapter'):
+            raise serializers.ValidationError(
+                'File this into a lesson or a chapter, not both.'
+            )
+
+        # An attachment belongs to exactly one course, so pointing at another course's is both
+        # meaningless and a real leak — an attachment is deliberately NOT discoverable outside its
+        # own course, and linking one in would publish it to a roster it was never shared with.
+        attachment = attrs.get('attachment')
+        if attachment and course and attachment.course_id != course.pk:
+            raise serializers.ValidationError(
+                {'attachment': 'That file belongs to another course.'}
+            )
+
+        # An event is deliberately NOT checked for ownership: it has its own host and its own public
+        # page, and pointing a course at somebody else's guest lecture is the normal case, not an
+        # error. What is refused is a draft — it is not announced yet, so linking it would publish
+        # somebody else's unfinished plan to this course's roster.
+        event = attrs.get('event')
+        if event and event.status == 'draft':
+            raise serializers.ValidationError(
+                {'event': 'That event has not been published yet.'}
+            )
         return attrs
 
 
 class ChapterSerializer(serializers.ModelSerializer):
     is_unlocked = serializers.SerializerMethodField()
     lessons = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
 
     class Meta:
         model = Chapter
@@ -437,6 +514,7 @@ class ChapterSerializer(serializers.ModelSerializer):
             'unlocks_at',
             'is_unlocked',
             'lessons',
+            'items',
         ]
 
     def _user(self):
@@ -462,6 +540,19 @@ class ChapterSerializer(serializers.ModelSerializer):
         return LessonSerializer(
             chapter.lessons.all(), many=True, context=self.context
         ).data
+
+    def get_items(self, chapter):
+        """Content filed straight into this chapter rather than into one of its lessons.
+
+        Filtered per viewer exactly as `Lesson.items` already is, so a pending contribution stays
+        visible to staff and to whoever offered it and to nobody else. The lock check above already
+        returned early, so what remains here is only the per-item status question.
+        """
+        user = self._user()
+        if not chapter.is_visible_to(user):
+            return []
+        visible = [i for i in chapter.items.all() if i.is_visible_to(user)]
+        return CourseItemSerializer(visible, many=True, context=self.context).data
 
 
 class ChapterWriteSerializer(serializers.ModelSerializer):

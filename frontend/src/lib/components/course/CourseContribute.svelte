@@ -12,7 +12,7 @@
 	// /submit-material flow, which is a different job.
 	import { m } from '$lib/paraglide/messages.js';
 	import { resolve } from '$app/paths';
-	import type { Course } from '$lib/types/course';
+	import type { Course, CourseItemKind } from '$lib/types/course';
 
 	let {
 		course,
@@ -26,23 +26,57 @@
 		error?: string;
 		notice?: string;
 		onsubmit?: (input: {
-			kind: 'material' | 'exercise';
+			kind: CourseItemKind;
 			id: string;
 			chapterId: string | null;
+			lessonId: string | null;
 			note: string;
 		}) => void;
 	} = $props();
 
-	let kind = $state<'material' | 'exercise'>('material');
+	let kind = $state<CourseItemKind>('material');
 	let itemId = $state('');
-	let chapterId = $state('');
+	/** `kind:id`, because a chapter and a lesson can share a number and the value has to say which
+	 * one it names. Empty means unfiled. */
+	let target = $state('');
 	let note = $state('');
+
+	/** What to call the id field, and where "find one" should point. Kept as one lookup rather than
+	 * four ternaries at three separate call sites in the markup. */
+	let idLabel = $derived(
+		kind === 'material'
+			? m.course_contribute_materialId()
+			: kind === 'exercise'
+				? m.course_contribute_exerciseId()
+				: kind === 'attachment'
+					? m.course_contribute_attachmentId()
+					: m.course_contribute_eventId()
+	);
+
+	/** A course file is only ever found inside its own course, so the browse link for that kind
+	 * points back at this course rather than at a site-wide list that deliberately excludes it. */
+	let browseHref = $derived(
+		kind === 'material'
+			? resolve('/materials')
+			: kind === 'exercise'
+				? resolve('/disciplines')
+				: kind === 'event'
+					? resolve('/events')
+					: resolve('/courses/[id]', { id: course.id })
+	);
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
 		const trimmed = itemId.trim();
 		if (!trimmed) return;
-		onsubmit?.({ kind, id: trimmed, chapterId: chapterId || null, note: note.trim() });
+		const [targetKind, targetId] = target ? target.split(':') : ['', ''];
+		onsubmit?.({
+			kind,
+			id: trimmed,
+			chapterId: targetKind === 'chapter' ? targetId : null,
+			lessonId: targetKind === 'lesson' ? targetId : null,
+			note: note.trim()
+		});
 		itemId = '';
 		note = '';
 	}
@@ -63,31 +97,35 @@
 			<select bind:value={kind}>
 				<option value="material">{m.course_items_material()}</option>
 				<option value="exercise">{m.course_items_exercise()}</option>
+				<option value="attachment">{m.course_items_attachment()}</option>
+				<option value="event">{m.course_items_event()}</option>
 			</select>
 		</label>
 
 		<label class="field">
-			<span>
-				{kind === 'material' ? m.course_contribute_materialId() : m.course_contribute_exerciseId()}
-			</span>
+			<span>{idLabel}</span>
 			<input type="text" bind:value={itemId} inputmode="numeric" required />
 			<!-- Honest about the gap: there is no picker yet, so the id from the item's own page is the
 			     real way to name it. Browsing links are right there for finding one. -->
 			<span class="hint">
 				{m.course_contribute_idHint()}
-				<a href={kind === 'material' ? resolve('/materials') : resolve('/disciplines')}>
-					{m.course_items_openLink()}
-				</a>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built by a $derived that calls resolve() itself; the rule only sees the attribute -->
+				<a href={browseHref}>{m.course_items_openLink()}</a>
 			</span>
 		</label>
 
 		{#if course.canCurate && course.chapters.length > 0}
 			<label class="field">
 				<span>{m.course_items_moveTo()}</span>
-				<select bind:value={chapterId}>
+				<select bind:value={target}>
 					<option value="">{m.course_items_moveNone()}</option>
 					{#each course.chapters as chapter (chapter.id)}
-						<option value={chapter.id}>{chapter.title}</option>
+						<optgroup label={chapter.title}>
+							<option value="chapter:{chapter.id}">{m.course_items_moveWholeChapter()}</option>
+							{#each chapter.lessons as lesson (lesson.id)}
+								<option value="lesson:{lesson.id}">{lesson.title}</option>
+							{/each}
+						</optgroup>
 					{/each}
 				</select>
 			</label>

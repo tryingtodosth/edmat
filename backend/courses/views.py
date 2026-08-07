@@ -41,6 +41,7 @@ from .serializers import (
     AttachmentSerializer,
     AttachmentWriteSerializer,
     ChapterSerializer,
+    is_participant_of,
     ChapterWriteSerializer,
     CourseInviteSerializer,
     CourseInviteWriteSerializer,
@@ -879,11 +880,29 @@ class CourseViewSet(viewsets.ModelViewSet):
                         # briefly ordered against a group it is no longer in.
                         setattr(row, parent_field, int(parent_id) if parent_id != '' else None)
                         fields.append(parent_field)
+                        if kind == 'item':
+                            # Dragging an item into a lesson takes it OUT of any chapter it was
+                            # filed straight into. Without this the row would hold both, which the
+                            # `course_item_one_filing_target` constraint refuses outright — a 500
+                            # on an ordinary drag rather than a move.
+                            row.chapter_id = None
+                            fields.append('chapter_id')
                     row.save(update_fields=fields)
 
         return Response({'reordered': len(flat)})
 
     # --- chapters ---------------------------------------------------------------------------------
+
+    def _chapter_context(self, course):
+        """Serializer context plus whether this viewer may read participant-only lesson notes.
+
+        Without it a chapter's nested lessons blank their notes for everybody, since the flag is what
+        `LessonSerializer.get_participant_notes` reads — see `is_participant_of`.
+        """
+        return {
+            **self.get_serializer_context(),
+            'is_participant': is_participant_of(course, self.request.user),
+        }
 
     @action(detail=True, methods=['get', 'post'], permission_classes=[permissions.IsAuthenticatedOrReadOnly, _CoursesFeatureGate])
     def chapters(self, request, pk=None):
@@ -891,7 +910,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         if request.method == 'GET':
             return Response(
                 ChapterSerializer(
-                    course.chapters.all(), many=True, context=self.get_serializer_context()
+                    course.chapters.all(), many=True, context=self._chapter_context(course)
                 ).data
             )
         if not course.can_curate(request.user):
@@ -900,7 +919,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         write.is_valid(raise_exception=True)
         chapter = write.save(course=course)
         return Response(
-            ChapterSerializer(chapter, context=self.get_serializer_context()).data,
+            ChapterSerializer(chapter, context=self._chapter_context(course)).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -926,7 +945,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         write = ChapterWriteSerializer(chapter, data=request.data, partial=True)
         write.is_valid(raise_exception=True)
         write.save()
-        return Response(ChapterSerializer(chapter, context=self.get_serializer_context()).data)
+        return Response(ChapterSerializer(chapter, context=self._chapter_context(course)).data)
 
     # --- content, and contributions to it ----------------------------------------------------------
 
