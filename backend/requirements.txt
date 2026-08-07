@@ -1,8 +1,16 @@
+# The single dependency list for this project. The root requirements.txt is a one-line include of
+# this file — see the comment there for why the two locations exist and why this one is canonical.
+#
+# Upper bounds are next-major ceilings, not "the newest version anybody has tested". Three of them
+# were raised on 2026-08-07 because the working, test-passing environment had already moved past
+# them (djangorestframework 3.17.1 against <3.17, django-filter 26.1 against <25.0, Pillow 12.3.0
+# against <11.0) — the pins had gone stale, not the packages. Verified afterwards by building a
+# clean venv from this file and running the suite; see QA.md §2A.
 Django>=5.2,<5.3
-djangorestframework>=3.16,<3.17
+djangorestframework>=3.16,<3.18
 django-cors-headers>=4.4,<5.0
-django-filter>=24.3,<25.0
-Pillow>=10.4,<11.0
+django-filter>=24.3,<27.0
+Pillow>=10.4,<13.0
 PyYAML>=6.0,<7.0
 # materials/validators.py — real content-type sniffing (needs the system libmagic library, already
 # present on a typical Linux install; confirmed present in this project's own dev environment) and

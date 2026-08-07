@@ -104,7 +104,7 @@ npm run build       # production build (adapter-static, output in build/)
 ```
 edmat/
 ├── CLAUDE.md               # the full project blueprint — read this for the "why"
-├── requirements.txt         # backend Python deps
+├── requirements.txt         # one-line include of backend/requirements.txt, which is the real list
 ├── .venv/                   # backend virtualenv (created by you in step 1)
 ├── backend/                  # Django + DRF project
 │   ├── manage.py
