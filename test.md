@@ -109,6 +109,17 @@ inherit from it rather than repeating the line.
   link makes a co-teacher; used-up, expired and revoked each refuse in their own words; revoking keeps
   the row; the preview is readable logged out and says little; an unknown token is a 404 rather than a
   description; following your own link does not demote you.
+- **Attachment image tests** (`AttachmentImageMetadataTests` and its four neighbours, at the end of the
+  module) — an uploaded image is re-encoded rather than stored, so **GPS, the device model and the ICC
+  profile do not survive**, while the orientation tag is honoured *before* it is dropped — pinned by
+  difference, because asserting the tag is absent afterwards would pass whether or not it was ever
+  obeyed. Also: the stored image keeps its aspect ratio (it is a scanned page, not an avatar) and is
+  not upscaled; a real Windows executable renamed `.png` and a real 140 KB/144-megapixel decompression
+  bomb are both refused; and **a PDF is stored byte for byte**, because a document's bytes are the
+  document. `StripAttachmentImageMetadataCommandTests` covers the command for files stored before any
+  of that existed: dry-run changes nothing, the real run deletes the original, and a second run is a
+  no-op. The fixtures are genuine encoded images carrying real EXIF — a fixture that never carried any
+  would make the whole class pass for nothing.
 
 #### `booking` in more detail (the two availability modes are the whole point)
 

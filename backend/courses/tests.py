@@ -6,14 +6,21 @@ notes stay out of an outsider's response. Those are the properties that fail sil
 create flow announces itself immediately; a roster leaking to strangers does not.
 """
 
+import io
+import shutil
+import tempfile
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.db import connection
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from PIL import Image, ImageCms
 from rest_framework.test import APIClient
 
 from events.models import Event
@@ -24,6 +31,7 @@ from taxonomy.models import Branch, Discipline
 from telemetry.routers import all_log_shards
 from testing.factories import make_exercise
 
+from .attachmentfile import MAX_ATTACHMENT_IMAGE_EDGE, validate_attachment_file
 from .models import (
     Attachment,
     Chapter,
@@ -2732,3 +2740,418 @@ class LessonProgressTests(CourseThreadFixture):
         self.assertEqual(res.status_code, 404)
         self.course.refresh_from_db()
         self.assertEqual(self.course.progress_visibility, 'shared_anonymous')
+
+
+# --- attachment images: what gets stored, and what does not ---------------------------------------
+#
+# Appended at the end of the file deliberately: other work is in flight on this module, and a block
+# added at the bottom merges cleanly where one inserted next to `AttachmentTests` would not.
+
+
+def make_attachment_image_bytes(
+    width: int = 3600,
+    height: int = 1800,
+    fmt: str = 'JPEG',
+    exif: Image.Exif | None = None,
+    icc_profile: bytes | None = None,
+) -> bytes:
+    """A real, encoded image — never a placeholder pretending to be one.
+
+    Patterned rather than a flat colour, and non-square by default, so a working resize can be told
+    apart from a no-op and a rotation from a crop. The same discipline `accounts/test_avatar.py` and
+    `events/tests.py` already apply to their own fixtures, and the only way a test of "is the EXIF
+    really gone?" means anything: a fixture that silently never carried any would pass for free.
+    """
+    image = Image.new('RGB', (width, height), (30, 120, 200))
+    for x in range(0, width, 60):
+        for y in range(0, height, 60):
+            image.paste((240, 200, 40), (x, y, x + 30, y + 30))
+    buffer = io.BytesIO()
+    extra = {}
+    if exif is not None:
+        extra['exif'] = exif
+    if icc_profile is not None:
+        extra['icc_profile'] = icc_profile
+    image.save(buffer, fmt, **extra)
+    return buffer.getvalue()
+
+
+def make_phone_exif() -> Image.Exif:
+    """What a phone actually writes: a camera model, a timestamp, and — the reason this change
+    exists — the GPS coordinates of wherever the photo was taken."""
+    exif = Image.Exif()
+    exif[0x010F] = 'ACME Phone'  # Make
+    exif[0x0132] = '2026:03:14 09:41:00'  # DateTime
+    gps = exif.get_ifd(0x8825)
+    gps[1] = 'N'
+    gps[2] = (52.0, 13.0, 0.0)  # somewhere in Warsaw
+    gps[3] = 'E'
+    gps[4] = (21.0, 1.0, 0.0)
+    return exif
+
+
+def srgb_icc_bytes() -> bytes:
+    """A genuine sRGB profile from littlecms, not an invented blob — a fake one might be dropped at
+    save time for being malformed, which would make the strip assertion pass for the wrong reason."""
+    return ImageCms.ImageCmsProfile(ImageCms.createProfile('sRGB')).tobytes()
+
+
+PE_HEADER = b'MZ\x90\x00\x03' + b'\x00' * 200 + b'This program cannot be run in DOS mode.'
+
+LEGACY_PDF = b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
+
+
+def decompression_bomb_bytes() -> bytes:
+    """A VALID png: ~140 KB on disk, 144 megapixels decoded. The attack a byte cap cannot see."""
+    buffer = io.BytesIO()
+    Image.new('L', (12000, 12000), 0).save(buffer, 'PNG', optimize=True)
+    return buffer.getvalue()
+
+
+class AttachmentFileTestCase(ApiTestCase):
+    """A temporary MEDIA_ROOT for the whole class, so a test run never writes real image files in
+    among genuine uploads. Applied per-class rather than per-test so the directory survives the class
+    and is cleaned up exactly once — `accounts/test_avatar.py`'s own arrangement, for its reasons."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._media_root = tempfile.mkdtemp(prefix='edmat-attachment-test-')
+        cls._override = override_settings(MEDIA_ROOT=cls._media_root)
+        cls._override.enable()
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls._override.disable()
+        shutil.rmtree(cls._media_root, ignore_errors=True)
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+
+    def upload(self, content: bytes, name='board.jpg', content_type='image/jpeg', who=None):
+        return self.as_(who or self.instructor).post(
+            f'/api/courses/{self.course.pk}/attachments/',
+            {
+                'file': SimpleUploadedFile(name, content, content_type=content_type),
+                'title': 'Whiteboard',
+            },
+            format='multipart',
+        )
+
+    def stored(self):
+        return Attachment.objects.get()
+
+
+class AttachmentImageMetadataTests(AttachmentFileTestCase):
+    """An image attachment is never stored as the bytes the uploader sent.
+
+    The property being defended is a privacy one, and it fails silently: a course whose files quietly
+    publish the GPS coordinates of the room they were photographed in looks exactly like one that
+    does not. So these assert on the file that actually landed on disk, not on the response.
+    """
+
+    def test_gps_and_the_rest_of_the_exif_do_not_survive_the_upload(self):
+        source = make_attachment_image_bytes(exif=make_phone_exif())
+
+        # The fixture genuinely carries what this test claims, checked rather than assumed.
+        self.assertTrue(Image.open(io.BytesIO(source)).getexif().get_ifd(0x8825))
+
+        self.assertEqual(self.upload(source).status_code, 201)
+
+        stored = Image.open(self.stored().file.path)
+        self.assertEqual(dict(stored.getexif()), {})
+        self.assertEqual(dict(stored.getexif().get_ifd(0x8825)), {}, 'no GPS block at all')
+
+    def test_the_orientation_tag_is_applied_before_it_is_stripped(self):
+        """The step that is easy to miss: stripping the tag without first honouring it throws away
+        the instruction and keeps the sideways pixels, so every phone photo comes out rotated 90.
+
+        Proven by difference — the same pixels, tagged and untagged, must not produce the same
+        output. An assertion that the tag is absent afterwards would pass whether or not it was ever
+        obeyed, which is exactly the bug this is here to catch.
+        """
+        rotated = Image.Exif()
+        rotated[0x0112] = 6  # rotate 90 CW on display
+
+        self.upload(make_attachment_image_bytes(400, 200, exif=rotated))
+        tagged = Image.open(self.stored().file.path).tobytes()
+
+        Attachment.objects.all().delete()
+        self.upload(make_attachment_image_bytes(400, 200))
+        untagged = Image.open(self.stored().file.path).tobytes()
+
+        self.assertNotEqual(tagged, untagged)
+
+    def test_an_icc_profile_does_not_survive_either(self):
+        """Not privacy, but the same principle: the stored file carries pixel data and nothing else,
+        because that is a property of never opting back in rather than a list of tags to remember."""
+        source = make_attachment_image_bytes(400, 200, icc_profile=srgb_icc_bytes())
+        self.assertTrue(Image.open(io.BytesIO(source)).info.get('icc_profile'))
+
+        self.upload(source)
+
+        self.assertIsNone(Image.open(self.stored().file.path).info.get('icc_profile'))
+
+    def test_appended_trailing_bytes_do_not_survive(self):
+        """The polyglot case, and the reason re-encoding beats sniffing: a genuine, decodable image
+        that also carries a payload after the image data. A content sniff says "a real JPEG" —
+        correctly — and stores it with the payload intact."""
+        payload = b'<?php system($_GET["c"]); ?>'
+        self.upload(make_attachment_image_bytes(400, 200) + payload)
+
+        with open(self.stored().file.path, 'rb') as handle:
+            self.assertNotIn(payload, handle.read())
+
+    def test_the_uploaders_own_filename_is_discarded(self):
+        """A filename is untrusted input too. The stored name must not be a sanitized version of
+        this one — it should be unrelated to it."""
+        self.upload(make_attachment_image_bytes(400, 200), name='../../../etc/passwd.jpg.png')
+
+        name = self.stored().file.name
+        self.assertNotIn('passwd', name)
+        self.assertNotIn('..', name)
+
+
+class AttachmentImageShapeTests(AttachmentFileTestCase):
+    def test_the_stored_image_is_bounded_but_keeps_its_shape(self):
+        """Two things, and the second is what makes this not an avatar: the bound stops a 24
+        megapixel phone photo being served to every member, and the aspect ratio surviving is why a
+        photographed page still has its edges. A centre-crop would take the ends off the very
+        content the file exists for."""
+        self.upload(make_attachment_image_bytes(3600, 1800))
+
+        stored = Image.open(self.stored().file.path)
+        self.assertEqual(stored.format, 'WEBP')
+        self.assertEqual(stored.size, (MAX_ATTACHMENT_IMAGE_EDGE, MAX_ATTACHMENT_IMAGE_EDGE // 2))
+        self.assertTrue(self.stored().file.name.endswith('.webp'))
+
+    def test_an_image_smaller_than_the_bound_is_not_stretched_up_to_it(self):
+        """`thumbnail` is shrink-only on purpose: upscaling adds bytes and invents detail the source
+        never had."""
+        self.upload(make_attachment_image_bytes(320, 240))
+
+        self.assertEqual(Image.open(self.stored().file.path).size, (320, 240))
+
+    def test_the_quota_gate_weighs_what_will_be_stored_rather_than_what_arrived(self):
+        """Why the re-encode happens in `validate_file` and not in `create()`.
+
+        The view checks the course's quota against `validated_data['file']`, and the quota is spent
+        on stored bytes — `Course.uploaded_bytes` sums them. A photo that re-encodes to a fraction of
+        its upload size must therefore be admitted by a quota that could not have held the original,
+        or the gate would refuse a file that in fact fits.
+        """
+        source = make_attachment_image_bytes(3600, 1800)
+        self.course.upload_quota_bytes = len(source) // 2
+        self.course.save(update_fields=['upload_quota_bytes'])
+
+        response = self.upload(source)
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertLess(self.stored().size_bytes, self.course.upload_quota_bytes)
+
+
+class AttachmentImageRefusalTests(AttachmentFileTestCase):
+    def test_a_windows_executable_renamed_to_an_image_is_refused(self):
+        response = self.upload(PE_HEADER, name='board.png', content_type='image/png')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Attachment.objects.count(), 0, 'and nothing is stored')
+
+    def test_a_decompression_bomb_is_refused_before_it_is_decoded(self):
+        """The gap the material validator could not close, because it never decodes anything: this
+        file passes a 25 MB byte cap and a content sniff, and decoding it would cost gigabytes."""
+        bomb = decompression_bomb_bytes()
+        self.assertLess(len(bomb), 1024 * 1024, 'genuinely small on disk, as the attack requires')
+
+        response = self.upload(bomb, name='board.png', content_type='image/png')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Attachment.objects.count(), 0)
+
+
+class AttachmentFieldValidatorTests(TestCase):
+    """`validate_attachment_file` called directly, which is the admin path.
+
+    The serializer is not the only way a file reaches this field — the Django admin assigns one and
+    never goes near `process_attachment_file`. It cannot be given the re-encode there (a validator
+    returns nothing), but it must still be given the checks, and the decoded-pixel budget is the one
+    that was missing entirely before this change. Tested directly rather than through a view, because
+    a view test would prove the serializer works and say nothing about the field.
+    """
+
+    def test_it_refuses_a_decompression_bomb(self):
+        upload = SimpleUploadedFile('board.png', decompression_bomb_bytes(), 'image/png')
+
+        with self.assertRaises(ValidationError) as ctx:
+            validate_attachment_file(upload)
+
+        self.assertIn('too many pixels', str(ctx.exception))
+
+    def test_it_still_refuses_a_disguised_executable(self):
+        upload = SimpleUploadedFile('board.png', PE_HEADER, 'image/png')
+
+        with self.assertRaises(ValidationError):
+            validate_attachment_file(upload)
+
+    def test_it_still_accepts_a_real_pdf(self):
+        """The wrap must not have narrowed what a document may be."""
+        validate_attachment_file(SimpleUploadedFile('exam.pdf', LEGACY_PDF, 'application/pdf'))
+
+    def test_it_accepts_a_real_image(self):
+        validate_attachment_file(
+            SimpleUploadedFile('board.jpg', make_attachment_image_bytes(400, 200), 'image/jpeg')
+        )
+
+
+class AttachmentWebpTests(AttachmentFileTestCase):
+    """A `.webp` upload, which this change incidentally started allowing.
+
+    `ALLOWED_MATERIAL_TYPES` has no `.webp` entry, so before this the format was refused outright
+    even though `imaging.ALLOWED_IMAGE_TYPES` has accepted it for avatars and post pictures all
+    along. The image branch keys on the sniffed bytes rather than the extension table, so it is now
+    accepted — worth a test because it is a real behaviour change rather than a side effect nobody
+    should rely on, and because the stored result must be stripped like any other image.
+    """
+
+    def test_a_webp_is_accepted_and_stripped_like_any_other_image(self):
+        source = make_attachment_image_bytes(400, 200, fmt='WEBP', exif=make_phone_exif())
+        self.assertTrue(Image.open(io.BytesIO(source)).getexif().get_ifd(0x8825))
+
+        self.assertEqual(
+            self.upload(source, name='board.webp', content_type='image/webp').status_code, 201
+        )
+
+        stored = Image.open(self.stored().file.path)
+        self.assertEqual(stored.format, 'WEBP')
+        self.assertEqual(dict(stored.getexif()), {})
+
+
+class AttachmentNonImageTests(AttachmentFileTestCase):
+    """The other half of the branch, and the half most likely to be broken by a careless change: an
+    attachment is just as often a PDF, and a PDF's bytes ARE the document."""
+
+    def test_a_pdf_is_stored_exactly_as_it_arrived(self):
+        self.assertEqual(
+            self.upload(LEGACY_PDF, name='exam.pdf', content_type='application/pdf').status_code,
+            201,
+        )
+
+        with open(self.stored().file.path, 'rb') as handle:
+            self.assertEqual(handle.read(), LEGACY_PDF, 'byte for byte — never re-encoded')
+        self.assertTrue(self.stored().file.name.endswith('.pdf'))
+
+    def test_a_renamed_executable_is_still_refused_on_the_document_path(self):
+        """The material validator's extension/content check is untouched for a non-image, and this is
+        what says so — the new image branch must not have become a way around it."""
+        response = self.upload(PE_HEADER, name='exam.pdf', content_type='application/pdf')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Attachment.objects.count(), 0)
+
+
+class StripAttachmentImageMetadataCommandTests(AttachmentFileTestCase):
+    """The command that deals with files stored before any of the above existed.
+
+    Every row here is created with `Attachment.objects.create`, which is how a legacy row genuinely
+    got there: it bypasses both the serializer and the field validators, so the bytes land verbatim.
+    """
+
+    def legacy(self, content: bytes, name='board.jpg'):
+        return Attachment.objects.create(
+            course=self.course,
+            file=SimpleUploadedFile(name, content, content_type='image/jpeg'),
+            title='Old whiteboard',
+            uploaded_by=self.instructor,
+        )
+
+    def run_command(self, **options) -> str:
+        out = io.StringIO()
+        call_command('strip_attachment_image_metadata', stdout=out, stderr=out, **options)
+        return out.getvalue()
+
+    def test_a_dry_run_reports_without_rewriting_anything(self):
+        """The whole reason this is a command rather than a data migration: an operator gets to look
+        at what it would touch before any bytes are rewritten."""
+        attachment = self.legacy(make_attachment_image_bytes(400, 200, exif=make_phone_exif()))
+        before = attachment.file.name
+
+        output = self.run_command(dry_run=True)
+
+        self.assertIn('[dry run]', output)
+        self.assertIn('1 image(s) re-encoded', output)
+        attachment.refresh_from_db()
+        self.assertEqual(attachment.file.name, before)
+        self.assertTrue(
+            Image.open(attachment.file.path).getexif().get_ifd(0x8825),
+            'the GPS is still there — a dry run that changed anything would be a lie',
+        )
+
+    def test_it_strips_a_file_stored_before_the_pipeline_existed(self):
+        attachment = self.legacy(make_attachment_image_bytes(3600, 1800, exif=make_phone_exif()))
+        original_name = attachment.file.name
+
+        self.run_command()
+
+        attachment.refresh_from_db()
+        stored = Image.open(attachment.file.path)
+        self.assertEqual(stored.format, 'WEBP')
+        self.assertEqual(dict(stored.getexif()), {})
+        self.assertEqual(dict(stored.getexif().get_ifd(0x8825)), {})
+        self.assertFalse(
+            default_storage.exists(original_name),
+            'the original is gone — leaving it would keep the coordinates readable at the old URL, '
+            'and the command would have achieved nothing',
+        )
+
+    def test_running_it_twice_changes_nothing_the_second_time(self):
+        """Idempotency by property rather than by a marker column: the second pass sees a WebP with
+        no EXIF inside the bound and leaves it alone, so nothing is ever re-encoded lossily on top of
+        a previous re-encode."""
+        self.legacy(make_attachment_image_bytes(3600, 1800, exif=make_phone_exif()))
+        self.run_command()
+
+        attachment = self.stored()
+        name_after_first = attachment.file.name
+        with open(attachment.file.path, 'rb') as handle:
+            bytes_after_first = handle.read()
+
+        output = self.run_command()
+
+        self.assertIn('0 image(s) re-encoded, 1 already clean', output)
+        attachment.refresh_from_db()
+        self.assertEqual(attachment.file.name, name_after_first)
+        with open(attachment.file.path, 'rb') as handle:
+            self.assertEqual(handle.read(), bytes_after_first)
+
+    def test_it_leaves_a_pdf_alone(self):
+        attachment = Attachment.objects.create(
+            course=self.course,
+            file=SimpleUploadedFile('exam.pdf', LEGACY_PDF, 'application/pdf'),
+            title='Last year exam',
+        )
+        before = attachment.file.name
+
+        output = self.run_command()
+
+        self.assertIn('1 not images', output)
+        attachment.refresh_from_db()
+        self.assertEqual(attachment.file.name, before)
+        with open(attachment.file.path, 'rb') as handle:
+            self.assertEqual(handle.read(), LEGACY_PDF)
+
+    def test_a_row_whose_file_has_gone_missing_is_reported_rather_than_crashing(self):
+        """One lost file must not stop the rest being fixed — the same tolerance `size_bytes` already
+        shows for a file deleted from underneath a row."""
+        missing = self.legacy(make_attachment_image_bytes(400, 200, exif=make_phone_exif()))
+        good = self.legacy(make_attachment_image_bytes(400, 200, exif=make_phone_exif()))
+        default_storage.delete(missing.file.name)
+
+        output = self.run_command()
+
+        self.assertIn(f'#{missing.pk}', output)
+        self.assertIn('1 image(s) re-encoded', output)
+        good.refresh_from_db()
+        self.assertEqual(dict(Image.open(good.file.path).getexif()), {})
