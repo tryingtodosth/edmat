@@ -1453,5 +1453,11 @@
 	"search_tooShort": "Wpisz co najmniej {count} znaki.",
 	"search_noResults": "Nic nie pasuje do „{query}”.",
 	"search_resultCount": "Znaleziono: {count}",
-	"review_ratingSummary": "{average} ({count})"
+	"review_ratingSummary": "{average} ({count})",
+	"submitMaterial_whereLegend": "Gdzie to jest?",
+	"submitMaterial_whereHint": "Wgraj plik albo podaj link do miejsca, w którym już się znajduje — jedno albo drugie.",
+	"submitMaterial_field_url": "Link do materiału",
+	"submitMaterial_urlPlaceholder": "example.edu/notatki.pdf",
+	"submitMaterial_urlHint": "Dla czegoś, czego nie powinno się kopiować — nagranie, strona katedry, czyjeś opublikowane notatki.",
+	"material_open": "Otwórz"
 }

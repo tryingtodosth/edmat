@@ -2584,3 +2584,115 @@ class ModerationQueueCountTests(APITestCase):
         response = self.count(governor)
 
         self.assertEqual(response.data['submissions'], 1)
+
+
+class LinkOnlyMaterialTests(_TempMediaRootMixin, APITestCase):
+    """A material can be a LINK — a recording, a department page, somebody's published notes.
+
+    Requiring an upload meant either losing those or re-hosting somebody else's work just to be able
+    to point at it. The rule is one or the other, and the thing to pin is that "neither" is still
+    refused: a title pointing at nothing is not a material.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.branch = make_course(slug='uw-link-material-branch')
+        self.student = make_user('link_student')
+
+    def _submit(self, **overrides):
+        self.client.force_authenticate(self.student)
+        data = {
+            'branch': self.branch.slug,
+            'type': 'practice_test',
+            'title': 'A linked recording',
+            'description': 'Lecture capture nobody should re-host.',
+            'locale': 'en',
+            **overrides,
+        }
+        return self.client.post('/api/material-submissions/', data, format='multipart')
+
+    def test_a_link_alone_is_accepted(self):
+        response = self._submit(url='https://example.edu/lecture-3')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['url'], 'https://example.edu/lecture-3')
+        self.assertFalse(response.data['file'])
+
+    def test_a_file_alone_is_still_accepted(self):
+        """The path that existed before this, unchanged."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        response = self._submit(
+            file=SimpleUploadedFile('paper.pdf', b'%PDF-1.4 real content')
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_neither_is_refused_and_says_so(self):
+        response = self._submit()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('file', response.data)
+
+    def test_a_link_costs_no_quota(self):
+        """It occupies no disk, so it cannot be what fills an account's byte cap. Falls out of
+        `material_upload_bytes` skipping a row with no file, rather than needing its own rule."""
+        self._submit(url='https://example.edu/lecture-4')
+
+        self.assertEqual(self.student.profile.material_upload_bytes, 0)
+
+    def test_approving_one_publishes_a_material_that_is_the_link(self):
+        from moderation.models import MaterialSubmission
+
+        submitted = self._submit(url='https://example.edu/lecture-5')
+        submission = MaterialSubmission.objects.get(pk=submitted.data['id'])
+
+        self.client.force_authenticate(make_user('link_mod', is_staff=True))
+        decision = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(decision.status_code, status.HTTP_200_OK, decision.data)
+        submission.refresh_from_db()
+        material = submission.resulting_material
+        self.assertEqual(material.url, 'https://example.edu/lecture-5')
+        self.assertFalse(material.file)
+
+    def test_the_model_refuses_a_material_with_neither(self):
+        """On the model too, so the Django admin — the one write path that skips DRF — is held to
+        the same rule."""
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        from materials.models import Material
+
+        material = Material(branch=self.branch, slug='nothing-at-all', type='practice_test')
+
+        with self.assertRaises(DjangoValidationError):
+            material.full_clean()
+
+    def test_a_link_material_is_readable_over_the_api(self):
+        from moderation.models import MaterialSubmission
+
+        submitted = self._submit(url='https://example.edu/lecture-6')
+        submission = MaterialSubmission.objects.get(pk=submitted.data['id'])
+        self.client.force_authenticate(make_user('link_mod2', is_staff=True))
+        self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+        submission.refresh_from_db()
+
+        self.client.force_authenticate(None)
+        response = self.client.get(f'/api/materials/{submission.resulting_material.pk}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['url'], 'https://example.edu/lecture-6')

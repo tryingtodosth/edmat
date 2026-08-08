@@ -173,7 +173,9 @@ export async function retractCoverageVote(coverageId: string): Promise<MaterialC
  * own message exactly like any other validation error in this app. */
 export async function submitMaterial(
 	draft: MaterialSubmissionDraft,
-	file: File
+	/** Null when the material is a link rather than a hosted file. The backend refuses a submission
+	 * with neither, so this being null means `draft.url` is set. */
+	file: File | null
 ): Promise<MaterialSubmission> {
 	const formData = new FormData();
 	formData.append('branch', draft.branchId);
@@ -181,7 +183,10 @@ export async function submitMaterial(
 	formData.append('title', draft.title);
 	formData.append('description', draft.description);
 	formData.append('locale', draft.locale);
-	formData.append('file', file);
+	// Omitted entirely rather than appended empty: an empty multipart file part arrives as a blank
+	// upload rather than as "no file", and DRF would try to validate it as one.
+	if (file) formData.append('file', file);
+	if (draft.url?.trim()) formData.append('url', draft.url.trim());
 	// Provenance — both optional, both only ever knowable by the uploader (see
 	// MaterialSubmission.author/source_url in moderation/models.py). Sent as plain multipart
 	// fields, not JSON-encoded like `requirements`/`coverage` below, since neither is a list.

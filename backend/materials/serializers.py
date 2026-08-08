@@ -149,6 +149,7 @@ class MaterialSerializer(serializers.ModelSerializer):
             'coverage',
             'requirements',
             'file',
+            'url',
             'author',
             'source_url',
             'submitted_by',

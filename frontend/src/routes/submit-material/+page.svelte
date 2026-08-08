@@ -35,6 +35,7 @@
 	let sourceUrl = $state('');
 	let locale = $state('pl');
 	let file = $state<File | null>(null);
+	let url = $state('');
 	// TaxonomyOptions is keyed by `id`; a material type is identified by its slug, which IS what
 	// the select must bind. Mapped here rather than widening that component, which is shared with
 	// three genuinely id-keyed taxonomy levels.
@@ -125,19 +126,21 @@
 		file = input.files?.[0] ?? null;
 	}
 
-	let canSubmit = $derived(Boolean(branchId && title.trim() && file));
+	// A file OR a link, never neither — the same rule the backend enforces, checked here so the
+	// button is honest rather than the refusal arriving after a submit.
+	let canSubmit = $derived(Boolean(branchId && title.trim() && (file || url.trim())));
 
 	/** The backend field is a real `URLField`, which rejects a bare `example.edu/x.pdf` outright.
-	 * Someone typing a source by hand very reasonably omits the scheme, so prepend `https://` when
+	 * Someone typing a link by hand very reasonably omits the scheme, so prepend `https://` when
 	 * none is present rather than bouncing the whole submission back over it. */
-	function normalizeSourceUrl(value: string): string | undefined {
+	function normalizeUrl(value: string): string | undefined {
 		const trimmed = value.trim();
 		if (!trimmed) return undefined;
 		return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 	}
 
 	async function handleSubmit() {
-		if (!authStore.user || !canSubmit || !file) return;
+		if (!authStore.user || !canSubmit) return;
 		errorMessage = '';
 		submitting = true;
 		try {
@@ -149,7 +152,8 @@
 					description: description.trim(),
 					locale,
 					author: author.trim() || undefined,
-					sourceUrl: normalizeSourceUrl(sourceUrl),
+					sourceUrl: normalizeUrl(sourceUrl),
+					url: normalizeUrl(url),
 					requirements: requirements.length > 0 ? requirements : undefined,
 					coverage: coverage.length > 0 ? coverage : undefined,
 					priceAmount: priceAmount.trim() ? Number(priceAmount) : undefined,
@@ -162,6 +166,7 @@
 			title = description = '';
 			author = sourceUrl = '';
 			file = null;
+			url = '';
 			requirements = [];
 			requirementDraft = '';
 			coverage = [];
@@ -259,20 +264,48 @@
 					<textarea rows="3" bind:value={description}></textarea>
 				</label>
 
-				<label class="field">
-					<span>{m.submitMaterial_field_file()}</span>
-					<input
-						id="material-file-input"
-						type="file"
-						accept={ACCEPTED_EXTENSIONS}
-						onchange={handleFileChange}
-						required
-					/>
-					<span class="file-hint">{m.submitMaterial_fileHint()}</span>
-					{#if file}
-						<span class="file-picked">{file.name}</span>
-					{/if}
-				</label>
+				<!-- A file OR a link, and the form says so before either field rather than after a
+				     refused submit. Plenty of what a course points students at is a recording or a
+				     departmental page — something nobody can or should re-host — and requiring an
+				     upload meant either losing those or uploading a copy of somebody else's work
+				     just to be able to say where it was.
+
+				     Neither input carries `required`: the browser would enforce both, which is the
+				     opposite of the rule. The check below is on the pair. -->
+				<fieldset class="field where">
+					<legend>{m.submitMaterial_whereLegend()}</legend>
+					<p class="file-hint">{m.submitMaterial_whereHint()}</p>
+
+					<label class="field">
+						<span>{m.submitMaterial_field_file()} <em>({m.common_optional()})</em></span>
+						<input
+							id="material-file-input"
+							type="file"
+							accept={ACCEPTED_EXTENSIONS}
+							onchange={handleFileChange}
+						/>
+						<span class="file-hint">{m.submitMaterial_fileHint()}</span>
+						{#if file}
+							<span class="file-picked">{file.name}</span>
+						{/if}
+					</label>
+
+					<label class="field">
+						<span>{m.submitMaterial_field_url()} <em>({m.common_optional()})</em></span>
+						<!-- `type="text"` with a url inputmode, not `type="url"`: native validation would
+						     reject a perfectly reasonable `example.edu/notes.pdf` typed without a
+						     scheme, and the submit handler normalizes that instead — the same call the
+						     source-URL field beside it already makes. -->
+						<input
+							type="text"
+							inputmode="url"
+							bind:value={url}
+							maxlength="500"
+							placeholder={m.submitMaterial_urlPlaceholder()}
+						/>
+						<span class="file-hint">{m.submitMaterial_urlHint()}</span>
+					</label>
+				</fieldset>
 
 				<!-- Provenance, placed directly after the file: these two questions are about the file
 				     that was just picked, and the uploader is the only person who can answer either —

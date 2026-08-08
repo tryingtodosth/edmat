@@ -143,6 +143,7 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
             'description',
             'locale',
             'file',
+            'url',
             'author',
             'source_url',
             'requirements',
@@ -232,6 +233,23 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
         return cleaned
 
     def validate(self, attrs):
+        """Everything that needs more than one field to decide.
+
+        Two checks in one method deliberately, and worth saying why: this class briefly had a second
+        `def validate` added below the first, and Python simply kept the later one — no error, no
+        warning, the earlier check just never ran. A serializer gets one.
+        """
+        # A material is a file or a link. Here as well as on the model, because this is the path a
+        # person actually uses, and a 400 naming the field is more use to them than a 500 out of
+        # `full_clean`. Read through to the instance so a PATCH that touches neither — editing a
+        # link-only submission's title — cannot fail for want of a file it never had.
+        has_file = attrs.get('file', getattr(self.instance, 'file', None))
+        has_url = attrs.get('url', getattr(self.instance, 'url', ''))
+        if not has_file and not has_url:
+            raise serializers.ValidationError(
+                {'file': 'Upload a file, or give a link to where the material lives.'}
+            )
+
         coverage = attrs.get('coverage')
         branch = attrs.get('branch')
         if coverage and branch is not None:

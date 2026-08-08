@@ -635,24 +635,19 @@
 		right: -4px;
 		line-height: 1.3;
 	}
-	/* The personal group — messages, notifications, who you are — set apart from the site's own
-	   controls to its left, so the row reads as two things rather than one queue of seven.
-	   
-	   This started as a slightly wider gap and nothing else, on the argument that the header had
-	   enough furniture already. Measured, that was 8px within a group against 16px at the boundary,
-	   which is a real difference and an invisible one: at icon size nobody reads a doubled 8px as a
-	   grouping, and the row still looked like seven evenly spaced things. Reported as not fixed,
-	   and correct. A rule plus a proper gap is what actually says "these are separate". */
+	/* The personal group — messages, notifications, who you are — sits at the right-hand end of the
+	   row, with the site's own controls left at the other end.
+	
+	   The separation is the distance and nothing else. It went through a doubled 8px gap (measured,
+	   and invisible: at icon size nobody reads that as a grouping) and then a divider rule, which
+	   worked but was furniture the header did not need once `margin-left: auto` was pushing the
+	   group all the way to the edge — with most of the row empty between the two, a line drawn in
+	   the middle of that space is decoration rather than information. */
 	.site-header__you {
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-		/* Hard right, against the edge of the row — which is the separation doing the real work now.
-		   The rule stays as the boundary marker for the case where the window is narrow enough that
-		   the two groups meet in the middle. */
 		margin-left: auto;
-		padding-left: var(--space-4);
-		border-left: 1px solid var(--border-color);
 	}
 
 	.site-header__actions {

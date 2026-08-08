@@ -123,6 +123,9 @@ export interface Material {
 	requirements: MaterialRequirement[];
 	fileName: string;
 	fileUrl: string; // Phase 3: a real, working URL served by the Django dev server's MEDIA_ROOT
+	/** Set when the material IS a link rather than a hosted file. Exactly one of `fileUrl` and
+	 * `url` is meaningful for a given material; the backend refuses a row with neither. */
+	url?: string;
 	// Free text, NOT a real account — the real corpus's own material.yaml `author:` values are
 	// plain human names (a branch TA/professor), almost never a registered platform user, so this
 	// is deliberately never rendered as a clickable link. `submittedByUserId` below is the
