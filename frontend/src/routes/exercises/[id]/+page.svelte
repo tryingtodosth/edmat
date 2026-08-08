@@ -101,6 +101,12 @@
 			return;
 		}
 		exercise = ex;
+		// The locale actually being SHOWN, which is not necessarily the one asked for: the API
+		// resolves `?lang=` and falls back to the original when there is no translation. The picker
+		// is a controlled `<select>`, so a value matching none of its options renders it blank —
+		// which is what an English reader saw on every Polish-only exercise, an empty dropdown
+		// beside a page that was in fact showing them Polish.
+		contentLocale = ex.locale;
 		// One real "view" per navigation to this page, not per content-locale switch (see
 		// switchLocale below, which deliberately does NOT call this) — powers the Random Exercise
 		// picker's "prefer unseen" / topic-affinity heuristics (CLAUDE.md's Random Exercise note).
@@ -131,6 +137,9 @@
 		const resolved = await getExerciseById(exercise.id, next);
 		if (resolved) {
 			exercise = resolved;
+			// Corrected to what came back, for the same reason as above — asking for a locale is not
+			// the same as getting it.
+			contentLocale = resolved.locale;
 			if (resolved.translatedByUserId) await resolveUsers([resolved.translatedByUserId]);
 		}
 	}

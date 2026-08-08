@@ -242,20 +242,6 @@
 	{#if canTutoring}
 		<a href={resolve('/services')} {onclick}>{m.nav_services()}</a>
 	{/if}
-	{#if authStore.isAuthenticated && canTutoring}
-		<a href={resolve('/services/watchlist')} {onclick}>{m.nav_watchlist()}</a>
-	{/if}
-	<!-- My Set lives in the account menu for anybody signed in. It stays in the browse list for a
-	     guest, who has no account menu to put it in — and whose set is the more fragile of the two,
-	     since it exists only in this browser until they make an account. -->
-	{#if !authStore.isAuthenticated}
-		<a href={resolve('/my-set')} {onclick}>
-			{m.nav_mySet()}
-			{#if guestSetStore.count > 0}
-				<span class="badge">{guestSetStore.count}</span>
-			{/if}
-		</a>
-	{/if}
 	<!-- canModerate, not isModerator — a scoped node governor should reach the moderation page too,
 	     just seeing a narrower queue once there (CLAUDE.md's own "node governor" feature) -->
 	{#if authStore.canModerate}
@@ -300,7 +286,6 @@
 			{m.nav_profile()}
 		</a>
 	{/if}
-	<a role="menuitem" class={itemClass} href={resolve('/my-set')} {onclick}>{m.nav_mySet()}</a>
 	{#if canTutoring}
 		<a role="menuitem" class={itemClass} href={resolve('/bookings')} {onclick}>
 			{m.nav_bookings()}
@@ -318,6 +303,14 @@
 	>
 		{m.nav_logout()}
 	</button>
+{/snippet}
+
+{#snippet mySetIcon()}
+	<!-- The same bookmark the save button on every exercise card uses. That is the whole point of
+	     picking it: what you press to save and where saved things live should look like each other. -->
+	<svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+		<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+	</svg>
 {/snippet}
 
 {#snippet messagesIcon()}
@@ -385,6 +378,19 @@
 
 			{#if authStore.isAuthenticated}
 				<NotificationBell />
+			{/if}
+
+			<!-- My Set, for everybody: a guest's set is the more fragile of the two, since it lives only
+			     in this browser until they make an account, so it should not be the one hidden behind a
+			     menu. To the right of the bell, so the count-carrying icons sit together. -->
+			<a class="icon-button" href={resolve('/my-set')} aria-label={m.nav_mySet()}>
+				{@render mySetIcon()}
+				{#if guestSetStore.count > 0}
+					<span class="badge badge--floating">{guestSetStore.count}</span>
+				{/if}
+			</a>
+
+			{#if authStore.isAuthenticated}
 				<Popover label={m.nav_account()}>
 					{#snippet trigger(open: boolean)}
 						<!-- A chevron, because looking at a screenshot of this is what showed the problem: a
@@ -463,6 +469,19 @@
 	<nav class="drawer__section" aria-label={m.nav_mainNavigation()}>
 		{@render browseLinks(closeOnNavigate)}
 	</nav>
+
+	<!-- Outside the signed-in block, and before it: the icon row it mirrors is not rendered at this
+	     width, so without this a phone would have no way to reach a saved set at all — and a guest's
+	     set, which lives only in this browser, is the one that would go missing. -->
+	<div class="drawer__section">
+		<a class="drawer__link" href={resolve('/my-set')} onclick={closeOnNavigate}>
+			{@render mySetIcon()}
+			<span>{m.nav_mySet()}</span>
+			{#if guestSetStore.count > 0}
+				<span class="badge">{guestSetStore.count}</span>
+			{/if}
+		</a>
+	</div>
 
 	{#if authStore.isAuthenticated}
 		{#if canMessaging}

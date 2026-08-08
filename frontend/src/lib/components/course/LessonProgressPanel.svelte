@@ -82,9 +82,14 @@
 	 * a signed-out reader of a public course gets a mode but no counts, no names and no buttons, and
 	 * without this every lesson would carry an empty panel — a dashed rule under each session
 	 * separating nothing from nothing. */
+	/** Whether there is anybody to report on. A course with no participants yet answered with a real
+	 * summary of zeroes and a real (empty) list of names, so staff were shown "0 of 0 have finished
+	 * this" and a "show who is where" that revealed nothing — a progress bar about an empty cohort.
+	 * Found by looking at the page rather than by any assertion, since every field was correct. */
+	const hasCohort = $derived((live.summary?.participants ?? 0) > 0);
+
 	const showsSomething = $derived(
-		live.mode !== 'off' &&
-			(live.canRecord || !!live.summary || !!live.people || !!live.withheldReason)
+		live.mode !== 'off' && (live.canRecord || hasCohort || !!live.withheldReason)
 	);
 </script>
 
@@ -108,7 +113,7 @@
 			</div>
 		{/if}
 
-		{#if live.summary}
+		{#if live.summary && hasCohort}
 			<div class="progress__bar" title={m.course_progress_barTitle()}>
 				<!-- Only "done" fills the bar. A bar stacking in-progress and stuck alongside it would
 				     be four numbers in one shape, and the question it is read for is the simple one. -->
@@ -138,7 +143,7 @@
 			<p class="muted">{m.course_progress_privateNote()}</p>
 		{/if}
 
-		{#if live.people}
+		{#if live.people && hasCohort}
 			<button type="button" class="linkish" onclick={() => (showPeople = !showPeople)}>
 				{showPeople ? m.course_progress_hideWho() : m.course_progress_showWho()}
 			</button>

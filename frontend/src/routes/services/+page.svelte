@@ -15,6 +15,7 @@
 	// `ProposeNodeButton` of its own, so there is no modal-inside-a-modal. Confirmed by grep rather
 	// than assumed — that button lives only on `/submit` and `/submit-material`. If tutoring ever
 	// gains the propose-a-branch affordance those two have, this is the constraint to solve first.
+	import { resolve } from '$app/paths';
 	import type { Branch, Service, ServiceDraft } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { ApiError } from '$lib/api/client';
@@ -244,9 +245,17 @@
 				<p class="subtitle">{m.services_subtitle()}</p>
 			</div>
 			{#if authStore.isAuthenticated}
-				<button type="button" class="new-listing" onclick={() => (creating = true)}>
-					{m.services_newListing()}
-				</button>
+				<div class="page__actions">
+					<!-- The watchlist used to be its own top-level nav item, which spent a slot in the
+					     main bar on something only a signed-in person who follows tutors ever opens. It
+					     belongs with tutoring, which is the only thing it watches. -->
+					<a class="watchlist-link" href={resolve('/services/watchlist')}>
+						{m.nav_watchlist()}
+					</a>
+					<button type="button" class="new-listing" onclick={() => (creating = true)}>
+						{m.services_newListing()}
+					</button>
+				</div>
 			{/if}
 		</div>
 
@@ -456,6 +465,17 @@
 	.new-listing {
 		@include mix.button-primary;
 	}
+	.page__actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.watchlist-link {
+		font-size: var(--font-size-sm);
+		white-space: nowrap;
+	}
+
 	.tabs {
 		display: flex;
 		gap: var(--space-2);
