@@ -1459,5 +1459,7 @@
 	"submitMaterial_field_url": "Link to the material",
 	"submitMaterial_urlPlaceholder": "example.edu/notes.pdf",
 	"submitMaterial_urlHint": "For something you should not re-host — a recording, a department page, somebody else’s published notes.",
-	"material_open": "Open"
+	"material_open": "Open",
+	"taxonomy_propose_parentDiscipline": "Which discipline does it belong to?",
+	"taxonomy_propose_parentPlaceholder": "Pick one"
 }

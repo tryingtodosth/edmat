@@ -1459,5 +1459,7 @@
 	"submitMaterial_field_url": "Link do materiału",
 	"submitMaterial_urlPlaceholder": "example.edu/notatki.pdf",
 	"submitMaterial_urlHint": "Dla czegoś, czego nie powinno się kopiować — nagranie, strona katedry, czyjeś opublikowane notatki.",
-	"material_open": "Otwórz"
+	"material_open": "Otwórz",
+	"taxonomy_propose_parentDiscipline": "Do której dziedziny należy?",
+	"taxonomy_propose_parentPlaceholder": "Wybierz"
 }
