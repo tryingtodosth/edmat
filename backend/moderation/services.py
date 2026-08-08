@@ -554,6 +554,62 @@ def is_feature_enabled(key: str) -> bool:
     return True if flag is None else flag.is_enabled
 
 
+def count_pending_moderation(user=None) -> dict:
+    """How many decisions are waiting, by kind and in total.
+
+    Its own function rather than `len(build_moderation_queue_payload(...))`, because that one
+    SERIALIZES every pending submission, edit, translation and report group — resolving titles,
+    per-locale translations and a viewer-pool percentage each — to produce a body a badge then throws
+    away. This asks the database for numbers.
+
+    Reports are counted as GROUPS, not rows, because that is the unit somebody acts on: three people
+    reporting one comment is one decision. `values(...).distinct().count()` gets that in one query
+    without building the queue.
+
+    Scoped exactly as the queue is, so a node governor's badge counts what a node governor's queue
+    shows — a number that disagreed with the page it links to would be worse than no number.
+    """
+    from exercises.models import ExerciseTranslation
+
+    from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission, Report
+
+    branch_ids = governed_branch_ids(user) if user is not None else None
+
+    submissions = ExerciseSubmission.objects.filter(status='pending')
+    material_submissions = MaterialSubmission.objects.filter(status='pending')
+    edits = EditSuggestion.objects.filter(status='pending')
+    translations = ExerciseTranslation.objects.filter(status='pending')
+    if branch_ids is not None:
+        submissions = submissions.filter(branch_id__in=branch_ids)
+        material_submissions = material_submissions.filter(branch_id__in=branch_ids)
+        edits = edits.filter(exercise__branch_id__in=branch_ids)
+        translations = translations.filter(exercise__branch_id__in=branch_ids)
+
+    # Reports carry no branch column of their own — resolving one means walking a GenericForeignKey
+    # per row, which is the cost this function exists to avoid. A scoped moderator's report count is
+    # therefore taken from the real queue builder, which already does that resolution in bulk; an
+    # unscoped one (global staff) can have the cheap distinct-count.
+    if branch_ids is None:
+        reports = (
+            Report.objects.filter(status='pending')
+            .values('content_type_id', 'object_id')
+            .distinct()
+            .count()
+        )
+    else:
+        reports = len(build_report_queue(branch_ids=branch_ids))
+
+    counts = {
+        'submissions': submissions.count(),
+        'material_submissions': material_submissions.count(),
+        'edit_suggestions': edits.count(),
+        'translations': translations.count(),
+        'taxonomy_proposals': len(build_taxonomy_proposal_queue()),
+        'reports': reports,
+    }
+    return {**counts, 'total': sum(counts.values())}
+
+
 def build_taxonomy_proposal_queue() -> list[dict]:
     """Every pending discipline, branch, topic and material type, in one flat list.
 

@@ -46,6 +46,7 @@ from .services import (
     _content_owner,
     _describe,
     build_moderation_queue_payload,
+    count_pending_moderation,
     build_report_queue,
     check_auto_hide,
     governed_branch_ids,
@@ -844,6 +845,20 @@ def _course_for_report_target(target):
         return target.branch
     exercise = resolve_view_scope_exercise(target)
     return exercise.branch if exercise is not None else None
+
+
+class ModerationQueueCountView(APIView):
+    """GET /api/moderation/queue/count/ — how many decisions are waiting, for a badge.
+
+    Separate from the queue itself so a navigation badge does not have to fetch and serialize the
+    whole queue to render one number. Same permission and the same scoping, so the count always
+    agrees with the page it links to.
+    """
+
+    permission_classes = [IsModerator]
+
+    def get(self, request):
+        return Response(count_pending_moderation(request.user))
 
 
 class ReportActionView(APIView):

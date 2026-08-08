@@ -7,6 +7,7 @@ from .views import (
     FeatureFlagViewSet,
     MaterialSubmissionViewSet,
     ModerationActionView,
+    ModerationQueueCountView,
     ModerationQueueView,
     NodeGovernorViewSet,
     ReportActionView,
@@ -28,6 +29,12 @@ router.register('moderation/governors', NodeGovernorViewSet, basename='node-gove
 
 urlpatterns = router.urls + [
     path('moderation/queue/', ModerationQueueView.as_view(), name='moderation-queue'),
+    # Before nothing in particular, but its own path so a badge never fetches the whole queue.
+    path(
+        'moderation/queue/count/',
+        ModerationQueueCountView.as_view(),
+        name='moderation-queue-count',
+    ),
     # Before the generic `moderation/<kind>/<pk>/<decision>/` below, which would otherwise swallow
     # `moderation/taxonomy/...` as a kind named "taxonomy".
     path(
