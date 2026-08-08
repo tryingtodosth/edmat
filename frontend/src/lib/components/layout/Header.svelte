@@ -317,6 +317,21 @@
 	</svg>
 {/snippet}
 
+{#snippet shieldIcon()}
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="M12 3 5 6v5.5c0 4.3 2.9 8.2 7 9.5 4.1-1.3 7-5.2 7-9.5V6z" />
+	</svg>
+{/snippet}
+
 {#snippet messagesIcon()}
 	<svg
 		class="icon"
@@ -340,60 +355,50 @@
 			<span class="brand__name">{m.common_appName()}</span>
 		</a>
 
-		<!-- Places to go and look at things. Create flows are deliberately not in here any more. -->
+		<!-- Places to go and look at things. Create flows are deliberately not in here any more, and
+		     neither is moderation — see the shield in the icon cluster for where that went. -->
 		<nav class="site-nav no-print" aria-label={m.nav_mainNavigation()}>
 			{@render browseLinks(() => {})}
-			<!-- Rendered here rather than inside `browseLinks`, because the drawer files it with the
-			     personal group instead — moderation is not a place to browse, it is work waiting for
-			     you. canModerate, not isModerator: a scoped node governor reaches the page too, just
-			     seeing a narrower queue once there. -->
-			{#if authStore.canModerate}
-				<a href={resolve('/moderation')}>{m.nav_moderation()}</a>
-			{/if}
 		</nav>
 
-		<!-- Add… rides on the top row next to the nav rather than in the icon cluster. The row wraps,
-		     and while this sat at the head of the actions group it wrapped down with them — putting the
-		     one create affordance on a second line, below the things it creates against. -->
-		{#if authStore.isAuthenticated && hasAnythingToAdd}
-			<Popover label={m.nav_add()}>
-				{#snippet trigger(open: boolean)}
-					<span class="add-trigger" class:add-trigger--open={open}>
-						<span aria-hidden="true">+</span>
-						<span class="add-trigger__text">{m.nav_add()}</span>
-					</span>
-				{/snippet}
-				{#snippet children(close: () => void)}
-					{@render createItems('menu-item', close)}
-				{/snippet}
-			</Popover>
-		{/if}
+		<!-- The split between what the site holds and what you do with it. Everything left of this is
+		     a place; everything right is a control. -->
+		<span class="row-divider no-print" aria-hidden="true"></span>
 
 		<div class="site-header__actions no-print">
 			<RandomExerciseButton />
-
-			<LocaleSwitcher />
 			<ThemeToggle />
+			<LocaleSwitcher />
 
-			<!-- My Set, for everybody: a guest's set is the more fragile of the two, since it lives
-			     only in this browser until they make an account, so it should not be the one hidden
-			     behind a menu. It sits with the tools rather than with the personal group: a set is
-			     something you keep, not something that arrives. -->
-			<a class="icon-button" href={resolve('/my-set')} aria-label={m.nav_mySet()}>
-				{@render mySetIcon()}
-				{#if guestSetStore.count > 0}
-					<span class="badge badge--floating">{guestSetStore.count}</span>
-				{/if}
-			</a>
-
-			<!-- Everything addressed to YOU, together at the right-hand end: what somebody sent, what
-			     the site is telling you, and who you are signed in as. The controls to the left of
-			     this are the site's — a dice, a language, a theme, your saved list — and having two
-			     of those sit between two inboxes was the thing that made this row hard to read.
+			<!-- Everything addressed to YOU, together at the right-hand end: work waiting for you,
+			     what somebody sent, what the site is telling you, what you saved, what you can make,
+			     and who you are signed in as.
 
 			     Icon-only, with real accessible names: an envelope and a bell are universally read,
 			     and the words were costing nav slots to say what the icons already say. -->
 			<div class="site-header__you">
+				<!-- Moderation is not a place to browse, it is work waiting for you — which is why it
+				     left the nav, and why it is a count rather than a word. It was drawn with its
+				     label first and a breakpoint to drop it; the screenshot settled that: this row is
+				     capped at 1100px, so with the word present the browse links were already being
+				     scrolled out of reach at 1280px, and no wider viewport gives the row more room to
+				     earn it back. So the word is gone at every width. Nothing is lost by it — the
+				     accessible name carries the same text, and the number is the part a moderator
+				     actually reads. -->
+				{#if authStore.canModerate}
+					<a
+						class="icon-button mod-link"
+						href={resolve('/moderation')}
+						aria-label={m.nav_moderation()}
+						title={m.nav_moderation()}
+					>
+						{@render shieldIcon()}
+						{#if moderationQueueStore.total > 0}
+							<span class="badge badge--floating">{moderationQueueStore.total}</span>
+						{/if}
+					</a>
+				{/if}
+
 				{#if authStore.isAuthenticated && canMessaging}
 					<a class="icon-button" href={resolve('/messages')} aria-label={m.nav_messages()}>
 						{@render messagesIcon()}
@@ -405,6 +410,34 @@
 
 				{#if authStore.isAuthenticated}
 					<NotificationBell />
+				{/if}
+
+				<!-- My Set, for everybody including guests: a guest's set is the more fragile of the
+				     two, since it lives only in this browser until they make an account, so it should
+				     not be the one hidden behind a menu. Kept immediately right of the bell, where it
+				     was asked for. -->
+				<a class="icon-button" href={resolve('/my-set')} aria-label={m.nav_mySet()}>
+					{@render mySetIcon()}
+					{#if guestSetStore.count > 0}
+						<span class="badge badge--floating">{guestSetStore.count}</span>
+					{/if}
+				</a>
+
+				<!-- Add… sits with the personal group rather than beside the nav, now that the row no
+				     longer wraps — the reason it was over there was that it used to wrap down with the
+				     icons, stranding the one create affordance on a second line. -->
+				{#if authStore.isAuthenticated && hasAnythingToAdd}
+					<Popover label={m.nav_add()}>
+						{#snippet trigger(open: boolean)}
+							<span class="add-trigger" class:add-trigger--open={open}>
+								<span aria-hidden="true">+</span>
+								<span class="add-trigger__text">{m.nav_add()}</span>
+							</span>
+						{/snippet}
+						{#snippet children(close: () => void)}
+							{@render createItems('menu-item', close)}
+						{/snippet}
+					</Popover>
 				{/if}
 
 				{#if authStore.isAuthenticated}
@@ -600,9 +633,24 @@
 		margin: 0 auto;
 		display: flex;
 		align-items: center;
-		gap: var(--space-4);
+		gap: var(--space-3);
 		padding: var(--space-3) var(--space-4);
-		flex-wrap: wrap;
+		// One row, which is the whole point: the brand and the browse links on the left, the controls
+		// on the right, nothing on a second line. The nav is what gives when the width does not add
+		// up — it is the only part here that can shed something (the moderation label goes first,
+		// then the browse links scroll) without a control disappearing.
+		flex-wrap: nowrap;
+	}
+	// Marks where places stop and controls begin. Deliberately hairline and low-contrast: it is
+	// punctuation, not a border — the two groups are already separated by the auto margin, and this
+	// only says that the separation is meant.
+	.row-divider {
+		flex: 0 0 auto;
+		align-self: stretch;
+		width: 1px;
+		margin: var(--space-1) calc(var(--space-2) * -1);
+		background: var(--border-color);
+		opacity: 0.7;
 	}
 	.brand {
 		display: inline-flex;
@@ -617,8 +665,25 @@
 	}
 	.site-nav {
 		display: flex;
-		gap: var(--space-4);
-		flex: 1;
+		// Down from --space-4. The row is capped at 1100px and, measured, was 21px short of holding
+		// five browse links and the controls at that width — so the last link was clipped on a full
+		// desktop. Four gaps at 4px less each buys 16px, and the row's own gap below buys the rest.
+		gap: var(--space-3);
+		// `min-width: 0` is what actually lets the row stay one row: a flex item will not shrink
+		// below its content by default, so without this the nav holds the line at its natural width
+		// and pushes the controls off the right-hand end instead of giving way. It is the item that
+		// should give — a browse link scrolled out of reach is recoverable, a missing account menu
+		// is not — hence the scroll rather than a wrap.
+		flex: 0 1 auto;
+		min-width: 0;
+		overflow-x: auto;
+		scrollbar-width: none;
+		&::-webkit-scrollbar {
+			display: none;
+		}
+		> :global(a) {
+			white-space: nowrap;
+		}
 		a {
 			color: var(--text-secondary);
 			font-size: var(--font-size-sm);
@@ -657,6 +722,16 @@
 		margin-left: auto;
 	}
 
+	// Moderation: a word while there is room for one, a shield with a count when there is not. One
+	// element either way rather than a wide version and a narrow version — two of them is how the
+	// two drift, and how a feature flag eventually hides one and leaves the other.
+	.mod-link {
+		color: var(--text-secondary);
+		&:hover {
+			color: var(--text-primary);
+		}
+	}
+
 	// A wrapper purely so the pair can be hidden as one thing while a session is being restored;
 	// it reproduces the gap they used to get from being direct children of .site-header__you.
 	.signed-out-actions {
@@ -673,12 +748,12 @@
 		align-items: center;
 		gap: var(--space-2);
 		font-size: var(--font-size-sm);
-		/* Its own full-width line. The row wraps at every width this header is actually used at (its
-		   own max-width is 1100px), so this states what was already happening — and it is what gives
-		   the personal group a line edge to sit against. Without it the row was only as wide as its
-		   contents, so "push to the right" had nothing to push against and the whole thing sat in a
-		   huddle on the left. */
-		flex: 1 1 100%;
+		/* One row. This used to be `flex: 1 1 100%` — its own full-width line — which was an honest
+		   description of what the row did rather than what it should do: the header wrapped, so the
+		   controls sat under the nav instead of beside it. Now it takes only the width it needs and
+		   the auto margin pushes it to the right-hand end of the same line. */
+		flex: 0 0 auto;
+		margin-left: auto;
 		a {
 			color: var(--text-secondary);
 			&:hover {
