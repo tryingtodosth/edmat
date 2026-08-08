@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import type { ResolvedExercise } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { guestSetStore } from '$lib/state/guestSet.svelte';
+	import SaveToSetButton from '$lib/components/exercise/SaveToSetButton.svelte';
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
 	import SourceTypeBadge from '$lib/components/shared/SourceTypeBadge.svelte';
 	import VerifiedBadge from '$lib/components/shared/VerifiedBadge.svelte';
@@ -10,8 +10,6 @@
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 
 	let { exercise, courseName }: { exercise: ResolvedExercise; courseName?: string } = $props();
-
-	let inSet = $derived(guestSetStore.has(exercise.id));
 </script>
 
 <article class="exercise-card">
@@ -20,16 +18,7 @@
 			<span class="exercise-card__number">{m.exercise_number({ number: exercise.number })}</span>
 			<h3><MathTitle text={exercise.title} /></h3>
 		</a>
-		<button
-			type="button"
-			class="set-toggle"
-			class:set-toggle--active={inSet}
-			onclick={() => guestSetStore.toggle(exercise.id)}
-			title={inSet ? m.exercise_removeFromSet() : m.exercise_addToSet()}
-			aria-pressed={inSet}
-		>
-			{inSet ? '✓' : '+'}
-		</button>
+		<SaveToSetButton exerciseId={exercise.id} />
 	</div>
 
 	{#if courseName}
@@ -103,19 +92,6 @@
 		color: var(--text-secondary);
 		font-size: var(--font-size-xs);
 	}
-	.set-toggle {
-		@include mix.focus-ring;
-		flex-shrink: 0;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: 1px solid var(--border-color);
-		background: var(--bg-surface);
-		font-weight: 700;
-		&--active {
-			background: var(--accent);
-			color: var(--accent-contrast);
-			border-color: var(--accent);
-		}
-	}
+	/* The save button's own styles moved into SaveToSetButton with it — the card no longer knows
+	   anything about how saving looks, only where it goes. */
 </style>

@@ -44,6 +44,10 @@ export interface User {
 	 * whether they asked for it or not. Defaults live in state/displayPrefs.svelte.ts. */
 	timeFormat?: '24h' | '12h';
 	weekStartsOn?: 'monday' | 'sunday';
+	/** Where the "add to a course" half of the save menu sits relative to the list of sets. Two
+	 * defensible answers, and which reads better depends on the screen and on how often somebody
+	 * files things into courses — so it is a setting rather than one decision for everybody. */
+	saveMenuLayout?: 'beside' | 'above';
 	notifyOnCommentReply?: boolean;
 	notifyOnModerationDecision?: boolean;
 	notifyOnContentAction?: boolean;

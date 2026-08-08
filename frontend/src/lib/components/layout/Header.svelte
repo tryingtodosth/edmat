@@ -40,6 +40,7 @@
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
+	import { saveTargetsStore } from '$lib/state/saveTargets.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import Popover from '$lib/components/shared/Popover.svelte';
@@ -74,6 +75,10 @@
 		authStore.logout();
 		notificationStore.clear();
 		messagesStore.clear();
+		// The save menu's cached sets and courses belong to whoever was signed in. `saveTargets`
+		// keys its cache by owner and so would refetch anyway, but leaving one person's set names
+		// in memory after they sign out is not something to rely on a later check to undo.
+		saveTargetsStore.clear();
 	}
 
 	// ---- the drawer -----------------------------------------------------------------------------

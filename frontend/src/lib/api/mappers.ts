@@ -872,6 +872,7 @@ export interface RawProfile {
 	preferred_locale: string;
 	time_format?: string;
 	week_starts_on?: string;
+	save_menu_layout?: string;
 	is_verified_contributor: boolean;
 	is_moderator: boolean;
 	is_node_governor: boolean;
@@ -917,6 +918,7 @@ export function mapUser(json: RawProfile): User {
 		// browser would pick — same reasoning as the fields themselves.
 		timeFormat: json.time_format === '12h' ? '12h' : '24h',
 		weekStartsOn: json.week_starts_on === 'sunday' ? 'sunday' : 'monday',
+		saveMenuLayout: json.save_menu_layout === 'above' ? 'above' : 'beside',
 		notifyOnCourseActivity: json.notify_on_course_activity,
 		notifyOnBooking: json.notify_on_booking,
 		notifyOnEvent: json.notify_on_event,

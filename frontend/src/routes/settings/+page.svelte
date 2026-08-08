@@ -26,6 +26,7 @@
 	// would pick — see state/displayPrefs.svelte.ts for why those two are not the same question.
 	let timeFormat = $state<'24h' | '12h'>('24h');
 	let weekStartsOn = $state<'monday' | 'sunday'>('monday');
+	let saveMenuLayout = $state<'beside' | 'above'>('beside');
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, branch-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
@@ -89,6 +90,7 @@
 		notifyOnEvent = authStore.user.notifyOnEvent ?? true;
 		timeFormat = authStore.user.timeFormat ?? '24h';
 		weekStartsOn = authStore.user.weekStartsOn ?? 'monday';
+		saveMenuLayout = authStore.user.saveMenuLayout ?? 'beside';
 		offersTutoring = authStore.user.offersTutoring;
 		tutoringNote = authStore.user.tutoringNote;
 		// Mutate the existing SvelteSet in place, not a reassignment — `mutedTypes` is a plain `let`
@@ -116,6 +118,7 @@
 			notifyOnEvent,
 			timeFormat,
 			weekStartsOn,
+			saveMenuLayout,
 			mutedNotificationTypes: Array.from(mutedTypes),
 			offersTutoring,
 			tutoringNote
@@ -284,6 +287,21 @@
 					</select>
 				</label>
 				<p class="field-hint">{m.settings_datesHint()}</p>
+			</section>
+
+			<!-- Where the save menu puts the "add to a course" half. Its own small section rather than
+			     folded into the one above: that one is about how a time is drawn, and this is about
+			     where a menu sits — the only thing they have in common is that both are display. -->
+			<section class="field-group">
+				<h2>{m.settings_saveMenuHeading()}</h2>
+				<label>
+					<span>{m.settings_saveMenuLayout()}</span>
+					<select bind:value={saveMenuLayout}>
+						<option value="beside">{m.settings_saveMenuBeside()}</option>
+						<option value="above">{m.settings_saveMenuAbove()}</option>
+					</select>
+				</label>
+				<p class="field-hint">{m.settings_saveMenuHint()}</p>
 			</section>
 
 			<section class="field-group">

@@ -134,6 +134,7 @@ export const authStore = {
 			showProfilePublicly: boolean;
 			timeFormat: '24h' | '12h';
 			weekStartsOn: 'monday' | 'sunday';
+			saveMenuLayout: 'beside' | 'above';
 			notifyOnCommentReply: boolean;
 			notifyOnModerationDecision: boolean;
 			notifyOnContentAction: boolean;
@@ -152,6 +153,7 @@ export const authStore = {
 			body.show_profile_publicly = patch.showProfilePublicly;
 		if (patch.timeFormat !== undefined) body.time_format = patch.timeFormat;
 		if (patch.weekStartsOn !== undefined) body.week_starts_on = patch.weekStartsOn;
+		if (patch.saveMenuLayout !== undefined) body.save_menu_layout = patch.saveMenuLayout;
 		if (patch.notifyOnCommentReply !== undefined)
 			body.notify_on_comment_reply = patch.notifyOnCommentReply;
 		if (patch.notifyOnModerationDecision !== undefined) {
