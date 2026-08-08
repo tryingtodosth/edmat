@@ -1453,5 +1453,7 @@
 	"search_tooShort": "Wpisz co najmniej {count} znaki.",
 	"search_noResults": "Nic nie pasuje do „{query}”.",
 	"search_resultCount": "Znaleziono: {count}",
-	"review_ratingSummary": "{average} ({count})"
+	"review_ratingSummary": "{average} ({count})",
+	"taxonomy_propose_parentDiscipline": "Do której dziedziny należy?",
+	"taxonomy_propose_parentPlaceholder": "Wybierz"
 }

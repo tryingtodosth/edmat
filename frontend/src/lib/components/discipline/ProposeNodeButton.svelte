@@ -40,6 +40,18 @@
 	let busy = $state(false);
 	let error = $state('');
 	let result = $state<'pending' | 'approved' | null>(null);
+	let chosenParent = $state('');
+
+	// A branch belongs to a discipline, and the server refuses one without a parent. Most callers
+	// already know which — they have a discipline picker right above the branch picker — but the
+	// material submission form does not: it lists every branch flat, with no discipline step at all,
+	// so there was no way to offer this button there and suggesting a branch was simply unreachable
+	// from that page.
+	//
+	// Rather than requiring every caller to grow a discipline picker it may not want, the dialog
+	// asks for the one thing it needs when the caller cannot supply it.
+	const needsParent = $derived(kind === 'branch' && !parent);
+	const parentSlug = $derived(parent ?? (needsParent ? chosenParent : undefined));
 
 	const label = $derived(
 		kind === 'discipline'
@@ -55,16 +67,18 @@
 		name = '';
 		error = '';
 		result = null;
+		chosenParent = '';
 	}
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		const trimmed = name.trim();
 		if (!trimmed) return;
+		if (needsParent && !chosenParent) return;
 		busy = true;
 		error = '';
 		try {
-			const created = await proposeTaxonomyNode({ kind, name: trimmed, parent });
+			const created = await proposeTaxonomyNode({ kind, name: trimmed, parent: parentSlug });
 			result = created.status;
 			// A discipline or a branch also lives in the preloaded tree (`taxonomy.svelte.ts`), which
 			// backs the disciplines index and every picker reading the store. Without this, something
@@ -111,6 +125,19 @@
 			</button>
 		{:else}
 			<form onsubmit={submit}>
+				{#if needsParent}
+					<label class="field">
+						<span>{m.taxonomy_propose_parentDiscipline()}</span>
+						<select bind:value={chosenParent} required>
+							<option value="" disabled>{m.taxonomy_propose_parentPlaceholder()}</option>
+							<!-- A Discipline's own `id` IS its slug in this app (see types/taxonomy.ts),
+							     which is what `proposeTaxonomyNode` wants as `parent`. -->
+							{#each taxonomyStore.disciplines as discipline (discipline.id)}
+								<option value={discipline.id}>{discipline.name}</option>
+							{/each}
+						</select>
+					</label>
+				{/if}
 				<label class="field">
 					<span>{m.taxonomy_propose_name()}</span>
 					<!-- No slug input: the server derives one, and asking somebody proposing "teoria

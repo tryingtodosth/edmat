@@ -209,12 +209,25 @@
 			{/if}
 
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
-				<label class="field">
-					<span>{m.submitMaterial_field_course()}</span>
-					<select bind:value={branchId}>
+				<!-- The branch this material belongs to. Unlike /submit there is no discipline step
+				     here — the list is every branch, flat — which is exactly why suggesting a new one
+				     was unreachable from this page: a branch needs a discipline, and this form has
+				     none to hand. The dialog asks for it instead. -->
+				<div class="field">
+					<div class="field-heading">
+						<label for="submit-material-branch">{m.submitMaterial_field_course()}</label>
+						<ProposeNodeButton
+							kind="branch"
+							onproposed={async (slug) => {
+								branches = await getAllBranches();
+								branchId = slug;
+							}}
+						/>
+					</div>
+					<select id="submit-material-branch" bind:value={branchId}>
 						<TaxonomyOptions nodes={branches} />
 					</select>
-				</label>
+				</div>
 
 				<label class="field">
 					<span>{m.submitMaterial_field_title()}</span>
