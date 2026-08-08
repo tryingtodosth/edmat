@@ -6,6 +6,7 @@
 	import type {
 		ContributionPolicy,
 		DiscussionMode,
+		ProgressVisibility,
 		Course,
 		TaughtCourseDraft
 	} from '$lib/types/course';
@@ -45,6 +46,9 @@
 	let contributionPolicy = $state<ContributionPolicy>(
 		untrack(() => initial?.contributionPolicy ?? 'approval')
 	);
+	let progressVisibility = $state<ProgressVisibility>(
+		untrack(() => initial?.progressVisibility ?? 'shared_anonymous')
+	);
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -68,7 +72,8 @@
 			discussionMode,
 			announceNewLessons,
 			announceNewPosts,
-			contributionPolicy
+			contributionPolicy,
+			progressVisibility
 		});
 	}
 </script>
@@ -181,6 +186,22 @@
 			<!-- Reading and posting are separate questions; only the first is configurable, because
 			     letting strangers post into somebody's course would be a different feature. -->
 			<span class="hint">{m.course_form_discussionHint()}</span>
+		</label>
+	</fieldset>
+
+	<fieldset>
+		<legend>{m.course_form_progressLegend()}</legend>
+		<label class="field">
+			<span>{m.course_form_progressVisibility()}</span>
+			<select bind:value={progressVisibility}>
+				<option value="shared_anonymous">{m.course_form_progressSharedAnonymous()}</option>
+				<option value="shared_named">{m.course_form_progressSharedNamed()}</option>
+				<option value="private">{m.course_form_progressPrivate()}</option>
+				<option value="off">{m.course_form_progressOff()}</option>
+			</select>
+			<!-- "Off" blinds you as well, which is the point of it and is the one thing somebody
+			     picking it should be told before they do. -->
+			<span class="hint">{m.course_form_progressHint()}</span>
 		</label>
 	</fieldset>
 

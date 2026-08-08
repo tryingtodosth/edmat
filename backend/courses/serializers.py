@@ -5,6 +5,8 @@ from taxonomy.models import Branch, Discipline
 
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
+    MIN_PEERS_FOR_ANONYMOUS_COUNTS,
+    PROGRESS_NOT_STARTED,
     Attachment,
     AttachmentReview,
     Chapter,
@@ -174,11 +176,108 @@ def rating_summary(reviews) -> dict:
     return {'count': len(ratings), 'average': round(sum(ratings) / len(ratings), 2)}
 
 
+def active_participants(course) -> dict:
+    """{user_id: user} for everybody currently on the roster.
+
+    Built once per course and handed to every lesson rather than recomputed per lesson: the roster is
+    a fact about the course, and a twelve-week course would otherwise ask the same question thirty
+    times to draw thirty progress bars. Reads `enrollments.all()` so the viewset's existing prefetch
+    serves it.
+    """
+    return {
+        enrollment.participant_id: enrollment.participant
+        for enrollment in course.enrollments.all()
+        if enrollment.status in ACTIVE_ENROLLMENT_STATUSES
+    }
+
+
+def lesson_progress_payload(lesson, course, viewer, *, roster=None) -> dict:
+    """What this viewer may know about how far people have got on this lesson.
+
+    Always the same shape, whatever the mode and whoever is asking — `mine`, `summary` and `people`
+    go null rather than disappearing, so a client branches on a value it can read instead of on
+    whether a key exists. That is the same reasoning `get_participant_notes` blanks rather than
+    omits, and it is what lets the UI say *why* it is showing nothing.
+
+    The four gates are `Course`'s, not re-derived here: this function decides what to put in the
+    envelope, and the course decides who is allowed each part of it.
+    """
+    mode = course.progress_visibility
+    payload = {
+        'mode': mode,
+        'mine': None,
+        'can_record': course.progress_writable_by(viewer),
+        'summary': None,
+        'people': None,
+        'withheld_reason': None,
+    }
+
+    # `off`, or somebody who is not in the course at all. Note this covers staff under `off` too:
+    # rows still exist in the database and none of them are described here.
+    if not course.progress_visible_to(viewer):
+        return payload
+
+    viewer_id = getattr(viewer, 'pk', None)
+    rows = list(lesson.progress.all())
+    for row in rows:
+        if row.participant_id == viewer_id:
+            payload['mine'] = row.status
+            break
+
+    if not course.progress_peers_visible_to(viewer):
+        return payload
+
+    if roster is None:
+        roster = active_participants(course)
+    named = course.progress_names_visible_to(viewer)
+
+    if not named and len(roster) - (1 if viewer_id in roster else 0) < MIN_PEERS_FOR_ANONYMOUS_COUNTS:
+        # Anonymity that a count gives away is not anonymity. Say so rather than showing an empty
+        # panel, which reads as "nobody has done anything" — the opposite of the truth.
+        payload['withheld_reason'] = 'small_cohort'
+        return payload
+
+    # Only rows belonging to people still on the roster. Somebody who left is not part of "3 of 6
+    # have finished" — they are not one of the 6 — and counting their row would let the numerator
+    # exceed the denominator, which is the shape of bug nobody reports because it just looks wrong.
+    counted = [row for row in rows if row.participant_id in roster]
+    by_status = {'in_progress': 0, 'stuck': 0, 'done': 0}
+    for row in counted:
+        if row.status in by_status:
+            by_status[row.status] += 1
+    payload['summary'] = {
+        **by_status,
+        'not_started': len(roster) - len(counted),
+        'participants': len(roster),
+    }
+
+    if named:
+        said = {row.participant_id: row for row in counted}
+        people = []
+        for user_id, user in roster.items():
+            row = said.get(user_id)
+            people.append(
+                {
+                    'participant': ParticipantSerializer(user).data,
+                    # Everybody on the roster, including the people who have said nothing — "who has
+                    # not started" is most of what makes this list worth reading, and a list of only
+                    # the people who answered would quietly be a different question.
+                    'status': row.status if row else PROGRESS_NOT_STARTED,
+                    'updated_at': row.updated_at if row else None,
+                }
+            )
+        people.sort(key=lambda entry: entry['participant']['display_name'].lower())
+        payload['people'] = people
+
+    return payload
+
+
 class LessonSerializer(serializers.ModelSerializer):
     participant_notes = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
     exercise_sets = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
+    progress = serializers.SerializerMethodField()
 
     class Meta:
         model = Lesson
@@ -194,7 +293,24 @@ class LessonSerializer(serializers.ModelSerializer):
             'items',
             'exercise_sets',
             'reviews',
+            'progress',
         ]
+
+    def get_progress(self, lesson) -> dict:
+        """How far people have got, as much of it as this viewer is allowed.
+
+        `course` and `progress_roster` come through the context because both are facts about the
+        course rather than the lesson: reading `lesson.chapter.course` here would be a query per
+        lesson for a row the caller already had in its hand.
+        """
+        request = self.context.get('request')
+        course = self.context.get('course') or lesson.chapter.course
+        return lesson_progress_payload(
+            lesson,
+            course,
+            getattr(request, 'user', None),
+            roster=self.context.get('progress_roster'),
+        )
 
     def get_reviews(self, lesson) -> dict:
         """The summary only — count and average. The reviews themselves are their own endpoint,
@@ -306,6 +422,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'discussion_mode',
             'announce_new_lessons',
             'announce_new_posts',
+            'progress_visibility',
             'language',
             'starts_on',
             'ends_on',
@@ -377,20 +494,24 @@ class CourseSerializer(serializers.ModelSerializer):
         holds on both paths rather than only the nested one.
         """
         user = getattr(self.context.get('request'), 'user', None)
-        # This is a fresh query rather than the course's own prefetched chapters, so it needs its
-        # own `reviews` prefetch or the rating summary costs one query per lesson here even though
-        # the nested path is already covered.
+        # Walks the course's own prefetched chapters rather than issuing a fresh `Lesson` query.
+        # It used to do the latter, with a duplicate set of prefetches to match — which still cost a
+        # query per lesson, because `select_related('chapter')` gives each lesson its OWN Course
+        # instance, and a fresh Course has none of this queryset's prefetches: every
+        # `is_visible_to` then re-read `CourseStaff` from scratch. Measured at six extra queries per
+        # lesson before this, constant after.
+        #
+        # It is also the stronger fix: this list is now literally the same objects the nested
+        # chapter -> lesson path serializes, so the two cannot disagree about what is visible — which
+        # is exactly the bug that put participant-only notes for a locked week on the wire.
         lessons = [
             lesson
-            for lesson in Lesson.objects.filter(chapter__course=course)
-            .select_related('chapter')
-            .prefetch_related('reviews', 'items', 'exercise_sets__exercises__exercise')
-            if lesson.is_visible_to(user)
+            for chapter in course.chapters.all()
+            if chapter.is_visible_to(user)
+            for lesson in chapter.lessons.all()
         ]
         return LessonSerializer(
-            lessons,
-            many=True,
-            context={**self.context, 'is_participant': self._is_participant(course)},
+            lessons, many=True, context=self._lesson_context(course)
         ).data
 
     def get_my_enrollment_status(self, course) -> str | None:
@@ -434,11 +555,23 @@ class CourseSerializer(serializers.ModelSerializer):
     def get_contribution_needs_approval(self, course) -> bool:
         return course.contribution_needs_approval(self._user())
 
+    def _lesson_context(self, course) -> dict:
+        """The extra context every lesson needs, resolved once per course.
+
+        `is_participant` was already shared this way; `course` and `progress_roster` join it for the
+        same reason — both are per-course facts, and resolving them inside `LessonSerializer` would
+        cost a query per session on a page that renders all of them.
+        """
+        return {
+            **self.context,
+            'is_participant': self._is_participant(course),
+            'course': course,
+            'progress_roster': active_participants(course),
+        }
+
     def get_chapters(self, course):
         return ChapterSerializer(
-            course.chapters.all(),
-            many=True,
-            context={**self.context, 'is_participant': self._is_participant(course)},
+            course.chapters.all(), many=True, context=self._lesson_context(course)
         ).data
 
     def get_unfiled_items(self, course):
@@ -501,6 +634,7 @@ class CourseWriteSerializer(serializers.ModelSerializer):
             'discussion_mode',
             'announce_new_lessons',
             'announce_new_posts',
+            'progress_visibility',
             'contribution_policy',
             'language',
             'starts_on',
