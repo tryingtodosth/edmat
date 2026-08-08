@@ -65,6 +65,21 @@ export interface CourseGrade {
 	branchSlug: string | null;
 }
 
+/** One academic year of a transcript, grouped and averaged server-side.
+ *
+ * Not derived in the browser, deliberately: a year's average has real rules (ECTS-weighted, and null
+ * outright when that year mixes grading scales), and a second implementation of them here is how the
+ * per-year figures and the overall one start disagreeing on the same screen. */
+export interface GradeYear {
+	/** e.g. `'2023/24'`. Empty when the registry's own term was unreadable — sorts last, and is not
+	 * the same thing as the oldest year. */
+	year: string;
+	terms: string[];
+	count: number;
+	ects: number;
+	average: number | null;
+}
+
 export interface EducationProfile {
 	school: string | null;
 	schoolLabel: string;
@@ -81,6 +96,7 @@ export interface EducationProfile {
 	shareGrades: boolean;
 	diplomas: Diploma[];
 	grades: CourseGrade[];
+	gradeYears: GradeYear[];
 }
 
 export interface StandingReason {
@@ -135,5 +151,6 @@ export interface PublicEducation {
 		scale: string;
 		branchSlug: string | null;
 	}[];
+	gradeYears: GradeYear[];
 	average: number | null;
 }

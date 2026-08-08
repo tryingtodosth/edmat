@@ -9,6 +9,7 @@
 
 import type {
 	EducationSnapshot,
+	GradeYear,
 	ProviderState,
 	PublicEducation,
 	School
@@ -125,7 +126,8 @@ function mapSnapshot(raw: any): EducationSnapshot {
 				value: g.value,
 				scale: g.scale,
 				branchSlug: g.branch_slug ?? null
-			}))
+			})),
+			gradeYears: mapGradeYears(e.grade_years)
 		},
 		standing: {
 			tier: raw.standing.tier,
@@ -175,8 +177,24 @@ export function mapPublicEducation(raw: any): PublicEducation | null {
 			scale: g.scale,
 			branchSlug: g.branch_slug ?? null
 		})),
+		gradeYears: mapGradeYears(raw.grade_years),
 		average: raw.average ?? null
 	};
+}
+
+/** The grouping arrives computed; this only renames the fields.
+ *
+ * Deliberately NOT derived from `grades` here even though every row needed is present: the averages
+ * follow rules (ECTS-weighted, null on a mixed-scale year) that already live in Python, and a second
+ * implementation is how the per-year figures and the overall one start disagreeing on one screen. */
+function mapGradeYears(raw: any): GradeYear[] {
+	return (raw ?? []).map((y: any) => ({
+		year: y.year ?? '',
+		terms: y.terms ?? [],
+		count: y.count ?? 0,
+		ects: y.ects ?? 0,
+		average: y.average ?? null
+	}));
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -229,12 +247,27 @@ export async function disconnectUsos(): Promise<EducationSnapshot> {
 	return mapSnapshot(await apiClient.delete('/education/usos/connect/'));
 }
 
-/** Transfer a diploma or a transcript. Importing is not publishing — this touches no consent. */
-export async function importFromUsos(kind: 'diploma' | 'grades'): Promise<EducationSnapshot> {
-	return mapSnapshot(await apiClient.post('/education/usos/import/', { kind }));
+/** Transfer a diploma or a transcript. Importing is not publishing — this touches no consent.
+ *
+ * `years` narrows a transcript transfer to specific academic years, and the two requests mean
+ * genuinely different things to the server: omitting it replaces the whole stored record, while
+ * naming years replaces exactly those and leaves the rest alone. So an omitted `years` must stay
+ * omitted rather than becoming `[]`, which would ask for nothing at all.
+ */
+export async function importFromUsos(
+	kind: 'diploma' | 'grades',
+	years?: string[]
+): Promise<EducationSnapshot> {
+	const body: Record<string, unknown> = { kind };
+	if (years !== undefined) body.years = years;
+	return mapSnapshot(await apiClient.post('/education/usos/import/', body));
 }
 
-/** Delete an imported transcript outright, as distinct from merely un-publishing it. */
-export async function removeImportedGrades(): Promise<EducationSnapshot> {
-	return mapSnapshot(await apiClient.delete('/education/grades/'));
+/** Delete an imported transcript, or one academic year of it, as distinct from un-publishing it.
+ *
+ * Removing everything also withdraws the consent that published it (nothing is left to share);
+ * removing one year deliberately does not, since the years kept are still meant to be visible. */
+export async function removeImportedGrades(year?: string): Promise<EducationSnapshot> {
+	const query = year ? `?year=${encodeURIComponent(year)}` : '';
+	return mapSnapshot(await apiClient.delete(`/education/grades/${query}`));
 }

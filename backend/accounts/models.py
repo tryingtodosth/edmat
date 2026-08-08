@@ -6,6 +6,7 @@ call site that reads request.user.profile can assume it exists rather than defen
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from .avatar import validate_avatar_file
 
@@ -353,3 +354,64 @@ class SkillEntry(models.Model):
 
     def __str__(self) -> str:
         return f'{self.label} ({self.profile})'
+
+
+class Certificate(models.Model):
+    """A credential somebody was issued by somebody else — a language exam, an online course, a
+    training certificate.
+
+    **It is a third kind of claim, which is the whole reason it is not folded into either neighbour.**
+    `ExperienceEntry` is a period the account holder describes in their own words, and nobody else was
+    involved. `identity.Diploma` came out of an institution's own registry, so this site read it
+    rather than being told it. A certificate sits between the two: a real third party issued it, and
+    the only thing this site has is the holder's word that they did. Merging it upward into `Diploma`
+    would quietly borrow the registry's authority for something typed into a box; merging it down into
+    `ExperienceEntry` would throw away the one field that makes it checkable, which is the link.
+
+    **There is deliberately no file upload here**, and that is a decision rather than a scope cut. An
+    uploaded scan is not evidence — anybody can upload any image, so a reader who trusts the PDF is
+    trusting exactly the same thing they were already trusting (the holder), while the site takes on a
+    binary-upload path, storage, and a moderation surface for pictures nobody can verify anyway. A
+    `url` pointing at the issuer's own verification page is the opposite: it is checkable by the
+    reader in one click, and worthless to fake. Same reasoning `Material.source_url` already records —
+    "provenance nobody can follow is worse than none".
+
+    `expires_on = NULL` means it does not expire, which is genuinely different from a date in the
+    past; `is_expired` answers that once, server-side, so the public profile and the owner's own
+    editor cannot disagree about it.
+    """
+
+    profile = models.ForeignKey(Profile, related_name='certificates', on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    #: Who issued it. Free text rather than a FK to `identity.School`: most of these come from
+    #: bodies this site has never heard of (Cambridge Assessment, a MOOC platform, a training
+    #: company), and a picker limited to the 23 seeded universities would fit almost none of them.
+    issuer = models.CharField(max_length=200, blank=True)
+    issued_on = models.DateField(null=True, blank=True)
+    expires_on = models.DateField(null=True, blank=True)
+    #: The issuer's own reference for it, printed on the certificate. Shown next to `url`, because
+    #: plenty of verification pages ask for the id rather than embedding it in a link.
+    credential_id = models.CharField(max_length=120, blank=True)
+    url = models.URLField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        # Newest first within the person's own chosen order, matching `ExperienceEntry` exactly. A
+        # certificate with no issue date sorts to the top, which is where an unfinished row belongs
+        # while somebody is still filling it in.
+        ordering = ['order', '-issued_on', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['profile', 'title', 'issuer'],
+                name='unique_certificate_per_profile',
+            )
+        ]
+
+    @property
+    def is_expired(self) -> bool:
+        if self.expires_on is None:
+            return False
+        return self.expires_on < timezone.localdate()
+
+    def __str__(self) -> str:
+        return f'{self.title} ({self.profile})'

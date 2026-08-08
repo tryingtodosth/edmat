@@ -27,7 +27,7 @@ Four rules this follows, because a standing score is easy to get wrong.
 
 from __future__ import annotations
 
-from .models import EducationProfile, Verification, weighted_average
+from .models import EducationProfile, Verification, grades_by_year, weighted_average
 
 #: Ascending. 'F' is suspension, which nothing in this module can cause — it is listed only so the
 #: ordering below is the same one §2a uses.
@@ -159,6 +159,7 @@ def public_view(profile: EducationProfile | None) -> dict | None:
         'programme': profile.programme,
         'diplomas': [],
         'grades': [],
+        'grade_years': [],
         'average': None,
     }
 
@@ -186,6 +187,11 @@ def public_view(profile: EducationProfile | None) -> dict | None:
             }
             for g in grades
         ]
+        # The same per-year grouping the owner sees, gated by the same single consent flag. It is not
+        # a second, looser disclosure: `share_grades` already means "the marks may be shown", and a
+        # reader who can see every row can trivially group them — withholding the grouping would only
+        # make the public view harder to read, not more private.
+        out['grade_years'] = grades_by_year(grades)
         out['average'] = weighted_average(grades)
 
     return out

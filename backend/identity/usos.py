@@ -198,13 +198,32 @@ _PROGRAMMES = [
     ('Matematyka stosowana', 'graduate'),
 ]
 
+#: Academic years the mock transcript spans, oldest first. **Fixed strings rather than derived from
+#: today's date**, deliberately: a mock whose output moves with the clock makes every test that
+#: asserts on a term name fail on some future run for no reason anybody would connect to a code
+#: change. Three years is also the honest shape of the thing — a real Polish undergraduate transcript
+#: is six semesters, not one, and the whole point of grouping by year is that there is more than one
+#: year to group.
+_ACADEMIC_YEARS = ('2022/23', '2023/24', '2024/25')
+
+#: `(code, name, ects, year_index, semester)` — `year_index` indexes `_ACADEMIC_YEARS`, and the
+#: semester is USOS's own suffix convention: `Z` for zimowy (winter), `L` for letni (summer). Spread
+#: across all three years on purpose rather than generated from the list position, because a real
+#: curriculum front-loads the big foundational courses and puts the electives late, and a transcript
+#: whose years all look identical would hide exactly the differences a per-year view exists to show.
 _COURSES = [
-    ('1000-211bAM2', 'Analiza matematyczna II', 10),
-    ('1000-212bAL1', 'Algebra liniowa z geometrią I', 8),
-    ('1000-213bWDP', 'Wstęp do programowania', 6),
-    ('1100-1IND12', 'Mechanika klasyczna', 9),
-    ('1000-214bRP', 'Rachunek prawdopodobieństwa', 6),
-    ('1000-215bTM', 'Topologia', 5),
+    ('1000-211bAM1', 'Analiza matematyczna I', 10, 0, 'Z'),
+    ('1000-212bAL1', 'Algebra liniowa z geometrią I', 8, 0, 'Z'),
+    ('1000-213bWDP', 'Wstęp do programowania', 6, 0, 'Z'),
+    ('1000-211bAM2', 'Analiza matematyczna II', 10, 0, 'L'),
+    ('1000-212bAL2', 'Algebra liniowa z geometrią II', 8, 0, 'L'),
+    ('1000-214bRP', 'Rachunek prawdopodobieństwa', 6, 1, 'Z'),
+    ('1000-215bTM', 'Topologia', 5, 1, 'Z'),
+    ('1100-1IND12', 'Mechanika klasyczna', 9, 1, 'L'),
+    ('1000-216bSTAT', 'Statystyka matematyczna', 6, 1, 'L'),
+    ('1000-217bRRZ', 'Równania różniczkowe zwyczajne', 7, 2, 'Z'),
+    ('1000-218bAF', 'Analiza funkcjonalna', 6, 2, 'Z'),
+    ('1000-219bSEM', 'Seminarium licencjackie', 4, 2, 'L'),
 ]
 
 _GRADES = ['3.0', '3.5', '4.0', '4.5', '5.0']
@@ -270,16 +289,23 @@ class MockUsosConnector:
         return [UsosProgramme(name=name, level=level, year=_seed(session.user_id, 'yr') % 3 + 1)]
 
     def fetch_grades(self, session: UsosSession) -> list[UsosGrade]:
+        """The whole transcript, across every year of it.
+
+        A real `services/grades/terms` call returns results per term and a full degree spans six of
+        them, so a mock that only ever produced one academic year would leave the entire "which years
+        do I want to transfer?" question untestable — and that question is the reason the import path
+        takes a term filter at all (`UsosImportView`).
+        """
         if GRADES_SCOPE not in session.scopes:
             return []
         out: list[UsosGrade] = []
-        for index, (code, name, ects) in enumerate(_COURSES):
+        for code, name, ects, year_index, semester in _COURSES:
             value = _GRADES[_seed(session.user_id, code) % len(_GRADES)]
             out.append(
                 UsosGrade(
                     code=code,
                     name=name,
-                    term=f'2024/25-{"Z" if index % 2 == 0 else "L"}',
+                    term=f'{_ACADEMIC_YEARS[year_index]}-{semester}',
                     ects=ects,
                     value=value,
                 )

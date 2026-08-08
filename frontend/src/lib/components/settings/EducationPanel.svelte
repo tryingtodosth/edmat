@@ -16,7 +16,17 @@
 		updateEducation,
 		UsosUnavailableError
 	} from '$lib/services/identity';
+	import TranscriptView from '$lib/components/profile/TranscriptView.svelte';
 	import type { EducationSnapshot, School } from '$lib/types/identity';
+
+	// `embedded` drops this component's own heading and lead paragraph, for the one caller that already
+	// supplies both: the profile editor opens it inside a modal whose header says "Education", and a
+	// second identical heading immediately underneath reads like a rendering fault.
+	//
+	// A prop rather than a second component, because the panel's whole content — the school picker, the
+	// connect buttons, the transfers, the transcript, the three consents — is the same on both surfaces,
+	// and the duplication a copy would create is exactly where the two would drift.
+	let { embedded = false }: { embedded?: boolean } = $props();
 
 	let snapshot = $state<EducationSnapshot | null>(null);
 	let schools = $state<School[]>([]);
@@ -82,9 +92,11 @@
 	};
 </script>
 
-<section class="education">
-	<h2>{m.education_heading()}</h2>
-	<p class="lead">{m.education_lead()}</p>
+<section class="education" class:education--embedded={embedded}>
+	{#if !embedded}
+		<h2>{m.education_heading()}</h2>
+		<p class="lead">{m.education_lead()}</p>
+	{/if}
 
 	{#if loadFailed}
 		<p class="error">{m.common_error_generic()}</p>
@@ -253,28 +265,29 @@
 				{#if standing.average !== null}
 					<p class="muted small">{m.education_weightedAverage({ average: standing.average })}</p>
 				{/if}
-				<ul>
-					{#each education.grades as grade (grade.id)}
-						<li>
-							{grade.name}
-							<span class="muted"> · {grade.term} · {grade.ects} ECTS</span>
-							<strong> {grade.value}</strong>
-							{#if grade.branchSlug}
-								<!-- The reason a transcript is worth more here than a badge: this result
-								     names a branch this site actually has. -->
-								<span class="matched">{m.education_matchedBranch()}</span>
-							{/if}
-						</li>
-					{/each}
-				</ul>
+
+				<!-- Grouped by academic year rather than one flat list of every result ever. A degree is
+				     six semesters, so the flat version was fifteen-plus undifferentiated rows in which the
+				     one thing a person looks for — how a particular year went — was the hardest thing to
+				     find. The grouping and every average come from the server; see TranscriptView. -->
+				<TranscriptView
+					years={education.gradeYears}
+					grades={education.grades}
+					{busy}
+					onRemoveYear={(year) => run(() => removeImportedGrades(year))}
+				/>
+
 				<button
 					type="button"
 					class="danger"
-					onclick={() => run(removeImportedGrades)}
+					onclick={() => run(() => removeImportedGrades())}
 					disabled={busy}
 				>
 					{m.education_removeGrades()}
 				</button>
+				<p class="muted small">{m.education_removeGradesNote()}</p>
+				<!-- "Removing everything also stops publishing it. Removing a single year leaves the rest
+				     exactly as visible as they were." -->
 			</div>
 		{/if}
 
@@ -345,6 +358,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
+	}
+	// Inside a modal the shell already supplies the padding and the scroll container, so the panel only
+	// has to stop adding a second gap above its first row.
+	.education--embedded {
+		gap: var(--space-4);
 	}
 	h2 {
 		font-size: var(--font-size-lg);
@@ -458,11 +476,9 @@
 		padding-left: var(--space-4);
 		list-style: disc;
 	}
-	.matched {
-		font-size: var(--font-size-xs);
-		color: var(--accent);
-		margin-left: var(--space-1);
-	}
+	// `.matched` used to live here, styling the "matches a branch here" chip on each grade row. The
+	// grade rows moved into TranscriptView along with the chip, so the rule went with them rather than
+	// being left behind as a selector matching nothing.
 	.check {
 		display: flex;
 		align-items: center;

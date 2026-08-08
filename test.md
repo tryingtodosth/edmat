@@ -244,7 +244,7 @@ node e2e/classroom.mjs
 node e2e/education-auth.mjs
 node e2e/material-claims.mjs
 node e2e/classroom-overhaul.mjs
-node e2e/profile-editing.mjs
+node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
 node e2e/booking.mjs
 node e2e/events-and-nav.mjs
 node e2e/known-issues.mjs
@@ -287,10 +287,43 @@ repository link, Escape closing it, the school picker distinguishing a universit
 one that does not, **no session created by any of it**, then connect → transfer diploma/grades →
 consent one field at a time → un-publish → delete.
 
-**`e2e/profile-editing.mjs` (8 checks)** — editing your own profile in place. The ⋯ menus appear on
-your own profile, add two experience entries, reorder them, rename one, delete it, add a skill — each
-through the menu, each a real write — and then a second browser context looks at the same page and
-gets all of the content with none of the controls.
+**`e2e/profile-overhaul.mjs` (53 checks)** — the one-screen profile and the modal-per-area editor.
+Replaces `profile-editing.mjs`, which drove ⋯ menus on the public profile: that surface is gone on
+purpose, so the script that exercised it went with it, and every write it checked (experience added,
+reordered and removed; a skill added and removed; the self-declared rule holding) is checked here
+instead.
+
+**Seed the account it reads first** — `manage.py seed_profile_showcase` — and run the API with
+`EDMAT_USOS_MOCK=true`, or the transcript half has nothing to group. The flag is compared against the
+string `true`, so `EDMAT_USOS_MOCK=1` leaves the mock OFF and looks exactly like a code fault.
+
+**Re-seed after any run that fails partway.** The transcript section prunes an academic year and
+relies on a full transfer to put it back, so a run that dies before that leaves the account a year
+short — and the NEXT run then fails on assertions about a count, pointing at code that is fine. This
+cost two runs to work out. `seed_profile_showcase` is idempotent; run it again before re-running.
+
+Three things only a browser can answer, and they are the reason this exists:
+
+1. **the layout claim**, measured rather than asserted — at 390×844 the identity card, the tiles and
+   the summary rows have to fit one screen, and nothing may scroll sideways;
+2. **the two privacy rules in the RENDERING**, not just in the API — a private set and a finished
+   lesson appear for their owner and for nobody else, and the tile counts never advertise a row the
+   feed then withholds;
+3. **the transcript grouped by year**, each year with its own average, one year removable without
+   un-publishing the rest, and a full transfer restoring every year.
+
+Plus the editor end to end (a bio saved — the first write path this app has ever had for that field —
+a certificate added, a duplicate refused in words, both removed again), and the dialog's own keyboard
+behaviour: focus moves in on open, is trapped, and returns to the row that opened it on Escape.
+
+**It writes screenshots to `/tmp/edmat-profile-*.png` and they are meant to be looked at.** Four real
+rendering faults in this feature passed every assertion and were caught only by reading them: activity
+rows collapsing into an unreadable column at phone width, grade rows breaking differently line to line
+so a term appeared to belong to the wrong course, the "read all" dialog re-using the clamped style and
+showing the same truncated text, and an orphan tile alone on a row.
+
+It restores the bio it overwrites, which it has to: the first version left its own short marker
+behind, and every run after it failed a clamp check for a reason that had nothing to do with the code.
 
 **`e2e/classroom-overhaul.mjs` (29 checks)** — several people running one course. An owner creates it,
 makes a second account an administrator, and that co-admin can edit and mint invite links but is
