@@ -10,6 +10,8 @@ genuinely exercised against the same interface a real client will implement, ins
 plausible-looking code nobody has run.
 """
 
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
@@ -17,7 +19,15 @@ from rest_framework.test import APIClient
 from taxonomy.models import Branch, BranchTranslation, Discipline
 from telemetry.routers import all_log_shards
 
-from .models import CourseGrade, EducationProfile, School, StudentStatus, Verification
+from .models import (
+    CourseGrade,
+    EducationProfile,
+    School,
+    StudentStatus,
+    Verification,
+    academic_year_of,
+    grades_by_year,
+)
 from .standing import ceiling_for, public_view
 from . import usos
 
@@ -382,3 +392,212 @@ class WeightedAverageTests(TestCase):
     def test_nothing_is_public_without_consent(self):
         self.add('4.0', 6)
         self.assertIsNone(public_view(self.profile))
+
+
+class AcademicYearTests(TestCase):
+    """Reading a year out of a term id, and grouping a transcript by it."""
+
+    def test_the_semester_suffix_is_split_from_the_right(self):
+        """The year half is the part whose shape this code does not know: USOS's own term ids are
+        `<year>-<semester>` everywhere the consortium documents, but a left-split would silently
+        truncate a year at an installation that deviates."""
+        self.assertEqual(academic_year_of('2024/25-Z'), '2024/25')
+        self.assertEqual(academic_year_of('2024-2025-L'), '2024-2025')
+
+    def test_a_term_with_no_suffix_is_its_own_year(self):
+        """A registry reporting annual rather than semestral results is reporting something real."""
+        self.assertEqual(academic_year_of('2024/25'), '2024/25')
+
+    def test_a_blank_term_is_blank_rather_than_a_guess(self):
+        self.assertEqual(academic_year_of(''), '')
+        self.assertEqual(academic_year_of(None), '')
+
+
+class GradeYearGroupingTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('zofia', 'z@example.com', 'pw12345!')
+        self.profile = EducationProfile.objects.create(user=self.user)
+
+    def add(self, term, value, ects, scale='polish_2_5'):
+        CourseGrade.objects.create(
+            profile=self.profile,
+            name=f'{term}-{value}-{ects}',
+            term=term,
+            value=value,
+            ects=ects,
+            scale=scale,
+        )
+
+    def test_both_semesters_of_a_year_land_in_one_row(self):
+        self.add('2023/24-Z', '4.0', 6)
+        self.add('2023/24-L', '5.0', 6)
+        rows = grades_by_year(list(self.profile.grades.all()))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['terms'], ['2023/24-L', '2023/24-Z'])
+        self.assertEqual(rows[0]['count'], 2)
+        self.assertEqual(rows[0]['ects'], 12)
+
+    def test_years_are_newest_first(self):
+        self.add('2022/23-Z', '3.0', 5)
+        self.add('2024/25-Z', '5.0', 5)
+        self.add('2023/24-Z', '4.0', 5)
+        self.assertEqual(
+            [row['year'] for row in grades_by_year(list(self.profile.grades.all()))],
+            ['2024/25', '2023/24', '2022/23'],
+        )
+
+    def test_each_year_gets_its_own_credit_weighted_average(self):
+        """Weighted per year, not a flat mean of that year's marks — a 30-credit thesis and a
+        2-credit elective are not equal halves of anything."""
+        self.add('2023/24-Z', '3.0', 30)
+        self.add('2023/24-L', '5.0', 3)
+        rows = grades_by_year(list(self.profile.grades.all()))
+        self.assertAlmostEqual(rows[0]['average'], 3.18, places=2)
+
+    def test_one_year_of_letter_grades_does_not_blank_the_others(self):
+        """`weighted_average` refuses a mixed-scale record outright, which is right for the whole
+        transcript and would be wrong per year: two Polish-scale years have a real number even when a
+        third does not, and reporting `None` for all three would lose it."""
+        self.add('2023/24-Z', '4.0', 6)
+        self.add('2022/23-Z', 'B', 6, scale='ects_letter')
+        rows = {row['year']: row['average'] for row in grades_by_year(list(self.profile.grades.all()))}
+        self.assertEqual(rows['2023/24'], 4.0)
+        self.assertIsNone(rows['2022/23'])
+
+    def test_an_unreadable_year_sorts_last_rather_than_oldest(self):
+        """It is not the earliest year — it is unknown, and inventing one would be worse."""
+        self.add('', '4.0', 6)
+        self.add('2019/20-Z', '4.0', 6)
+        rows = grades_by_year(list(self.profile.grades.all()))
+        self.assertEqual(rows[-1]['year'], '')
+
+
+@USOS_MOCK
+class MultiYearTranscriptTests(ApiTestCase):
+    """Transferring a transcript that spans several academic years, and pruning it a year at a time."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user('marta', 'marta@example.com', 'pw12345!')
+        self.client.force_authenticate(self.user)
+        self.client.patch('/api/education/me/', {'school': 'uw'}, format='json')
+        self.client.post('/api/education/usos/connect/', {'include_grades': True}, format='json')
+
+    def import_grades(self, **body):
+        return self.client.post(
+            '/api/education/usos/import/', {'kind': 'grades', **body}, format='json'
+        )
+
+    def test_the_registry_reports_more_than_one_year(self):
+        """Without this the per-year view has nothing to show, and every test below it is vacuous."""
+        res = self.import_grades()
+        years = [row['year'] for row in res.data['education']['grade_years']]
+        self.assertGreaterEqual(len(years), 3)
+        self.assertEqual(years, sorted(years, reverse=True))
+
+    def test_each_year_carries_its_own_average_and_credit_total(self):
+        for row in self.import_grades().data['education']['grade_years']:
+            self.assertGreater(row['count'], 0)
+            self.assertGreater(row['ects'], 0)
+            self.assertIsNotNone(row['average'])
+
+    def test_naming_years_transfers_only_those(self):
+        all_years = [r['year'] for r in self.import_grades().data['education']['grade_years']]
+        self.client.delete('/api/education/grades/')
+
+        res = self.import_grades(years=[all_years[0]])
+        self.assertEqual([r['year'] for r in res.data['education']['grade_years']], [all_years[0]])
+
+    def test_a_second_narrower_transfer_adds_to_the_first_rather_than_replacing_it(self):
+        """"Transfer these years" says nothing about the others, so neither does the write — wiping
+        them would silently discard a transfer the person made earlier and did not ask to undo."""
+        all_years = [r['year'] for r in self.import_grades().data['education']['grade_years']]
+        self.client.delete('/api/education/grades/')
+
+        self.import_grades(years=[all_years[0]])
+        res = self.import_grades(years=[all_years[1]])
+        self.assertEqual(
+            sorted(r['year'] for r in res.data['education']['grade_years']),
+            sorted(all_years[:2]),
+        )
+
+    def test_re_transferring_a_year_does_not_duplicate_it(self):
+        all_years = [r['year'] for r in self.import_grades().data['education']['grade_years']]
+        before = CourseGrade.objects.count()
+        self.import_grades(years=[all_years[0]])
+        self.assertEqual(CourseGrade.objects.count(), before)
+
+    def test_transferring_with_no_years_named_replaces_the_whole_record(self):
+        all_years = [r['year'] for r in self.import_grades().data['education']['grade_years']]
+        self.client.delete('/api/education/grades/')
+        self.import_grades(years=[all_years[0]])
+
+        res = self.import_grades()
+        self.assertEqual(len(res.data['education']['grade_years']), len(all_years))
+
+    def test_a_registry_that_answers_with_nothing_never_deletes_a_transcript(self):
+        """The dangerous half of "a full transfer replaces the stored copy".
+
+        An unreachable installation, an expired authorization and a deployment running the
+        unconfigured connector all return an empty list, and taking that as "you have no results any
+        more" loses something the account holder deliberately transferred. Reproduced by running into
+        it rather than by reasoning about it.
+        """
+        before = self.import_grades().data['education']['grades']
+        self.assertTrue(before)
+
+        with patch.object(usos.MockUsosConnector, 'fetch_grades', return_value=[]):
+            res = self.import_grades()
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['imported'], 0)
+        self.assertEqual(len(res.data['education']['grades']), len(before))
+
+    def test_years_must_be_a_list_of_strings(self):
+        self.assertEqual(self.import_grades(years='2023/24').status_code, 400)
+        self.assertEqual(self.import_grades(years=[2023]).status_code, 400)
+
+    def test_removing_one_year_keeps_the_rest_and_keeps_them_published(self):
+        """Pruning one year is not a statement about the years kept, so the consent that publishes
+        them is deliberately untouched — un-publishing them would be the app overruling a decision
+        made separately."""
+        all_years = [r['year'] for r in self.import_grades().data['education']['grade_years']]
+        self.client.patch('/api/education/me/', {'share_grades': True}, format='json')
+
+        res = self.client.delete(f'/api/education/grades/?year={all_years[-1]}')
+        self.assertEqual(res.status_code, 200)
+        self.assertGreater(res.data['removed'], 0)
+        self.assertNotIn(all_years[-1], [r['year'] for r in res.data['education']['grade_years']])
+        self.assertTrue(res.data['education']['share_grades'])
+
+    def test_removing_everything_also_withdraws_the_consent(self):
+        """Nothing left to share, so a consent left switched on would be a promise about data that no
+        longer exists."""
+        self.import_grades()
+        self.client.patch('/api/education/me/', {'share_grades': True}, format='json')
+
+        res = self.client.delete('/api/education/grades/')
+        self.assertEqual(res.data['education']['grades'], [])
+        self.assertFalse(res.data['education']['share_grades'])
+
+    def test_removing_a_year_that_was_never_imported_is_a_404(self):
+        """Not a cheerful no-op: the caller is a UI that would otherwise tell somebody a year has been
+        deleted when it has not."""
+        self.import_grades()
+        self.assertEqual(
+            self.client.delete('/api/education/grades/?year=1999/2000').status_code, 404
+        )
+
+    def test_a_published_transcript_is_grouped_for_the_public_too(self):
+        self.import_grades()
+        self.client.patch(
+            '/api/education/me/', {'share_school': True, 'share_grades': True}, format='json'
+        )
+        public = APIClient().get(f'/api/users/{self.user.pk}/').data['education']
+        self.assertGreaterEqual(len(public['grade_years']), 3)
+
+    def test_grouping_stays_private_until_the_grades_themselves_are_shared(self):
+        self.import_grades()
+        self.client.patch('/api/education/me/', {'share_school': True}, format='json')
+        public = APIClient().get(f'/api/users/{self.user.pk}/').data['education']
+        self.assertEqual(public['grade_years'], [])

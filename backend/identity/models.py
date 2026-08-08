@@ -249,6 +249,55 @@ class CourseGrade(models.Model):
         return f'{self.name}: {self.value}'
 
 
+def academic_year_of(term: str) -> str:
+    """`'2024/25-Z'` → `'2024/25'`. The year is what a person groups a transcript by.
+
+    Split from the RIGHT, once, because the semester suffix is the only part whose shape this code
+    actually knows: USOS's own term ids are `<year>-<semester>` at every installation the consortium
+    documents, but the year half is not guaranteed to be free of hyphens at one that deviates, and a
+    left-split would silently truncate it. A term with no suffix at all is its own year rather than an
+    error — a registry that reports annual rather than semestral results is reporting something real.
+    """
+    cleaned = (term or '').strip()
+    if '-' not in cleaned:
+        return cleaned
+    return cleaned.rsplit('-', 1)[0]
+
+
+def grades_by_year(grades) -> list[dict]:
+    """One row per academic year, newest first, each with its own ECTS-weighted average.
+
+    Computed here rather than in the browser for one reason that matters: the average has real rules
+    (ECTS-weighted, and `None` outright when the scales are mixed — see `weighted_average`), and a
+    second implementation of those rules in TypeScript is how the per-year figures and the overall one
+    start disagreeing on the same screen. `weighted_average` is applied to each year's own subset, so
+    a transcript with one ECTS-letter year and two Polish-scale years honestly reports a number for
+    two of them and `None` for the third, rather than one blanket refusal for the whole record.
+
+    A year whose term this cannot read (blank in the registry's own data) sorts last under an empty
+    label, on the same reasoning the activity feed already applies to undated items: it is not the
+    oldest, it is unknown, and inventing a year for it would be worse than admitting that.
+    """
+    buckets: dict[str, list] = {}
+    for grade in grades:
+        buckets.setdefault(academic_year_of(grade.term), []).append(grade)
+
+    rows = [
+        {
+            'year': year,
+            'terms': sorted({(g.term or '').strip() for g in rows_for_year if (g.term or '').strip()}),
+            'count': len(rows_for_year),
+            'ects': sum(g.ects for g in rows_for_year),
+            'average': weighted_average(rows_for_year),
+        }
+        for year, rows_for_year in buckets.items()
+    ]
+    # Newest year first, which is the order somebody reads their own transcript in. The `bool(year)`
+    # key is what pushes the unknown-year bucket to the bottom regardless of how the strings sort.
+    rows.sort(key=lambda row: (bool(row['year']), row['year']), reverse=True)
+    return rows
+
+
 def weighted_average(grades) -> float | None:
     """ECTS-weighted, because that is how every institution on this list computes it.
 

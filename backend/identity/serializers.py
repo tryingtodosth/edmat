@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import CourseGrade, Diploma, EducationProfile, School
+from .models import CourseGrade, Diploma, EducationProfile, School, grades_by_year
 
 
 class SchoolSerializer(serializers.ModelSerializer):
@@ -34,10 +34,15 @@ class EducationProfileSerializer(serializers.ModelSerializer):
     usos_connected = serializers.BooleanField(read_only=True)
     diplomas = DiplomaSerializer(many=True, read_only=True)
     grades = CourseGradeSerializer(many=True, read_only=True)
+    # A transcript is read a year at a time, and each year's average has to be computed under the
+    # same rules as the overall one — so the grouping ships with the data rather than being
+    # re-derived by every client. See `grades_by_year` for why that is not merely convenience.
+    grade_years = serializers.SerializerMethodField()
 
     class Meta:
         model = EducationProfile
         fields = [
+            'grade_years',
             'school',
             'school_label',
             'other_school_name',
@@ -66,3 +71,6 @@ class EducationProfileSerializer(serializers.ModelSerializer):
             'usos_last_synced_at',
             'usos_scopes',
         ]
+
+    def get_grade_years(self, obj):
+        return grades_by_year(list(obj.grades.all()))

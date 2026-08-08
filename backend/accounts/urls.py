@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .profile_extras import (
+    CertificateViewSet,
     ExperienceViewSet,
     SkillViewSet,
     UserActivityView,
@@ -24,6 +25,7 @@ router = DefaultRouter()
 router.register('donation-links', DonationLinkViewSet, basename='donation-link')
 router.register('me/experience', ExperienceViewSet, basename='my-experience')
 router.register('me/skills', SkillViewSet, basename='my-skill')
+router.register('me/certificates', CertificateViewSet, basename='my-certificate')
 
 urlpatterns = router.urls + [
     path('auth/register/', RegisterView.as_view(), name='auth-register'),

@@ -1,14 +1,30 @@
 // Profile experience/skills and the derived activity feed — mirrors backend/accounts/profile_extras.py.
 
-import type { ActivityFeed, ExperienceEntry, SkillEntry } from '$lib/types/profileExtras';
+import type {
+	ActivityFeed,
+	Certificate,
+	ExperienceEntry,
+	SkillEntry
+} from '$lib/types/profileExtras';
 import { apiClient } from '$lib/api/client';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export async function getUserExtras(
 	userId: string
-): Promise<{ experience: ExperienceEntry[]; skills: SkillEntry[] }> {
+): Promise<{ experience: ExperienceEntry[]; skills: SkillEntry[]; certificates: Certificate[] }> {
 	const raw = await apiClient.get<any>(`/users/${encodeURIComponent(userId)}/extras/`);
 	return {
+		certificates: (raw.certificates ?? []).map((c: any) => ({
+			id: String(c.id),
+			title: c.title,
+			issuer: c.issuer,
+			issuedOn: c.issued_on,
+			expiresOn: c.expires_on,
+			credentialId: c.credential_id,
+			url: c.url,
+			isExpired: Boolean(c.is_expired),
+			order: c.order
+		})),
 		experience: (raw.experience ?? []).map((e: any) => ({
 			id: String(e.id),
 			kind: e.kind,
@@ -37,16 +53,28 @@ export async function getUserActivity(userId: string): Promise<ActivityFeed> {
 		items: (raw.items ?? []).map((i: any) => ({
 			kind: i.kind,
 			title: i.title,
-			exerciseId:
-				i.exercise_id !== undefined && i.exercise_id !== null ? String(i.exercise_id) : undefined,
-			courseId: i.course_id !== undefined && i.course_id !== null ? String(i.course_id) : undefined,
+			exerciseId: id(i.exercise_id),
+			materialId: id(i.material_id),
+			courseId: id(i.course_id),
+			serviceId: id(i.service_id),
+			// Already a slug server-side, so this is a pass-through rather than a String(number).
+			setId: i.set_id ?? undefined,
+			setSize: i.set_size,
+			isPublic: i.is_public,
 			rating: i.rating,
 			tags: i.tags ?? [],
 			createdAt: i.created_at ?? null
 		})),
 		tags: raw.tags ?? [],
-		kinds: raw.kinds ?? []
+		kinds: raw.kinds ?? [],
+		counts: raw.counts ?? {}
 	};
+}
+
+/** Every id in this app is an opaque string outside `lib/api/`, and an absent one is `undefined`
+ * rather than `null` — one helper because four fields needed the identical three-way check. */
+function id(value: unknown): string | undefined {
+	return value === undefined || value === null ? undefined : String(value);
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -101,6 +129,33 @@ export async function updateSkill(id: string, entry: Partial<SkillEntry>): Promi
 
 export async function deleteSkill(id: string): Promise<void> {
 	await apiClient.delete(`/me/skills/${id}/`);
+}
+
+function certificateBody(entry: Partial<Certificate>): Record<string, unknown> {
+	const body: Record<string, unknown> = {};
+	if (entry.title !== undefined) body.title = entry.title;
+	if (entry.issuer !== undefined) body.issuer = entry.issuer;
+	// A cleared date input must travel as null rather than '' — a blank string is not a date.
+	if (entry.issuedOn !== undefined) body.issued_on = entry.issuedOn || null;
+	if (entry.expiresOn !== undefined) body.expires_on = entry.expiresOn || null;
+	if (entry.credentialId !== undefined) body.credential_id = entry.credentialId;
+	if (entry.url !== undefined) body.url = entry.url;
+	if (entry.order !== undefined) body.order = entry.order;
+	// `isExpired` is deliberately never sent: the server answers it from `expiresOn`, and a client
+	// asserting it would be claiming something it has no standing to claim.
+	return body;
+}
+
+export async function createCertificate(entry: Partial<Certificate>): Promise<void> {
+	await apiClient.post('/me/certificates/', certificateBody(entry));
+}
+
+export async function updateCertificate(id: string, entry: Partial<Certificate>): Promise<void> {
+	await apiClient.patch(`/me/certificates/${id}/`, certificateBody(entry));
+}
+
+export async function deleteCertificate(id: string): Promise<void> {
+	await apiClient.delete(`/me/certificates/${id}/`);
 }
 
 /** Swap two neighbours' `order` values.

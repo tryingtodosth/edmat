@@ -130,6 +130,11 @@ export const authStore = {
 	async updateProfile(
 		patch: Partial<{
 			displayName: string;
+			// A real gap until now rather than a new field: `Profile.bio` has existed since the
+			// experience/skills work, `ProfileUpdateSerializer` has always accepted it, and the public
+			// profile has always RENDERED it — but nothing in this app could write one, so every bio
+			// on the site had to be set through Django admin or a seed command.
+			bio: string;
 			preferredLocale: string;
 			showProfilePublicly: boolean;
 			timeFormat: '24h' | '12h';
@@ -147,6 +152,7 @@ export const authStore = {
 	): Promise<{ ok: true } | { ok: false; error: string }> {
 		const body: Record<string, unknown> = {};
 		if (patch.displayName !== undefined) body.display_name = patch.displayName;
+		if (patch.bio !== undefined) body.bio = patch.bio;
 		if (patch.preferredLocale !== undefined) body.preferred_locale = patch.preferredLocale;
 		if (patch.showProfilePublicly !== undefined)
 			body.show_profile_publicly = patch.showProfilePublicly;

@@ -201,6 +201,13 @@
 				{m.settings_levelsHint()}
 				<a href={resolve('/levels')}>{m.footer_levels()}</a>
 			</p>
+			<!-- Two links, because they answer two different questions: one shows what a visitor sees, the
+			     other is where you change it. The editor is its own route rather than more sections here —
+			     a profile is the thing other people read, and this page is account preferences. -->
+			<a class="view-public" href={resolve('/settings/profile')}>
+				{m.profile_editProfile()}
+				<!-- "Edit my profile" -->
+			</a>
 			<a class="view-public" href={resolve('/users/[id]', { id: user.id })}>
 				{m.profile_viewPublic()}
 			</a>

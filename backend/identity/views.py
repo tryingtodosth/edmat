@@ -12,15 +12,12 @@ are drafts, and a draft that quietly authenticated people would be a considerabl
 an honest button. Real sign-in stays where it already is — `accounts.LoginView`.
 """
 
-from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from taxonomy.models import Branch
-
-from . import providers, usos
-from .models import CourseGrade, Diploma, EducationProfile, School, Verification
+from . import providers, services, usos
+from .models import EducationProfile, School, Verification, academic_year_of
 from .serializers import EducationProfileSerializer, SchoolSerializer
 from .standing import ceiling_for
 
@@ -167,31 +164,13 @@ class UsosConnectView(APIView):
         # Grades are never part of the default grant. They are added only when the account holder
         # explicitly asks to transfer a transcript, which is a separate authorization at the
         # university — see identity/usos.py's header for why that distinction is load-bearing.
-        scopes = list(usos.BASE_SCOPES)
-        if bool(request.data.get('include_grades')):
-            scopes.append(usos.GRADES_SCOPE)
-
-        connector = usos.active_connector()
-        session = connector.connect(profile.school, tuple(scopes), request.user)
-        if session is None:
+        connected = services.connect_usos(
+            profile, request.user, include_grades=bool(request.data.get('include_grades'))
+        )
+        if not connected:
             return Response(
                 usos.integration_state(profile.school), status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
-
-        profile.usos_user_id = session.user_id
-        profile.usos_student_number = session.student_number
-        profile.usos_scopes = list(session.scopes)
-        profile.usos_connected_at = timezone.now()
-        profile.verification = Verification.USOS
-        profile.verified_via = 'usos'
-        profile.verified_at = timezone.now()
-        profile.status = usos.status_from_usos(session.student_status)
-
-        programmes = connector.fetch_programmes(session)
-        if programmes:
-            profile.programme = programmes[0].name
-            profile.study_year = programmes[0].year
-        profile.save()
 
         return Response(EducationView._payload(request, profile))
 
@@ -222,28 +201,8 @@ class UsosImportView(APIView):
         if kind not in {'diploma', 'grades'}:
             return Response({'detail': 'kind must be "diploma" or "grades".'}, status=400)
 
-        connector = usos.active_connector()
-        session = usos.UsosSession(
-            school_slug=profile.school.slug,
-            scopes=tuple(profile.usos_scopes),
-            user_id=profile.usos_user_id,
-            student_number=profile.usos_student_number,
-        )
-
         if kind == 'diploma':
-            records = connector.fetch_diplomas(session)
-            profile.diplomas.all().delete()
-            for record in records:
-                Diploma.objects.create(
-                    profile=profile,
-                    title=record.title,
-                    level=record.level,
-                    programme=record.programme,
-                    issued_on=record.issued_on or None,
-                    final_grade=record.final_grade,
-                    source_id=record.source_id,
-                )
-            imported = len(records)
+            imported = services.import_diplomas(profile)
         else:
             if usos.GRADES_SCOPE not in profile.usos_scopes:
                 # Not an error to hide: the scope genuinely was not granted, and the honest answer
@@ -256,58 +215,57 @@ class UsosImportView(APIView):
                     },
                     status=status.HTTP_403_FORBIDDEN,
                 )
-            records = connector.fetch_grades(session)
-            profile.grades.all().delete()
-            for record in records:
-                CourseGrade.objects.create(
-                    profile=profile,
-                    code=record.code,
-                    name=record.name,
-                    term=record.term,
-                    ects=record.ects,
-                    value=record.value,
-                    scale=record.scale,
-                    matched_course=_match_course(record.name, profile.school),
-                )
-            imported = len(records)
 
-        profile.usos_last_synced_at = timezone.now()
-        profile.save()
+            # An optional narrowing to specific academic years — see `services.import_grades` for
+            # what "these years" and "my transcript" each mean for what gets deleted. Validated here
+            # rather than there because the shape of a request body is this layer's business: the
+            # service takes a real list of strings, and turning whatever arrived into one — or
+            # refusing it in the API's own error shape — is what a boundary is for.
+            years = request.data.get('years')
+            if years is not None and (
+                not isinstance(years, list) or any(not isinstance(y, str) for y in years)
+            ):
+                return Response(
+                    {'years': ['Expected a list of academic years, e.g. ["2023/24"].']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            imported = services.import_grades(profile, years)
+
         payload = EducationView._payload(request, profile)
         payload['imported'] = imported
         return Response(payload)
 
 
 class ImportedGradesView(APIView):
-    """DELETE /api/education/grades/ — remove an imported transcript outright.
+    """DELETE /api/education/grades/[?year=2023/24] — remove an imported transcript, or one year of it.
 
     Distinct from switching the consent off: one hides it, this deletes it. Somebody who imported a
     transcript and changed their mind should be able to take it back rather than merely un-tick it.
+
+    **`?year=` is not a convenience wrapper around the same operation, and the consent flag is why.**
+    Removing everything leaves nothing to share, so `share_grades` is turned off with it — leaving a
+    consent switched on over an empty record would be a promise about data that no longer exists.
+    Removing ONE year leaves the rest, so the flag is deliberately untouched: the person still wants
+    the years they kept to be visible, and silently un-publishing them because they pruned a different
+    year would be the app overruling a decision they made separately.
+
+    A `year` that matches nothing is a **404**, not a cheerful no-op. The caller is a UI that will
+    otherwise tell somebody their first year has been deleted when it has not.
     """
 
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request):
         profile = _profile_for(request.user)
-        profile.grades.all().delete()
-        profile.share_grades = False
-        profile.save()
-        return Response(EducationView._payload(request, profile))
+        year = (request.query_params.get('year') or '').strip()
 
+        if year and not any(academic_year_of(g.term) == year for g in profile.grades.all()):
+            return Response(
+                {'detail': f'No imported results for {year}.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
-def _match_course(name: str, school: School | None) -> Branch | None:
-    """Best-effort match of a registry course onto this site's own taxonomy.
-
-    Deliberately conservative — a wrong match would attach a competence claim to the wrong corner of
-    the site, which is worse than no match at all. Exact-ish name matching only; anything cleverer
-    needs a real course-code mapping per university, which is its own piece of work.
-    """
-    if not name:
-        return None
-    needle = name.strip().lower()
-    for branch in Branch.objects.filter(published=True).prefetch_related('translations'):
-        for translation in branch.translations.all():
-            title = (getattr(translation, 'name', '') or '').strip().lower()
-            if title and (title == needle or needle.startswith(title)):
-                return branch
-    return None
+        removed = services.remove_grades(profile, year)
+        payload = EducationView._payload(request, profile)
+        payload['removed'] = removed
+        return Response(payload)
