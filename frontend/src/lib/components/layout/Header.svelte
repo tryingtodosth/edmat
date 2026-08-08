@@ -364,29 +364,10 @@
 			<LocaleSwitcher />
 			<ThemeToggle />
 
-			<!-- The three that carry an unread or saved count sit together, in the order you would
-			     read them: what somebody sent you, what the site is telling you, what you put aside.
-			     Messages used to sit on the far side of the locale and theme controls, which put two
-			     unrelated settings between two inboxes.
-
-			     Icon-only, with a real accessible name: an envelope is universally read, and the word
-			     "Messages" was costing a nav slot to say what the icon already says. -->
-			{#if authStore.isAuthenticated && canMessaging}
-				<a class="icon-button" href={resolve('/messages')} aria-label={m.nav_messages()}>
-					{@render messagesIcon()}
-					{#if messagesStore.unreadCount > 0}
-						<span class="badge badge--floating">{messagesStore.unreadCount}</span>
-					{/if}
-				</a>
-			{/if}
-
-			{#if authStore.isAuthenticated}
-				<NotificationBell />
-			{/if}
-
-			<!-- My Set, for everybody: a guest's set is the more fragile of the two, since it lives only
-			     in this browser until they make an account, so it should not be the one hidden behind a
-			     menu. Last of the three, to the right of the bell. -->
+			<!-- My Set, for everybody: a guest's set is the more fragile of the two, since it lives
+			     only in this browser until they make an account, so it should not be the one hidden
+			     behind a menu. It sits with the tools rather than with the personal group: a set is
+			     something you keep, not something that arrives. -->
 			<a class="icon-button" href={resolve('/my-set')} aria-label={m.nav_mySet()}>
 				{@render mySetIcon()}
 				{#if guestSetStore.count > 0}
@@ -394,25 +375,47 @@
 				{/if}
 			</a>
 
-			{#if authStore.isAuthenticated}
-				<Popover label={m.nav_account()}>
-					{#snippet trigger(open: boolean)}
-						<!-- A chevron, because looking at a screenshot of this is what showed the problem: a
+			<!-- Everything addressed to YOU, together at the right-hand end: what somebody sent, what
+			     the site is telling you, and who you are signed in as. The controls to the left of
+			     this are the site's — a dice, a language, a theme, your saved list — and having two
+			     of those sit between two inboxes was the thing that made this row hard to read.
+
+			     Icon-only, with real accessible names: an envelope and a bell are universally read,
+			     and the words were costing nav slots to say what the icons already say. -->
+			<div class="site-header__you">
+				{#if authStore.isAuthenticated && canMessaging}
+					<a class="icon-button" href={resolve('/messages')} aria-label={m.nav_messages()}>
+						{@render messagesIcon()}
+						{#if messagesStore.unreadCount > 0}
+							<span class="badge badge--floating">{messagesStore.unreadCount}</span>
+						{/if}
+					</a>
+				{/if}
+
+				{#if authStore.isAuthenticated}
+					<NotificationBell />
+				{/if}
+
+				{#if authStore.isAuthenticated}
+					<Popover label={m.nav_account()}>
+						{#snippet trigger(open: boolean)}
+							<!-- A chevron, because looking at a screenshot of this is what showed the problem: a
 						     person's own name sitting in a row of icons reads as a label, not as something
 						     to press. It rotates on open so the control says which way it will go. -->
-						<span class="account-trigger">
-							{authStore.user?.displayName}
-							<span class="chevron" class:chevron--open={open} aria-hidden="true">▾</span>
-						</span>
-					{/snippet}
-					{#snippet children(close: () => void)}
-						{@render accountItems('menu-item', close)}
-					{/snippet}
-				</Popover>
-			{:else}
-				<a href={resolve('/login')}>{m.nav_login()}</a>
-				<a href={resolve('/register')} class="primary-link">{m.nav_register()}</a>
-			{/if}
+							<span class="account-trigger">
+								{authStore.user?.displayName}
+								<span class="chevron" class:chevron--open={open} aria-hidden="true">▾</span>
+							</span>
+						{/snippet}
+						{#snippet children(close: () => void)}
+							{@render accountItems('menu-item', close)}
+						{/snippet}
+					</Popover>
+				{:else}
+					<a href={resolve('/login')}>{m.nav_login()}</a>
+					<a href={resolve('/register')} class="primary-link">{m.nav_register()}</a>
+				{/if}
+			</div>
 		</div>
 	</div>
 </header>
@@ -598,6 +601,16 @@
 		right: -4px;
 		line-height: 1.3;
 	}
+	/* The personal group — messages, notifications, who you are — held slightly apart from the
+	   site's own controls to its left, so the row reads as two things rather than one queue of
+	   eight. A gap rather than a divider line: the header already has enough furniture. */
+	.site-header__you {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-left: var(--space-2);
+	}
+
 	.site-header__actions {
 		display: flex;
 		align-items: center;
