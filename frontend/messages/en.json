@@ -1354,5 +1354,14 @@
 	"settings_saveMenuBeside": "Beside the list of sets",
 	"settings_saveMenuAbove": "Above the list of sets",
 	"settings_saveMenuHint": "When you save an exercise, the menu offers your sets and the courses you can add to. This is where the courses half sits.",
-	"save_alreadyInCourse": "Already in {title}"
+	"save_alreadyInCourse": "Already in {title}",
+	"course_reports_heading": "Reported in this course",
+	"course_reports_none": "Nothing has been reported.",
+	"course_reports_autoHidden": "hidden right now",
+	"course_reports_by": "written by {name}",
+	"course_reports_count": "reported by {n}",
+	"course_reports_keep": "Keep it",
+	"course_reports_remove": "Remove it",
+	"course_reports_loadError": "That list could not be loaded. Try again.",
+	"course_reports_actionError": "That decision could not be saved. Try again."
 }

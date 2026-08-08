@@ -222,7 +222,7 @@ def notify_tag_followers(tag, *, actor, exercise=None, material=None):
 
 
 def notify_comment_reply(
-    comment, *, target_label: str, exercise=None, material=None, root_recipient=None
+    comment, *, target_label: str, exercise=None, material=None, course=None, root_recipient=None
 ):
     """Called right after a new Comment is saved — the one shared implementation for
     exercises/views.py's `ExerciseViewSet.comments`, materials/views.py's
@@ -254,12 +254,22 @@ def notify_comment_reply(
         target_label=target_label,
         exercise=exercise,
         material=material,
+        # `course` is new: a reply inside a course had nowhere to link to, and a notification you
+        # cannot click is markedly less useful than one you can — the same reasoning that added the
+        # `material` link here before it.
+        course=course,
         note=comment.body[:200],
     )
 
 
 def notify_course_participants(
-    course, notif_type: str, *, actor=None, note: str = '', include_instructor: bool = False
+    course,
+    notif_type: str,
+    *,
+    actor=None,
+    note: str = '',
+    include_instructor: bool = False,
+    skip=None,
 ):
     """Tell everybody taking part in a course that something happened in it.
 
@@ -275,15 +285,25 @@ def notify_course_participants(
     Only active participants are notified. Somebody with a pending request has not joined, and
     telling them what is happening inside would leak exactly what the participants-only rule exists
     to protect.
+
+    `skip` is for somebody who is being told the same thing more specifically elsewhere. The one
+    real case: a reply in the course thread also produces a `comment_reply` for the parent's author,
+    and without this they would get two bells for one event — a broadcast saying somebody posted,
+    and a personal one saying that somebody replied to them. The second is strictly better
+    information, so it wins and the broadcast leaves them out.
     """
     from courses.models import ACTIVE_ENROLLMENT_STATUSES
+
+    skip_ids = {getattr(person, 'pk', person) for person in (skip or [])}
 
     recipients = []
     for enrollment in course.enrollments.filter(
         status__in=ACTIVE_ENROLLMENT_STATUSES, notify=True
     ).select_related('participant'):
+        if enrollment.participant_id in skip_ids:
+            continue
         recipients.append(enrollment.participant)
-    if include_instructor:
+    if include_instructor and course.instructor_id not in skip_ids:
         recipients.append(course.instructor)
 
     created = []

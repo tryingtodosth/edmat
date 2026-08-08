@@ -13,6 +13,7 @@ import type {
 	CourseInviteDraft,
 	CourseItem,
 	CourseFeedbackReview,
+	CourseReportRow,
 	CourseNote,
 	CourseStaffMember,
 	Enrollment,
@@ -945,6 +946,44 @@ export async function getLessonProgress(
 	return mapLessonProgress(
 		await apiClient.get(`${feedbackPath(courseId, 'lesson', lessonId)}/progress/`)
 	);
+}
+
+/**
+ * What has been reported inside this course — its own staff only.
+ *
+ * Its own endpoint rather than a slice of the platform moderation queue, because they are different
+ * jobs for different people: that queue is platform-wide and scoped by taxonomy, and a course owner
+ * wants "what needs dealing with in my room". See backend/courses/reports.py for why a taxonomy node
+ * governor is deliberately given nothing here.
+ */
+interface RawCourseReport {
+	id: number;
+	body?: string;
+	author?: string;
+	where?: string;
+	auto_hidden?: boolean;
+	is_removed?: boolean;
+	report_count?: number;
+	reasons?: string[];
+	last_reported_at: string;
+}
+
+export async function getCourseReports(courseId: string): Promise<CourseReportRow[]> {
+	const raw = await apiClient.get<RawCourseReport[]>(
+		`/courses/${encodeURIComponent(courseId)}/reports/`
+	);
+	return raw.map((row) => ({
+		kind: 'comment' as const,
+		id: String(row.id),
+		body: row.body ?? '',
+		author: row.author ?? '',
+		where: row.where ?? '',
+		autoHidden: row.auto_hidden ?? false,
+		isRemoved: row.is_removed ?? false,
+		reportCount: row.report_count ?? 0,
+		reasons: row.reasons ?? [],
+		lastReportedAt: row.last_reported_at
+	}));
 }
 
 /** This attachment's own thread — deliberately not the course discussion and not a material's. */
