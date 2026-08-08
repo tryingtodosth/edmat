@@ -15,6 +15,7 @@
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import LessonFeedback from '$lib/components/course/LessonFeedback.svelte';
+	import LessonProgressPanel from '$lib/components/course/LessonProgressPanel.svelte';
 	import { getSetsForUser } from '$lib/services/exerciseSets';
 	import type { ExerciseSet } from '$lib/types';
 	import type { Chapter, CourseItem, Course, Lesson, LessonExerciseSet } from '$lib/types/course';
@@ -560,6 +561,15 @@
 									{/if}
 								</div>
 							{/if}
+
+							<!-- Above the conversation, not inside it: "have I done this?" is a glance,
+								     and it needs no click to answer, while the thread is something you go
+								     into. It renders nothing at all when the course has tracking off. -->
+							<LessonProgressPanel
+								courseId={course.id}
+								lessonId={lesson.id}
+								progress={lesson.progress}
+							/>
 
 							<!-- The session's own conversation and ratings, at the end of it: you read
 								     Tuesday, then you ask about Tuesday. Collapsed, and it loads nothing until

@@ -16,6 +16,10 @@ export type EnrollmentPolicy = 'open' | 'approval';
 /** Who may READ the thread. Posting is always restricted to the people in the course — "anyone may
  * read" is a reasonable thing for an instructor to want, "anyone may post" is not. */
 export type DiscussionMode = 'off' | 'participants' | 'public';
+/** Who sees how far everybody has got. `off` blinds staff too — that is the point of it rather than
+ * an oversight — and `shared_anonymous` still names people to staff, since somebody has to be able
+ * to act on "one person is stuck". */
+export type ProgressVisibility = 'off' | 'private' | 'shared_anonymous' | 'shared_named';
 export type EnrollmentStatus = 'pending' | 'active' | 'left' | 'declined' | 'removed';
 
 /** Why the viewer cannot join. Resolved server-side, because "full" and "you were removed" are the
@@ -203,6 +207,47 @@ export interface Lesson {
 	 * request, made when somebody actually opens them — a twelve-week course would otherwise
 	 * serialize every rating anybody ever left just to draw the page once. */
 	reviews: RatingSummary;
+	/** How far people have got, filtered to what this viewer is allowed to know. Always present and
+	 * always the same shape — the fields go null rather than disappearing, so nothing has to branch
+	 * on whether a key exists in order to say why it is showing nothing. */
+	progress: LessonProgress;
+}
+
+export type LessonProgressStatus = 'in_progress' | 'stuck' | 'done';
+/** What the API reports for somebody with no row at all. Never a stored value — resetting deletes
+ * the row — so it appears in a `people` list and never in `mine`, which is null instead. */
+export type LessonProgressState = LessonProgressStatus | 'not_started';
+
+export interface LessonProgressPerson {
+	participant: Participant;
+	state: LessonProgressState;
+	updatedAt: string | null;
+}
+
+export interface LessonProgressSummary {
+	inProgress: number;
+	stuck: number;
+	done: number;
+	notStarted: number;
+	/** The denominator: everybody currently on the roster. Somebody who left is in neither this nor
+	 * any of the counts above, so a numerator can never exceed it. */
+	participants: number;
+}
+
+export interface LessonProgress {
+	mode: ProgressVisibility;
+	/** This viewer's own answer, or null if they have not given one — and also null whenever the
+	 * mode hides it from them, `off` included. */
+	mine: LessonProgressStatus | null;
+	canRecord: boolean;
+	summary: LessonProgressSummary | null;
+	/** Named rows, or null when this viewer only gets counts. Includes people who have said
+	 * nothing — "who has not started" is most of what makes the list worth reading. */
+	people: LessonProgressPerson[] | null;
+	/** Why the counts are missing when they otherwise would not be. `small_cohort` means the group
+	 * is too small for a count to hide anybody in, so showing one would break the anonymity the
+	 * mode promises. */
+	withheldReason: 'small_cohort' | null;
 }
 
 export interface RatingSummary {
@@ -237,6 +282,7 @@ export interface Course {
 	discussionMode: DiscussionMode;
 	announceNewLessons: boolean;
 	announceNewPosts: boolean;
+	progressVisibility: ProgressVisibility;
 	language: string;
 	startsOn: string | null;
 	endsOn: string | null;
@@ -301,6 +347,7 @@ export interface TaughtCourseDraft {
 	discussionMode: DiscussionMode;
 	announceNewLessons: boolean;
 	announceNewPosts: boolean;
+	progressVisibility: ProgressVisibility;
 	contributionPolicy: ContributionPolicy;
 	language: string;
 	startsOn: string | null;

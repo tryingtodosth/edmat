@@ -21,6 +21,8 @@ import type {
 	Lesson,
 	LessonDraft,
 	LessonExerciseSet,
+	LessonProgress,
+	LessonProgressState,
 	LessonSetExercise,
 	RatingSummary,
 	StaffRole,
@@ -42,7 +44,39 @@ function mapLesson(raw: any): Lesson {
 		participantNotes: raw.participant_notes ?? '',
 		items: (raw.items ?? []).map(mapItem),
 		exerciseSets: (raw.exercise_sets ?? []).map(mapLessonExerciseSet),
-		reviews: mapRatingSummary(raw.reviews)
+		reviews: mapRatingSummary(raw.reviews),
+		progress: mapLessonProgress(raw.progress)
+	};
+}
+
+/** Defaults to the most closed reading of every field, so a response that is missing this block
+ * shows nothing rather than inventing an empty cohort — "0 of 0 have finished" would be a claim,
+ * and the honest answer to a missing field is to say nothing at all. */
+export function mapLessonProgress(raw: any): LessonProgress {
+	return {
+		mode: raw?.mode ?? 'off',
+		mine: raw?.mine ?? null,
+		canRecord: raw?.can_record ?? false,
+		summary: raw?.summary
+			? {
+					inProgress: raw.summary.in_progress ?? 0,
+					stuck: raw.summary.stuck ?? 0,
+					done: raw.summary.done ?? 0,
+					notStarted: raw.summary.not_started ?? 0,
+					participants: raw.summary.participants ?? 0
+				}
+			: null,
+		people: raw?.people
+			? raw.people.map((row: any) => ({
+					participant: mapParticipant(row.participant),
+					// Renamed from the API's `status` on the way in: this app already uses `status`
+					// for a course's own lifecycle and for an enrolment, and a third meaning on a
+					// neighbouring object is how the wrong one gets read.
+					state: row.status,
+					updatedAt: row.updated_at ?? null
+				}))
+			: null,
+		withheldReason: raw?.withheld_reason ?? null
 	};
 }
 
@@ -182,6 +216,7 @@ function mapCourse(raw: any): Course {
 		enrollmentPolicy: raw.enrollment_policy,
 		capacity: raw.capacity,
 		discussionMode: raw.discussion_mode,
+		progressVisibility: raw.progress_visibility ?? 'shared_anonymous',
 		announceNewLessons: raw.announce_new_lessons,
 		announceNewPosts: raw.announce_new_posts,
 		language: raw.language,
@@ -242,6 +277,7 @@ function draftToBody(draft: TaughtCourseDraft): Record<string, unknown> {
 		enrollment_policy: draft.enrollmentPolicy,
 		capacity: draft.capacity,
 		discussion_mode: draft.discussionMode,
+		progress_visibility: draft.progressVisibility,
 		announce_new_lessons: draft.announceNewLessons,
 		announce_new_posts: draft.announceNewPosts,
 		contribution_policy: draft.contributionPolicy,
@@ -877,6 +913,37 @@ export async function reviewCourseTarget(
 ): Promise<CourseFeedbackReview> {
 	return mapCourseFeedbackReview(
 		await apiClient.post(`${feedbackPath(courseId, target, targetId)}/reviews/`, { rating, body })
+	);
+}
+
+/**
+ * Record where you have got to on one session, and get back everything the mode lets you see.
+ *
+ * PUT rather than POST: there is one row per person per lesson and setting it is idempotent. The
+ * whole block comes back rather than just the row that changed, because what your own answer means
+ * to everybody else depends on the mode and the roster — neither of which a client should be
+ * recomputing for itself.
+ */
+export async function setLessonProgress(
+	courseId: string,
+	lessonId: string,
+	state: LessonProgressState
+): Promise<LessonProgress> {
+	return mapLessonProgress(
+		await apiClient.put(
+			`${feedbackPath(courseId, 'lesson', lessonId)}/progress/`,
+			// `not_started` is a real write that deletes the row, not a no-op the client can skip.
+			{ status: state }
+		)
+	);
+}
+
+export async function getLessonProgress(
+	courseId: string,
+	lessonId: string
+): Promise<LessonProgress> {
+	return mapLessonProgress(
+		await apiClient.get(`${feedbackPath(courseId, 'lesson', lessonId)}/progress/`)
 	);
 }
 

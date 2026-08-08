@@ -80,6 +80,57 @@ DISCUSSION_MODE_CHOICES = [
 #: Modes in which the thread is readable by somebody who is not in the course.
 PUBLICLY_READABLE_DISCUSSION = frozenset({'public'})
 
+# Who sees how far everybody has got. Four values rather than a boolean pair, for the third time in
+# this module and the same reason: "on or off" and "named or not" are two questions whose four
+# combinations are not all meaningful, and one ladder says exactly what each rung is.
+#
+# `shared_anonymous` is the default because a tracker's whole point is that a cohort can see itself —
+# "most people are still on week 2" is what stops somebody who is behind assuming they are the only
+# one — while being named as the person who has not done the reading is a different thing to sign up
+# for. So the useful half is on by default and the exposing half is not.
+PROGRESS_VISIBILITY_CHOICES = [
+    # Nobody, including staff and including your own row. Rows are RETAINED rather than deleted, so
+    # turning it back on restores the history instead of destroying it — which is also why this is
+    # not the same as "there is no tracker": there may be a great deal of it, simply not shown.
+    ('off', 'No progress tracking'),
+    # Only you see your own. Not shared with staff either — "private" that the people running the
+    # course can read would be a promise the word does not make.
+    ('private', 'Only you see your own'),
+    # Everyone in the course sees the counts; only staff see who is where. The default.
+    ('shared_anonymous', 'Everyone sees the counts, nobody is named'),
+    # Everyone in the course sees who is where.
+    ('shared_named', 'Everyone sees who is where'),
+]
+
+#: Modes in which somebody in the course learns anything about anybody else's progress.
+PEER_VISIBLE_PROGRESS = frozenset({'shared_anonymous', 'shared_named'})
+
+# What a participant may say about a lesson. Deliberately three values and not four: "not started" is
+# the ABSENCE of a row, never a stored one, so there is exactly one representation of "I have not
+# said anything" and no count ever has to reconcile two. The API still accepts `not_started` as a
+# write — it deletes the row — because a person resetting their own answer is a real action.
+#
+# `stuck` earns its place because staff see names in every mode that shares anything, so it is a
+# request for help somebody can actually answer, rather than a mood recorded into a void.
+LESSON_PROGRESS_STATUS_CHOICES = [
+    ('in_progress', 'Working on it'),
+    ('stuck', 'Stuck'),
+    ('done', 'Done'),
+]
+
+#: The write value that means "forget my answer". Not a stored status — see above.
+PROGRESS_NOT_STARTED = 'not_started'
+
+# Below this many OTHER active participants, a count stops hiding anybody: with one other person, "1
+# done" and the knowledge that it was not you names them exactly. So in `shared_anonymous` — and only
+# there, since it is the only mode that promises anonymity — a small cohort is told the counts are
+# withheld rather than being shown a number that quietly identifies somebody.
+#
+# Two is the smallest honest threshold: with two others, a count of 1 is genuinely ambiguous. It does
+# not save a UNANIMOUS count, where everybody is identified at any cohort size — that is inherent to
+# aggregates and is said out loud in the UI rather than pretended away.
+MIN_PEERS_FOR_ANONYMOUS_COUNTS = 2
+
 # How somebody gets in. Two honest answers, and the difference is real: a reading group wants anyone
 # who turns up; a small course with twelve seats and prerequisites wants to choose. Not a boolean,
 # so a third policy (an invite code, say) is a value rather than a schema change.
@@ -228,6 +279,13 @@ class Course(models.Model):
     )
     announce_new_lessons = models.BooleanField(default=True)
     announce_new_posts = models.BooleanField(default=True)
+
+    # Who sees how far everybody has got — see PROGRESS_VISIBILITY_CHOICES. Changing it is an
+    # administrator's decision rather than an assistant's, because it is a promise made to every
+    # participant about their own data, not a piece of course content.
+    progress_visibility = models.CharField(
+        max_length=16, choices=PROGRESS_VISIBILITY_CHOICES, default='shared_anonymous'
+    )
 
     # Whether participants may contribute materials and exercises, and whether those wait for review.
     # See CONTRIBUTION_POLICY_CHOICES for why 'approval' is the default rather than 'staff'.
@@ -415,6 +473,54 @@ class Course(models.Model):
         if not user or not user.is_authenticated:
             return False
         return self.is_member(user)
+
+    # --- who sees how far people have got --------------------------------------------------------
+    # Four predicates rather than one, because the four questions have genuinely different answers in
+    # the middle two modes: under `private` you may record and read your own and staff may not read
+    # it, and under `shared_anonymous` everybody reads the counts while only staff read the names.
+    # A single `can_see_progress` would collapse exactly the distinctions the modes exist to draw.
+
+    def progress_writable_by(self, user) -> bool:
+        """Whether this person may record their own progress.
+
+        Participants only — deliberately NOT `is_member`, which would include staff. A tracker
+        measures how a cohort is getting on, and the people running the course are not in the cohort;
+        a staff row would sit in the counts as an extra nobody can interpret, and would make the
+        denominator ("of how many?") a different number from the roster.
+        """
+        if self.progress_visibility == 'off':
+            return False
+        return self.is_participant(user)
+
+    def progress_visible_to(self, user) -> bool:
+        """Whether this person sees ANY of it, including their own row.
+
+        `off` blinds staff too. That is the point of the setting rather than an oversight: an
+        instructor who turns tracking off has told their participants nobody is watching, and a
+        version of "off" that still showed the instructor everything would make that untrue.
+        """
+        if self.progress_visibility == 'off':
+            return False
+        return self.is_member(user)
+
+    def progress_peers_visible_to(self, user) -> bool:
+        """Whether they learn anything about anybody else — as counts or as names."""
+        if self.progress_visibility not in PEER_VISIBLE_PROGRESS:
+            return False
+        return self.is_member(user)
+
+    def progress_names_visible_to(self, user) -> bool:
+        """Whether they see WHO is where.
+
+        Staff see names in `shared_anonymous` as well as in `shared_named`: somebody has to be able
+        to act on "one person is stuck", and anonymity there is a promise made to the room, not to
+        the person teaching it. It does not survive `off` or `private`, where the promise is broader.
+        """
+        if self.progress_visibility == 'shared_named':
+            return self.is_member(user)
+        if self.progress_visibility == 'shared_anonymous':
+            return self.can_curate(user)
+        return False
 
     def enrollment_block_reason(self, user) -> str | None:
         """Why this person cannot join, or None if they can.
@@ -1278,3 +1384,44 @@ class LessonSetExercise(models.Model):
 
     def __str__(self) -> str:
         return f'{self.link.title} — {self.exercise}'
+
+
+class LessonProgress(models.Model):
+    """One participant's own statement about one lesson: working on it, stuck, or done.
+
+    **It is a statement, not a measurement.** Nothing here is inferred from what somebody opened or
+    how long they spent on it — a tracker that watched would be surveillance wearing a progress bar's
+    clothes, and it would also be wrong, since reading a lesson and understanding it are different
+    events. The row exists because a person pressed a button saying so.
+
+    **Only the participant writes their own row.** Staff never mark somebody complete: a progress
+    entry is the participant speaking about themselves, and an instructor writing into it would be
+    putting words in their mouth — and would make "3 of 6 have finished" a claim nobody in that 3
+    necessarily made. Staff READ it (in every mode but `off` and `private`), which is what makes the
+    feature useful to them.
+
+    **"Not started" is the absence of a row.** See LESSON_PROGRESS_STATUS_CHOICES: one representation
+    of "I have not said anything", so nothing ever has to reconcile a missing row against a row
+    saying nothing. Resetting deletes.
+
+    Who may SEE any of this is `Course.progress_visibility` and lives on the course, not here — it is
+    one decision about the whole course, exactly as `Chapter.unlocks_at` is one decision about a group
+    of sessions rather than a field repeated on each one.
+    """
+
+    lesson = models.ForeignKey(Lesson, related_name='progress', on_delete=models.CASCADE)
+    participant = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='lesson_progress', on_delete=models.CASCADE
+    )
+    status = models.CharField(max_length=12, choices=LESSON_PROGRESS_STATUS_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        # One row per person per lesson — the same shape every review model here uses, and for the
+        # same reason: a second row would be a second answer to a question that has one.
+        unique_together = [('lesson', 'participant')]
+
+    def __str__(self) -> str:
+        return f'{self.participant} — {self.lesson.title}: {self.status}'

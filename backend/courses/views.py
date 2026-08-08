@@ -9,6 +9,7 @@ instructor's draft gets a 404, which is also the honest answer, since for them i
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -25,6 +26,8 @@ from study.models import ExerciseSet
 
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
+    LESSON_PROGRESS_STATUS_CHOICES,
+    PROGRESS_NOT_STARTED,
     Attachment,
     AttachmentReview,
     BLOCKING_ENROLLMENT_STATUSES,
@@ -38,6 +41,7 @@ from .models import (
     Enrollment,
     Lesson,
     LessonExerciseSet,
+    LessonProgress,
     LessonReview,
     LessonSetExercise,
     Course,
@@ -59,6 +63,7 @@ from .serializers import (
     EnrollmentSerializer,
     InvitePreviewSerializer,
     LessonExerciseSetSerializer,
+    lesson_progress_payload,
     LessonReviewSerializer,
     LessonSerializer,
     LessonWriteSerializer,
@@ -78,6 +83,11 @@ class CourseViewSet(viewsets.ModelViewSet):
             Course.objects.select_related('instructor', 'instructor__profile', 'field')
             .prefetch_related(
                 'subjects',
+                # `role_of` walks this, and `can_curate`/`can_administer`/`is_staff_member` all walk
+                # `role_of` — so without it every one of those was its own query, on a page that
+                # asks the question for the course, for each chapter's lock, and for each lesson
+                # inside it. It was the single most repeated query in a course response.
+                'staff',
                 'chapters__lessons__items',
                 # `exercise` because every pinned row is rendered by name and checked for
                 # `published`, and `exercise_set` because a curator is told whether the source has
@@ -90,7 +100,16 @@ class CourseViewSet(viewsets.ModelViewSet):
                 # shape the moderation queue was once measured making.
                 'chapters__lessons__reviews',
                 'chapters__reviews',
-                'enrollments',
+                # Every lesson's progress rows, for the same reason: without it a twelve-week course
+                # pays a query per session to count three numbers.
+                'chapters__lessons__progress',
+                # `participant__profile` because the roster is what names people in `shared_named`
+                # mode, and it is read once per course rather than once per lesson — so the join
+                # rides along on a prefetch that was already running instead of adding its own.
+                Prefetch(
+                    'enrollments',
+                    queryset=Enrollment.objects.select_related('participant__profile'),
+                ),
             )
             .all()
         )
@@ -851,6 +870,57 @@ class CourseViewSet(viewsets.ModelViewSet):
             },
         )
         return Response(serializer_class(review).data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['get', 'put'],
+        url_path='lessons/(?P<lesson_id>[^/.]+)/progress',
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def lesson_progress(self, request, pk=None, lesson_id=None):
+        """Where people have got to on one session, and where this person says they have.
+
+        PUT, not POST: setting your own status is idempotent — pressing "done" twice is one fact
+        stated twice, not two facts — and there is exactly one row per person per lesson to address.
+
+        The whole payload comes back on a write rather than just the row that changed, so the caller
+        can redraw the counts without a second request. It is also the only honest answer: what your
+        own row means to everybody else depends on the mode and on the roster, neither of which the
+        client should be recomputing for itself.
+        """
+        course = self.get_object()
+        lesson = self._visible_lesson_or_none(course, lesson_id, request.user)
+        if lesson is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == 'PUT':
+            if not course.progress_writable_by(request.user):
+                # Covers three genuinely different refusals with one answer, deliberately: tracking
+                # is off, or you are staff rather than a participant, or you are not in the course.
+                # A GET says which — `mode` and `can_record` are right there — so nothing is hidden
+                # by keeping the write path simple.
+                return Response(status=status.HTTP_403_FORBIDDEN)
+            wanted = request.data.get('status')
+            if wanted == PROGRESS_NOT_STARTED:
+                # Reset deletes rather than storing a fourth value — see the model, which keeps one
+                # representation of "I have not said anything".
+                LessonProgress.objects.filter(lesson=lesson, participant=request.user).delete()
+            elif wanted in dict(LESSON_PROGRESS_STATUS_CHOICES):
+                LessonProgress.objects.update_or_create(
+                    lesson=lesson, participant=request.user, defaults={'status': wanted}
+                )
+            else:
+                return Response(
+                    {'status': ['Not one of the statuses a participant can record.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if not course.progress_visible_to(request.user):
+            # After the write, not before: somebody may legitimately record progress in a mode where
+            # they are then shown nothing back. That combination does not exist today — `off` refuses
+            # both — but ordering it this way means a future mode cannot silently swallow a write.
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        return Response(lesson_progress_payload(lesson, course, request.user))
 
     # --- attachments --------------------------------------------------------------------------
 

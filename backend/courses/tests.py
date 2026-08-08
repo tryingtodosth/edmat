@@ -10,7 +10,9 @@ from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -32,6 +34,7 @@ from .models import (
     Enrollment,
     Lesson,
     LessonExerciseSet,
+    LessonProgress,
     LessonReview,
     Course,
 )
@@ -2454,3 +2457,278 @@ class LessonAndChapterMarkdownTests(CourseThreadFixture):
         body = r'integrate \( \int_0^1 x^2 dx \) before Tuesday'
         lesson = Lesson.objects.create(chapter=self.chapter, title='X', description=body)
         self.assertEqual(lesson.description, body)
+
+
+class LessonProgressTests(CourseThreadFixture):
+    """How far people have got, and — mostly — who is allowed to know.
+
+    Weighted towards the refusals and the promises rather than the happy path: the interesting
+    claims this feature makes are "off blinds staff too", "a count that identifies somebody is not
+    anonymity", and "staff never mark you complete", and every one of those is silent when it
+    breaks.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # A third and fourth person, so `shared_anonymous` has a cohort big enough to hide anybody
+        # in. `self.student` is already enrolled by the fixture.
+        self.second = User.objects.create_user('ania', 'ania@x.example', 'pw12345!')
+        self.third = User.objects.create_user('piotr', 'piotr@x.example', 'pw12345!')
+        for user in (self.second, self.third):
+            Enrollment.objects.create(course=self.course, participant=user, status='active')
+
+    def url(self, lesson=None):
+        return f'/api/courses/{self.course.pk}/lessons/{(lesson or self.lesson).pk}/progress/'
+
+    def set_mode(self, mode):
+        self.course.progress_visibility = mode
+        self.course.save(update_fields=['progress_visibility'])
+
+    def record(self, user, state='done', lesson=None):
+        return self.as_(user).put(self.url(lesson), {'status': state}, format='json')
+
+    # --- recording your own ---------------------------------------------------------------------
+
+    def test_a_participant_records_their_own_progress(self):
+        res = self.record(self.student)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['mine'], 'done')
+        self.assertEqual(LessonProgress.objects.count(), 1)
+
+    def test_recording_twice_updates_rather_than_duplicating(self):
+        self.record(self.student, 'in_progress')
+        res = self.record(self.student, 'stuck')
+        self.assertEqual(res.data['mine'], 'stuck')
+        self.assertEqual(LessonProgress.objects.count(), 1)
+
+    def test_resetting_deletes_the_row_rather_than_storing_a_fourth_value(self):
+        """"Not started" is the absence of a row — one representation, so nothing has to reconcile
+        two. If this ever starts storing `not_started`, the counts gain a second source of truth."""
+        self.record(self.student)
+        res = self.record(self.student, 'not_started')
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNone(res.data['mine'])
+        self.assertEqual(LessonProgress.objects.count(), 0)
+
+    def test_an_invented_status_is_refused(self):
+        res = self.record(self.student, 'nearly')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('status', res.data)
+        self.assertEqual(LessonProgress.objects.count(), 0)
+
+    def test_staff_cannot_record_progress(self):
+        """Deliberate, not an oversight: a progress row is the participant speaking about
+        themselves. An instructor writing into it would make "3 of 6 have finished" a claim that
+        somebody in the 3 never made."""
+        res = self.record(self.instructor)
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(LessonProgress.objects.count(), 0)
+
+    def test_somebody_not_in_the_course_cannot_record(self):
+        res = self.record(self.other)
+        self.assertEqual(res.status_code, 403)
+
+    def test_anonymous_cannot_record(self):
+        res = self.client.put(self.url(), {'status': 'done'}, format='json')
+        self.assertIn(res.status_code, (401, 403))
+
+    def test_a_locked_chapters_lesson_is_not_trackable(self):
+        """The chapter's lock reaches progress like everything else inside it — 404, matching what
+        its thread and its ratings already answer."""
+        self.lock()
+        self.assertEqual(self.record(self.student).status_code, 404)
+        self.assertEqual(self.as_(self.student).get(self.url()).status_code, 404)
+
+    # --- off ------------------------------------------------------------------------------------
+
+    def test_off_blinds_the_instructor_too(self):
+        """The whole point of the setting. A version of "off" that still showed staff everything
+        would make the promise to participants untrue."""
+        self.record(self.student)
+        self.set_mode('off')
+        self.assertEqual(self.as_(self.instructor).get(self.url()).status_code, 403)
+        self.assertEqual(self.as_(self.student).get(self.url()).status_code, 403)
+
+    def test_off_refuses_writes(self):
+        self.set_mode('off')
+        self.assertEqual(self.record(self.student).status_code, 403)
+
+    def test_off_retains_the_rows_it_hides(self):
+        """Turning it back on restores the history rather than having destroyed it."""
+        self.record(self.student)
+        self.set_mode('off')
+        self.assertEqual(LessonProgress.objects.count(), 1)
+        self.set_mode('shared_anonymous')
+        self.assertEqual(self.as_(self.student).get(self.url()).data['mine'], 'done')
+
+    # --- private --------------------------------------------------------------------------------
+
+    def test_private_shows_you_your_own_and_nothing_else(self):
+        self.record(self.student)
+        self.record(self.second, 'stuck')
+        self.set_mode('private')
+        body = self.as_(self.student).get(self.url()).data
+        self.assertEqual(body['mine'], 'done')
+        self.assertIsNone(body['summary'])
+        self.assertIsNone(body['people'])
+
+    def test_private_is_private_from_staff_as_well(self):
+        """"Private" that the people running the course can read is not what the word says."""
+        self.record(self.student)
+        self.set_mode('private')
+        body = self.as_(self.instructor).get(self.url()).data
+        self.assertIsNone(body['summary'])
+        self.assertIsNone(body['people'])
+        self.assertIsNone(body['mine'])
+
+    # --- shared_anonymous -----------------------------------------------------------------------
+
+    def test_a_participant_sees_counts_but_no_names(self):
+        self.record(self.student)
+        self.record(self.second, 'stuck')
+        body = self.as_(self.third).get(self.url()).data
+        self.assertEqual(body['summary']['done'], 1)
+        self.assertEqual(body['summary']['stuck'], 1)
+        self.assertEqual(body['summary']['not_started'], 1)
+        self.assertEqual(body['summary']['participants'], 3)
+        self.assertIsNone(body['people'])
+
+    def test_staff_see_names_even_when_participants_do_not(self):
+        """Somebody has to be able to act on "one person is stuck". The anonymity is a promise made
+        to the room, not to the person teaching it."""
+        self.record(self.second, 'stuck')
+        body = self.as_(self.instructor).get(self.url()).data
+        stuck = [row for row in body['people'] if row['status'] == 'stuck']
+        self.assertEqual([row['participant']['display_name'] for row in stuck], ['ania'])
+
+    def test_a_cohort_too_small_to_hide_anybody_is_told_so(self):
+        """With one other participant, "1 done" plus the knowledge that it was not you names them.
+        Withheld and explained, rather than a number that quietly identifies somebody."""
+        Enrollment.objects.filter(course=self.course, participant=self.third).update(status='left')
+        self.record(self.second)
+        body = self.as_(self.student).get(self.url()).data
+        self.assertEqual(body['withheld_reason'], 'small_cohort')
+        self.assertIsNone(body['summary'])
+
+    def test_the_small_cohort_guard_does_not_apply_to_staff(self):
+        """They see names in this mode anyway, so withholding a count would hide nothing from them
+        and would only make the course page wrong."""
+        Enrollment.objects.filter(course=self.course, participant=self.third).update(status='left')
+        self.record(self.second)
+        body = self.as_(self.instructor).get(self.url()).data
+        self.assertIsNone(body['withheld_reason'])
+        self.assertEqual(body['summary']['done'], 1)
+
+    def test_the_guard_does_not_apply_where_nothing_was_promised(self):
+        """`shared_named` names everybody by design, so there is no anonymity for a small cohort to
+        give away."""
+        Enrollment.objects.filter(course=self.course, participant=self.third).update(status='left')
+        self.set_mode('shared_named')
+        self.record(self.second)
+        body = self.as_(self.student).get(self.url()).data
+        self.assertIsNone(body['withheld_reason'])
+        self.assertEqual(body['summary']['done'], 1)
+
+    # --- shared_named ---------------------------------------------------------------------------
+
+    def test_named_mode_names_everybody_including_who_has_not_started(self):
+        """A list of only the people who answered would quietly be a different question — "who has
+        not started" is most of what makes this worth reading."""
+        self.set_mode('shared_named')
+        self.record(self.second, 'in_progress')
+        people = self.as_(self.student).get(self.url()).data['people']
+        self.assertEqual(
+            {row['participant']['display_name']: row['status'] for row in people},
+            {'ania': 'in_progress', 'michal': 'not_started', 'piotr': 'not_started'},
+        )
+
+    def test_an_outsider_learns_nothing_from_a_public_course(self):
+        """Public means the course page is readable, never that the roster's progress is."""
+        self.set_mode('shared_named')
+        self.record(self.student)
+        self.assertEqual(self.as_(self.other).get(self.url()).status_code, 403)
+
+    # --- counting honesty -----------------------------------------------------------------------
+
+    def test_somebody_who_left_is_not_counted_either_way(self):
+        """Their row survives — they may come back — but they are not one of the "6", and their
+        answer is not one of the "3". Counting it is the shape of bug that lets a numerator exceed
+        its denominator and simply looks broken."""
+        self.record(self.second)
+        Enrollment.objects.filter(course=self.course, participant=self.second).update(status='left')
+        body = self.as_(self.instructor).get(self.url()).data
+        self.assertEqual(body['summary']['participants'], 2)
+        self.assertEqual(body['summary']['done'], 0)
+        self.assertEqual(body['summary']['not_started'], 2)
+        self.assertEqual(LessonProgress.objects.count(), 1)
+
+    # --- the course page ------------------------------------------------------------------------
+
+    def test_the_course_detail_carries_each_lessons_progress(self):
+        self.record(self.student)
+        body = self.as_(self.student).get(f'/api/courses/{self.course.pk}/').data
+        lesson = body['chapters'][0]['lessons'][0]
+        self.assertEqual(lesson['progress']['mine'], 'done')
+        self.assertEqual(lesson['progress']['mode'], 'shared_anonymous')
+        self.assertTrue(lesson['progress']['can_record'])
+
+    def test_an_outsider_reading_the_course_gets_the_shape_but_none_of_the_content(self):
+        """The key is always there — a client branches on a value it can read, never on whether a
+        field exists."""
+        body = self.client.get(f'/api/courses/{self.course.pk}/').data
+        progress = body['chapters'][0]['lessons'][0]['progress']
+        self.assertIsNone(progress['mine'])
+        self.assertIsNone(progress['summary'])
+        self.assertFalse(progress['can_record'])
+
+    def test_drawing_more_lessons_does_not_cost_more_queries(self):
+        """The N+1 guard. `shared_named` is the heaviest path — it names every participant on every
+        lesson — so if anything is going to ask per lesson, it is this."""
+        self.set_mode('shared_named')
+        self.record(self.student)
+        client = self.as_(self.instructor)
+        with CaptureQueriesContext(connection) as one:
+            client.get(f'/api/courses/{self.course.pk}/')
+        for n in range(5):
+            Lesson.objects.create(chapter=self.chapter, title=f'Extra {n}')
+        with CaptureQueriesContext(connection) as six:
+            client.get(f'/api/courses/{self.course.pk}/')
+        self.assertEqual(len(six.captured_queries), len(one.captured_queries))
+
+    # --- who may change the setting --------------------------------------------------------------
+
+    def test_an_administrator_changes_the_setting(self):
+        res = self.as_(self.instructor).patch(
+            f'/api/courses/{self.course.pk}/', {'progress_visibility': 'off'}, format='json'
+        )
+        self.assertEqual(res.status_code, 200)
+        self.course.refresh_from_db()
+        self.assertEqual(self.course.progress_visibility, 'off')
+
+    def test_an_assistant_cannot(self):
+        """It is a promise made to every participant about their own data rather than a piece of
+        course content, so it sits with the people who can change the course itself.
+
+        404 rather than 403 throughout, which is `CourseViewSet.update`'s own answer to every
+        non-administrator: this app scopes writes by queryset rather than by after-the-fact
+        permission checks, so "you may not change this" and "there is no such thing to change" are
+        deliberately the same reply. Asserted as 404 because that is the behaviour, not because it
+        is the reply I would have picked.
+        """
+        CourseStaff.objects.create(course=self.course, user=self.other, role='assistant')
+        res = self.as_(self.other).patch(
+            f'/api/courses/{self.course.pk}/', {'progress_visibility': 'off'}, format='json'
+        )
+        self.assertEqual(res.status_code, 404)
+        self.course.refresh_from_db()
+        self.assertEqual(self.course.progress_visibility, 'shared_anonymous')
+
+    def test_a_participant_cannot(self):
+        res = self.as_(self.student).patch(
+            f'/api/courses/{self.course.pk}/',
+            {'progress_visibility': 'shared_named'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 404)
+        self.course.refresh_from_db()
+        self.assertEqual(self.course.progress_visibility, 'shared_anonymous')
