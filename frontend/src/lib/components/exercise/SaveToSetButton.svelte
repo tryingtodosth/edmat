@@ -323,10 +323,15 @@
 		background: var(--bg-surface);
 		color: var(--text-primary);
 
+		/* Saved is said by the icon being FILLED, not by the button becoming a solid disc. A filled
+		   accent circle on every card read as the primary action on that card — louder than the
+		   exercise's own title, which is the thing somebody is actually there to read. Reported
+		   after looking at a grid of them, and correct: this is a secondary control that happens to
+		   have two states. */
 		&--saved {
-			background: var(--accent);
+			background: var(--bg-surface);
 			border-color: var(--accent);
-			color: var(--accent-contrast);
+			color: var(--accent);
 		}
 
 		&--open {

@@ -1446,5 +1446,12 @@
 	"profile_transcriptMixedScales": "Mixed grading scales — no single average",
 	"profile_transcriptRemoveYear": "Remove this year",
 	"profile_transcriptUnknownYear": "Year not stated",
-	"profile_transcriptYearStats": "{count} results · {ects} ECTS"
+	"profile_transcriptYearStats": "{count} results · {ects} ECTS",
+	"search_heading": "Search",
+	"search_placeholder": "An exercise, a topic, a formula — try “całka” or “Cauchy”",
+	"search_prompt": "Type something to search the exercises and materials.",
+	"search_tooShort": "Type at least {count} characters.",
+	"search_noResults": "Nothing matches “{query}”.",
+	"search_resultCount": "Found: {count}",
+	"review_ratingSummary": "{average} ({count})"
 }

@@ -10,6 +10,10 @@
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 
 	let { exercise, courseName }: { exercise: ResolvedExercise; courseName?: string } = $props();
+
+	/** Narrowed once here rather than tested inline: a `{#if}` on a property access does not narrow
+	 * that property for the expressions inside the block. */
+	const rating = $derived(exercise.averageRating);
 </script>
 
 <article class="exercise-card">
@@ -32,9 +36,19 @@
 	</div>
 
 	<div class="exercise-card__meta">
-		{#if exercise.averageRating !== undefined}
-			<StarRating value={exercise.averageRating} />
-			<span class="muted">{exercise.averageRating} · {exercise.reviewCount}</span>
+		{#if rating !== undefined}
+			<StarRating value={rating} />
+			<!-- "5 · 1" could be read as a range, a score out of something, or two unrelated numbers.
+			     Spelled out instead: the average to one decimal, then how many people it is an
+			     average OF, which is the part that says how much to trust it. -->
+			<span class="muted">
+				{m.review_ratingSummary({
+					average: rating.toFixed(1),
+					// `reviewCount` is optional on the type. A rating exists, so a count does too in
+					// practice — but 0 is the honest fallback rather than printing "undefined".
+					count: exercise.reviewCount ?? 0
+				})}
+			</span>
 		{:else}
 			<span class="muted">{m.review_noReviews()}</span>
 		{/if}

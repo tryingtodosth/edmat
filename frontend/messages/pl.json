@@ -1446,5 +1446,12 @@
 	"profile_transcriptMixedScales": "Różne skale ocen — brak jednej średniej",
 	"profile_transcriptRemoveYear": "Usuń ten rok",
 	"profile_transcriptUnknownYear": "Rok nieokreślony",
-	"profile_transcriptYearStats": "wyniki: {count} · {ects} ECTS"
+	"profile_transcriptYearStats": "wyniki: {count} · {ects} ECTS",
+	"search_heading": "Szukaj",
+	"search_placeholder": "Zadanie, temat, wzór — spróbuj „całka” albo „Cauchy”",
+	"search_prompt": "Wpisz coś, aby przeszukać zadania i materiały.",
+	"search_tooShort": "Wpisz co najmniej {count} znaki.",
+	"search_noResults": "Nic nie pasuje do „{query}”.",
+	"search_resultCount": "Znaleziono: {count}",
+	"review_ratingSummary": "{average} ({count})"
 }
