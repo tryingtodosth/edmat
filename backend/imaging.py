@@ -62,6 +62,25 @@ def sniff_content_type(upload) -> str:
     return magic.from_buffer(head, mime=True)
 
 
+def is_reencodable_image(upload) -> bool:
+    """Whether this upload goes down the re-encode path at all.
+
+    Decided on the sniffed bytes, never on the extension — which is uploader-controlled, and which
+    the pipeline throws away for an image anyway, since `encode_webp` names the result itself.
+
+    A consequence worth stating rather than discovering: a real PNG uploaded as `board.pdf` takes the
+    image branch and is accepted, where a caller's own extension check would have refused it for the
+    mismatch. That check exists to stop a file being *stored and served* as something it is not, and
+    for an image neither the extension nor the bytes survive — so there is nothing left for the
+    mismatch to mislead anybody about. A TIFF named `.png` is still refused, because
+    `ALLOWED_IMAGE_TYPES` is narrower than everything Pillow can decode, so it falls through to the
+    caller's own validator, which catches it.
+
+    Lives here rather than beside either caller: course attachments and material submissions ask the
+    identical question, and a second copy is the one that stops matching when this set changes."""
+    return sniff_content_type(upload) in ALLOWED_IMAGE_TYPES
+
+
 def open_within_pixel_budget(upload, max_pixels: int = MAX_IMAGE_PIXELS) -> Image.Image:
     """`Image.open` is lazy — it parses the header and stops, so `.size` is available here WITHOUT
     any pixel data having been decoded yet. That laziness is the whole reason the bomb check can

@@ -22,10 +22,19 @@ and kept safe" request). Two, deliberately separate layers, both real:
    default stays False, matching the same "flag it, don't fake it" discipline CLAUDE.md already
    applies to the email-backend stub, rather than pretending a scan happened when it didn't. (This
    comment used to also cite an "avatar-upload stub" — that is now a real, validated upload path,
-   `accounts/avatar.py`; it takes a different approach worth knowing about when reading this module,
-   since the two answer different questions: a Material's bytes must be preserved as submitted, so
-   the only options are sniffing and scanning, whereas an avatar is re-encoded from its pixels
-   outright, which discards any payload rather than trying to detect one.)
+   `accounts/avatar.py`, which is re-encoded from its pixels outright, discarding any payload rather
+   than trying to detect one.)
+
+**On "a Material's bytes must be preserved as submitted", which this docstring used to assert.** It
+was true of documents and quietly generalised to images, and it is no longer the whole story: an
+image submission is now re-encoded by `materials/materialfile.py` before it is stored, while a PDF,
+`.docx`, `.odt` or `.tex` is still stored byte-for-byte as sent. The split is deliberate. For a
+document the bytes ARE the thing and there is nothing to decode; for an image, byte-fidelity was
+protecting nothing anybody relies on — a material's provenance is carried by `Material.author` and
+`Material.source_url`, not by whether a JPEG's bytes are the ones a phone wrote — while the cost of
+keeping it was a phone photo publishing the GPS coordinates of the room it was taken in, through a
+PUBLIC read endpoint. This module's own two layers are unchanged and still run on every upload; the
+re-encode is an additional step for one kind of file, not a replacement for either of them.
 """
 
 from __future__ import annotations
@@ -57,6 +66,12 @@ ALLOWED_MATERIAL_TYPES: dict[str, set[str]] = {
     '.png': {'image/png'},
     '.jpg': {'image/jpeg'},
     '.jpeg': {'image/jpeg'},
+    # Accepted as INPUT, and also the extension every re-encoded image is STORED under — which is
+    # the reason it has to be here. `materials/materialfile.py` writes a fresh WebP, so a stored
+    # material file whose extension this table did not know would fail its own field validator on
+    # any `full_clean()`, notably in the Django admin. The write path never noticed, because
+    # `Model.save()` does not run field validators; the admin would have.
+    '.webp': {'image/webp'},
     '.tex': {'text/x-tex', 'text/plain'},  # a short/simple .tex file can sniff as plain ASCII text
     '.doc': {'application/msword', 'application/x-ole-storage', 'application/CDFV2'},
     '.docx': {

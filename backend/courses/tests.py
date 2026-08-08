@@ -7,10 +7,12 @@ create flow announces itself immediately; a roster leaking to strangers does not
 """
 
 import io
+import os
 import shutil
 import tempfile
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
@@ -3801,3 +3803,161 @@ class CourseSearchTests(ApiTestCase):
             )
         after = cost()
         self.assertEqual(before, after, f'{after - before} extra queries for 6 more chapters')
+
+
+# --- deleting an attachment deletes its file ------------------------------------------------------
+#
+# Appended at the end, like the block above it, so the whole change to this module stays contiguous.
+
+
+class AttachmentFileDeletionTests(AttachmentFileTestCase):
+    """The row went and the bytes stayed, which made a delete a lie.
+
+    It matters most for exactly the file the re-encoding upstream exists to protect: somebody who
+    realises their photo of a whiteboard carries the coordinates of the room takes it down, and it
+    remained at a stable, servable URL. Every assertion here is on the filesystem rather than on a
+    response code, because the response was always fine.
+    """
+
+    def upload(self, title='Last year exam'):
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/attachments/',
+            {
+                'file': SimpleUploadedFile('exam.pdf', LEGACY_PDF, content_type='application/pdf'),
+                'title': title,
+            },
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        return Attachment.objects.get(pk=response.data['id'])
+
+    def test_deleting_through_the_api_removes_the_file(self):
+        attachment = self.upload()
+        path = attachment.file.path
+        self.assertTrue(os.path.exists(path))
+
+        response = self.as_(self.instructor).delete(
+            f'/api/courses/{self.course.pk}/attachments/{attachment.pk}/'
+        )
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(os.path.exists(path), 'the row went but the bytes stayed')
+
+    def test_deleting_the_row_directly_removes_it_too(self):
+        """A signal rather than an overridden `delete()`, so the paths that bypass a model method
+        are covered — this is the plain one."""
+        attachment = self.upload()
+        path = attachment.file.path
+
+        attachment.delete()
+
+        self.assertFalse(os.path.exists(path))
+
+    def test_a_queryset_delete_removes_it(self):
+        """The path an overridden `delete()` would have missed entirely."""
+        attachment = self.upload()
+        path = attachment.file.path
+
+        Attachment.objects.filter(pk=attachment.pk).delete()
+
+        self.assertFalse(os.path.exists(path))
+
+    def test_deleting_the_whole_course_takes_its_files_with_it(self):
+        """The cascade. Django sends `post_delete` for cascaded rows, which is the reason this is a
+        signal — a course with fifty files should not leave fifty behind."""
+        first = self.upload('One')
+        second = self.upload('Two')
+        paths = [first.file.path, second.file.path]
+
+        self.course.delete()
+
+        self.assertEqual([p for p in paths if os.path.exists(p)], [])
+
+    def test_a_file_already_missing_is_not_an_error(self):
+        """The row is committed either way; raising here would tell the caller the delete failed
+        when it did not."""
+        attachment = self.upload()
+        os.remove(attachment.file.path)
+
+        attachment.delete()  # must not raise
+
+        self.assertFalse(Attachment.objects.filter(pk=attachment.pk).exists())
+
+    def test_one_attachments_deletion_leaves_the_others_alone(self):
+        kept = self.upload('Kept')
+        doomed = self.upload('Doomed')
+        kept_path = kept.file.path
+
+        doomed.delete()
+
+        self.assertTrue(os.path.exists(kept_path))
+
+
+class PruneOrphanAttachmentFilesTests(AttachmentFileTestCase):
+    """The files stranded before the signal existed. Nothing else can reach them: the row that
+    pointed at each one is gone, so there is nothing left to enumerate them from."""
+
+    def orphan(self, name='stranded.pdf') -> str:
+        """A file under the attachment directory that no row mentions — which is exactly the state a
+        pre-signal delete left behind."""
+        directory = os.path.join(settings.MEDIA_ROOT, 'course-attachments')
+        os.makedirs(directory, exist_ok=True)
+        path = os.path.join(directory, name)
+        with open(path, 'wb') as handle:
+            handle.write(LEGACY_PDF)
+        return path
+
+    def referenced(self):
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/attachments/',
+            {
+                'file': SimpleUploadedFile('kept.pdf', LEGACY_PDF, content_type='application/pdf'),
+                'title': 'Kept',
+            },
+            format='multipart',
+        )
+        return Attachment.objects.get(pk=response.data['id'])
+
+    def run_command(self, *args) -> str:
+        out = io.StringIO()
+        call_command('prune_orphan_attachment_files', *args, stdout=out)
+        return out.getvalue()
+
+    def test_a_dry_run_reports_and_removes_nothing(self):
+        """The default, and deliberately: this deletes bytes with no undo, working from an inference
+        rather than from a record of what was deleted."""
+        path = self.orphan()
+
+        output = self.run_command()
+
+        self.assertIn('stranded.pdf', output)
+        self.assertIn('Nothing removed', output)
+        self.assertTrue(os.path.exists(path))
+
+    def test_delete_removes_it(self):
+        path = self.orphan()
+
+        output = self.run_command('--delete')
+
+        # Asserted on this file rather than on a count: MEDIA_ROOT is per-CLASS while the database
+        # rolls back per test, so a file an earlier test uploaded is genuinely orphaned by the time
+        # this one runs and is correctly swept too. A count here would be asserting on test order.
+        self.assertIn('stranded.pdf', output)
+        self.assertIn('removed', output)
+        self.assertFalse(os.path.exists(path))
+
+    def test_a_file_a_row_still_points_at_is_never_touched(self):
+        """The one mistake this command must not make."""
+        attachment = self.referenced()
+        self.orphan()
+
+        self.run_command('--delete')
+
+        self.assertTrue(os.path.exists(attachment.file.path))
+
+    def test_nothing_orphaned_says_so(self):
+        self.referenced()
+
+        output = self.run_command()
+
+        self.assertIn('none orphaned', output)

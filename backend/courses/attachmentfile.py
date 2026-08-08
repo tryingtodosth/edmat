@@ -41,7 +41,7 @@ from imaging import (
     MAX_IMAGE_PIXELS,
     decode_for_reencode,
     encode_webp,
-    sniff_content_type,
+    is_reencodable_image,
     validate_image_upload,
 )
 from materials.validators import (
@@ -72,21 +72,6 @@ ATTACHMENT_IMAGE_QUALITY = 88
 # step with the one the same field already enforces on a PDF, and the honest answer to "how big may an
 # attachment be?" is one number. Storage is rationed by `Course.upload_quota_bytes`, not by this.
 MAX_ATTACHMENT_UPLOAD_BYTES = MAX_MATERIAL_SUBMISSION_SIZE_BYTES
-
-
-def is_reencodable_image(upload) -> bool:
-    """Decided on the sniffed bytes, never on the extension — which is uploader-controlled, and which
-    this pipeline throws away for an image anyway (`encode_webp` names the result itself).
-
-    A consequence worth stating rather than discovering: a real PNG uploaded as `board.pdf` takes the
-    image branch and is accepted, where the material validator would have refused it for the
-    extension/content mismatch. That check exists to stop a file being *stored and served* as
-    something it is not, and for an image neither the extension nor the bytes survive — so there is
-    nothing left for the mismatch to mislead anybody about. A TIFF named `.png` still gets refused,
-    because `ALLOWED_IMAGE_TYPES` is narrower than everything Pillow can decode and it falls through
-    to the material validator, which then catches the mismatch.
-    """
-    return sniff_content_type(upload) in ALLOWED_IMAGE_TYPES
 
 
 def validate_attachment_file(upload) -> None:
