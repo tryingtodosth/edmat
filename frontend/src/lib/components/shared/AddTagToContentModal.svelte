@@ -9,6 +9,7 @@
 	import { searchExercises } from '$lib/services/exercises';
 	import { searchMaterials } from '$lib/services/materials';
 	import { applyTagToContent } from '$lib/services/tags';
+	import { compositionTracker } from '$lib/utils/textInput';
 	import ModalShell from './ModalShell.svelte';
 
 	let { tag, onClose }: { tag: string; onClose: () => void } = $props();
@@ -22,7 +23,16 @@
 	let error = $state('');
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
+	// An input method's intermediate text is not a search term, and the pauses somebody makes while
+	// choosing a candidate are all longer than the debounce below — so without this the debounce
+	// would faithfully search for each half-formed string on the way. This box keeps its own timer
+	// rather than moving to `createSearchCommitter`: it searches from one character (a tag lookup is
+	// a narrow list, not the whole corpus) and `switchKind` re-runs the same query immediately, so
+	// the committer's own policy would have to be argued out of both.
+	const composing = compositionTracker();
+
 	function scheduleSearch() {
+		if (composing.active) return;
 		clearTimeout(debounceTimer);
 		error = '';
 		if (!query.trim()) {
@@ -30,19 +40,34 @@
 			materialResults = [];
 			return;
 		}
-		debounceTimer = setTimeout(runSearch, 350);
+		// Captured now rather than read inside `runSearch`, so the request and the results it is
+		// allowed to write are talking about the same query.
+		const term = query;
+		debounceTimer = setTimeout(() => runSearch(term, kind), 350);
 	}
 
-	async function runSearch() {
+	/** Which lookup the results on screen belong to. A slower earlier request must not overwrite a
+	 *  newer one's results — nothing about the network orders two in-flight lookups — and the kind is
+	 *  part of the identity, not just the term: switching tabs re-runs the SAME term against a
+	 *  different endpoint, so comparing terms alone would let the abandoned one through. */
+	let inFlight = '';
+
+	async function runSearch(term: string, forKind: TaggableKind) {
+		const token = `${forKind}:${term}`;
+		inFlight = token;
 		searching = true;
 		try {
-			if (kind === 'exercise') {
-				exerciseResults = await searchExercises(query, getLocale());
+			if (forKind === 'exercise') {
+				const results = await searchExercises(term, getLocale());
+				if (inFlight !== token) return;
+				exerciseResults = results;
 			} else {
-				materialResults = await searchMaterials(query);
+				const results = await searchMaterials(term);
+				if (inFlight !== token) return;
+				materialResults = results;
 			}
 		} finally {
-			searching = false;
+			if (inFlight === token) searching = false;
 		}
 	}
 
@@ -100,6 +125,14 @@
 		type="text"
 		bind:value={query}
 		oninput={scheduleSearch}
+		oncompositionstart={composing.start}
+		oncompositionend={(e) => {
+			composing.end();
+			// Taken off the event rather than trusting `query` to have caught up: browsers disagree
+			// on whether `input` fires before or after `compositionend`, and this works either way.
+			query = e.currentTarget.value;
+			scheduleSearch();
+		}}
 		placeholder={m.tag_searchPlaceholder()}
 		aria-label={m.tag_searchPlaceholder()}
 	/>

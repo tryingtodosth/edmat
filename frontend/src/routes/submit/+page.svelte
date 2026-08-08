@@ -16,6 +16,7 @@
 		SOURCE_TYPES,
 		SOURCE_TYPE_LABELS
 	} from '$lib/utils/labels';
+	import { isComposingKey } from '$lib/utils/textInput';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
@@ -326,6 +327,11 @@
 						placeholder={m.submit_requirementsAddPlaceholder()}
 						bind:value={requirementDraft}
 						onkeydown={(e) => {
+							// Mid-composition, Enter means "accept the candidate I am looking at" — so
+							// acting on it here would add a chip holding a half-typed word and break the
+							// composition at the same time. Nothing is preventDefault'ed in that case
+							// either: the key belongs to the input method.
+							if (isComposingKey(e)) return;
 							if (e.key === 'Enter') {
 								e.preventDefault();
 								addRequirement();

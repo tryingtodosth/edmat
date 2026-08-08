@@ -14,6 +14,7 @@
 		searchAddress,
 		type GeocodeResult
 	} from '$lib/services/geocoding';
+	import { isComposingKey } from '$lib/utils/textInput';
 	import LocationMap from './LocationMap.svelte';
 
 	let {
@@ -100,6 +101,11 @@
 			bind:value={query}
 			placeholder={m.services_locationSearchPlaceholder()}
 			onkeydown={(e) => {
+				// While an input method has a composition open, Enter means "accept this candidate"
+				// and the address is still half-typed — so it must not geocode, and it must not be
+				// preventDefault'ed either, since the key is the IME's. Returning early is safe for
+				// the outer form: a browser does not submit on an Enter its own IME has consumed.
+				if (isComposingKey(e)) return;
 				if (e.key === 'Enter') {
 					// Without this the Enter key submits the OUTER listing form, saving a
 					// half-finished listing when the user only meant to search for their address.

@@ -6,6 +6,7 @@
 	// personalizacja_edukacji theming port, CLAUDE.md Section 13) but genuinely unused until now —
 	// nothing in this app needed a real modal before the materials-coverage feature.
 	import { m } from '$lib/paraglide/messages.js';
+	import { isComposingKey } from '$lib/utils/textInput';
 
 	let {
 		title,
@@ -24,6 +25,11 @@
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
+		// Escape dismisses an input method's candidate list before it means anything to this dialog.
+		// Every modal built on this shell holds a text field of some kind, so without this guard an
+		// IME user rejecting a suggestion would close the dialog and lose whatever they had typed —
+		// which is the same class of bug as Enter submitting mid-composition, on the other key.
+		if (isComposingKey(event)) return;
 		if (event.key === 'Escape') onClose();
 	}
 </script>
