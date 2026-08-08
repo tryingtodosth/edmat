@@ -451,6 +451,7 @@ export interface RawMaterial {
 	coverage: RawMaterialCoverage[];
 	requirements: RawMaterialRequirement[];
 	file: string | null;
+	url?: string | null;
 	author: string;
 	source_url: string;
 	submitted_by: number | null;
@@ -485,6 +486,9 @@ export function mapMaterial(json: RawMaterial): Material {
 		requirements: (json.requirements ?? []).map(mapMaterialRequirement),
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
+		// Where a link-only material lives. Distinct from `sourceUrl` below, which is provenance:
+		// a hosted file can have a source, and a link has no file to have come from anywhere.
+		url: json.url || undefined,
 		author: json.author,
 		sourceUrl: json.source_url || undefined,
 		submittedByUserId: idOrUndefined(json.submitted_by),
@@ -624,6 +628,7 @@ export interface RawMaterialSubmission {
 	description: string;
 	locale: string;
 	file: string | null;
+	url?: string | null;
 	author: string;
 	source_url: string;
 	requirements: string[];

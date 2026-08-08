@@ -20,6 +20,7 @@ topic/subtopic/level coverage claims.
 """
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -129,7 +130,22 @@ class Material(models.Model):
     # (the corpus importer, or MaterialSubmission's own approval path copying an already-validated
     # file across) bypasses field validators entirely, by design — this only ever runs where
     # something is actually being VALIDATED (a ModelForm/DRF serializer write), not on every save.
-    file = models.FileField(upload_to='materials/', validators=[validate_material_submission_file])
+    # `blank=True`: a material can be a LINK instead of a file — a lecture recording, a departmental
+    # page, somebody's published notes. Plenty of what a course actually points students at is not a
+    # document anybody can or should re-host, and refusing those meant either losing them or
+    # uploading a copy of somebody else's work to say where it was.
+    #
+    # A material must have one or the other, which `clean()` below enforces; a row with neither
+    # would be a title pointing at nothing.
+    file = models.FileField(
+        upload_to='materials/', blank=True, validators=[validate_material_submission_file]
+    )
+    # Where the material IS, for a link-only one. Deliberately NOT `source_url`, which is next to it
+    # and means something different: source_url is provenance — where an uploaded file came from —
+    # and the two genuinely coexist (a PDF hosted here that was taken from a department page has
+    # both). Folding them together would also render wrongly: MaterialCard shows source_url as a
+    # small provenance note, so a link-only material would have had no primary action at all.
+    url = models.URLField(max_length=500, blank=True)
     # Free text, NOT a User FK — the real corpus's own material.yaml `author:` values are plain
     # human names (a course TA/professor), almost never a registered platform account, so this is
     # deliberately never rendered as a clickable link (frontend's own MaterialCard, see its doc
@@ -194,6 +210,19 @@ class Material(models.Model):
 
     def __str__(self) -> str:
         return f'{self.branch.slug}/{self.slug}'
+
+    def clean(self):
+        """A material is a file or a link. Neither is a title pointing at nothing.
+
+        On the model rather than only in the serializer, so the Django admin is held to it too — the
+        one write path that skips DRF entirely. The corpus importer bypasses `full_clean` like every
+        other bulk `create()` in this project, which is correct: all 7 legacy materials are real PDFs
+        and satisfy this anyway.
+        """
+        if not self.file and not self.url:
+            raise ValidationError(
+                {'file': 'A material needs either a file or a link to where it lives.'}
+            )
 
 
 class MaterialReview(models.Model):

@@ -1453,5 +1453,11 @@
 	"search_tooShort": "Type at least {count} characters.",
 	"search_noResults": "Nothing matches “{query}”.",
 	"search_resultCount": "Found: {count}",
-	"review_ratingSummary": "{average} ({count})"
+	"review_ratingSummary": "{average} ({count})",
+	"submitMaterial_whereLegend": "Where is it?",
+	"submitMaterial_whereHint": "Upload the file, or give a link to where it already lives — one or the other, not both.",
+	"submitMaterial_field_url": "Link to the material",
+	"submitMaterial_urlPlaceholder": "example.edu/notes.pdf",
+	"submitMaterial_urlHint": "For something you should not re-host — a recording, a department page, somebody else’s published notes.",
+	"material_open": "Open"
 }

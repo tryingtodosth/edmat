@@ -486,6 +486,9 @@ def _apply_material_submission(submission, reviewer):
         slug=slug,
         type=submission.type,
         file=submission.file,
+        # A link-only material has no file and lives at its own URL — see Material.url for why this
+        # is not `source_url`, which is next to it and answers a different question.
+        url=submission.url,
         published=True,
         submitted_by=submission.submitted_by,
         # Provenance declared at submission time, carried onto the real row. `author` is the free-text

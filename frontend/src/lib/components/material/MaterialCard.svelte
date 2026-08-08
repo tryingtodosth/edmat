@@ -222,10 +222,30 @@
 			</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		{/if}
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an external file URL (the Django media server), not an app route resolve() can express -->
-		<a class="download" href={material.fileUrl} target="_blank" rel="noopener noreferrer" download>
-			{m.material_download()}
-		</a>
+		<!-- A material is a hosted file or a link, never neither. The two get the same weight — both
+		     are "the thing itself" — but not the same word or the same attributes: `download` on a
+		     link somebody else hosts would be a lie about what clicking it does, and `nofollow`
+		     belongs on a user-submitted URL rather than on our own media server. -->
+		{#if material.fileUrl}
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- external URLs (our own media
+			     server, or a user-submitted link), neither of which `resolve()` can express. A block
+			     pair rather than a next-line directive: the rule reports on the `href` line, and
+			     Prettier moves attributes across lines, so a single-line disable stops covering it. -->
+			<a
+				class="download"
+				href={material.fileUrl}
+				target="_blank"
+				rel="noopener noreferrer"
+				download
+			>
+				{m.material_download()}
+			</a>
+		{:else if material.url}
+			<a class="download" href={material.url} target="_blank" rel="noopener noreferrer nofollow">
+				{m.material_open()}
+			</a>
+		{/if}
+		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	</div>
 </article>
 

@@ -112,10 +112,16 @@ class MaterialSubmission(models.Model):
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True)
     locale = models.CharField(max_length=8, default='pl')
+    # Optional, because a material can be a link rather than a file — see `Material.file`. The
+    # serializer requires one or the other; neither is a submission with nothing in it.
     file = models.FileField(
         upload_to=material_submission_upload_path,
+        blank=True,
         validators=[validate_material_submission_file],
     )
+    #: Where the material is, when it is a link. Carried onto the real Material on approval, exactly
+    #: as the file is. Distinct from `source_url` beside it, which is provenance — see Material.url.
+    url = models.URLField(max_length=500, blank=True)
     # Provenance, declared by the uploader and carried onto the real Material on approval — both
     # mirror `materials.models.Material`'s own fields of the same names exactly (see `Material
     # .source_url`'s doc comment for why the source is a URL rather than free text, and why neither

@@ -30,6 +30,9 @@ export interface MaterialSubmissionDraft {
 	// the bytes, so if the form never asks, the information is not merely missing, it is gone.
 	author?: string;
 	sourceUrl?: string;
+	/** Where the material lives, when it is a link rather than an upload. Distinct from
+	 * `sourceUrl`, which is provenance for a file that IS uploaded here. */
+	url?: string;
 	requirements?: string[];
 	coverage?: MaterialCoverageDraft[];
 	priceAmount?: number;
@@ -54,6 +57,9 @@ export interface MaterialSubmission {
 	fileUrl: string;
 	author: string;
 	sourceUrl?: string;
+	/** Where the material lives, when it is a link rather than an upload. Distinct from
+	 * `sourceUrl`, which is provenance for a file that IS uploaded here. */
+	url?: string;
 	requirements: string[];
 	priceAmount?: number;
 	priceCurrency: string;
