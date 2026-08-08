@@ -22,7 +22,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
-from materials.validators import validate_material_submission_file
+from .attachmentfile import validate_attachment_file
 
 # These are two different questions, and until now they were one field. `draft` answered "who can
 # see this", while `open`/`running`/`finished` answered "how far along is it" — so an instructor who
@@ -1155,8 +1155,13 @@ class Attachment(models.Model):
     """
 
     course = models.ForeignKey(Course, related_name='attachments', on_delete=models.CASCADE)
+    # `validate_attachment_file` wraps the material validator rather than replacing it: a PDF or a
+    # `.docx` gets exactly the same checks it always did, while an image additionally gets the
+    # decoded-pixel budget the material validator cannot apply because it never decodes anything.
+    # The re-encode that strips EXIF is not here — a validator returns nothing — it is in
+    # `AttachmentWriteSerializer`. See `courses/attachmentfile.py`.
     file = models.FileField(
-        upload_to='course-attachments/', validators=[validate_material_submission_file]
+        upload_to='course-attachments/', validators=[validate_attachment_file]
     )
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)

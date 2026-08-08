@@ -12,6 +12,9 @@ __pycache__/
 
 # Django
 backend/db.sqlite3
+# Timestamped copies taken before a migration or a merge. Untracked but not ignored until
+# now, so a stray `git add -A` staged several megabytes of database.
+backend/db.sqlite3.bak-*
 backend/media/
 backend/staticfiles/
 

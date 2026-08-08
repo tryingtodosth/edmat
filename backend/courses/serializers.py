@@ -3,6 +3,7 @@ from rest_framework import serializers
 from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.models import Branch, Discipline
 
+from .attachmentfile import process_attachment_file
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
     MIN_PEERS_FOR_ANONYMOUS_COUNTS,
@@ -1007,3 +1008,21 @@ class AttachmentWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attachment
         fields = ['file', 'title', 'description']
+
+    def validate_file(self, upload):
+        """An image is never stored as the bytes the uploader sent — see `attachmentfile.py` for why,
+        and `accounts/avatar.py` for the long form. A PDF is returned untouched.
+
+        In `validate_file` rather than in `create()`, which is where `events/serializers.py` does the
+        equivalent for a post picture, for a reason specific to this write path: the view checks the
+        course's upload quota against `validated_data['file']` between `is_valid()` and `save()`.
+        Processing here means that gate weighs what will actually be *stored*, which is what the
+        quota is spent on — `Course.uploaded_bytes` sums the stored files. Processing in `create()`
+        would leave the gate charging the upload size while the accounting counted the much smaller
+        re-encoded one, so a course could be refused a photo that would in fact have fitted.
+
+        DRF runs a field's own validators before this method, so `validate_attachment_file` has
+        already passed on the ORIGINAL upload by the time it is re-run here — cheap, and it keeps this
+        function correct on its own rather than by trusting a caller's ordering.
+        """
+        return process_attachment_file(upload)
