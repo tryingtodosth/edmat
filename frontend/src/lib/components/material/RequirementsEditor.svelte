@@ -7,6 +7,7 @@
 	// service function itself, it only ever hands the caller a full, ordered `string[]` to submit.
 	import { untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
+	import { isComposingKey } from '$lib/utils/textInput';
 
 	let {
 		initial,
@@ -132,6 +133,10 @@
 			placeholder={m.material_requirementsAddPlaceholder()}
 			bind:value={draft}
 			onkeydown={(e) => {
+				// Enter accepts an IME candidate while a composition is open, so it must not add a
+				// label here — and this input sits inside a form, so acting on it would also carry
+				// the preventDefault that keeps Enter from saving the whole list early.
+				if (isComposingKey(e)) return;
 				if (e.key === 'Enter') {
 					e.preventDefault();
 					addLabel();

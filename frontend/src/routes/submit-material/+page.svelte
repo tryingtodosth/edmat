@@ -7,6 +7,7 @@
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { MATERIAL_CURRENCIES } from '$lib/utils/labels';
+	import { isComposingKey } from '$lib/utils/textInput';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
@@ -369,6 +370,9 @@
 						placeholder={m.submitMaterial_requirementsAddPlaceholder()}
 						bind:value={requirementDraft}
 						onkeydown={(e) => {
+							// Enter belongs to the input method while a composition is open — see the
+							// identical guard on /submit's own requirements input.
+							if (isComposingKey(e)) return;
 							if (e.key === 'Enter') {
 								e.preventDefault();
 								addRequirement();

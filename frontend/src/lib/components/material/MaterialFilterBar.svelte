@@ -5,12 +5,14 @@
 	// independent, drifting implementations. Reads `materialsUiStore.mode` directly (not a prop) so
 	// every mount of this bar always reflects the ONE real, shared "simple vs advanced" preference
 	// — set from Settings, or via this bar's own quick toggle, both write to the same store.
+	import { onMount } from 'svelte';
 	import type { Branch, Discipline, MaterialBrowseFilters, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getBranchesForDiscipline, getTopicsForBranch } from '$lib/services/taxonomy';
 	import { materialsUiStore } from '$lib/state/materialsUi.svelte';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 	import { MATERIAL_SORTS, MATERIAL_SORT_LABELS } from '$lib/utils/labels';
+	import { createSearchCommitter } from '$lib/utils/textInput';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 
 	// Same slug-as-id mapping the submit form uses — see its own note.
@@ -57,6 +59,56 @@
 	// known/fixed by the URL); `scope === 'global'` only has one once a branch has been picked.
 	let topicOptions = $derived(scope === 'branch' ? courseTopics : globalTopics);
 
+	// The two free-text filters keep the text being typed apart from the value the page fetches on,
+	// so a word costs one request rather than one per letter. See FiltersSidebar for the same pattern
+	// on the exercise search, and `createSearchCommitter` for the debounce and the IME guard.
+	let queryDraft = $state(filters.query ?? '');
+	let queryEl = $state<HTMLInputElement | undefined>(undefined);
+	const querySearch = createSearchCommitter((query) => (filters.query = query), {
+		initial: filters.query ?? ''
+	});
+
+	// The tag filter takes `minLength: 1`, unlike the free-text search. A tag is a token matched more
+	// or less exactly, so a one-character tag is a real, if unusual, filter — where a one-character
+	// search term matches most of the corpus and is never a real question. It is debounced all the
+	// same: every keystroke here reaches the same fetching effect the search box does.
+	let tagDraft = $state(filters.tag ?? '');
+	const tagSearch = createSearchCommitter((tag) => (filters.tag = tag || undefined), {
+		minLength: 1,
+		initial: filters.tag ?? ''
+	});
+
+	// Both pages this bar renders on are server-rendered, so somebody can type into the search box a
+	// second or two before the client has attached a handler to it. `bind:value` recovers that text,
+	// but no `oninput` ever ran for it, so nothing scheduled a search — without this the box would sit
+	// showing a word the results never answered. Only the search box needs it: the tag filter lives
+	// inside the advanced section, which is not open on first paint.
+	onMount(() => {
+		const typedBeforeHydration = queryEl?.value ?? '';
+		if (typedBeforeHydration && typedBeforeHydration !== querySearch.committed) {
+			queryDraft = typedBeforeHydration;
+			querySearch.typed(typedBeforeHydration);
+		}
+	});
+
+	// Both filters are also written from outside this bar — `clear()` below, and the branch page
+	// resetting the whole filter object on navigation. Adopt an outside change so neither box goes on
+	// showing text that is no longer filtering anything, while ignoring this bar's own writes, which
+	// arrive here as an echo of what each committer last pushed.
+	$effect(() => {
+		const external = filters.query ?? '';
+		if (external === querySearch.committed) return;
+		querySearch.adopt(external);
+		queryDraft = external;
+	});
+
+	$effect(() => {
+		const external = filters.tag ?? '';
+		if (external === tagSearch.committed) return;
+		tagSearch.adopt(external);
+		tagDraft = external;
+	});
+
 	function clear() {
 		if (scope === 'global') {
 			filters.disciplineId = undefined;
@@ -70,15 +122,24 @@
 		filters.minLevel = undefined;
 		filters.query = '';
 		filters.sort = undefined;
+		// Both boxes have to be cleared directly, not left to the effects above: text below a
+		// committer's minimum length was never pushed, so the committed value is already empty and
+		// there is no outside change for either effect to notice.
+		querySearch.adopt('');
+		queryDraft = '';
+		tagSearch.adopt('');
+		tagDraft = '';
 	}
 
+	// Reads each box's draft rather than the committed filter, so text that is on screen but too
+	// short to have been committed still offers a way to clear it.
 	let hasActiveFilters = $derived(
 		Boolean(
 			filters.type ||
-			filters.tag ||
+			tagDraft ||
 			filters.topicId ||
 			filters.minLevel ||
-			filters.query ||
+			queryDraft ||
 			filters.sort ||
 			(scope === 'global' && (filters.disciplineId || filters.branchId))
 		)
@@ -102,10 +163,16 @@
 
 	<label class="field">
 		<span class="visually-hidden">{m.common_search()}</span>
+		<!-- `bind:value` for the display state; the handlers read their own event, so nothing depends on
+		     which runs first. See FiltersSidebar for why a one-way `value` was tried and reverted. -->
 		<input
+			bind:this={queryEl}
 			type="search"
 			placeholder={m.materialFilters_searchPlaceholder()}
-			bind:value={filters.query}
+			bind:value={queryDraft}
+			oninput={(e) => querySearch.typed(e.currentTarget.value)}
+			oncompositionstart={querySearch.compositionStart}
+			oncompositionend={(e) => querySearch.compositionEnd(e.currentTarget.value)}
 		/>
 	</label>
 
@@ -182,7 +249,10 @@
 				<input
 					type="text"
 					placeholder={m.materialFilters_tagPlaceholder()}
-					bind:value={filters.tag}
+					bind:value={tagDraft}
+					oninput={(e) => tagSearch.typed(e.currentTarget.value)}
+					oncompositionstart={tagSearch.compositionStart}
+					oncompositionend={(e) => tagSearch.compositionEnd(e.currentTarget.value)}
 				/>
 			</label>
 		</div>

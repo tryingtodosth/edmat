@@ -51,6 +51,15 @@
 		newCount = 0;
 		offline = false;
 
+		// The search box is debounced, which is not the same as safe: two requests can still overlap
+		// when a filter changes while an earlier one is slow, and nothing guarantees they return in
+		// order. So each run of this effect disowns its own answer once a later run has started —
+		// `$effect`'s cleanup runs before the next run, which is what makes this reliable without a
+		// hand-managed request counter. Every assignment below is guarded, `loading` included: letting
+		// a stale response merely skip the rows but still clear the spinner would present the previous
+		// question's list as the answer to this one.
+		let superseded = false;
+
 		// Only the unfiltered view is cached, and that is a deliberate limit rather than a shortcut.
 		// Two reasons: a merge across two different queries is meaningless — every row the new filter
 		// excludes would be reported as "removed by the server" and every row it includes as "new
@@ -62,27 +71,36 @@
 
 		if (!isDefaultView) {
 			browseMaterials(active).then((list) => {
+				if (superseded) return;
 				// Just fetched, so every row is current and draws at full strength — the wrapper is
 				// kept rather than branched around so both paths render through one template.
 				const now = Date.now();
 				materials = list.map((item) => ({ item, confirmedAt: now, isNew: false }));
 				loading = false;
 			});
-			return;
+			return () => {
+				superseded = true;
+			};
 		}
 
 		cachedList<Material>(
 			'materials:all',
 			() => browseMaterials(active),
 			(result) => {
+				if (superseded) return;
 				materials = result.rows;
 				newCount = result.newCount;
 				offline = result.offline;
 				loading = false;
 			}
 		).catch(() => {
+			if (superseded) return;
 			loading = false;
 		});
+
+		return () => {
+			superseded = true;
+		};
 	});
 </script>
 

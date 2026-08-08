@@ -67,17 +67,29 @@
 
 	// Every filter change re-runs the service call, same shape a real fetch() will have later —
 	// each filter field is read synchronously here so Svelte's effect tracking picks it up.
+	//
+	// A debounce alone does not make this safe. Two requests can still be in flight at once — a
+	// filter changed while an earlier one was slow — and nothing about the network guarantees they
+	// come back in order, so a slower earlier answer can land on top of a newer one and leave the
+	// list showing results for a question that has already been replaced. `$effect`'s own cleanup
+	// runs before the next run, so each run marks itself superseded rather than needing a
+	// hand-managed request counter.
 	$effect(() => {
 		if (!branch) return;
 		const topicId = filters.topicId;
 		const difficulty = filters.difficulty;
 		const sourceType = filters.sourceType;
 		const query = filters.query;
+		let superseded = false;
 		getExercisesForBranch(branch.id, getLocale(), { topicId, difficulty, sourceType, query }).then(
 			(list) => {
+				if (superseded) return;
 				exercises = list;
 			}
 		);
+		return () => {
+			superseded = true;
+		};
 	});
 
 	// Same shape, for the Materials tab's own filter bar — branch-scoped `getMaterialsForBranch`
@@ -93,9 +105,15 @@
 		const topicId = materialFilters.topicId;
 		const minLevel = materialFilters.minLevel;
 		const sort = materialFilters.sort;
+		// Same out-of-order guard as the exercise effect above, for the same reason.
+		let superseded = false;
 		getMaterialsForBranch(branch.id, { query, type, tag, topicId, minLevel, sort }).then((list) => {
+			if (superseded) return;
 			materials = list;
 		});
+		return () => {
+			superseded = true;
+		};
 	});
 </script>
 
