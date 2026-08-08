@@ -21,9 +21,10 @@ from community.models import Comment
 from community.serializers import CommentSerializer
 from community.views import comment_thread_response
 from moderation.permissions import feature_gate
-from notifications.services import notify, notify_course_participants
+from notifications.services import notify, notify_comment_reply, notify_course_participants
 from study.models import ExerciseSet
 
+from .reports import pending_reports_in_course
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
     LESSON_PROGRESS_STATUS_CHOICES,
@@ -72,6 +73,29 @@ from .serializers import (
 )
 
 _CoursesFeatureGate = feature_gate('courses')
+
+
+def notify_course_comment_reply(course, comment, *, where=''):
+    """Tell the author of the parent comment that somebody answered them, and return who that was.
+
+    Every thread in this app EXCEPT the four inside a course already did this — an exercise's, a
+    material's, a coverage claim's, a tutoring listing's. A course had only the broadcast ("something
+    was posted"), and its lesson, chapter and attachment threads had nothing at all, so being
+    answered directly inside a course went unmentioned. That is the one notification a discussion
+    genuinely owes somebody.
+
+    `where` names the sub-thread — "Week 3", "Tuesday's session" — so a notification about a reply
+    says which conversation it was in rather than only which course. The label is what the recipient
+    reads; without it, four threads in one course produce four identical-looking notifications.
+
+    Returns the recipient (or None) so the caller can leave them out of a broadcast about the same
+    event. Every gate is the shared `notify()`'s: the recipient's account-wide preference, their
+    per-type mute, and the actor==recipient guard that stops somebody being told they replied to
+    themselves.
+    """
+    label = f'{course.title} — {where}' if where else course.title
+    created = notify_comment_reply(comment, target_label=label, course=course)
+    return comment.parent.author if created is not None and comment.parent_id else None
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -403,6 +427,12 @@ class CourseViewSet(viewsets.ModelViewSet):
             )
         serializer.save(content_type=content_type, object_id=course.pk, author=request.user)
 
+        # A reply tells the person replied-to, personally. The broadcast below is a different
+        # statement — "something was posted in your course" — and until now it was the only one a
+        # course thread ever made, so being answered directly went unmentioned while every other
+        # thread in this app (an exercise's, a material's, a tutoring listing's) has always said so.
+        replied_to = notify_course_comment_reply(course, serializer.instance)
+
         if course.announce_new_posts:
             notify_course_participants(
                 course,
@@ -411,6 +441,9 @@ class CourseViewSet(viewsets.ModelViewSet):
                 note=serializer.instance.body[:200],
                 # The instructor is not on the roster but is unquestionably in the conversation.
                 include_instructor=True,
+                # Whoever just got the reply notification is left out of the broadcast: two bells for
+                # one event, one of them vaguer, is worse than one.
+                skip=[replied_to] if replied_to else None,
             )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -755,7 +788,13 @@ class CourseViewSet(viewsets.ModelViewSet):
         # entirely different thread — or a different content type's thread — and silently attach
         # there; there was no FK-existence check either, so a made-up id was a 500. The helper does
         # both, and is the same code path every other thread in this app now goes through.
-        return comment_thread_response(request, lesson)
+        return comment_thread_response(
+            request,
+            lesson,
+            on_created=lambda comment: notify_course_comment_reply(
+                course, comment, where=lesson.title
+            ),
+        )
 
     def _visible_lesson_or_none(self, course, lesson_id, user):
         """Deliberately NOT `_lesson_or_none` above, which only resolves the row.
@@ -806,7 +845,13 @@ class CourseViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_403_FORBIDDEN)
         if request.method == 'POST' and not course.discussion_writable_by(request.user):
             return Response(status=status.HTTP_403_FORBIDDEN)
-        return comment_thread_response(request, chapter)
+        return comment_thread_response(
+            request,
+            chapter,
+            on_created=lambda comment: notify_course_comment_reply(
+                course, comment, where=chapter.title
+            ),
+        )
 
     @action(
         detail=True,
@@ -1052,31 +1097,61 @@ class CourseViewSet(viewsets.ModelViewSet):
         at the course itself, so a conversation about last year's exam paper stays with the paper
         instead of being mixed into either the course-wide discussion or a site-wide material's
         public review thread.
+
+        **Three things this used to do differently from the course's other three threads**, all of
+        them fixed here by routing it through the same shared helper rather than keeping a fourth
+        hand-rolled copy:
+
+        1. It never consulted `discussion_mode`. A course whose discussion was switched OFF still
+           had a fully working, postable thread on every attachment — which is not a corner of the
+           setting, it is the setting not applying. It now reads and writes under exactly the gates
+           the course, lesson and chapter threads use.
+        2. It passed `parent_id` straight from the request body, so a reply could name a comment in
+           another attachment's thread — or another content type's — and silently attach there, and a
+           made-up id was a 500 rather than a 400. This is the identical hole that was closed for the
+           lesson thread; it was simply still open here.
+        3. Its GET filtered out removed comments entirely, where every other thread in this app keeps
+           the tombstone so a reply chain does not lose its middle. `CommentSerializer` already
+           blanks a removed comment's body and author, so nothing is exposed by including it.
         """
         course = self.get_object()
         attachment = self._attachment_or_none(course, attachment_id, request.user)
         if attachment is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
-
-        content_type = ContentType.objects.get_for_model(Attachment)
-        thread = Comment.objects.filter(
-            content_type=content_type, object_id=attachment.pk, is_removed=False
-        ).select_related('author__profile')
-
-        if request.method == 'GET':
-            return Response(CommentSerializer(thread, many=True).data)
-
-        body = (request.data.get('body') or '').strip()
-        if not body:
-            raise DRFValidationError({'body': 'Write something first.'})
-        comment = Comment.objects.create(
-            content_type=content_type,
-            object_id=attachment.pk,
-            author=request.user,
-            body=body,
-            parent_id=request.data.get('parent') or None,
+        if not course.discussion_visible_to(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if request.method == 'POST' and not course.discussion_writable_by(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        return comment_thread_response(
+            request,
+            attachment,
+            on_created=lambda comment: notify_course_comment_reply(
+                course, comment, where=attachment.title
+            ),
         )
-        return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def reports(self, request, pk=None):
+        """What has been reported inside this course, for the people who run it.
+
+        Its own endpoint rather than a slice of the platform moderation queue, because they are two
+        different jobs for two different people: the queue is a platform-wide surface for staff and
+        taxonomy governors, and this is "what needs dealing with in my room". Putting a course owner
+        into the platform queue would mean either showing them other people's courses or teaching
+        that queue a second scoping axis — see `courses/reports.py` for why the taxonomy route was
+        rejected outright.
+
+        Curators only, not participants: knowing who reported what, and reading a comment that has
+        been auto-hidden, is the moderating half of running a course rather than part of taking it.
+        """
+        course = self.get_object()
+        if not course.can_curate(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        return Response(pending_reports_in_course(course))
 
     # --- private notes ------------------------------------------------------------------------
 

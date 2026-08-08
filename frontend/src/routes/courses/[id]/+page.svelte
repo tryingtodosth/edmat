@@ -40,6 +40,7 @@
 		CourseItemKind
 	} from '$lib/types/course';
 	import CourseContent from '$lib/components/course/CourseContent.svelte';
+	import CourseReports from '$lib/components/course/CourseReports.svelte';
 	import Tabs, { type TabDef } from '$lib/components/shared/Tabs.svelte';
 	import CourseContribute from '$lib/components/course/CourseContribute.svelte';
 	import type { Comment, User } from '$lib/types';
@@ -418,6 +419,10 @@
 						</span>
 					{/if}
 				</p>
+				<!-- What has been reported inside this course. Here rather than on the manage page
+				     because it is the one management job that is time-sensitive: an auto-hidden
+				     comment is hidden from everybody right now, waiting on somebody to look. -->
+				<CourseReports courseId={course.id} />
 			{/if}
 			<!-- Per-course mute: stay in, stop hearing about it. Only ever offered to somebody who is
 			     actually in the course, since there is nothing to mute otherwise. -->

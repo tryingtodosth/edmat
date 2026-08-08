@@ -67,7 +67,19 @@ class IsModerator(permissions.BasePermission):
             return False
         if user.is_staff:
             return True
-        return NodeGovernor.objects.filter(user=user).exists()
+        if NodeGovernor.objects.filter(user=user).exists():
+            return True
+        # Somebody who runs a course can reach the report ACTION for content inside it — the queue
+        # itself stays scoped by the object-level checks below, so this admits them to the endpoint
+        # without showing them anything that is not theirs. Their own scoped list of what has been
+        # reported lives on the course (`GET /api/courses/{id}/reports/`), not here.
+        #
+        # Local import: `courses` imports `moderation.permissions` for its own feature gate, so
+        # reaching back at module scope invites a cycle. Same shape as `ProfileSerializer`'s own
+        # local import of `NodeGovernor`.
+        from courses.models import CURATING_ROLES, CourseStaff
+
+        return CourseStaff.objects.filter(user=user, role__in=CURATING_ROLES).exists()
 
 
 class ExerciseSubmissionViewSet(viewsets.ModelViewSet):
@@ -867,7 +879,21 @@ class ReportActionView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         model = REPORT_KIND_MODELS[kind]
         target = get_object_or_404(model, pk=pk)
-        if not is_governor_of_course(request.user, _course_for_report_target(target)):
+        # Two independent routes to authority over one report, ORed rather than nested: the taxonomy
+        # one (a node governor over the branch this content belongs to) and the course one (staff on
+        # the user-run course the reported comment sits inside). They are different axes and neither
+        # implies the other — a course owner governs no branch, and a branch governor is deliberately
+        # given nothing inside somebody's private course. See courses/reports.py for that decision.
+        #
+        # A local import: `moderation` is imported BY `courses` (for `feature_gate`), so importing it
+        # back at module scope would be a real cycle. Same shape as `ProfileSerializer`'s own local
+        # import of NodeGovernor.
+        from courses.reports import may_moderate_in_course
+
+        if not (
+            is_governor_of_course(request.user, _course_for_report_target(target))
+            or may_moderate_in_course(request.user, target)
+        ):
             return Response(status=status.HTTP_403_FORBIDDEN)
         note = request.data.get('resolved_note', '')
 

@@ -18,6 +18,7 @@ from rest_framework.test import APIClient
 
 from events.models import Event
 from materials.models import Material, MaterialTranslation
+from community.models import Comment
 from notifications.models import Notification
 from study.models import ExerciseSet, ExerciseSetItem
 from taxonomy.models import Branch, Discipline
@@ -2732,3 +2733,321 @@ class LessonProgressTests(CourseThreadFixture):
         self.assertEqual(res.status_code, 404)
         self.course.refresh_from_db()
         self.assertEqual(self.course.progress_visibility, 'shared_anonymous')
+
+
+class CourseReplyNotificationTests(CourseThreadFixture):
+    """Being answered inside a course used to tell nobody.
+
+    Every other thread in this app — an exercise's, a material's, a tutoring listing's — has always
+    said "somebody replied to you". A course had only the broadcast ("something was posted"), and its
+    lesson, chapter and attachment threads had nothing at all.
+    """
+
+    def replies(self, recipient):
+        return Notification.objects.filter(recipient=recipient, type='comment_reply')
+
+    def test_a_reply_in_the_course_thread_tells_the_person_replied_to(self):
+        root = self.as_(self.student).post(
+            f'/api/courses/{self.course.pk}/comments/', {'body': 'is week 3 examinable'}, format='json'
+        ).data
+        self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/comments/',
+            {'body': 'no', 'parent': root['id']},
+            format='json',
+        )
+        row = self.replies(self.student).first()
+        self.assertIsNotNone(row)
+        self.assertEqual(row.actor, self.instructor)
+        self.assertEqual(row.course, self.course)
+
+    def test_the_broadcast_leaves_out_whoever_got_the_reply(self):
+        """Two bells for one event, one of them vaguer, is worse than one."""
+        root = self.as_(self.student).post(
+            f'/api/courses/{self.course.pk}/comments/', {'body': 'question'}, format='json'
+        ).data
+        self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/comments/',
+            {'body': 'answer', 'parent': root['id']},
+            format='json',
+        )
+        self.assertEqual(self.replies(self.student).count(), 1)
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.student, type='course_new_post').exists()
+        )
+
+    def test_a_top_level_post_still_broadcasts_and_replies_to_nobody(self):
+        """A first comment has nobody to answer — it is the opening line, not a reply."""
+        self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/comments/', {'body': 'welcome'}, format='json'
+        )
+        self.assertEqual(self.replies(self.student).count(), 0)
+        self.assertTrue(
+            Notification.objects.filter(recipient=self.student, type='course_new_post').exists()
+        )
+
+    def test_a_reply_in_a_lesson_thread_names_the_lesson(self):
+        """Four threads in one course would otherwise produce four identical-looking notifications."""
+        root = self.as_(self.student).post(
+            self.lesson_thread(), {'body': 'step 3?'}, format='json'
+        ).data
+        self.as_(self.instructor).post(
+            self.lesson_thread(), {'body': 'typo', 'parent': root['id']}, format='json'
+        )
+        row = self.replies(self.student).first()
+        self.assertIsNotNone(row)
+        self.assertIn(self.lesson.title, row.target_label)
+
+    def test_a_reply_in_a_chapter_thread_names_the_chapter(self):
+        root = self.as_(self.student).post(
+            self.chapter_thread(), {'body': 'how should we approach this'}, format='json'
+        ).data
+        self.as_(self.instructor).post(
+            self.chapter_thread(), {'body': 'start with the notes', 'parent': root['id']},
+            format='json',
+        )
+        row = self.replies(self.student).first()
+        self.assertIsNotNone(row)
+        self.assertIn(self.chapter.title, row.target_label)
+
+    def test_replying_to_yourself_tells_you_nothing(self):
+        """`notify()`'s own actor==recipient guard, relied on rather than re-implemented here."""
+        root = self.as_(self.student).post(
+            self.lesson_thread(), {'body': 'first'}, format='json'
+        ).data
+        self.as_(self.student).post(
+            self.lesson_thread(), {'body': 'second', 'parent': root['id']}, format='json'
+        )
+        self.assertEqual(self.replies(self.student).count(), 0)
+
+    def test_muting_the_category_suppresses_it(self):
+        """The recipient's own account-wide preference, which `notify()` applies — not something this
+        feature needed its own switch for."""
+        self.student.profile.notify_on_comment_reply = False
+        self.student.profile.save(update_fields=['notify_on_comment_reply'])
+        root = self.as_(self.student).post(
+            self.lesson_thread(), {'body': 'q'}, format='json'
+        ).data
+        self.as_(self.instructor).post(
+            self.lesson_thread(), {'body': 'a', 'parent': root['id']}, format='json'
+        )
+        self.assertEqual(self.replies(self.student).count(), 0)
+
+
+class AttachmentThreadGateTests(CourseThreadFixture):
+    """The attachment thread was the one course thread that ignored `discussion_mode` entirely.
+
+    A course with discussion switched off still had a fully working, postable thread on every
+    attachment — not a corner of the setting, the setting not applying. It also passed `parent`
+    straight through, the same hole that was closed for the lesson thread but left open here.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.attachment = self.upload('Last year exam')
+
+    def upload(self, title):
+        """Through the real endpoint rather than `Attachment.objects.create`: `size_bytes` is a
+        derived property with no setter, and a real upload is what produces a row with a file on it.
+        The PDF header is genuine because the validator sniffs the bytes with libmagic rather than
+        trusting the name — the same fixture shape `AttachmentTests` already uses."""
+        body = b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
+        response = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/attachments/',
+            {
+                'file': SimpleUploadedFile('exam.pdf', body, content_type='application/pdf'),
+                'title': title,
+            },
+            format='multipart',
+        )
+        assert response.status_code == 201, response.data
+        return Attachment.objects.get(pk=response.data['id'])
+
+    def thread(self, attachment=None):
+        target = attachment or self.attachment
+        return f'/api/courses/{self.course.pk}/attachments/{target.pk}/comments/'
+
+    def off(self):
+        self.course.discussion_mode = 'off'
+        self.course.save(update_fields=['discussion_mode'])
+
+    def test_a_member_can_read_and_post(self):
+        self.assertEqual(self.as_(self.student).get(self.thread()).status_code, 200)
+        res = self.as_(self.student).post(self.thread(), {'body': 'which year is this'}, format='json')
+        self.assertEqual(res.status_code, 201)
+
+    def test_discussion_off_closes_it(self):
+        self.off()
+        self.assertEqual(self.as_(self.student).get(self.thread()).status_code, 403)
+        self.assertEqual(
+            self.as_(self.student).post(self.thread(), {'body': 'hi'}, format='json').status_code, 403
+        )
+
+    def test_discussion_off_closes_it_for_staff_too(self):
+        """The same answer the course's own thread gives them — the setting is about the course, not
+        about who is asking."""
+        self.off()
+        self.assertEqual(self.as_(self.instructor).get(self.thread()).status_code, 403)
+
+    def test_an_outsider_cannot_read_it(self):
+        self.assertEqual(self.as_(self.other).get(self.thread()).status_code, 404)
+
+    def test_a_reply_threads(self):
+        root = self.as_(self.student).post(self.thread(), {'body': 'q'}, format='json').data
+        reply = self.as_(self.instructor).post(
+            self.thread(), {'body': 'a', 'parent': root['id']}, format='json'
+        )
+        self.assertEqual(reply.status_code, 201)
+        self.assertEqual(reply.data['parent'], root['id'])
+
+    def test_a_parent_from_another_attachments_thread_is_refused(self):
+        other = self.upload('Other paper')
+        elsewhere = self.as_(self.student).post(
+            self.thread(other), {'body': 'about the other one'}, format='json'
+        ).data
+        res = self.as_(self.student).post(
+            self.thread(), {'body': 'sneaking in', 'parent': elsewhere['id']}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('parent', res.data)
+
+    def test_a_parent_that_does_not_exist_is_a_400_not_a_500(self):
+        res = self.as_(self.student).post(
+            self.thread(), {'body': 'hi', 'parent': 999999}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+
+
+class CourseItemTargetVisibilityTests(ApiTestCase):
+    """A course references corpus content rather than copying it, so a reference has to answer to
+    what it references. It did not: an approved item in an open chapter rendered whether or not the
+    exercise underneath it had since been unpublished — so a moderator pulling a wrong exercise took
+    it out of the corpus and left it listed, by name, in every course that had referenced it."""
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Week 1')
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Mon')
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+        self.exercise = make_exercise(self.subject, 4242)
+        self.item = CourseItem.objects.create(
+            course=self.course, lesson=self.lesson, exercise=self.exercise, status='approved'
+        )
+
+    def items_seen_by(self, who):
+        detail = self.as_(who).get(f'/api/courses/{self.course.pk}/').data
+        lesson = detail['chapters'][0]['lessons'][0]
+        return [i['id'] for i in lesson['items']]
+
+    def test_a_published_exercise_is_listed(self):
+        self.assertIn(self.item.pk, self.items_seen_by(self.student))
+
+    def test_an_unpublished_one_disappears_for_a_participant(self):
+        self.exercise.published = False
+        self.exercise.save(update_fields=['published'])
+        self.assertNotIn(self.item.pk, self.items_seen_by(self.student))
+
+    def test_but_staff_still_see_it(self):
+        """They are the people who have to notice something in their week has been pulled; hiding it
+        from them would make the course look complete when it is not."""
+        self.exercise.published = False
+        self.exercise.save(update_fields=['published'])
+        self.assertIn(self.item.pk, self.items_seen_by(self.instructor))
+
+    def test_an_unpublished_material_disappears_too(self):
+        material = self.make_material('pulled-script', 'Pulled script')
+        material.published = False
+        material.save(update_fields=['published'])
+        item = CourseItem.objects.create(
+            course=self.course, lesson=self.lesson, material=material, status='approved'
+        )
+        self.assertNotIn(item.pk, self.items_seen_by(self.student))
+
+
+class CourseReportTests(ApiTestCase):
+    """Reported content inside a course, and who may act on it.
+
+    The gap: a comment reported inside somebody's course could only be dealt with by a global staff
+    moderator. The people who run the room — who already approve its contributions and remove its
+    participants — had no way to touch it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Week 1')
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Mon')
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+        Enrollment.objects.create(course=self.course, participant=self.other, status='active')
+        self.comment = self.as_(self.other).post(
+            f'/api/courses/{self.course.pk}/lessons/{self.lesson.pk}/comments/',
+            {'body': 'something objectionable'},
+            format='json',
+        ).data
+        self.as_(self.student).post(
+            '/api/reports/',
+            {'kind': 'comment', 'object_id': self.comment['id'], 'reason': 'off topic'},
+            format='json',
+        )
+
+    def url(self):
+        return f'/api/courses/{self.course.pk}/reports/'
+
+    def test_the_person_running_the_course_sees_what_was_reported(self):
+        rows = self.as_(self.instructor).get(self.url()).data
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['id'], self.comment['id'])
+        self.assertEqual(rows[0]['report_count'], 1)
+        self.assertEqual(rows[0]['reasons'], ['off topic'])
+        self.assertIn(self.lesson.title, rows[0]['where'])
+
+    def test_a_participant_does_not(self):
+        """Reading who reported what is the moderating half of running a course, not part of taking
+        it."""
+        self.assertEqual(self.as_(self.student).get(self.url()).status_code, 403)
+
+    def test_an_outsider_gets_nothing(self):
+        outsider = User.objects.create_user('nobody', 'nobody@x.example', 'pw12345!')
+        self.assertIn(self.as_(outsider).get(self.url()).status_code, (403, 404))
+
+    def test_the_course_owner_can_remove_the_reported_comment(self):
+        res = self.as_(self.instructor).post(
+            f'/api/moderation/reports/comment/{self.comment["id"]}/remove/', {}, format='json'
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(Comment.objects.get(pk=self.comment['id']).is_removed)
+
+    def test_and_the_report_is_then_gone_from_their_list(self):
+        self.as_(self.instructor).post(
+            f'/api/moderation/reports/comment/{self.comment["id"]}/remove/', {}, format='json'
+        )
+        self.assertEqual(self.as_(self.instructor).get(self.url()).data, [])
+
+    def test_an_assistant_can_act_too(self):
+        """`can_curate`, not `can_administer`: acting on the discussion is curating content, which is
+        exactly the job an assistant is brought in for."""
+        assistant = User.objects.create_user('ta', 'ta@x.example', 'pw12345!')
+        CourseStaff.objects.create(course=self.course, user=assistant, role='assistant')
+        res = self.as_(assistant).post(
+            f'/api/moderation/reports/comment/{self.comment["id"]}/remove/', {}, format='json'
+        )
+        self.assertEqual(res.status_code, 200)
+
+    def test_somebody_running_a_DIFFERENT_course_cannot(self):
+        """The authority is over one room, not over reports generally."""
+        stranger = User.objects.create_user('elsewhere', 'elsewhere@x.example', 'pw12345!')
+        Course.objects.create(
+            instructor=stranger, title='Another course', visibility='public', status='open'
+        )
+        res = self.as_(stranger).post(
+            f'/api/moderation/reports/comment/{self.comment["id"]}/remove/', {}, format='json'
+        )
+        self.assertEqual(res.status_code, 403)
+        self.assertFalse(Comment.objects.get(pk=self.comment['id']).is_removed)
+
+    def test_a_participant_cannot_act_on_it_either(self):
+        res = self.as_(self.student).post(
+            f'/api/moderation/reports/comment/{self.comment["id"]}/remove/', {}, format='json'
+        )
+        self.assertIn(res.status_code, (403, 404))
+        self.assertFalse(Comment.objects.get(pk=self.comment['id']).is_removed)

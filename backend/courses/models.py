@@ -986,6 +986,38 @@ class CourseItem(models.Model):
         gate = self.parent_chapter
         if gate and not gate.is_visible_to(user):
             return False
+        return self.target_is_available_to(user)
+
+    def target_is_available_to(self, user) -> bool:
+        """Whether the thing this item POINTS AT is still something this person may see.
+
+        This was missing, and it is the half nobody notices: a course item is approved and its
+        chapter is open, so it rendered — regardless of whether the exercise or material underneath
+        it had since been unpublished. A moderator pulling a wrong exercise took it out of the corpus
+        and left it listed, by name, in every course that had referenced it. Content here is
+        referenced rather than copied (that is the whole design), so a reference has to answer to
+        what it references.
+
+        `LessonExerciseSet.visible_exercises` already got this right for a pinned set and its own
+        comment notes that this class did not; that gap is now closed rather than merely documented.
+        Curators still see it, exactly as they see a pending contribution — the person maintaining
+        the week needs to know something in it has been pulled, and hiding it from them would make
+        the course look complete when it is not.
+
+        An `Event` is deliberately not gated on its own `status` here: a cancelled event stays
+        readable on purpose (see events/models.py — people arranged their week around it), and a
+        course that referenced it should keep saying so rather than quietly dropping it.
+        """
+        if self.course.can_curate(user):
+            return True
+        if self.exercise_id is not None and not self.exercise.published:
+            return False
+        if self.material_id is not None and not self.material.published:
+            return False
+        # An attachment lives in this course rather than in the corpus, so its own visibility is the
+        # course's business and is already answered by `Attachment.is_visible_to`.
+        if self.attachment_id is not None and not self.attachment.is_visible_to(user):
+            return False
         return True
 
 

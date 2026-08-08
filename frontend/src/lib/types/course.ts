@@ -250,6 +250,26 @@ export interface LessonProgress {
 	withheldReason: 'small_cohort' | null;
 }
 
+/** One reported comment inside a course, as its own staff see it.
+ *
+ * Deliberately not the platform `ReportGroup` shape: that carries a viewer-pool percentage computed
+ * from `ContentView`, which does not exist for anything inside a course, so every row would report a
+ * meaningless 0%. What the people running a room need is narrower — what was said, by whom, where,
+ * how many objected and why. */
+export interface CourseReportRow {
+	kind: 'comment';
+	id: string;
+	body: string;
+	author: string;
+	/** Which conversation it was in — "Week 3 — Tuesday's session" — so nobody has to guess from an id. */
+	where: string;
+	autoHidden: boolean;
+	isRemoved: boolean;
+	reportCount: number;
+	reasons: string[];
+	lastReportedAt: string;
+}
+
 export interface RatingSummary {
 	count: number;
 	/** null, not 0, when nobody has rated it — zero would read as "everybody hated it" rather than
