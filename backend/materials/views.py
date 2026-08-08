@@ -106,8 +106,11 @@ def _filter_materials(qs, params):
 
     q = params.get('q')
     if q:
+        # `ucontains` rather than `icontains`, for the reason exercises/views.py's own `q` filter
+        # records: SQLite's LIKE folds ASCII alone, so `ćwiczenia` never matched `Ćwiczenia`. See
+        # config/dbsearch.py.
         qs = qs.filter(
-            Q(translations__title__icontains=q) | Q(translations__description__icontains=q)
+            Q(translations__title__ucontains=q) | Q(translations__description__ucontains=q)
         )
     return qs.distinct()
 

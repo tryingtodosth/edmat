@@ -181,8 +181,12 @@ def _filter_exercises(qs, params):
         qs = qs.filter(branch__discipline__slug=discipline)
     q = params.get('q')
     if q:
+        # `ucontains`, not `icontains`: on SQLite the latter is case-insensitive for ASCII only, so
+        # searching `zbieżność` never found a statement written `ZBIEŻNOŚĆ` — see config/dbsearch.py,
+        # which also explains why this is a lookup rather than a rewritten query (it falls through to
+        # `icontains` on PostgreSQL, where nothing is broken).
         qs = qs.filter(
-            Q(translations__title__icontains=q) | Q(translations__statement__icontains=q)
+            Q(translations__title__ucontains=q) | Q(translations__statement__ucontains=q)
         )
     return qs.distinct()
 

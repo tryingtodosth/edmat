@@ -41,6 +41,7 @@
 	} from '$lib/types/course';
 	import CourseContent from '$lib/components/course/CourseContent.svelte';
 	import CourseReports from '$lib/components/course/CourseReports.svelte';
+	import CourseSearch from '$lib/components/course/CourseSearch.svelte';
 	import Tabs, { type TabDef } from '$lib/components/shared/Tabs.svelte';
 	import CourseContribute from '$lib/components/course/CourseContribute.svelte';
 	import type { Comment, User } from '$lib/types';
@@ -317,7 +318,9 @@
 	{:else if notFound || !course}
 		<p class="status">{m.course_notFound()}</p>
 	{:else}
-		<header class="head">
+		<!-- `id` so a search hit on the course's own summary or description has somewhere to land: this
+		     block sits above the tabs, so there is no tab to switch to, only a place to scroll to. -->
+		<header class="head" id="course-overview">
 			<h1>{course.title}</h1>
 			<p class="meta">
 				<!-- The author's name links to their profile: who is running a course is the main thing
@@ -440,6 +443,10 @@
 				</section>
 			{/if}
 		</div>
+
+		<!-- Above the tabs, deliberately: it finds things that live on four different ones, and
+		     somebody who cannot remember which tab a thing was on will not think to pick it first. -->
+		<CourseSearch {course} />
 
 		<!-- Six stacked sections became five tabs. Everything past the first screenful was invisible:
 		     a participant scrolled through content they cannot act on to reach the discussion, and

@@ -15,6 +15,8 @@ import type {
 	CourseFeedbackReview,
 	CourseReportRow,
 	CourseNote,
+	CourseSearchHit,
+	CourseSearchResult,
 	CourseStaffMember,
 	Enrollment,
 	EnrollmentStatus,
@@ -31,6 +33,7 @@ import type {
 	TaughtCourseDraft
 } from '$lib/types/course';
 import { apiClient, ApiError } from '$lib/api/client';
+import { getLocale } from '$lib/paraglide/runtime';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function mapLesson(raw: any): Lesson {
@@ -1004,3 +1007,54 @@ export async function postAttachmentComment(
 		{ body, parent: parentId ? Number(parentId) : null }
 	);
 }
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- the same wire-shape mapping every block
+   above already opts out for: the response is untyped JSON until this function has narrowed it. */
+
+/** Everything inside one course matching `query`, as much of it as the caller may see.
+ *
+ * One request rather than searching each tab's data client-side: the page only ever holds what the
+ * viewer may see of the CONTENT, and the discussion is fetched separately and only for the tab that
+ * shows it — so a client-side filter would silently never find a comment, which is the commonest
+ * thing anybody actually looks for ("where did we talk about that").
+ *
+ * `lang` is sent for the same reason `taxonomy.ts` resolves it inside its own functions rather than
+ * leaving it to callers: a result's label for a referenced MATERIAL is a per-locale row, and it is
+ * being read here as a navigation label — the name of a thing you are about to click — not as
+ * content somebody chose to read in its original language. Without it the backend falls back to the
+ * original locale and an English interface lists Polish titles.
+ *
+ * Ids arrive numeric and become strings on the way in, matching every other mapper here. */
+export async function searchCourse(courseId: string, query: string): Promise<CourseSearchResult> {
+	const raw = await apiClient.get<any>(
+		`/courses/${encodeURIComponent(courseId)}/search/?q=${encodeURIComponent(query)}` +
+			`&lang=${encodeURIComponent(getLocale())}`
+	);
+	return {
+		query: raw.query ?? '',
+		terms: raw.terms ?? [],
+		truncated: Boolean(raw.truncated),
+		reason: raw.reason ?? null,
+		minLength: raw.min_length ?? 2,
+		// `results` on the wire, `hits` here: `CourseSearchResult` is itself a result, and a `.results`
+		// inside a result reads as though there were two levels of them.
+		hits: (raw.results ?? []).map((row: any): CourseSearchHit => ({
+			kind: row.kind,
+			id: String(row.id),
+			title: row.title ?? '',
+			field: row.field ?? '',
+			snippet: row.snippet ?? '',
+			chapter: row.chapter ? { id: String(row.chapter.id), title: row.chapter.title } : null,
+			lesson: row.lesson ? { id: String(row.lesson.id), title: row.lesson.title } : null,
+			itemKind: row.item_kind,
+			targetId: row.target_id == null ? undefined : String(row.target_id),
+			status: row.status,
+			isUnlocked: row.is_unlocked,
+			thread: row.thread
+				? { kind: row.thread.kind, id: String(row.thread.id), title: row.thread.title }
+				: undefined,
+			createdAt: row.created_at
+		}))
+	};
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
