@@ -121,7 +121,24 @@
 			aria-expanded={menuOpen}
 			aria-label={m.random_openFilters()}
 		>
-			<span aria-hidden="true">▾</span>
+			<!-- Sliders rather than a chevron: the chevron said "a menu opens here", which is true of
+			     four things in this row and so distinguished none of them. This one narrows what the
+			     dice will land on, and the only ▾ left in the bar now belongs to the account trigger,
+			     where it marks the one menu that opens under somebody's own name. -->
+			<svg
+				class="filters-icon"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.8"
+				stroke-linecap="round"
+				aria-hidden="true"
+			>
+				<path d="M4 7h10M18 7h2M4 12h4M12 12h8M4 17h10M18 17h2" />
+				<circle cx="16" cy="7" r="2" />
+				<circle cx="10" cy="12" r="2" />
+				<circle cx="16" cy="17" r="2" />
+			</svg>
 		</button>
 	</div>
 
@@ -243,6 +260,15 @@
 		border-left: 1px solid var(--border-color);
 		font-size: var(--font-size-xs);
 		padding-inline: var(--space-1);
+		display: inline-flex;
+		align-items: center;
+	}
+	// Sized to the glyph it replaced rather than to the button, so swapping the chevron out did not
+	// change how wide the dice control is in a row whose whole point is that it fits on one line.
+	.filters-icon {
+		width: 14px;
+		height: 14px;
+		display: block;
 	}
 
 	.random-menu {

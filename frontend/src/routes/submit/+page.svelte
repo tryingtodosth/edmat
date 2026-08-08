@@ -146,8 +146,12 @@
 			{authStore.user?.isVerifiedContributor ? m.submit_subtitleVerified() : m.submit_subtitle()}
 		</p>
 
-		{#if !authStore.isAuthenticated}
-			<p class="login-prompt"><a href={resolve('/login')}>{m.submit_loginRequired()}</a></p>
+		{#if authStore.restoring}
+			<p class="session-restoring">{m.common_loading()}</p>
+		{:else if !authStore.isAuthenticated}
+			<p data-session-hidden class="login-prompt">
+				<a href={resolve('/login')}>{m.submit_loginRequired()}</a>
+			</p>
 		{:else}
 			{#if success}
 				<p class="notice">

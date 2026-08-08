@@ -5,3 +5,23 @@
 // KaTeX's own stylesheet is imported as a plain JS-side `import 'katex/dist/katex.min.css'` in the
 // root +layout.svelte instead of here — Sass's `@use` doesn't reliably resolve a bare node_modules
 // CSS path the way a JS/TS import does, and this avoids that ambiguity entirely.
+
+// While a session is being restored, nothing may tell the visitor they are signed out — because we
+// do not know that, and on a reload (which switching the interface language deliberately performs)
+// the answer is usually the opposite. `data-session` is set by app.html before the first paint and
+// removed by lib/state/auth.svelte.ts the moment /auth/me/ answers, so this covers precisely the
+// window in which the markup is a guess: from first paint until the real answer arrives.
+//
+// Global rather than scoped to a component because the markup it hides is spread across the header
+// and every page that offers a "sign in to do this" prompt, and a rule each of them re-declares is
+// a rule one of them will eventually be added without.
+html[data-session='restoring'] [data-session-hidden] {
+	display: none;
+}
+
+// What stands in its place, on the pages whose whole content sits behind that prompt — without it
+// they would be blank for the restore, which reads as broken rather than as busy. Global for the
+// same reason as the rule above: thirteen components render it and none of them should own it.
+.session-restoring {
+	color: var(--text-secondary);
+}

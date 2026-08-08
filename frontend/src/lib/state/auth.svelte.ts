@@ -24,12 +24,40 @@ function deriveUsername(email: string): string {
 
 let user = $state<User | null>(null);
 
+// Whether the question "is anybody signed in?" has an answer yet. Starts false because on a fresh
+// page load it genuinely does not: the token is in localStorage and the profile behind it takes a
+// round trip. Keeping this separate from `user` is the whole point — "nobody is signed in" and "we
+// do not know yet" are different states, and collapsing them is what made a locale switch (which
+// reloads the page, by design) look like being logged out for two and a half seconds.
+let ready = $state(false);
+
+/** Clears the pre-hydration marker set by app.html — see `restoring`. */
+function markResolved(): void {
+	ready = true;
+	if (typeof document !== 'undefined') document.documentElement.removeAttribute('data-session');
+}
+
 export const authStore = {
 	get user(): User | null {
 		return user;
 	},
 	get isAuthenticated(): boolean {
 		return user !== null;
+	},
+	/** True once auth has resolved — either to a real user or to a genuine guest. */
+	get ready(): boolean {
+		return ready;
+	},
+	/** A session is being restored: a token is persisted but its profile has not come back yet.
+	 * Anything that would otherwise tell the visitor to sign in should wait for this to clear,
+	 * because during it the honest answer is "hold on", not "you are not signed in".
+	 *
+	 * Reads false during SSR (localStorage does not exist there, so `tokenStore.value` is null),
+	 * which keeps the server-rendered markup identical to what it was before this existed. The
+	 * window this cannot cover — first paint until the bundle hydrates, which the measurement above
+	 * showed is most of the delay — is covered by app.html's own marker and the CSS keyed off it. */
+	get restoring(): boolean {
+		return !ready && user === null && tokenStore.value !== null;
 	},
 	get isModerator(): boolean {
 		return user?.isModerator ?? false;
@@ -50,13 +78,20 @@ export const authStore = {
 	 * token that no longer validates (revoked, expired, or the account deleted) is cleared rather
 	 * than left dangling. */
 	async init(): Promise<void> {
-		if (!tokenStore.value) return;
+		if (!tokenStore.value) {
+			markResolved();
+			return;
+		}
 		try {
 			const raw = await apiClient.get<RawProfile>('/auth/me/');
 			user = mapUser(raw);
 		} catch {
 			tokenStore.set(null);
 			user = null;
+		} finally {
+			// In a `finally`, so a failed restore resolves to "guest" rather than leaving the app
+			// stuck saying "hold on" forever — the one outcome worse than the bug being fixed.
+			markResolved();
 		}
 	},
 

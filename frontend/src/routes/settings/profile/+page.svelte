@@ -68,8 +68,10 @@
 	<h1>{m.profile_edit_heading()}</h1>
 	<!-- "My profile" -->
 
-	{#if !authStore.isAuthenticated}
-		<p class="status">{m.settings_loginRequired()}</p>
+	{#if authStore.restoring}
+		<p class="session-restoring">{m.common_loading()}</p>
+	{:else if !authStore.isAuthenticated}
+		<p data-session-hidden class="status">{m.settings_loginRequired()}</p>
 		<!-- "Log in to view your settings." -->
 	{:else}
 		{@const user = authStore.user}

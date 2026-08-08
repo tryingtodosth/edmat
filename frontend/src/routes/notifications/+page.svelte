@@ -30,8 +30,12 @@
 		{/if}
 	</div>
 
-	{#if !authStore.isAuthenticated}
-		<p class="login-prompt"><a href={resolve('/login')}>{m.settings_loginRequired()}</a></p>
+	{#if authStore.restoring}
+		<p class="session-restoring">{m.common_loading()}</p>
+	{:else if !authStore.isAuthenticated}
+		<p data-session-hidden class="login-prompt">
+			<a href={resolve('/login')}>{m.settings_loginRequired()}</a>
+		</p>
 	{:else if !notificationStore.loaded}
 		<p class="empty">{m.common_loading()}</p>
 	{:else if notificationStore.items.length === 0}

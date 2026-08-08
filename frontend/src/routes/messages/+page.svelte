@@ -72,8 +72,12 @@
 			<a class="compose" href={resolve('/messages/new')}>{m.messages_compose()}</a>
 		</div>
 
-		{#if !authStore.isAuthenticated}
-			<p class="login-prompt"><a href={resolve('/login')}>{m.messages_loginRequired()}</a></p>
+		{#if authStore.restoring}
+			<p class="session-restoring">{m.common_loading()}</p>
+		{:else if !authStore.isAuthenticated}
+			<p data-session-hidden class="login-prompt">
+				<a href={resolve('/login')}>{m.messages_loginRequired()}</a>
+			</p>
 		{:else}
 			<div class="tabs" role="tablist">
 				<button

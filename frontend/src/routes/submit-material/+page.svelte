@@ -203,8 +203,12 @@
 		<h1>{m.submitMaterial_heading()}</h1>
 		<p class="subtitle">{m.submitMaterial_subtitle()}</p>
 
-		{#if !authStore.isAuthenticated}
-			<p class="login-prompt"><a href={resolve('/login')}>{m.submitMaterial_loginRequired()}</a></p>
+		{#if authStore.restoring}
+			<p class="session-restoring">{m.common_loading()}</p>
+		{:else if !authStore.isAuthenticated}
+			<p data-session-hidden class="login-prompt">
+				<a href={resolve('/login')}>{m.submitMaterial_loginRequired()}</a>
+			</p>
 		{:else}
 			{#if success}
 				<p class="notice">{m.submitMaterial_success()}</p>

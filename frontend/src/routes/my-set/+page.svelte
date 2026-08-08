@@ -162,8 +162,10 @@
 	<header class="no-print">
 		<h1>{m.myset_heading()}</h1>
 		<p>{m.myset_subtitle()}</p>
-		{#if !authStore.isAuthenticated}
-			<p class="guest-note">{m.myset_guestNote()}</p>
+		{#if authStore.restoring}
+			<!-- Nothing: this is an aside beside content that renders anyway. -->
+		{:else if !authStore.isAuthenticated}
+			<p data-session-hidden class="guest-note">{m.myset_guestNote()}</p>
 		{/if}
 	</header>
 

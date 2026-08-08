@@ -28,6 +28,28 @@
 					// :root/@media fallback in _theme.scss still applies.
 				}
 			})();
+			// Same trick, same reason, for the session. The server cannot know whether a visitor is
+			// signed in — there is no server `load` and the token lives in localStorage — so the
+			// server-rendered HTML necessarily says "signed out", and nothing corrects it until the
+			// JS bundle has loaded, hydrated and `/auth/me/` has answered. Measured on the dev
+			// server after a locale switch: the signed-out header was on screen from 200ms and the
+			// request that would have contradicted it was not even SENT until 2617ms. So a signed-in
+			// person watched the app claim they were logged out for two and a half seconds.
+			//
+			// The presence of a token is knowable here, before the first paint, with no bundle and
+			// no round trip. It says only "a session is being restored" — never who, and never with
+			// what permissions, both of which stay entirely with the real /auth/me/ answer. A
+			// genuine guest has no token, gets no attribute, and still sees Log in immediately.
+			// Cleared by lib/state/auth.svelte.ts the moment the real answer arrives, either way.
+			(function () {
+				try {
+					if (localStorage.getItem('edmat-auth-token'))
+						document.documentElement.setAttribute('data-session', 'restoring');
+				} catch (e) {
+					// Same locked-down-context caveat as above: without the attribute the app just
+					// behaves as it did before, which is a worse first paint rather than a broken one.
+				}
+			})();
 		</script>
 		%sveltekit.head%
 	</head>
