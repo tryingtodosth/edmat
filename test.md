@@ -61,6 +61,7 @@ inherit from it rather than repeating the line.
 | `events` (60) | Visibility and drafts, authoring and location validation, attendance and capacity, the private roster, notifications (including the deliberate silences), the kill switch, and the schedule integration |
 | `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
 | `accounts` profile extras (21) | Experience, skills, the derived activity feed, the demo-content seed, and the clock/week-start display preferences |
+| `config` (16) | The Unicode-aware `ucontains` lookup and the Polish-diacritics bug it fixes, driven through the two browse `?q=` paths as well as the queryset — see `config/test_dbsearch.py` |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
 | `exercises`, `materials`, `community`, `study`, `services`, `messaging`, `notifications`, `telemetry`, `accounts` | Their own domains |
 
@@ -236,6 +237,7 @@ node e2e/profile-editing.mjs
 node e2e/booking.mjs
 node e2e/events-and-nav.mjs
 node e2e/known-issues.mjs
+node e2e/course-search.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -376,6 +378,20 @@ an accessible name, that it opens a modal holding **every** claim rather than on
 remainder, in the same sort order the card established, that drilling into one claim and closing it
 returns to the list rather than the card, that two modals are never stacked, and that the whole path
 works from the keyboard.
+
+**`e2e/course-search.mjs` (24 checks)** — searching inside one course, in three contexts, because
+the whole point is that the same box shows the owner, a participant and a stranger different things.
+Builds its own course through the real endpoints and deletes it afterwards, so a second run starts
+clean. Pins the parts the Django tests cannot: that six keystrokes fire **one** request rather than
+six, that a result actually navigates to the thing it found (a chapter to the content tab anchored
+at that chapter, a comment to the discussion tab), that the matched words are marked in the snippet,
+that an ALL-CAPS Polish comment is found typed in lower case — the SQL half of the diacritics fix,
+which Python's own `casefold()` would hide — and that the participant notes, a locked chapter's
+sessions and a participants-only thread all stay out of a stranger's results.
+
+Two of its checks exist because of bugs a screenshot found and no assertion would have: the panel
+first rendered with no card at all (its colour tokens were invented rather than the ones
+`_theme.scss` defines), and a chapter hit printed its own title again as its "where" line.
 
 ### Two things worth knowing before you debug a failure
 

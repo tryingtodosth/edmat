@@ -1497,6 +1497,62 @@ class CourseViewSet(viewsets.ModelViewSet):
             invite.save(update_fields=['revoked_at'])
         return Response(CourseInviteSerializer(invite).data)
 
+    # --- searching inside one course ---------------------------------------------------------------
+
+    @action(
+        detail=True,
+        methods=['get'],
+        permission_classes=[permissions.AllowAny, _CoursesFeatureGate],
+    )
+    def search(self, request, pk=None):
+        """`GET /api/courses/{id}/search/?q=…` — one query across everything in this course.
+
+        `AllowAny` because a course's own detail page is: a stranger deciding whether to join reads
+        the description, the chapter list and (in a public thread) the discussion, so being able to
+        search what they can already read adds no access. Everything that is NOT public is filtered
+        by the same model methods the read path uses — see courses/search.py for the table, and for
+        why a locked chapter can be a hit while nothing inside it can.
+
+        Deliberately thin: `self.get_object()` is what enforces "may this person reach this course at
+        all", since it reads the same queryset every other action does, and the whole of the matching
+        lives in the module so it can be tested without a request.
+        """
+        # Imported here rather than at the top of the file purely to keep this whole addition in one
+        # place — the module has other work in flight and a contiguous change is a cleaner merge.
+        from django.db.models import prefetch_related_objects
+
+        from .search import search_course
+
+        course = self.get_object()
+        # What the search walks, added to the instance the base queryset already fetched rather than
+        # re-fetching it. Without these a course pays a query per item for the row it points at —
+        # search touches strictly more of a course than any other endpoint, so it is the one most
+        # able to turn into the N+1 the moderation queue was once measured making. `chapters` and
+        # their `lessons` are already prefetched by `get_queryset`, and prefetching a reverse FK also
+        # caches the parent on each child, so `chapter.course`/`item.course` resolve to the instance
+        # in hand instead of one query each inside `is_visible_to`.
+        prefetch_related_objects(
+            [course],
+            'items__exercise',
+            'items__material__translations',
+            'items__attachment',
+            'items__event',
+            'items__lesson__chapter',
+            'items__chapter',
+            'attachments',
+        )
+        return Response(
+            search_course(
+                course,
+                request.query_params.get('q'),
+                request.user,
+                # The serializer context an item's label is resolved through, so a material's title
+                # comes back in the locale the caller asked for rather than whichever translation row
+                # happened to be first.
+                label_context=self.get_serializer_context(),
+            )
+        )
+
 
 # --- following an invite link ---------------------------------------------------------------------
 # Two plain function views rather than actions on the viewset, because somebody holding a link knows

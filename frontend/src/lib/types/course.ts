@@ -418,3 +418,45 @@ export interface AttachmentReview {
 	body: string;
 	createdAt: string;
 }
+
+/** What kind of thing a search hit is. Not the same list as `CourseItemKind`: an `item` hit is a
+ * pointer at an exercise/material/attachment/event, and `itemKind` on the hit says which. */
+export type CourseSearchKind = 'course' | 'chapter' | 'lesson' | 'item' | 'attachment' | 'comment';
+
+/** One thing found inside a course.
+ *
+ * Every hit carries where it lives — the chapter and, if any, the lesson — because "found it" is only
+ * half an answer; the useful half is being able to go there. Several fields are optional because they
+ * only mean anything for one kind: `itemKind`/`targetId` for a pointer at content, `thread` for a
+ * comment. */
+export interface CourseSearchHit {
+	kind: CourseSearchKind;
+	/** The row's own id — a chapter's, a lesson's, a comment's. For `kind: 'course'`, the course. */
+	id: string;
+	title: string;
+	/** Which field matched, so the UI can say "in the notes" rather than only showing a snippet. */
+	field: string;
+	snippet: string;
+	chapter: { id: string; title: string } | null;
+	lesson: { id: string; title: string } | null;
+	itemKind?: CourseItemKind;
+	/** The referenced exercise/material/attachment/event, so an item hit can link to the thing
+	 * itself rather than only back into the course. */
+	targetId?: string;
+	status?: ContributionStatus;
+	isUnlocked?: boolean;
+	thread?: { kind: 'course' | 'chapter' | 'lesson' | 'attachment'; id: string; title: string };
+	createdAt?: string;
+}
+
+export interface CourseSearchResult {
+	query: string;
+	/** The terms the server actually matched on, rather than the raw string re-split here. */
+	terms: string[];
+	hits: CourseSearchHit[];
+	/** Some kind hit its per-kind cap, so this is not everything. */
+	truncated: boolean;
+	/** Why nothing was searched, when nothing was. `null` means the query really did run. */
+	reason: 'query_too_short' | null;
+	minLength: number;
+}

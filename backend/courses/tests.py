@@ -2732,3 +2732,332 @@ class LessonProgressTests(CourseThreadFixture):
         self.assertEqual(res.status_code, 404)
         self.course.refresh_from_db()
         self.assertEqual(self.course.progress_visibility, 'shared_anonymous')
+
+
+# Imported down here rather than in the block at the top of the file, and only these three: this
+# class is appended at the end so the whole change to this module is contiguous, which is a cleaner
+# merge against the other work in flight on it. Nothing above uses any of them.
+from django.contrib.contenttypes.models import ContentType  # noqa: E402
+
+from community.models import Comment  # noqa: E402
+
+from .search import PER_KIND_LIMIT  # noqa: E402
+
+
+class CourseSearchTests(ApiTestCase):
+    """Searching inside one course.
+
+    Weighted towards refusals, like the rest of this file, because search is the one endpoint that
+    reads *everything* a course holds — so it is where one forgotten visibility rule leaks the most.
+    Every rule tested here already exists somewhere in this app; what these pin is that search asks
+    it too.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course(
+            summary='Kurs o zbieżności szeregów',
+            description='<p>Zaczynamy od podstaw: zadania z granic i ciągów.</p>',
+            discussion_mode='participants',
+        )
+        Enrollment.objects.create(course=self.course, participant=self.student, status='active')
+
+        self.open_chapter = Chapter.objects.create(
+            course=self.course,
+            title='Ćwiczenia wstępne',
+            description='Powtórka przed pierwszym kolokwium.',
+            order=0,
+        )
+        self.lesson = Lesson.objects.create(
+            chapter=self.open_chapter,
+            title='Kryterium Cauchy’ego',
+            description='Dowód i kontrprzykłady.',
+            participant_notes='Sekretne wskazówki: policzcie szereg harmoniczny.',
+            order=0,
+        )
+
+        # Locked, and with content inside it, because "the chapter itself is a hit while its contents
+        # are not" is the subtlest rule search has to get right.
+        self.locked_chapter = Chapter.objects.create(
+            course=self.course,
+            title='Rachunek różniczkowy',
+            description='Otwiera się w przyszłym tygodniu.',
+            order=1,
+            unlocks_at=timezone.now() + timedelta(days=7),
+        )
+        self.locked_lesson = Lesson.objects.create(
+            chapter=self.locked_chapter, title='Pochodna kierunkowa', order=0
+        )
+
+        self.exercise = make_exercise(self.subject, 4001)
+        self.material = self.make_material('skrypt-analiza', 'Skrypt o ciągach')
+        self.exercise_item = CourseItem.objects.create(
+            course=self.course, exercise=self.exercise, chapter=self.open_chapter
+        )
+        self.material_item = CourseItem.objects.create(
+            course=self.course, material=self.material, lesson=self.lesson, note='Rozdział 4 i 5'
+        )
+
+    def search(self, query, who=None, **params):
+        client = self.as_(who) if who else self.client
+        return client.get(f'/api/courses/{self.course.pk}/search/', {'q': query, **params})
+
+    def kinds(self, payload):
+        return {row['kind'] for row in payload['results']}
+
+    def titles(self, payload, kind):
+        return [row['title'] for row in payload['results'] if row['kind'] == kind]
+
+    # --- the query itself -------------------------------------------------------------------------
+
+    def test_one_letter_is_refused_with_a_reason_rather_than_scanned(self):
+        payload = self.search('a').data
+        self.assertEqual(payload['reason'], 'query_too_short')
+        self.assertEqual(payload['results'], [])
+        self.assertEqual(payload['min_length'], 2)
+
+    def test_whitespace_alone_is_the_same_refusal(self):
+        self.assertEqual(self.search('   ').data['reason'], 'query_too_short')
+
+    def test_two_characters_is_a_real_query(self):
+        payload = self.search('ćw').data
+        self.assertIsNone(payload['reason'])
+        self.assertIn('Ćwiczenia wstępne', self.titles(payload, 'chapter'))
+
+    def test_terms_are_anded_across_fields_not_within_one(self):
+        """`cauchy szereg` finds the lesson whose title says one and whose notes say the other."""
+        payload = self.search('cauchy szereg', self.student).data
+        self.assertEqual(payload['terms'], ['cauchy', 'szereg'])
+        self.assertIn('Kryterium Cauchy’ego', self.titles(payload, 'lesson'))
+
+    def test_a_term_nothing_matches_removes_the_whole_record(self):
+        payload = self.search('cauchy elipsoida', self.student).data
+        self.assertEqual(self.titles(payload, 'lesson'), [])
+
+    def test_a_hit_says_what_kind_it_is_and_where_it_lives(self):
+        payload = self.search('kontrprzykłady', self.student).data
+        hit = next(row for row in payload['results'] if row['kind'] == 'lesson')
+        self.assertEqual(hit['field'], 'description')
+        self.assertEqual(
+            hit['chapter'], {'id': self.open_chapter.pk, 'title': 'Ćwiczenia wstępne'}
+        )
+        self.assertEqual(hit['lesson']['id'], self.lesson.pk)
+
+    def test_the_courses_own_summary_and_description_are_searched(self):
+        self.assertEqual(self.search('zbieżności').data['results'][0]['kind'], 'course')
+        self.assertIn('course', self.kinds(self.search('granic').data))
+
+    def test_a_snippet_is_shown_without_its_markup(self):
+        hit = next(row for row in self.search('granic').data['results'] if row['kind'] == 'course')
+        self.assertIn('granic', hit['snippet'])
+        self.assertNotIn('<p>', hit['snippet'])
+
+    # --- diacritics, which is the whole reason config/dbsearch.py exists --------------------------
+
+    def test_a_capitalised_polish_word_is_found_typed_in_lower_case(self):
+        # A course's structure is matched in Python; this is the half `str.casefold()` covers.
+        self.assertIn('Ćwiczenia wstępne', self.titles(self.search('ćwiczenia').data, 'chapter'))
+
+    def test_a_comment_in_capitals_is_found_in_lower_case(self):
+        # And this is the half that goes through SQL — the `ucontains` lookup rather than casefold.
+        self.as_(self.student).post(
+            f'/api/courses/{self.course.pk}/comments/',
+            {'body': 'Czy ZBIEŻNOŚĆ trzeba pokazać z definicji?'},
+            format='json',
+        )
+        self.assertEqual(len(self.titles(self.search('zbieżność', self.student).data, 'comment')), 1)
+
+    # --- items ------------------------------------------------------------------------------------
+
+    def test_a_referenced_material_is_found_by_the_label_the_course_page_shows(self):
+        payload = self.search('skrypt', self.student).data
+        hit = next(row for row in payload['results'] if row['kind'] == 'item')
+        self.assertEqual(hit['title'], 'Skrypt o ciągach')
+        self.assertEqual(hit['item_kind'], 'material')
+        self.assertEqual(hit['target_id'], self.material.pk)
+        self.assertEqual(hit['lesson']['id'], self.lesson.pk)
+
+    def test_a_referenced_exercise_is_found_by_its_number(self):
+        payload = self.search(str(self.exercise), self.student).data
+        hit = next(row for row in payload['results'] if row['kind'] == 'item')
+        self.assertEqual(hit['item_kind'], 'exercise')
+        self.assertEqual(hit['target_id'], self.exercise.pk)
+
+    def test_the_curators_note_on_an_item_is_searched_too(self):
+        payload = self.search('rozdział', self.student).data
+        self.assertEqual(
+            [row['field'] for row in payload['results'] if row['kind'] == 'item'], ['note']
+        )
+
+    # --- refusals: what search must not surface ---------------------------------------------------
+
+    def test_a_locked_chapter_is_a_hit_but_its_lessons_are_not(self):
+        """The lock hides contents, not existence — exactly what the course page already renders."""
+        payload = self.search('różniczkowy', self.student).data
+        self.assertIn('Rachunek różniczkowy', self.titles(payload, 'chapter'))
+
+        inside = self.search('pochodna', self.student).data
+        self.assertEqual(self.titles(inside, 'lesson'), [])
+
+    def test_staff_do_see_inside_a_locked_chapter(self):
+        payload = self.search('pochodna', self.instructor).data
+        self.assertEqual(self.titles(payload, 'lesson'), ['Pochodna kierunkowa'])
+
+    def test_participant_notes_are_not_searchable_from_outside_the_course(self):
+        term = 'sekretne'
+        self.assertEqual(self.titles(self.search(term, self.other).data, 'lesson'), [])
+        self.assertEqual(self.titles(self.search(term).data, 'lesson'), [])
+        self.assertEqual(
+            self.titles(self.search(term, self.student).data, 'lesson'), ['Kryterium Cauchy’ego']
+        )
+
+    def test_a_pending_contribution_is_found_only_by_staff_and_its_submitter(self):
+        offered = self.make_material('propozycja', 'Zbiór zadań od Michała')
+        CourseItem.objects.create(
+            course=self.course,
+            material=offered,
+            chapter=self.open_chapter,
+            status='pending',
+            submitted_by=self.student,
+        )
+        term = 'Michała'
+        self.assertEqual(self.titles(self.search(term, self.other).data, 'item'), [])
+        self.assertEqual(len(self.titles(self.search(term, self.student).data, 'item')), 1)
+        self.assertEqual(len(self.titles(self.search(term, self.instructor).data, 'item')), 1)
+
+    def test_an_unpublished_exercise_stays_hidden_from_anybody_who_cannot_curate(self):
+        """`LessonExerciseSet.visible_exercises` already drops these and says in its own docstring
+        that `CourseItem` should and does not. Search does not carry that gap forward."""
+        self.exercise.published = False
+        self.exercise.save(update_fields=['published'])
+        label = str(self.exercise)
+        self.assertEqual(self.titles(self.search(label, self.student).data, 'item'), [])
+        self.assertEqual(len(self.titles(self.search(label, self.instructor).data, 'item')), 1)
+
+    def test_an_unpublished_material_is_hidden_on_the_same_reasoning(self):
+        self.material.published = False
+        self.material.save(update_fields=['published'])
+        self.assertEqual(self.titles(self.search('skrypt', self.student).data, 'item'), [])
+        self.assertEqual(len(self.titles(self.search('skrypt', self.instructor).data, 'item')), 1)
+
+    def test_an_attachment_is_searchable_only_by_people_in_the_course(self):
+        Attachment.objects.create(
+            course=self.course,
+            title='Kolokwium 2019 z rozwiązaniami',
+            file='course-attachments/k2019.pdf',
+            uploaded_by=self.instructor,
+        )
+        term = 'kolokwium 2019'
+        self.assertEqual(len(self.titles(self.search(term, self.student).data, 'attachment')), 1)
+        self.assertEqual(self.titles(self.search(term, self.other).data, 'attachment'), [])
+        self.assertEqual(self.titles(self.search(term).data, 'attachment'), [])
+
+    # --- refusals: the discussion -----------------------------------------------------------------
+
+    def _comment(self, body, who=None, url=None):
+        return self.as_(who or self.student).post(
+            url or f'/api/courses/{self.course.pk}/comments/', {'body': body}, format='json'
+        )
+
+    def test_the_discussion_is_not_searched_by_somebody_who_may_not_read_it(self):
+        self._comment('Zadanie 7 wygląda na błędne')
+        self.assertEqual(len(self.titles(self.search('błędne', self.student).data, 'comment')), 1)
+        self.assertEqual(self.titles(self.search('błędne', self.other).data, 'comment'), [])
+        self.assertEqual(self.titles(self.search('błędne').data, 'comment'), [])
+
+    def test_a_public_thread_is_searchable_by_a_stranger(self):
+        self.course.discussion_mode = 'public'
+        self.course.save(update_fields=['discussion_mode'])
+        self._comment('Zadanie 7 wygląda na błędne')
+        self.assertEqual(len(self.titles(self.search('błędne', self.other).data, 'comment')), 1)
+
+    def test_a_thread_that_is_off_is_searched_by_nobody_including_staff(self):
+        self._comment('Zadanie 7 wygląda na błędne')
+        self.course.discussion_mode = 'off'
+        self.course.save(update_fields=['discussion_mode'])
+        self.assertEqual(self.titles(self.search('błędne', self.student).data, 'comment'), [])
+        self.assertEqual(self.titles(self.search('błędne', self.instructor).data, 'comment'), [])
+
+    def test_a_removed_comment_never_matches(self):
+        posted = self._comment('Zadanie 7 wygląda na błędne').data
+        Comment.objects.filter(pk=posted['id']).update(is_removed=True)
+        self.assertEqual(self.titles(self.search('błędne', self.student).data, 'comment'), [])
+
+    def test_an_auto_hidden_comment_never_matches(self):
+        posted = self._comment('Zadanie 7 wygląda na błędne').data
+        Comment.objects.filter(pk=posted['id']).update(auto_hidden_at=timezone.now())
+        self.assertEqual(self.titles(self.search('błędne', self.student).data, 'comment'), [])
+
+    def test_a_comment_in_a_locked_chapters_thread_is_not_searched(self):
+        """A locked week's conversation is part of its contents, which is what `lesson_comments`
+        already says by refusing to serve it at all."""
+        url = f'/api/courses/{self.course.pk}/lessons/{self.locked_lesson.pk}/comments/'
+        self.assertEqual(
+            self._comment('rozmowa o pochodnych', who=self.instructor, url=url).status_code, 201
+        )
+        self.assertEqual(self.titles(self.search('pochodnych', self.student).data, 'comment'), [])
+        self.assertEqual(
+            len(self.titles(self.search('pochodnych', self.instructor).data, 'comment')), 1
+        )
+
+    def test_a_comment_hit_says_which_thread_it_is_in(self):
+        url = f'/api/courses/{self.course.pk}/lessons/{self.lesson.pk}/comments/'
+        self._comment('czy krok trzeci jest poprawny', url=url)
+        hit = next(
+            row
+            for row in self.search('krok trzeci', self.student).data['results']
+            if row['kind'] == 'comment'
+        )
+        self.assertEqual(
+            hit['thread'], {'kind': 'lesson', 'id': self.lesson.pk, 'title': self.lesson.title}
+        )
+        self.assertEqual(hit['title'], self.student.username)
+
+    # --- reaching the endpoint at all --------------------------------------------------------------
+
+    def test_a_stranger_may_search_a_public_course(self):
+        self.assertEqual(self.search('granic').status_code, 200)
+
+    def test_a_course_nobody_else_can_see_cannot_be_searched(self):
+        self.course.visibility = 'only_you'
+        self.course.save(update_fields=['visibility'])
+        self.assertEqual(self.search('granic', self.other).status_code, 404)
+        self.assertEqual(self.search('granic').status_code, 404)
+        self.assertEqual(self.search('granic', self.instructor).status_code, 200)
+
+    # --- shape and cost ---------------------------------------------------------------------------
+
+    def test_results_are_capped_per_kind_and_say_so(self):
+        for n in range(PER_KIND_LIMIT + 3):
+            Comment.objects.create(
+                content_type=ContentType.objects.get_for_model(Course),
+                object_id=self.course.pk,
+                author=self.student,
+                body=f'powtarzalna uwaga numer {n}',
+            )
+        payload = self.search('powtarzalna', self.student).data
+        self.assertEqual(len(self.titles(payload, 'comment')), PER_KIND_LIMIT)
+        self.assertTrue(payload['truncated'])
+
+    def test_it_does_not_grow_a_query_per_chapter_lesson_or_item(self):
+        """The N+1 guard, measured rather than reasoned about — the way this project's own moderation
+        load test settled the same question. Search reads more of a course than any other endpoint,
+        so it is where a per-row query costs most."""
+
+        def cost():
+            with CaptureQueriesContext(connection) as ctx:
+                response = self.search('ciąg', self.instructor)
+            self.assertEqual(response.status_code, 200)
+            return len(ctx)
+
+        before = cost()
+        for n in range(6):
+            chapter = Chapter.objects.create(course=self.course, title=f'Tydzień {n}', order=10 + n)
+            lesson = Lesson.objects.create(chapter=chapter, title=f'Sesja {n}')
+            CourseItem.objects.create(
+                course=self.course,
+                material=self.make_material(f'ciag-{n}', f'Ciągi — materiał {n}'),
+                lesson=lesson,
+            )
+        after = cost()
+        self.assertEqual(before, after, f'{after - before} extra queries for 6 more chapters')

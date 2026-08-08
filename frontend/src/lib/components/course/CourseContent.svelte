@@ -375,7 +375,10 @@
 		     script from the start and nothing ever called it, so chapters alone could not be
 		     reordered while their lessons and items could. `chapters` is the only group a chapter
 		     can be in, hence the empty group id. -->
+		<!-- The id is what a search hit links to. Prefixed rather than a bare `chapter-{id}` because a
+		     chapter, a lesson and an item can share a number and these all land in one document. -->
 		<article
+			id="course-chapter-{chapter.id}"
 			class="chapter"
 			class:chapter--locked={!chapter.isUnlocked}
 			draggable={course.canCurate && editingChapter === null}
@@ -444,6 +447,7 @@
 				>
 					{#each chapter.lessons as lesson (lesson.id)}
 						<li
+							id="course-lesson-{lesson.id}"
 							class="lesson"
 							draggable={course.canCurate}
 							ondragstart={(e) => {
