@@ -20,6 +20,8 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.utils import timezone
 
 from .attachmentfile import validate_attachment_file
@@ -1195,6 +1197,36 @@ class Attachment(models.Model):
         it is not gated per-chapter the way `CourseItem` is, because it is not part of the running
         order; it is the pile of files the course keeps."""
         return self.course.is_member(user) or self.course.can_curate(user)
+
+
+@receiver(post_delete, sender=Attachment)
+def _delete_attachment_file(sender, instance, **kwargs):
+    """Deleting an attachment deletes its file. It did not, and that made the delete a lie.
+
+    Django's `FileField` deliberately does not remove the file when the row goes — the behaviour was
+    taken out precisely because a rolled-back transaction would otherwise have destroyed a file it
+    could not restore. So it has to be asked for, and here it should be: the whole point of the
+    re-encoding in `attachmentfile.py` is that somebody who realises their photo of a whiteboard
+    carries the coordinates of the room can take it down. If the row disappears from the page while
+    the bytes stay at a stable, still-servable URL, they have not taken it down — they have only
+    stopped being able to find it themselves.
+
+    A signal rather than an override of `delete()`, because a model method is bypassed by exactly the
+    two paths that matter most here: a queryset delete, and the cascade when a whole course is
+    deleted. Django sends `post_delete` for cascaded rows too, so an attachment's file goes with its
+    course.
+
+    `save=False` because the row is already gone; saving it back would be an error. Storage failures
+    are swallowed for the same reason `size_bytes` swallows them — a file already missing from
+    storage is the outcome this wanted anyway, and raising here would leave the caller believing the
+    delete failed when the row is committed either way.
+    """
+    if not instance.file:
+        return
+    try:
+        instance.file.delete(save=False)
+    except (OSError, ValueError):
+        pass
 
 
 class AttachmentReview(models.Model):

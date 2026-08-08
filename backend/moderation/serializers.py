@@ -108,6 +108,21 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
     requirements = serializers.JSONField(required=False, default=list)
     coverage = serializers.JSONField(required=False, default=list)
 
+    def validate_file(self, upload):
+        """An image is never stored as the bytes the uploader sent — see `materials/materialfile.py`
+        for why, and `accounts/avatar.py` for the long form. A PDF or a `.docx` is stored untouched.
+
+        Here, at SUBMISSION time, rather than when a moderator approves it: the file is written to
+        disk the moment this serializer saves, and `_apply_material_submission` then points the real
+        `Material` at that same stored file rather than re-saving it. Stripping on approval would
+        mean the GPS-bearing original sat on disk — and in front of the reviewing moderator — for
+        however long the queue took, and would leave it there entirely if the submission were
+        rejected.
+        """
+        from materials.materialfile import process_material_file
+
+        return process_material_file(upload)
+
     def validate_type(self, value):
         """`MaterialSubmission.type` has always been a bare CharField with a comment naming the
         enum it was supposed to hold, so a malformed value only surfaced later as a 500 when

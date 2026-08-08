@@ -2310,3 +2310,158 @@ class FeatureFlagTests(APITestCase):
         self.assertEqual(
             self.client.get(reverse('exercise-submission-list')).status_code, status.HTTP_200_OK
         )
+
+
+# --- a submitted material image is re-encoded, a document is not ----------------------------------
+#
+# Appended at the end so the whole change to this module is contiguous.
+
+
+def _material_image_bytes(width=3600, height=1800, fmt='JPEG', exif=None):
+    """A real, encoded image, patterned and non-square so a working resize can be told from a no-op
+    and a rotation from a crop. A fixture that silently carried no EXIF would pass the strip
+    assertions for free."""
+    import io as _io
+
+    from PIL import Image as _Image
+
+    image = _Image.new('RGB', (width, height), (30, 120, 200))
+    for x in range(0, width, 60):
+        for y in range(0, height, 60):
+            image.paste((240, 200, 40), (x, y, x + 30, y + 30))
+    buffer = _io.BytesIO()
+    image.save(buffer, fmt, **({'exif': exif} if exif is not None else {}))
+    return buffer.getvalue()
+
+
+def _phone_exif():
+    """What a phone actually writes — including the GPS fix that is the reason for all this."""
+    from PIL import Image as _Image
+
+    exif = _Image.Exif()
+    exif[0x010F] = 'ACME Phone'
+    exif[0x0132] = '2026:03:14 09:41:00'
+    gps = exif.get_ifd(0x8825)
+    gps[1] = 'N'
+    gps[2] = (52.0, 13.0, 0.0)
+    gps[3] = 'E'
+    gps[4] = (21.0, 1.0, 0.0)
+    return exif
+
+
+class MaterialSubmissionImageTests(_TempMediaRootMixin, APITestCase):
+    """A material is published through a PUBLIC endpoint, so a phone photo submitted as one used to
+    put the coordinates of the room it was taken in in front of the whole site.
+
+    Every assertion is on the STORED file rather than on the response, because the response was
+    always fine — the leak was in the bytes on disk.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.branch = make_course(slug='uw-material-image-branch')
+        self.student = make_user('matimg_student')
+
+    def _submit(self, filename, content, **overrides):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_authenticate(self.student)
+        data = {
+            'branch': self.branch.slug,
+            'type': 'practice_test',
+            'title': 'A photographed page',
+            'description': 'Real practice problems.',
+            'locale': 'en',
+            'file': SimpleUploadedFile(filename, content),
+            **overrides,
+        }
+        return self.client.post('/api/material-submissions/', data, format='multipart')
+
+    def _stored(self, response):
+        from moderation.models import MaterialSubmission
+
+        return MaterialSubmission.objects.get(pk=response.data['id']).file
+
+    def test_a_photo_loses_its_exif_and_its_gps(self):
+        from PIL import Image
+
+        original = _material_image_bytes(exif=_phone_exif())
+        self.assertIn(b'ACME Phone', original, 'the fixture must really carry what we strip')
+
+        response = self._submit('board.jpg', original)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        with Image.open(self._stored(response).path) as stored:
+            self.assertEqual(dict(stored.getexif()), {})
+            self.assertEqual(dict(stored.getexif().get_ifd(0x8825)), {})
+
+    def test_the_stored_bytes_are_not_the_uploaded_bytes(self):
+        original = _material_image_bytes(exif=_phone_exif())
+
+        response = self._submit('board.jpg', original)
+
+        with open(self._stored(response).path, 'rb') as handle:
+            self.assertNotEqual(handle.read(), original)
+
+    def test_it_keeps_its_shape_rather_than_being_cropped_square(self):
+        """A material image is a scan of a page: centre-cropping takes the ends off exactly the
+        content that runs to the edges."""
+        from PIL import Image
+
+        response = self._submit('board.jpg', _material_image_bytes(3600, 1800))
+
+        with Image.open(self._stored(response).path) as stored:
+            self.assertEqual(stored.width, 2 * stored.height)
+
+    def test_a_large_scan_is_bounded(self):
+        from PIL import Image
+
+        response = self._submit('board.jpg', _material_image_bytes(3600, 1800))
+
+        with Image.open(self._stored(response).path) as stored:
+            self.assertLessEqual(max(stored.size), 2400)
+
+    def test_a_small_scan_is_not_blown_up(self):
+        """Upscaling would add bytes and invent detail the source never had."""
+        from PIL import Image
+
+        response = self._submit('board.png', _material_image_bytes(800, 600, fmt='PNG'))
+
+        with Image.open(self._stored(response).path) as stored:
+            self.assertEqual(stored.size, (800, 600))
+
+    def test_a_pdf_is_stored_byte_for_byte(self):
+        """The half of the old promise that is kept: for a document the bytes ARE the thing, and
+        rewriting them would corrupt the file while claiming to clean it."""
+        original = b'%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
+
+        response = self._submit('paper.pdf', original)
+
+        with open(self._stored(response).path, 'rb') as handle:
+            self.assertEqual(handle.read(), original)
+
+    def test_an_approved_material_carries_the_cleaned_file(self):
+        """The strip happens at submission, and approval points the real Material at that same
+        stored file — so the published one is clean without a second pass."""
+        from PIL import Image
+
+        from moderation.models import MaterialSubmission
+
+        response = self._submit('board.jpg', _material_image_bytes(exif=_phone_exif()))
+        submission = MaterialSubmission.objects.get(pk=response.data['id'])
+
+        moderator = make_user('matimg_mod', is_staff=True)
+        self.client.force_authenticate(moderator)
+        decision = self.client.post(
+            reverse(
+                'moderation-action',
+                kwargs={'kind': 'material', 'pk': submission.pk, 'decision': 'approve'},
+            ),
+            {},
+            format='json',
+        )
+        self.assertEqual(decision.status_code, status.HTTP_200_OK, decision.data)
+
+        submission.refresh_from_db()
+        with Image.open(submission.resulting_material.file.path) as published:
+            self.assertEqual(dict(published.getexif()), {})
