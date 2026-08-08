@@ -31,8 +31,12 @@
 		<h1>{m.services_newListing()}</h1>
 		<p class="subtitle">{m.services_newListingSubtitle()}</p>
 
-		{#if !authStore.isAuthenticated}
-			<p class="login-prompt"><a href={resolve('/login')}>{m.services_loginRequired()}</a></p>
+		{#if authStore.restoring}
+			<p class="session-restoring">{m.common_loading()}</p>
+		{:else if !authStore.isAuthenticated}
+			<p data-session-hidden class="login-prompt">
+				<a href={resolve('/login')}>{m.services_loginRequired()}</a>
+			</p>
 		{:else}
 			<ServiceForm {branches} onSubmit={handleSubmit} />
 		{/if}

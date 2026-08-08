@@ -423,8 +423,15 @@
 						{/snippet}
 					</Popover>
 				{:else}
-					<a href={resolve('/login')}>{m.nav_login()}</a>
-					<a href={resolve('/register')} class="primary-link">{m.nav_register()}</a>
+					<!-- `data-session-hidden` rather than an {#if} on `authStore.restoring` alone: the
+					     server-rendered HTML cannot know about a session, so these two links are in the
+					     first paint no matter what this component does, and the bundle that could
+					     remove them is the slow part. app.html's marker plus the CSS in global.scss
+					     covers that window; the store's own flag covers the tail after hydration. -->
+					<div class="signed-out-actions" data-session-hidden class:hidden={authStore.restoring}>
+						<a href={resolve('/login')}>{m.nav_login()}</a>
+						<a href={resolve('/register')} class="primary-link">{m.nav_register()}</a>
+					</div>
 				{/if}
 			</div>
 		</div>
@@ -648,6 +655,17 @@
 		align-items: center;
 		gap: var(--space-2);
 		margin-left: auto;
+	}
+
+	// A wrapper purely so the pair can be hidden as one thing while a session is being restored;
+	// it reproduces the gap they used to get from being direct children of .site-header__you.
+	.signed-out-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.signed-out-actions.hidden {
+		display: none;
 	}
 
 	.site-header__actions {

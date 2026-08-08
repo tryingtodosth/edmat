@@ -31,8 +31,10 @@
 
 <div class="page">
 	<h1>{m.course_runACourse()}</h1>
-	{#if !authStore.isAuthenticated}
-		<p class="status">{m.course_refusal_signIn()}</p>
+	{#if authStore.restoring}
+		<p class="session-restoring">{m.common_loading()}</p>
+	{:else if !authStore.isAuthenticated}
+		<p data-session-hidden class="status">{m.course_refusal_signIn()}</p>
 		<a href={resolve('/login')}>{m.nav_login()}</a>
 	{:else}
 		<p class="lead">{m.course_newLead()}</p>

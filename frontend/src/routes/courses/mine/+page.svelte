@@ -40,8 +40,10 @@
 		{/if}
 	</header>
 
-	{#if !authStore.isAuthenticated}
-		<p class="status">{m.course_refusal_signIn()}</p>
+	{#if authStore.restoring}
+		<p class="session-restoring">{m.common_loading()}</p>
+	{:else if !authStore.isAuthenticated}
+		<p data-session-hidden class="status">{m.course_refusal_signIn()}</p>
 		<a href={resolve('/login')}>{m.nav_login()}</a>
 	{:else if loading}
 		<p class="status">{m.common_loading()}</p>

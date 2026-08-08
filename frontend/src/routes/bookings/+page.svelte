@@ -406,8 +406,12 @@
 <div class="page">
 	<h1>{m.booking_pageTitle()}</h1>
 
-	{#if !authStore.isAuthenticated}
-		<p class="muted"><a href={resolve('/login')}>{m.booking_loginToBook()}</a></p>
+	{#if authStore.restoring}
+		<p class="session-restoring">{m.common_loading()}</p>
+	{:else if !authStore.isAuthenticated}
+		<p data-session-hidden class="muted">
+			<a href={resolve('/login')}>{m.booking_loginToBook()}</a>
+		</p>
 	{:else}
 		<nav class="tabs" aria-label={m.booking_pageTitle()}>
 			<button type="button" class:active={tab === 'incoming'} onclick={() => (tab = 'incoming')}>

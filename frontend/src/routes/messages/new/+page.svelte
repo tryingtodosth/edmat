@@ -62,8 +62,12 @@
 	<div class="page">
 		<h1>{m.messages_compose()}</h1>
 
-		{#if !authStore.isAuthenticated}
-			<p class="login-prompt"><a href={resolve('/login')}>{m.messages_loginRequired()}</a></p>
+		{#if authStore.restoring}
+			<p class="session-restoring">{m.common_loading()}</p>
+		{:else if !authStore.isAuthenticated}
+			<p data-session-hidden class="login-prompt">
+				<a href={resolve('/login')}>{m.messages_loginRequired()}</a>
+			</p>
 		{:else if recipientNotFound}
 			<p class="empty">{m.messages_recipientNotFound()}</p>
 		{:else if !recipient}

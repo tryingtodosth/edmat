@@ -170,8 +170,12 @@
 		</div>
 	</section>
 
-	{#if !authStore.isAuthenticated || !authStore.user}
-		<p class="login-prompt"><a href={resolve('/login')}>{m.settings_loginRequired()}</a></p>
+	{#if authStore.restoring}
+		<p class="session-restoring">{m.common_loading()}</p>
+	{:else if !authStore.isAuthenticated || !authStore.user}
+		<p data-session-hidden class="login-prompt">
+			<a href={resolve('/login')}>{m.settings_loginRequired()}</a>
+		</p>
 	{:else}
 		{@const user = authStore.user}
 		<section class="profile">

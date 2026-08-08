@@ -32,8 +32,10 @@
 <FeatureGate feature="events">
 	<div class="page">
 		<h1>{m.events_hostAnEvent()}</h1>
-		{#if !authStore.isAuthenticated}
-			<p class="status">{m.events_block_sign_in()}</p>
+		{#if authStore.restoring}
+			<p class="session-restoring">{m.common_loading()}</p>
+		{:else if !authStore.isAuthenticated}
+			<p data-session-hidden class="status">{m.events_block_sign_in()}</p>
 			<a href={resolve('/login')}>{m.nav_login()}</a>
 		{:else}
 			<p class="lead">{m.events_newLead()}</p>

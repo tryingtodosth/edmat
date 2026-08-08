@@ -76,8 +76,10 @@
 		<p class="subtitle">{m.services_watchlistSubtitle()}</p>
 	</div>
 
-	{#if !authStore.isAuthenticated}
-		<p class="login-prompt">
+	{#if authStore.restoring}
+		<p class="session-restoring">{m.common_loading()}</p>
+	{:else if !authStore.isAuthenticated}
+		<p data-session-hidden class="login-prompt">
 			<a href={resolve('/login')}>{m.services_watchlistLoginRequired()}</a>
 		</p>
 	{:else if loading}
