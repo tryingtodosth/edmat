@@ -40,6 +40,7 @@
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
+	import { moderationQueueStore } from '$lib/state/moderationQueue.svelte';
 	import { saveTargetsStore } from '$lib/state/saveTargets.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { m } from '$lib/paraglide/messages.js';
@@ -67,6 +68,13 @@
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
+	// The waiting-decisions count, loaded whenever a moderator's navigation is drawn. An effect
+	// rather than `onMount`, because signing in later in the same session never re-runs mount — the
+	// same trap the notification badge already hit once and fixed the same way.
+	$effect(() => {
+		moderationQueueStore.ensureLoaded(authStore.canModerate ? (authStore.user?.id ?? null) : null);
+	});
+
 	let hasAnythingToAdd = $derived(
 		canSubmitExercise || canSubmitMaterial || canClassroom || canTutoring || canEvents
 	);
@@ -79,6 +87,7 @@
 		// keys its cache by owner and so would refetch anyway, but leaving one person's set names
 		// in memory after they sign out is not something to rely on a later check to undo.
 		saveTargetsStore.clear();
+		moderationQueueStore.clear();
 	}
 
 	// ---- the drawer -----------------------------------------------------------------------------
@@ -242,11 +251,6 @@
 	{#if canTutoring}
 		<a href={resolve('/services')} {onclick}>{m.nav_services()}</a>
 	{/if}
-	<!-- canModerate, not isModerator — a scoped node governor should reach the moderation page too,
-	     just seeing a narrower queue once there (CLAUDE.md's own "node governor" feature) -->
-	{#if authStore.canModerate}
-		<a href={resolve('/moderation')} {onclick}>{m.nav_moderation()}</a>
-	{/if}
 {/snippet}
 
 {#snippet createItems(itemClass: string, onclick: () => void)}
@@ -339,6 +343,13 @@
 		<!-- Places to go and look at things. Create flows are deliberately not in here any more. -->
 		<nav class="site-nav no-print" aria-label={m.nav_mainNavigation()}>
 			{@render browseLinks(() => {})}
+			<!-- Rendered here rather than inside `browseLinks`, because the drawer files it with the
+			     personal group instead — moderation is not a place to browse, it is work waiting for
+			     you. canModerate, not isModerator: a scoped node governor reaches the page too, just
+			     seeing a narrower queue once there. -->
+			{#if authStore.canModerate}
+				<a href={resolve('/moderation')}>{m.nav_moderation()}</a>
+			{/if}
 		</nav>
 
 		<!-- Add… rides on the top row next to the nav rather than in the icon cluster. The row wraps,
@@ -459,40 +470,34 @@
 	aria-label={m.nav_mainNavigation()}
 	aria-hidden={!drawerOpen}
 >
+	<!-- The language sits on the close button's own line. It is the one control somebody may need
+	     BEFORE they can read anything else in here, so it should not be below a list of words they
+	     cannot read; and the top-right corner already belongs to the drawer's chrome rather than to
+	     its contents. The padding keeps it clear of the ✕, which floats over the drawer. -->
+	<div class="drawer__top">
+		<LocaleSwitcher />
+	</div>
+
 	{#if authStore.isAuthenticated}
 		<div class="drawer__identity">
 			<span class="drawer__name">{authStore.user?.displayName}</span>
 		</div>
 	{/if}
 
-	<!-- The utilities first and as a row: they are the ones somebody reaches for without reading, and
-	     a phone's thumb reaches the top of a right-hand drawer least comfortably of anywhere in it. -->
-	<div class="drawer__utilities">
-		<RandomExerciseButton />
-		<LocaleSwitcher />
-		<ThemeToggle />
-	</div>
-
-	<nav class="drawer__section" aria-label={m.nav_mainNavigation()}>
-		{@render browseLinks(closeOnNavigate)}
-	</nav>
-
-	<!-- Outside the signed-in block, and before it: the icon row it mirrors is not rendered at this
-	     width, so without this a phone would have no way to reach a saved set at all — and a guest's
-	     set, which lives only in this browser, is the one that would go missing. -->
-	<div class="drawer__section">
-		<a class="drawer__link" href={resolve('/my-set')} onclick={closeOnNavigate}>
-			{@render mySetIcon()}
-			<span>{m.nav_mySet()}</span>
-			{#if guestSetStore.count > 0}
-				<span class="badge">{guestSetStore.count}</span>
-			{/if}
-		</a>
-	</div>
-
-	{#if authStore.isAuthenticated}
-		{#if canMessaging}
-			<div class="drawer__section">
+	<!-- Everything that is YOURS, directly under your name: what is waiting for you, what you were
+	     sent, what you saved, and what you have to decide on. This used to be scattered — the saved
+	     set in one section, the two inboxes in another below the browse list, and moderation filed
+	     among the browse links as though it were a place to go and look at things. -->
+	<div class="drawer__section drawer__section--you">
+		{#if authStore.isAuthenticated}
+			<a class="drawer__link" href={resolve('/notifications')} onclick={closeOnNavigate}>
+				<span aria-hidden="true">🔔</span>
+				<span>{m.notification_inboxHeading()}</span>
+				{#if notificationStore.unreadCount > 0}
+					<span class="badge">{notificationStore.unreadCount}</span>
+				{/if}
+			</a>
+			{#if canMessaging}
 				<!-- A link to the page rather than the desktop bell/icon pair. Both of those open their
 				     own popover, and a popover inside a drawer is a worse interaction than simply going
 				     to the inbox — the unread counts, which are the reason they are worth surfacing at
@@ -504,16 +509,45 @@
 						<span class="badge">{messagesStore.unreadCount}</span>
 					{/if}
 				</a>
-				<a class="drawer__link" href={resolve('/notifications')} onclick={closeOnNavigate}>
-					<span aria-hidden="true">🔔</span>
-					<span>{m.notification_inboxHeading()}</span>
-					{#if notificationStore.unreadCount > 0}
-						<span class="badge">{notificationStore.unreadCount}</span>
-					{/if}
-				</a>
-			</div>
+			{/if}
 		{/if}
 
+		<!-- Offered signed out as well: the icon row this mirrors is not rendered at this width, and a
+		     guest's set lives only in this browser, so it is the one that would go missing. -->
+		<a class="drawer__link" href={resolve('/my-set')} onclick={closeOnNavigate}>
+			{@render mySetIcon()}
+			<span>{m.nav_mySet()}</span>
+			{#if guestSetStore.count > 0}
+				<span class="badge">{guestSetStore.count}</span>
+			{/if}
+		</a>
+
+		{#if authStore.canModerate}
+			<a class="drawer__link" href={resolve('/moderation')} onclick={closeOnNavigate}>
+				<span aria-hidden="true">⚖</span>
+				<span>{m.nav_moderation()}</span>
+				{#if moderationQueueStore.total > 0}
+					<!-- How many decisions are actually waiting. A moderation link with no number says
+					     "there is a queue somewhere"; with one it says whether opening it is worth
+					     doing now, which is the only reason to surface it in navigation at all. -->
+					<span class="badge">{moderationQueueStore.total}</span>
+				{/if}
+			</a>
+		{/if}
+	</div>
+
+	<!-- The remaining utilities, below the personal block: a random exercise and the theme are things
+	     somebody reaches for without reading, but neither is about them. -->
+	<div class="drawer__utilities">
+		<RandomExerciseButton />
+		<ThemeToggle />
+	</div>
+
+	<nav class="drawer__section" aria-label={m.nav_mainNavigation()}>
+		{@render browseLinks(closeOnNavigate)}
+	</nav>
+
+	{#if authStore.isAuthenticated}
 		{#if hasAnythingToAdd}
 			<div class="drawer__section">
 				<p class="drawer__heading">{m.nav_add()}</p>
@@ -613,7 +647,10 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-		margin-left: var(--space-4);
+		/* Hard right, against the edge of the row — which is the separation doing the real work now.
+		   The rule stays as the boundary marker for the case where the window is narrow enough that
+		   the two groups meet in the middle. */
+		margin-left: auto;
 		padding-left: var(--space-4);
 		border-left: 1px solid var(--border-color);
 	}
@@ -623,6 +660,12 @@
 		align-items: center;
 		gap: var(--space-2);
 		font-size: var(--font-size-sm);
+		/* Its own full-width line. The row wraps at every width this header is actually used at (its
+		   own max-width is 1100px), so this states what was already happening — and it is what gives
+		   the personal group a line edge to sit against. Without it the row was only as wide as its
+		   contents, so "push to the right" had nothing to push against and the whole thing sat in a
+		   huddle on the left. */
+		flex: 1 1 100%;
 		a {
 			color: var(--text-secondary);
 			&:hover {
@@ -772,7 +815,11 @@
 			bottom: 0;
 			width: min(20rem, 86vw);
 			z-index: var(--z-modal);
-			padding: calc(var(--space-4) + 40px) var(--space-4) var(--space-4);
+			// The top padding used to be `space-4 + 40px`, reserving a whole empty band for the ✕ that
+			// floats over the drawer. The language selector now lives IN that band, level with the
+			// close button, so the reservation moved from here onto `.drawer__top`'s own height —
+			// which also reclaims 40px of dead space at the top of every drawer.
+			padding: var(--space-2) var(--space-4) var(--space-4);
 			background: var(--bg-surface);
 			border-left: 1px solid var(--border-color);
 			overflow-y: auto;
@@ -800,6 +847,23 @@
 		.drawer__name {
 			font-weight: 700;
 		}
+		/* Level with the ✕, which floats over the drawer at top: 8px / right: 12px — so the padding
+		   here keeps the selector clear of it rather than under it. */
+		.drawer__top {
+			display: flex;
+			align-items: center;
+			// Exactly the band the ✕ occupies (it is fixed at top: 8px and about 40px tall), so the
+			// selector sits level with it rather than below it. The right padding is what keeps the
+			// two from overlapping: the button floats over this row rather than being laid out in it.
+			min-height: 40px;
+			padding-right: 3.25rem;
+		}
+
+		.drawer__section--you {
+			border-bottom: 1px solid var(--border-color);
+			padding-bottom: var(--space-2);
+		}
+
 		.drawer__utilities {
 			display: flex;
 			align-items: center;

@@ -2465,3 +2465,122 @@ class MaterialSubmissionImageTests(_TempMediaRootMixin, APITestCase):
         submission.refresh_from_db()
         with Image.open(submission.resulting_material.file.path) as published:
             self.assertEqual(dict(published.getexif()), {})
+
+
+class ModerationQueueCountTests(APITestCase):
+    """`GET /api/moderation/queue/count/` — the number behind the navigation badge.
+
+    Its own endpoint so a badge does not fetch and serialize the whole queue, which means the thing
+    to pin is that it AGREES with the queue: a count that disagreed with the page it links to would
+    be worse than no count.
+    """
+
+    def setUp(self):
+        self.branch = make_course('count-branch')
+        self.moderator = make_user('count-mod', is_staff=True)
+
+    def count(self, user):
+        self.client.force_authenticate(user)
+        return self.client.get(reverse('moderation-queue-count'))
+
+    def test_an_empty_queue_counts_zero(self):
+        response = self.count(self.moderator)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total'], 0)
+
+    def test_it_counts_a_pending_submission(self):
+        from moderation.models import ExerciseSubmission
+
+        ExerciseSubmission.objects.create(
+            branch=self.branch, submitted_by=make_user('count-s1'), payload={'title': 'A'}
+        )
+
+        response = self.count(self.moderator)
+
+        self.assertEqual(response.data['submissions'], 1)
+        self.assertEqual(response.data['total'], 1)
+
+    def test_a_decided_one_stops_counting(self):
+        from moderation.models import ExerciseSubmission
+
+        submission = ExerciseSubmission.objects.create(
+            branch=self.branch, submitted_by=make_user('count-s2'), payload={'title': 'A'}
+        )
+        submission.status = 'approved'
+        submission.save(update_fields=['status'])
+
+        self.assertEqual(self.count(self.moderator).data['total'], 0)
+
+    def test_several_reports_on_one_thing_count_as_one_decision(self):
+        """The unit somebody acts on is the target, not the report row — three people objecting to
+        one comment is one thing to decide. The queue groups them, so the count has to as well."""
+        exercise = make_exercise(self.branch, 9100)
+        content_type = ContentType.objects.get_for_model(Exercise)
+        for i in range(3):
+            Report.objects.create(
+                content_type=content_type,
+                object_id=exercise.pk,
+                reported_by=make_user(f'count-r{i}'),
+                reason='x',
+            )
+
+        response = self.count(self.moderator)
+
+        self.assertEqual(response.data['reports'], 1)
+        self.assertEqual(response.data['total'], 1)
+
+    def test_it_agrees_with_the_queue_it_links_to(self):
+        """The one property worth pinning, since the two are computed separately on purpose."""
+        from moderation.models import EditSuggestion, ExerciseSubmission
+
+        exercise = make_exercise(self.branch, 9101)
+        ExerciseSubmission.objects.create(
+            branch=self.branch, submitted_by=make_user('count-a1'), payload={'title': 'A'}
+        )
+        EditSuggestion.objects.create(
+            exercise=exercise,
+            locale='pl',
+            field='hint',
+            proposed_value='better',
+            submitted_by=make_user('count-a2'),
+        )
+
+        self.client.force_authenticate(self.moderator)
+        queue = self.client.get(reverse('moderation-queue')).data
+        count = self.client.get(reverse('moderation-queue-count')).data
+
+        from_queue = (
+            len(queue['submissions'])
+            + len(queue['material_submissions'])
+            + len(queue['edit_suggestions'])
+            + len(queue['translations'])
+            + len(queue['reports'])
+            + len(queue['taxonomy_proposals'])
+        )
+        self.assertEqual(count['total'], from_queue)
+
+    def test_somebody_who_moderates_nothing_is_refused(self):
+        response = self.count(make_user('count-nobody'))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_a_governor_counts_only_their_own_scope(self):
+        """Scoped exactly as the queue is — a badge that counted the whole platform would send a
+        governor to a page showing them a fraction of it."""
+        from moderation.models import ExerciseSubmission
+
+        mine = make_course('count-mine')
+        theirs = make_course('count-theirs')
+        ExerciseSubmission.objects.create(
+            branch=mine, submitted_by=make_user('count-g1'), payload={'title': 'mine'}
+        )
+        ExerciseSubmission.objects.create(
+            branch=theirs, submitted_by=make_user('count-g2'), payload={'title': 'theirs'}
+        )
+        governor = make_user('count-gov')
+        _grant(governor, 'branch', mine)
+
+        response = self.count(governor)
+
+        self.assertEqual(response.data['submissions'], 1)

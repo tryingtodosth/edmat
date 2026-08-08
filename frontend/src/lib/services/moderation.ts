@@ -112,6 +112,16 @@ export async function decideTranslation(
 	await decide('translation', id, status, note);
 }
 
+/** How many decisions are waiting, for the navigation badge.
+ *
+ * A dedicated endpoint rather than `getModerationQueue().length`: the queue serializes every pending
+ * item to produce a body a badge would throw away. Scoped server-side exactly as the queue is, so
+ * the number always agrees with the page it links to. */
+export async function getModerationPendingCount(): Promise<number> {
+	const raw = await apiClient.get<{ total?: number }>('/moderation/queue/count/');
+	return raw.total ?? 0;
+}
+
 /** Resolves EVERY pending report against one target at once (moderation/views.py's
  * ReportActionView) — `restore` un-hides it (the reports were unfounded, or a false-positive
  * auto-hide); `remove` is a real, permanent moderator decision (Comment/Review's own isRemoved, or
