@@ -21,6 +21,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import SearchInput from '$lib/components/shared/SearchInput.svelte';
 	import type { Branch, Material, ResolvedExercise, Service } from '$lib/types';
 	import type { Course } from '$lib/types/course';
 	import type { EdmatEvent } from '$lib/types/event';
@@ -83,6 +84,17 @@
 		else url.searchParams.set('tab', id);
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- see above: same page, one query parameter changed
 		goto(url, { keepFocus: true, noScroll: true });
+	}
+
+	/** Off to the search page with whatever was typed. A URL object rather than a string built onto
+	 * `resolve()`, matching how the tab switcher above navigates — `resolve` cannot express "this
+	 * route, with a query parameter". */
+	function goToSearch(query: string) {
+		const trimmed = query.trim();
+		const url = new URL(resolve('/search'), page.url);
+		if (trimmed) url.searchParams.set('q', trimmed);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved above, then given a query parameter
+		goto(url);
 	}
 
 	/** Arrow-key movement between tabs, which is what makes `role="tablist"` an honest claim rather
@@ -173,7 +185,20 @@
 	<section class="hero">
 		<h1>{m.home_hero_title()}</h1>
 		<p>{m.home_hero_subtitle()}</p>
-		<a class="cta" href={resolve('/disciplines')}>{m.home_hero_cta()}</a>
+		<!-- The heading says "find the right exercise", and until now the only thing under it was a
+		     button to go and browse — so finding a named thing meant guessing which discipline held
+		     it first. On a database whose whole value is that somebody already solved the problem you
+		     are stuck on, the search belongs on the front door.
+		     Browse stays, as the answer to the other question ("I do not know what I am looking for
+		     yet"), but as a quiet link rather than the only way in. -->
+		<div class="hero__search">
+			<SearchInput
+				label={m.search_heading()}
+				placeholder={m.search_placeholder()}
+				onsubmit={goToSearch}
+			/>
+		</div>
+		<a class="hero__browse" href={resolve('/disciplines')}>{m.home_hero_cta()}</a>
 	</section>
 
 	<!-- `tabindex="-1"` on the list itself, with the roving tabindex living on the tabs: the container
@@ -314,6 +339,15 @@
 		flex-direction: column;
 		gap: var(--space-5);
 	}
+	.hero__search {
+		width: min(100%, 34rem);
+		margin: 0 auto;
+	}
+
+	.hero__browse {
+		font-size: var(--font-size-sm);
+	}
+
 	.hero {
 		display: flex;
 		flex-direction: column;
@@ -329,10 +363,6 @@
 	.hero p {
 		color: var(--text-secondary);
 		max-width: 560px;
-	}
-	.cta {
-		@include mix.button-primary;
-		margin-top: var(--space-2);
 	}
 	.tabs {
 		display: flex;
