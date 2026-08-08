@@ -26,8 +26,13 @@ import { authStore } from './auth.svelte';
 export type TimeFormat = '24h' | '12h';
 export type WeekStart = 'monday' | 'sunday';
 
+export type SaveMenuLayout = 'beside' | 'above';
+
 export const DEFAULT_TIME_FORMAT: TimeFormat = '24h';
 export const DEFAULT_WEEK_START: WeekStart = 'monday';
+/** Courses beside the sets, because filing an exercise into a course is the rarer of the two jobs —
+ * so the sets, which is what most people opened the menu for, stay on the direct path. */
+export const DEFAULT_SAVE_MENU_LAYOUT: SaveMenuLayout = 'beside';
 
 class DisplayPrefsStore {
 	/** Falls back to the defaults for a signed-out visitor, which is most of the people looking at a
@@ -43,6 +48,13 @@ class DisplayPrefsStore {
 
 	get hour12(): boolean {
 		return this.timeFormat === '12h';
+	}
+
+	/** Where the save menu puts the "add to a course" half. `beside` for a guest, who has neither
+	 * saved sets nor courses and so never sees the second half at all — the default matters only
+	 * once somebody signs in and has said nothing. */
+	get saveMenuLayout(): SaveMenuLayout {
+		return authStore.user?.saveMenuLayout ?? DEFAULT_SAVE_MENU_LAYOUT;
 	}
 
 	/** The week's first day in `Date.getDay()` numbering (Sunday = 0), which is what the geometry in

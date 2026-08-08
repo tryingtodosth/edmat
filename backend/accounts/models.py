@@ -43,6 +43,21 @@ class Profile(models.Model):
     WEEK_START_CHOICES = [('monday', 'Monday'), ('sunday', 'Sunday')]
     week_starts_on = models.CharField(max_length=8, choices=WEEK_START_CHOICES, default='monday')
 
+    # Where the "add to a course" half of the save menu sits relative to the list of sets. Two
+    # answers, both defensible, and which one reads better genuinely depends on the screen and on
+    # whether somebody files things into courses often or almost never — so it is a setting rather
+    # than a decision made once for everybody.
+    #
+    # `beside` is the default because filing an exercise into a course is the rarer of the two jobs:
+    # it keeps the sets, which is what most people came for, on the direct path.
+    SAVE_MENU_LAYOUT_CHOICES = [
+        ('beside', 'Courses beside the sets'),
+        ('above', 'Courses above the sets'),
+    ]
+    save_menu_layout = models.CharField(
+        max_length=8, choices=SAVE_MENU_LAYOUT_CHOICES, default='beside'
+    )
+
     # A short self-description. Always public when set — like `display_name`, it is something the
     # account holder actively wrote to be read, so `show_profile_publicly` (which withholds info a
     # visitor never chose to publish, e.g. the joined date) does not gate it.

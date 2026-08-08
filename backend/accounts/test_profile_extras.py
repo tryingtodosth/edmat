@@ -231,3 +231,36 @@ class DisplayPreferenceTests(ApiTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('time_format', response.data)
         self.assertNotIn('week_starts_on', response.data)
+
+
+class SaveMenuLayoutTests(ApiTestCase):
+    """Where the "add to a course" half of the save menu sits, as a stored preference.
+
+    Same shape and the same three questions as the clock settings above: a default that does not
+    come from anywhere else, a value outside the choices refused rather than stored, and a stranger's
+    layout being none of a public endpoint's business.
+    """
+
+    def test_the_default_is_beside(self):
+        response = self.as_(self.me).get('/api/auth/me/')
+        self.assertEqual(response.data['save_menu_layout'], 'beside')
+
+    def test_it_can_be_changed(self):
+        response = self.as_(self.me).patch(
+            '/api/auth/me/', {'save_menu_layout': 'above'}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.me.profile.refresh_from_db()
+        self.assertEqual(self.me.profile.save_menu_layout, 'above')
+
+    def test_an_invented_layout_is_refused(self):
+        response = self.as_(self.me).patch(
+            '/api/auth/me/', {'save_menu_layout': 'diagonally'}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+        self.me.profile.refresh_from_db()
+        self.assertEqual(self.me.profile.save_menu_layout, 'beside')
+
+    def test_it_is_not_on_somebody_elses_public_profile(self):
+        response = self.as_(self.other).get(f'/api/users/{self.me.pk}/')
+        self.assertNotIn('save_menu_layout', response.data)

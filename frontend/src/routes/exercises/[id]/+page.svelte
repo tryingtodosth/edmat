@@ -19,7 +19,7 @@
 	import { submitEditSuggestion } from '$lib/services/editSuggestions';
 	import { submitTranslation, type TranslationDraft } from '$lib/services/translations';
 	import { authStore } from '$lib/state/auth.svelte';
-	import { guestSetStore } from '$lib/state/guestSet.svelte';
+	import SaveToSetButton from '$lib/components/exercise/SaveToSetButton.svelte';
 	import { browsingHistoryStore } from '$lib/state/browsingHistory.svelte';
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
 	import SourceTypeBadge from '$lib/components/shared/SourceTypeBadge.svelte';
@@ -242,8 +242,6 @@
 		showTranslateForm = false;
 		submissionNotice = 'translation';
 	}
-
-	let inSet = $derived(exercise ? guestSetStore.has(exercise.id) : false);
 </script>
 
 <svelte:head>
@@ -315,14 +313,7 @@
 						value={contentLocale}
 						onchange={switchLocale}
 					/>
-					<button
-						type="button"
-						class="set-button"
-						class:set-button--active={inSet}
-						onclick={() => guestSetStore.toggle(exercise!.id)}
-					>
-						{inSet ? m.exercise_removeFromSet() : m.exercise_addToSet()}
-					</button>
+					<SaveToSetButton exerciseId={exercise.id} variant="labelled" />
 				</div>
 			</header>
 
@@ -653,16 +644,6 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-	}
-	.set-button {
-		@include mix.button-secondary;
-		padding: var(--space-1) var(--space-3);
-		font-size: var(--font-size-xs);
-		&--active {
-			background: var(--accent);
-			color: var(--accent-contrast);
-			border-color: var(--accent);
-		}
 	}
 	.topics {
 		display: flex;
