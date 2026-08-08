@@ -361,10 +361,17 @@
 		<div class="site-header__actions no-print">
 			<RandomExerciseButton />
 
+			<LocaleSwitcher />
+			<ThemeToggle />
+
+			<!-- The three that carry an unread or saved count sit together, in the order you would
+			     read them: what somebody sent you, what the site is telling you, what you put aside.
+			     Messages used to sit on the far side of the locale and theme controls, which put two
+			     unrelated settings between two inboxes.
+
+			     Icon-only, with a real accessible name: an envelope is universally read, and the word
+			     "Messages" was costing a nav slot to say what the icon already says. -->
 			{#if authStore.isAuthenticated && canMessaging}
-				<!-- Icon-only, with a real accessible name: an envelope is universally read, and the word
-				     "Messages" was costing a nav slot to say what the icon already says. The unread count
-				     rides on it exactly as it did on the old text link. -->
 				<a class="icon-button" href={resolve('/messages')} aria-label={m.nav_messages()}>
 					{@render messagesIcon()}
 					{#if messagesStore.unreadCount > 0}
@@ -373,16 +380,13 @@
 				</a>
 			{/if}
 
-			<LocaleSwitcher />
-			<ThemeToggle />
-
 			{#if authStore.isAuthenticated}
 				<NotificationBell />
 			{/if}
 
 			<!-- My Set, for everybody: a guest's set is the more fragile of the two, since it lives only
 			     in this browser until they make an account, so it should not be the one hidden behind a
-			     menu. To the right of the bell, so the count-carrying icons sit together. -->
+			     menu. Last of the three, to the right of the bell. -->
 			<a class="icon-button" href={resolve('/my-set')} aria-label={m.nav_mySet()}>
 				{@render mySetIcon()}
 				{#if guestSetStore.count > 0}
