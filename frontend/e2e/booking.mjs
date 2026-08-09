@@ -204,7 +204,10 @@ async function pageToSlots(page, maxWeeks = 3) {
 	await page.waitForSelector('.booking .mode-notice', { timeout: 20000 });
 	for (let i = 0; i < maxWeeks; i++) {
 		if ((await page.locator('.slot').count()) > 0) return;
-		await page.locator('.weeks button', { hasText: /Later/i }).click();
+		// The panel's own "Later →" pager became ViewSwitcher's forward arrow when this feature gained
+		// week and month views, and this line was never updated — so the script had been failing here
+		// on a selector that matches nothing anywhere in the app, long before the run that noticed.
+		await page.locator('.booking .switcher__period button.arrow').last().click();
 		await settle(page, 1400);
 	}
 }
@@ -518,6 +521,16 @@ check(
 	(await tutorPage.locator('.week__band').count()) > 0,
 	String(await tutorPage.locator('.week__band').count())
 );
+// Page forward to the week the session is actually in, exactly as `pageToSlots` already has to for
+// the student panel and for the same reason: the booking was made on the tutor's Tuesday rule, which
+// is only bookable from the next week once this week's Tuesday has passed. Without this the check
+// silently depended on which day of the week the suite ran — it passes on a Monday and cannot pass
+// on a Sunday, which is how it was found.
+for (let i = 0; i < 3; i++) {
+	if ((await tutorPage.locator('.week__entry').count()) > 0) break;
+	await tutorPage.locator('.switcher__period button.arrow').last().click();
+	await settle(tutorPage, 1400);
+}
 // The confirmed session from step [6] sits ON the band rather than being cut out of it — the whole
 // difference between this endpoint and the student-facing one.
 const tutorBlocks = await tutorPage.locator('.week__entry').allInnerTexts();

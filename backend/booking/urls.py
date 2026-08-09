@@ -7,6 +7,8 @@ from .views import (
     BookingViewSet,
     MyScheduleView,
     ServiceAvailabilityView,
+    WeekScheduleViewSet,
+    WeekTemplateViewSet,
 )
 
 router = DefaultRouter()
@@ -14,6 +16,12 @@ router.register('availability-rules', AvailabilityRuleViewSet, basename='availab
 router.register(
     'availability-exceptions', AvailabilityExceptionViewSet, basename='availability-exception'
 )
+# Weeks that do not follow the repeating pattern, and the named shapes they can be written from.
+# `week-schedules/week/` and `week-schedules/apply/` are list-level actions, so the router registers
+# them ahead of the `{pk}` detail route — the same ordering footgun `exercises/random/` already
+# records, and checked the same way (a URL dump, not an assumption).
+router.register('week-schedules', WeekScheduleViewSet, basename='week-schedule')
+router.register('week-templates', WeekTemplateViewSet, basename='week-template')
 router.register('bookings', BookingViewSet, basename='booking')
 
 urlpatterns = router.urls + [

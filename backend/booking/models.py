@@ -27,7 +27,17 @@ re-declare Tuesday afternoon three times would be maintaining three copies of on
 listing is "I only teach Analiza on Thursday evenings", while a rule with no listing is the tutor's
 general schedule. Busy time is *always* computed across every one of their listings, for the same
 reason: an hour is taken regardless of which listing the student came through.
+
+**Two layers of schedule, and which one is in force is a property of the week.** `AvailabilityRule`
+above is the repeating pattern — unbounded, no dates, "this is what my ordinary week looks like". A
+`WeekSchedule` (below) is one specific week that does NOT follow it: concrete hours for one Monday-
+to-Sunday span, replacing the pattern outright for those seven days. A term that runs to one
+timetable for five weeks and a different one in reading week is two facts, not one rule with a hole
+in it, and this is the pair of models that can say so. `WeekTemplate` is the third piece and the
+least load-bearing: a named shape on a shelf, doing nothing until it is applied to real weeks.
 """
+
+from datetime import date as date_cls, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -160,6 +170,153 @@ class AvailabilityException(models.Model):
     def __str__(self) -> str:
         span = 'all day' if self.is_all_day else f'{self.start_time:%H:%M}-{self.end_time:%H:%M}'
         return f'{self.kind} {self.date} {span} ({self.tutor})'
+
+
+def monday_of(day: date_cls) -> date_cls:
+    """The Monday of the week containing `day`.
+
+    **Stored weeks are always Monday-based, whatever week order the viewer has chosen to look at.**
+    That is a storage decision, not a display one, and the two are deliberately separate: `week_start`
+    is a lookup key, so it has to mean the same thing for everybody. If it followed each viewer's own
+    `week_starts_on` preference, one calendar week would key to two different dates depending on who
+    opened it, and a tutor switching to Sunday-first would silently re-partition every week they had
+    already saved into halves of two others.
+
+    Monday specifically, rather than an arbitrary pick between the two, because `weekday` on every
+    model here is already Python's Monday-is-0 `date.weekday()` (see WEEKDAY_CHOICES) — so a week and
+    the days in it are numbered by the same convention and no site has to convert.
+
+    A Sunday-first viewer's *displayed* week therefore straddles two stored weeks. Nothing has to
+    reconcile that, because editing is per-DAY: a window written on Sunday the 1st goes to whichever
+    stored week the 1st actually belongs to, which is the honest answer and the one the tutor would
+    give if asked. Only the bulk-apply operation works a week at a time, and it says in words which
+    dates it is about to write.
+    """
+    return day - timedelta(days=day.weekday())
+
+
+class ScheduleWindow(models.Model):
+    """One window — "Tuesday 14:00–16:00" — belonging to either a template or a specific week.
+
+    Abstract, so the two concrete tables below stay two tables (each meaning exactly one thing) while
+    the columns, the ordering and the validation exist once. The alternative — a single table with a
+    nullable FK to each parent and a check constraint that exactly one is set — trades that clarity
+    for one fewer table, and this codebase has consistently taken the other side of that trade.
+    """
+
+    weekday = models.PositiveSmallIntegerField(choices=WEEKDAY_CHOICES)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    # Mirrors AvailabilityRule.service exactly, and for the same reason: null means "every listing I
+    # run", which is the common case. Carrying it here is what stops a week that has been detached
+    # from the repeating pattern from silently losing a rule that was pinned to one listing.
+    service = models.ForeignKey(
+        'services.Service',
+        related_name='+',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
+
+    class Meta:
+        abstract = True
+        ordering = ['weekday', 'start_time']
+
+    def clean(self):
+        if self.start_time >= self.end_time:
+            raise ValidationError({'end_time': 'The end of a window must be after its start.'})
+
+
+class WeekTemplate(models.Model):
+    """A named week shape a tutor can save once and apply to as many weeks as they like.
+
+    Deliberately NOT the same thing as the repeating `AvailabilityRule` pattern, even though both
+    describe "a week". The pattern is what happens by default, forever, with no dates attached; a
+    template is a shape sitting on a shelf that does nothing at all until somebody applies it to real
+    weeks. Collapsing them would mean either that saving a template changed your live availability,
+    or that your live availability was just one template among several with nothing marking which was
+    in force — both worse than two models.
+    """
+
+    tutor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='week_templates', on_delete=models.CASCADE
+    )
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        constraints = [
+            # Per tutor, not global: two people may both sensibly call a template "Teaching weeks".
+            models.UniqueConstraint(fields=['tutor', 'name'], name='unique_week_template_name'),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.name} ({self.tutor})'
+
+
+class WeekTemplateWindow(ScheduleWindow):
+    template = models.ForeignKey(WeekTemplate, related_name='windows', on_delete=models.CASCADE)
+
+
+class WeekSchedule(models.Model):
+    """The concrete hours for ONE specific week, replacing the repeating pattern for that week.
+
+    **This is the model that makes "change the third week only" expressible at all.** An
+    `AvailabilityRule` is unbounded by construction — "Tuesdays, 14:00–16:00", with no dates — so
+    there is no version of editing one that affects a single week. Bounding the rules with dates
+    instead would mean every per-week edit split a rule into three (before, the changed week, after),
+    which grows the table without limit and makes "what does my ordinary week look like" a question
+    with no answer left in the data.
+
+    So a week either follows the pattern or it does not, and the existence of one of these rows *is*
+    that answer. When one exists, `availability._base_windows` reads the pattern for that week not at
+    all — this replaces it outright rather than layering on top of it. That matters: a tutor who
+    deletes every window from a detached week means "I am not working that week", and a design where
+    the pattern showed through the gaps would publish hours they had just removed.
+
+    One-off exceptions still apply on top, in both cases. "I am at a conference on the 14th" is a
+    statement about the 14th, and it stays true whether or not that week has its own schedule.
+    """
+
+    tutor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='week_schedules', on_delete=models.CASCADE
+    )
+    #: Always a Monday — see `monday_of`. Normalised on save rather than merely expected, because a
+    #: single row keyed to a Tuesday would be invisible to every lookup and the week would silently
+    #: go on following the pattern.
+    week_start = models.DateField()
+    # Provenance only, and deliberately SET_NULL: it lets the editor say "from 'Teaching weeks'", and
+    # deleting or renaming that template must not reach into weeks already written from it. A week's
+    # hours are its own once applied — the template was the thing that produced them, not the thing
+    # that owns them.
+    source_template = models.ForeignKey(
+        WeekTemplate, related_name='+', null=True, blank=True, on_delete=models.SET_NULL
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['week_start']
+        constraints = [
+            models.UniqueConstraint(fields=['tutor', 'week_start'], name='unique_week_schedule'),
+        ]
+        indexes = [
+            # The hot query: "which of these weeks are detached", run once per availability request.
+            models.Index(fields=['tutor', 'week_start']),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.week_start = monday_of(self.week_start)
+        return super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f'week of {self.week_start} ({self.tutor})'
+
+
+class WeekScheduleWindow(ScheduleWindow):
+    schedule = models.ForeignKey(WeekSchedule, related_name='windows', on_delete=models.CASCADE)
 
 
 class Booking(models.Model):

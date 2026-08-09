@@ -12,6 +12,13 @@ appointments at 3am.
 dropping slots in the past) is identical. That is on purpose: the difference between the two modes
 should be one subtraction, not two parallel code paths that can grow apart.
 
+**Where a day's hours come from is decided once, in `_base_windows`**, and everything downstream is
+blind to the answer. A week either follows the repeating pattern (`AvailabilityRule`) or has been
+detached and carries its own (`WeekSchedule`); after that one branch, exceptions, busy time, slicing
+and the past are applied identically to both. Two sources of hours must never mean two paths through
+the arithmetic, or a term laid out week by week would start being offered on different rules from an
+ordinary one.
+
 **Times are interpreted in the project timezone** (`settings.TIME_ZONE`, UTC today). A rule saying
 14:00 means 14:00 there. This app has no per-tutor timezone field, so a tutor in another country
 would be publishing hours in the wrong one — a real limitation, named in CLAUDE.md rather than
@@ -32,6 +39,9 @@ from .models import (
     AvailabilityException,
     AvailabilityRule,
     Booking,
+    WeekSchedule,
+    WeekScheduleWindow,
+    monday_of,
 )
 
 #: How far ahead an availability query may look. Not a performance guard (the queries are two, and
@@ -104,28 +114,113 @@ def _subtract(base: list[Interval], cuts: list[Interval]) -> list[Interval]:
     return result
 
 
-def _rule_windows(tutor, days: list[date_cls], *, service=None) -> dict[date_cls, list[Interval]]:
-    """The weekly pattern, expanded over the requested days.
+def _applies_to(window, service) -> bool:
+    """Whether a rule or a stored window counts towards one offering's availability.
 
-    `service=None` means every rule this tutor has, whichever listing it was written for — the shape
-    the tutor's OWN calendar needs, where "when might I be working" is the question and which listing
-    an hour was published under is not. With a service, rules pinned to a DIFFERENT listing are
-    correctly absent, which is the whole point of pinning one.
+    `service=None` means every window this tutor has, whichever listing it was written for — the
+    shape the tutor's OWN calendar needs, where "when might I be working" is the question and which
+    listing an hour was published under is not. With a service, windows pinned to a DIFFERENT listing
+    are correctly absent, which is the whole point of pinning one.
     """
-    rules = AvailabilityRule.objects.filter(tutor=tutor)
-    if service is not None:
-        rules = rules.filter(Q(service__isnull=True) | Q(service=service))
+    return service is None or window.service_id is None or window.service_id == service.pk
+
+
+def detached_weeks(tutor, days: list[date_cls]) -> dict[date_cls, WeekSchedule]:
+    """The weeks in this range that have their own schedule, keyed by their Monday.
+
+    One query for the schedules and one for their windows, whatever the span — the whole point of
+    prefetching here rather than walking `schedule.windows` per day.
+    """
+    weeks = {monday_of(day) for day in days}
+    return {
+        schedule.week_start: schedule
+        for schedule in WeekSchedule.objects.filter(
+            tutor=tutor, week_start__in=weeks
+        ).prefetch_related('windows')
+    }
+
+
+def _base_windows(tutor, days: list[date_cls], *, service=None) -> dict[date_cls, list[Interval]]:
+    """The tutor's published hours before one-off exceptions, day by day.
+
+    Two possible sources, and **which one a day reads from is a property of its week, never of the
+    day** — a `WeekSchedule` for the Monday that day belongs to means the whole week is detached from
+    the repeating pattern, and the pattern is then not consulted for any of its seven days.
+
+    The replacement is total, not a layer. A detached week with no windows at all publishes nothing,
+    which is what a tutor who cleared it meant; letting the pattern show through the gaps would
+    re-publish hours they had just removed, and there would be no way to say "I am not working that
+    week" at all.
+
+    Exceptions are NOT applied here — they are added and subtracted afterwards by `_apply_exceptions`
+    for both sources alike, because "I am at a conference on the 14th" is a fact about the 14th and
+    stays true however that week's hours were arrived at.
+    """
+    detached = detached_weeks(tutor, days)
+
+    # Skipped entirely when every day in range belongs to a detached week — which is the normal case
+    # once somebody has laid out a term, so the pattern query is not paid for on every read.
     by_weekday: dict[int, list[AvailabilityRule]] = {}
-    for rule in rules:
-        by_weekday.setdefault(rule.weekday, []).append(rule)
+    if any(monday_of(day) not in detached for day in days):
+        rules = AvailabilityRule.objects.filter(tutor=tutor)
+        if service is not None:
+            rules = rules.filter(Q(service__isnull=True) | Q(service=service))
+        for rule in rules:
+            by_weekday.setdefault(rule.weekday, []).append(rule)
 
     windows: dict[date_cls, list[Interval]] = {}
     for day in days:
+        schedule = detached.get(monday_of(day))
+        if schedule is not None:
+            source = [
+                window
+                for window in schedule.windows.all()
+                if window.weekday == day.weekday() and _applies_to(window, service)
+            ]
+        else:
+            source = by_weekday.get(day.weekday(), [])
         windows[day] = [
-            Interval(_aware(day, rule.start_time), _aware(day, rule.end_time))
-            for rule in by_weekday.get(day.weekday(), [])
+            Interval(_aware(day, window.start_time), _aware(day, window.end_time))
+            for window in source
         ]
     return windows
+
+
+def has_published_hours(service) -> bool:
+    """Whether this offering's tutor has written down any hours at all that could apply to it.
+
+    Both sources count. A tutor who never wrote a repeating pattern but laid out their term week by
+    week has very much published a schedule, and answering "no schedule" for them would put the wrong
+    sentence on screen — the flag exists precisely to tell "fully booked" apart from "never set this
+    up", and week schedules are one of the two ways of setting it up.
+    """
+    scoped = Q(service__isnull=True) | Q(service=service)
+    return (
+        AvailabilityRule.objects.filter(scoped, tutor=service.provider).exists()
+        or WeekScheduleWindow.objects.filter(scoped, schedule__tutor=service.provider).exists()
+    )
+
+
+def base_windows_for_week(tutor, week_start: date_cls) -> list[tuple[int, object, object, int | None]]:
+    """One week's hours as plain `(weekday, start, end, service_id)` tuples, whichever source they
+    came from — the shape both the editor and the bulk-apply operation need.
+
+    Deliberately *before* exceptions, and that is the whole reason this is separate from the
+    interval-producing path above. Copying a week forward has to copy the hours the tutor works, not
+    the dentist appointment they had that Thursday: an exception is pinned to one date by definition,
+    and replicating one into the next five weeks would be inventing five appointments nobody made.
+    """
+    monday = monday_of(week_start)
+    schedule = (
+        WeekSchedule.objects.filter(tutor=tutor, week_start=monday)
+        .prefetch_related('windows')
+        .first()
+    )
+    if schedule is not None:
+        source = schedule.windows.all()
+    else:
+        source = AvailabilityRule.objects.filter(tutor=tutor)
+    return [(w.weekday, w.start_time, w.end_time, w.service_id) for w in source]
 
 
 def _apply_exceptions(tutor, windows: dict[date_cls, list[Interval]]) -> None:
@@ -260,7 +355,7 @@ def slots_for_service(service, start_day: date_cls, end_day: date_cls, *, now=No
         return []
     days = [start_day + timedelta(days=offset) for offset in range((end_day - start_day).days + 1)]
 
-    windows = _rule_windows(service.provider, days, service=service)
+    windows = _base_windows(service.provider, days, service=service)
     _apply_exceptions(service.provider, windows)
 
     # The one place the two modes diverge. A `declared` listing keeps publishing its window whether or
@@ -305,7 +400,7 @@ def windows_for_tutor(tutor, start_day: date_cls, end_day: date_cls) -> dict[dat
     if end_day < start_day:
         return {}
     days = [start_day + timedelta(days=offset) for offset in range((end_day - start_day).days + 1)]
-    windows = _rule_windows(tutor, days)
+    windows = _base_windows(tutor, days)
     _apply_exceptions(tutor, windows)
     return windows
 
