@@ -5301,6 +5301,139 @@ three touched apps pass; `npm run check`/`lint`/`build` clean.
 **Left open, not built**: the 3 pre-existing `events-and-nav.mjs` failures above; no `?q=` for
 messages or bookings (private, not browse surfaces); the empty `.site-nav` at ≤760px still renders
 its divider (a hairline artifact, visible only in the 721–760px band).
+## 17Z. Feature: laying out a schedule week by week — drag and drop, saved weeks, bulk apply (✅ built, full stack)
+
+A tutor could say "Tuesdays, 14:00–16:00, forever" and nothing else. `AvailabilityRule` is unbounded
+by construction, so there was no version of "and the third week of term is different" that the data
+model could express at all — and the only way to write any of it was a form with four selects.
+
+Three things changed, and the first is the one the other two rest on.
+
+### A week either follows the pattern, or replaces it
+
+`WeekSchedule` (tutor + a Monday, unique) with `WeekScheduleWindow` children is the concrete
+timetable for **one** week. Its existence *is* the statement: `availability._base_windows` reads the
+repeating rules for that week not at all.
+
+- **The replacement is total, not a layer.** A detached week with no windows publishes nothing, which
+  is what somebody who cleared it meant. Letting the pattern show through the gaps would re-publish
+  the hours they had just removed, and would leave "I am not working that week" unsayable.
+- **Bounding the rules with dates instead was the obvious alternative and is worse.** Every per-week
+  edit would split a rule into three — before, the changed week, after — growing the table without
+  limit and destroying the one thing the pattern is for: an answer to "what does my ordinary week
+  look like".
+- **Exceptions still apply on top, to both sources.** "I am at a conference on the 14th" is a fact
+  about the 14th and stays true however that week's hours were arrived at. That is why the branch
+  lives in one function and everything downstream — exceptions, busy time, slicing, the past — is
+  blind to which arm it took. Two sources of hours must never mean two paths through the arithmetic.
+- **The stored week is always Monday-based**, whatever week order the viewer reads in. It is a lookup
+  key, so it has to mean the same thing for everybody; if it followed each viewer's `week_starts_on`,
+  one calendar week would key to two different dates depending on who opened it, and switching that
+  preference would silently re-partition every saved week into halves of two others. The editor
+  therefore draws Monday–Sunday while editing, and says so to the minority who read Sunday-first.
+- **`WeekTemplate` is deliberately a third thing**, not a fourth use of the other two: a named shape
+  on a shelf that does nothing at all until applied. Collapsing it into the repeating pattern would
+  mean either that saving a template changed your live availability, or that your live availability
+  was one template among several with nothing marking which was in force.
+- The two window tables share an abstract base rather than one table with an XOR constraint — each
+  table means exactly one thing, and this codebase has consistently taken that side of the trade.
+
+### Dragging on the calendar
+
+`CalendarWeek` gained an editing layer, still domain-free: a window is a date and two minute offsets,
+and the grid neither knows nor cares whose hours they are. Drag on a day to draw, drag a block to
+move it, drag its edges to resize, × to remove. 15-minute snapping — half-hours cannot express a
+45-minute session, and free-form dragging produces 14:07 starts that look like mistakes because they
+are.
+
+- **Keyboard support is not a bolt-on.** Enter on a day adds an hour at the first free time, arrows
+  move a block, Shift+↑↓ resize it, ←→ move it a day, Delete removes it. A schedule editor operable
+  only by pointer would be unusable for exactly the people who most need their hours written down
+  correctly. It is also why the day column is a real `<button>` rather than a div with a handler:
+  saying so in the markup is honest, and it is what makes drawing hours reachable at all.
+- **Overlaps are merged on write**, unlike the repeating rules. `_merge` already unions them on read,
+  so two dragged blocks at 10–12 and 11–13 are drawn as one band — storing two rows would redraw them
+  stacked on the next load, i.e. the editor disagreeing with the calendar it is drawing on.
+- **The published-hours background band is suppressed while editing.** It is the same afternoon as the
+  editable layer arrived at from the other side (the band has exceptions folded in; the editor's layer
+  is the hours before them), and drawing both shows one afternoon twice in two slightly different
+  shapes with no way to tell which a drag was about to change.
+- **Every gesture saves immediately.** A schedule editor with unsaved state is one crash away from
+  publishing hours somebody thought they had withdrawn — the same reasoning that already refuses to
+  cache this tab.
+- **Which of the two things a change reaches is a choice, not an inference.** Two radio buttons with a
+  sentence each: "only this week" or "every week". Guessing from whether the week happened to be
+  detached already would pick wrong about half the time, and the state line says which case you are
+  in *before* an edit rather than after.
+
+### Repeating a week, and then changing one
+
+`POST /week-schedules/apply/` takes a source (a template, or a week to copy), a first week and a
+count. A count rather than an end date, because that is how the decision is made and it cannot
+express an empty or backwards range.
+
+- **The copy is of the hours somebody works, not of the dentist appointment they had that Thursday.**
+  `base_windows_for_week` reads *before* exceptions; replicating one forward would invent five
+  appointments nobody made.
+- **Every target week is detached by this**, which is the point — a week left following the pattern
+  would drift the moment the pattern changed, and somebody who has just laid out their term means the
+  term.
+- `overwrite=false` skips weeks that already have their own schedule, and the response says how many
+  were written and how many were skipped, because "5 weeks updated" and "3 updated, 2 left alone" are
+  different outcomes and the second is the surprising one.
+
+### Verified
+
+**`booking/test_week_schedules.py` — 64 tests**, weighted at precedence, because that is the half that
+fails silently: a detached week replacing the pattern rather than layering on it, an empty one
+publishing nothing, the weeks either side untouched, a Sunday belonging to the week that started the
+previous Monday, exceptions still cutting through, a midweek date normalising to its Monday, and the
+whole lay-out-then-change-the-third-week flow end to end.
+
+**`e2e/schedule-editing.mjs` — 36 checks in a real browser, zero console/page errors**: a drag
+becoming stored hours, the same window answering both the mouse and the arrow keys, both resize
+edges, five weeks written and the sixth still on the pattern, the third of them changed while the
+others stayed, a week saved as a template, and a week put back.
+
+**Three real bugs, all found by driving a browser rather than by reading the code**, and none of them
+catchable by `svelte-check`:
+
+1. **`formatTimeOfDay` where `formatClock` was meant.** Both take a `string`; the first parses an ISO
+   instant, so `new Date('09:00')` is an Invalid Date and `Intl` throws on it. The entire editable
+   layer silently failed to render — the canvas was there, so dragging still created hours, but
+   nothing was ever drawn.
+2. **Window listeners attached conditionally on the gesture.** Binding `onpointermove` to `gesture`
+   makes attaching it a reactive effect that runs *after* the pointerdown that set it, so every move
+   dispatched before Svelte's next flush is lost and a drag arriving in one tick registers as a click.
+   A human mouse spreads its moves over frames and hides this completely. Now attached for as long as
+   editing is on, with a null check in the handler.
+3. **`id` added to the week payload and to the type, but never to the mapper**, so reattaching a week
+   silently no-opped — the button did nothing at all, with no error anywhere.
+
+Two more were visual, found by looking at a screenshot rather than at the assertions, which all
+passed: the switcher's `text-transform: capitalize` (right for locale month names) turned "Week of
+August 3" into Title Case, so the week identity moved into the editor panel where it belongs; and the
+remove × sat on top of the time it was next to ("14:15–16:15×"), so it now appears on hover or focus.
+The upper resize grabber was also invisible, drawn one pixel under the label — both grabbers are now
+pinned to their own edge of the block.
+
+### Left open, not built
+
+- **No undo.** Every gesture saves immediately, and there is no way back except making the opposite
+  gesture. Reattaching a week discards its hours with no confirmation.
+- **A Sunday-first reader's grid shifts by a day when they start editing.** Stated on screen rather
+  than solved; the alternative — a displayed week straddling two stored ones — would mean a drag on
+  the leading day quietly changing the week before.
+- **No drag across the month view**, which has no time axis, so the editor is offered only in the week
+  view.
+- **Applying a template cannot preview what it will overwrite** — the count of skipped weeks is
+  reported after the fact, not before.
+- **A template cannot be edited on the calendar**, only saved from a week and applied to weeks. The
+  API supports a full replace; there is no UI for it.
+- **Nothing warns that a week being changed already has bookings in the hours being removed.** The
+  bookings are drawn on the calendar underneath, so the clash is visible, but the app does not say it.
+- **`getWeekSchedules` is built but has no UI consumer** — the month view does not yet mark which
+  weeks have their own schedule.
 
 ---
 

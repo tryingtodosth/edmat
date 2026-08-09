@@ -50,6 +50,58 @@ export interface AvailabilityException {
 	note: string;
 }
 
+/** One window inside a saved template or a laid-out week — the same shape as an `AvailabilityRule`
+ * minus the identity, because these are only ever written as a whole list rather than row by row. */
+export interface ScheduleWindow {
+	weekday: number;
+	startTime: string; // 'HH:MM'
+	endTime: string;
+	serviceId?: string;
+}
+
+/** A named week shape, sitting on a shelf until it is applied to real weeks.
+ *
+ * Deliberately not the same thing as the repeating `AvailabilityRule` pattern, even though both
+ * describe "a week": the pattern is what happens by default, forever, while a template does nothing
+ * at all until somebody applies it. */
+export interface WeekTemplate {
+	id: string;
+	name: string;
+	windows: ScheduleWindow[];
+}
+
+/** What one week's hours are, and where they came from.
+ *
+ * `detached` is the whole question this shape exists to answer. A week either follows the repeating
+ * pattern or has been given its own hours, and an edit means something different in each case — so
+ * the editor is told which it is looking at before the tutor makes one. Either way `windows` is
+ * populated: an untouched week answers with the pattern projected onto it, so the editor draws the
+ * same picture whichever it is.
+ *
+ * These are the hours BEFORE one-off exceptions, unlike everything the calendar draws around them.
+ * This is the layer the editor owns — the hours the tutor works — and folding a dentist appointment
+ * into it would mean the next save wrote that appointment in permanently. */
+export interface EffectiveWeek {
+	/** The stored row's id, and absent exactly when `detached` is false — a week that is only
+	 * following the pattern has no row, which is what that flag means. Needed to reattach, since that
+	 * is a delete. */
+	id?: string;
+	/** Always a Monday, whatever week order the viewer is looking at. A stored week is a lookup key
+	 * and has to mean the same thing for everybody — see the backend's `monday_of`. */
+	weekStart: string; // 'YYYY-MM-DD'
+	detached: boolean;
+	sourceTemplateId?: string;
+	sourceTemplateName: string;
+	windows: ScheduleWindow[];
+}
+
+/** What a bulk apply actually did. Two lists rather than a count, because "5 weeks updated" and
+ * "3 updated, 2 left alone" are different outcomes and the second one is the surprising one. */
+export interface WeekApplyResult {
+	written: string[];
+	skipped: string[];
+}
+
 export interface BookingSlot {
 	start: string; // ISO instant
 	end: string;

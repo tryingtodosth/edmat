@@ -212,29 +212,133 @@ export function layOutDay(
 	return placed;
 }
 
-/** The hour range the grid should draw.
+/** The hour range the grid should draw, from any set of minute ranges.
  *
  * Fitted to the content rather than fixed at 00:00–24:00, because a day drawn from midnight makes a
  * two-hour afternoon window an unreadable sliver. Padded by an hour at each end so a block never
  * touches the frame, floored to whole hours so the axis labels are whole hours, and held to a
  * minimum height so a single one-hour session does not fill the screen.
  */
-export function visibleHours(
-	entries: CalendarEntry[],
+export function hourSpan(
+	ranges: { start: number; end: number }[],
 	fallback: { from: number; to: number } = { from: 8, to: 20 }
 ): { from: number; to: number } {
-	if (entries.length === 0) return fallback;
+	if (ranges.length === 0) return fallback;
 	let earliest = 24 * 60;
 	let latest = 0;
-	for (const entry of entries) {
-		const start = minutesIntoDay(entry.start);
-		const rawEnd = minutesIntoDay(entry.end);
-		earliest = Math.min(earliest, start);
-		latest = Math.max(latest, rawEnd <= start ? 24 * 60 : rawEnd);
+	for (const range of ranges) {
+		earliest = Math.min(earliest, range.start);
+		latest = Math.max(latest, range.end <= range.start ? 24 * 60 : range.end);
 	}
 	let from = Math.max(0, Math.floor(earliest / 60) - 1);
 	let to = Math.min(24, Math.ceil(latest / 60) + 1);
 	if (to - from < 6) to = Math.min(24, from + 6);
 	if (to - from < 6) from = Math.max(0, to - 6);
 	return { from, to };
+}
+
+export function visibleHours(
+	entries: CalendarEntry[],
+	fallback: { from: number; to: number } = { from: 8, to: 20 }
+): { from: number; to: number } {
+	return hourSpan(
+		entries.map((entry) => ({
+			start: minutesIntoDay(entry.start),
+			end: minutesIntoDay(entry.end)
+		})),
+		fallback
+	);
+}
+
+// ---- editing --------------------------------------------------------------------------------
+//
+// Still domain-free: a window being dragged is a date and two minute offsets, and the grid neither
+// knows nor cares whether it is a tutor's published hours, a repeating rule projected onto a week,
+// or anything else a later caller might want to draw this way.
+
+/** The grid a drag lands on. Fifteen minutes is the coarsest step nobody has to fight — half-hour
+ * snapping cannot express a 45-minute session, and free-form dragging produces 14:07 starts that
+ * look like mistakes because they are. */
+export const SNAP_MINUTES = 15;
+
+/** The shortest window a drag may produce. Below this a create gesture is read as a mis-click and
+ * discarded, which is what stops a stray tap on the grid from writing a one-minute window somebody
+ * then has to find and delete. */
+export const MIN_WINDOW_MINUTES = 15;
+
+/** A window the grid may create, move, resize and delete.
+ *
+ * Minutes into the day rather than ISO instants, unlike `CalendarEntry`: an editable window is being
+ * dragged around a grid whose whole coordinate system is minutes, and round-tripping every pointer
+ * move through a Date only to read the hours back off it would be work in service of nothing. The
+ * caller converts once, at the edge.
+ */
+export interface EditableWindow {
+	id: string;
+	date: string; // 'YYYY-MM-DD'
+	startMinutes: number;
+	endMinutes: number;
+	/** A short note drawn inside the block — which listing it is narrowed to, typically. */
+	label?: string;
+}
+
+/** Round to the editing grid. */
+export function snap(minutes: number): number {
+	return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES;
+}
+
+export function clamp(value: number, low: number, high: number): number {
+	return Math.min(high, Math.max(low, value));
+}
+
+/** Merge overlapping and touching windows on the same day, in order.
+ *
+ * The browser-side counterpart of the backend's `normalise_windows`, and it exists for the same
+ * reason: two dragged blocks at 10–12 and 11–13 are ONE band of published hours, and leaving them as
+ * two would draw them stacked on top of each other. Applied on the way out of a gesture so the grid
+ * shows what will be saved rather than what was drawn, which is the only version of this that does
+ * not surprise somebody on the next reload.
+ *
+ * `key` groups windows that are genuinely the same axis — the caller supplies it because what counts
+ * as "the same hours twice" is a domain question (here: the same day and the same listing) and this
+ * module deliberately knows no domain.
+ */
+export function mergeWindows(
+	windows: EditableWindow[],
+	key: (window: EditableWindow) => string = (window) => window.date
+): EditableWindow[] {
+	const grouped = new Map<string, EditableWindow[]>();
+	for (const window of windows) {
+		const group = grouped.get(key(window));
+		if (group) group.push(window);
+		else grouped.set(key(window), [window]);
+	}
+
+	const merged: EditableWindow[] = [];
+	for (const group of grouped.values()) {
+		const ordered = [...group].sort((a, b) => a.startMinutes - b.startMinutes);
+		let current = { ...ordered[0] };
+		for (const window of ordered.slice(1)) {
+			if (window.startMinutes <= current.endMinutes) {
+				current.endMinutes = Math.max(current.endMinutes, window.endMinutes);
+			} else {
+				merged.push(current);
+				current = { ...window };
+			}
+		}
+		merged.push(current);
+	}
+	return merged.sort((a, b) => a.date.localeCompare(b.date) || a.startMinutes - b.startMinutes);
+}
+
+/** 'HH:MM' for minutes into the day — the wire format every time field in this feature speaks. */
+export function minutesToClock(minutes: number): string {
+	const whole = Math.round(minutes);
+	return `${String(Math.floor(whole / 60)).padStart(2, '0')}:${String(whole % 60).padStart(2, '0')}`;
+}
+
+/** Minutes into the day for an 'HH:MM'. */
+export function clockToMinutes(clock: string): number {
+	const [hours, minutes] = clock.split(':').map(Number);
+	return hours * 60 + (minutes || 0);
 }
