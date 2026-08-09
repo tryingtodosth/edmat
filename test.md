@@ -4,8 +4,13 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, `backend/accounts/test_profile_extras.py` | 631 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 280 checks across 7 scripts |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, plus `test_*.py` in several apps | 1145 |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 9 scripts |
+
+The backend figure was measured (`manage.py test --parallel 4`, ~9 min); the per-app numbers further
+down are not all re-counted and some lag behind. The browser row deliberately no longer carries a
+total — the per-script counts below are the ones kept current, and a headline number that nobody
+re-measures is worse than none.
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
