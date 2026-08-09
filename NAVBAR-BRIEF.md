@@ -49,16 +49,44 @@ so the cluster reads as a continuation of the nav, not a random pile.
 **Throughout all of it:** the navbar's **height shrinks as a linear function of window width**, and so
 do its **padding, gaps between items, and border thicknesses**. Not stepped at breakpoints — linear.
 
+### 2a. What is actually in the navbar today
+
+Checked against `Header.svelte` rather than assumed, because two stages above do not line up with it.
+
+The `site-nav` is exactly five links: **Disciplines** (`/disciplines`, labelled "Disciplines" —
+this is the "fields" of stage 6), **Materials**, **Courses**, **Events**, **Tutoring** (`/services`).
+The action row to their right holds: dice, moderation shield (staff only), messages, notifications
+bell, My Set, theme, language, the Add trigger, and the account trigger.
+
+**Two things to settle with the owner before starting:**
+
+1. **Watchlists (stage 3) is not in the navbar.** It was already removed — `services/+page.svelte`
+   says in as many words that it "used to be its own top-level nav item, which spent a slot in the
+   nav" — and now lives as a link on the Tutoring page (`/services/watchlist`). So stage 3 either
+   means *bring it back, as an eye icon*, or the spec was written from an older memory of the bar.
+   **Ask.** Do not silently skip it, and do not silently re-add a top-level item somebody deliberately
+   removed.
+2. **Tutoring has no place in the order.** The first version of the spec said "tutoring is money
+   emoji"; the refined version that fixed the ordering dropped that line and put the user/avatar in
+   its place, without saying whether tutoring collapses, and if so when. It is one of the five nav
+   links, so it needs a stage. **Ask** — the obvious guess is a money icon somewhere between stages
+   1 and 5, but guessing puts an unrequested icon in the bar.
+
 ---
 
 ## 3. What this needs that does not exist yet
 
-- **A search page.** Stage 6 turns Disciplines into a search affordance, so there has to be something
-  for it to open. Check first — `/search` may not exist. If it does not, it needs building, and its
-  scope is a decision to take with the owner rather than assume: at minimum it should reach the things
-  the nav currently reaches (disciplines, branches, materials, exercises, courses, events, tutoring).
-  There is an existing in-course search (`e2e/course-search.mjs`, 24 checks) worth reading first — it
-  may already have a backend endpoint that generalises.
+- **A search page — one already exists**, `frontend/src/routes/search/+page.svelte`, with a real `?q=`
+  URL, a shared `SearchInput`, and its own race guard (a slower earlier search never overwrites a
+  newer answer). So stage 6 has somewhere to go and does **not** need a page built from scratch.
+
+  What it does **not** cover is the reason stage 6 exists: it searches **exercises and materials
+  only**. Disciplines — the thing the nav link being replaced actually opens — are not in it, nor are
+  courses, events or tutoring. Turning that link into this search icon therefore silently drops
+  disciplines from the navigation unless the page is widened first. **Widen it, or keep a disciplines
+  entry somewhere reachable** — do not just point the icon at it and call the stage done. Which of
+  those the owner wants is worth one question; there is also an in-course search
+  (`e2e/course-search.mjs`, 24 checks) whose backend may generalise.
 - **Icons.** The nav currently uses a mix of emoji (🎲 for the dice) and inline SVG (the messages
   envelope). The owner said "emoji" for these. *Judgement:* inline SVG is the better choice for
   anything that needs to sit on a line with text and inherit colour, and the envelope already sets
