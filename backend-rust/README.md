@@ -1,5 +1,12 @@
 # edmat-api — the Rust port (milestone M0)
 
+> **OUTDATED — this branch is archived (2026-08-09).** The owner decided to stay with Django and
+> put the effort into the Redis caching/delivery work on `main` instead. Nothing here is wrong —
+> M0 passed conformance on its first run (`SESSION-LOG.md`) — it is simply not the direction.
+> The `spec/` mechanism (schema export, goldens, conformance runner) outlives this branch and is
+> what the Redis preloader warms from; if a port is ever revisited, start from that, not from
+> resurrecting this code blind.
+
 The Rust implementation of the EdMat backend, per `PORTS-BRIEF.md`. **Django stays authoritative**:
 it owns the schema (`spec/schema.sql`), the migrations, and the golden corpus this port is judged
 against. This branch never edits `spec/` — contract changes happen on `main` first.
