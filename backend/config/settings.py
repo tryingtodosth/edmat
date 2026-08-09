@@ -177,6 +177,10 @@ MIDDLEWARE = [
     # Last on purpose: it reads `request.user`, which only exists once AuthenticationMiddleware
     # above has run, and it times the whole stack beneath it.
     'telemetry.middleware.RequestLogMiddleware',
+    # Below the request log deliberately: a cache HIT is still a real request the telemetry (and so
+    # the preload command's own picture of what is hot) must keep seeing — and the outer middlewares
+    # (CORS headers included) still process the short-circuited response on the way out.
+    'config.cachemw.AnonymousReadCacheMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -315,6 +319,24 @@ CACHES = {
         'OPTIONS': {'MAX_ENTRIES': 10000, 'CULL_FREQUENCY': 4},
     }
 }
+
+# Redis, as an opt-in that changes nothing until a deployment exports one env var. The comment
+# above said Redis "would be the conventional answer and remain the right move" — the owner made
+# that move (2026-08): with `EDMAT_REDIS_URL` set, Django's own built-in Redis backend replaces the
+# file cache (throttle counters become shared across every worker AND correct under any process
+# count), the anonymous-read response cache (config/cachemw.py) becomes a genuinely shared cache
+# rather than per-host, and notification delivery gains pub/sub push (notifications/redisbus.py).
+# Unset — a fresh clone, setup.sh, this sandbox by default — everything keeps the file-cache
+# behavior documented above, zero new daemons required.
+EDMAT_REDIS_URL = os.environ.get('EDMAT_REDIS_URL', '')
+if EDMAT_REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': EDMAT_REDIS_URL,
+            'TIMEOUT': 300,
+        }
+    }
 
 # ...except under the test runner, which gets a per-process cache instead. The whole point of the
 # file cache above is that every process on the box shares it — and a test run is one of those

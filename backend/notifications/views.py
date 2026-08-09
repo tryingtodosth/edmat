@@ -10,13 +10,14 @@ approach — SSE, a DB-polling loop, no Channels/Redis — as the right first st
 import json
 import time
 
-from django.http import StreamingHttpResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from rest_framework import mixins, permissions, renderers, status, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import redisbus
 from .models import Notification
 from .serializers import NotificationSerializer
 
@@ -102,6 +103,10 @@ SSE_POLL_INTERVAL_SECONDS = 3
 # connection for as long as the generator keeps yielding) without costing the user anything more
 # than a brief, invisible reconnect every 10 minutes.
 SSE_MAX_CONNECTION_SECONDS = 600
+# Under Redis pub/sub the stream is idle-blocked on a socket, so keep-alives ride the subscribe
+# timeout — 15s is comfortably inside any proxy's idle window while waking the thread 5x less
+# often than the 3s DB-poll cadence the fallback keeps.
+SSE_KEEPALIVE_SECONDS = 15
 
 
 class NotificationStreamView(APIView):
@@ -143,29 +148,84 @@ class NotificationStreamView(APIView):
             or 0
         )
 
-        def event_stream():
+        bus = redisbus.get_redis()
+        if bus is not None and not redisbus.acquire_stream_slot(
+            bus, user.pk, SSE_MAX_CONNECTION_SECONDS
+        ):
+            # The cap working, not an error path: this account already holds its two live streams
+            # (redisbus.STREAM_SLOT_LIMIT — the reasoning lives there). A plain Django JsonResponse,
+            # not a DRF Response, so nothing tries to negotiate this through EventStreamRenderer.
+            # A browser EventSource treats a non-200 as terminal and stops reconnecting, which is
+            # exactly right: the extra tab keeps working, it just isn't live.
+            return JsonResponse(
+                {'detail': 'Too many open notification streams for this account.'}, status=429
+            )
+
+        def emit(notification_id, payload):
+            return f'id: {notification_id}\ndata: {json.dumps(payload)}\n\n'
+
+        def pending_from_db():
             nonlocal last_id
-            # `retry:` — tells the browser how long to wait before EventSource's own automatic
-            # reconnect fires, should the connection drop for any reason (a real network blip, or
-            # this view's own deliberate SSE_MAX_CONNECTION_SECONDS cutoff below).
+            rows = Notification.objects.filter(
+                recipient=user, id__gt=last_id
+            ).select_related('actor', 'actor__profile').order_by('id')
+            for notification in rows:
+                payload = NotificationSerializer(notification).data
+                yield emit(notification.id, payload)
+                last_id = notification.id
+
+        def event_stream_redis():
+            # Pub/sub delivery: `notify()` publishes every row (redisbus.publish_notification), so
+            # an idle stream BLOCKS on the socket — zero database queries, zero wakeups between
+            # events, where the fallback below polls the table every few seconds per connection.
+            # Subscribe FIRST, then drain the table once: anything created between the `last_id`
+            # snapshot above and the subscribe arrives via that drain, anything after via pub/sub,
+            # and the `id <= last_id` guard deduplicates the overlap. Keep-alives ride on the
+            # subscribe timeout instead of a poll interval.
+            nonlocal last_id
+            pubsub = bus.pubsub(ignore_subscribe_messages=True)
+            try:
+                pubsub.subscribe(redisbus.channel_for(user.pk))
+                yield 'retry: 3000\n\n'
+                yield from pending_from_db()
+                started_at = time.monotonic()
+                while time.monotonic() - started_at < SSE_MAX_CONNECTION_SECONDS:
+                    try:
+                        message = pubsub.get_message(timeout=SSE_KEEPALIVE_SECONDS)
+                    except Exception:
+                        # Redis died mid-stream. Close rather than limp: EventSource reconnects in
+                        # 3s and the fresh request re-decides which transport it gets.
+                        return
+                    if message is None:
+                        yield ': keep-alive\n\n'
+                        continue
+                    payload = json.loads(message['data'])
+                    if payload.get('id', 0) <= last_id:
+                        continue
+                    yield emit(payload['id'], payload)
+                    last_id = payload['id']
+            finally:
+                try:
+                    pubsub.close()
+                finally:
+                    redisbus.release_stream_slot(bus, user.pk)
+
+        def event_stream_polling():
+            # The pre-Redis behavior, kept verbatim as the fallback so a clone with no Redis daemon
+            # still gets live-ish delivery (CLAUDE.md §17H's honest bounded latency).
+            nonlocal last_id
             yield 'retry: 3000\n\n'
             started_at = time.monotonic()
             while time.monotonic() - started_at < SSE_MAX_CONNECTION_SECONDS:
-                new_notifications = Notification.objects.filter(
-                    recipient=user, id__gt=last_id
-                ).select_related('actor', 'actor__profile').order_by('id')
-                for notification in new_notifications:
-                    payload = NotificationSerializer(notification).data
-                    yield f'id: {notification.id}\ndata: {json.dumps(payload)}\n\n'
-                    last_id = notification.id
+                yield from pending_from_db()
                 # An SSE comment line (`:`) — invisible to the client's own event handlers, its only
                 # job is keeping the connection alive through anything that might otherwise treat a
-                # quiet connection as dead (a proxy, a load balancer) — none exist in this dev setup,
-                # but this is the standard, correct SSE practice regardless of deployment.
+                # quiet connection as dead (a proxy, a load balancer).
                 yield ': keep-alive\n\n'
                 time.sleep(SSE_POLL_INTERVAL_SECONDS)
 
-        response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')
+        stream = event_stream_redis() if bus is not None else event_stream_polling()
+        response = StreamingHttpResponse(stream, content_type='text/event-stream')
         response['Cache-Control'] = 'no-cache'
         # Meaningful only behind an nginx-style reverse proxy (tells it not to buffer the stream,
         # which would defeat the whole point of a live push) — harmless to set unconditionally, and

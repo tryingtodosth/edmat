@@ -150,7 +150,7 @@ def notify(
 
     from .models import Notification
 
-    return Notification.objects.create(
+    notification = Notification.objects.create(
         recipient=recipient,
         actor=actor,
         type=notif_type,
@@ -161,6 +161,16 @@ def notify(
         event=event,
         note=(note or '')[:500],
     )
+
+    # Live delivery, when Redis is configured: publish the serialized row so any open SSE stream
+    # for this recipient wakes immediately instead of on its next database poll. Imported here
+    # (not at module level) and fire-and-forget — the row above is already the durable truth, and
+    # this function must never fail a moderation action because a pub/sub hop did.
+    from .redisbus import publish_notification
+    from .serializers import NotificationSerializer
+
+    publish_notification(recipient.pk, NotificationSerializer(notification).data)
+    return notification
 
 
 def label_for_material(material) -> str:

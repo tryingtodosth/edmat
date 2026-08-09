@@ -5388,6 +5388,85 @@ pinned to their own edge of the block.
 
 ---
 
+## 17AB. Feature: Redis — shared counters, earn-your-slot response caching, pub/sub push (✅ built)
+
+(§17AB because §17AA is the navbar branch's, unmerged when this was written. The Rust/Go/C port
+direction this superseded is archived on `outdated/port-rust`, files and session log preserved —
+the owner decided to stay with Django and spend the effort here instead; `PORTS-BRIEF.md` and
+`ENERGY-BRIEF.md` on the navbar branch carry the analysis that led to this feature.)
+
+**One env var, three behaviors, zero new requirements for a bare clone.** `EDMAT_REDIS_URL`
+(config/settings.py) is the whole switch: set, it moves Django's cache to the built-in Redis
+backend (auth throttle counters — per-worker-correct at any process count, closing the caveat
+§17Q left open), makes the new anonymous-read response cache genuinely shared, and turns
+notification SSE delivery into real pub/sub push. Unset — a fresh clone, `setup.sh`, the test
+suite — everything keeps the file-cache / DB-polling behavior, so Redis is an upgrade a deployment
+opts into, never a daemon a student must install (`MATERIAL_SCAN_REQUIRED`'s own posture).
+
+**The SSE rewrite (notifications/views.py + the new notifications/redisbus.py).** The stream used
+to poll the database every 3 s PER CONNECTION for up to 600 s — the app's only busy loop, and
+against the real vhost's 8 WSGI slots (2 processes × 4 threads) an availability problem: eight
+idle tabs occupied every slot (ENERGY-BRIEF §1). Now `notify()` publishes each serialized row once
+(fire-and-forget — the DB row is already the durable truth, so a lost publish costs only
+immediacy) and an idle stream blocks on the subscribe socket: zero queries, zero wakeups between
+events, keep-alives riding the 15 s subscribe timeout. Subscribe-first-then-drain ordering plus an
+`id <= last_id` guard closes the race between the snapshot and the subscription. **And the cap**:
+two concurrent streams per account (`redisbus.STREAM_SLOT_LIMIT`, Redis-counted with a TTL leak
+guard, fail-open if Redis dies mid-request) — a third tab gets a plain 429, which EventSource
+treats as terminal, so one person can no longer absorb the slot pool. The polling implementation
+survives verbatim as the no-Redis fallback.
+
+**The response cache (config/cachemw.py) — the owner's admission policy, verbatim**: "only after
+2nd refresh, or even later depending on the current traffic (after like 6-7)". An anonymous GET on
+the positive-list prefixes is only STORED once its exact URL has missed twice
+(`EDMAT_CACHE_ADMISSION_MIN=2`); when the current minute's anonymous traffic passes
+`EDMAT_CACHE_BUSY_RPM=120` the bar rises to `EDMAT_CACHE_ADMISSION_BUSY=7` — under pressure an URL
+must prove itself harder before spending shared memory. Entries are TTL-bounded (60 s), writes
+never invalidate (sub-minute staleness beats an invalidation protocol at this write volume — a
+stated trade). **The security gates are about who asks, not what the endpoint looks like**: any
+`Authorization` header or session cookie disqualifies the request in both directions (
+SessionAuthentication on the browsable API means a session-bearing GET can genuinely see different
+data), a `Set-Cookie` response is never stored, and exercise DETAIL is carved out because
+`retrieve()` records the `ContentView` viewer-pool rows the auto-hide arithmetic divides by — a
+cache hit would silently stop counting anonymous readers. `X-EdMat-Cache: miss/stored/hit/skip`
+makes every decision observable. Speaks Django's cache API only, so the identical logic runs on
+the file cache too — Redis makes it shared, not different.
+
+**The preloader (`manage.py preload_cache`, telemetry app)** — "preload in redis as much as
+possible", bounded by evidence: the taxonomy base set (discipline lists + every published
+discipline's branches payload, both locales) plus the top `--top` anonymous GET paths from the
+telemetry log's own anonymous shard (`logs_anon`), fetched through the full middleware stack and
+seated via cachemw's own `store()` with admission deliberately bypassed. Query strings are never
+replayed (telemetry redacts `?q=` by design — a search term is the visitor's content). Same TTL as
+organic entries, so preloading is a head start, never a staleness extension; cron it at the TTL
+cadence for standing warmth.
+
+**Verified.** 7 new tests (`telemetry.tests.AnonymousReadCacheTests`): the 2-miss admission ladder
+(miss → stored → hit, bytes identical), the busy-traffic bar refusing to store before the 7th
+request, an Authorization header and a session cookie each disqualifying in both directions, the
+exercise-detail carve-out, and the preloader seating hits ahead of any admission — plus the full
+telemetry + throttle suites re-run OK, `manage.py check` clean. **Live, against a real compiled
+Redis 8.10** (user-local build, no sudo): the admission ladder over HTTP; a `notify()` fired from
+a separate process arriving on an open stream immediately; the third stream for one account
+refused 429 with the slot counter readable in redis-cli at exactly 2; `preload_cache` seating 13
+responses and a never-requested URL serving `X-EdMat-Cache: hit` cold; and the fallback server
+(no env var) still admitting via the file cache and streaming via the polling path. **Three real
+bugs found by the live pass, none by the unit tests**: the preloader died on a missing/unmigrated
+`logs_anon` shard (now degrades to the base set, loudly); it silently preloaded ZERO because the
+test client's `Host: testserver` 400s under non-test `ALLOWED_HOSTS` (the suite whitelists it —
+now picks a real allowed host, and the output separates "off-list" from "failed fetches" so an
+all-failures run can't read as success); and redis-server's `--daemonize` startup race initially
+looked like a failed install.
+
+**Left open, not built**: no cache invalidation on write (TTL-only, by decision); the stream cap
+is only enforced when Redis is up (an in-process count under mod_wsgi's multiple processes would
+be a fiction — stated in redisbus.py rather than pretended); `django-redis` is deliberately NOT a
+dependency (Django 5's built-in backend suffices); the SSE token-in-query tradeoff (§17H) is
+unchanged by this; and the frontend needed zero changes — EventSource semantics are identical on
+both transports.
+
+---
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

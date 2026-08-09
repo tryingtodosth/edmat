@@ -52,6 +52,16 @@ the last package; `import_legacy_corpus` is idempotent regardless, so re-running
 
 ---
 
+**Optional since Aug 2026 — Redis.** With `EDMAT_REDIS_URL` (e.g. `redis://127.0.0.1:6379/0`) in
+`/etc/apache2/envvars`, the backend switches its cache to Redis (auth throttle counters become
+shared across every mod_wsgi worker and correct at any process count), the anonymous-read response
+cache becomes genuinely shared, and notification SSE streams switch from per-connection DB polling
+to pub/sub push with a per-account stream cap. Without the variable everything behaves exactly as
+before — file-based cache, polling SSE — so this needs deciding only when a `redis-server` exists
+on the box (`apt install redis-server`, then restart Apache). `manage.py preload_cache` (cron it at
+the cache TTL cadence, 60 s, if standing warmth is wanted) warms the hot anonymous reads from the
+telemetry log.
+
 ## Part A — updating an already-deployed instance (the likely path)
 
 **Take a real backup first — `db.sqlite3`, `media/`, and the current deployment directory.** This

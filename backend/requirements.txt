@@ -30,3 +30,8 @@ django-postman>=4.6,<5.0
 # DOMPurify pass (renderContent.ts) was, until this fix, the ONLY sanitization layer for content
 # that publishes with no moderator review at all (a verified contributor's new exercises).
 bleach>=6.1,<7.0
+
+# Optional (activates with EDMAT_REDIS_URL): shared cache/throttle counters, anonymous-read
+# response caching, and pub/sub notification push. Without the env var nothing imports it at
+# request time and the file-based cache/DB-polling behavior applies — see config/settings.py.
+redis>=5.0,<9.0
