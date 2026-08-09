@@ -7,26 +7,54 @@
 	// whole value is that somebody else already solved the problem you are stuck on, the search has
 	// to be on the front door.
 	//
-	// Exercises and materials, in that order, because an exercise is what the site is for and a
-	// material is the supporting thing. Not courses, events or tutoring: those are people and
-	// schedules rather than content, each already has its own browse page with its own filters, and
-	// folding five kinds into one ranked list would need a relevance model this has no basis for.
+	// Exercises and materials first, in that order, because an exercise is what the site is for and
+	// a material is the supporting thing. Then everything else the navbar's staged collapse leans on
+	// this page reaching: disciplines and their branches (stage 6 replaces the Disciplines link with
+	// this page's own icon, so the things that link opened must be findable here), taught courses
+	// (stage 9 removes the Courses link on the same grounds), events, and tutoring listings. Kinds
+	// are kept as separate, labelled sections rather than one ranked list — folding six kinds into
+	// one ordering would need a relevance model this has no basis for.
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { searchExercises } from '$lib/services/exercises';
 	import { searchMaterials } from '$lib/services/materials';
+	import { getCourses } from '$lib/services/course';
+	import { getEvents } from '$lib/services/events';
+	import { getServices } from '$lib/services/tutoring';
+	import { getDisciplines, getAllBranches } from '$lib/services/taxonomy';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import { authStore } from '$lib/state/auth.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
+	import CourseCard from '$lib/components/course/CourseCard.svelte';
+	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
+	import EventCard from '$lib/components/event/EventCard.svelte';
 	import SearchInput from '$lib/components/shared/SearchInput.svelte';
-	import type { Material, ResolvedExercise } from '$lib/types';
+	import type { Branch, Discipline, Material, ResolvedExercise, Service } from '$lib/types';
+	import type { Course } from '$lib/types/course';
+	import type { EdmatEvent } from '$lib/types/event';
 	import { SEARCH_MIN_QUERY_LENGTH } from '$lib/utils/textInput';
 
 	let exercises = $state<ResolvedExercise[]>([]);
 	let materials = $state<Material[]>([]);
+	let disciplines = $state<Discipline[]>([]);
+	let branches = $state<Branch[]>([]);
+	let courses = $state<Course[]>([]);
+	let events = $state<EdmatEvent[]>([]);
+	let services = $state<Service[]>([]);
 	let loading = $state(false);
 	let searchedFor = $state('');
+
+	// The same gate every other surface for these features uses (`Header.svelte`'s `can`): a killed
+	// feature must not resurface through search, and a moderator still sees it to manage it.
+	const can = (key: Parameters<typeof featureFlagsStore.isEnabled>[0]) =>
+		featureFlagsStore.isEnabled(key) || authStore.isModerator;
+	let canClassroom = $derived(can('classroom'));
+	let canTutoring = $derived(can('tutoring'));
+	let canEvents = $derived(can('events'));
 
 	const query = $derived(page.url.searchParams.get('q') ?? '');
 
@@ -55,33 +83,69 @@
 		if (q.trim().length < SEARCH_MIN_QUERY_LENGTH) {
 			exercises = [];
 			materials = [];
+			disciplines = [];
+			branches = [];
+			courses = [];
+			events = [];
+			services = [];
 			searchedFor = '';
 			return;
 		}
 		void run(q);
 	});
 
+	/** Disciplines and branches are a handful of rows the taxonomy pages already fetch whole, so
+	 * they are filtered here rather than given a backend `?q=` of their own — a name/description
+	 * `includes` over a bounded, already-served list, not a second search implementation. */
+	function matches(q: string, ...texts: string[]): boolean {
+		const needle = q.toLowerCase();
+		return texts.some((t) => t.toLowerCase().includes(needle));
+	}
+
 	async function run(q: string) {
 		loading = true;
 		try {
-			// Settled together: a material search failing should not decide whether the exercises
-			// render, and the two are independent requests.
-			const [ex, mat] = await Promise.allSettled([
+			// Settled together: one kind's search failing should not decide whether the others
+			// render, and they are independent requests. A killed feature's kind is never asked for
+			// at all — the gate must hold on the request, not only on the rendering.
+			const [ex, mat, disc, br, crs, ev, srv] = await Promise.allSettled([
 				searchExercises(q, getLocale(), 24),
-				searchMaterials(q)
+				searchMaterials(q),
+				getDisciplines(),
+				getAllBranches(),
+				canClassroom ? getCourses({ q }) : Promise.resolve([]),
+				canEvents ? getEvents({ q }) : Promise.resolve([]),
+				canTutoring ? getServices(undefined, { q }) : Promise.resolve([])
 			]);
 			// Only adopt an answer that is still the current question — a slower earlier search must
 			// not overwrite a newer one.
 			if (q !== query) return;
 			exercises = ex.status === 'fulfilled' ? ex.value : [];
 			materials = mat.status === 'fulfilled' ? mat.value : [];
+			disciplines =
+				disc.status === 'fulfilled'
+					? disc.value.filter((d) => matches(q, d.name, d.description))
+					: [];
+			branches =
+				br.status === 'fulfilled' ? br.value.filter((b) => matches(q, b.name, b.description)) : [];
+			courses = crs.status === 'fulfilled' ? crs.value : [];
+			events = ev.status === 'fulfilled' ? ev.value : [];
+			services = srv.status === 'fulfilled' ? srv.value : [];
 			searchedFor = q;
 		} finally {
 			if (q === query) loading = false;
 		}
 	}
 
-	const total = $derived(exercises.length + materials.length);
+	const total = $derived(
+		exercises.length +
+			materials.length +
+			disciplines.length +
+			branches.length +
+			courses.length +
+			events.length +
+			services.length
+	);
 </script>
 
 <svelte:head>
@@ -125,6 +189,53 @@
 				{/each}
 			</div>
 		{/if}
+
+		{#if disciplines.length || branches.length}
+			<h2>{m.nav_browse()}</h2>
+			<!-- Plain link rows rather than cards: a discipline or branch is a place to go, not a
+			     content item, and its browse page is one click away. -->
+			<ul class="taxonomy-hits">
+				{#each disciplines as discipline (discipline.id)}
+					<li>
+						<a href={resolve('/disciplines/[discipline]', { discipline: discipline.id })}>
+							{discipline.name}
+						</a>
+					</li>
+				{/each}
+				{#each branches as branch (branch.id)}
+					<li>
+						<a href={resolve('/branches/[branch]', { branch: branch.id })}>{branch.name}</a>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
+		{#if courses.length}
+			<h2>{m.home_tab_courses()}</h2>
+			<div class="grid">
+				{#each courses as course (course.id)}
+					<CourseCard {course} />
+				{/each}
+			</div>
+		{/if}
+
+		{#if events.length}
+			<h2>{m.home_tab_events()}</h2>
+			<div class="grid">
+				{#each events as event (event.id)}
+					<EventCard {event} />
+				{/each}
+			</div>
+		{/if}
+
+		{#if services.length}
+			<h2>{m.home_tab_tutoring()}</h2>
+			<div class="grid">
+				{#each services as service (service.id)}
+					<ServiceCard {service} />
+				{/each}
+			</div>
+		{/if}
 	{:else}
 		<p class="muted">{m.search_prompt()}</p>
 	{/if}
@@ -150,5 +261,24 @@
 
 	.muted {
 		color: var(--text-secondary);
+	}
+
+	.taxonomy-hits {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		a {
+			display: inline-block;
+			padding: var(--space-1) var(--space-3);
+			border: 1px solid var(--border-color);
+			border-radius: var(--radius-sm);
+			color: var(--text-primary);
+			&:hover {
+				background: var(--bg-surface-alt);
+			}
+		}
 	}
 </style>

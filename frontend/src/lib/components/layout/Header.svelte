@@ -240,16 +240,27 @@
 <!-- Item lists as snippets, rendered by BOTH the desktop popovers and the mobile drawer, so a
      feature flag cannot hide an entry in one surface and leave it in the other. -->
 {#snippet browseLinks(onclick: () => void)}
-	<a href={resolve('/disciplines')} {onclick}>{m.nav_browse()}</a>
-	<a href={resolve('/materials')} {onclick}>{m.nav_materials()}</a>
+	<!-- The per-link classes are the staged collapse's handles: each names the width stage that
+	     hides this link as text (its icon twin in the action row appears at the same stage). They
+	     are inert in the drawer, where every rule targeting them is scoped under `.site-nav`. -->
+	<a class="nav-link nav-link--disciplines" href={resolve('/disciplines')} {onclick}>
+		{m.nav_browse()}
+	</a>
+	<a class="nav-link nav-link--materials" href={resolve('/materials')} {onclick}>
+		{m.nav_materials()}
+	</a>
 	{#if canClassroom}
-		<a href={resolve('/courses')} {onclick}>{m.nav_classroom()}</a>
+		<a class="nav-link nav-link--classroom" href={resolve('/courses')} {onclick}>
+			{m.nav_classroom()}
+		</a>
 	{/if}
 	{#if canEvents}
-		<a href={resolve('/events')} {onclick}>{m.nav_events()}</a>
+		<a class="nav-link nav-link--events" href={resolve('/events')} {onclick}>{m.nav_events()}</a>
 	{/if}
 	{#if canTutoring}
-		<a href={resolve('/services')} {onclick}>{m.nav_services()}</a>
+		<a class="nav-link nav-link--services" href={resolve('/services')} {onclick}>
+			{m.nav_services()}
+		</a>
 	{/if}
 {/snippet}
 
@@ -348,6 +359,90 @@
 	</svg>
 {/snippet}
 
+<!-- The staged-collapse icons (NAVBAR-BRIEF stages 1–6): inline SVG rather than emoji, decided
+     with the owner — SVG inherits the theme's text colour and sits on a line the way the messages
+     envelope above already does. Every icon-only control they end up on carries a real aria-label. -->
+{#snippet calendarIcon()}
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<rect x="3" y="5" width="18" height="16" rx="2" />
+		<path d="M3 9.5h18M8 3v4M16 3v4" />
+	</svg>
+{/snippet}
+
+{#snippet bookIcon()}
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17.5H6.5A2.5 2.5 0 0 0 4 22z" />
+		<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+	</svg>
+{/snippet}
+
+{#snippet moneyIcon()}
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<rect x="2.5" y="6" width="19" height="12" rx="2" />
+		<circle cx="12" cy="12" r="2.5" />
+		<path d="M6.5 12h.01M17.5 12h.01" />
+	</svg>
+{/snippet}
+
+{#snippet searchIcon()}
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<circle cx="11" cy="11" r="6.5" />
+		<path d="m16 16 5 5" />
+	</svg>
+{/snippet}
+
+{#snippet personIcon()}
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<circle cx="12" cy="8" r="3.5" />
+		<path d="M5 20c1.2-3.4 3.9-5 7-5s5.8 1.6 7 5" />
+	</svg>
+{/snippet}
+
 <header class="site-header" class:site-header--tucked={tucked}>
 	<div class="site-header__row">
 		<a class="brand" href={resolve('/')}>
@@ -367,8 +462,51 @@
 
 		<div class="site-header__actions no-print">
 			<RandomExerciseButton />
+
+			<!-- Where the collapsed nav links land (NAVBAR-BRIEF: "just right of the dice"), keeping
+			     the order they had in the nav — Materials, Events, Tutoring — so the cluster reads as
+			     a continuation of the nav rather than a random pile. `display: contents` so that a
+			     stage where the cluster is empty leaves no phantom flex gap behind. Disciplines is
+			     deliberately not here: its stage-6 icon is the search icon, placed left of Add. -->
+			<div class="collapsed-nav" role="presentation">
+				<a
+					class="icon-button collapsed collapsed--materials"
+					href={resolve('/materials')}
+					aria-label={m.nav_materials()}
+					title={m.nav_materials()}
+				>
+					{@render bookIcon()}
+				</a>
+				{#if canEvents}
+					<a
+						class="icon-button collapsed collapsed--events"
+						href={resolve('/events')}
+						aria-label={m.nav_events()}
+						title={m.nav_events()}
+					>
+						{@render calendarIcon()}
+					</a>
+				{/if}
+				{#if canTutoring}
+					<a
+						class="icon-button collapsed collapsed--services"
+						href={resolve('/services')}
+						aria-label={m.nav_services()}
+						title={m.nav_services()}
+					>
+						{@render moneyIcon()}
+					</a>
+				{/if}
+			</div>
+
 			<ThemeToggle />
-			<LocaleSwitcher />
+			<!-- Stage 8: once somebody HAS an account, the language picker moves into the account
+			     menu at narrow widths — a signed-out visitor keeps it here at every width, since the
+			     one control a person may need before they can read anything else must not be behind
+			     a menu labelled in a language they cannot read. -->
+			<span class="row-locale" class:row-locale--signed-in={authStore.isAuthenticated}>
+				<LocaleSwitcher />
+			</span>
 
 			<!-- Everything addressed to YOU, together at the right-hand end: work waiting for you,
 			     what somebody sent, what the site is telling you, what you saved, what you can make,
@@ -423,6 +561,19 @@
 					{/if}
 				</a>
 
+				<!-- Stage 6: the Disciplines link becomes this search icon, placed immediately left of
+				     the Add trigger (its own place in the brief's order, not the dice cluster). It
+				     points at the site-wide search page, which by this change also covers what the
+				     Disciplines link opened — disciplines and branches — so the merge loses nothing. -->
+				<a
+					class="icon-button search-collapsed"
+					href={resolve('/search')}
+					aria-label={m.search_heading()}
+					title={m.search_heading()}
+				>
+					{@render searchIcon()}
+				</a>
+
 				<!-- Add… sits with the personal group rather than beside the nav, now that the row no
 				     longer wraps — the reason it was over there was that it used to wrap down with the
 				     icons, stranding the one create affordance on a second line. -->
@@ -445,14 +596,36 @@
 						{#snippet trigger(open: boolean)}
 							<!-- A chevron, because looking at a screenshot of this is what showed the problem: a
 						     person's own name sitting in a row of icons reads as a label, not as something
-						     to press. It rotates on open so the control says which way it will go. -->
+						     to press. It rotates on open so the control says which way it will go.
+
+						     Stage 2 swaps the name for their avatar (or a plain person icon — there is
+						     deliberately no identicon, §17Q "Left open"). The Popover's own `label` keeps
+						     the accessible name either way. -->
 							<span class="account-trigger">
-								{authStore.user?.displayName}
+								<span class="account-trigger__name">{authStore.user?.displayName}</span>
+								<span class="account-trigger__avatar" aria-hidden="true">
+									{#if authStore.user?.avatarUrl}
+										<img class="account-trigger__img" src={authStore.user.avatarUrl} alt="" />
+									{:else}
+										{@render personIcon()}
+									{/if}
+								</span>
 								<span class="chevron" class:chevron--open={open} aria-hidden="true">▾</span>
 							</span>
 						{/snippet}
 						{#snippet children(close: () => void)}
+							<!-- Stage 7 removes the logo — the bar's only link home — so a Home entry appears
+							     in this menu at exactly the widths where that happens. Page breadcrumbs keep
+							     home reachable for guests in the same band. -->
+							<a role="menuitem" class="menu-item menu-home" href={resolve('/')} onclick={close}>
+								{m.nav_home()}
+							</a>
 							{@render accountItems('menu-item', close)}
+							<!-- Stage 8: the language picker's narrow-width home once somebody has an
+							     account. The row keeps it for guests — see `.row-locale` above. -->
+							<div class="menu-locale">
+								<LocaleSwitcher />
+							</div>
 						{/snippet}
 					</Popover>
 				{:else}
@@ -627,14 +800,28 @@
 		position: sticky;
 		top: 0;
 		z-index: var(--z-dropdown);
+
+		// The bar's dimensions as a LINEAR function of window width, not stepped at breakpoints
+		// (NAVBAR-BRIEF §2): each clamp()'s vw middle term is a straight line between the two
+		// endpoints — full size at ≥1200px, minimum at ≤720px (where the phone drawer takes over).
+		// Defined once here so everything reads the same endpoints and the bar cannot end up with a
+		// linear height and stepped padding. The height itself is content + 2×padding, so it shrinks
+		// on the same line the padding does.
+		--hdr-pad-y: clamp(6px, 1.25vw - 3px, 12px); // 12px @1200 → 6px @720
+		--hdr-pad-x: clamp(8px, 1.667vw - 4px, 16px); // 16px → 8px
+		--hdr-gap: clamp(6px, 1.25vw - 3px, 12px); // 12px → 6px
+		--hdr-gap-sm: clamp(4px, 0.833vw - 2px, 8px); // 8px → 4px
+		--hdr-border: clamp(0.5px, 0.10417vw - 0.25px, 1px); // 1px → 0.5px
+
+		border-bottom-width: var(--hdr-border);
 	}
 	.site-header__row {
 		max-width: 1100px;
 		margin: 0 auto;
 		display: flex;
 		align-items: center;
-		gap: var(--space-3);
-		padding: var(--space-3) var(--space-4);
+		gap: var(--hdr-gap);
+		padding: var(--hdr-pad-y) var(--hdr-pad-x);
 		// One row, which is the whole point: the brand and the browse links on the left, the controls
 		// on the right, nothing on a second line. The nav is what gives when the width does not add
 		// up — it is the only part here that can shed something (the moderation label goes first,
@@ -647,7 +834,7 @@
 	.row-divider {
 		flex: 0 0 auto;
 		align-self: stretch;
-		width: 1px;
+		width: var(--hdr-border);
 		margin: var(--space-1) calc(var(--space-2) * -1);
 		background: var(--border-color);
 		opacity: 0.7;
@@ -668,7 +855,8 @@
 		// Down from --space-4. The row is capped at 1100px and, measured, was 21px short of holding
 		// five browse links and the controls at that width — so the last link was clipped on a full
 		// desktop. Four gaps at 4px less each buys 16px, and the row's own gap below buys the rest.
-		gap: var(--space-3);
+		// Now the linear token, whose wide endpoint is the same 12px this was.
+		gap: var(--hdr-gap);
 		// `min-width: 0` is what actually lets the row stay one row: a flex item will not shrink
 		// below its content by default, so without this the nav holds the line at its natural width
 		// and pushes the controls off the right-hand end instead of giving way. It is the item that
@@ -718,7 +906,7 @@
 	.site-header__you {
 		display: flex;
 		align-items: center;
-		gap: var(--space-2);
+		gap: var(--hdr-gap-sm);
 		margin-left: auto;
 	}
 
@@ -746,7 +934,7 @@
 	.site-header__actions {
 		display: flex;
 		align-items: center;
-		gap: var(--space-2);
+		gap: var(--hdr-gap-sm);
 		font-size: var(--font-size-sm);
 		/* One row. This used to be `flex: 1 1 100%` — its own full-width line — which was an honest
 		   description of what the row did rather than what it should do: the header wrapped, so the
@@ -828,6 +1016,156 @@
 		font-size: var(--font-size-sm);
 		cursor: pointer;
 	}
+
+	// ---- the staged collapse (NAVBAR-BRIEF §2) ---------------------------------------------------
+	// As the window narrows the bar gives up the cheapest thing first, one stage at a time, instead
+	// of falling off a cliff at one breakpoint. Each stage is a media query; the *sizes* between
+	// stages shrink linearly via the --hdr-* tokens above. Media queries rather than a container
+	// query on the header: the bar spans the full viewport, so the two are equivalent here, and
+	// media queries are the tool this app already uses. The order of stages IS the specification.
+	//
+	// Every rule that hides a text link is paired with one that reveals its icon twin — the text
+	// lives in `.site-nav` (also rendered, unstyled by these rules, in the drawer), the icons in
+	// the action row. Nothing is ever left with neither form on a width where the bar renders.
+
+	.collapsed-nav {
+		// Children become flex items of the actions row directly, so a stage where every icon is
+		// still hidden leaves no phantom gap where an empty wrapper would sit.
+		display: contents;
+	}
+	.collapsed {
+		display: none;
+		color: var(--text-secondary);
+		&:hover {
+			color: var(--text-primary);
+		}
+	}
+	.search-collapsed {
+		display: none;
+		color: var(--text-secondary);
+		&:hover {
+			color: var(--text-primary);
+		}
+	}
+	.account-trigger__avatar {
+		display: none;
+		align-items: center;
+		justify-content: center;
+	}
+	.account-trigger__img {
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		object-fit: cover;
+		display: block;
+	}
+	.menu-home,
+	.menu-locale {
+		display: none;
+	}
+	.menu-locale {
+		padding: var(--space-2) var(--space-3);
+	}
+
+	// Stage 1 — Events loses its label and becomes a calendar icon.
+	@media (max-width: 1180px) {
+		.site-nav .nav-link--events {
+			display: none;
+		}
+		.collapsed--events {
+			display: inline-flex;
+		}
+	}
+
+	// Stage 2 — the account trigger becomes an icon: their avatar if they have one.
+	@media (max-width: 1120px) {
+		.account-trigger__name {
+			display: none;
+		}
+		.account-trigger__avatar {
+			display: inline-flex;
+		}
+	}
+
+	// (Stage 3, Watchlists → eye icon, is deliberately absent: Watchlists was already removed from
+	// the navbar — it lives on the Tutoring page — and the owner confirmed the spec line was written
+	// from an older memory of the bar, not as a request to re-add it.)
+
+	// Stage 4 — Materials becomes a book icon.
+	@media (max-width: 1060px) {
+		.site-nav .nav-link--materials {
+			display: none;
+		}
+		.collapsed--materials {
+			display: inline-flex;
+		}
+	}
+
+	// Stage 4½ — Tutoring becomes a money icon (the owner placed it here, between Materials and the
+	// Add trigger; the original spec had dropped its line while fixing the ordering).
+	@media (max-width: 1000px) {
+		.site-nav .nav-link--services {
+			display: none;
+		}
+		.collapsed--services {
+			display: inline-flex;
+		}
+	}
+
+	// Stage 5 — the Add trigger keeps only its plus.
+	@media (max-width: 950px) {
+		.add-trigger__text {
+			display: none;
+		}
+	}
+
+	// Stage 6 — Disciplines merges into the search icon, immediately left of Add. The search page
+	// covers disciplines/branches (widened in the same change), so the link's destination stays
+	// findable through the icon's.
+	@media (max-width: 900px) {
+		.site-nav .nav-link--disciplines {
+			display: none;
+		}
+		.search-collapsed {
+			display: inline-flex;
+		}
+	}
+
+	// Stage 7 — the logo disappears. The lower bound matters: at ≤720px the phone bar is exactly
+	// the brand plus the drawer button, so the brand must come back there. In the 721–850px band a
+	// Home entry appears in the account menu, and page breadcrumbs keep home reachable for guests.
+	@media (max-width: 850px) and (min-width: 721px) {
+		.brand {
+			display: none;
+		}
+	}
+	@media (max-width: 850px) {
+		.menu-home {
+			display: block;
+		}
+	}
+
+	// Stage 8 — once somebody has an account, the language picker moves into the account menu.
+	// `.row-locale--signed-in` is only ever set for an authenticated session, so a guest's picker
+	// stays in the row at every width.
+	@media (max-width: 800px) {
+		.row-locale--signed-in {
+			display: none;
+		}
+		.menu-locale {
+			display: block;
+		}
+	}
+
+	// Stage 9 — Courses disappears. It stays reachable from the homepage hero tabs, the drawer one
+	// stage below, and the site-wide search (which now covers taught courses for exactly this).
+	@media (max-width: 760px) {
+		.site-nav .nav-link--classroom {
+			display: none;
+		}
+	}
+
+	// Stage 10 is the existing phone drawer, below — everything collapses into it at ≤720px.
 
 	// ---- the drawer, and the button that opens it ------------------------------------------------
 	// Both are desktop-hidden rather than mobile-added, so the desktop bar is exactly what it was.

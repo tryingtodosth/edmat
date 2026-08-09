@@ -105,6 +105,22 @@ class ServiceDiscoveryTests(APITestCase):
         titles = {row['title'] for row in response.data}
         self.assertEqual(titles, {'AM2 help', 'RP1 help'})
 
+    def test_q_filters_listings_by_title_and_description(self):
+        """`?q=` feeds the site-wide search page. A paused listing stays out of a searched browse
+        exactly as it does an unsearched one — the search must not widen visibility."""
+        Service.objects.create(
+            provider=self.other_provider,
+            title='Plain title',
+            description='statystyka crash course',
+            is_active=True,
+        )
+        by_description = self.client.get(reverse('service-list'), {'q': 'statystyka'})
+        self.assertEqual({row['title'] for row in by_description.data}, {'Plain title'})
+        by_title = self.client.get(reverse('service-list'), {'q': 'AM2'})
+        self.assertEqual({row['title'] for row in by_title.data}, {'AM2 help'})
+        paused = self.client.get(reverse('service-list'), {'q': 'Paused'})
+        self.assertEqual(len(paused.data), 0)
+
     def test_course_scoped_filter_only_returns_that_courses_listings(self):
         response = self.client.get(reverse('service-list'), {'branch': self.course_a.slug})
 

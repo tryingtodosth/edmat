@@ -5252,6 +5252,58 @@ resized 2400×1200 → 1600×800, and the count rendering on the browse card.
 
 ---
 
+## 17AA. Feature: the navbar collapses in stages, and search reaches everything (✅ built)
+
+(§17AA rather than §17Z, which the unmerged `worktree-booking-week-schedules` branch already claims.)
+Built from `NAVBAR-BRIEF.md`, whose stage order is the specification. Between "everything fits" and
+"phone drawer" the bar used to have nothing: one breakpoint at 720px. Now it degrades one stage at a
+time, each at a narrower width than the last, giving up the cheapest thing first — and its height,
+padding, gaps and border thickness shrink as a **linear function of window width** (`clamp()` with a
+`vw` middle term, endpoints defined once as `--hdr-*` custom properties on `.site-header`, so nothing
+can end up with a linear height and stepped padding). Media queries, not container queries: the bar
+spans the full viewport, so the two are equivalent here, and media queries are what this app already
+uses.
+
+**The stages** (Header.svelte, each a labelled media query): 1180px Events → calendar icon; 1120px the
+account trigger → their avatar, or a plain person icon (no identicon, §17Q); 1060px Materials → book
+icon; 1000px Tutoring → money icon; 950px Add… → its plus alone; 900px Disciplines → a **search icon
+immediately left of Add**; 850px the logo disappears (721–850px band only — the phone bar at ≤720px is
+the brand again, and a Home entry appears in the account menu for the band; guests keep breadcrumbs);
+800px a signed-in person's language picker moves into the account menu (**a guest's stays in the
+row** — the one control someone may need before they can read anything must not sit behind a menu
+labelled in a language they cannot read); 760px Courses disappears (reachable via the homepage tabs,
+the drawer one stage below, and search); 720px the existing drawer (§17V.4, unchanged). Collapsed
+icons join the action row **just right of the dice, in nav order** (book, calendar, money), each an
+inline SVG — decided with the owner over their earlier "emoji" — with a real `aria-label`. The text
+links and icon twins are the same single-sourced snippet lists §17V.4 demands, so the feature-flag
+gates (`can('events')` etc.) hold on both forms. Four owner decisions recorded: **stage 3 (Watchlists
+→ eye icon) is deliberately absent** — it was already removed from the bar and the owner confirmed
+the spec line was an older memory, not a re-add; Tutoring (which the refined spec had dropped)
+collapses between Materials and Add; search widened to *everything*; SVG over emoji.
+
+**Search now reaches what the removed links opened.** `?q=` (plain icontains on title/description,
+MaterialViewSet's own convention) added to `EventViewSet`, `ServiceViewSet` and the taught-course
+`CourseViewSet` — each inside the existing visibility layer, pinned by a test per app that a draft/
+only-you/paused row is not widened into view by a matching query. `/search` gained sections for
+disciplines + branches (client-side filter over the small, bounded, already-served lists — not a
+second search implementation), taught courses, events and tutoring, each rendered with that feature's
+own card and gated by the same flags as everywhere else, requested only when the flag allows.
+
+**Verified**: `e2e/navbar-stages.mjs` (42 checks, see test.md) plus screenshots actually looked at —
+which is how the one real issue of this build was found: the first run's search checks passed
+**vacuously** against a backend process that predated the `?q=` filters (an unfiltered list also
+contains the stamped test rows); the screenshot showed non-matching courses under a `matematyka`
+query, and the script now asserts the exact result count so that cannot pass again.
+`e2e/events-and-nav.mjs` re-run: 89 passing checks stay passing (its 3 failures — an account-menu
+My Set entry and two schedule-page labels — pre-date this work on `main`). Backend suites for the
+three touched apps pass; `npm run check`/`lint`/`build` clean.
+
+**Left open, not built**: the 3 pre-existing `events-and-nav.mjs` failures above; no `?q=` for
+messages or bookings (private, not browse surfaces); the empty `.site-nav` at ≤760px still renders
+its divider (a hairline artifact, visible only in the 721–760px band).
+
+---
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

@@ -7,7 +7,7 @@ person's draft gets a 404, which is also the honest answer, since for them it do
 """
 
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -121,6 +121,13 @@ class EventViewSet(viewsets.ModelViewSet):
         discipline = self.request.query_params.get('discipline')
         if discipline:
             qs = qs.filter(discipline__slug=discipline)
+        # `?q=` — free-text search over the two human-written fields, for the site-wide search
+        # page (same plain-icontains convention as MaterialViewSet's own `?q=`).
+        q = self.request.query_params.get('q')
+        if q:
+            qs = qs.filter(
+                Q(title__icontains=q) | Q(description__icontains=q)
+            )
 
         # `upcoming` is the default for a list nobody parameterized, because an events page that
         # opens on last month's talks is answering a question nobody asked. `past` is a real value
