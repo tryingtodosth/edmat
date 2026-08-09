@@ -9,6 +9,11 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
+	// Imported for its side effect, which is the whole feature: it makes Paraglide's locale a rune,
+	// so switching language re-renders the text in place instead of reloading the page. Imported
+	// here, in the one component every page is inside, so the override is installed before anything
+	// calls a message function.
+	import '$lib/state/locale.svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
 
