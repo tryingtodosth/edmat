@@ -239,3 +239,90 @@ class ConsentBoundaryTests(TestCase):
             stored, expected,
             'RequestLog gained or lost a field — update the privacy policy and the retention rules',
         )
+
+
+class AnonymousReadCacheTests(TestCase):
+    """config/cachemw.py — the earn-your-slot admission and, above all, the security gates.
+
+    Runs on the test settings' LocMemCache: the middleware speaks Django's cache API only, so the
+    backend (file, locmem, Redis) is configuration, and what these pin is the logic every backend
+    shares. The one thing they must do that most tests here don't: clear the cache per test, since
+    LocMem persists across tests in one process and admission counters would leak between them.
+    """
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        from taxonomy.models import Discipline, DisciplineTranslation
+
+        d = Discipline.objects.create(slug='cache-test-disc')
+        DisciplineTranslation.objects.create(discipline=d, locale='pl', name='X', description='y')
+
+    def test_admission_takes_two_requests_then_serves_hits(self):
+        first = self.client.get('/api/disciplines/')
+        self.assertEqual(first['X-EdMat-Cache'], 'miss')
+        second = self.client.get('/api/disciplines/')
+        self.assertEqual(second['X-EdMat-Cache'], 'stored')
+        third = self.client.get('/api/disciplines/')
+        self.assertEqual(third['X-EdMat-Cache'], 'hit')
+        self.assertEqual(third.content, first.content)
+
+    def test_an_authorization_header_disqualifies_the_request_entirely(self):
+        """The security gate: any credential means no shared cache, in either direction — the
+        response is neither served from it nor stored into it, no matter how often it repeats."""
+        from rest_framework.authtoken.models import Token
+
+        token = Token.objects.create(user=User.objects.create_user('cache-auth', password='x'))
+        from config.cachemw import cache_key
+
+        for _ in range(4):
+            response = self.client.get(
+                '/api/disciplines/', HTTP_AUTHORIZATION=f'Token {token.key}'
+            )
+            self.assertNotIn('X-EdMat-Cache', response)
+        from django.core.cache import cache
+
+        self.assertIsNone(cache.get(cache_key('/api/disciplines/')))
+
+    def test_a_session_cookie_disqualifies_too(self):
+        """SessionAuthentication is enabled for the browsable API, so a session-bearing GET can
+        genuinely see different data (own drafts) — it must never share the anonymous cache."""
+        User.objects.create_user('cache-sess', password='pw12345!')
+        self.client.login(username='cache-sess', password='pw12345!')
+        response = self.client.get('/api/disciplines/')
+        self.assertNotIn('X-EdMat-Cache', response)
+
+    def test_exercise_detail_is_excluded_by_its_view_count_side_effect(self):
+        response = self.client.get('/api/exercises/1/')
+        self.assertNotIn('X-EdMat-Cache', response)
+
+    @override_settings(EDMAT_CACHE_BUSY_RPM=0)
+    def test_under_busy_traffic_admission_needs_seven(self):
+        """The owner's adaptive half: with the busy mark forced to zero every request counts as
+        high-traffic, so the second refresh is no longer enough and the bar sits at 7."""
+        for i in range(6):
+            response = self.client.get('/api/disciplines/')
+            self.assertEqual(response['X-EdMat-Cache'], 'miss', f'request {i + 1}')
+        seventh = self.client.get('/api/disciplines/')
+        self.assertEqual(seventh['X-EdMat-Cache'], 'stored')
+
+    def test_preload_seats_responses_ahead_of_any_admission(self):
+        from django.core.management import call_command
+
+        call_command('preload_cache', '--top', '5', verbosity=0)
+        response = self.client.get('/api/disciplines/')
+        self.assertEqual(response['X-EdMat-Cache'], 'hit')
+
+    def test_preload_reads_the_anonymous_log_shard(self):
+        from django.conf import settings as s
+        from django.core.management import call_command
+
+        RequestLog.objects.using(s.LOG_ANON_SHARD).create(
+            method='GET', path='/api/materials/', status_code=200, duration_ms=1, request_id='r1'
+        )
+        call_command('preload_cache', verbosity=0)
+        response = self.client.get('/api/materials/')
+        self.assertEqual(response['X-EdMat-Cache'], 'hit')
