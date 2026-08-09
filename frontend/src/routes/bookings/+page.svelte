@@ -14,12 +14,16 @@
 		AvailabilityException,
 		AvailabilityRule,
 		Booking,
+		EffectiveWeek,
+		ScheduleWindow,
 		Service,
-		TutorSchedule
+		TutorSchedule,
+		WeekTemplate
 	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import {
+		applyWeeks,
 		BookingConflictError,
 		cancelBooking,
 		completeBooking,
@@ -29,9 +33,16 @@
 		declineBooking,
 		deleteAvailabilityException,
 		deleteAvailabilityRule,
+		deleteWeekTemplate,
 		getAvailabilityExceptions,
 		getAvailabilityRules,
-		getBookings
+		getBookings,
+		getEffectiveWeek,
+		getWeekTemplates,
+		reattachWeek,
+		saveWeek,
+		saveWeekAsTemplate,
+		updateAvailabilityRule
 	} from '$lib/services/booking';
 	import { getMySchedule } from '$lib/services/booking';
 	import { getMyServices } from '$lib/services/tutoring';
@@ -46,9 +57,12 @@
 	import {
 		type CalendarEntry,
 		type CalendarMonthDay,
+		clockToMinutes,
 		dayRange,
+		type EditableWindow,
 		fromIsoDate,
 		isoDate,
+		minutesToClock,
 		monthGridDays,
 		monthOf,
 		shiftDays,
@@ -262,6 +276,19 @@
 			: dayRange(startOfWeek(fromIsoDate(calendarFocus), displayPrefs.weekStartsOn), 7)
 	);
 
+	// Which seven days the grid draws, and which week an edit lands on. Declared here rather than with
+	// the rest of the editor further down, because the period label below reads `gridDays` and a
+	// `$derived` cannot be read before it is declared.
+	let editing = $state(false);
+	/** The Monday of the week being edited. Always a Monday, whatever week order the viewer reads in:
+	 * a stored week is keyed by its Monday (see the backend's `monday_of`), so editing anything else
+	 * would mean one displayed week straddling two stored ones and a drag on the leading day quietly
+	 * changing the week before. The grid switches to Monday-first while editing for the same reason,
+	 * and says so to the minority who read Sunday-first. */
+	let editMonday = $derived(isoDate(startOfWeek(fromIsoDate(calendarFocus), 1)));
+	let editDays = $derived(dayRange(fromIsoDate(editMonday), 7));
+	let gridDays = $derived(editing && calendarView === 'week' ? editDays : calendarDays);
+
 	async function loadSchedule() {
 		scheduleFailed = false;
 		try {
@@ -371,7 +398,10 @@
 			? new Intl.DateTimeFormat(getLocale(), { month: 'long', year: 'numeric' }).format(
 					fromIsoDate(`${monthOf(calendarFocus)}-01`)
 				)
-			: `${formatShortDay(calendarDays[0])} – ${formatShortDay(calendarDays[calendarDays.length - 1])}`
+			: // `gridDays`, not `calendarDays`: while editing, the grid is shifted to the Monday week the
+				// change will be saved against, and a header describing a different seven days from the
+				// ones drawn underneath it would be worse than no header.
+				`${formatShortDay(gridDays[0])} – ${formatShortDay(gridDays[gridDays.length - 1])}`
 	);
 
 	function formatShortDay(iso: string): string {
@@ -392,6 +422,274 @@
 	function changeCalendarView(next: string) {
 		calendarView = next as CalendarView;
 	}
+
+	// ---- editing the calendar directly ----------------------------------------------------------
+	//
+	// Two things can be edited on the same grid, and which one is a real choice the tutor makes rather
+	// than something inferred from the state of the week they happen to be looking at:
+	//
+	//   'pattern' — the repeating weekly rules. Unbounded: changing Tuesday changes every Tuesday.
+	//   'week'    — this one week's own hours. Detaches the week from the pattern on the first edit.
+	//
+	// Inferring it would go wrong in the ordinary case: somebody laying out their usual timetable and
+	// somebody carving one week out of it are doing different things on identical-looking grids, and
+	// guessing which from whether the week happens to be detached already would silently pick the
+	// wrong one about half the time. So it is two radio buttons with a sentence each, and the sentence
+	// says what the change will reach.
+
+	let editScope = $state<'pattern' | 'week'>('week');
+	let editWeek = $state<EffectiveWeek | undefined>(undefined);
+	let editServiceId = $state('');
+	let editError = $state('');
+	let editNotice = $state('');
+	let templates = $state<WeekTemplate[]>([]);
+	let templateName = $state('');
+	let repeatWeeks = $state(4);
+	let repeatOverwrite = $state(true);
+	let busy = $state(false);
+
+	/** Monday-based, matching `AvailabilityRule.weekday` and the backend's `date.weekday()` — NOT
+	 * `Date.getDay()`, which is Sunday-based and would land every rule one day out. */
+	function weekdayOf(date: string): number {
+		return (fromIsoDate(date).getDay() + 6) % 7;
+	}
+
+	/** The windows the grid lets you drag, from whichever source is being edited.
+	 *
+	 * Both sources become the same shape, which is the point: one editing surface, one set of
+	 * gestures, and the difference between them lives entirely in what a gesture then writes. The id
+	 * prefix is what tells the handlers apart — a rule carries its own database id, while a stored
+	 * week's windows have none of their own (they are written as a whole list) so they are addressed
+	 * by position. */
+	let editWindows = $derived<EditableWindow[]>(
+		editScope === 'pattern'
+			? rules.map((rule) => ({
+					id: `rule-${rule.id}`,
+					date: editDays[rule.weekday],
+					startMinutes: clockToMinutes(rule.startTime),
+					endMinutes: clockToMinutes(rule.endTime),
+					label: rule.serviceId ? serviceTitle(rule.serviceId) : undefined
+				}))
+			: (editWeek?.windows ?? []).map((window, index) => ({
+					id: `win-${index}`,
+					date: editDays[window.weekday],
+					startMinutes: clockToMinutes(window.startTime),
+					endMinutes: clockToMinutes(window.endTime),
+					label: window.serviceId ? serviceTitle(window.serviceId) : undefined
+				}))
+	);
+
+	// The read-only calendar is only refetched when editing STOPS, not after every drag. Nothing it
+	// shows changes under an edit except the published bands, which the editor hides anyway (see
+	// CalendarWeek) — so a fetch per gesture would be a round trip to redraw something invisible.
+	let scheduleStale = $state(false);
+
+	let editWeekLoadedFor = $state<string | undefined>(undefined);
+	$effect(() => {
+		if (!editing) return;
+		const monday = editMonday;
+		if (monday === editWeekLoadedFor) return;
+		editWeekLoadedFor = monday;
+		loadEditWeek(monday);
+	});
+
+	async function loadEditWeek(monday: string) {
+		try {
+			editWeek = await getEffectiveWeek(monday);
+		} catch {
+			editError = m.booking_loadFailed();
+		}
+	}
+
+	async function startEditing() {
+		editing = true;
+		editError = '';
+		editNotice = '';
+		try {
+			templates = await getWeekTemplates();
+		} catch {
+			// A template list that will not load is not a reason to refuse to edit hours — the two are
+			// independent, and the panel simply shows none.
+			templates = [];
+		}
+	}
+
+	async function stopEditing() {
+		editing = false;
+		editError = '';
+		editNotice = '';
+		if (scheduleStale) {
+			scheduleStale = false;
+			await loadSchedule();
+		}
+	}
+
+	/** Run one edit, and put the world back the way the server sees it if it fails.
+	 *
+	 * Every gesture saves immediately rather than collecting into a Save button. A schedule editor
+	 * with unsaved state is one browser crash away from publishing hours somebody thought they had
+	 * withdrawn, and the same page already refuses to cache this tab for that reason. The cost is a
+	 * request per drag, which for a handful of windows is the right side of that trade.
+	 */
+	async function edit(change: () => Promise<void>) {
+		if (busy) return;
+		busy = true;
+		editError = '';
+		editNotice = '';
+		try {
+			await change();
+			scheduleStale = true;
+		} catch {
+			editError = m.booking_edit_saveFailed();
+			// Reload rather than leave the grid showing an edit the server refused — the alternative is
+			// a calendar that disagrees with what is published, which is the one thing it must not be.
+			if (editScope === 'pattern') rules = await getAvailabilityRules();
+			else await loadEditWeek(editMonday);
+		} finally {
+			busy = false;
+		}
+	}
+
+	/** Write the week's whole window list. The backend merges overlaps and hands back what it stored,
+	 * so the grid redraws from the saved truth rather than from what was dragged. */
+	async function saveWindows(windows: ScheduleWindow[]) {
+		editWeek = await saveWeek(editMonday, windows);
+	}
+
+	function currentWindows(): ScheduleWindow[] {
+		return (editWeek?.windows ?? []).map((window) => ({ ...window }));
+	}
+
+	function handleCreate(date: string, startMinutes: number, endMinutes: number) {
+		const weekday = weekdayOf(date);
+		const startTime = minutesToClock(startMinutes);
+		const endTime = minutesToClock(endMinutes);
+		edit(async () => {
+			if (editScope === 'pattern') {
+				await createAvailabilityRule({
+					weekday,
+					startTime,
+					endTime,
+					serviceId: editServiceId || undefined
+				});
+				rules = await getAvailabilityRules();
+			} else {
+				await saveWindows([
+					...currentWindows(),
+					{ weekday, startTime, endTime, serviceId: editServiceId || undefined }
+				]);
+			}
+		});
+	}
+
+	function handleMove(id: string, date: string, startMinutes: number, endMinutes: number) {
+		const weekday = weekdayOf(date);
+		const startTime = minutesToClock(startMinutes);
+		const endTime = minutesToClock(endMinutes);
+		edit(async () => {
+			if (id.startsWith('rule-')) {
+				await updateAvailabilityRule(id.slice(5), { weekday, startTime, endTime });
+				rules = await getAvailabilityRules();
+			} else {
+				const index = Number(id.slice(4));
+				await saveWindows(
+					currentWindows().map((window, at) =>
+						at === index ? { ...window, weekday, startTime, endTime } : window
+					)
+				);
+			}
+		});
+	}
+
+	function handleRemove(id: string) {
+		edit(async () => {
+			if (id.startsWith('rule-')) {
+				await deleteAvailabilityRule(id.slice(5));
+				rules = await getAvailabilityRules();
+			} else {
+				const index = Number(id.slice(4));
+				await saveWindows(currentWindows().filter((_, at) => at !== index));
+			}
+		});
+	}
+
+	function handleReattach() {
+		const id = editWeek?.id;
+		if (!id) return;
+		edit(async () => {
+			await reattachWeek(id);
+			await loadEditWeek(editMonday);
+		});
+	}
+
+	function handleRepeat() {
+		edit(async () => {
+			const result = await applyWeeks({
+				sourceWeek: editMonday,
+				weekStart: isoDate(shiftDays(fromIsoDate(editMonday), 7)),
+				weeks: repeatWeeks,
+				overwrite: repeatOverwrite
+			});
+			editNotice = result.skipped.length
+				? m.booking_edit_repeatSkipped({
+						written: result.written.length,
+						skipped: result.skipped.length
+					})
+				: m.booking_edit_repeatDone({ count: result.written.length });
+			await loadEditWeek(editMonday);
+		});
+	}
+
+	function handleApplyTemplate(template: WeekTemplate) {
+		edit(async () => {
+			const result = await applyWeeks({
+				sourceTemplateId: template.id,
+				weekStart: editMonday,
+				weeks: repeatWeeks,
+				overwrite: repeatOverwrite
+			});
+			editNotice = result.skipped.length
+				? m.booking_edit_repeatSkipped({
+						written: result.written.length,
+						skipped: result.skipped.length
+					})
+				: m.booking_edit_repeatDone({ count: result.written.length });
+			await loadEditWeek(editMonday);
+		});
+	}
+
+	async function handleSaveTemplate(event: SubmitEvent) {
+		event.preventDefault();
+		if (busy) return;
+		busy = true;
+		editError = '';
+		editNotice = '';
+		try {
+			await saveWeekAsTemplate(editMonday, templateName.trim());
+			templates = await getWeekTemplates();
+			templateName = '';
+		} catch {
+			editError = m.booking_edit_templateFailed();
+		} finally {
+			busy = false;
+		}
+	}
+
+	function handleDeleteTemplate(id: string) {
+		edit(async () => {
+			await deleteWeekTemplate(id);
+			templates = await getWeekTemplates();
+		});
+	}
+
+	let editWeekLabel = $derived(
+		m.booking_edit_weekOf({
+			date: new Intl.DateTimeFormat(getLocale(), {
+				day: 'numeric',
+				month: 'long'
+			}).format(fromIsoDate(editMonday))
+		})
+	);
 
 	let pendingCount = $derived(incoming.filter((r) => r.item.status === 'requested').length);
 	function serviceTitle(id?: string): string {
@@ -530,7 +828,20 @@
 			     exceptions listed underneath already ARE the list, and offering a third rendering of
 			     the same facts on the same screen would be noise. -->
 			<section class="panel">
-				<h2>{m.booking_calendar_heading()}</h2>
+				<div class="panel-head">
+					<h2>{m.booking_calendar_heading()}</h2>
+					<!-- Only in the week view: the month grid is a summary with no time axis, so there is
+					     nothing on it a window could be dragged along. -->
+					{#if calendarView === 'week'}
+						<button
+							type="button"
+							class={editing ? 'primary' : 'link'}
+							onclick={() => (editing ? stopEditing() : startEditing())}
+						>
+							{editing ? m.booking_edit_done() : m.booking_edit_start()}
+						</button>
+					{/if}
+				</div>
 				<ViewSwitcher
 					value={calendarView}
 					options={[
@@ -543,17 +854,87 @@
 					ontoday={() => (calendarFocus = isoDate(new Date()))}
 					periodLabel={calendarPeriodLabel}
 				/>
+
+				{#if editing && calendarView === 'week'}
+					<div class="editor">
+						<!-- Named here rather than in the period label above it, which is `capitalize`d for
+						     the locale month names it usually carries and turns any sentence into Title
+						     Case. This is also the honest place for it: it is the week the SAVE lands on,
+						     which is the editor's business rather than the calendar's. -->
+						<p class="editor__week">{editWeekLabel}</p>
+						<fieldset class="editor__scope">
+							<legend>{m.booking_edit_scope()}</legend>
+							<label>
+								<input type="radio" value="week" bind:group={editScope} />
+								<span>{m.booking_edit_scope_week()}</span>
+							</label>
+							<label>
+								<input type="radio" value="pattern" bind:group={editScope} />
+								<span>{m.booking_edit_scope_pattern()}</span>
+							</label>
+						</fieldset>
+						<p class="muted">
+							{editScope === 'week'
+								? m.booking_edit_scopeHint_week()
+								: m.booking_edit_scopeHint_pattern()}
+						</p>
+
+						{#if editScope === 'week'}
+							<!-- Which of the two states this week is in, said before an edit rather than
+							     discovered after one. "The first change gives it hours of its own" is the
+							     whole behaviour, and nobody should have to find it out by trying. -->
+							<p class="editor__state" class:editor__state--detached={editWeek?.detached}>
+								{#if editWeek?.detached}
+									{editWeek.sourceTemplateName
+										? m.booking_edit_detachedFrom({ name: editWeek.sourceTemplateName })
+										: m.booking_edit_detached()}
+									<button type="button" class="link" disabled={busy} onclick={handleReattach}>
+										{m.booking_edit_reattach()}
+									</button>
+								{:else}
+									{m.booking_edit_following()}
+								{/if}
+							</p>
+						{/if}
+
+						<label class="editor__service">
+							<span>{m.booking_edit_newWindowsApplyTo()}</span>
+							<select bind:value={editServiceId}>
+								<option value="">{m.booking_allListings()}</option>
+								{#each myServices as service (service.id)}
+									<option value={service.id}>{service.title}</option>
+								{/each}
+							</select>
+						</label>
+
+						<p class="muted">{m.booking_edit_dragHint()}</p>
+						<p class="muted">{m.booking_edit_keyboardHint()}</p>
+						{#if displayPrefs.weekStartsOn === 0}
+							<p class="muted">{m.booking_edit_mondayNote()}</p>
+						{/if}
+						{#if editError}<p class="error">{editError}</p>{/if}
+						{#if editNotice}<p class="notice">{editNotice}</p>{/if}
+					</div>
+				{/if}
+
 				{#if scheduleFailed}
 					<p class="error">{m.booking_loadFailed()}</p>
 				{:else if !schedule}
 					<p class="muted">{m.common_loading()}</p>
 				{:else if calendarView === 'week'}
 					<CalendarWeek
-						days={calendarDays}
+						days={gridDays}
 						entries={calendarEntries}
-						emptyLabel={m.booking_calendar_emptyWeek()}
+						emptyLabel={editing ? undefined : m.booking_calendar_emptyWeek()}
+						editable={editing}
+						editWindows={editing ? editWindows : []}
+						oncreatewindow={handleCreate}
+						onmovewindow={handleMove}
+						onremovewindow={handleRemove}
 					/>
-					<p class="muted legend">{m.booking_calendar_legend()}</p>
+					{#if !editing}
+						<p class="muted legend">{m.booking_calendar_legend()}</p>
+					{/if}
 				{:else}
 					<CalendarMonth
 						month={monthOf(calendarFocus)}
@@ -567,6 +948,88 @@
 					<p class="muted">{m.booking_calendar_monthHint()}</p>
 				{/if}
 			</section>
+
+			<!-- Both of these only exist while editing. They act on "the week you are looking at", which
+			     is a phrase with no referent when nothing is being edited and the calendar might be
+			     showing a month. -->
+			{#if editing && calendarView === 'week'}
+				<section class="panel">
+					<h2>{m.booking_edit_repeatHeading()}</h2>
+					<div class="inline-form">
+						<label>
+							<span>{m.booking_edit_repeatWeeks()}</span>
+							<!-- `type="text" inputmode="numeric"` rather than `type="number"`: Svelte's
+							     `bind:value` on a number input binds a real number or `undefined`, and this
+							     project has shipped that exact mismatch twice (the node-governor grant form
+							     and the material price field). Kept a string here and parsed at the edge. -->
+							<input
+								type="text"
+								inputmode="numeric"
+								pattern="[0-9]*"
+								value={String(repeatWeeks)}
+								oninput={(event) => {
+									const parsed = Number(event.currentTarget.value.replace(/\D/g, ''));
+									repeatWeeks = Math.min(52, Math.max(1, parsed || 1));
+								}}
+							/>
+						</label>
+						<label class="check">
+							<input type="checkbox" bind:checked={repeatOverwrite} />
+							<span>{m.booking_edit_overwrite()}</span>
+						</label>
+						<button type="button" class="primary" disabled={busy} onclick={handleRepeat}>
+							{m.booking_edit_repeatButton()}
+						</button>
+					</div>
+				</section>
+
+				<section class="panel">
+					<h2>{m.booking_edit_templatesHeading()}</h2>
+					<p class="muted">{m.booking_edit_templatesHint()}</p>
+					{#if templates.length === 0}
+						<p class="muted">{m.booking_edit_noTemplates()}</p>
+					{:else}
+						<ul class="rules">
+							{#each templates as template (template.id)}
+								<li>
+									<span>
+										{template.name}
+										<em>{m.booking_edit_templateWindows({ count: template.windows.length })}</em>
+									</span>
+									<span class="row-actions">
+										<button
+											type="button"
+											class="link"
+											disabled={busy}
+											onclick={() => handleApplyTemplate(template)}
+										>
+											{m.booking_edit_applyTemplate()}
+										</button>
+										<button
+											type="button"
+											class="link"
+											disabled={busy}
+											onclick={() => handleDeleteTemplate(template.id)}
+										>
+											{m.common_delete()}
+										</button>
+									</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+
+					<form class="inline-form" onsubmit={handleSaveTemplate}>
+						<label>
+							<span>{m.booking_edit_templateName()}</span>
+							<input type="text" bind:value={templateName} maxlength="100" required />
+						</label>
+						<button type="submit" class="primary" disabled={busy}>
+							{m.booking_edit_saveTemplate()}
+						</button>
+					</form>
+				</section>
+			{/if}
 
 			<section class="panel">
 				<h2>{m.booking_weeklyHours()}</h2>
@@ -877,7 +1340,104 @@
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 		align-self: flex-start;
 	}
+	.notice {
+		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		align-self: flex-start;
+	}
 	.legend {
 		font-size: var(--font-size-xs);
+	}
+
+	/* ---- the schedule editor ------------------------------------------------------------------ */
+
+	.panel-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: var(--space-2);
+		h2 {
+			margin: 0;
+		}
+		button.primary {
+			@include mix.button-primary;
+			padding: var(--space-1) var(--space-3);
+			font-size: var(--font-size-sm);
+		}
+	}
+	.editor {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface-alt);
+	}
+	.editor__week {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+	}
+	.editor__scope {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-3);
+		align-items: center;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		legend {
+			float: left;
+			width: 100%;
+			padding: 0;
+			font-size: var(--font-size-xs);
+			font-weight: 600;
+		}
+		label {
+			display: flex;
+			gap: var(--space-1);
+			align-items: center;
+			font-size: var(--font-size-sm);
+		}
+	}
+	.editor__state {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		align-items: baseline;
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	.editor__state--detached {
+		color: var(--text-primary);
+		font-weight: 600;
+	}
+	.editor__service {
+		display: flex;
+		gap: var(--space-2);
+		align-items: center;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		select {
+			@include mix.focus-ring;
+			padding: var(--space-1) var(--space-2);
+			border: 1px solid var(--border-color);
+			border-radius: var(--radius-sm);
+			background: var(--bg-page);
+			color: var(--text-primary);
+			font-family: inherit;
+			font-size: var(--font-size-sm);
+			font-weight: 400;
+		}
+	}
+	.inline-form label.check {
+		flex-direction: row;
+		align-items: center;
+		gap: var(--space-1);
+		font-weight: 400;
+		font-size: var(--font-size-sm);
+	}
+	.row-actions {
+		display: flex;
+		gap: var(--space-2);
 	}
 </style>

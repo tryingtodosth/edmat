@@ -15,17 +15,31 @@ from services.models import Service
 from .availability import (
     DEFAULT_HORIZON_DAYS,
     MAX_HORIZON_DAYS,
+    base_windows_for_week,
     conflicting_confirmed,
+    has_published_hours,
     overlapping_open,
     slots_for_service,
     windows_for_tutor,
 )
-from .models import OPEN_STATUSES, AvailabilityException, AvailabilityRule, Booking
+from .models import (
+    OPEN_STATUSES,
+    AvailabilityException,
+    AvailabilityRule,
+    Booking,
+    WeekSchedule,
+    WeekScheduleWindow,
+    WeekTemplate,
+    monday_of,
+)
 from .serializers import (
     AvailabilityExceptionSerializer,
     AvailabilityRuleSerializer,
     BookingCreateSerializer,
     BookingSerializer,
+    WeekApplySerializer,
+    WeekScheduleSerializer,
+    WeekTemplateSerializer,
 )
 from .services import notify_cancelled, notify_confirmed, notify_declined, notify_requested
 
@@ -88,13 +102,12 @@ class ServiceAvailabilityView(APIView):
                 # rather than left to the client to have fetched separately and possibly staler.
                 'availability_mode': service.availability_mode,
                 'session_minutes': service.session_minutes,
-                # True when the tutor has published no weekly rules at all for this offering. Worth
-                # its own flag rather than being inferred from "every day is empty": a fully-booked
-                # week and a schedule nobody ever wrote look identical otherwise, and they call for
-                # completely different words on screen.
-                'has_schedule': service.provider.availability_rules.filter(
-                    Q(service__isnull=True) | Q(service=service)
-                ).exists(),
+                # True when the tutor has published no hours at all for this offering — through
+                # either the repeating pattern or a laid-out week. Worth its own flag rather than
+                # being inferred from "every day is empty": a fully-booked week and a schedule nobody
+                # ever wrote look identical otherwise, and they call for completely different words
+                # on screen.
+                'has_schedule': has_published_hours(service),
                 'days': [
                     {
                         'date': day.day.isoformat(),
@@ -284,6 +297,212 @@ class AvailabilityExceptionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(tutor=self.request.user)
+
+
+class WeekTemplateViewSet(viewsets.ModelViewSet):
+    """Named week shapes a tutor can apply to real weeks. Owner-scoped throughout, same posture as
+    the rules and exceptions above — a template is a draft of somebody's working week and nobody
+    else's business."""
+
+    serializer_class = WeekTemplateSerializer
+    permission_classes = [permissions.IsAuthenticated, _TutoringFeatureGate]
+
+    def get_queryset(self):
+        return WeekTemplate.objects.filter(tutor=self.request.user).prefetch_related('windows')
+
+    def perform_create(self, serializer):
+        serializer.save(tutor=self.request.user)
+
+    @action(detail=False, methods=['post'], url_path='from-week')
+    def from_week(self, request):
+        """`POST {week_start, name}` — save the hours a week currently has as a reusable template.
+
+        Reads through `base_windows_for_week`, so it works whether that week has its own schedule or
+        is still following the repeating pattern: "save this week as a template" should mean the week
+        the tutor is looking at, not only the weeks that happen to have been detached already.
+        """
+        week_start = _parse_day(request.data.get('week_start'), None)
+        if week_start is None:
+            return Response(
+                {'week_start': ['Give the week to copy.']}, status=status.HTTP_400_BAD_REQUEST
+            )
+        windows = [
+            {'weekday': weekday, 'start_time': start, 'end_time': end, 'service': service_id}
+            for weekday, start, end, service_id in base_windows_for_week(request.user, week_start)
+        ]
+        serializer = self.get_serializer(
+            data={'name': request.data.get('name', ''), 'windows': windows}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(tutor=request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class WeekScheduleViewSet(viewsets.ModelViewSet):
+    """Weeks that do not follow the repeating pattern.
+
+    The existence of a row here is the whole statement — see `WeekSchedule` for why a week either
+    follows the pattern or replaces it, with nothing in between. Deleting one is therefore not
+    "delete my hours" but "put this week back on the ordinary timetable", which is why the editor
+    calls that button reattach rather than delete.
+    """
+
+    serializer_class = WeekScheduleSerializer
+    permission_classes = [permissions.IsAuthenticated, _TutoringFeatureGate]
+
+    def get_queryset(self):
+        qs = WeekSchedule.objects.filter(tutor=self.request.user).prefetch_related('windows')
+        # `?from=`/`?to=` — the editor only ever asks about the weeks it is drawing, and a tutor who
+        # has laid out two years of term should not receive all of it to render one month.
+        from_day = _parse_day(self.request.query_params.get('from'), None)
+        to_day = _parse_day(self.request.query_params.get('to'), None)
+        if from_day is not None:
+            qs = qs.filter(week_start__gte=monday_of(from_day))
+        if to_day is not None:
+            qs = qs.filter(week_start__lte=to_day)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(tutor=self.request.user)
+
+    @action(detail=False, methods=['get', 'put'], url_path='week')
+    def week(self, request):
+        """The one endpoint the drag-and-drop editor reads and writes: `?week_start=` on GET, the
+        whole week's windows on PUT.
+
+        **It answers for every week, detached or not**, which is what lets the editor draw the same
+        picture either way and lets the first drag on an ordinary week detach it without the tutor
+        having to have asked for that separately. `detached` says which of the two they are looking
+        at, because the answer changes what an edit will mean and they are entitled to know before
+        they make one.
+
+        Windows come back **before** one-off exceptions, unlike everything the calendar draws around
+        them. This is the editor's own layer — the hours the tutor works — and folding a dentist
+        appointment into it would mean the next save wrote that appointment in permanently.
+        """
+        week_start = _parse_day(request.query_params.get('week_start') or request.data.get('week_start'), None)
+        if week_start is None:
+            return Response(
+                {'week_start': ['Give a week.']}, status=status.HTTP_400_BAD_REQUEST
+            )
+        monday = monday_of(week_start)
+
+        if request.method == 'PUT':
+            existing = WeekSchedule.objects.filter(tutor=request.user, week_start=monday).first()
+            serializer = self.get_serializer(
+                data={**request.data, 'week_start': monday.isoformat()}
+            )
+            serializer.is_valid(raise_exception=True)
+            # `create` upserts by (tutor, week_start), so the same call handles a first detach and a
+            # later edit — see WeekScheduleSerializer.create for why that is not a swallowed error.
+            schedule = serializer.save(tutor=request.user)
+            if existing is None:
+                return Response(self._week_payload(monday, schedule), status=status.HTTP_201_CREATED)
+            return Response(self._week_payload(monday, schedule))
+
+        schedule = (
+            WeekSchedule.objects.filter(tutor=request.user, week_start=monday)
+            .prefetch_related('windows')
+            .first()
+        )
+        return Response(self._week_payload(monday, schedule))
+
+    def _week_payload(self, monday, schedule):
+        if schedule is not None:
+            windows = schedule.windows.all()
+        else:
+            # Projected from the repeating pattern, so a week nobody has touched still answers with
+            # the hours it will actually publish rather than an empty list the editor would draw as
+            # "no hours" and then save as one.
+            windows = AvailabilityRule.objects.filter(tutor=self.request.user)
+        return {
+            # Null for a week that is only following the pattern — there is no row, which is exactly
+            # what `detached: false` means. Carried here rather than looked up separately because
+            # reattaching is a delete and a delete needs an id, and a second round trip to learn the
+            # id of the thing you were just told about would be a round trip for nothing.
+            'id': schedule.pk if schedule else None,
+            'week_start': monday.isoformat(),
+            'detached': schedule is not None,
+            'source_template': schedule.source_template_id if schedule else None,
+            'source_template_name': (
+                schedule.source_template.name if schedule and schedule.source_template else ''
+            ),
+            'windows': [
+                {
+                    'weekday': window.weekday,
+                    'start_time': window.start_time.isoformat(timespec='minutes'),
+                    'end_time': window.end_time.isoformat(timespec='minutes'),
+                    'service': window.service_id,
+                }
+                for window in windows
+            ],
+        }
+
+    @action(detail=False, methods=['post'])
+    def apply(self, request):
+        """`POST` — write one week's shape across a run of weeks.
+
+        The operation the whole feature exists for: lay out a week, then say "and the next five like
+        this". Every target week is detached by this, which is the point — a week that went on
+        following the repeating pattern would silently drift the moment the pattern changed, and
+        somebody who has just laid out their term means the term, not a default.
+
+        `overwrite=false` skips weeks that already have their own schedule, so re-applying a template
+        after hand-editing week three does not throw that edit away. The response says how many weeks
+        were written and how many were skipped, because "5 weeks updated" and "3 updated, 2 left
+        alone" are different outcomes and the second one is the surprising one.
+        """
+        serializer = WeekApplySerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        template = data.get('source_template')
+        if template is not None:
+            source = [
+                (w.weekday, w.start_time, w.end_time, w.service_id) for w in template.windows.all()
+            ]
+        else:
+            source = base_windows_for_week(request.user, data['source_week'])
+
+        first_monday = monday_of(data['week_start'])
+        targets = [first_monday + timedelta(weeks=offset) for offset in range(data['weeks'])]
+        existing = set(
+            WeekSchedule.objects.filter(tutor=request.user, week_start__in=targets).values_list(
+                'week_start', flat=True
+            )
+        )
+
+        written, skipped = [], []
+        for monday in targets:
+            if monday in existing and not data['overwrite']:
+                skipped.append(monday)
+                continue
+            schedule, _created = WeekSchedule.objects.update_or_create(
+                tutor=request.user,
+                week_start=monday,
+                defaults={'source_template': template},
+            )
+            schedule.windows.all().delete()
+            WeekScheduleWindow.objects.bulk_create(
+                [
+                    WeekScheduleWindow(
+                        schedule=schedule,
+                        weekday=weekday,
+                        start_time=start,
+                        end_time=end,
+                        service_id=service_id,
+                    )
+                    for weekday, start, end, service_id in source
+                ]
+            )
+            written.append(monday)
+
+        return Response(
+            {
+                'written': [day.isoformat() for day in written],
+                'skipped': [day.isoformat() for day in skipped],
+            }
+        )
 
 
 class BookingViewSet(viewsets.ReadOnlyModelViewSet):

@@ -57,7 +57,7 @@ inherit from it rather than repeating the line.
 | App | Focus |
 |---|---|
 | `classroom` (86) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings, staff roles, contributions, chapters, invite links |
-| `booking` (73) | Availability arithmetic, the two availability modes against each other, what a hosted event does to them, the booking lifecycle, notifications, listing deletion, the tutor's own calendar |
+| `booking` (137) | Availability arithmetic, the two availability modes against each other, what a hosted event does to them, the booking lifecycle, notifications, listing deletion, the tutor's own calendar, and (`test_week_schedules.py`, 64) weeks that replace the repeating pattern: precedence, merging, what a copy carries forward, bulk apply |
 | `events` (60) | Visibility and drafts, authoring and location validation, attendance and capacity, the private roster, notifications (including the deliberate silences), the kill switch, and the schedule integration |
 | `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
 | `accounts` profile extras (21) | Experience, skills, the derived activity feed, the demo-content seed, and the clock/week-start display preferences |
@@ -246,6 +246,7 @@ node e2e/material-claims.mjs
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
 node e2e/booking.mjs
+node e2e/schedule-editing.mjs
 node e2e/events-and-nav.mjs
 node e2e/known-issues.mjs
 node e2e/course-search.mjs
@@ -344,6 +345,34 @@ clashing one in its own words, and declines it. Each student sees their own answ
 tutor's calendar, and the decline arrives as a notification. A whole-day block empties a Tuesday the
 weekly rule would otherwise fill — read back from the public endpoint with no account. Deleting a listing
 with a live booking is refused, naming pausing as the alternative.
+
+Two of its checks had gone stale and were repaired rather than worked around. `pageToSlots` clicked a
+`.weeks` "Later →" pager that stopped existing when this feature gained week and month views — a
+selector matching nothing anywhere in the app, which crashed the run at check 6 and took the other 45
+with it. And the tutor-calendar check never paged forward to the week the session is actually in, so it
+passed on a Monday and could not pass on a Sunday; it now walks forward the same way the student side
+already did.
+
+**`e2e/schedule-editing.mjs` (36 checks)** — laying a schedule out on the calendar instead of through a
+form. The editor opens and says, before any change is made, whether it is about to change this week
+alone or every week. A drag on a day column becomes real stored hours and detaches the week, keeping
+the hours it already showed. The same block is then moved with the mouse, both edges are pulled, and
+all of it is done again with the arrow keys — Enter on a day adds an hour, Shift+↑↓ resizes, Delete
+removes — because a schedule editor that only answers a pointer is unusable for the people who most
+need their hours right. Then the week is repeated across five, the sixth is confirmed still on the
+ordinary timetable, and the third of the five is changed on its own while the other four stay exactly
+as they were. Finally the week is saved as a template and put back on the pattern.
+
+It signs in as the seeded `kasia` rather than registering, and starts by clearing its own weeks,
+templates **and repeating rules** through the real endpoints — the last section edits a rule on
+purpose, so without the reset each run starts from the previous run's drift and the grid's hour range
+moves with it.
+
+Worth knowing before writing another drag test: `page.mouse` works in **viewport** coordinates while
+`boundingBox()` reports an element wherever it is, so on Playwright's default 720px-high window every
+drag aimed at the lower half of the ~580px calendar grid landed off-screen and silently did nothing.
+That context sets a 1200px-high viewport. The symptom is indistinguishable from a broken feature, and
+upward drags kept working, which is what gave it away.
 
 Then the same availability in the other two views: the week grid renders an hour axis and seven columns
 holding exactly the slots the list showed, as real pressable buttons; the month grid is whole weeks and
