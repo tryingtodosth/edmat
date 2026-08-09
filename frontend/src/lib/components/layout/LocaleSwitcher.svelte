@@ -3,18 +3,21 @@
 	// axes (interface i18n via Paraglide). Not to be confused with a resolved exercise's own
 	// content-language picker (lib/components/exercise/LanguagePicker.svelte), which is unrelated
 	// and independent.
-	import { getLocale, locales, setLocale } from '$lib/paraglide/runtime';
+	import { locales } from '$lib/paraglide/runtime';
+	import { localeStore } from '$lib/state/locale.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 
+	// Through the store rather than `setLocale` directly, so the switch re-renders instead of
+	// reloading — see lib/state/locale.svelte.ts for what a reload was actually costing.
 	function onChange(e: Event) {
 		const next = (e.target as HTMLSelectElement).value;
-		if (next === 'en' || next === 'pl') setLocale(next);
+		if (next === 'en' || next === 'pl') localeStore.set(next);
 	}
 </script>
 
 <label class="locale-switcher">
 	<span class="visually-hidden">{m.nav_language()}</span>
-	<select value={getLocale()} onchange={onChange} aria-label={m.nav_language()}>
+	<select value={localeStore.value} onchange={onChange} aria-label={m.nav_language()}>
 		{#each locales as locale (locale)}
 			<option value={locale}>{locale.toUpperCase()}</option>
 		{/each}
