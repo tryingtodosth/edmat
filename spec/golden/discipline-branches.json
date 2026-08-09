@@ -1,0 +1,860 @@
+{
+	"name": "discipline-branches",
+	"method": "GET",
+	"path": "/api/disciplines/matematyka/branches/",
+	"status": 200,
+	"body": [
+		{
+			"id": 3,
+			"slug": "analiza-matematyczna",
+			"discipline": "matematyka",
+			"published": true,
+			"status": "approved",
+			"order": 0,
+			"name": "Analiza matematyczna",
+			"description": "Zadania z Analizy Matematycznej II: funkcje wielu zmiennych, teoria miary, całka Lebesgue’a, analiza Fouriera, rozmaitości i formy różniczkowe.",
+			"topics": [
+				{
+					"id": 1,
+					"slug": "szeregi",
+					"branch": 3,
+					"order": 0,
+					"status": "approved",
+					"name": "Szeregi"
+				},
+				{
+					"id": 3,
+					"slug": "granice",
+					"branch": 3,
+					"order": 0,
+					"status": "approved",
+					"name": "Granice i ciągłość"
+				},
+				{
+					"id": 5,
+					"slug": "normy-iloczyn-skalarny",
+					"branch": 3,
+					"order": 0,
+					"status": "approved",
+					"name": "Normy w Rⁿ, iloczyn skalarny"
+				},
+				{
+					"id": 2,
+					"slug": "calki",
+					"branch": 3,
+					"order": 1,
+					"status": "approved",
+					"name": "Całki"
+				},
+				{
+					"id": 4,
+					"slug": "pochodne",
+					"branch": 3,
+					"order": 1,
+					"status": "approved",
+					"name": "Pochodne"
+				},
+				{
+					"id": 6,
+					"slug": "granice-ciaglosc-wielu-zmiennych",
+					"branch": 3,
+					"order": 1,
+					"status": "approved",
+					"name": "Granice i ciągłość funkcji wielu zmiennych"
+				},
+				{
+					"id": 7,
+					"slug": "pochodna-funkcji-wielu-zmiennych",
+					"branch": 3,
+					"order": 2,
+					"status": "approved",
+					"name": "Pochodna funkcji wielu zmiennych"
+				},
+				{
+					"id": 8,
+					"slug": "rozniczkowanie-zlozenia",
+					"branch": 3,
+					"order": 3,
+					"status": "approved",
+					"name": "Różniczkowanie złożenia funkcji"
+				},
+				{
+					"id": 9,
+					"slug": "stozki-styczne-gradient",
+					"branch": 3,
+					"order": 4,
+					"status": "approved",
+					"name": "Stożki styczne i geometryczne własności gradientu"
+				},
+				{
+					"id": 10,
+					"slug": "ekstrema",
+					"branch": 3,
+					"order": 5,
+					"status": "approved",
+					"name": "Badanie ekstremów funkcji"
+				},
+				{
+					"id": 11,
+					"slug": "wzor-taylora",
+					"branch": 3,
+					"order": 6,
+					"status": "approved",
+					"name": "Wzór Taylora i ekstrema lokalne"
+				},
+				{
+					"id": 12,
+					"slug": "funkcja-uwiklana",
+					"branch": 3,
+					"order": 7,
+					"status": "approved",
+					"name": "Twierdzenie o funkcji uwikłanej, rozmaitości i ekstrema warunkowe"
+				},
+				{
+					"id": 13,
+					"slug": "funkcja-odwrotna",
+					"branch": 3,
+					"order": 8,
+					"status": "approved",
+					"name": "Twierdzenie o funkcji odwrotnej i dyfeomorfizmy"
+				},
+				{
+					"id": 14,
+					"slug": "teoria-miary",
+					"branch": 3,
+					"order": 9,
+					"status": "approved",
+					"name": "Elementy teorii miary"
+				},
+				{
+					"id": 15,
+					"slug": "twierdzenia-lebesguea-o-zbieznosci",
+					"branch": 3,
+					"order": 10,
+					"status": "approved",
+					"name": "Twierdzenia Lebesgue’a o zbieżności"
+				},
+				{
+					"id": 16,
+					"slug": "rozniczkowanie-pod-znakiem-calki",
+					"branch": 3,
+					"order": 11,
+					"status": "approved",
+					"name": "Różniczkowanie pod znakiem całki"
+				},
+				{
+					"id": 17,
+					"slug": "twierdzenie-fubiniego",
+					"branch": 3,
+					"order": 12,
+					"status": "approved",
+					"name": "Twierdzenie Fubiniego"
+				},
+				{
+					"id": 18,
+					"slug": "calkowanie-przez-podstawienie",
+					"branch": 3,
+					"order": 13,
+					"status": "approved",
+					"name": "Całkowanie przez podstawienie"
+				},
+				{
+					"id": 19,
+					"slug": "srodek-ciezkosci",
+					"branch": 3,
+					"order": 14,
+					"status": "approved",
+					"name": "Środek ciężkości"
+				},
+				{
+					"id": 20,
+					"slug": "calkowalnosc-funkcji",
+					"branch": 3,
+					"order": 15,
+					"status": "approved",
+					"name": "Całkowalność funkcji"
+				},
+				{
+					"id": 21,
+					"slug": "sploty",
+					"branch": 3,
+					"order": 16,
+					"status": "approved",
+					"name": "Sploty"
+				},
+				{
+					"id": 22,
+					"slug": "przestrzenie-lp",
+					"branch": 3,
+					"order": 17,
+					"status": "approved",
+					"name": "Przestrzeń L¹ funkcji całkowalnych, przestrzenie Lᵖ"
+				},
+				{
+					"id": 23,
+					"slug": "aproksymacja-funkcjami-gladkimi",
+					"branch": 3,
+					"order": 18,
+					"status": "approved",
+					"name": "Aproksymacja funkcji całkowalnych funkcjami gładkimi"
+				},
+				{
+					"id": 24,
+					"slug": "transformata-fouriera",
+					"branch": 3,
+					"order": 19,
+					"status": "approved",
+					"name": "Transformata Fouriera"
+				},
+				{
+					"id": 25,
+					"slug": "podrozmaitosci",
+					"branch": 3,
+					"order": 20,
+					"status": "approved",
+					"name": "Podrozmaitości Rⁿ"
+				},
+				{
+					"id": 26,
+					"slug": "wyznacznik-grama",
+					"branch": 3,
+					"order": 21,
+					"status": "approved",
+					"name": "Wyznacznik Grama"
+				},
+				{
+					"id": 27,
+					"slug": "miara-powierzchniowa",
+					"branch": 3,
+					"order": 22,
+					"status": "approved",
+					"name": "Miara powierzchniowa"
+				},
+				{
+					"id": 28,
+					"slug": "powierzchnie-obrotowe",
+					"branch": 3,
+					"order": 23,
+					"status": "approved",
+					"name": "Powierzchnie obrotowe"
+				},
+				{
+					"id": 29,
+					"slug": "formy-rozniczkowe-1",
+					"branch": 3,
+					"order": 24,
+					"status": "approved",
+					"name": "Definicja 1-formy, dokładność, zamkniętość"
+				},
+				{
+					"id": 30,
+					"slug": "calki-z-form-po-krzywych",
+					"branch": 3,
+					"order": 25,
+					"status": "approved",
+					"name": "Całka z 1-formy po krzywej, niezależność całki od drogi"
+				},
+				{
+					"id": 31,
+					"slug": "rozniczka-zewnetrzna",
+					"branch": 3,
+					"order": 26,
+					"status": "approved",
+					"name": "Wprowadzenie do różniczki zewnętrznej"
+				},
+				{
+					"id": 32,
+					"slug": "formy-rozniczkowe-k",
+					"branch": 3,
+					"order": 27,
+					"status": "approved",
+					"name": "Przestrzeń k-form różniczkowych"
+				},
+				{
+					"id": 33,
+					"slug": "cofniecie-formy",
+					"branch": 3,
+					"order": 28,
+					"status": "approved",
+					"name": "Cofnięcie formy różniczkowej"
+				},
+				{
+					"id": 34,
+					"slug": "twierdzenie-stokesa",
+					"branch": 3,
+					"order": 29,
+					"status": "approved",
+					"name": "Twierdzenie Stokesa"
+				}
+			],
+			"chapters": [
+				{
+					"id": 1,
+					"branch": 3,
+					"number": 1,
+					"start_page": 5,
+					"topics": [
+						5
+					],
+					"title": "Normy w Rⁿ, iloczyn skalarny"
+				},
+				{
+					"id": 2,
+					"branch": 3,
+					"number": 2,
+					"start_page": 25,
+					"topics": [
+						6
+					],
+					"title": "Granice i ciągłość funkcji wielu zmiennych"
+				},
+				{
+					"id": 3,
+					"branch": 3,
+					"number": 3,
+					"start_page": 39,
+					"topics": [
+						7,
+						8
+					],
+					"title": "Pochodna funkcji wielu zmiennych"
+				},
+				{
+					"id": 4,
+					"branch": 3,
+					"number": 4,
+					"start_page": 59,
+					"topics": [
+						9
+					],
+					"title": "Stożki styczne i geometryczne własności gradientu"
+				},
+				{
+					"id": 5,
+					"branch": 3,
+					"number": 5,
+					"start_page": 63,
+					"topics": [
+						10
+					],
+					"title": "Badanie ekstremów funkcji"
+				},
+				{
+					"id": 6,
+					"branch": 3,
+					"number": 6,
+					"start_page": 69,
+					"topics": [
+						11
+					],
+					"title": "Wzór Taylora i ekstrema lokalne"
+				},
+				{
+					"id": 7,
+					"branch": 3,
+					"number": 7,
+					"start_page": 83,
+					"topics": [
+						12
+					],
+					"title": "Twierdzenie o funkcji uwikłanej, rozmaitości, ekstrema warunkowe"
+				},
+				{
+					"id": 8,
+					"branch": 3,
+					"number": 8,
+					"start_page": 95,
+					"topics": [
+						13
+					],
+					"title": "Twierdzenie o funkcji odwrotnej, dyfeomorfizmy"
+				},
+				{
+					"id": 9,
+					"branch": 3,
+					"number": 9,
+					"start_page": 103,
+					"topics": [
+						14
+					],
+					"title": "Elementy teorii miary"
+				},
+				{
+					"id": 10,
+					"branch": 3,
+					"number": 10,
+					"start_page": 113,
+					"topics": [
+						15
+					],
+					"title": "Twierdzenia Lebesgue’a o zbieżności"
+				},
+				{
+					"id": 11,
+					"branch": 3,
+					"number": 11,
+					"start_page": 125,
+					"topics": [
+						16
+					],
+					"title": "Różniczkowanie pod znakiem całki"
+				},
+				{
+					"id": 12,
+					"branch": 3,
+					"number": 12,
+					"start_page": 133,
+					"topics": [
+						17
+					],
+					"title": "Twierdzenie Fubiniego"
+				},
+				{
+					"id": 13,
+					"branch": 3,
+					"number": 13,
+					"start_page": 155,
+					"topics": [
+						18
+					],
+					"title": "Całkowanie przez podstawienie"
+				},
+				{
+					"id": 14,
+					"branch": 3,
+					"number": 14,
+					"start_page": 175,
+					"topics": [
+						19
+					],
+					"title": "Środek ciężkości"
+				},
+				{
+					"id": 15,
+					"branch": 3,
+					"number": 15,
+					"start_page": 179,
+					"topics": [
+						20
+					],
+					"title": "Całkowalność funkcji"
+				},
+				{
+					"id": 16,
+					"branch": 3,
+					"number": 16,
+					"start_page": 184,
+					"topics": [
+						21
+					],
+					"title": "Sploty"
+				},
+				{
+					"id": 17,
+					"branch": 3,
+					"number": 17,
+					"start_page": 191,
+					"topics": [
+						22
+					],
+					"title": "Przestrzeń L¹ funkcji całkowalnych, przestrzenie Lᵖ"
+				},
+				{
+					"id": 18,
+					"branch": 3,
+					"number": 18,
+					"start_page": 195,
+					"topics": [
+						23
+					],
+					"title": "Aproksymacja funkcji całkowalnych funkcjami gładkimi"
+				},
+				{
+					"id": 19,
+					"branch": 3,
+					"number": 19,
+					"start_page": 197,
+					"topics": [
+						24
+					],
+					"title": "Transformata Fouriera"
+				},
+				{
+					"id": 20,
+					"branch": 3,
+					"number": 20,
+					"start_page": 199,
+					"topics": [
+						25
+					],
+					"title": "Podrozmaitości Rⁿ"
+				},
+				{
+					"id": 21,
+					"branch": 3,
+					"number": 21,
+					"start_page": 203,
+					"topics": [
+						26
+					],
+					"title": "Wyznacznik Grama"
+				},
+				{
+					"id": 22,
+					"branch": 3,
+					"number": 22,
+					"start_page": 205,
+					"topics": [
+						27
+					],
+					"title": "Miara powierzchniowa"
+				},
+				{
+					"id": 23,
+					"branch": 3,
+					"number": 23,
+					"start_page": 217,
+					"topics": [
+						28
+					],
+					"title": "Powierzchnie obrotowe"
+				},
+				{
+					"id": 24,
+					"branch": 3,
+					"number": 24,
+					"start_page": 219,
+					"topics": [
+						29
+					],
+					"title": "Definicja 1-formy, dokładność, zamkniętość"
+				},
+				{
+					"id": 25,
+					"branch": 3,
+					"number": 25,
+					"start_page": 225,
+					"topics": [
+						30
+					],
+					"title": "Całka z 1-formy po krzywej, niezależność całki od drogi"
+				},
+				{
+					"id": 26,
+					"branch": 3,
+					"number": 26,
+					"start_page": 235,
+					"topics": [
+						31
+					],
+					"title": "Wprowadzenie do różniczki zewnętrznej"
+				},
+				{
+					"id": 27,
+					"branch": 3,
+					"number": 27,
+					"start_page": 245,
+					"topics": [
+						32
+					],
+					"title": "Przestrzeń k-form różniczkowych"
+				},
+				{
+					"id": 28,
+					"branch": 3,
+					"number": 28,
+					"start_page": 249,
+					"topics": [
+						33
+					],
+					"title": "Cofnięcie formy różniczkowej"
+				},
+				{
+					"id": 29,
+					"branch": 3,
+					"number": 29,
+					"start_page": 253,
+					"topics": [
+						34
+					],
+					"title": "Twierdzenie Stokesa"
+				}
+			]
+		},
+		{
+			"id": 4,
+			"slug": "rachunek-prawdopodobienstwa",
+			"discipline": "matematyka",
+			"published": true,
+			"status": "approved",
+			"order": 0,
+			"name": "Rachunek prawdopodobieństwa",
+			"description": "Zadania z Rachunku Prawdopodobieństwa I: kombinatoryka i modele probabilistyczne, prawdopodobieństwo warunkowe, zmienne losowe, rozkłady, wartości oczekiwane, zbieżność oraz twierdzenia graniczne.",
+			"topics": [
+				{
+					"id": 35,
+					"slug": "model-klasyczny-kombinatoryka",
+					"branch": 4,
+					"order": 0,
+					"status": "approved",
+					"name": "Model klasyczny i kombinatoryka"
+				},
+				{
+					"id": 36,
+					"slug": "prawdopodobienstwo-geometryczne",
+					"branch": 4,
+					"order": 1,
+					"status": "approved",
+					"name": "Prawdopodobieństwo geometryczne i proste własności prawdopodobieństwa"
+				},
+				{
+					"id": 37,
+					"slug": "niezaleznosc-zdarzen-schemat-bernoulliego",
+					"branch": 4,
+					"order": 2,
+					"status": "approved",
+					"name": "Niezależność zdarzeń i schemat Bernoulliego"
+				},
+				{
+					"id": 38,
+					"slug": "prawdopodobienstwo-warunkowe-bayes",
+					"branch": 4,
+					"order": 3,
+					"status": "approved",
+					"name": "Prawdopodobieństwo warunkowe, prawdopodobieństwo całkowite i wzór Bayesa"
+				},
+				{
+					"id": 39,
+					"slug": "borel-cantelli",
+					"branch": 4,
+					"order": 4,
+					"status": "approved",
+					"name": "Lemat Borela–Cantellego"
+				},
+				{
+					"id": 40,
+					"slug": "pi-lambda",
+					"branch": 4,
+					"order": 5,
+					"status": "approved",
+					"name": "Układy π–λ i jednoznaczność miar"
+				},
+				{
+					"id": 41,
+					"slug": "zmienne-losowe-dystrybuanty",
+					"branch": 4,
+					"order": 6,
+					"status": "approved",
+					"name": "Zmienne losowe, rozkłady i dystrybuanty"
+				},
+				{
+					"id": 42,
+					"slug": "gestosci-i-transformacje-zmiennych",
+					"branch": 4,
+					"order": 7,
+					"status": "approved",
+					"name": "Gęstości i transformacje zmiennych losowych"
+				},
+				{
+					"id": 43,
+					"slug": "rozklady-dyskretne-i-ciagle",
+					"branch": 4,
+					"order": 8,
+					"status": "approved",
+					"name": "Rozkłady dyskretne i ciągłe"
+				},
+				{
+					"id": 44,
+					"slug": "niezaleznosc-zmiennych-losowych",
+					"branch": 4,
+					"order": 9,
+					"status": "approved",
+					"name": "Niezależność zmiennych losowych"
+				},
+				{
+					"id": 45,
+					"slug": "wartosc-oczekiwana-wariancja-kowariancja",
+					"branch": 4,
+					"order": 10,
+					"status": "approved",
+					"name": "Wartość oczekiwana, wariancja, kowariancja i korelacja"
+				},
+				{
+					"id": 46,
+					"slug": "warunkowa-wartosc-oczekiwana",
+					"branch": 4,
+					"order": 11,
+					"status": "approved",
+					"name": "Warunkowa wartość oczekiwana i rozkłady warunkowe"
+				},
+				{
+					"id": 47,
+					"slug": "zbieznosc-zmiennych-losowych",
+					"branch": 4,
+					"order": 12,
+					"status": "approved",
+					"name": "Zbieżność zmiennych losowych"
+				},
+				{
+					"id": 48,
+					"slug": "prawa-wielkich-liczb",
+					"branch": 4,
+					"order": 13,
+					"status": "approved",
+					"name": "Prawa wielkich liczb"
+				},
+				{
+					"id": 49,
+					"slug": "szeregi-zmiennych-losowych",
+					"branch": 4,
+					"order": 14,
+					"status": "approved",
+					"name": "Szeregi zmiennych losowych"
+				},
+				{
+					"id": 50,
+					"slug": "przyblizone-prawdopodobienstwo",
+					"branch": 4,
+					"order": 15,
+					"status": "approved",
+					"name": "Przybliżone prawdopodobieństwo i twierdzenia graniczne"
+				}
+			],
+			"chapters": [
+				{
+					"id": 30,
+					"branch": 4,
+					"number": 1,
+					"start_page": 3,
+					"topics": [
+						35
+					],
+					"title": "Model klasyczny, kombinatoryka"
+				},
+				{
+					"id": 31,
+					"branch": 4,
+					"number": 2,
+					"start_page": 15,
+					"topics": [
+						36
+					],
+					"title": "Prawdopodobieństwo geometryczne, proste własności"
+				},
+				{
+					"id": 32,
+					"branch": 4,
+					"number": 3,
+					"start_page": 25,
+					"topics": [
+						37
+					],
+					"title": "Niezależność zdarzeń, Schemat Bernoulliego"
+				},
+				{
+					"id": 33,
+					"branch": 4,
+					"number": 4,
+					"start_page": 33,
+					"topics": [
+						38
+					],
+					"title": "Prawdopodobieństwo warunkowe"
+				},
+				{
+					"id": 34,
+					"branch": 4,
+					"number": 5,
+					"start_page": 45,
+					"topics": [
+						39
+					],
+					"title": "Lemat Borela-Cantellego"
+				},
+				{
+					"id": 35,
+					"branch": 4,
+					"number": 6,
+					"start_page": 49,
+					"topics": [
+						40
+					],
+					"title": "π-λ układy"
+				},
+				{
+					"id": 36,
+					"branch": 4,
+					"number": 7,
+					"start_page": 51,
+					"topics": [
+						41,
+						43
+					],
+					"title": "Zmienne losowe, Dystrybuanty"
+				},
+				{
+					"id": 37,
+					"branch": 4,
+					"number": 8,
+					"start_page": 67,
+					"topics": [
+						42,
+						43
+					],
+					"title": "Zmienne losowe, rozkład, gęstość"
+				},
+				{
+					"id": 38,
+					"branch": 4,
+					"number": 9,
+					"start_page": 81,
+					"topics": [
+						44
+					],
+					"title": "Niezależność zmiennych losowych"
+				},
+				{
+					"id": 39,
+					"branch": 4,
+					"number": 10,
+					"start_page": 91,
+					"topics": [
+						45
+					],
+					"title": "Wartość oczekiwana, Wariancja, Kowariancja"
+				},
+				{
+					"id": 40,
+					"branch": 4,
+					"number": 11,
+					"start_page": 105,
+					"topics": [
+						46
+					],
+					"title": "Warunkowa wartość oczekiwana"
+				},
+				{
+					"id": 41,
+					"branch": 4,
+					"number": 12,
+					"start_page": 107,
+					"topics": [
+						47
+					],
+					"title": "Zbieżność zmiennych losowych"
+				},
+				{
+					"id": 42,
+					"branch": 4,
+					"number": 13,
+					"start_page": 110,
+					"topics": [
+						48,
+						49
+					],
+					"title": "Prawa wielkich liczb - szeregi liczbowe"
+				}
+			]
+		}
+	]
+}

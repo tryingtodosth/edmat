@@ -1,0 +1,9 @@
+{
+	"name": "discipline-detail-missing",
+	"method": "GET",
+	"path": "/api/disciplines/no-such-discipline/",
+	"status": 404,
+	"body": {
+		"detail": "No Discipline matches the given query."
+	}
+}

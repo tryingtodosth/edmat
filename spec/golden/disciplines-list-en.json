@@ -1,0 +1,40 @@
+{
+	"name": "disciplines-list-en",
+	"method": "GET",
+	"path": "/api/disciplines/?lang=en",
+	"status": 200,
+	"body": [
+		{
+			"id": 1,
+			"slug": "fizyka",
+			"published": true,
+			"status": "approved",
+			"name": "Fizyka",
+			"description": "Zadania, skrypty i materiały pomocnicze dla studentów fizyki."
+		},
+		{
+			"id": 2,
+			"slug": "informatyka",
+			"published": true,
+			"status": "approved",
+			"name": "Informatyka",
+			"description": "Baza zadań matematycznych i teoretycznych dla studentów informatyki."
+		},
+		{
+			"id": 3,
+			"slug": "matematyka",
+			"published": true,
+			"status": "approved",
+			"name": "Matematyka",
+			"description": "Zadania i materiały do przedmiotów prowadzonych na kierunku matematyka."
+		},
+		{
+			"id": 4,
+			"slug": "asd",
+			"published": true,
+			"status": "approved",
+			"name": "asd",
+			"description": ""
+		}
+	]
+}

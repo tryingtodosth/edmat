@@ -1,0 +1,14 @@
+{
+	"name": "discipline-detail",
+	"method": "GET",
+	"path": "/api/disciplines/matematyka/",
+	"status": 200,
+	"body": {
+		"id": 3,
+		"slug": "matematyka",
+		"published": true,
+		"status": "approved",
+		"name": "Matematyka",
+		"description": "Zadania i materiały do przedmiotów prowadzonych na kierunku matematyka."
+	}
+}
