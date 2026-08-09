@@ -17,6 +17,10 @@ import type {
 	Comment,
 	CommentTargetType,
 	Branch,
+	EffectiveWeek,
+	ScheduleWindow,
+	WeekApplyResult,
+	WeekTemplate,
 	CoverageVoteSummary,
 	DonationLink,
 	EditSuggestion,
@@ -1122,6 +1126,81 @@ export function mapAvailabilityRule(json: RawAvailabilityRule): AvailabilityRule
 		startTime: json.start_time.slice(0, 5),
 		endTime: json.end_time.slice(0, 5)
 	};
+}
+
+export interface RawScheduleWindow {
+	weekday: number;
+	start_time: string;
+	end_time: string;
+	service: number | null;
+}
+
+export function mapScheduleWindow(json: RawScheduleWindow): ScheduleWindow {
+	return {
+		weekday: json.weekday,
+		// Django serializes a TimeField as 'HH:MM:SS' from a ModelSerializer and as 'HH:MM' from the
+		// week endpoint's own hand-built payload. `slice(0, 5)` is right for both, which is why it is
+		// done here rather than being assumed either way at the call sites.
+		startTime: json.start_time.slice(0, 5),
+		endTime: json.end_time.slice(0, 5),
+		serviceId: json.service !== null ? String(json.service) : undefined
+	};
+}
+
+/** The wire shape a window is WRITTEN in. Separate from the read mapper because `service` is omitted
+ * rather than sent as null when absent, and because the backend rejects seconds it never asked for. */
+export function scheduleWindowToRaw(window: ScheduleWindow): Record<string, unknown> {
+	return {
+		weekday: window.weekday,
+		start_time: window.startTime,
+		end_time: window.endTime,
+		service: window.serviceId ? Number(window.serviceId) : null
+	};
+}
+
+export interface RawWeekTemplate {
+	id: number;
+	name: string;
+	windows: RawScheduleWindow[];
+}
+
+export function mapWeekTemplate(json: RawWeekTemplate): WeekTemplate {
+	return {
+		id: String(json.id),
+		name: json.name,
+		windows: (json.windows ?? []).map(mapScheduleWindow)
+	};
+}
+
+export interface RawEffectiveWeek {
+	/** Null for a week that is only following the repeating pattern — there is no stored row, which
+	 * is exactly what `detached: false` means. */
+	id: number | null;
+	week_start: string;
+	detached: boolean;
+	source_template: number | null;
+	source_template_name: string;
+	windows: RawScheduleWindow[];
+}
+
+export function mapEffectiveWeek(json: RawEffectiveWeek): EffectiveWeek {
+	return {
+		id: json.id !== null && json.id !== undefined ? String(json.id) : undefined,
+		weekStart: json.week_start,
+		detached: json.detached,
+		sourceTemplateId: json.source_template !== null ? String(json.source_template) : undefined,
+		sourceTemplateName: json.source_template_name ?? '',
+		windows: (json.windows ?? []).map(mapScheduleWindow)
+	};
+}
+
+export interface RawWeekApplyResult {
+	written: string[];
+	skipped: string[];
+}
+
+export function mapWeekApplyResult(json: RawWeekApplyResult): WeekApplyResult {
+	return { written: json.written ?? [], skipped: json.skipped ?? [] };
 }
 
 export interface RawAvailabilityException {
