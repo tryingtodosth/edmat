@@ -5,9 +5,10 @@
 //   node e2e/navbar-stages.mjs
 //
 // What only a browser can show here: that each stage actually fires at a narrower width than the
-// one before it; that a collapsed link's icon twin appears in the action row, right of the dice, in
-// nav order, with a real accessible name; that the search icon lands immediately left of the Add
-// trigger; that the logo's disappearance is banded (back on the phone bar); that a signed-in
+// one before it; that a collapsing link swaps its text for its icon IN PLACE — it keeps its nav
+// position and order (Materials stays between Disciplines and Courses) rather than migrating into
+// the action row, which was the earlier, since-dropped scheme; that the accessible name survives
+// the swap; that the logo's disappearance is banded (back on the phone bar); that a signed-in
 // person's language picker moves into the account menu while a guest keeps theirs in the row; and
 // that the bar's height genuinely shrinks with the window rather than stepping.
 //
@@ -72,7 +73,10 @@ function wire(page, name) {
 
 const settle = (page, ms = 700) => page.waitForTimeout(ms);
 async function goto(page, path) {
-	await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+	// 'load' + settle, NOT 'networkidle': a signed-in page holds the notification SSE stream open,
+	// which is a permanently in-flight request — against a healthy backend networkidle never fires
+	// and every authenticated goto times out. (It only ever passed when the stream failed fast.)
+	await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
 	await settle(page);
 }
 async function width(page, w) {
@@ -91,21 +95,41 @@ const signed = wire(await signedCtx.newPage(), 'signed');
 await signed.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
 await signed.evaluate((value) => localStorage.setItem('edmat-auth-token', value), token);
 await goto(signed, '/');
+// Auth hydrates asynchronously after load (authStore.init() → /auth/me/), and the 'load' event no
+// longer implies it has finished the way the old networkidle wait accidentally did — so wait for
+// the one element that only a signed-in header renders before asserting anything about it.
+await signed.locator('.account-trigger').waitFor({ timeout: 30000 });
 
 const guestCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 const guest = wire(await guestCtx.newPage(), 'guest');
 await goto(guest, '/');
 
 const nav = (page, key) => page.locator(`.site-nav .nav-link--${key}`);
-const collapsed = (page, key) => page.locator(`.collapsed--${key}`);
+const navText = (page, key) => page.locator(`.site-nav .nav-link--${key} .nav-link__text`);
+const navIcon = (page, key) => page.locator(`.site-nav .nav-link--${key} .nav-link__icon`);
+// The five links in the order the nav renders them — the in-place collapse must preserve it.
+const NAV_ORDER = ['disciplines', 'materials', 'classroom', 'events', 'services'];
+async function inNavOrder(page) {
+	let last = -Infinity;
+	for (const key of NAV_ORDER) {
+		const box = await nav(page, key).boundingBox();
+		if (!box || box.x <= last) return false;
+		last = box.x;
+	}
+	return true;
+}
 
 // ---- the full bar, before any stage --------------------------------------------------------------
 console.log('[1] At 1280px nothing has collapsed');
-for (const key of ['disciplines', 'materials', 'classroom', 'events', 'services']) {
-	check(`the ${key} link is text`, await nav(signed, key).isVisible());
+for (const key of NAV_ORDER) {
+	check(`the ${key} link is text`, await navText(signed, key).isVisible());
+	check(`the ${key} icon is hidden`, !(await navIcon(signed, key).isVisible()));
 }
-check('no collapsed icon is shown', !(await collapsed(signed, 'events').isVisible()));
-check('the account trigger is the name', await signed.locator('.account-trigger__name').isVisible());
+check('no row divider exists', (await signed.locator('.row-divider').count()) === 0);
+check(
+	'the account trigger is the name',
+	await signed.locator('.account-trigger__name').isVisible()
+);
 check('the logo is there', await signed.locator('.brand').isVisible());
 check(
 	'the language picker sits in the row',
@@ -116,40 +140,38 @@ const hWide = await heightAt(signed);
 await shot(signed, 'stage0-1280');
 
 // ---- the stages, in order ------------------------------------------------------------------------
-console.log('[2] Stage 1 — Events becomes a calendar icon');
+console.log('[2] Stage 1 — Events becomes a calendar icon, in place');
 await width(signed, 1150);
-check('the Events text is gone', !(await nav(signed, 'events').isVisible()));
-check('the calendar icon appears', await collapsed(signed, 'events').isVisible());
+check('the Events text is gone', !(await navText(signed, 'events').isVisible()));
+check('the calendar icon appears', await navIcon(signed, 'events').isVisible());
 check(
-	'and carries an accessible name',
-	(await collapsed(signed, 'events').getAttribute('aria-label')) === 'Events'
+	'the link keeps an accessible name',
+	(await nav(signed, 'events').getAttribute('aria-label')) === 'Events'
 );
-const dice = await signed.locator('.site-header__actions > :first-child').boundingBox();
-const cal = await collapsed(signed, 'events').boundingBox();
-check('and sits right of the dice', cal.x > dice.x, `dice ${dice.x} icon ${cal.x}`);
+check('and the nav keeps its order', await inNavOrder(signed));
+const evx = (await nav(signed, 'events').boundingBox()).x;
+const svx = (await nav(signed, 'services').boundingBox()).x;
+check('the icon stays in the nav, left of Tutoring', evx < svx, `events ${evx} services ${svx}`);
 
 console.log('[3] Stage 2 — the account trigger becomes an icon');
 await width(signed, 1100);
 check('the name is gone', !(await signed.locator('.account-trigger__name').isVisible()));
 check('an avatar/person icon shows', await signed.locator('.account-trigger__avatar').isVisible());
 
-console.log('[4] Stage 4 — Materials becomes a book icon');
+console.log('[4] Stage 4 — Materials becomes a book icon, still between Disciplines and Courses');
 await width(signed, 1030);
-check('the Materials text is gone', !(await nav(signed, 'materials').isVisible()));
-check('the book icon appears', await collapsed(signed, 'materials').isVisible());
+check('the Materials text is gone', !(await navText(signed, 'materials').isVisible()));
+check('the book icon appears', await navIcon(signed, 'materials').isVisible());
+const dx = (await nav(signed, 'disciplines').boundingBox()).x;
+const mx = (await nav(signed, 'materials').boundingBox()).x;
+const cx = (await nav(signed, 'classroom').boundingBox()).x;
+check('in place: disciplines < materials < courses', dx < mx && mx < cx, `${dx} ${mx} ${cx}`);
 
 console.log('[5] Stage 4½ — Tutoring becomes a money icon');
 await width(signed, 980);
-check('the Tutoring text is gone', !(await nav(signed, 'services').isVisible()));
-check('the money icon appears', await collapsed(signed, 'services').isVisible());
-const bm = await collapsed(signed, 'materials').boundingBox();
-const bc = await collapsed(signed, 'events').boundingBox();
-const bs = await collapsed(signed, 'services').boundingBox();
-check(
-	'the cluster keeps nav order: book, calendar, money',
-	bm.x < bc.x && bc.x < bs.x,
-	`${bm.x} ${bc.x} ${bs.x}`
-);
+check('the Tutoring text is gone', !(await navText(signed, 'services').isVisible()));
+check('the money icon appears', await navIcon(signed, 'services').isVisible());
+check('the nav still keeps its order', await inNavOrder(signed));
 await shot(signed, 'stage4b-980');
 
 console.log('[6] Stage 5 — the Add trigger keeps only its plus');
@@ -157,14 +179,14 @@ await width(signed, 930);
 check('the Add label is gone', !(await signed.locator('.add-trigger__text').isVisible()));
 check('the plus itself remains', await signed.locator('.add-trigger').isVisible());
 
-console.log('[7] Stage 6 — Disciplines merges into a search icon, left of Add');
+console.log('[7] Stage 6 — Disciplines becomes a compass icon, in place (no search-icon merge)');
 await width(signed, 880);
-check('the Disciplines text is gone', !(await nav(signed, 'disciplines').isVisible()));
-const search = signed.locator('.search-collapsed');
-check('the search icon appears', await search.isVisible());
-const sx = (await search.boundingBox()).x;
-const ax = (await signed.locator('.add-trigger').boundingBox()).x;
-check('immediately left of the Add trigger', sx < ax && ax - sx < 90, `search ${sx} add ${ax}`);
+check('the Disciplines text is gone', !(await navText(signed, 'disciplines').isVisible()));
+check('the compass icon appears', await navIcon(signed, 'disciplines').isVisible());
+check(
+	'the old search icon is gone for good',
+	(await signed.locator('.search-collapsed').count()) === 0
+);
 
 console.log('[8] Stage 7 — the logo disappears, and Home appears in the account menu');
 await width(signed, 840);
@@ -188,9 +210,11 @@ check(
 	await guest.locator('.row-locale select').isVisible()
 );
 
-console.log('[11] Stage 9 — Courses disappears');
+console.log('[11] Stage 9 — Courses becomes a mortarboard icon, in place');
 await width(signed, 740);
-check('the Courses text is gone', !(await nav(signed, 'classroom').isVisible()));
+check('the Courses text is gone', !(await navText(signed, 'classroom').isVisible()));
+check('the mortarboard icon appears', await navIcon(signed, 'classroom').isVisible());
+check('all five sit in the nav as icons, in order', await inNavOrder(signed));
 
 console.log('[12] Stage 10 — the drawer, and the brand comes back for it');
 await width(signed, 700);
@@ -203,19 +227,16 @@ await width(signed, 1000);
 const hMid = await heightAt(signed);
 await width(signed, 760);
 const hNarrow = await heightAt(signed);
-check(
-	`height falls with width (${hWide} > ${hMid} > ${hNarrow})`,
-	hWide > hMid && hMid > hNarrow
-);
+check(`height falls with width (${hWide} > ${hMid} > ${hNarrow})`, hWide > hMid && hMid > hNarrow);
 
-console.log('[14] A collapsed icon still navigates');
+console.log('[14] A collapsed link still navigates');
 await width(signed, 880);
-await collapsed(signed, 'events').click();
+await nav(signed, 'events').click();
 await settle(signed, 900);
 check('the calendar icon opens /events', signed.url().includes('/events'));
-await signed.locator('.search-collapsed').click();
+await nav(signed, 'disciplines').click();
 await settle(signed, 900);
-check('the search icon opens /search', signed.url().includes('/search'));
+check('the compass icon opens /disciplines', signed.url().includes('/disciplines'));
 
 // ---- the widened search --------------------------------------------------------------------------
 console.log('[15] Search now reaches courses, events, tutoring, and the taxonomy');
@@ -242,6 +263,14 @@ const event = await api('POST', '/events/', token, {
 
 await width(signed, 1280);
 await goto(signed, `/search?q=${STAMP}`);
+// The results arrive from fetches AFTER load — wait for them rather than reading the page at a
+// fixed delay ('load' replaced networkidle, which used to absorb this wait as a side effect).
+await signed
+	.locator('.search-page')
+	.getByText(`${STAMP} course`)
+	.first()
+	.waitFor({ timeout: 20000 })
+	.catch(() => {});
 const body = await signed.locator('.search-page').innerText();
 check('the course is found', body.includes(`${STAMP} course`));
 check('the tutoring listing is found', body.includes(`${STAMP} tutoring`));
@@ -253,10 +282,9 @@ check('the event is found', body.includes(`${STAMP} event`));
 check('and nothing else matches the stamp', body.includes('Found: 3'), body.split('\n')[2] ?? '');
 
 await goto(signed, '/search?q=matematyka');
-check(
-	'a discipline is found by name',
-	await signed.locator('.taxonomy-hits a', { hasText: 'Matematyka' }).first().isVisible()
-);
+const discipline = signed.locator('.taxonomy-hits a', { hasText: 'Matematyka' }).first();
+await discipline.waitFor({ timeout: 20000 }).catch(() => {});
+check('a discipline is found by name', await discipline.isVisible());
 await shot(signed, 'search-wide');
 
 // ---- cleanup -------------------------------------------------------------------------------------

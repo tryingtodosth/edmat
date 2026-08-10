@@ -240,26 +240,66 @@
 <!-- Item lists as snippets, rendered by BOTH the desktop popovers and the mobile drawer, so a
      feature flag cannot hide an entry in one surface and leave it in the other. -->
 {#snippet browseLinks(onclick: () => void)}
-	<!-- The per-link classes are the staged collapse's handles: each names the width stage that
-	     hides this link as text (its icon twin in the action row appears at the same stage). They
-	     are inert in the drawer, where every rule targeting them is scoped under `.site-nav`. -->
-	<a class="nav-link nav-link--disciplines" href={resolve('/disciplines')} {onclick}>
-		{m.nav_browse()}
+	<!-- The per-link classes are the staged collapse's handles: each names the width stage at which
+	     the link swaps its text for its icon — IN PLACE, keeping its nav position and order, rather
+	     than moving into the action row (that rearranging scheme was dropped by owner decision).
+	     Every anchor carries an aria-label so the accessible name survives the text hiding. The
+	     stage rules are all scoped under `.site-nav`, so in the drawer these render as plain text
+	     links (the icon spans are hidden by their base rule). -->
+	<a
+		class="nav-link nav-link--disciplines"
+		href={resolve('/disciplines')}
+		aria-label={m.nav_browse()}
+		title={m.nav_browse()}
+		{onclick}
+	>
+		<span class="nav-link__icon" aria-hidden="true">{@render compassIcon()}</span>
+		<span class="nav-link__text">{m.nav_browse()}</span>
 	</a>
-	<a class="nav-link nav-link--materials" href={resolve('/materials')} {onclick}>
-		{m.nav_materials()}
+	<a
+		class="nav-link nav-link--materials"
+		href={resolve('/materials')}
+		aria-label={m.nav_materials()}
+		title={m.nav_materials()}
+		{onclick}
+	>
+		<span class="nav-link__icon" aria-hidden="true">{@render bookIcon()}</span>
+		<span class="nav-link__text">{m.nav_materials()}</span>
 	</a>
 	{#if canClassroom}
-		<a class="nav-link nav-link--classroom" href={resolve('/courses')} {onclick}>
-			{m.nav_classroom()}
+		<a
+			class="nav-link nav-link--classroom"
+			href={resolve('/courses')}
+			aria-label={m.nav_classroom()}
+			title={m.nav_classroom()}
+			{onclick}
+		>
+			<span class="nav-link__icon" aria-hidden="true">{@render capIcon()}</span>
+			<span class="nav-link__text">{m.nav_classroom()}</span>
 		</a>
 	{/if}
 	{#if canEvents}
-		<a class="nav-link nav-link--events" href={resolve('/events')} {onclick}>{m.nav_events()}</a>
+		<a
+			class="nav-link nav-link--events"
+			href={resolve('/events')}
+			aria-label={m.nav_events()}
+			title={m.nav_events()}
+			{onclick}
+		>
+			<span class="nav-link__icon" aria-hidden="true">{@render calendarIcon()}</span>
+			<span class="nav-link__text">{m.nav_events()}</span>
+		</a>
 	{/if}
 	{#if canTutoring}
-		<a class="nav-link nav-link--services" href={resolve('/services')} {onclick}>
-			{m.nav_services()}
+		<a
+			class="nav-link nav-link--services"
+			href={resolve('/services')}
+			aria-label={m.nav_services()}
+			title={m.nav_services()}
+			{onclick}
+		>
+			<span class="nav-link__icon" aria-hidden="true">{@render moneyIcon()}</span>
+			<span class="nav-link__text">{m.nav_services()}</span>
 		</a>
 	{/if}
 {/snippet}
@@ -411,7 +451,9 @@
 	</svg>
 {/snippet}
 
-{#snippet searchIcon()}
+{#snippet compassIcon()}
+	<!-- Disciplines: a compass — "browse/explore the catalogue". The book was already taken by
+	     Materials, and the old stage-6 search-icon merge is gone with the rearranging scheme. -->
 	<svg
 		class="icon"
 		viewBox="0 0 24 24"
@@ -422,8 +464,25 @@
 		stroke-linejoin="round"
 		aria-hidden="true"
 	>
-		<circle cx="11" cy="11" r="6.5" />
-		<path d="m16 16 5 5" />
+		<circle cx="12" cy="12" r="9" />
+		<path d="m15.5 8.5-2 5-5 2 2-5z" />
+	</svg>
+{/snippet}
+
+{#snippet capIcon()}
+	<!-- Courses: a mortarboard — the thing a person runs and others join. -->
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="m12 4 10 4.5-10 4.5L2 8.5z" />
+		<path d="M6.5 11v4.5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V11" />
 	</svg>
 {/snippet}
 
@@ -456,48 +515,8 @@
 			{@render browseLinks(() => {})}
 		</nav>
 
-		<!-- The split between what the site holds and what you do with it. Everything left of this is
-		     a place; everything right is a control. -->
-		<span class="row-divider no-print" aria-hidden="true"></span>
-
 		<div class="site-header__actions no-print">
 			<RandomExerciseButton />
-
-			<!-- Where the collapsed nav links land (NAVBAR-BRIEF: "just right of the dice"), keeping
-			     the order they had in the nav — Materials, Events, Tutoring — so the cluster reads as
-			     a continuation of the nav rather than a random pile. `display: contents` so that a
-			     stage where the cluster is empty leaves no phantom flex gap behind. Disciplines is
-			     deliberately not here: its stage-6 icon is the search icon, placed left of Add. -->
-			<div class="collapsed-nav" role="presentation">
-				<a
-					class="icon-button collapsed collapsed--materials"
-					href={resolve('/materials')}
-					aria-label={m.nav_materials()}
-					title={m.nav_materials()}
-				>
-					{@render bookIcon()}
-				</a>
-				{#if canEvents}
-					<a
-						class="icon-button collapsed collapsed--events"
-						href={resolve('/events')}
-						aria-label={m.nav_events()}
-						title={m.nav_events()}
-					>
-						{@render calendarIcon()}
-					</a>
-				{/if}
-				{#if canTutoring}
-					<a
-						class="icon-button collapsed collapsed--services"
-						href={resolve('/services')}
-						aria-label={m.nav_services()}
-						title={m.nav_services()}
-					>
-						{@render moneyIcon()}
-					</a>
-				{/if}
-			</div>
 
 			<ThemeToggle />
 			<!-- Stage 8: once somebody HAS an account, the language picker moves into the account
@@ -559,19 +578,6 @@
 					{#if guestSetStore.count > 0}
 						<span class="badge badge--floating">{guestSetStore.count}</span>
 					{/if}
-				</a>
-
-				<!-- Stage 6: the Disciplines link becomes this search icon, placed immediately left of
-				     the Add trigger (its own place in the brief's order, not the dice cluster). It
-				     points at the site-wide search page, which by this change also covers what the
-				     Disciplines link opened — disciplines and branches — so the merge loses nothing. -->
-				<a
-					class="icon-button search-collapsed"
-					href={resolve('/search')}
-					aria-label={m.search_heading()}
-					title={m.search_heading()}
-				>
-					{@render searchIcon()}
 				</a>
 
 				<!-- Add… sits with the personal group rather than beside the nav, now that the row no
@@ -828,17 +834,6 @@
 		// then the browse links scroll) without a control disappearing.
 		flex-wrap: nowrap;
 	}
-	// Marks where places stop and controls begin. Deliberately hairline and low-contrast: it is
-	// punctuation, not a border — the two groups are already separated by the auto margin, and this
-	// only says that the separation is meant.
-	.row-divider {
-		flex: 0 0 auto;
-		align-self: stretch;
-		width: var(--hdr-border);
-		margin: var(--space-1) calc(var(--space-2) * -1);
-		background: var(--border-color);
-		opacity: 0.7;
-	}
 	.brand {
 		display: inline-flex;
 		align-items: center;
@@ -884,6 +879,14 @@
 			}
 		}
 	}
+	// Each browse link carries both forms; the stage rules below swap text for icon IN PLACE, so a
+	// collapsed link keeps its position and order in the nav (Materials stays between Disciplines
+	// and Courses). The base rule hides every icon, which is also what keeps the drawer — where the
+	// same snippet renders and none of the `.site-nav`-scoped stage rules apply — text-only.
+	.nav-link__icon {
+		display: none;
+		align-items: center;
+	}
 	.badge {
 		@include mix.status-pill(var(--accent-contrast), var(--accent));
 		padding: 0 6px;
@@ -895,19 +898,13 @@
 		right: -4px;
 		line-height: 1.3;
 	}
-	/* The personal group — messages, notifications, who you are — sits at the right-hand end of the
-	   row, with the site's own controls left at the other end.
-	
-	   The separation is the distance and nothing else. It went through a doubled 8px gap (measured,
-	   and invisible: at icon size nobody reads that as a grouping) and then a divider rule, which
-	   worked but was furniture the header did not need once `margin-left: auto` was pushing the
-	   group all the way to the edge — with most of the row empty between the two, a line drawn in
-	   the middle of that space is decoration rather than information. */
+	/* The personal group — messages, notifications, who you are. The whole actions block is pushed
+	   to the right-hand end by its own `margin-left: auto`; inside it, plain gaps and nothing else
+	   (the divider that used to mark this boundary is gone — one auto margin is the separation). */
 	.site-header__you {
 		display: flex;
 		align-items: center;
 		gap: var(--hdr-gap-sm);
-		margin-left: auto;
 	}
 
 	// Moderation: a word while there is room for one, a shield with a count when there is not. One
@@ -1017,36 +1014,19 @@
 		cursor: pointer;
 	}
 
-	// ---- the staged collapse (NAVBAR-BRIEF §2) ---------------------------------------------------
+	// ---- the staged collapse (NAVBAR-BRIEF §2, simplified 2026-08-10) ----------------------------
 	// As the window narrows the bar gives up the cheapest thing first, one stage at a time, instead
 	// of falling off a cliff at one breakpoint. Each stage is a media query; the *sizes* between
 	// stages shrink linearly via the --hdr-* tokens above. Media queries rather than a container
 	// query on the header: the bar spans the full viewport, so the two are equivalent here, and
 	// media queries are the tool this app already uses. The order of stages IS the specification.
 	//
-	// Every rule that hides a text link is paired with one that reveals its icon twin — the text
-	// lives in `.site-nav` (also rendered, unstyled by these rules, in the drawer), the icons in
-	// the action row. Nothing is ever left with neither form on a width where the bar renders.
+	// Each browse link swaps its text for its own icon IN PLACE, at the same widths as before —
+	// the earlier scheme (collapsed icons migrating to the action row beside the dice, Disciplines
+	// merging into a search icon by Add, Courses vanishing outright) was dropped by owner decision:
+	// a link that collapses should stay where it was. Every rule here is scoped under `.site-nav`,
+	// so the drawer's copies of the same links stay text-only at every width.
 
-	.collapsed-nav {
-		// Children become flex items of the actions row directly, so a stage where every icon is
-		// still hidden leaves no phantom gap where an empty wrapper would sit.
-		display: contents;
-	}
-	.collapsed {
-		display: none;
-		color: var(--text-secondary);
-		&:hover {
-			color: var(--text-primary);
-		}
-	}
-	.search-collapsed {
-		display: none;
-		color: var(--text-secondary);
-		&:hover {
-			color: var(--text-primary);
-		}
-	}
 	.account-trigger__avatar {
 		display: none;
 		align-items: center;
@@ -1067,12 +1047,12 @@
 		padding: var(--space-2) var(--space-3);
 	}
 
-	// Stage 1 — Events loses its label and becomes a calendar icon.
+	// Stage 1 — Events loses its label and becomes a calendar icon, in place.
 	@media (max-width: 1180px) {
-		.site-nav .nav-link--events {
+		.site-nav .nav-link--events .nav-link__text {
 			display: none;
 		}
-		.collapsed--events {
+		.site-nav .nav-link--events .nav-link__icon {
 			display: inline-flex;
 		}
 	}
@@ -1091,23 +1071,22 @@
 	// the navbar — it lives on the Tutoring page — and the owner confirmed the spec line was written
 	// from an older memory of the bar, not as a request to re-add it.)
 
-	// Stage 4 — Materials becomes a book icon.
+	// Stage 4 — Materials becomes a book icon, in place (still between Disciplines and Courses).
 	@media (max-width: 1060px) {
-		.site-nav .nav-link--materials {
+		.site-nav .nav-link--materials .nav-link__text {
 			display: none;
 		}
-		.collapsed--materials {
+		.site-nav .nav-link--materials .nav-link__icon {
 			display: inline-flex;
 		}
 	}
 
-	// Stage 4½ — Tutoring becomes a money icon (the owner placed it here, between Materials and the
-	// Add trigger; the original spec had dropped its line while fixing the ordering).
+	// Stage 4½ — Tutoring becomes a money icon, in place.
 	@media (max-width: 1000px) {
-		.site-nav .nav-link--services {
+		.site-nav .nav-link--services .nav-link__text {
 			display: none;
 		}
-		.collapsed--services {
+		.site-nav .nav-link--services .nav-link__icon {
 			display: inline-flex;
 		}
 	}
@@ -1119,14 +1098,13 @@
 		}
 	}
 
-	// Stage 6 — Disciplines merges into the search icon, immediately left of Add. The search page
-	// covers disciplines/branches (widened in the same change), so the link's destination stays
-	// findable through the icon's.
+	// Stage 6 — Disciplines becomes a compass icon, in place (previously it merged into a search
+	// icon over by the Add trigger — dropped with the rest of the rearranging scheme).
 	@media (max-width: 900px) {
-		.site-nav .nav-link--disciplines {
+		.site-nav .nav-link--disciplines .nav-link__text {
 			display: none;
 		}
-		.search-collapsed {
+		.site-nav .nav-link--disciplines .nav-link__icon {
 			display: inline-flex;
 		}
 	}
@@ -1157,11 +1135,14 @@
 		}
 	}
 
-	// Stage 9 — Courses disappears. It stays reachable from the homepage hero tabs, the drawer one
-	// stage below, and the site-wide search (which now covers taught courses for exactly this).
+	// Stage 9 — Courses becomes a mortarboard icon, in place (previously it disappeared outright;
+	// keeping an icon costs almost nothing at this width now that every neighbour is one too).
 	@media (max-width: 760px) {
-		.site-nav .nav-link--classroom {
+		.site-nav .nav-link--classroom .nav-link__text {
 			display: none;
+		}
+		.site-nav .nav-link--classroom .nav-link__icon {
+			display: inline-flex;
 		}
 	}
 
