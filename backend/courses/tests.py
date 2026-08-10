@@ -107,6 +107,16 @@ class VisibilityTests(ApiTestCase):
         mine = self.as_(self.instructor).get('/api/courses/')
         self.assertIn(hidden.pk, [c['id'] for c in mine.data])
 
+    def test_q_filters_the_listing_without_widening_visibility(self):
+        """`?q=` feeds the site-wide search page — and must stay INSIDE the visibility layer: a
+        matching title on somebody's only-you course is still nobody else's to see."""
+        hit = self.make_course(title='Analiza od zera')
+        self.make_course(title='Prawdopodobieństwo I')
+        hidden = self.make_course(title='Analiza ukryta', visibility='only_you')
+        ids = [c['id'] for c in self.client.get('/api/courses/', {'q': 'analiza'}).data]
+        self.assertEqual(ids, [hit.pk])
+        self.assertNotIn(hidden.pk, ids)
+
     def test_a_private_course_is_unlisted_and_not_reachable_by_guessing_its_id(self):
         """The whole point of `private`: a link gets you in, counting integers does not.
 

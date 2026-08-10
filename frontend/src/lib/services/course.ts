@@ -301,6 +301,8 @@ export interface CourseFilters {
 	field?: string;
 	/** Only courses actually taking people right now. */
 	openOnly?: boolean;
+	/** Free-text search on title/description — the site-wide search page's own filter. */
+	q?: string;
 }
 
 export async function getCourses(filters: CourseFilters = {}): Promise<Course[]> {
@@ -308,6 +310,7 @@ export async function getCourses(filters: CourseFilters = {}): Promise<Course[]>
 	if (filters.subject) search.set('subject', filters.subject);
 	if (filters.field) search.set('field', filters.field);
 	if (filters.openOnly) search.set('open', 'true');
+	if (filters.q) search.set('q', filters.q);
 	const query = search.toString();
 	const raw = await apiClient.get<unknown[]>(`/courses/${query ? `?${query}` : ''}`);
 	return raw.map(mapCourse);

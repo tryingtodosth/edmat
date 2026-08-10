@@ -9,7 +9,7 @@ instructor's draft gets a 404, which is also the honest answer, since for them i
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -185,6 +185,15 @@ class CourseViewSet(viewsets.ModelViewSet):
             qs = qs.filter(field__slug=field)
         if self.request.query_params.get('open') == 'true':
             qs = qs.filter(status='open')
+        # `?q=` — free-text course search, feeding the site-wide search page (the navbar's staged
+        # collapse removes the Courses link at narrow widths on the grounds that search still
+        # reaches it, so this filter is what makes that claim true). Plain icontains on the two
+        # human-written fields, matching MaterialViewSet's own `?q=` convention.
+        q = self.request.query_params.get('q')
+        if q:
+            qs = qs.filter(
+                Q(title__icontains=q) | Q(description__icontains=q)
+            )
         return qs.distinct()
 
     def get_serializer_class(self):

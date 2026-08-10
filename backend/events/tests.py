@@ -98,6 +98,15 @@ class VisibilityTests(ApiTestCase):
         self.assertEqual(self.client.get(f'/api/events/{event.pk}/').status_code, 200)
         self.assertEqual(self.client.get('/api/events/').json(), [])
 
+    def test_q_filters_the_browse_list_by_title_and_description(self):
+        """`?q=` feeds the site-wide search page — the navbar's staged collapse leans on that page
+        reaching events, so this is the claim that keeps it true."""
+        by_title = self.make_event(title='Kolokwium prep session')
+        by_description = self.make_event(title='Thursday meetup', description='kolokwium walkthrough')
+        self.make_event(title='Unrelated talk')
+        ids = [e['id'] for e in self.client.get('/api/events/', {'q': 'kolokwium'}).json()]
+        self.assertEqual(sorted(ids), sorted([by_title.pk, by_description.pk]))
+
     def test_but_it_stays_in_the_lists_of_the_people_it_concerns(self):
         event = self.make_event(status='cancelled')
         EventAttendance.objects.create(event=event, attendee=self.goer, status='going')

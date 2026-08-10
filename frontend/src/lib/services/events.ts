@@ -92,6 +92,8 @@ export interface EventQuery {
 	mine?: 'hosting' | 'attending';
 	subject?: string;
 	field?: string;
+	/** Free-text search on title/description — the site-wide search page's own filter. */
+	q?: string;
 }
 
 export async function getEvents(query: EventQuery = {}): Promise<EdmatEvent[]> {

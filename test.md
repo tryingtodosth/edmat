@@ -255,6 +255,7 @@ node e2e/schedule-editing.mjs
 node e2e/events-and-nav.mjs
 node e2e/known-issues.mjs
 node e2e/course-search.mjs
+node e2e/navbar-stages.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -433,6 +434,19 @@ Two things about this script specifically:
   what the app itself persists, so this is the same state a real login leaves behind, not a bypass.
 - **Kasia is the moderator**, not Julia — `seed_demo_users` seats exactly one `is_staff` account, and
   pulling a feature flag is `IsAdminUser`.
+
+**`e2e/navbar-stages.mjs` (42 checks)** — the navbar's staged collapse, driven across eleven viewport
+widths in order: each stage hides exactly its own link and reveals its icon twin (right of the dice, in
+nav order, with a real `aria-label`), the search icon lands immediately left of Add, the logo's
+disappearance is banded (back on the phone bar at ≤720px), a signed-in person's language picker moves
+into the account menu while a guest's stays in the row, the bar's height falls with the width, and the
+collapsed icons still navigate. Then the widened search: a stamped course, tutoring listing and event
+created through the API are all found by `/search?q=<stamp>`, **and the result count is asserted to be
+exactly 3** — the first run of this script passed its three "is found" checks against a backend that
+predated the `?q=` filters, because an unfiltered list also contains the stamped items; only the
+screenshot showed the difference, and the count check is what stops that from passing again. Takes
+`E2E_SHOTS=<dir>` to save screenshots — look at them; that is how both real issues in this feature's
+history were found.
 
 **`e2e/known-issues.mjs` (23 checks)** — the six entries from CLAUDE.md §17V.7 that were real defects
 rather than deliberate scope cuts (see §17W). The event form offering subjects at all, and the one

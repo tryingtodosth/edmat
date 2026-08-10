@@ -23,6 +23,8 @@ import {
 export interface ServiceBrowseFilters {
 	deliveryMode?: 'online' | 'inPerson';
 	near?: { lat: number; lon: number; radiusKm?: number };
+	/** Free-text search on title/description — the site-wide search page's own filter. */
+	q?: string;
 }
 
 function draftToBody(draft: ServiceDraft): Record<string, unknown> {
@@ -67,6 +69,7 @@ export async function getServices(
 		search.set('near', `${filters.near.lat},${filters.near.lon}`);
 		if (filters.near.radiusKm) search.set('radius_km', String(filters.near.radiusKm));
 	}
+	if (filters.q) search.set('q', filters.q);
 	const query = search.toString();
 	const raw = await apiClient.get<RawService[]>(`/services/${query ? `?${query}` : ''}`);
 	return raw.map(mapService);

@@ -115,6 +115,14 @@ class ServiceViewSet(viewsets.ModelViewSet):
         if branch_slug:
             qs = qs.filter(branches__slug=branch_slug)
 
+        # `?q=` — free-text listing search over the two human-written fields, for the site-wide
+        # search page (same plain-icontains convention as MaterialViewSet's own `?q=`).
+        q = self.request.query_params.get('q')
+        if q:
+            qs = qs.filter(
+                models.Q(title__icontains=q) | models.Q(description__icontains=q)
+            )
+
         # A user's own active tutoring listings — the public profile page's own new "their
         # tutoring listings" section (CLAUDE.md's tutoring-listings feature note, item 6). Reuses
         # this same branch's own `is_active=True` default (set just above, since `mine`/`retrieve`
