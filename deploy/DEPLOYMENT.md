@@ -130,11 +130,20 @@ ldconfig -p | grep libmagic || sudo apt install -y libmagic1
 
 ```bash
 .venv/bin/python3 manage.py migrate
-.venv/bin/python3 manage.py import_legacy_corpus --dry-run   # confirm zero unexpected changes first
-.venv/bin/python3 manage.py import_legacy_corpus              # then for real — a no-op if content is unchanged
+.venv/bin/python3 manage.py migrate_log_shards   # `migrate` only touches `default` — the telemetry shards need their own pass, every deploy
 .venv/bin/python3 manage.py collectstatic --noinput
 .venv/bin/python3 manage.py check --deploy
 ```
+
+> **Do NOT run `import_legacy_corpus` on a database that already has the corpus.** Two reasons,
+> both found by rehearsing this update against the rescued webek4 database (2026-08-10): the
+> command is currently broken post-taxonomy-rename (it still filters on `field`/reads
+> `branch.yaml`, so it crashes before touching anything), and even once repaired its upsert
+> semantics predate `taxonomy.0005`'s deliberate merge of the four przedmiot branches into two —
+> re-running it would try to resurrect the merged rows. The corpus content is unchanged and
+> already in the live database; Section 12 of CLAUDE.md reframed this import as one-shot
+> historical long ago. The same applies to `setup.sh`'s own call to it on a FRESH database —
+> a known, currently-open breakage, tracked as a follow-up, not something this update needs.
 
 `check --deploy` should already be clean if `/etc/apache2/envvars` still has the same
 `DJANGO_SECRET_KEY`/`DJANGO_DEBUG`/`EDMAT_HTTPS_READY` values from the original deployment — nothing
@@ -311,7 +320,7 @@ Then:
 ```bash
 .venv/bin/python3 manage.py collectstatic --noinput
 .venv/bin/python3 manage.py migrate
-.venv/bin/python3 manage.py import_legacy_corpus
+.venv/bin/python3 manage.py import_legacy_corpus   # ⚠️ currently broken post-taxonomy-rename — see Part A step 3's note
 .venv/bin/python3 manage.py check --deploy
 ```
 
