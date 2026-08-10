@@ -5299,8 +5299,46 @@ My Set entry and two schedule-page labels — pre-date this work on `main`). Bac
 three touched apps pass; `npm run check`/`lint`/`build` clean.
 
 **Left open, not built**: the 3 pre-existing `events-and-nav.mjs` failures above; no `?q=` for
-messages or bookings (private, not browse surfaces); the empty `.site-nav` at ≤760px still renders
-its divider (a hairline artifact, visible only in the 721–760px band).
+messages or bookings (private, not browse surfaces); ~~the empty `.site-nav` at ≤760px still renders
+its divider (a hairline artifact, visible only in the 721–760px band)~~ — moot since the update
+below removed the divider outright.
+
+### Update (2026-08-10): the collapse stays IN PLACE — the rearranging rules are dropped
+
+An owner-requested simplification of the scheme above. Three changes, one decision behind them:
+
+- **A collapsing browse link now swaps its text for its own icon IN PLACE**, keeping its nav
+  position and order (Materials stays between Disciplines and Courses) at the SAME widths as
+  before — Events 1180, Materials 1060, Tutoring 1000, Disciplines 900, Courses 760. The whole
+  "collapsed icons migrate to the action row beside the dice / Disciplines merges into a search
+  icon left of Add / Courses vanishes outright" arrangement is gone. Two new icons existed nowhere
+  before and were needed for the two links that previously had no icon form: a compass
+  (Disciplines) and a mortarboard (Courses). Each link carries a permanent `aria-label`, so the
+  accessible name survives the text hiding. The drawer renders the same `browseLinks` snippet and
+  stays text-only at every width (the icon spans' base rule hides them; every stage rule is scoped
+  under `.site-nav`). **Consequence, flagged rather than hidden: the header no longer links to
+  `/search` at any width** — the search icon existed only as Disciplines' stage-6 merged form, and
+  went with the scheme. The search page stays reachable through the homepage hero search.
+- **The `.row-divider` is removed** (markup + styles) — with the actions block right-aligned by
+  its single `margin-left: auto`, the distance is the separation; a line in the middle of empty
+  space was furniture. This also erases the ≤760px hairline artifact the Left-open list above had
+  recorded.
+- **Exactly one auto margin does the pushing**: `.site-header__actions` keeps `margin-left: auto`;
+  the second, inert `margin-left: auto` on `.site-header__you` (a leftover from the divider-era
+  layout, dead since the actions block became `flex: 0 0 auto`) is removed.
+
+**Verified**: `e2e/navbar-stages.mjs` rewritten to pin the new behavior (51 checks, all passing,
+zero console/page errors — including per-stage "the nav keeps its order" position assertions and
+"the old search icon is gone for good"), plus screenshots at 1280/980/840/740/390 actually looked
+at. Two script-infrastructure fixes were needed, both worth remembering: its `goto` used
+`waitUntil: 'networkidle'`, which **never fires on an authenticated page against a healthy
+backend** — the signed-in header holds the notification SSE stream open, a permanently in-flight
+request — so it only ever passed when the stream failed fast; now `'load'` plus explicit
+`waitFor()`s on the elements the checks read (the account trigger, the search results). And a
+local-only 500 on `DELETE /api/services/` during cleanup turned out to be the canonical dev
+checkout's own `db.sqlite3` never having been migrated past the week-schedules feature (`no such
+table: booking_weektemplatewindow`) — a stale-dev-DB problem, not a code bug; webek4 is fully
+migrated. `npm run check` (0 errors/0 warnings), `lint`, `build` all clean.
 ## 17Z. Feature: laying out a schedule week by week — drag and drop, saved weeks, bulk apply (✅ built, full stack)
 
 A tutor could say "Tuesdays, 14:00–16:00, forever" and nothing else. `AvailabilityRule` is unbounded
