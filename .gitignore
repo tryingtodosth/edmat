@@ -58,3 +58,9 @@ backend/logdata/
 # Shared on-disk cache (config/settings.py's CACHES). Holds rate-limit counters and cached
 # geocoding results — pure runtime state, regenerated on demand, never worth committing.
 backend/cachedata/
+
+# The webek4/edmat.net server rescue (2026-08-07). Holds the production DJANGO_SECRET_KEY, the
+# TLS private key for edmat.net, live DRF API tokens, the unsanitised production database and
+# Apache logs with real user IPs. Must NEVER be committed — this line exists so a stray
+# `git add -A` cannot publish it.
+FUW/
