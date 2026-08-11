@@ -86,6 +86,25 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['submitted_by', 'status', 'reviewed_by', 'review_note']
 
+    def validate(self, attrs):
+        # An edit suggestion is a proposed change to an EXISTING translation, never a way to
+        # originate a brand-new one for a locale nobody has translated yet — that's what the
+        # separate translation-submission flow (`POST /api/exercises/{id}/translations/`) is
+        # for, and it goes through its own real review. Without this check,
+        # `_apply_edit_suggestion` (moderation/views.py) would happily `get_or_create` a fresh,
+        # published `ExerciseTranslation` the moment a moderator approved a suggestion for a
+        # locale with no existing translation — publishing a near-empty exercise (blank title,
+        # blank statement, just the one edited field) straight to readers, with no real
+        # translation review ever having happened.
+        exercise = attrs.get('exercise') or getattr(self.instance, 'exercise', None)
+        locale = attrs.get('locale') or getattr(self.instance, 'locale', None)
+        if exercise is not None and locale is not None:
+            if not exercise.translations.filter(locale=locale).exists():
+                raise serializers.ValidationError(
+                    {'locale': [f'No existing translation for locale "{locale}" on this exercise.']}
+                )
+        return attrs
+
 
 class MaterialSubmissionSerializer(serializers.ModelSerializer):
     """POST /api/material-submissions/ (multipart — `file` is a real upload, not JSON) — the

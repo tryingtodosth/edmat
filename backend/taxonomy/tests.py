@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
@@ -17,6 +18,17 @@ from taxonomy.models import (
 
 
 class DisciplineListTests(APITestCase):
+    def setUp(self):
+        # `/api/disciplines/` sits behind the anonymous-read response cache
+        # (config/cachemw.py), which — unlike the database — is NOT rolled back between tests
+        # (config/settings.py's own comment on why LocMemCache is used under the test runner
+        # explains the per-process sharing this exploits). Without this, a GET here that happens
+        # to be this process's Nth hit on the exact same URL is served bytes cached by an earlier,
+        # already-rolled-back test's data, same trap moderation/tests.py and
+        # accounts/test_throttling.py already guard against for the throttle counters that live in
+        # the same cache.
+        cache.clear()
+
     def test_only_published_disciplines_are_listed(self):
         published = Discipline.objects.create(slug='matematyka', published=True)
         DisciplineTranslation.objects.create(
@@ -51,6 +63,10 @@ class DisciplineListTests(APITestCase):
 
 
 class BranchDetailTests(APITestCase):
+    def setUp(self):
+        # See DisciplineListTests.setUp — same anonymous-read cache, same cross-test leak.
+        cache.clear()
+
     def test_branch_detail_includes_its_own_topics(self):
         branch = make_branch()
         make_topic(branch, slug='topic-a')
@@ -78,6 +94,8 @@ class BranchLocaleTests(APITestCase):
     and a single English row made every reader see English."""
 
     def setUp(self):
+        # See DisciplineListTests.setUp — same anonymous-read cache, same cross-test leak.
+        cache.clear()
         self.discipline = Discipline.objects.create(slug='matematyka', published=True)
         DisciplineTranslation.objects.create(
             discipline=self.discipline, locale='pl', name='Matematyka'
@@ -111,6 +129,8 @@ class ProposeTaxonomyTests(APITestCase):
     """
 
     def setUp(self):
+        # See DisciplineListTests.setUp — same anonymous-read cache, same cross-test leak.
+        cache.clear()
         self.user = User.objects.create_user('student', password='pw')
         self.moderator = User.objects.create_user('mod', password='pw', is_staff=True)
         self.discipline = Discipline.objects.create(slug='matematyka')
