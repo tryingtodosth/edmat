@@ -240,12 +240,11 @@
 <!-- Item lists as snippets, rendered by BOTH the desktop popovers and the mobile drawer, so a
      feature flag cannot hide an entry in one surface and leave it in the other. -->
 {#snippet browseLinks(onclick: () => void)}
-	<!-- The per-link classes are the staged collapse's handles: each names the width stage at which
-	     the link swaps its text for its icon — IN PLACE, keeping its nav position and order, rather
-	     than moving into the action row (that rearranging scheme was dropped by owner decision).
-	     Every anchor carries an aria-label so the accessible name survives the text hiding. The
-	     stage rules are all scoped under `.site-nav`, so in the drawer these render as plain text
-	     links (the icon spans are hidden by their base rule). -->
+	<!-- Disciplines/Materials/Courses/Events/Tutoring render icon-only at every width in the desktop
+	     nav (`.site-nav`) — no staged text→icon collapse for these five any more. Each anchor still
+	     carries a real aria-label/title so the accessible name is never lost. The drawer renders the
+	     identical snippet but ignores `.site-nav`-scoped rules, so it stays a plain text link list
+	     there regardless of the desktop icon-only presentation. -->
 	<a
 		class="nav-link nav-link--disciplines"
 		href={resolve('/disciplines')}
@@ -878,11 +877,32 @@
 				color: var(--text-primary);
 			}
 		}
+
+		// Disciplines/Materials/Courses/Events/Tutoring are icon-only at EVERY width in the desktop
+		// nav, not staged — the owner asked for these five to drop the text form outright rather than
+		// collapse it past a breakpoint. Scoped to `.site-nav` so the drawer's copy of the same
+		// snippet (outside this selector) stays text-only, as `.nav-link__icon`'s own base rule
+		// already keeps it.
+		.nav-link--disciplines .nav-link__text,
+		.nav-link--materials .nav-link__text,
+		.nav-link--classroom .nav-link__text,
+		.nav-link--events .nav-link__text,
+		.nav-link--services .nav-link__text {
+			display: none;
+		}
+		.nav-link--disciplines .nav-link__icon,
+		.nav-link--materials .nav-link__icon,
+		.nav-link--classroom .nav-link__icon,
+		.nav-link--events .nav-link__icon,
+		.nav-link--services .nav-link__icon {
+			display: inline-flex;
+		}
 	}
-	// Each browse link carries both forms; the stage rules below swap text for icon IN PLACE, so a
-	// collapsed link keeps its position and order in the nav (Materials stays between Disciplines
-	// and Courses). The base rule hides every icon, which is also what keeps the drawer — where the
-	// same snippet renders and none of the `.site-nav`-scoped stage rules apply — text-only.
+	// Each browse link carries both forms. The base rule hides the icon and shows the text, which is
+	// what keeps the drawer — where the same snippet renders and none of the `.site-nav`-scoped rules
+	// below apply — text-only. In the desktop nav itself, Disciplines/Materials/Courses/Events/
+	// Tutoring are icon-only at every width (see `.site-nav` below); this base rule stays the
+	// text-first default only for the drawer's sake.
 	.nav-link__icon {
 		display: none;
 		align-items: center;
@@ -1047,15 +1067,8 @@
 		padding: var(--space-2) var(--space-3);
 	}
 
-	// Stage 1 — Events loses its label and becomes a calendar icon, in place.
-	@media (max-width: 1180px) {
-		.site-nav .nav-link--events .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--events .nav-link__icon {
-			display: inline-flex;
-		}
-	}
+	// (Stage 1, Events losing its label at 1180px, is gone: Events is icon-only in the desktop nav at
+	// every width now, alongside Disciplines/Materials/Courses/Tutoring — see `.site-nav` above.)
 
 	// Stage 2 — the account trigger becomes an icon: their avatar if they have one.
 	@media (max-width: 1120px) {
@@ -1071,25 +1084,8 @@
 	// the navbar — it lives on the Tutoring page — and the owner confirmed the spec line was written
 	// from an older memory of the bar, not as a request to re-add it.)
 
-	// Stage 4 — Materials becomes a book icon, in place (still between Disciplines and Courses).
-	@media (max-width: 1060px) {
-		.site-nav .nav-link--materials .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--materials .nav-link__icon {
-			display: inline-flex;
-		}
-	}
-
-	// Stage 4½ — Tutoring becomes a money icon, in place.
-	@media (max-width: 1000px) {
-		.site-nav .nav-link--services .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--services .nav-link__icon {
-			display: inline-flex;
-		}
-	}
+	// (Stages 4 and 4½, Materials/Tutoring losing their labels at 1060px/1000px, are gone: both are
+	// icon-only in the desktop nav at every width now — see `.site-nav` above.)
 
 	// Stage 5 — the Add trigger keeps only its plus.
 	@media (max-width: 950px) {
@@ -1098,16 +1094,8 @@
 		}
 	}
 
-	// Stage 6 — Disciplines becomes a compass icon, in place (previously it merged into a search
-	// icon over by the Add trigger — dropped with the rest of the rearranging scheme).
-	@media (max-width: 900px) {
-		.site-nav .nav-link--disciplines .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--disciplines .nav-link__icon {
-			display: inline-flex;
-		}
-	}
+	// (Stage 6, Disciplines losing its label at 900px, is gone: Disciplines is icon-only in the
+	// desktop nav at every width now — see `.site-nav` above.)
 
 	// Stage 7 — the logo disappears. The lower bound matters: at ≤720px the phone bar is exactly
 	// the brand plus the drawer button, so the brand must come back there. In the 721–850px band a
@@ -1135,16 +1123,8 @@
 		}
 	}
 
-	// Stage 9 — Courses becomes a mortarboard icon, in place (previously it disappeared outright;
-	// keeping an icon costs almost nothing at this width now that every neighbour is one too).
-	@media (max-width: 760px) {
-		.site-nav .nav-link--classroom .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--classroom .nav-link__icon {
-			display: inline-flex;
-		}
-	}
+	// (Stage 9, Courses losing its label at 760px, is gone: Courses is icon-only in the desktop nav
+	// at every width now — see `.site-nav` above.)
 
 	// Stage 10 is the existing phone drawer, below — everything collapses into it at ≤720px.
 
