@@ -5,8 +5,12 @@ twice (or 6–7 times when busy) before it is cached, but this command seats res
 admission bypassed — "preload into Redis as much as possible" (the owner's ask), where "as much as
 possible" is bounded by evidence, not enthusiasm:
 
-- a base set that is hot by construction: the discipline list (each locale) and every published
-  discipline's branches payload — the taxonomy every browse starts from;
+- a base set that is hot by construction: the discipline list (each locale), every published
+  discipline's branches payload, every published branch's detail + exercise/material listings
+  (the pages every browse lands on), and the top-level public listings (exercises, materials,
+  events, services, taught courses) — everything anonymous and on cachemw's allowlist, which is
+  what keeps attachments (/media/, never under /api/) and anything personal/authenticated out
+  by construction;
 - plus the top `--top` anonymous GET paths from the telemetry request log's own anonymous shard
   (`logs_anon`) over the last `--days` days — the app's real traffic record deciding, not a guess.
   Query strings are NOT replayed: telemetry redacts `?q=` for search endpoints by design (a search
@@ -30,7 +34,7 @@ from django.test import Client
 from django.utils import timezone
 
 from config import cachemw
-from taxonomy.models import Discipline
+from taxonomy.models import Branch, Discipline
 from telemetry.models import RequestLog
 
 
@@ -43,12 +47,30 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         candidates: list[str] = []
+        branch_slugs = list(Branch.objects.filter(published=True).values_list('slug', flat=True))
         for lang in ('pl', 'en'):
             candidates.append(f'/api/disciplines/?lang={lang}')
             for slug in Discipline.objects.filter(published=True).values_list('slug', flat=True):
                 candidates.append(f'/api/disciplines/{slug}/branches/?lang={lang}')
+            # The whole anonymous browse surface per branch: detail (topics/chapters) and the
+            # exercise/material listings every course page loads. Exercise DETAIL stays out —
+            # cachemw's own carve-out (the ContentView side effect) gates it anyway.
+            for slug in branch_slugs:
+                candidates.append(f'/api/branches/{slug}/?lang={lang}')
+                candidates.append(f'/api/branches/{slug}/exercises/?lang={lang}')
+                candidates.append(f'/api/branches/{slug}/materials/?lang={lang}')
         candidates.append('/api/disciplines/')
         candidates.append('/api/feature-flags/')
+        # Top-level public listings on cachemw's allowlist. Nothing here carries attachments
+        # (media files live under /media/, never warmed) or personal data (auth/messaging/
+        # bookings are off-list by construction; /api/users/ is deliberately not enumerated).
+        candidates += [
+            '/api/exercises/',
+            '/api/materials/',
+            '/api/events/',
+            '/api/services/',
+            '/api/courses/',
+        ]
 
         since = timezone.now() - timedelta(days=options['days'])
         try:
