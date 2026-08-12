@@ -6,6 +6,7 @@
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
+	import PageHead from '$lib/components/shared/PageHead.svelte';
 
 	let email = $state('');
 	let password = $state('');
@@ -32,9 +33,7 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{m.auth_login_heading()} — {m.common_appName()}</title>
-</svelte:head>
+<PageHead title={m.auth_login_heading()} description={m.seo_login_description()} />
 
 <div class="page">
 	<h1>{m.auth_login_heading()}</h1>

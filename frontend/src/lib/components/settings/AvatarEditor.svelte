@@ -159,7 +159,17 @@
 <div class="avatar-editor">
 	<div class="avatar-editor__current">
 		{#if avatarUrl}
-			<img class="avatar-preview" src={avatarUrl} alt={m.settings_avatarAlt()} />
+			<!-- Safe to state a ratio here, unlike the event-post picture: this is the SAVED avatar,
+			     and accounts/avatar.py centre-crops every one to a square 512x512, so 1:1 is a
+			     guarantee of the pipeline rather than a guess about what someone uploaded. -->
+			<img
+				class="avatar-preview"
+				src={avatarUrl}
+				alt={m.settings_avatarAlt()}
+				width="512"
+				height="512"
+				decoding="async"
+			/>
 		{:else}
 			<!-- No avatar set: a plain neutral placeholder, not a generated identicon — this app has
 			     never had one, and inventing a second visual identity for an account here would be a

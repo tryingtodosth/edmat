@@ -1,0 +1,24 @@
+# EdMat — https://edmat.net
+#
+# Served straight off disk from the frontend build; there is nothing here that depends on the
+# database, so it deliberately does not go through Django the way /sitemap.xml has to.
+
+User-agent: *
+Allow: /
+
+# Private surfaces. None of these are reachable without a session anyway, so this is not what
+# protects them — it keeps them out of a crawl budget that is better spent on the exercise corpus,
+# and keeps a signed-out crawler from filling the index with login walls.
+Disallow: /settings
+Disallow: /moderation
+Disallow: /messages
+Disallow: /notifications
+Disallow: /bookings
+Disallow: /my-set
+
+# Invite links carry a token in the path and are explicitly noindex on the page itself
+# (courses/join/[token]/+page.svelte). Stated here as well, since a crawler that never executes
+# JavaScript never sees that meta tag.
+Disallow: /courses/join/
+
+Sitemap: https://edmat.net/sitemap.xml

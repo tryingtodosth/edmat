@@ -183,7 +183,22 @@
 							     them for a description. An empty alt marks it decorative to a screen reader,
 							     which is the honest answer — inventing one ("event picture") would be noise
 							     read aloud on every post. -->
-							<img class="picture" src={post.imageUrl} alt="" loading="lazy" />
+							<!-- Deliberately NO width/height, which is the opposite of the rule applied to every
+							     other <img> in this app — so it is worth saying why rather than leaving it
+							     looking like an oversight.
+
+							     postimage.py bounds a post picture's LONGEST EDGE and preserves its aspect
+							     ratio, so these are 1600x900, 1600x1200, 900x1600, whatever was uploaded. The
+							     model stores no dimensions (a plain ImageField, no width_field/height_field) and
+							     the API exposes none, so any pair written here would be a guess — and a guessed
+							     ratio does not reserve the right box, it reserves a WRONG one and then shifts to
+							     the real size on load. That is worse than reserving nothing, because it shifts
+							     for most images instead of all of them while looking as though it were handled.
+
+							     The real fix is width_field/height_field on the model, a migration, and the two
+							     numbers in the serializer — recorded as a follow-up rather than faked here.
+							     `lazy` + `async` still apply: these sit well below the fold. -->
+							<img class="picture" src={post.imageUrl} alt="" loading="lazy" decoding="async" />
 						{/if}
 
 						{#if post.links.length > 0}

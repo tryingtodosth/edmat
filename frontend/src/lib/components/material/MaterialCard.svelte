@@ -25,7 +25,21 @@
 	// linkTitle: true everywhere this card is used as a feed/grid item; false on the material's OWN
 	// detail page, where linking the title back to the very page it's already on would be a
 	// pointless, confusing self-link.
-	let { material, linkTitle = true }: { material: Material; linkTitle?: boolean } = $props();
+	// headingLevel: 3 suits a card sitting in a grid under the page's own h2 section heading, which
+	// is what this component was built for. On /materials/[id] the very same card IS the page
+	// header, and a document whose most important heading is an h3 — with the page's own sections
+	// at h2 BELOW it — has an outline that says the opposite of what the page means. Passing 1
+	// there fixes the document, not just the lint.
+	//
+	// Deliberately its own prop rather than derived from `linkTitle`, even though today the two
+	// happen to agree: they answer different questions ("is this the page I am already on?" versus
+	// "how important is this heading?"), and a third caller wanting one without the other should
+	// not have to unpick that.
+	let {
+		material,
+		linkTitle = true,
+		headingLevel = 3
+	}: { material: Material; linkTitle?: boolean; headingLevel?: 1 | 2 | 3 } = $props();
 
 	const PREVIEW_COUNT = 3;
 
@@ -82,10 +96,14 @@
 	<div class="material-card__heading">
 		{#if linkTitle}
 			<a class="material-card__title-link" href={resolve('/materials/[id]', { id: material.id })}>
-				<h3><MathTitle text={material.title} /></h3>
+				<svelte:element this={`h${headingLevel}`} class="material-card__title"
+					><MathTitle text={material.title} /></svelte:element
+				>
 			</a>
 		{:else}
-			<h3><MathTitle text={material.title} /></h3>
+			<svelte:element this={`h${headingLevel}`} class="material-card__title"
+				><MathTitle text={material.title} /></svelte:element
+			>
 		{/if}
 		<span class="material-type">{materialTypesStore.nameFor(material.type)}</span>
 	</div>
@@ -293,7 +311,9 @@
 	.material-card__title-link {
 		color: var(--text-primary);
 		min-width: 0;
-		&:hover h3 {
+		// Class, not tag — the heading level is a prop now (see headingLevel), so `h3` here would
+		// stop matching on /materials/[id] and the hover would quietly do nothing.
+		&:hover .material-card__title {
 			color: var(--accent);
 		}
 	}

@@ -1512,5 +1512,16 @@
 	"submitMaterial_urlHint": "Dla czegoś, czego nie powinno się kopiować — nagranie, strona katedry, czyjeś opublikowane notatki.",
 	"material_open": "Otwórz",
 	"taxonomy_propose_parentDiscipline": "Do której dziedziny należy?",
-	"taxonomy_propose_parentPlaceholder": "Wybierz"
+	"taxonomy_propose_parentPlaceholder": "Wybierz",
+	"seo_home_description": "Żywa baza uniwersyteckich zadań z matematyki, fizyki i informatyki — każde z pełnym rozwiązaniem, ocenami społeczności i dyskusją. Przeglądaj według dziedziny, działu i tematu.",
+	"seo_disciplines_description": "Przeglądaj EdMat według dziedzin i działów — matematyka, fizyka i informatyka, każda z przedmiotami i zbiorami zadań.",
+	"seo_courses_description": "Kursy prowadzone na EdMacie przez samych prowadzących, otwarte na zapisy — z rozdziałami, lekcjami i materiałami od uczestników.",
+	"seo_materials_description": "Skrypty, tablice wzorów, egzaminy z lat ubiegłych i notatki z wykładów — uporządkowane według przedmiotu i tematu, z wyszukiwaniem po treści.",
+	"seo_events_description": "Wykłady gościnne, warsztaty, sesje naukowe i spotkania przedegzaminacyjne — jednorazowe wydarzenia, na które można się zapisać.",
+	"seo_services_description": "Znajdź korepetytora według przedmiotu, online lub stacjonarnie, z opublikowanymi terminami do rezerwacji.",
+	"seo_search_description": "Szukaj wśród zadań, materiałów, kursów, wydarzeń i ogłoszeń korepetycji na EdMacie.",
+	"seo_levels_description": "Jak działa pozycja na EdMacie — drabiny uprawnień i moderacji, waga głosu oraz co działa dziś, a co jest dopiero zaprojektowane.",
+	"seo_privacy_description": "Co EdMat przechowuje, dlaczego i czego nigdy nie zbiera.",
+	"seo_login_description": "Zaloguj się, aby oceniać zadania, brać udział w dyskusji, zgłaszać poprawki i zapisywać własne zestawy.",
+	"seo_register_description": "Załóż konto, aby dodawać zadania i tłumaczenia, recenzować materiały i tworzyć zestawy do udostępniania."
 }

@@ -5,7 +5,7 @@ Two suites, deliberately different in kind:
 | | What it is | Where | Count |
 |---|---|---|---|
 | **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, plus `test_*.py` in several apps | 1145 |
-| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 9 scripts |
+| **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 22 scripts |
 
 The backend figure was measured (`manage.py test --parallel 4`, ~9 min); the per-app numbers further
 down are not all re-counted and some lag behind. The browser row deliberately no longer carries a
@@ -256,7 +256,26 @@ node e2e/events-and-nav.mjs
 node e2e/known-issues.mjs
 node e2e/course-search.mjs
 node e2e/navbar-stages.mjs
+node e2e/prerender-check.mjs    # NOTE: runs against `npm run preview`, not `vite dev` — see below
 ```
+
+**`prerender-check.mjs` is the one script that must NOT be pointed at the dev server.** It verifies
+the five prerendered routes (`/`, `/levels`, `/privacy`, `/login`, `/register`), and prerendering is
+a BUILD-time step — `vite dev` renders everything on the fly, so every check in it would pass there
+without proving anything about what actually ships. Build first, then preview:
+
+```sh
+cd frontend
+npm run build
+npx vite preview --port 5174 --strictPort     # 5174 is already in the backend's CORS allowlist
+E2E_BASE=http://localhost:5174 node e2e/prerender-check.mjs
+```
+
+Its first four checks run with **JavaScript disabled**, deliberately: that is what a crawler which
+does not execute scripts sees, and what the browser can paint on the very first frame. Before the
+prerendering change those four would have found an empty page — the body had 0 characters of text.
+They are the regression guard for the whole optimization; if someone later removes a `+page.ts`,
+this is what says so.
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
 only when **both** the failures and the error list are empty — a page error is a failure here even if

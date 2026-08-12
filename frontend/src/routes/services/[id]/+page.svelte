@@ -163,7 +163,9 @@
 			<a href={resolve('/services')}>{m.services_heading()}</a>
 		</nav>
 
-		<ServiceCard {service} {branchNames} linkTitle={false} />
+		<!-- headingLevel={1}: same as /materials/[id] — the card is this page's header, so its title
+		     is the h1 the page otherwise did not have. -->
+		<ServiceCard {service} {branchNames} linkTitle={false} headingLevel={1} />
 
 		<!-- The map lives on the detail page only, never on the browse card. A Leaflet instance per
 		     card would mean a dozen map widgets and a tile request storm on one browse page, for
