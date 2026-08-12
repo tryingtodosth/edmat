@@ -44,6 +44,17 @@ manage.py test --failfast    # stop at the first failure
 **Nothing needs to be running first**, and nothing touches `db.sqlite3` — Django creates a separate
 test database, applies every migration, and destroys it afterwards.
 
+One thing it *did* touch, until recently: the anonymous-read response cache is a FILE cache under
+`backend/cachedata/`, which outlives the process. Its stored responses are replayed as plain
+`HttpResponse` objects, which have no `.data` — so an anonymous GET made by one test could be served
+back to a different test, to the next run, or to a run after the dev server had browsed the same URL,
+failing it with `'HttpResponse' object has no attribute 'data'` a long way from the cause. About 74
+tests in `courses` failed that way on a clean checkout, and which ones moved with execution order.
+The middleware is now removed from `MIDDLEWARE` under the test runner (`config/settings.py`), and
+`telemetry.tests.AnonymousReadCacheTests` — the suite that is actually about it — puts it back for
+itself. If a swathe of unrelated tests ever starts failing on a missing `.data` again, that is where
+to look.
+
 ### One quirk you will hit if you write more of these
 
 Any test that makes an HTTP request must declare the telemetry log-shard databases, or it fails on
@@ -256,6 +267,7 @@ node e2e/events-and-nav.mjs
 node e2e/known-issues.mjs
 node e2e/course-search.mjs
 node e2e/navbar-stages.mjs
+node e2e/course-content-links.mjs
 ```
 
 Each prints one `ok`/`FAIL` line per check, a total, and any console or page errors. Exit code is 0
@@ -447,6 +459,23 @@ predated the `?q=` filters, because an unfiltered list also contains the stamped
 screenshot showed the difference, and the count check is what stops that from passing again. Takes
 `E2E_SHOTS=<dir>` to save screenshots — look at them; that is how both real issues in this feature's
 history were found.
+
+**`e2e/course-content-links.mjs` (23 checks)** — linking real content from the chapter/lesson edit
+dialogs, and the two new actions on a comment. The section is rendered INSIDE a dialog that is already
+a `<form>`, so one check is that it brings no nested form of its own: browsers resolve that by
+silently dropping the inner one, and the "Add link" button would then submit the dialog and save the
+chapter instead. Then a **pasted address** becoming a real `CourseItem` (asserted through the API, not
+from the page redrawing), nonsense refused in words with nothing filed, and the comment menu offering
+Save / Link to a course / Copy link — each acting on **the comment this run created**, located by its
+own `#comment-<id>` anchor, because a real exercise page already has a thread on it and `.first()`
+silently acted on somebody else's comment for two runs.
+
+Two traps it encodes. Waiting for the login form to be *visible* is not waiting for it to be
+interactive — the input is in the server-rendered HTML, so a click can land before hydration and be
+handled by nobody, which then looks exactly like "the curator's buttons are missing"; the script
+asserts it is actually signed in before going further. And it counts, then ignores, 403s on
+`/@fs/…` paths: Vite refuses to serve outside the project root, so a checkout whose `node_modules` is
+a symlink (a git worktree) 403s on KaTeX's fonts — an artifact of where the checkout is, not of the app.
 
 **`e2e/known-issues.mjs` (23 checks)** — the six entries from CLAUDE.md §17V.7 that were real defects
 rather than deliberate scope cuts (see §17W). The event form offering subjects at all, and the one

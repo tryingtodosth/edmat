@@ -1,5 +1,7 @@
+from django.utils.text import Truncator
 from rest_framework import serializers
 
+from community.targets import PRIVATE_TARGET_TYPES, target_type_for
 from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.models import Branch, Discipline
 
@@ -92,6 +94,7 @@ class LessonExerciseSetSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'lesson',
+            'chapter',
             'title',
             'note',
             'order',
@@ -698,6 +701,8 @@ class CourseItemSerializer(serializers.ModelSerializer):
     submitted_by = ParticipantSerializer(read_only=True)
     decided_by = ParticipantSerializer(read_only=True)
     label = serializers.SerializerMethodField()
+    discussion_target_type = serializers.SerializerMethodField()
+    discussion_target_id = serializers.SerializerMethodField()
 
     class Meta:
         model = CourseItem
@@ -710,6 +715,12 @@ class CourseItemSerializer(serializers.ModelSerializer):
             'exercise',
             'attachment',
             'event',
+            'discussion',
+            # Null on every other kind. A linked thread is the one target this app cannot build a
+            # link to from the item alone — a comment lives on whatever page its own target lives
+            # on, and only the server can say which that is. See `community/targets.py`.
+            'discussion_target_type',
+            'discussion_target_id',
             'label',
             'order',
             'note',
@@ -745,23 +756,68 @@ class CourseItemSerializer(serializers.ModelSerializer):
             return str(item.exercise)
         if item.attachment_id:
             return item.attachment.title
-        return item.event.title
+        if item.event_id:
+            return item.event.title
+        # A comment has no title and never will — it is somebody talking. So the label is the first
+        # words of it, which is what a reader recognises a thread by anyway ("the one about the
+        # counterexample"). Truncated on a word boundary rather than mid-word, and the body is read
+        # rather than the serializer's blanked version because a removed thread is dropped from the
+        # response entirely one level up (`CourseItem.target_is_available_to`) — anybody still
+        # holding this row is a curator, who is being shown it precisely so they can replace it.
+        body = ' '.join((item.discussion.body or '').split())
+        return Truncator(body).words(12, truncate='…') or '—'
+
+    def get_discussion_target_type(self, item) -> str:
+        return target_type_for(item.discussion) if item.discussion_id else ''
+
+    def get_discussion_target_id(self, item) -> str:
+        return str(item.discussion.object_id) if item.discussion_id else ''
+
+
+
+def _thread_belongs_to(comment, target_type, course) -> bool:
+    """Is this private thread one of THIS course's own?
+
+    Only asked about the three private target types, so the three branches are the whole set —
+    anything else reaching here is a bug in `PRIVATE_TARGET_TYPES` rather than a case to guess at,
+    and returning False refuses the link instead of leaking one.
+    """
+    if target_type == 'taughtCourse':
+        return comment.object_id == course.pk
+    if target_type == 'courseLesson':
+        return Lesson.objects.filter(
+            pk=comment.object_id, chapter__course=course
+        ).exists()
+    if target_type == 'courseChapter':
+        return Chapter.objects.filter(pk=comment.object_id, course=course).exists()
+    return False
 
 
 class CourseItemWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseItem
-        fields = ['lesson', 'chapter', 'material', 'exercise', 'attachment', 'event', 'order', 'note']
+        fields = [
+            'lesson',
+            'chapter',
+            'material',
+            'exercise',
+            'attachment',
+            'event',
+            'discussion',
+            'order',
+            'note',
+        ]
 
     def validate(self, attrs):
         def resolved(name):
             return attrs.get(name, getattr(self.instance, name, None))
 
-        targets = {name: resolved(name) for name in ('material', 'exercise', 'attachment', 'event')}
+        target_names = ('material', 'exercise', 'attachment', 'event', 'discussion')
+        targets = {name: resolved(name) for name in target_names}
         chosen = [name for name, value in targets.items() if value]
         if len(chosen) != 1:
             raise serializers.ValidationError(
-                'Reference exactly one of material, exercise, attachment or event.'
+                'Reference exactly one of material, exercise, attachment, event or discussion.'
             )
 
         course = self.context.get('course')
@@ -799,6 +855,36 @@ class CourseItemWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'event': 'That event has not been published yet.'}
             )
+
+        # A thread, and the two things that make one linkable.
+        #
+        # First, it must be the START of a conversation. Every other target here is a whole thing;
+        # a reply is half of one, and a course pointing at an answer with its question missing reads
+        # as a mistake rather than as a link.
+        #
+        # Second — the real gate — a comment may be sitting somewhere that is not public. A course's
+        # own discussion, and a week's or a session's inside it, are readable by that course's
+        # participants and nobody else (`Course.discussion_mode` defaults to `participants` because
+        # the roster is private). Linking one into a DIFFERENT course would publish it to a roster it
+        # was never shared with, which is exactly what the attachment check above refuses, so it is
+        # refused the same way. A course's own thread is fine — that is somebody filing this week's
+        # question into this week, which is the case this feature was asked for.
+        discussion = attrs.get('discussion')
+        if discussion:
+            if discussion.parent_id is not None:
+                raise serializers.ValidationError(
+                    {'discussion': 'Link the start of a thread, not a reply inside it.'}
+                )
+            if discussion.is_removed or discussion.auto_hidden_at is not None:
+                raise serializers.ValidationError(
+                    {'discussion': 'That comment is no longer available.'}
+                )
+            target_type = target_type_for(discussion)
+            if target_type in PRIVATE_TARGET_TYPES:
+                if course is None or not _thread_belongs_to(discussion, target_type, course):
+                    raise serializers.ValidationError(
+                        {'discussion': 'That discussion is private to another course.'}
+                    )
         return attrs
 
 
@@ -806,6 +892,7 @@ class ChapterSerializer(serializers.ModelSerializer):
     is_unlocked = serializers.SerializerMethodField()
     lessons = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
+    exercise_sets = serializers.SerializerMethodField()
     reviews = serializers.SerializerMethodField()
 
     class Meta:
@@ -819,6 +906,7 @@ class ChapterSerializer(serializers.ModelSerializer):
             'is_unlocked',
             'lessons',
             'items',
+            'exercise_sets',
             'reviews',
         ]
 
@@ -826,6 +914,14 @@ class ChapterSerializer(serializers.ModelSerializer):
         """Summary only, same as a lesson's — and present on a locked chapter too, since the count
         is about the chapter rather than its contents, exactly like its title and unlock date."""
         return rating_summary(chapter.reviews)
+
+    def get_exercise_sets(self, chapter):
+        """A set pinned into the week itself rather than into one of its sessions — the reading
+        everybody does before Tuesday. Filtered by each link's own `is_visible_to`, exactly as the
+        lesson-level field is, so a locked week's homework is staff-only like everything else in it.
+        """
+        visible = [link for link in chapter.exercise_sets.all() if link.is_visible_to(self._user())]
+        return LessonExerciseSetSerializer(visible, many=True, context=self.context).data
 
     def _user(self):
         request = self.context.get('request')

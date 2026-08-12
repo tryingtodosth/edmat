@@ -12,6 +12,7 @@
 	import EducationPanel from '$lib/components/settings/EducationPanel.svelte';
 	import DonationLinksEditor from '$lib/components/settings/DonationLinksEditor.svelte';
 	import TagFollowsEditor from '$lib/components/settings/TagFollowsEditor.svelte';
+	import SavedCommentsList from '$lib/components/settings/SavedCommentsList.svelte';
 
 	let displayName = $state('');
 	let preferredLocale = $state('en');
@@ -461,6 +462,12 @@
 			<h2>{m.settings_tagsHeading()}</h2>
 			<p class="field-hint">{m.settings_tagsHint()}</p>
 			<TagFollowsEditor />
+		</section>
+
+		<section class="tags">
+			<h2>{m.settings_savedCommentsHeading()}</h2>
+			<p class="field-hint">{m.settings_savedCommentsHint()}</p>
+			<SavedCommentsList />
 		</section>
 	{/if}
 </div>

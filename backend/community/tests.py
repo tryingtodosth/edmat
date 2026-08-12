@@ -7,7 +7,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from community.models import Comment, Review
+from community.models import Comment, Review, SavedComment
+from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_exercise, make_material, make_topic, make_user
 
 
@@ -430,3 +431,100 @@ class CommentEditDeleteTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
+class SavedCommentTests(APITestCase):
+    """Keeping a comment for yourself — the private half of the "⋯" menu on a comment.
+
+    The properties worth pinning are all about it being PRIVATE and about it being one row: nobody
+    else's list is reachable, saving twice does not make two, and a comment nobody can read any more
+    is not something to bookmark.
+    """
+
+    # The request-logging middleware writes to its own shards on every request these make; without
+    # this, Django's cross-database guard raises inside the middleware, which swallows it and prints
+    # a traceback under a run that otherwise passes — noise that reads exactly like a failure.
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
+        self.author = make_user('author')
+        self.keeper = make_user('keeper')
+        self.stranger = make_user('stranger')
+        self.comment = Comment.objects.create(
+            content_type=ContentType.objects.get_for_model(self.exercise),
+            object_id=self.exercise.pk,
+            author=self.author,
+            body='The trick is that the norm is complete.',
+        )
+
+    def save_url(self, comment=None):
+        return reverse('comment-save-for-me', kwargs={'pk': (comment or self.comment).pk})
+
+    def test_saving_keeps_it_and_says_where_it_lives(self):
+        """The target is the whole reason this is more than a row of ids: a comment has no page of
+        its own, so without it the settings list could show the words and link nowhere."""
+        self.client.force_authenticate(self.keeper)
+        response = self.client.post(self.save_url(), {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['target_type'], 'exercise')
+        self.assertEqual(response.data['target_id'], str(self.exercise.pk))
+        self.assertEqual(response.data['comment']['id'], self.comment.pk)
+
+    def test_saving_twice_is_the_same_statement_not_two_rows(self):
+        self.client.force_authenticate(self.keeper)
+        self.client.post(self.save_url(), {}, format='json')
+        again = self.client.post(self.save_url(), {'note': 'for Tuesday'}, format='json')
+
+        self.assertEqual(again.status_code, status.HTTP_200_OK)
+        self.assertEqual(SavedComment.objects.filter(user=self.keeper).count(), 1)
+        # The later note replaces the earlier one — it is what the person just typed.
+        self.assertEqual(SavedComment.objects.get(user=self.keeper).note, 'for Tuesday')
+
+    def test_a_comment_that_is_gone_is_not_worth_bookmarking(self):
+        self.comment.is_removed = True
+        self.comment.save(update_fields=['is_removed'])
+        self.client.force_authenticate(self.keeper)
+
+        response = self.client.post(self.save_url(), {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_the_list_is_only_ever_your_own(self):
+        self.client.force_authenticate(self.keeper)
+        self.client.post(self.save_url(), {}, format='json')
+
+        self.client.force_authenticate(self.stranger)
+        response = self.client.get(reverse('comment-saved'))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_unsaving_removes_it(self):
+        self.client.force_authenticate(self.keeper)
+        self.client.post(self.save_url(), {}, format='json')
+        response = self.client.delete(self.save_url())
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(SavedComment.objects.filter(user=self.keeper).exists())
+
+    def test_unsaving_something_you_never_saved_is_not_an_error(self):
+        """There is one row and it either exists or does not — a client holding a stale flag must
+        not be able to produce a failure by pressing the wrong one of the two."""
+        self.client.force_authenticate(self.keeper)
+        self.assertEqual(self.client.delete(self.save_url()).status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_saving_requires_an_account(self):
+        response = self.client.post(self.save_url(), {}, format='json')
+        self.assertIn(
+            response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN)
+        )
+
+    def test_you_may_keep_your_own_words(self):
+        """Offered on your own comment as much as on anybody else's — there is nothing odd about
+        keeping your own explanation of something."""
+        self.client.force_authenticate(self.author)
+        self.assertEqual(
+            self.client.post(self.save_url(), {}, format='json').status_code,
+            status.HTTP_201_CREATED,
+        )

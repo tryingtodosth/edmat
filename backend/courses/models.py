@@ -776,12 +776,22 @@ class CourseItem(models.Model):
     Content is *referenced*, never copied, exactly as `Lesson` already does: a corrected exercise
     stays corrected everywhere, and a course never becomes a silently diverging fork of the corpus.
 
-    **Four kinds, exactly one per row**, because they are genuinely different things a course points
+    **Five kinds, exactly one per row**, because they are genuinely different things a course points
     at and a reader needs to know which they are looking at before clicking: a corpus `material`, a
     corpus `exercise`, an `attachment` (a file belonging to this course — last year's paper, Tuesday's
-    slides), or an `event` (a one-off happening people turn up to). Four nullable FKs with a check
-    constraint rather than a GenericForeignKey: the set is small, closed and known, and every query
-    here wants to join and prefetch the real row, which a generic relation cannot do.
+    slides), an `event` (a one-off happening people turn up to), or a `discussion` — the thread that
+    already answered this week's question, wherever in the site it happens to have been asked.
+
+    Five nullable FKs with a check constraint rather than a GenericForeignKey: the set is small,
+    closed and known, and every query here wants to join and prefetch the real row, which a generic
+    relation cannot do.
+
+    The `discussion` kind is the newest and is the one that needed a rule the other four did not.
+    Every other target is a page anybody can open; a comment may be sitting in a thread that is
+    private to a course — see `CourseItemWriteSerializer`, which refuses to link one belonging to a
+    course other than this one, on exactly the reasoning that already refuses another course's
+    attachment. It also points at a **root** comment only: a thread is a conversation, and a link
+    into the middle of one is a link to an answer with the question missing.
     """
 
     course = models.ForeignKey(Course, related_name='items', on_delete=models.CASCADE)
@@ -834,6 +844,18 @@ class CourseItem(models.Model):
         blank=True,
         on_delete=models.CASCADE,
     )
+    # CASCADE, but note what that does and does not cover: a `Comment` is a tombstone rather than a
+    # row delete when its author takes it down (community/models.py), so the ordinary ending for a
+    # linked thread deletes nothing here and correctly leaves the link in place — pointing at a
+    # thread whose opening post now reads as removed, with its replies intact. That is the honest
+    # outcome: the conversation a curator filed is still the conversation, minus one post.
+    discussion = models.ForeignKey(
+        'community.Comment',
+        related_name='course_items',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
 
     order = models.PositiveIntegerField(default=0)
     note = models.CharField(max_length=500, blank=True)
@@ -876,24 +898,35 @@ class CourseItem(models.Model):
                         exercise__isnull=True,
                         attachment__isnull=True,
                         event__isnull=True,
+                        discussion__isnull=True,
                     )
                     | models.Q(
                         material__isnull=True,
                         exercise__isnull=False,
                         attachment__isnull=True,
                         event__isnull=True,
+                        discussion__isnull=True,
                     )
                     | models.Q(
                         material__isnull=True,
                         exercise__isnull=True,
                         attachment__isnull=False,
                         event__isnull=True,
+                        discussion__isnull=True,
                     )
                     | models.Q(
                         material__isnull=True,
                         exercise__isnull=True,
                         attachment__isnull=True,
                         event__isnull=False,
+                        discussion__isnull=True,
+                    )
+                    | models.Q(
+                        material__isnull=True,
+                        exercise__isnull=True,
+                        attachment__isnull=True,
+                        event__isnull=True,
+                        discussion__isnull=False,
                     )
                 ),
                 name='course_item_exactly_one_target',
@@ -929,16 +962,28 @@ class CourseItem(models.Model):
                 condition=models.Q(event__isnull=False),
                 name='unique_event_per_course',
             ),
+            models.UniqueConstraint(
+                fields=['course', 'discussion'],
+                condition=models.Q(discussion__isnull=False),
+                name='unique_discussion_per_course',
+            ),
         ]
 
     def __str__(self) -> str:
         return f'{self.course.title} — {self.kind}'
 
     def clean(self):
-        targets = [self.material_id, self.exercise_id, self.attachment_id, self.event_id]
+        targets = [
+            self.material_id,
+            self.exercise_id,
+            self.attachment_id,
+            self.event_id,
+            self.discussion_id,
+        ]
         if sum(1 for t in targets if t) != 1:
             raise ValidationError(
-                'An item must reference exactly one material, exercise, attachment or event.'
+                'An item must reference exactly one material, exercise, attachment, event or '
+                'discussion.'
             )
         if self.lesson_id and self.chapter_id:
             raise ValidationError('An item files into a lesson or a chapter, not both.')
@@ -951,7 +996,9 @@ class CourseItem(models.Model):
             return 'exercise'
         if self.attachment_id:
             return 'attachment'
-        return 'event'
+        if self.event_id:
+            return 'event'
+        return 'discussion'
 
     @property
     def parent_chapter(self):
@@ -1019,6 +1066,16 @@ class CourseItem(models.Model):
         # An attachment lives in this course rather than in the corpus, so its own visibility is the
         # course's business and is already answered by `Attachment.is_visible_to`.
         if self.attachment_id is not None and not self.attachment.is_visible_to(user):
+            return False
+        # A linked thread whose opening post has been taken down — by its author, by a moderator, or
+        # by the report threshold firing — is dropped for everybody but a curator, exactly as an
+        # unpublished exercise is, and for the same reason: the curator is the person who can
+        # replace it, and a list that silently got shorter tells them nothing. The thread's replies
+        # may well still be there and worth reading; that is not enough to keep a course pointing at
+        # it by a title made of words nobody stands behind any more.
+        if self.discussion_id is not None and (
+            self.discussion.is_removed or self.discussion.auto_hidden_at is not None
+        ):
             return False
         return True
 
@@ -1352,7 +1409,18 @@ class LessonExerciseSet(models.Model):
     the two kinds of link they are looking at.
     """
 
-    lesson = models.ForeignKey(Lesson, related_name='exercise_sets', on_delete=models.CASCADE)
+    # Filed into a lesson OR straight into a chapter, exactly as `CourseItem` is and for the same
+    # reason: a problem set everybody does before week 3 starts belongs to the week, not to whichever
+    # session happens to be first in it. The model keeps its `Lesson`-shaped name because renaming it
+    # would rewrite six files' worth of imports, related names and a drag-and-drop registry to say
+    # something the docstring says better — it is a link from a course to a set, and the level it
+    # hangs off is a column.
+    lesson = models.ForeignKey(
+        Lesson, related_name='exercise_sets', null=True, blank=True, on_delete=models.CASCADE
+    )
+    chapter = models.ForeignKey(
+        'Chapter', related_name='exercise_sets', null=True, blank=True, on_delete=models.CASCADE
+    )
     # Provenance and the "update from the source" affordance — never the contents.
     exercise_set = models.ForeignKey(
         'study.ExerciseSet',
@@ -1392,14 +1460,36 @@ class LessonExerciseSet(models.Model):
                 condition=models.Q(exercise_set__isnull=False),
                 name='unique_set_per_lesson',
             ),
+            models.UniqueConstraint(
+                fields=['chapter', 'exercise_set'],
+                condition=models.Q(exercise_set__isnull=False),
+                name='unique_set_per_chapter',
+            ),
+            # One level or the other, never both and never neither. Both null would be a link
+            # hanging off nothing, which — unlike an unfiled `CourseItem` — has nowhere to be
+            # rendered and no queue to sit in, so it is a row nobody could ever see again.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(lesson__isnull=False, chapter__isnull=True)
+                    | models.Q(lesson__isnull=True, chapter__isnull=False)
+                ),
+                name='lesson_set_exactly_one_parent',
+            ),
         ]
 
     def __str__(self) -> str:
-        return f'{self.lesson.title} — {self.title}'
+        parent = self.lesson or self.chapter
+        return f'{parent.title if parent else "—"} — {self.title}'
+
+    @property
+    def parent(self):
+        """The lesson or the chapter this hangs off — one place to ask, so callers stop having to
+        know a link reaches its course by two routes. Mirrors `CourseItem.parent_chapter`."""
+        return self.lesson or self.chapter
 
     @property
     def course(self):
-        return self.lesson.chapter.course
+        return self.lesson.chapter.course if self.lesson_id else self.chapter.course
 
     def is_visible_to(self, user) -> bool:
         """As visible as the lesson holding it, which is as visible as its chapter.
@@ -1408,8 +1498,13 @@ class LessonExerciseSet(models.Model):
         locked week early because they are the people preparing it, and a participant does not.
         There is no per-link status to check — a link is placed by a curator and never offered for
         review, so it has no pending state of its own.
+
+        Asked of whichever level it was filed into. A link filed straight into a chapter is gated by
+        that chapter exactly as one inside a lesson is, for the reason `CourseItem.is_visible_to`
+        already states: the lock is a statement about the week, and routing around it by filing one
+        level up would make it worthless.
         """
-        return self.lesson.is_visible_to(user)
+        return self.parent.is_visible_to(user)
 
     def visible_exercises(self, user, *, can_curate=None):
         """The pinned rows this viewer should actually be shown.

@@ -1,7 +1,8 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
-from .models import Comment, Review
+from .models import Comment, Review, SavedComment
+from .targets import target_type_for
 
 
 class ReplyCountMixin:
@@ -102,3 +103,27 @@ class CommentSerializer(serializers.ModelSerializer):
         if instance.is_removed or instance.auto_hidden_at is not None:
             rep['body'] = ''
         return rep
+
+
+class SavedCommentSerializer(serializers.ModelSerializer):
+    """One kept comment, with enough of its context to be readable away from its thread.
+
+    A saved comment is read on a settings page, a long way from wherever it was written, so the row
+    has to carry three things a bare id does not: what it says, who said it, and where it lives. The
+    last is the reason `community/targets.py` exists at all — the frontend can build
+    `/exercises/12` from `('exercise', '12')` and can build nothing at all from a ContentType id.
+    """
+
+    comment = CommentSerializer(read_only=True)
+    target_type = serializers.SerializerMethodField()
+    target_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SavedComment
+        fields = ['id', 'comment', 'target_type', 'target_id', 'note', 'created_at']
+
+    def get_target_type(self, row) -> str:
+        return target_type_for(row.comment)
+
+    def get_target_id(self, row) -> str:
+        return str(row.comment.object_id)

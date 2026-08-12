@@ -119,6 +119,11 @@ class CourseViewSet(viewsets.ModelViewSet):
                 # drifted — without these a course page pays a query per pinned exercise.
                 'chapters__lessons__exercise_sets__exercises__exercise',
                 'chapters__lessons__exercise_sets__exercise_set__exercisesetitem_set',
+                # And the same two for a set linked straight into a week rather than into one of
+                # its sessions. Two more prefetches rather than one because they are two relations —
+                # the level a link hangs off is a column, but the path to it is not.
+                'chapters__exercise_sets__exercises__exercise',
+                'chapters__exercise_sets__exercise_set__exercisesetitem_set',
                 # The rating summaries on every lesson and every chapter. `rating_summary` reads
                 # `.all()` precisely so these prefetches serve it; without them a twelve-week course
                 # pays a query per session and per week to draw two small numbers — the same N+1
@@ -538,10 +543,21 @@ class CourseViewSet(viewsets.ModelViewSet):
         )
         return Response(LessonSerializer(lesson, context={'is_participant': True}).data)
 
-    # --- a whole exercise set, linked into a lesson ------------------------------------------------
+    # --- a whole exercise set, linked into a lesson or a chapter ----------------------------------
 
     def _lesson_or_none(self, course, lesson_id):
         return Lesson.objects.filter(chapter__course=course, pk=lesson_id).first()
+
+    def _set_parent_or_none(self, course, parent_kind, parent_id):
+        """The lesson or chapter a set link hangs off, or None if it is not this course's.
+
+        One resolver and one pair of endpoints for both levels rather than a second pair under
+        `chapters/…`: the two differ only in which column the link stores, and `LessonExerciseSet`
+        models that as a column precisely so the surrounding code does not have to fork.
+        """
+        if parent_kind == 'lessons':
+            return self._lesson_or_none(course, parent_id)
+        return Chapter.objects.filter(course=course, pk=parent_id).first()
 
     @staticmethod
     def _pin(link, source):
@@ -563,24 +579,24 @@ class CourseViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['get', 'post'],
-        url_path='lessons/(?P<lesson_id>[^/.]+)/exercise-sets',
+        url_path='(?P<parent_kind>lessons|chapters)/(?P<parent_id>[^/.]+)/exercise-sets',
         permission_classes=[permissions.IsAuthenticatedOrReadOnly, _CoursesFeatureGate],
     )
-    def lesson_exercise_sets(self, request, pk=None, lesson_id=None):
-        """The sets pinned into one lesson, and pinning another one.
+    def lesson_exercise_sets(self, request, pk=None, parent_kind=None, parent_id=None):
+        """The sets pinned into one lesson or one chapter, and pinning another one.
 
         GET is filtered by each link's own `is_visible_to`, so a locked chapter's homework is staff-
         only exactly as its items are. POST is `can_curate` — the same gate every other write to a
         lesson's contents already uses, not a new one.
         """
         course = self.get_object()
-        lesson = self._lesson_or_none(course, lesson_id)
-        if lesson is None:
+        parent = self._set_parent_or_none(course, parent_kind, parent_id)
+        if parent is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         if request.method == 'GET':
             visible = [
-                link for link in lesson.exercise_sets.all() if link.is_visible_to(request.user)
+                link for link in parent.exercise_sets.all() if link.is_visible_to(request.user)
             ]
             return Response(
                 LessonExerciseSetSerializer(
@@ -605,16 +621,17 @@ class CourseViewSet(viewsets.ModelViewSet):
             # Pinning an empty set stores a decision with no content in it, and the curator would
             # have to notice the empty block themselves to learn nothing happened.
             raise DRFValidationError({'set': 'That set has no exercises in it.'})
-        if lesson.exercise_sets.filter(exercise_set=source).exists():
+        if parent.exercise_sets.filter(exercise_set=source).exists():
             return Response({'detail': 'already_linked'}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
             link = LessonExerciseSet.objects.create(
-                lesson=lesson,
+                lesson=parent if parent_kind == 'lessons' else None,
+                chapter=None if parent_kind == 'lessons' else parent,
                 exercise_set=source,
                 title=source.name,
                 note=str(request.data.get('note', ''))[:500],
-                order=lesson.exercise_sets.count(),
+                order=parent.exercise_sets.count(),
                 linked_by=request.user,
             )
             self._pin(link, source)
@@ -626,10 +643,12 @@ class CourseViewSet(viewsets.ModelViewSet):
     @action(
         detail=True,
         methods=['patch', 'delete'],
-        url_path='lessons/(?P<lesson_id>[^/.]+)/exercise-sets/(?P<link_id>[^/.]+)',
+        url_path='(?P<parent_kind>lessons|chapters)/(?P<parent_id>[^/.]+)/exercise-sets/(?P<link_id>[^/.]+)',
         permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
     )
-    def lesson_exercise_set_detail(self, request, pk=None, lesson_id=None, link_id=None):
+    def lesson_exercise_set_detail(
+        self, request, pk=None, parent_kind=None, parent_id=None, link_id=None
+    ):
         """Re-copying from the source, retitling, or unlinking. Curators only.
 
         `refresh` is what makes a pinned link liveable-with: the course decides when to take the
@@ -639,10 +658,10 @@ class CourseViewSet(viewsets.ModelViewSet):
         course = self.get_object()
         if not course.can_curate(request.user):
             return Response(status=status.HTTP_404_NOT_FOUND)
-        lesson = self._lesson_or_none(course, lesson_id)
-        if lesson is None:
+        parent = self._set_parent_or_none(course, parent_kind, parent_id)
+        if parent is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        link = lesson.exercise_sets.filter(pk=link_id).first()
+        link = parent.exercise_sets.filter(pk=link_id).first()
         if link is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -1226,9 +1245,17 @@ class CourseViewSet(viewsets.ModelViewSet):
         'lesson': (Lesson, 'chapter_id', 'chapter__course'),
         'item': (CourseItem, 'lesson_id', 'course'),
         # A linked set sits in a lesson exactly as an item does, so it reorders through the same
-        # endpoint rather than growing a fourth near-identical one.
-        'lesson_set': (LessonExerciseSet, 'lesson_id', 'lesson__chapter__course'),
+        # endpoint rather than growing a fourth near-identical one. Its parent column is resolved
+        # specially below, because a set link — like an item — may hang off a chapter instead, and
+        # `lesson_id` alone cannot say which of the two a group id means.
+        'lesson_set': (LessonExerciseSet, 'lesson_id', None),
     }
+
+    #: Kinds whose group ids may be written `chapter:7` / `lesson:7` because either level is a real
+    #: destination. A bare id still means a lesson, so every payload written before chapters became
+    #: possible keeps meaning exactly what it did — the same prefixing the frontend's own "move to"
+    #: select already uses, for the same reason: the two levels have separate id sequences.
+    _PREFIXED_PARENTS = frozenset({'lesson_set'})
 
     #: Kinds whose parent column is NOT NULL, so the unfiled group `""` is meaningless for them.
     _PARENT_REQUIRED = frozenset({'lesson', 'lesson_set'})
@@ -1288,7 +1315,13 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         # Scoped to this course, so an id belonging to somebody else's course simply is not found —
         # the same queryset-scoping-not-permission-checking shape the rest of this viewset uses.
-        owned = model.objects.filter(**{course_path: course})
+        if course_path is None:
+            # A set link reaches its course by two routes, so one lookup path cannot find them all.
+            owned = model.objects.filter(
+                Q(lesson__chapter__course=course) | Q(chapter__course=course)
+            )
+        else:
+            owned = model.objects.filter(**{course_path: course})
         by_id = {row.pk: row for row in owned}
         try:
             missing = [row_id for row_id in flat if int(row_id) not in by_id]
@@ -1301,24 +1334,29 @@ class CourseViewSet(viewsets.ModelViewSet):
         # somebody else's course would be written straight onto a lesson here — moving content out
         # of this course and into theirs, which is not a reorder by any reading.
         if parent_field is not None:
-            allowed_parents = (
-                {str(pk) for pk in course.chapters.values_list('pk', flat=True)}
-                if kind == 'lesson'
-                else {
-                    str(pk)
-                    for pk in Lesson.objects.filter(chapter__course=course).values_list(
-                        'pk', flat=True
-                    )
-                }
-            )
+            chapter_ids = {str(pk) for pk in course.chapters.values_list('pk', flat=True)}
+            lesson_ids = {
+                str(pk)
+                for pk in Lesson.objects.filter(chapter__course=course).values_list('pk', flat=True)
+            }
+            if kind == 'lesson':
+                allowed_parents = chapter_ids
+            elif kind in self._PREFIXED_PARENTS:
+                allowed_parents = (
+                    lesson_ids
+                    | {f'lesson:{pk}' for pk in lesson_ids}
+                    | {f'chapter:{pk}' for pk in chapter_ids}
+                )
+            else:
+                allowed_parents = lesson_ids
             unknown = [g for g in groups if g != '' and str(g) not in allowed_parents]
             if unknown:
                 raise DRFValidationError({'groups': f'Not a group in this course: {unknown}.'})
             if kind in self._PARENT_REQUIRED and '' in groups:
                 # A lesson without a chapter has nowhere to be drawn — `Lesson.chapter` is NOT NULL
-                # precisely so the middle level always has a parent, and `LessonExerciseSet.lesson`
-                # is NOT NULL for the same reason. Refused here rather than left to surface as an
-                # IntegrityError from the save below.
+                # precisely so the middle level always has a parent, and a set link is required to
+                # hold exactly one of its two (`lesson_set_exactly_one_parent`) for the same reason.
+                # Refused here rather than left to surface as an IntegrityError from the save below.
                 raise DRFValidationError(
                     {'groups': 'This must belong to a chapter or a lesson.'}
                 )
@@ -1333,6 +1371,20 @@ class CourseViewSet(viewsets.ModelViewSet):
                         # Re-parenting and reordering are the same write: a drag between chapters
                         # is one gesture, and splitting it into two saves would leave the row
                         # briefly ordered against a group it is no longer in.
+                        if kind in self._PREFIXED_PARENTS:
+                            # Both columns are written every time, so dragging a set link out of a
+                            # lesson and onto a chapter clears the lesson in the same statement —
+                            # holding both is what `lesson_set_exactly_one_parent` refuses outright,
+                            # which would be a 500 on an ordinary drag rather than a move. Same
+                            # reasoning as the `item` branch just below.
+                            target = str(parent_id)
+                            to_chapter = target.startswith('chapter:')
+                            target_pk = int(target.split(':', 1)[1] if ':' in target else target)
+                            row.lesson_id = None if to_chapter else target_pk
+                            row.chapter_id = target_pk if to_chapter else None
+                            fields += ['lesson_id', 'chapter_id']
+                            row.save(update_fields=fields)
+                            continue
                         setattr(row, parent_field, int(parent_id) if parent_id != '' else None)
                         fields.append(parent_field)
                         if kind == 'item':

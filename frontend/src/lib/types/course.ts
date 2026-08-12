@@ -6,6 +6,8 @@
  * taxonomy split. Users only ever saw "course" either way.
  */
 
+import type { CommentTargetType } from './comment';
+
 /** Who may see the course at all. Split out of `CourseStatus`, which used to answer this and "how
  * far along is it" with one value — so `draft` meant hidden while `open`/`running`/`finished` all
  * silently meant public, and there was no way to say "under way, but unlisted". */
@@ -62,9 +64,10 @@ export interface CourseStaffMember {
 	addedAt: string;
 }
 
-/** The four things a course can point at. A reader needs to know which before clicking: a corpus
- * material, a corpus exercise, a file belonging to this course, or a one-off event. */
-export type CourseItemKind = 'material' | 'exercise' | 'attachment' | 'event';
+/** The five things a course can point at. A reader needs to know which before clicking: a corpus
+ * material, a corpus exercise, a file belonging to this course, a one-off event, or a discussion —
+ * the thread that already answered this week's question, wherever it happens to have been asked. */
+export type CourseItemKind = 'material' | 'exercise' | 'attachment' | 'event' | 'discussion';
 
 export interface CourseItem {
 	id: string;
@@ -77,9 +80,16 @@ export interface CourseItem {
 	exercise: string | null;
 	attachment: string | null;
 	event: string | null;
+	discussion: string | null;
+	/** Where a linked thread lives, so it can be linked to. Empty strings on every other kind.
+	 * A comment has no page of its own — it hangs off whatever its target hangs off — and only the
+	 * server can resolve which that is, so it says so rather than the client guessing. */
+	discussionTargetType: CommentTargetType | '';
+	discussionTargetId: string;
 	/** Enough to recognise the thing without a second request — a material's resolved title, an
-	 * exercise's subject-and-number (the only name an exercise has ever had here), or an attachment's
-	 * or event's own plain title. */
+	 * exercise's subject-and-number (the only name an exercise has ever had here), an attachment's
+	 * or event's own plain title, or the opening words of a linked thread, which is what a reader
+	 * recognises a conversation by anyway. */
 	label: string;
 	order: number;
 	note: string;
@@ -111,6 +121,9 @@ export interface Chapter {
 	 * the whole week belongs to the week, not to any one session in it. Empty while locked, exactly
 	 * as `lessons` is. */
 	items: CourseItem[];
+	/** Sets pinned into the week itself rather than into one of its sessions — the reading everybody
+	 * does before Tuesday. Same pinned-membership semantics as a lesson's. */
+	exerciseSets: LessonExerciseSet[];
 }
 
 export interface CourseInvite {
@@ -166,7 +179,11 @@ export interface LessonSetExercise {
  * the refresh action are how the course takes an update when it decides to. */
 export interface LessonExerciseSet {
 	id: string;
-	lessonId: string;
+	/** Which level this hangs off — a session, or the week itself. Exactly one is set, mirroring
+	 * `CourseItem`: a problem set everybody does before week 3 starts belongs to the week, not to
+	 * whichever session happens to be first in it. */
+	lessonId: string | null;
+	chapterId: string | null;
 	/** The source's name as it read when it was copied — kept, so a deleted or renamed source does
 	 * not leave the block headed by a blank. */
 	title: string;

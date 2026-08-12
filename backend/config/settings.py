@@ -183,6 +183,26 @@ MIDDLEWARE = [
     'config.cachemw.AnonymousReadCacheMiddleware',
 ]
 
+# ...except under the test runner, where it is removed outright.
+#
+# This is not tidiness. The cache stores a response as BYTES and replays it as a plain
+# `HttpResponse`, which is correct for a real anonymous reader and fatal for a test: DRF's own
+# `Response` carries `.data`, and a replayed one does not, so an assertion on `res.data['lessons']`
+# fails with `'HttpResponse' object has no attribute 'data'` — nowhere near the line that caused it.
+#
+# It bites because the default cache is a FILE cache under `backend/cachedata/`, which outlives the
+# process: anonymous GETs made by one test earn admission (two misses is the whole bar) and are then
+# served, from disk, to a completely different test — or to the next run of the suite, or to a run
+# after the dev server has been browsing the same URLs. That made ~74 tests in `courses` alone fail
+# on a clean checkout, with the failure moving around depending on what had run before.
+#
+# Removed rather than pointed at a dummy cache, because the throttles and `redisbus` share `CACHES`
+# and their tests genuinely need it to work. The cache's own tests put it back for themselves with
+# `@override_settings` — an explicit opt-in by the one suite that is actually about this middleware,
+# which is also what stops it from silently returning to the other several hundred.
+if 'test' in sys.argv:
+    MIDDLEWARE = [mw for mw in MIDDLEWARE if not mw.endswith('AnonymousReadCacheMiddleware')]
+
 ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [

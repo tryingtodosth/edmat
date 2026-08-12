@@ -7,9 +7,11 @@
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { authStore } from '$lib/state/auth.svelte';
-	import { deleteComment, updateComment } from '$lib/services/comments';
+	import { deleteComment, saveComment, unsaveComment, updateComment } from '$lib/services/comments';
+	import { commentAnchorId } from '$lib/utils/contentLinks';
 	import MeatballsMenu from '$lib/components/shared/MeatballsMenu.svelte';
 	import ReportModal from '$lib/components/shared/ReportModal.svelte';
+	import LinkCommentToCourseModal from './LinkCommentToCourseModal.svelte';
 	import CommentForm from './CommentForm.svelte';
 	import CommentNode from './CommentNode.svelte';
 
@@ -31,8 +33,19 @@
 	let editing = $state(false);
 	let confirmingDelete = $state(false);
 	let reporting = $state(false);
+	let linkingToCourse = $state(false);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
+
+	// Whether THIS session has saved it. Deliberately not fetched: the thread endpoint does not say
+	// whether each comment is saved, and asking per comment would be a request per row to draw one
+	// menu item nobody has opened yet. So the menu offers "save", and switches to "saved" once you
+	// have — which is the only moment the answer is actually needed, and is what the server would
+	// say anyway (saving twice is a no-op there). A reload shows "save" again on something already
+	// saved; pressing it changes nothing, which is the honest failure mode for this trade.
+	let saved = $state(false);
+	// The copied-confirmation, cleared on a timer so it does not sit there as a permanent label.
+	let copied = $state(false);
 
 	// An edit or a delete changes this one comment and nothing else about the tree — the row
 	// survives a delete (it is a tombstone, so replies keep their place). So the updated version is
@@ -70,8 +83,58 @@
 			// rather than offered and then refused.
 			items.push({ label: m.report_action(), onselect: () => (reporting = true) });
 		}
+
+		// Keeping it, and filing it. Offered on your own comment as much as on anybody else's: the
+		// first is a bookmark and there is nothing odd about keeping your own explanation, and the
+		// second is about whether a thread belongs in a course, not about who wrote it.
+		items.push(
+			saved
+				? { label: m.comment_unsave(), onselect: unsave }
+				: { label: m.comment_save(), onselect: save }
+		);
+		items.push({ label: m.comment_linkToCourse(), onselect: () => (linkingToCourse = true) });
+		// The link a course's own paste-a-link form reads back. Without it a comment is the one thing
+		// in this app with no address, which is also why `contentLinks.ts` looks for this exact
+		// fragment — one anchor, produced here and parsed there.
+		items.push({
+			label: copied ? m.comment_linkCopied() : m.comment_copyLink(),
+			onselect: copyLink
+		});
 		return items;
 	});
+
+	async function save() {
+		error = null;
+		try {
+			await saveComment(comment.id);
+			saved = true;
+		} catch {
+			error = m.common_error_generic();
+		}
+	}
+
+	async function unsave() {
+		error = null;
+		try {
+			await unsaveComment(comment.id);
+			saved = false;
+		} catch {
+			error = m.common_error_generic();
+		}
+	}
+
+	async function copyLink() {
+		const url = `${window.location.origin}${window.location.pathname}#${commentAnchorId(comment.id)}`;
+		try {
+			await navigator.clipboard.writeText(url);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			// A clipboard write can be refused outright (an insecure origin, a denied permission),
+			// and silently doing nothing would read as a broken button.
+			error = m.comment_copyLinkFailed();
+		}
+	}
 
 	async function saveEdit(body: string) {
 		busy = true;
@@ -100,7 +163,9 @@
 	}
 </script>
 
-<li class="comment">
+<!-- The anchor that gives a comment an address. `contentLinks.ts` parses this exact fragment back
+     into a comment id, which is what lets a pasted link become a real link from a course. -->
+<li class="comment" id={commentAnchorId(comment.id)}>
 	<div class="comment__top">
 		{#if usersById[comment.authorId] && !hidden}
 			<a class="comment__author" href={resolve('/users/[id]', { id: comment.authorId })}>
@@ -179,6 +244,10 @@
 		</ul>
 	{/if}
 </li>
+
+{#if linkingToCourse}
+	<LinkCommentToCourseModal commentId={comment.id} onClose={() => (linkingToCourse = false)} />
+{/if}
 
 {#if reporting}
 	<ReportModal kind="comment" objectId={comment.id} onClose={() => (reporting = false)} />

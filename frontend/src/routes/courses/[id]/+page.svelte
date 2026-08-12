@@ -19,11 +19,11 @@
 		leaveCourse,
 		getAttachments,
 		getMyCourseNotes,
-		linkSetToLesson,
+		linkSet,
 		moveCourseItem,
 		refreshLinkedSet,
 		reorderCourse,
-		unlinkSetFromLesson,
+		unlinkSet,
 		saveMyCourseNote,
 		updateChapter,
 		updateLesson,
@@ -655,24 +655,41 @@
 									(msg) => (staffError = msg)
 								)
 						: undefined}
-					onlinkset={course.canCurate
-						? (lessonId, setSlug) =>
+					onlinkcontent={course.canCurate
+						? (parentKind, parentId, ref, note) =>
 								act(
-									() => linkSetToLesson(course!.id, lessonId, setSlug),
+									() =>
+										submitCourseItem(course!.id, {
+											// One of these three; the editor never produces more, and the
+											// server refuses anything that names two.
+											exerciseId: ref.kind === 'exercise' ? ref.id : undefined,
+											materialId: ref.kind === 'material' ? ref.id : undefined,
+											discussionId: ref.kind === 'discussion' ? ref.id : undefined,
+											chapterId: parentKind === 'chapter' ? parentId : null,
+											lessonId: parentKind === 'lesson' ? parentId : null,
+											note
+										}),
+									(msg) => (staffError = msg)
+								)
+						: undefined}
+					onlinkset={course.canCurate
+						? (parentKind, parentId, setSlug) =>
+								act(
+									() => linkSet(course!.id, parentKind, parentId, setSlug),
 									(msg) => (staffError = msg)
 								)
 						: undefined}
 					onrefreshset={course.canCurate
-						? (lessonId, linkId) =>
+						? (parentKind, parentId, linkId) =>
 								act(
-									() => refreshLinkedSet(course!.id, lessonId, linkId),
+									() => refreshLinkedSet(course!.id, parentKind, parentId, linkId),
 									(msg) => (staffError = msg)
 								)
 						: undefined}
 					onunlinkset={course.canCurate
-						? (lessonId, linkId) =>
+						? (parentKind, parentId, linkId) =>
 								act(
-									() => unlinkSetFromLesson(course!.id, lessonId, linkId),
+									() => unlinkSet(course!.id, parentKind, parentId, linkId),
 									(msg) => (staffError = msg)
 								)
 						: undefined}

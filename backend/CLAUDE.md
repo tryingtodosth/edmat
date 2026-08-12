@@ -81,6 +81,14 @@ preference gating that means muted rows are never created). New type → registe
 throttle counters, the anonymous-read response cache (`config/cachemw.py`) becomes shared, and
 SSE goes pub/sub (`notifications/redisbus.py`). Never make Redis a hard dependency.
 
+**`AnonymousReadCacheMiddleware` is stripped from `MIDDLEWARE` under the test runner**, and must
+stay that way. It replays a stored response as a plain `HttpResponse`, which has no `.data`, and
+the default cache is a FILE cache under `backend/cachedata/` that outlives the process — so one
+test's anonymous GET earned admission and was then served to a different test, to the next run,
+or to a run after the dev server had browsed the same URL. That broke ~74 tests in `courses`
+alone on a clean checkout, moving around depending on execution order. `telemetry.tests.
+AnonymousReadCacheTests` puts it back for itself with `@override_settings`.
+
 ## Testing
 
 `testing/factories.py` — plain functions, deliberately not factory_boy. Use `make_viewer` (no

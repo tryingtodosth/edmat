@@ -5554,6 +5554,129 @@ both transports.
 
 ---
 
+## 17AC. Feature: a course links real content, not a link in a paragraph (✅ built, full stack)
+
+A chapter or a lesson could reference something in exactly one way that a curator could reach: paste
+its address into the description and let the Markdown render it. That works once and then stops
+being useful — the course cannot show the material's live title, cannot drop an exercise a moderator
+has pulled, cannot order it against the rest of the week, and cannot find it in the course's own
+search. None of that is available to a string in a paragraph.
+
+Most of the machinery already existed. `CourseItem` has been the intermediary all along (material /
+exercise / attachment / event, filed into a chapter or a lesson, with order, note and a review
+status), and `LessonExerciseSet` already pinned a whole set into a lesson. Four things were missing,
+and they are what this section is.
+
+### A discussion is now a thing a course can point at
+
+A fifth `CourseItem` kind, `discussion`, pointing at a `community.Comment`. This is the one kind that
+needed rules the other four did not:
+
+- **A root comment only.** A thread is a conversation; a link into the middle of one is a link to an
+  answer with the question missing.
+- **Not a thread private to another course.** A course's own discussion, and a week's or a session's
+  inside it, are readable by that course's participants (`discussion_mode` defaults to
+  `participants` because the roster is private). Linking one into a *different* course would publish
+  it to a roster it was never shared with — exactly what the attachment check already refuses, so it
+  is refused the same way. This course's own thread is fine, and is the case the feature was asked
+  for: filing this week's question into this week.
+- **A taken-down thread stops being shown** to participants and stays visible to curators, who are
+  the people who can replace it — the same rule an unpublished exercise already gets.
+- The label is the comment's opening words, because a comment has no title and never will. The
+  response also carries `discussion_target_type`/`_id`: a comment has no page of its own, it hangs
+  off whatever its own target hangs off, and only the server can say which. That is what
+  `community/targets.py` exists for.
+
+### A set can hang off a week, not only a session
+
+`LessonExerciseSet` gained a nullable `chapter` beside its (now nullable) `lesson`, with an
+exactly-one check constraint — the same shape `CourseItem` already had, for the same reason: the
+reading everybody does before week 3 belongs to the week, not to whichever session is first in it.
+One pair of endpoints serves both levels (`/{lessons|chapters}/{id}/exercise-sets/`) rather than a
+second pair under `chapters/`, since the two differ only in which column the row stores. Its reorder
+group ids are therefore prefixed (`chapter:7` / `lesson:7`); a **bare id still means a lesson**, so
+every payload written before chapters were possible keeps meaning what it did. The model keeps its
+`Lesson`-shaped name deliberately — renaming it would rewrite six files' worth of imports and a
+drag-and-drop registry to say what its docstring says better.
+
+### The linking form is where you already are
+
+`LinkedContentEditor.svelte`, rendered inside both the chapter and the lesson edit dialogs: the list
+of what is linked, and one row to add another. It takes **the thing people actually have** — the
+address of the page they are looking at — and turns it into a real row. `lib/utils/contentLinks.ts`
+does the reading, and is deliberately tolerant about shape and strict about meaning: a full URL from
+any origin, a path, a locale prefix, a trailing slash, a query string and a bare id all resolve, and
+anything else returns null and is refused in words rather than guessed at.
+
+Two things about the surface are load-bearing rather than tidy. It brings **no `<form>` of its own**,
+because it renders inside dialogs that are already forms — nesting is invalid HTML, browsers resolve
+it by dropping the inner one, and the "Add link" button would have submitted the dialog and saved the
+chapter instead. And Enter in its text field is `preventDefault`ed for the same reason. The dialogs'
+description fields also came down from 30vh to 14vh: "as tall as the dialog can reasonably give it"
+was true when the description was the only thing worth space, and at that height the new section and
+the Save button both opened below the fold.
+
+### A comment's "⋯" grew three entries
+
+**Save this** (a private bookmark, `community.SavedComment`, listed on `/settings`), **Link to a
+course** (pick one you can curate, optionally a chapter or lesson), and **Copy link**. The last is
+not a nicety: a comment had no address at all, so `CommentNode` now renders an `#comment-<id>`
+anchor and `contentLinks.ts` parses that exact fragment back — one anchor, produced in one place and
+read in one place, which is what makes a discussion linkable from the course form too.
+
+Filing from the thread matters because a thread is something you come across while reading; going
+away to find the course, open the right week and paste a link is how a good answer ends up not filed
+at all.
+
+### Verified
+
+**19 new tests in `courses/test_content_links.py`** (its own module — `tests.py` is already 4000
+lines) and **8 in `community/tests.py`**, weighted at refusals: a reply, a removed comment, the same
+thread twice, another course's private thread, and the participant/curator split on a taken-down
+one; then the chapter-level set link, its locked-chapter visibility, the prefixed reorder, the bare
+id still meaning a lesson, and a drag from a lesson onto a chapter clearing the lesson.
+
+**`e2e/course-content-links.mjs`, 23 checks in a real browser, zero console/page errors.**
+
+**One real bug the tests could not have caught, found by the browser run:** DRF derives an action's
+`url_name` with hyphens but leaves `url_path` as the method name **verbatim**, so
+`reverse('comment-save-for-me')` resolved happily in the tests while the real route was
+`/comments/{id}/save_for_me/` — green against a URL no client could build. `url_path` is now spelled
+out.
+
+### A pre-existing failure that had to be fixed to verify any of this
+
+`manage.py test courses` failed ~74 tests on a clean checkout, with `'HttpResponse' object has no
+attribute 'data'`. The anonymous-read response cache (§17AB) stores a response as bytes and replays
+it as a plain `HttpResponse`; its default backend is a FILE cache under `backend/cachedata/` that
+outlives the process, so an anonymous GET made by one test earned admission (two misses is the whole
+bar) and was then served to a different test, to the next run, or to a run after the dev server had
+browsed the same URL. Confirmed identical on unmodified `main` before touching anything. The
+middleware is now stripped from `MIDDLEWARE` under the test runner, and
+`telemetry.tests.AnonymousReadCacheTests` puts it back for itself with `@override_settings`.
+
+**Not fixed, and confirmed pre-existing on `main`:** 26 tests in `courses.tests.CourseSearchTests`
+fail with `KeyError: 'reason'`. Reproduced on an untouched checkout of the same commit; that area
+has other work in flight, so it is reported rather than edited.
+
+### Left open, not built
+
+- **The page-level "Add something" panel and this dialog section overlap.** That panel searches by
+  title and is the better affordance for a material or an exercise; this one takes an address and is
+  the only way to link a discussion. Folding the search picker into the dialog would be the right
+  next step.
+- **No search picker for a discussion**, in either place — the route to one is the thread's own menu
+  or a copied link, by design, but a curator who knows the thread exists and not where it is has no
+  way to find it.
+- **"Saved" is per-session on a comment.** The thread endpoint does not say whether each comment is
+  saved, so a reload shows "Save this" on something already saved; pressing it changes nothing.
+  Fetching it would be a request per row to draw a menu item nobody has opened.
+- **The saved list has no folders, tags or ordering**, deliberately — it is a bookmark list, not a
+  filing system.
+- **Nothing notifies the author** when their comment is filed into a course.
+
+---
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this
