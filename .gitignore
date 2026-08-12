@@ -64,3 +64,9 @@ backend/cachedata/
 # Apache logs with real user IPs. Must NEVER be committed — this line exists so a stray
 # `git add -A` cannot publish it.
 FUW/
+
+# deploy/fuw/pack.sh fallback output dir (default is FUW/, already ignored)
+dist/
+
+# FUW deploy scripts — private, kept local-only (backed up under FUW/script-backups/)
+deploy/fuw/
