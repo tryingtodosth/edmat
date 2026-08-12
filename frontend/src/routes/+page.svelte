@@ -17,7 +17,7 @@
 	// homepage five round trips slow for a visitor who only ever looks at one; re-fetching on every
 	// switch would make going back and forth flicker. So each tab loads the first time it is opened
 	// and is then held for the life of the page.
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
@@ -172,8 +172,14 @@
 		loading = {};
 		loadTab(active);
 	});
+	// `untrack` is load-bearing: `loadTab` reads and writes `loading`/`loaded`/`failed` before its
+	// first `await`, and $effect tracks every state read/write made during its synchronous run,
+	// including inside a called function — so without this, the effect ends up depending on `loading`
+	// too, and its own synchronous write to `loading` (inside `loadTab`) immediately reruns it, firing
+	// the tab's fetch in an infinite loop. Only `active` should ever trigger this effect.
 	$effect(() => {
-		loadTab(active);
+		const id = active;
+		untrack(() => loadTab(id));
 	});
 </script>
 
