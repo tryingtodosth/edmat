@@ -18,9 +18,11 @@
 	// switch would make going back and forth flicker. So each tab loads the first time it is opened
 	// and is then held for the life of the page.
 	import { onMount, untrack } from 'svelte';
+	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import SearchInput from '$lib/components/shared/SearchInput.svelte';
 	import type { Branch, Material, ResolvedExercise, Service } from '$lib/types';
 	import type { Course } from '$lib/types/course';
@@ -69,7 +71,17 @@
 	// flags both resolve asynchronously, and anything latched at mount here would be answering with
 	// what was true before either arrived. An unknown or hidden `?tab=` falls back to exercises rather
 	// than rendering nothing, so a stale link to a killed feature still lands somewhere real.
+	// The `browser` guard is what lets this page be prerendered (see +page.ts). A prerendered page is
+	// rendered once, at build time, for a URL that by definition has no query string — so SvelteKit
+	// throws rather than let a build silently bake in one arbitrary `?tab=` answer as if it were
+	// everyone's. Returning the default there is the honest answer to "which tab did they ask for?"
+	// when nobody has asked yet.
+	//
+	// Nothing is lost by it: this is `$derived`, not state latched at mount, so the moment the page
+	// hydrates in a real browser the real URL is read and a `?tab=events` link lands on Events. That
+	// is the same frame in which the tabs' own content arrives anyway.
 	let active = $derived.by((): TabId => {
+		if (!browser) return 'exercises';
 		const asked = page.url.searchParams.get('tab') as TabId | null;
 		return asked && visibleTabs.some((t) => t.id === asked) ? asked : 'exercises';
 	});
@@ -183,9 +195,8 @@
 	});
 </script>
 
-<svelte:head>
-	<title>{m.common_appName()}</title>
-</svelte:head>
+<!-- No `title` prop: on the homepage the app name alone is the title, with nothing to prefix it. -->
+<PageHead description={m.seo_home_description()} />
 
 <div class="page">
 	<section class="hero">

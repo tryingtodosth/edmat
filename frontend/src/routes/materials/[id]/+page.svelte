@@ -265,7 +265,10 @@
 			{/if}
 		</nav>
 
-		<MaterialCard {material} linkTitle={false} />
+		<!-- headingLevel={1}: this card IS this page's header, so its title is the page's h1. Without
+		     it the document had no h1 at all and went h3 -> h2, which reads to a screen reader and a
+		     crawler alike as sections that outrank the thing they belong to. -->
+		<MaterialCard {material} linkTitle={false} headingLevel={1} />
 		<ReportButton kind="material" objectId={material.id} />
 
 		<section class="claim-group">

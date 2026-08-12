@@ -10,13 +10,12 @@
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import { m } from '$lib/paraglide/messages.js';
 	import { levelsDocFor } from '$lib/content/levels';
+	import PageHead from '$lib/components/shared/PageHead.svelte';
 
 	const doc = $derived(levelsDocFor(getLocale()));
 </script>
 
-<svelte:head>
-	<title>{doc.title} — {m.common_appName()}</title>
-</svelte:head>
+<PageHead title={doc.title} description={m.seo_levels_description()} />
 
 <article class="levels">
 	<header class="levels__header">

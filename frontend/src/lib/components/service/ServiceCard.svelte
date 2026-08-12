@@ -9,14 +9,18 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 
+	// headingLevel: see the same prop on MaterialCard for the reasoning — 3 in a listing grid, 1 on
+	// /services/[id] where this card is the page header and the page's own sections sit at h2.
 	let {
 		service,
 		branchNames = [],
-		linkTitle = true
+		linkTitle = true,
+		headingLevel = 3
 	}: {
 		service: Service;
 		branchNames?: string[];
 		linkTitle?: boolean;
+		headingLevel?: 1 | 2 | 3;
 	} = $props();
 
 	let isOwnListing = $derived(authStore.user?.id === service.providerId);
@@ -30,7 +34,7 @@
 
 <article class="service-card">
 	<div class="service-card__heading">
-		<h3>
+		<svelte:element this={`h${headingLevel}`} class="service-card__title">
 			{#if linkTitle}
 				<a class="service-card__title-link" href={resolve('/services/[id]', { id: service.id })}>
 					{service.title}
@@ -38,7 +42,7 @@
 			{:else}
 				{service.title}
 			{/if}
-		</h3>
+		</svelte:element>
 		{#if service.hourlyRate !== null}
 			<span class="rate">{service.hourlyRate} {service.currency}/h</span>
 		{/if}
@@ -110,7 +114,10 @@
 		justify-content: space-between;
 		gap: var(--space-2);
 	}
-	h3 {
+	// Targets the class, not the tag: the title's heading LEVEL is now a prop (h1 on the listing's
+	// own page, h3 in a grid), so a tag selector would silently stop applying in exactly the case
+	// the prop exists for. The size is a property of this being a card title, not of its rank.
+	.service-card__title {
 		font-size: var(--font-size-base);
 	}
 	.service-card__title-link {
