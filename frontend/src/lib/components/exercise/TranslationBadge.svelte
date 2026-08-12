@@ -5,7 +5,7 @@
 </script>
 
 {#if isOriginal}
-	<span class="badge">{m.exercise_original()}</span>
+	<span class="badge" title={m.exercise_originalExplanation()}>{m.exercise_original()}</span>
 {:else}
 	<span class="badge badge--translated"
 		>{m.exercise_translatedBy({ name: translatorName ?? '—' })}</span

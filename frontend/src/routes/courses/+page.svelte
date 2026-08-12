@@ -91,7 +91,14 @@
 	{:else if failed}
 		<p class="status">{m.common_error_generic()}</p>
 	{:else if courses.length === 0}
-		<p class="status">{m.course_browseEmpty()}</p>
+		<div class="empty">
+			<p class="status">{m.course_browseEmpty()}</p>
+			{#if authStore.isAuthenticated}
+				<a class="primary" href={resolve('/courses/new')}>{m.course_runACourse()}</a>
+			{:else}
+				<a class="primary" href={resolve('/register')}>{m.courses_emptySignUpCta()}</a>
+			{/if}
+		</div>
 	{:else}
 		{#if offline}
 			<SavedCopyNotice {savedAt} {stale} />
@@ -132,6 +139,12 @@
 	.status {
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
+	}
+	.empty {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-3);
 	}
 	.actions {
 		display: flex;

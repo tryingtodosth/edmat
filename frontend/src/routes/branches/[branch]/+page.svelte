@@ -32,6 +32,13 @@
 	let loading = $state(true);
 	let notFound = $state(false);
 
+	// Dumb client-side pagination: the branch page can render hundreds of ExerciseCards in one go,
+	// which is the actual cost — not a real "page" concept, just how many of the already-fetched
+	// `exercises` are mounted into the DOM at once. No URL state, no virtualization.
+	const EXERCISES_PAGE_SIZE = 30;
+	let visibleExerciseCount = $state(EXERCISES_PAGE_SIZE);
+	let visibleExercises = $derived(exercises.slice(0, visibleExerciseCount));
+
 	async function loadCourse(branchId: string) {
 		loading = true;
 		notFound = false;
@@ -85,6 +92,9 @@
 			(list) => {
 				if (superseded) return;
 				exercises = list;
+				// A new answer means the filters changed (or the branch did) — start back at page one
+				// rather than leaving whatever "show more" progress the visitor had made on the old list.
+				visibleExerciseCount = EXERCISES_PAGE_SIZE;
 			}
 		);
 		return () => {
@@ -169,12 +179,23 @@
 		{#if tab === 'exercises'}
 			<div class="layout">
 				<FiltersSidebar {topics} bind:filters resultCount={exercises.length} />
-				<div class="grid">
-					{#each exercises as exercise (exercise.id)}
-						<ExerciseCard {exercise} />
-					{/each}
-					{#if exercises.length === 0}
-						<p class="empty">{m.home_noResults()}</p>
+				<div class="exercises-column">
+					<div class="grid">
+						{#each visibleExercises as exercise (exercise.id)}
+							<ExerciseCard {exercise} />
+						{/each}
+						{#if exercises.length === 0}
+							<p class="empty">{m.home_noResults()}</p>
+						{/if}
+					</div>
+					{#if visibleExerciseCount < exercises.length}
+						<button
+							type="button"
+							class="show-more"
+							onclick={() => (visibleExerciseCount += EXERCISES_PAGE_SIZE)}
+						>
+							{m.branch_showMore()}
+						</button>
 					{/if}
 				</div>
 			</div>
@@ -201,6 +222,8 @@
 </div>
 
 <style lang="scss">
+	@use '../../../lib/styles/mixins' as mix;
+
 	.page {
 		max-width: 1100px;
 		margin: 0 auto;
@@ -247,6 +270,16 @@
 		gap: var(--space-4);
 		align-items: start;
 	}
+	// Desktop only, matching the 780px breakpoint below where the sidebar collapses to sitting
+	// inline above the grid — sticky positioning would be meaningless (and mildly weird) there.
+	// Header.svelte's own bar is `position: sticky; top: 0`, so the offset only needs to clear its
+	// (fluid, clamp()-based) height; 80px covers it at every width above the collapse.
+	@media (min-width: 781px) {
+		.layout :global(.filters) {
+			position: sticky;
+			top: 80px;
+		}
+	}
 	.grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -254,6 +287,21 @@
 	}
 	.grid--materials {
 		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	}
+	.exercises-column {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.show-more {
+		@include mix.focus-ring;
+		align-self: center;
+		padding: var(--space-2) var(--space-4);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface-alt);
+		color: var(--text-primary);
+		font-weight: 500;
 	}
 	.loading,
 	.empty {
