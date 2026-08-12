@@ -33,7 +33,7 @@
 <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an internal route with a dynamic id segment the rule cannot statically see through -->
 <a class="course-card" href={`${resolve('/courses')}/${course.id}`}>
 	<div class="head">
-		<h3>{course.title}</h3>
+		<h2 class="title">{course.title}</h2>
 		{#if visibilityLabel}
 			<span class="status status--unlisted">{visibilityLabel}</span>
 		{/if}
@@ -49,6 +49,24 @@
 			· {m.course_policy_approval()}
 		{/if}
 	</p>
+	{#if course.language || course.price || course.fieldSlug || course.subjectSlugs.length > 0}
+		<div class="pills">
+			{#if course.language}
+				<span class="meta-pill">{course.language}</span>
+			{/if}
+			{#if course.price}
+				<span class="meta-pill price"
+					>{m.courses_price({ amount: course.price, currency: course.currency })}</span
+				>
+			{/if}
+			{#if course.fieldSlug}
+				<span class="meta-pill">{course.fieldSlug}</span>
+			{/if}
+			{#each course.subjectSlugs as slug (slug)}
+				<span class="meta-pill">{slug}</span>
+			{/each}
+		</div>
+	{/if}
 	{#if course.myEnrollmentStatus === 'pending'}
 		<span class="mine">{m.course_yourRequestPending()}</span>
 	{:else if course.myEnrollmentStatus === 'active'}
@@ -76,7 +94,7 @@
 		gap: var(--space-2);
 		align-items: baseline;
 	}
-	h3 {
+	.title {
 		font-size: var(--font-size-md);
 	}
 	.status {
@@ -98,6 +116,15 @@
 	.meta {
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);
+	}
+	.pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+	}
+	.meta-pill {
+		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+		font-weight: 600;
 	}
 	.mine {
 		font-size: var(--font-size-xs);

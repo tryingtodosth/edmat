@@ -55,13 +55,16 @@
 </div>
 
 <style lang="scss">
+	// Sticky-footer flex used to force `.app-shell` to at least one full viewport height, which on a
+	// content-light page (e.g. /services with only a handful of cards) left a large blank gap between
+	// the results and the footer. Dropping the forced min-height lets the footer sit right after
+	// whatever content actually rendered; on a page tall enough to fill the viewport on its own this
+	// changes nothing, since normal document flow already puts the footer after it either way.
 	.app-shell {
 		display: flex;
 		flex-direction: column;
-		min-height: 100%;
 	}
 	.app-main {
-		flex: 1;
 		width: 100%;
 	}
 </style>

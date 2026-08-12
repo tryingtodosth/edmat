@@ -27,10 +27,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import ExperienceEntry, Profile, SkillEntry
+from booking.models import AvailabilityRule
 from courses.models import Chapter, Enrollment, Lesson, Course
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, Tag
 from materials.models import Material
+from services.models import Service
 from taxonomy.models import Branch, Discipline
 
 User = get_user_model()
@@ -199,11 +201,13 @@ class Command(BaseCommand):
         courses = self._seed_courses(people)
         self._seed_course_activity(courses, people)
         attributed = self._seed_attribution(people)
+        self._seed_services(people)
 
         self.stdout.write(
             self.style.SUCCESS(
                 f'Seeded {len(people)} demo profiles, {Review.objects.count()} reviews, '
-                f'{Comment.objects.count()} comments, {len(courses)} courses and '
+                f'{Comment.objects.count()} comments, {len(courses)} courses, '
+                f'{Service.objects.filter(provider__in=people.values()).count()} tutoring services and '
                 f'{attributed} attributed contributions. '
                 f'Password for every demo account: {DEMO_PASSWORD}'
             )
@@ -461,3 +465,69 @@ class Command(BaseCommand):
             )
             if created and parent is None:
                 parent = comment
+
+    # -- tutoring services --------------------------------------------------------------------------
+
+    def _seed_services(self, people: dict) -> None:
+        """Two demo listings the booking screens genuinely need real data for.
+
+        Both `Service.delivery_mode == 'in_person'` and `availability_mode == 'declared'` are real,
+        supported states — an in-person listing renders a map from its own lat/lon, and a declared
+        listing renders the "published window, not live availability" notice plus a slot grid built
+        from a real weekly `AvailabilityRule` — but nothing else this command seeds exercises either
+        path, so both looked broken in a fresh install even though neither is.
+
+        Idempotent like the rest of the command: keyed on (provider, title) via `update_or_create`,
+        and the availability rule on (tutor, weekday, start_time) so re-running never duplicates it.
+        """
+        in_person_provider = people['zofia']
+        in_person_service, _ = Service.objects.update_or_create(
+            provider=in_person_provider,
+            title='Mechanika klasyczna — zajęcia na miejscu',
+            defaults={
+                'description': 'Spotykamy się na Wydziale Fizyki UW. Przynieś własne zadania '
+                'albo pracujemy nad moimi.',
+                'delivery_mode': 'in_person',
+                'location_label': 'Wydział Fizyki UW, Pasteura 5',
+                'location_lat': '52.211900',
+                'location_lon': '21.006700',
+                'hourly_rate': '80.00',
+                'currency': 'PLN',
+                'availability_mode': 'derived',
+                'session_minutes': 60,
+                'is_active': True,
+            },
+        )
+        subject = self._branch_for_skill('Mechanika klasyczna')
+        if subject:
+            in_person_service.branches.add(subject)
+
+        declared_provider = people['ania']
+        declared_service, _ = Service.objects.update_or_create(
+            provider=declared_provider,
+            title='Analiza — dyżur konsultacyjny',
+            defaults={
+                'description': 'Stały dyżur, wpadaj z pytaniami z analizy — wtorki i czwartki '
+                'popołudniu.',
+                'delivery_mode': 'online',
+                'hourly_rate': '60.00',
+                'currency': 'PLN',
+                'availability_mode': 'declared',
+                'session_minutes': 60,
+                'is_active': True,
+            },
+        )
+        subject = self._branch_for_skill('Analiza matematyczna')
+        if subject:
+            declared_service.branches.add(subject)
+
+        # Tuesday(1) and Thursday(3), 16:00-19:00 — a real weekly window so the declared-mode notice
+        # and the slot grid it produces both have something to render.
+        for weekday in (1, 3):
+            AvailabilityRule.objects.update_or_create(
+                tutor=declared_provider,
+                service=declared_service,
+                weekday=weekday,
+                start_time='16:00',
+                defaults={'end_time': '19:00'},
+            )

@@ -59,12 +59,27 @@
 		border-color: var(--border-color);
 	}
 	.coverage-badge--moderate {
+		// Outlined, not filled: pale background plus a matching border so it reads as one step up
+		// from `--light` above rather than blurring into `--deep`'s own filled treatment below —
+		// the two used to be the same pale-pill shape in different hues, which read as near-
+		// identical at a glance (especially to anyone with a color-vision deficiency skimming a
+		// grid of these).
 		color: var(--status-info);
 		background: var(--status-info-bg);
+		border-color: var(--status-info);
 	}
 	.coverage-badge--deep {
-		color: var(--accent);
-		background: var(--accent-soft);
+		// Filled (solid background, contrast-checked light text), not just another pale pill: the
+		// strongest of the three depths gets the strongest visual weight. `--accent` on white
+		// clears 5.8:1 in the light theme (AA for normal text needs 4.5:1) — well above the
+		// 3.92:1 failure Phase 4's own accessibility pass already fixed once for
+		// `$light-status-success`, so this reuses the same accent token without repeating that
+		// mistake in a new spot. `--accent-contrast` is dark-on-teal in the dark theme, so it
+		// stays correct there without a separate override.
+		color: var(--accent-contrast);
+		background: var(--accent);
+		border-color: var(--accent);
+		font-weight: 600;
 	}
 	.coverage-badge__label {
 		// A topic/subtopic name is real, unbounded-length text, not a short fixed-vocabulary
@@ -83,5 +98,13 @@
 	}
 	.coverage-badge__count {
 		opacity: 0.75;
+	}
+	// The 0.75 opacity above is fine against `--light`/`--moderate`'s own pale backgrounds, but
+	// blended over `--deep`'s solid fill it drops the depth/count text to ~4.07:1 — under the
+	// 4.5:1 normal-text floor even though the full-opacity label right next to it clears 5.8:1.
+	// Full opacity here keeps that sub-text at the same contrast as the label.
+	.coverage-badge--deep .coverage-badge__depth,
+	.coverage-badge--deep .coverage-badge__count {
+		opacity: 1;
 	}
 </style>

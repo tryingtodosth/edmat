@@ -5,7 +5,7 @@
 </script>
 
 {#if verified}
-	<span class="badge badge--verified" title={m.exercise_verified()}>
+	<span class="badge badge--verified" title={m.exercise_verifiedExplanation()}>
 		<span aria-hidden="true">✓</span>
 		{m.exercise_verified()}
 	</span>

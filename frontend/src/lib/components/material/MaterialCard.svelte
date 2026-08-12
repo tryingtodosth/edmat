@@ -15,6 +15,7 @@
 	import { resolve } from '$app/paths';
 	import type { Material, MaterialCoverage } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
+	import { coverageDepth } from '$lib/utils/coverage';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
@@ -106,7 +107,9 @@
 			{#each topCoverage as coverage (coverage.id)}
 				<button
 					type="button"
-					class="claim-chip claim-chip--coverage"
+					class="claim-chip claim-chip--coverage claim-chip--coverage-{coverageDepth(
+						coverage.level
+					)}"
 					title={coverage.subtopicName ?? coverage.topicName}
 					onclick={() => (openCoverageId = coverage.id)}
 				>
@@ -330,14 +333,36 @@
 	}
 	.claim-chip--coverage {
 		@include mix.focus-ring;
+		// Base/`--light`-depth treatment: pale info background, no border. `--moderate` and `--deep`
+		// below override this to stay visually distinct from each other — the two used to share
+		// this exact pale-pill look, which is the "look identical" bug CoverageBadge.svelte's own
+		// depth variants fix the same way (this card renders coverage claims as its own chips,
+		// not <CoverageBadge>, so the fix is duplicated here rather than shared).
 		color: var(--status-info);
 		background: var(--status-info-bg);
-		border: none;
+		border: 1px solid transparent;
 		cursor: pointer;
 		font: inherit;
 		&:hover {
 			background: var(--accent-soft);
 			color: var(--accent);
+		}
+	}
+	.claim-chip--coverage-moderate {
+		border-color: var(--status-info);
+	}
+	.claim-chip--coverage-deep {
+		// Filled, matching CoverageBadge's own `--deep` treatment: `--accent` background clears
+		// 5.8:1 against `--accent-contrast` text in the light theme (AA needs 4.5:1 for this
+		// font-size-xs text).
+		color: var(--accent-contrast);
+		background: var(--accent);
+		border-color: var(--accent);
+		font-weight: 600;
+		&:hover {
+			background: var(--accent);
+			color: var(--accent-contrast);
+			opacity: 0.9;
 		}
 	}
 	.claim-chip--requirement {
@@ -398,8 +423,15 @@
 	}
 	.download {
 		@include mix.button-secondary;
-		padding: var(--space-1) var(--space-3);
-		font-size: var(--font-size-xs);
+		// A ~44px effective tap target (WCAG 2.5.5-ish minimum), not the previous
+		// `padding: var(--space-1) var(--space-3)` + 12px text combo that measured ~22px tall —
+		// too small to reliably tap on a phone. `min-height` (not just bigger padding) is what
+		// actually guarantees the floor regardless of font metrics; the card's own footer already
+		// centers this link vertically (`.material-card__footer { align-items: center }`), so
+		// growing just this control doesn't skew the row's layout.
+		min-height: 44px;
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--font-size-sm);
 	}
 	// A plain link, deliberately not styled as a button like `.download` beside it — following a
 	// provenance link is a secondary, informational action, and giving it equal visual weight to

@@ -119,6 +119,14 @@
 	let daysWithSlots = $derived((availability?.days ?? []).filter((day) => day.slots.length > 0));
 	let canPick = $derived(!isOwnListing && authStore.isAuthenticated);
 
+	// Same `/messages/new?to=&subject=` pattern ServiceCard and the service detail page use for their
+	// own Contact links — kept identical so a compose link means the same thing everywhere it appears.
+	let contactHref = $derived(
+		`${resolve('/messages/new')}?to=${encodeURIComponent(service.providerId)}&subject=${encodeURIComponent(
+			m.services_contactSubject({ title: service.title })
+		)}`
+	);
+
 	/** Every published slot as a calendar block. One resolution, both calendar views — the components
 	 * themselves know nothing about availability modes or services (see calendar.ts). */
 	let entries = $derived<CalendarEntry[]>(
@@ -241,6 +249,12 @@
 		     grid, and want completely different words — hence the backend's own `has_schedule` flag
 		     rather than inferring it from the slot count. -->
 		<p class="muted">{m.booking_noSchedule()}</p>
+		{#if authStore.isAuthenticated && !isOwnListing}
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an internal route built from resolve('/messages/new') plus a query string the eslint rule can't statically see through -->
+			<a class="message-tutor" href={contactHref}>{m.booking_messageTutor()}</a>
+		{:else if !authStore.isAuthenticated}
+			<p class="muted"><a href={resolve('/login')}>{m.booking_loginToMessage()}</a></p>
+		{/if}
 	{:else}
 		<p class="mode-notice" class:mode-notice--declared={availability?.mode === 'declared'}>
 			{availability?.mode === 'declared' ? m.booking_notice_declared() : m.booking_notice_derived()}
@@ -374,6 +388,10 @@
 			color: var(--accent);
 			font-weight: 600;
 		}
+	}
+	.message-tutor {
+		@include mix.button-primary;
+		align-self: flex-start;
 	}
 	.mode-notice {
 		font-size: var(--font-size-sm);

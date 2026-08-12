@@ -18,9 +18,14 @@
 	let personalized = $state(false);
 	let materials = $state<Awaited<ReturnType<typeof getRecommendedMaterials>>['materials']>([]);
 
+	// Capped at 4, not the previous 6: this strip and the full filtered grid below it
+	// (routes/materials/+page.svelte) both draw from the same small pool of materials in the
+	// common case (an unpersonalized/default view, or a small corpus), so a wider cap here just
+	// meant the same cards rendering twice on one page load — once here, once again a few hundred
+	// pixels down. 4 keeps this a genuine "quick highlights" strip rather than a second full grid.
 	$effect(() => {
 		loading = true;
-		getRecommendedMaterials(6).then((result) => {
+		getRecommendedMaterials(4).then((result) => {
 			personalized = result.personalized;
 			materials = result.materials;
 			loading = false;
