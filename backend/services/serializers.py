@@ -45,10 +45,12 @@ class ServiceSerializer(serializers.ModelSerializer):
     branch_slugs = serializers.SlugRelatedField(
         source='branches', slug_field='slug', many=True, read_only=True
     )
-    # A plain SerializerMethodField (2 extra queries per row), not a queryset-level annotation the
-    # way ExerciseListSerializer's own average_rating/review_count need to be at real corpus scale
-    # (383+ exercises) — a services browse page is a small, course-scoped or "my listings" set, not
-    # a page that has ever needed that same optimization; revisit only if that stops being true.
+    # `ServiceViewSet.get_queryset` annotates both of these, so a browse page answers them from the
+    # row it already has instead of firing two COUNT/AVG queries per listing. The per-object
+    # fallback below is not dead code and must stay: this same serializer is also handed instances
+    # that never came through that queryset — the ones `create`/`update` build from a write
+    # serializer, and `ServiceWatch`'s own embedded listing — which carry no annotation to read.
+    # Same shape (annotate, read it, fall back) as `EventSerializer.post_count`.
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
 
@@ -88,11 +90,18 @@ class ServiceSerializer(serializers.ModelSerializer):
     def get_average_rating(self, obj):
         from django.db.models import Avg
 
-        avg = obj.reviews.filter(is_removed=False).aggregate(avg=Avg('rating'))['avg']
+        avg = getattr(obj, 'annotated_average_rating', None)
+        if avg is None and not hasattr(obj, 'annotated_average_rating'):
+            # No annotation on this instance at all — resolve it the old way. (An annotated row
+            # whose value is genuinely None has no reviews, and `None` is the right answer.)
+            avg = obj.reviews.filter(is_removed=False).aggregate(avg=Avg('rating'))['avg']
         return round(avg, 1) if avg is not None else None
 
     def get_review_count(self, obj):
-        return obj.reviews.filter(is_removed=False).count()
+        count = getattr(obj, 'annotated_review_count', None)
+        if count is None:
+            count = obj.reviews.filter(is_removed=False).count()
+        return count
 
 
 class ServiceReviewSerializer(ReplyCountMixin, serializers.ModelSerializer):

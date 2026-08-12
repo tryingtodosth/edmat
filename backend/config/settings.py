@@ -117,6 +117,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Only for /sitemap.xml (config/sitemaps.py). It contributes no models and no migration — the
+    # framework is a template renderer over the Sitemap classes we hand it, which is why it can be
+    # added without touching the database.
+    'django.contrib.sitemaps',
     # third-party
     'rest_framework',
     'rest_framework.authtoken',
@@ -156,6 +160,16 @@ INSTALLED_APPS = [
 
 SITE_ID = 1
 
+# The public hostname /sitemap.xml builds its absolute URLs from — deliberately NOT the Site row
+# SITE_ID points at above. That row exists only because django-postman requires the sites framework
+# to be installed; nothing in this project ever set its domain, so it is whatever Django's own
+# initial migration left there ('example.com' on a fresh database). A sitemap quietly full of
+# example.com URLs is worse than no sitemap, so config/sitemaps.py reads this instead, and the Site
+# row stays out of it. `EDMAT_PUBLIC_HOST` in the environment (see deploy/DEPLOYMENT.md) overrides
+# it; the default is the real production domain, so a deployment that forgets to set it still emits
+# correct URLs rather than broken ones.
+EDMAT_PUBLIC_HOST = os.environ.get('EDMAT_PUBLIC_HOST', 'edmat.net')
+
 # django-postman's own notify_users() would otherwise try to email a real EMAIL_BACKEND (Django's
 # global default, unset here, is the SMTP backend, which would try to connect to localhost:25 and
 # fail/hang — this project has no real email backend configured anywhere yet, the same honest gap
@@ -167,6 +181,22 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # This close to the top so it wraps everything beneath it — a JSON list of 383 exercises or a
+    # whole moderation queue is highly repetitive text, and the bytes saved are the largest single
+    # win available on a link where the API and the SPA share one origin. Above the response cache
+    # at the bottom of this list on purpose: what gets stored there is then the UNCOMPRESSED body,
+    # so one cached entry serves both a client that accepts gzip and one that does not, and nothing
+    # is ever compressed twice.
+    #
+    # Apache's own mod_deflate is configured separately at the vhost; the two overlap harmlessly,
+    # because mod_deflate does not re-compress a response that already carries Content-Encoding.
+    #
+    # The BREACH caveat Django's own docs raise does not bite the surface that matters here: it
+    # needs a secret and attacker-controlled text in the SAME compressed response, and this API's
+    # one real secret (the DRF token) travels in a request header and is never echoed into a JSON
+    # body. The one place a secret IS rendered into a body is the browsable API's own CSRF form
+    # field, which is a staff/dev surface, not something a visitor is ever pointed at.
+    'django.middleware.gzip.GZipMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

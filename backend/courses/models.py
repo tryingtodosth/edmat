@@ -375,7 +375,23 @@ class Course(models.Model):
 
     @property
     def active_participant_count(self) -> int:
-        return self.enrollments.filter(status__in=ACTIVE_ENROLLMENT_STATUSES).count()
+        """Counted in Python over `.all()`, not `.filter(...).count()`.
+
+        `CourseViewSet.get_queryset` already prefetches `enrollments`, and a `.filter()` ignores
+        that prefetch and issues its own query — so a course directory paid one COUNT per course,
+        and a single course page paid several more, since `seats_left` and `is_full` both come
+        through here. Reading `.all()` is what lets the prefetch that is already running answer all
+        three. Same reasoning as `events.models.Event.going_count`.
+
+        On an instance with no prefetch this loads the enrolment rows rather than counting them in
+        the database. A roster is small and capacity-bounded, so that is a fair trade; note it is a
+        read of the rows as they stood when the object was fetched, which is what a `.count()` in
+        the same request would also have seen — every write path here checks capacity BEFORE it
+        creates an enrolment, and `Event.attend` refreshes the object before re-reading its count.
+        """
+        return sum(
+            1 for e in self.enrollments.all() if e.status in ACTIVE_ENROLLMENT_STATUSES
+        )
 
     @property
     def seats_left(self) -> int | None:

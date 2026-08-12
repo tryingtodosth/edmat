@@ -163,11 +163,22 @@ class Event(models.Model):
 
     def going_count(self) -> int:
         """People who said they are coming. The host is NOT counted — they are running it, not
-        attending it, and counting them would make an empty event report one attendee."""
-        return self.attendances.filter(status__in=ATTENDING_STATUSES).count()
+        attending it, and counting them would make an empty event report one attendee.
+
+        Counted in Python over `.all()` rather than with `.filter(...).count()`, for the reason
+        `EventSerializer.post_count` already spells out: a `.filter()` issues its own query and so
+        walks straight past `EventViewSet.get_queryset`'s `prefetch_related('attendances')`, which
+        made a fifty-event listing fifty COUNTs. `.all()` reads that prefetch when there is one.
+
+        Where there is no prefetch — a single event fetched by a write path — this loads the
+        attendance rows instead of counting them in the database. That is acceptable because the
+        set is small and bounded by how many people can plausibly answer one event; it is not a
+        pattern to copy onto an unbounded relation.
+        """
+        return sum(1 for a in self.attendances.all() if a.status in ATTENDING_STATUSES)
 
     def declined_count(self) -> int:
-        return self.attendances.filter(status='not_going').count()
+        return sum(1 for a in self.attendances.all() if a.status == 'not_going')
 
     @property
     def seats_left(self):

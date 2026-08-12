@@ -18,21 +18,42 @@ from .models import (
 from .serializers import BranchDetailSerializer, DisciplineSerializer
 
 
+#: Everything `BranchDetailSerializer` walks below the Branch row itself.
+#:
+#: `resolve_translation` (config/i18n_utils.py) reads `translations.all()`, which is precisely what
+#: lets a prefetch serve it — the same reason `ExerciseListSerializer._published_translations`
+#: reaches for `.all()` rather than `.filter(status=...)`. Without these, the serializer costs two
+#: queries for the Branch's own name/description, one per topic, and two per chapter.
+#:
+#: The size of that is not theoretical: the real corpus has 3 branches, 50 topics and 42 chapters,
+#: so `/api/disciplines/{slug}/branches/` was running ~150 queries. That is the single most
+#: expensive anonymous request in the app, because the frontend's root layout preloads the taxonomy
+#: on EVERY page load — and the response cache only starts serving it after its second miss, so a
+#: first-time visitor always pays it in full.
+_BRANCH_DETAIL_PREFETCH = ('translations', 'topics__translations', 'chapters__translations', 'chapters__topics')
+
+
 class DisciplineViewSet(viewsets.ReadOnlyModelViewSet):
     """GET /api/disciplines/, /api/disciplines/{slug}/, /api/disciplines/{slug}/branches/"""
 
-    queryset = Discipline.objects.filter(published=True)
+    # `translations` because DisciplineSerializer's own get_name/get_description each resolve one.
+    queryset = Discipline.objects.filter(published=True).prefetch_related('translations')
     serializer_class = DisciplineSerializer
     lookup_field = 'slug'
 
     @action(detail=True, methods=['get'])
     def branches(self, request, slug=None):
         discipline = self.get_object()
-        branches = discipline.branches.filter(published=True)
+        # `select_related('discipline')` for BranchSerializer's own `discipline` SlugRelatedField —
+        # which would otherwise re-fetch, per branch, the very discipline we already hold.
+        branches = (
+            discipline.branches.filter(published=True)
+            .select_related('discipline')
+            .prefetch_related(*_BRANCH_DETAIL_PREFETCH)
+        )
         # BranchDetailSerializer (with nested topics), not the bare BranchSerializer — the
         # frontend's own Branch type requires `topics: Topic[]` on every Branch it's handed,
-        # regardless of which endpoint produced it (Phase 3 note, taxonomy/serializers.py). The
-        # branch COUNT here is small enough (2 in the real corpus) that this costs nothing real.
+        # regardless of which endpoint produced it (Phase 3 note, taxonomy/serializers.py).
         serializer = BranchDetailSerializer(branches, many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -44,19 +65,29 @@ class BranchViewSet(viewsets.ReadOnlyModelViewSet):
     reverse dependency on exercises/materials, only the view layer needs them.
     """
 
-    queryset = Branch.objects.filter(published=True)
+    # Same prefetch as the `branches` action above, for the same reason: this viewset's DEFAULT
+    # serializer is the Detail one, so `/api/branches/{slug}/` pays the identical per-topic and
+    # per-chapter fan-out on a single row.
+    queryset = (
+        Branch.objects.filter(published=True)
+        .select_related('discipline')
+        .prefetch_related(*_BRANCH_DETAIL_PREFETCH)
+    )
     serializer_class = BranchDetailSerializer  # always includes topics — see the note above
     lookup_field = 'slug'
 
     @action(detail=True, methods=['get'])
     def exercises(self, request, slug=None):
-        from exercises.views import _annotated_exercises, _filter_exercises
+        from exercises.views import _browse_exercises, _filter_exercises
         from exercises.serializers import ExerciseListSerializer
 
         branch = self.get_object()
         params = request.query_params.copy()
         params['branch'] = branch.slug
-        qs = _filter_exercises(_annotated_exercises(), params)
+        # `_browse_exercises`, not the bare annotated queryset — this is the route the per-branch
+        # "Exercises" tab actually calls, so it is the one listing that most needs the per-row
+        # translation/tag/source lookups loaded in a fixed handful of queries rather than per row.
+        qs = _filter_exercises(_browse_exercises(), params)
         serializer = ExerciseListSerializer(qs, many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -78,10 +109,22 @@ class BranchViewSet(viewsets.ReadOnlyModelViewSet):
         branch = self.get_object()
         params = request.query_params.copy()
         params['branch'] = branch.slug
-        qs = _filter_materials(Material.objects.filter(published=True), params)
+        # `select_related('submitted_by__profile')` mirrors `MaterialViewSet.queryset`, which this
+        # route had drifted from: `get_submitted_by_display_name` walks `submitted_by.profile` for
+        # every row, so without it a branch's Materials tab paid two queries per material that the
+        # cross-branch /api/materials/ listing did not.
+        qs = _filter_materials(
+            Material.objects.filter(published=True).select_related('submitted_by__profile'), params
+        )
         materials = list(
+            # `requirements__votes__voter__profile`, not a bare `requirements` — again matching
+            # MaterialViewSet.list, whose own comment names this as the N+1 it exists to close.
             qs.prefetch_related(
-                'translations', 'coverage__votes__voter__profile', 'coverage__topic', 'tags', 'requirements'
+                'translations',
+                'coverage__votes__voter__profile',
+                'coverage__topic',
+                'tags',
+                'requirements__votes__voter__profile',
             )
         )
         materials = _sort_materials(

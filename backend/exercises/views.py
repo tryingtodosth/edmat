@@ -150,6 +150,25 @@ def _annotated_exercises():
     )
 
 
+def _browse_exercises():
+    """`_annotated_exercises()` plus everything the serializers then walk per row.
+
+    Exactly the set `ExerciseViewSet.bulk` already worked out and measured — `branch` for the slug
+    and `source` (a reverse OneToOne) both join; `translations` is what `_published_translations`
+    reads via `.all()` specifically so a prefetch can serve it; `topics`/`tags` are resolved per
+    object by DRF's own related fields; `source__translations` is one level further down again, for
+    `ExerciseSourceSerializer.get_name`.
+
+    Deliberately its own function rather than folding this into `_annotated_exercises()`, which
+    would look tidier and would be a real regression: `random()` materialises the ENTIRE filtered
+    pool with `list(...)` to weight it, so prefetching translations there would pull a translation
+    row for all ~750 published exercises on every roll, to serialize exactly one of them.
+    """
+    return _annotated_exercises().select_related('branch', 'source').prefetch_related(
+        'translations', 'topics', 'tags', 'source__translations'
+    )
+
+
 def _filter_exercises(qs, params):
     branch = params.get('branch')
     if branch:
@@ -200,7 +219,7 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        qs = _annotated_exercises()
+        qs = _browse_exercises()
         return _filter_exercises(qs, self.request.query_params)
 
     def get_serializer_class(self):
