@@ -219,6 +219,11 @@
 	async function contribute(input: {
 		kind: CourseItemKind;
 		id: string;
+		/** Set only when the form's own "upload a new file" mode was used — the id above is empty
+		 * in that case, since there is no Attachment yet to name. Uploading and filing it in are one
+		 * `act()` so a failed upload can never half-add an item, and a successful one refreshes
+		 * `attachments` too, so the Files tab shows it without a separate reload. */
+		upload?: { file: File; title: string };
 		chapterId: string | null;
 		lessonId: string | null;
 		note: string;
@@ -227,10 +232,20 @@
 		busy = true;
 		contributeError = '';
 		try {
+			let attachmentId = input.id;
+			if (input.upload) {
+				const created = await uploadAttachment(
+					page.params.id!,
+					input.upload.file,
+					input.upload.title
+				);
+				attachmentId = created.id;
+				attachments = [...attachments, created];
+			}
 			await submitCourseItem(page.params.id!, {
 				materialId: input.kind === 'material' ? input.id : undefined,
 				exerciseId: input.kind === 'exercise' ? input.id : undefined,
-				attachmentId: input.kind === 'attachment' ? input.id : undefined,
+				attachmentId: input.kind === 'attachment' ? attachmentId : undefined,
 				eventId: input.kind === 'event' ? input.id : undefined,
 				chapterId: input.chapterId,
 				lessonId: input.lessonId,
@@ -614,6 +629,7 @@
 				{#if course.canContribute}
 					<CourseContribute
 						{course}
+						{attachments}
 						{busy}
 						error={contributeError}
 						notice={contributeNotice}

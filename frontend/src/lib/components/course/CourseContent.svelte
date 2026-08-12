@@ -116,6 +116,26 @@
 
 	let dragged = $state<Dragged | null>(null);
 
+	// Which drop target the pointer is currently over, so a drag has somewhere to SHOW its result
+	// before it happens rather than only after — dragging used to change nothing about how the page
+	// looked until the moment something actually dropped, which is exactly backwards: the drag is
+	// the part somebody needs feedback on, the drop is instant. A plain string key
+	// (`"<kind>:<id>"`, and `"<kind>-end:<ownerId>"` for the handful of end-of-list containers) is
+	// enough to answer "is THIS the thing being hovered" without a second state shape per drop kind.
+	let dragOverKey = $state<string | null>(null);
+
+	function dragKey(kind: string, id: string): string {
+		return `${kind}:${id}`;
+	}
+
+	/** The one `ondragover` handler every draggable row and container below uses — sets the browser's
+	 * own drop-effect cursor and records which target is currently under the pointer. */
+	function handleDragOver(event: DragEvent, key: string) {
+		event.preventDefault();
+		if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+		dragOverKey = key;
+	}
+
 	// Which row is open for editing, and the draft being typed into it. One at a time: a course
 	// with thirty lessons all in edit mode is a form nobody can find their way out of, and "save
 	// what I am looking at" is the only action anybody wants here.
@@ -231,6 +251,7 @@
 	}
 
 	function dropOn(kind: Dragged['kind'], group: string, beforeId: string | null) {
+		dragOverKey = null;
 		if (!course.canCurate || !dragged || dragged.kind !== kind) return;
 		const { id, from } = dragged;
 		dragged = null;
@@ -351,6 +372,18 @@
 	}
 </script>
 
+<!-- `dragend` fires on the SOURCE element regardless of whether the drop landed on a valid target
+     or nowhere at all (outside the window, on a non-drop-zone element, Escape) — the one point in
+     the whole native drag/drop sequence guaranteed to run no matter how the drag ends. Without this,
+     a drag abandoned outside any drop target left `dragged` set and the dragged row visibly dimmed
+     until the next successful drag happened to overwrite it. -->
+<svelte:window
+	ondragend={() => {
+		dragged = null;
+		dragOverKey = null;
+	}}
+/>
+
 <section class="content">
 	<h2>{m.course_items_heading()}</h2>
 
@@ -389,14 +422,16 @@
 			id="course-chapter-{chapter.id}"
 			class="chapter"
 			class:chapter--locked={!chapter.isUnlocked}
+			class:dragging={dragged?.kind === 'chapter' && dragged.id === chapter.id}
+			class:drag-over={dragOverKey === dragKey('chapter', chapter.id)}
 			draggable={course.canCurate && editingChapter === null}
 			ondragstart={(e) => {
 				e.stopPropagation();
 				startDrag(e, 'chapter', chapter.id, '');
 			}}
 			ondragover={(e) => {
-				e.preventDefault();
-				if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+				e.stopPropagation();
+				handleDragOver(e, dragKey('chapter', chapter.id));
 			}}
 			ondrop={(e) => {
 				e.stopPropagation();
@@ -404,19 +439,30 @@
 			}}
 		>
 			<header>
-				<h3>{chapter.title}</h3>
-				{#if !chapter.isUnlocked}
-					<span class="lock" title={when(chapter.unlocksAt)}>🔒 {lockLabel(chapter)}</span>
-				{/if}
-				{#if course.canCurate && oneditchapter}
-					<button type="button" class="link" onclick={() => beginChapterEdit(chapter)}>
-						{m.course_edit_edit()}
-					</button>
-				{/if}
-				{#if course.canCurate && onaddlesson}
-					<button type="button" class="link" onclick={() => beginAddLesson(chapter.id)}>
-						{m.course_addLesson()}
-					</button>
+				<!-- Title and lock badge grouped, actions grouped separately — `header`'s own
+				     `justify-content: space-between` used to spread across every child
+				     individually, so with exactly three of them (title, Edit, Add lesson) the
+				     middle one landed floating near the row's centre instead of sitting with its
+				     neighbour on the right where it belongs. -->
+				<div class="chapter__title">
+					<h3>{chapter.title}</h3>
+					{#if !chapter.isUnlocked}
+						<span class="lock" title={when(chapter.unlocksAt)}>🔒 {lockLabel(chapter)}</span>
+					{/if}
+				</div>
+				{#if (course.canCurate && oneditchapter) || (course.canCurate && onaddlesson)}
+					<div class="chapter__actions">
+						{#if course.canCurate && oneditchapter}
+							<button type="button" class="link" onclick={() => beginChapterEdit(chapter)}>
+								{m.course_edit_edit()}
+							</button>
+						{/if}
+						{#if course.canCurate && onaddlesson}
+							<button type="button" class="link" onclick={() => beginAddLesson(chapter.id)}>
+								{m.course_addLesson()}
+							</button>
+						{/if}
+					</div>
 				{/if}
 			</header>
 			{#if chapter.description}
@@ -441,12 +487,15 @@
 			{#if chapter.lessons.length > 0}
 				<!-- The <ol> is a drop target too, not just its children: dropping past the last
 				     lesson has to mean "put it at the end", which a per-sibling handler cannot
-				     express. -->
+				     express. Highlighted with its own end-of-list key rather than any one lesson's,
+				     so hovering the empty space below the last lesson shows "goes at the end" and
+				     not "goes before whichever lesson happens to be last". -->
 				<ol
 					class="lessons"
+					class:drag-over={dragOverKey === dragKey('lessons-end', chapter.id)}
 					ondragover={(e) => {
-						e.preventDefault();
-						if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+						e.stopPropagation();
+						handleDragOver(e, dragKey('lessons-end', chapter.id));
 					}}
 					ondrop={(e) => {
 						e.stopPropagation();
@@ -457,6 +506,8 @@
 						<li
 							id="course-lesson-{lesson.id}"
 							class="lesson"
+							class:dragging={dragged?.kind === 'lesson' && dragged.id === lesson.id}
+							class:drag-over={dragOverKey === dragKey('lesson', lesson.id)}
 							draggable={course.canCurate}
 							ondragstart={(e) => {
 								// Must stop here. A lesson sits inside its chapter's own draggable
@@ -467,35 +518,53 @@
 								startDrag(e, 'lesson', lesson.id, chapter.id);
 							}}
 							ondragover={(e) => {
-								e.preventDefault();
-								if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+								// Stopped for the identical reason `ondragstart` already stops: left
+								// alone, this bubbles to the <ol> above and then the chapter <article>,
+								// each overwriting `dragOverKey` right back to their own — so hovering a
+								// lesson would highlight the CHAPTER, not the lesson under the pointer.
+								e.stopPropagation();
+								handleDragOver(e, dragKey('lesson', lesson.id));
 							}}
-							ondrop={() => dropOn('lesson', chapter.id, lesson.id)}
+							ondrop={(e) => {
+								e.stopPropagation();
+								dropOn('lesson', chapter.id, lesson.id);
+							}}
 						>
 							<div class="lesson__head">
-								{#if course.canCurate}
-									<span class="grip" aria-hidden="true">⠿</span>
-								{/if}
-								<!-- Editing is a dialog, matching the chapter dialog below — this row used to
-								     be a plain inline form with no description field at all, so a lesson's
-								     description could be set on creation and never touched again. -->
-								<h4>{lesson.title}</h4>
-								{#if lesson.scheduledAt}
-									<span class="when">{when(lesson.scheduledAt)}</span>
-								{/if}
-								{#if course.canCurate && oneditlesson}
-									<button type="button" class="link" onclick={() => beginLessonEdit(lesson)}>
-										{m.course_edit_edit()}
-									</button>
-								{/if}
-								{#if course.canCurate && ondeletelesson}
-									<button
-										type="button"
-										class="link danger"
-										onclick={() => ondeletelesson?.(lesson.id)}
-									>
-										{m.course_deleteLesson()}
-									</button>
+								<!-- Title grouped with the grip and the scheduled time, actions grouped
+								     separately on the right — this used to be one flat row with no
+								     `justify-content` at all, so Edit/Delete sat immediately against the
+								     title with no breathing room, easy to hit by accident while trying to
+								     click the title. -->
+								<div class="lesson__title">
+									{#if course.canCurate}
+										<span class="grip" aria-hidden="true">⠿</span>
+									{/if}
+									<!-- Editing is a dialog, matching the chapter dialog below — this row used
+									     to be a plain inline form with no description field at all, so a
+									     lesson's description could be set on creation and never touched again. -->
+									<h4>{lesson.title}</h4>
+									{#if lesson.scheduledAt}
+										<span class="when">{when(lesson.scheduledAt)}</span>
+									{/if}
+								</div>
+								{#if (course.canCurate && oneditlesson) || (course.canCurate && ondeletelesson)}
+									<div class="lesson__actions">
+										{#if course.canCurate && oneditlesson}
+											<button type="button" class="link" onclick={() => beginLessonEdit(lesson)}>
+												{m.course_edit_edit()}
+											</button>
+										{/if}
+										{#if course.canCurate && ondeletelesson}
+											<button
+												type="button"
+												class="link danger"
+												onclick={() => ondeletelesson?.(lesson.id)}
+											>
+												{m.course_deleteLesson()}
+											</button>
+										{/if}
+									</div>
 								{/if}
 							</div>
 							{#if lesson.description}
@@ -508,14 +577,16 @@
 								<ul class="items">
 									{#each lesson.items as item (item.id)}
 										<li
+											class:dragging={dragged?.kind === 'item' && dragged.id === item.id}
+											class:drag-over={dragOverKey === dragKey('item', item.id)}
 											draggable={course.canCurate}
 											ondragstart={(e) => {
 												e.stopPropagation();
 												startDrag(e, 'item', item.id, lesson.id);
 											}}
 											ondragover={(e) => {
-												e.preventDefault();
-												if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+												e.stopPropagation();
+												handleDragOver(e, dragKey('item', item.id));
 											}}
 											ondrop={(e) => {
 												e.stopPropagation();
@@ -528,12 +599,16 @@
 								</ul>
 							{:else}
 								<p
-									class="empty"
+									class="empty empty--droppable"
+									class:drag-over={dragOverKey === dragKey('items-end', lesson.id)}
 									ondragover={(e) => {
-										e.preventDefault();
-										if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+										e.stopPropagation();
+										handleDragOver(e, dragKey('items-end', lesson.id));
 									}}
-									ondrop={() => dropOn('item', lesson.id, null)}
+									ondrop={(e) => {
+										e.stopPropagation();
+										dropOn('item', lesson.id, null);
+									}}
 									role="presentation"
 								>
 									{m.course_items_empty()}
@@ -589,10 +664,11 @@
 				     into a fresh chapter is impossible — which is precisely when you most want to. -->
 				<p
 					class="empty empty--droppable"
+					class:drag-over={dragOverKey === dragKey('lessons-end', chapter.id)}
 					role="presentation"
 					ondragover={(e) => {
-						e.preventDefault();
-						if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+						e.stopPropagation();
+						handleDragOver(e, dragKey('lessons-end', chapter.id));
 					}}
 					ondrop={(e) => {
 						e.stopPropagation();
@@ -815,14 +891,16 @@
 	     front of them tracks somebody else's list or does not. So it says so, every time. -->
 	<article
 		class="set"
+		class:dragging={dragged?.kind === 'lesson_set' && dragged.id === link.id}
+		class:drag-over={dragOverKey === dragKey('lesson_set', link.id)}
 		draggable={course.canCurate}
 		ondragstart={(e) => {
 			e.stopPropagation();
 			startDrag(e, 'lesson_set', link.id, lesson.id);
 		}}
 		ondragover={(e) => {
-			e.preventDefault();
-			if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+			e.stopPropagation();
+			handleDragOver(e, dragKey('lesson_set', link.id));
 		}}
 		ondrop={(e) => {
 			e.stopPropagation();
@@ -919,6 +997,34 @@
 		flex-direction: column;
 		gap: var(--space-3);
 	}
+	// Shared across every draggable kind (chapter/lesson/item/linked-set) and every drop target
+	// (those same rows, plus the end-of-list containers/empty states) — one visual language rather
+	// than a slightly different dimming/highlight per element type. `.dragging` is the row actually
+	// being lifted; `.drag-over` is whichever target the pointer is over RIGHT NOW, i.e. a preview of
+	// what dropping this instant would do — a chapter/lesson dragged before that target, or filed
+	// into that empty chapter/lesson. `transition` only on the highlight, not the dragged row's own
+	// opacity: a real drag reports pointer position at native speed, and easing the dimming behind it
+	// would make the dragged element visibly lag its own cursor.
+	.dragging {
+		opacity: 0.4;
+	}
+	.drag-over {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+		border-radius: var(--radius-sm);
+		transition: outline-color 0.1s ease;
+	}
+	// The end-of-list containers (`.lessons`, and the two `empty--droppable` paragraphs) mean "goes
+	// at the end / goes here", not "goes before this specific sibling" — a background tint reads as
+	// a ZONE lighting up, where the 2px outline used for a specific sibling row reads as a precise
+	// insertion point. Using the same `.drag-over` class for both would make an end-of-list drop look
+	// like it was about to land before some particular row that happens to be nearby, which is not
+	// what it does.
+	.empty--droppable.drag-over,
+	ol.lessons.drag-over {
+		outline: none;
+		background: var(--accent-soft, var(--bg-surface-alt));
+	}
 	.chapter {
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-md);
@@ -935,6 +1041,15 @@
 		display: flex;
 		align-items: baseline;
 		justify-content: space-between;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+	// Exactly two children now — title and actions — so `header`'s own space-between puts one at
+	// each end instead of spreading three individual buttons/headings evenly across the row.
+	.chapter__title,
+	.chapter__actions {
+		display: flex;
+		align-items: baseline;
 		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
@@ -1138,12 +1253,31 @@
 		list-style: none;
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-3);
+		gap: var(--space-4);
+	}
+	// A left rule and a little indent, the same "this belongs together" cue `.items--chapter`
+	// already uses — one lesson used to run straight into the next with nothing but a flex gap
+	// between them, so a chapter with three or four became a wall of text with no visible seams.
+	.lesson {
+		padding-left: var(--space-3);
+		border-left: 2px solid var(--border-color);
 	}
 	.lesson__head {
 		display: flex;
 		align-items: baseline;
+		justify-content: space-between;
 		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+	// Exactly two children — title and actions — for the same reason the chapter header's own
+	// groups exist: so `justify-content: space-between` puts one at each end instead of spreading
+	// Edit/Delete against the title with no room between them.
+	.lesson__title,
+	.lesson__actions {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+		flex-wrap: wrap;
 	}
 	.lesson__head h4 {
 		font-weight: 600;
