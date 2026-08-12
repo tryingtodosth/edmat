@@ -570,26 +570,33 @@
 		     could rename and delete chapters through CourseContent but had no way to make one — a
 		     course whose structure could only ever shrink. It sits directly under the content it
 		     adds to, rather than on the manage page, because it is the one curator action whose
-		     result appears right here. -->
+		     result appears right here.
+		     A real card with its own heading, not a dashed rule under the last chapter — that read
+		     as a continuation of whatever was above it, and "Add a chapter" only ever appeared as
+		     the button's own label, so nothing said what the fields below it were for until you'd
+		     already read the button past them. -->
 				{#if course.canCurate}
-					<form class="add-chapter" onsubmit={addChapter}>
-						<div class="add-chapter__row">
-							<label>
-								<span>{m.course_chapters_title()}</span>
-								<input type="text" bind:value={newChapterTitle} maxlength="200" required />
-							</label>
-							<label>
-								<span>{m.course_chapters_unlocksAt()}</span>
-								<!-- Optional, and empty means never gated — genuinely different from a date that
-						     has already passed, which is why it is not defaulted to today. -->
-								<input type="datetime-local" bind:value={newChapterUnlocksAt} />
-							</label>
+					<section class="add-panel">
+						<h3>{m.course_chapters_add()}</h3>
+						<form class="add-panel__form" onsubmit={addChapter}>
+							<div class="add-panel__grid">
+								<label class="field">
+									<span>{m.course_chapters_title()}</span>
+									<input type="text" bind:value={newChapterTitle} maxlength="200" required />
+								</label>
+								<label class="field">
+									<span>{m.course_chapters_unlocksAt()}</span>
+									<!-- Optional, and empty means never gated — genuinely different from a date
+									     that has already passed, which is why it is not defaulted to today. -->
+									<input type="datetime-local" bind:value={newChapterUnlocksAt} />
+								</label>
+							</div>
+							<p class="add-panel__hint">{m.course_chapters_unlocksAtHint()}</p>
 							<button type="submit" class="primary" disabled={busy || !newChapterTitle.trim()}>
 								{m.course_chapters_add()}
 							</button>
-						</div>
-						<small class="add-chapter__hint">{m.course_chapters_unlocksAtHint()}</small>
-					</form>
+						</form>
+					</section>
 				{/if}
 
 				<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
@@ -854,25 +861,33 @@
 		padding-top: var(--space-3);
 		border-top: 1px solid var(--border-color);
 	}
-	.add-chapter {
+	// A real card, and the shape both "add" panels in this tab now share — see the identical
+	// .add-panel* block in CourseContribute.svelte. Not pulled into a shared mixin: two occurrences
+	// is the threshold this codebase leaves alone, per its own "three strikes" convention.
+	.add-panel {
+		@include mix.card-surface;
+		padding: var(--space-4);
+		margin-top: var(--space-2);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-2);
-		padding-top: var(--space-3);
-		border-top: 1px dashed var(--border-color);
-	}
-	.add-chapter__row {
-		display: flex;
 		gap: var(--space-3);
-		align-items: flex-end;
-		flex-wrap: wrap;
 	}
-	.add-chapter__row label {
+	.add-panel h3 {
+		font-size: var(--font-size-md);
+	}
+	.add-panel__form {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-1);
+		align-items: flex-start;
+		gap: var(--space-3);
 	}
-	.add-chapter__hint {
+	.add-panel__grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+		gap: var(--space-3);
+		width: 100%;
+	}
+	.add-panel__hint {
 		color: var(--text-secondary);
 		font-size: var(--font-size-xs);
 	}

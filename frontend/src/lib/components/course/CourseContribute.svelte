@@ -82,37 +82,46 @@
 	}
 </script>
 
-<section class="contribute">
+<!-- A card, matching the "add a chapter" panel above it — the two used to run straight into each
+     other with no more than a paragraph of whitespace between them, so it read as one form rather
+     than two. -->
+<section class="contribute add-panel">
 	<h2>{m.course_contribute_heading()}</h2>
 
-	<p class="hint">
+	<p class="add-panel__hint">
 		{course.contributionNeedsApproval
 			? m.course_contribute_willWait()
 			: m.course_contribute_willPublish()}
 	</p>
 
-	<form onsubmit={submit}>
-		<label class="field">
-			<span>{m.course_contribute_kind()}</span>
-			<select bind:value={kind}>
-				<option value="material">{m.course_items_material()}</option>
-				<option value="exercise">{m.course_items_exercise()}</option>
-				<option value="attachment">{m.course_items_attachment()}</option>
-				<option value="event">{m.course_items_event()}</option>
-			</select>
-		</label>
+	<form class="add-panel__form" onsubmit={submit}>
+		<div class="add-panel__grid">
+			<label class="field">
+				<span>{m.course_contribute_kind()}</span>
+				<select bind:value={kind}>
+					<option value="material">{m.course_items_material()}</option>
+					<option value="exercise">{m.course_items_exercise()}</option>
+					<option value="attachment">{m.course_items_attachment()}</option>
+					<option value="event">{m.course_items_event()}</option>
+				</select>
+			</label>
 
-		<label class="field">
-			<span>{idLabel}</span>
-			<input type="text" bind:value={itemId} inputmode="numeric" required />
-			<!-- Honest about the gap: there is no picker yet, so the id from the item's own page is the
-			     real way to name it. Browsing links are right there for finding one. -->
-			<span class="hint">
-				{m.course_contribute_idHint()}
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built by a $derived that calls resolve() itself; the rule only sees the attribute -->
-				<a href={browseHref}>{m.course_items_openLink()}</a>
-			</span>
-		</label>
+			<label class="field">
+				<span>{idLabel}</span>
+				<input type="text" bind:value={itemId} inputmode="numeric" required />
+			</label>
+		</div>
+		<!-- Its own line rather than nested inside the id field's label: a hint under one field but
+		     not its neighbour made that field taller than the other, and the row's own
+		     bottom-alignment then read the two labels as sitting at different heights — which is
+		     exactly what happened. Honest about the gap either way: there is no picker yet, so the
+		     id from the item's own page is the real way to name it. Browsing links are right there
+		     for finding one. -->
+		<p class="add-panel__hint">
+			{m.course_contribute_idHint()}
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built by a $derived that calls resolve() itself; the rule only sees the attribute -->
+			<a href={browseHref}>{m.course_items_openLink()}</a>
+		</p>
 
 		{#if course.canCurate && course.chapters.length > 0}
 			<label class="field">
@@ -131,7 +140,7 @@
 			</label>
 		{/if}
 
-		<label class="field wide">
+		<label class="field">
 			<span>{m.course_contribute_note()}</span>
 			<input type="text" bind:value={note} maxlength="500" />
 		</label>
@@ -152,28 +161,40 @@
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// A real card, and the shape both "add" panels in this tab now share — the +page.svelte chapter
+	// panel carries the identical .add-panel* block. Not pulled into a shared mixin: two occurrences
+	// is the threshold this codebase leaves alone, per its own "three strikes" convention.
 	.contribute {
+		@include mix.card-surface;
+		padding: var(--space-4);
+		margin-top: var(--space-3);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-2);
+		gap: var(--space-3);
 	}
-	form {
+	.contribute h2 {
+		font-size: var(--font-size-md);
+	}
+	.add-panel__form {
 		display: flex;
-		gap: var(--space-2);
-		align-items: flex-end;
-		flex-wrap: wrap;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--space-3);
+	}
+	.add-panel__grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+		gap: var(--space-3);
+		width: 100%;
 	}
 	.field {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
 		font-size: var(--font-size-sm);
+		width: 100%;
 	}
-	.wide {
-		flex: 1;
-		min-width: 12rem;
-	}
-	.hint {
+	.add-panel__hint {
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
 	}
@@ -188,6 +209,7 @@
 	input,
 	select {
 		@include mix.focus-ring;
+		width: 100%;
 		padding: var(--space-1) var(--space-2);
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-sm);
@@ -195,12 +217,6 @@
 		color: var(--text-primary);
 	}
 	.primary {
-		@include mix.focus-ring;
-		padding: var(--space-1) var(--space-3);
-		border: none;
-		border-radius: var(--radius-sm);
-		background: var(--accent);
-		color: var(--bg-surface);
-		cursor: pointer;
+		@include mix.button-primary;
 	}
 </style>
