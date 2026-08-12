@@ -31,7 +31,8 @@ from community.models import Comment
 from notifications.models import Notification
 from study.models import ExerciseSet, ExerciseSetItem
 from taxonomy.models import Branch, Discipline
-from telemetry.routers import all_log_shards
+from telemetry.models import AuditEvent
+from telemetry.routers import all_log_shards, shard_for_user
 from testing.factories import make_exercise
 
 from .attachmentfile import MAX_ATTACHMENT_IMAGE_EDGE, validate_attachment_file
@@ -1377,6 +1378,91 @@ class ReorderTests(ApiTestCase):
 
     def test_an_unknown_kind_is_refused(self):
         self.assertEqual(self._reorder({'kind': 'course', 'order': []}).status_code, 400)
+
+
+class ContentHistoryTests(ApiTestCase):
+    """A structural edit — a reorder, a chapter/lesson retitle — leaves a real `AuditEvent` behind,
+    in the instructor's own log shard, not in `courses`' own tables. This is what "both stay in
+    logs" means for two curators racing the same chapter: neither write is locked out (the database
+    still just takes whichever lands last), but every accepted request gets its own row here
+    regardless of whether a later one overwrites what it did."""
+
+    def setUp(self):
+        super().setUp()
+        self.course = self.make_course()
+        self.chapter = Chapter.objects.create(course=self.course, title='Week 1', order=0)
+        self.other_chapter = Chapter.objects.create(course=self.course, title='Week 2', order=1)
+        self.lesson = Lesson.objects.create(chapter=self.chapter, title='Mon', order=0)
+
+    def _events(self):
+        shard = shard_for_user(self.instructor.pk)
+        return AuditEvent.objects.using(shard).filter(target_type='course', target_id=str(self.course.pk))
+
+    def test_a_reorder_is_logged(self):
+        res = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/reorder/',
+            {'kind': 'chapter', 'order': [self.other_chapter.pk, self.chapter.pk]},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200)
+        event = self._events().get()
+        self.assertEqual(event.actor_id, self.instructor.pk)
+        self.assertEqual(event.actor_label, self.instructor.username)
+        self.assertEqual(event.action, 'content_edit')
+        self.assertIn('Reordered chapter', event.summary)
+        self.assertEqual(event.detail['kind'], 'chapter')
+
+    def test_a_failed_reorder_is_not_logged(self):
+        """The write never happened, so there is nothing true a log entry could say about it."""
+        res = self.as_(self.instructor).post(
+            f'/api/courses/{self.course.pk}/reorder/', {'kind': 'not-a-real-kind'}, format='json'
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(self._events().count(), 0)
+
+    def test_a_chapter_edit_is_logged(self):
+        res = self.as_(self.instructor).patch(
+            f'/api/courses/{self.course.pk}/chapters/{self.chapter.pk}/',
+            {'title': 'Week 1, revised'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200)
+        event = self._events().get()
+        self.assertIn('Edited chapter', event.summary)
+        self.assertEqual(event.detail['chapter_id'], self.chapter.pk)
+        self.assertEqual(event.detail['fields'], ['title'])
+
+    def test_a_lesson_edit_is_logged(self):
+        res = self.as_(self.instructor).patch(
+            f'/api/courses/{self.course.pk}/lessons/{self.lesson.pk}/',
+            {'title': 'Mon, revised'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200)
+        event = self._events().get()
+        self.assertIn('Edited lesson', event.summary)
+        self.assertEqual(event.detail['lesson_id'], self.lesson.pk)
+
+    def test_two_racing_edits_both_land_in_the_log_even_though_one_write_wins(self):
+        """Simulated sequentially — this pins the LOGGING half of "newer wins, both stay in
+        logs" (the database write itself already has no lock to race, per `CourseViewSet.reorder`'s
+        own docstring; a genuine concurrency reproduction is out of scope for a synchronous test
+        client, the same call this codebase's own CLAUDE.md already makes for `_apply_submission`'s
+        sibling race)."""
+        first = self.as_(self.instructor).patch(
+            f'/api/courses/{self.course.pk}/chapters/{self.chapter.pk}/',
+            {'title': 'From Kasia'},
+            format='json',
+        )
+        second = self.as_(self.instructor).patch(
+            f'/api/courses/{self.course.pk}/chapters/{self.chapter.pk}/',
+            {'title': 'From Kasia, again'},
+            format='json',
+        )
+        self.assertEqual((first.status_code, second.status_code), (200, 200))
+        self.chapter.refresh_from_db()
+        self.assertEqual(self.chapter.title, 'From Kasia, again', 'the later write is what stands')
+        self.assertEqual(self._events().count(), 2, 'but both attempts left a record')
 
 
 class PrivateNoteTests(ApiTestCase):

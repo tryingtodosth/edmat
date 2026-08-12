@@ -34,10 +34,14 @@
 	} from '$lib/services/course';
 	import type {
 		Attachment,
+		Chapter,
+		CourseItem,
 		CourseNote,
 		Enrollment,
 		Course,
-		CourseItemKind
+		CourseItemKind,
+		Lesson,
+		LessonExerciseSet
 	} from '$lib/types/course';
 	import CourseContent from '$lib/components/course/CourseContent.svelte';
 	import CourseReports from '$lib/components/course/CourseReports.svelte';
@@ -213,6 +217,105 @@
 			onError(detail ?? m.common_error_generic());
 		} finally {
 			busy = false;
+		}
+	}
+
+	type ReorderPayload =
+		| { kind: 'chapter'; order: string[] }
+		| { kind: 'lesson' | 'item' | 'lesson_set'; groups: Record<string, string[]> };
+
+	/** Rewrites `course`'s own chapter/lesson/item/set arrays to match a reorder BEFORE the server
+	 * has even seen the request, let alone answered it.
+	 *
+	 * The browser is the one that dragged this — `CourseContent.svelte`'s own `dropOn` already
+	 * computed the exact final order, which is precisely what this payload carries — so there is
+	 * nothing left for a round trip to teach it. Reloading the whole course after every successful
+	 * drop (the previous behaviour) threw that computation away and replaced the entire `course`
+	 * object with a freshly-fetched one, which is what actually reads as "the page reloads": every
+	 * `<details>` a reader had open, and their scroll position, reset along with it, even though the
+	 * one thing that changed was three integers in a database row.
+	 *
+	 * `course` is a `$state` object owned by this page and passed to `CourseContent` by reference —
+	 * mutating it here is the same mutation a reload would have produced, just without asking the
+	 * server to hand back data this component already had. */
+	function applyReorderLocally(payload: ReorderPayload) {
+		if (!course) return;
+		if (payload.kind === 'chapter') {
+			const byId = new Map(course.chapters.map((c) => [c.id, c]));
+			course.chapters = payload.order.map((id) => byId.get(id)).filter((c): c is Chapter => !!c);
+			return;
+		}
+		if (payload.kind === 'lesson') {
+			const byId = new Map<string, Lesson>(
+				course.chapters.flatMap((chapter) =>
+					chapter.lessons.map((lesson) => [lesson.id, lesson] as const)
+				)
+			);
+			for (const chapter of course.chapters) {
+				const ids = payload.groups[chapter.id];
+				if (ids === undefined) continue;
+				chapter.lessons = ids.map((id) => byId.get(id)).filter((l): l is Lesson => !!l);
+			}
+			return;
+		}
+		if (payload.kind === 'item') {
+			// An item's own group is always a lesson id or '' (unfiled) — chapter-level items are
+			// not drag-reorderable at all, so a chapter id never appears as a group key here. See
+			// `CourseContent.svelte`'s own `itemGroups()`, which builds the identical shape.
+			const byId = new Map<string, CourseItem>([
+				...course.unfiledItems.map((item) => [item.id, item] as const),
+				...course.chapters.flatMap((chapter) =>
+					chapter.lessons.flatMap((lesson) => lesson.items.map((item) => [item.id, item] as const))
+				)
+			]);
+			for (const [group, ids] of Object.entries(payload.groups)) {
+				const items = ids.map((id) => byId.get(id)).filter((i): i is CourseItem => !!i);
+				if (group === '') {
+					course.unfiledItems = items;
+					continue;
+				}
+				for (const chapter of course.chapters) {
+					const lesson = chapter.lessons.find((l) => l.id === group);
+					if (lesson) lesson.items = items;
+				}
+			}
+			return;
+		}
+		// 'lesson_set' — a linked set only ever lives in a lesson, same as above.
+		const byId = new Map<string, LessonExerciseSet>(
+			course.chapters.flatMap((chapter) =>
+				chapter.lessons.flatMap((lesson) =>
+					lesson.exerciseSets.map((set) => [set.id, set] as const)
+				)
+			)
+		);
+		for (const chapter of course.chapters) {
+			for (const lesson of chapter.lessons) {
+				const ids = payload.groups[lesson.id];
+				if (ids === undefined) continue;
+				lesson.exerciseSets = ids
+					.map((id) => byId.get(id))
+					.filter((s): s is LessonExerciseSet => !!s);
+			}
+		}
+	}
+
+	/** Reorder is deliberately NOT routed through `act()`: that helper reloads the whole course on
+	 * success, which is exactly the round trip `applyReorderLocally` exists to skip, and it flips
+	 * `busy` for the duration — locking the rest of the page's controls for a drag that is meant to
+	 * feel instant. A real reload still happens, but only on failure: the optimistic order might not
+	 * be what the server actually kept (a validation error, a permission lost mid-session), and a
+	 * full reload is the only honest way back to the truth in that case. */
+	async function reorder(payload: ReorderPayload) {
+		if (!course) return;
+		staffError = '';
+		applyReorderLocally(payload);
+		try {
+			await reorderCourse(course.id, payload);
+		} catch (e) {
+			const detail = (e as { body?: { detail?: string } })?.body?.detail;
+			staffError = detail ?? m.common_error_generic();
+			await load(page.params.id!);
 		}
 	}
 
@@ -502,13 +605,7 @@
 									(msg) => (staffError = msg)
 								)
 						: undefined}
-					onreorder={course.canCurate
-						? (payload) =>
-								act(
-									() => reorderCourse(course!.id, payload),
-									(msg) => (staffError = msg)
-								)
-						: undefined}
+					onreorder={course.canCurate ? reorder : undefined}
 					onremove={(itemId) =>
 						act(
 							() => removeCourseItem(course!.id, itemId),

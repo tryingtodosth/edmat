@@ -24,6 +24,7 @@ from moderation.permissions import feature_gate
 from notifications.services import notify, notify_comment_reply, notify_course_participants
 from study.models import ExerciseSet
 
+from .history import record_content_change
 from .reports import pending_reports_in_course
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
@@ -529,6 +530,12 @@ class CourseViewSet(viewsets.ModelViewSet):
         write = LessonWriteSerializer(lesson, data=request.data, partial=True)
         write.is_valid(raise_exception=True)
         write.save()
+        record_content_change(
+            request,
+            course,
+            summary=f'Edited lesson "{lesson.title}" in "{course.title}"',
+            detail={'lesson_id': lesson.pk, 'fields': sorted(request.data.keys())},
+        )
         return Response(LessonSerializer(lesson, context={'is_participant': True}).data)
 
     # --- a whole exercise set, linked into a lesson ------------------------------------------------
@@ -1337,6 +1344,17 @@ class CourseViewSet(viewsets.ModelViewSet):
                             fields.append('chapter_id')
                     row.save(update_fields=fields)
 
+        # After the block, not inside it — see `record_content_change`'s own docstring for why.
+        # No lock was taken above, so two curators racing the same chapter is a real, accepted
+        # "whoever's write lands last wins" — logging every accepted request regardless is what
+        # keeps the loser's attempt from vanishing without a trace.
+        record_content_change(
+            request,
+            course,
+            summary=f'Reordered {kind} in "{course.title}"',
+            detail={'kind': kind, 'groups': groups},
+        )
+
         return Response({'reordered': len(flat)})
 
     # --- chapters ---------------------------------------------------------------------------------
@@ -1393,6 +1411,12 @@ class CourseViewSet(viewsets.ModelViewSet):
         write = ChapterWriteSerializer(chapter, data=request.data, partial=True)
         write.is_valid(raise_exception=True)
         write.save()
+        record_content_change(
+            request,
+            course,
+            summary=f'Edited chapter "{chapter.title}" in "{course.title}"',
+            detail={'chapter_id': chapter.pk, 'fields': sorted(request.data.keys())},
+        )
         return Response(ChapterSerializer(chapter, context=self._chapter_context(course)).data)
 
     # --- content, and contributions to it ----------------------------------------------------------
