@@ -49,7 +49,10 @@
 			chapterId: string,
 			patch: { title: string; description: string; unlocksAt: string | null }
 		) => void;
-		oneditlesson?: (lessonId: string, patch: { title: string; participantNotes: string }) => void;
+		oneditlesson?: (
+			lessonId: string,
+			patch: { title: string; description: string; participantNotes: string }
+		) => void;
 		ondeletelesson?: (lessonId: string) => void;
 		/** Create a lesson inside a chapter. A lesson has nowhere else to live — `Lesson.chapter` is
 		 * NOT NULL — so this is offered per chapter rather than once for the whole course. */
@@ -143,6 +146,7 @@
 		editingChapter = null;
 		editingLesson = lesson.id;
 		draftTitle = lesson.title;
+		draftDescription = lesson.description;
 		draftNotes = lesson.participantNotes;
 	}
 
@@ -188,7 +192,11 @@
 	function saveLesson(lessonId: string) {
 		const title = draftTitle.trim();
 		if (!title) return;
-		oneditlesson?.(lessonId, { title, participantNotes: draftNotes });
+		oneditlesson?.(lessonId, {
+			title,
+			description: draftDescription.trim(),
+			participantNotes: draftNotes
+		});
 		editingLesson = null;
 	}
 
@@ -468,44 +476,26 @@
 								{#if course.canCurate}
 									<span class="grip" aria-hidden="true">⠿</span>
 								{/if}
-								{#if editingLesson === lesson.id}
-									<form
-										class="edit-row"
-										onsubmit={(e) => {
-											e.preventDefault();
-											saveLesson(lesson.id);
-										}}
+								<!-- Editing is a dialog, matching the chapter dialog below — this row used to
+								     be a plain inline form with no description field at all, so a lesson's
+								     description could be set on creation and never touched again. -->
+								<h4>{lesson.title}</h4>
+								{#if lesson.scheduledAt}
+									<span class="when">{when(lesson.scheduledAt)}</span>
+								{/if}
+								{#if course.canCurate && oneditlesson}
+									<button type="button" class="link" onclick={() => beginLessonEdit(lesson)}>
+										{m.course_edit_edit()}
+									</button>
+								{/if}
+								{#if course.canCurate && ondeletelesson}
+									<button
+										type="button"
+										class="link danger"
+										onclick={() => ondeletelesson?.(lesson.id)}
 									>
-										<input type="text" bind:value={draftTitle} maxlength="200" />
-										<input
-											type="text"
-											bind:value={draftNotes}
-											placeholder={m.course_newLessonNotes()}
-										/>
-										<button type="submit" class="link">{m.course_edit_save()}</button>
-										<button type="button" class="link" onclick={() => (editingLesson = null)}>
-											{m.course_edit_cancel()}
-										</button>
-									</form>
-								{:else}
-									<h4>{lesson.title}</h4>
-									{#if lesson.scheduledAt}
-										<span class="when">{when(lesson.scheduledAt)}</span>
-									{/if}
-									{#if course.canCurate && oneditlesson}
-										<button type="button" class="link" onclick={() => beginLessonEdit(lesson)}>
-											{m.course_edit_edit()}
-										</button>
-									{/if}
-									{#if course.canCurate && ondeletelesson}
-										<button
-											type="button"
-											class="link danger"
-											onclick={() => ondeletelesson?.(lesson.id)}
-										>
-											{m.course_deleteLesson()}
-										</button>
-									{/if}
+										{m.course_deleteLesson()}
+									</button>
 								{/if}
 							</div>
 							{#if lesson.description}
@@ -671,13 +661,18 @@
 				<!-- Focused on open: a dialog opened by a deliberate click should put the cursor where
 				     the person is about to type, and it also moves focus INTO the dialog, which is what
 				     makes Escape and the tab order behave. The blanket warning is about autofocus on an
-				     ordinary page, where it steals focus nobody asked it to move. -->
+				     ordinary page, where it steals focus nobody asked it to move.
+				     A textarea rather than a single-line input — two rows is enough for a title that
+				     wraps, and it matches the description field below rather than sitting oddly beside
+				     it as the one plain input in an otherwise multi-line form. -->
 				<!-- svelte-ignore a11y_autofocus -->
-				<input type="text" bind:value={draftTitle} maxlength="200" required autofocus />
+				<textarea bind:value={draftTitle} rows="2" maxlength="200" required autofocus></textarea>
 			</label>
-			<label class="field">
+			<label class="field field--grow">
 				<span>{m.course_chapters_description()}</span>
-				<textarea bind:value={draftDescription} rows="3"></textarea>
+				<!-- As tall as the dialog can reasonably give it: a chapter's description is the one
+				     field here somebody is actually likely to write more than a sentence into. -->
+				<textarea bind:value={draftDescription} rows="8"></textarea>
 			</label>
 			<label class="field">
 				<span>{m.course_chapters_unlocksAt()}</span>
@@ -687,6 +682,43 @@
 			<div class="modal-actions">
 				<button type="submit" class="primary">{m.course_edit_save()}</button>
 				<button type="button" class="link" onclick={() => (editingChapter = null)}>
+					{m.course_edit_cancel()}
+				</button>
+			</div>
+		</form>
+	</ModalShell>
+{/if}
+
+{#if editingLesson !== null}
+	<!-- The same dialog shape as the chapter one above, and for the same reason: the inline row this
+	     replaced had room for a title and nothing else, so a lesson's description — set once on
+	     creation — could never be corrected afterward. -->
+	<ModalShell title={m.course_lessons_editTitle()} onClose={() => (editingLesson = null)}>
+		<form
+			class="modal-form"
+			onsubmit={(e) => {
+				e.preventDefault();
+				saveLesson(editingLesson!);
+			}}
+		>
+			<label class="field">
+				<span>{m.course_newLessonTitle()}</span>
+				<!-- svelte-ignore a11y_autofocus -->
+				<textarea bind:value={draftTitle} rows="2" maxlength="200" required autofocus></textarea>
+			</label>
+			<label class="field field--grow">
+				<span>{m.course_newLessonDescription()}</span>
+				<textarea bind:value={draftDescription} rows="8"></textarea>
+				<span class="hint">{m.course_newLessonDescriptionHint()}</span>
+			</label>
+			<label class="field">
+				<span>{m.course_newLessonNotes()}</span>
+				<textarea bind:value={draftNotes} rows="3"></textarea>
+				<span class="hint">{m.course_newLessonNotesHint()}</span>
+			</label>
+			<div class="modal-actions">
+				<button type="submit" class="primary">{m.course_edit_save()}</button>
+				<button type="button" class="link" onclick={() => (editingLesson = null)}>
 					{m.course_edit_cancel()}
 				</button>
 			</div>
@@ -937,12 +969,15 @@
 	.modal-form {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-3);
+		// A touch tighter than before: the description field below wants as much of the dialog's
+		// own height as it can get, and shaving the space between fields is cheaper than shrinking
+		// the field itself.
+		gap: var(--space-2);
 	}
 	.modal-form .field {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-1);
+		gap: 2px;
 	}
 	.modal-form .field > span:first-child {
 		font-weight: 600;
@@ -960,6 +995,15 @@
 	}
 	.modal-form textarea {
 		resize: vertical;
+	}
+	/* The one field in each of these dialogs somebody is actually likely to write more than a
+	   sentence into — a chapter's own description, a lesson's own. Bounded by the viewport rather
+	   than a fixed height, so it grows on a tall screen and still leaves room for the fields below
+	   it and the dialog's own chrome on a short one; ModalShell's own panel already scrolls past
+	   that, so nothing here can push the buttons off screen. */
+	.modal-form .field--grow textarea {
+		min-height: 30vh;
+		max-height: 50vh;
 	}
 	.modal-actions {
 		display: flex;
@@ -1079,17 +1123,6 @@
 		border-radius: var(--radius-md, 6px);
 		padding: var(--space-3);
 		text-align: center;
-	}
-	.edit-row {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		flex-wrap: wrap;
-		flex: 1;
-	}
-	.edit-row input[type='text'] {
-		flex: 1;
-		min-width: 12ch;
 	}
 	.undo {
 		display: flex;

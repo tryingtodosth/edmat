@@ -739,6 +739,7 @@
 	"course_newLessonNotes": "Notatki dla uczestników (opcjonalnie)",
 	"course_newLessonNotesHint": "Widoczne tylko dla osób biorących udział w tym kursie.",
 	"course_addLesson": "Dodaj zajęcia",
+	"course_lessons_editTitle": "Edytuj zajęcia",
 	"course_deleteLesson": "Usuń zajęcia",
 	"course_participantsHeading": "Uczestnicy: {count}",
 	"course_noParticipants": "Nikt jeszcze nie dołączył.",
