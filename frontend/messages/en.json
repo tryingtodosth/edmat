@@ -739,6 +739,7 @@
 	"course_newLessonNotes": "Notes for participants (optional)",
 	"course_newLessonNotesHint": "Visible only to people taking part in this course.",
 	"course_addLesson": "Add lesson",
+	"course_lessons_editTitle": "Edit lesson",
 	"course_deleteLesson": "Delete lesson",
 	"course_participantsHeading": "Taking part: {count}",
 	"course_noParticipants": "Nobody has joined yet.",
