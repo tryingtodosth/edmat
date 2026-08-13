@@ -1,5 +1,37 @@
 # EdMat — Project Blueprint
 
+## The shared task boards — read these first, every session
+
+This project is worked on by many agents at once (31 git worktrees at the time of writing). Three
+files are how they see each other:
+
+| File | Holds |
+|---|---|
+| `/home/alojzy/Wymiana_VM/edmat-boards/todo.md` | work that is waiting, for anyone |
+| `/home/alojzy/Wymiana_VM/edmat-boards/doing.md` | what is in flight right now, one entry per agent |
+| `/home/alojzy/Wymiana_VM/edmat-boards/done.md` | what landed, newest first |
+
+**The rule.** At the start of a session, read all three. When you start a task, move it from
+`todo.md` into `doing.md` **in the same edit**, stamped with your branch and worktree — a task in
+both places is the one state that makes the boards lie. When you finish, move it to `done.md` with
+the commit and what you actually verified, and put anything you deliberately left open into
+`todo.md`. If you abandon it, move it back to `todo.md` and say what you learned.
+
+**Keep `doing.md` to one task per agent.** If you are doing two things, the second is not started;
+leave it in `todo.md` where somebody else can take it.
+
+**Do not take anything already in `doing.md` under another branch** without checking whether that
+branch has moved recently — sessions end without cleaning up, so stale entries are normal. Say so
+in the file rather than silently taking the work.
+
+**They live outside the repo on purpose**, and are not tracked by git: a tracked board forks the
+instant two agents branch, so each would read a snapshot of whenever their branch started — exactly
+the question the boards exist to answer, answered wrongly — and 31 branches editing one file means a
+conflict on every merge. `edmat-boards/README.md` records that reasoning and its cost. Each board
+also restates its own rules at the top, so an agent that opens one needs nothing else.
+
+---
+
 **Status:** ✅ Phase 1 (frontend, fully mocked), Phase 2 (Django REST Framework backend, real
 migrated corpus), and Phase 3 (frontend wired to the real backend, mocks deleted) all built — see
 `frontend/` and `backend/`. **Phase 4 (hardening) is done.** The LaTeX/KaTeX compatibility sweep
