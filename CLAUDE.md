@@ -1,5 +1,10 @@
 # EdMat — Project Blueprint
 
+**New to this file?** `CLAUDE_MAP.md` is a ~57 KB orientation map — repo layout, every backend app and
+frontend layer summarized, the recurring lessons — meant to be read first for a fast, current-state
+picture. This file is what it points back to: the full chronological build log, authoritative
+whenever the two disagree.
+
 **Status:** ✅ Phase 1 (frontend, fully mocked), Phase 2 (Django REST Framework backend, real
 migrated corpus), and Phase 3 (frontend wired to the real backend, mocks deleted) all built — see
 `frontend/` and `backend/`. **Phase 4 (hardening) is done.** The LaTeX/KaTeX compatibility sweep
