@@ -10,6 +10,11 @@
  * event stays visible in, not a deletion, because people arranged their week around it. */
 export type EventStatus = 'draft' | 'published' | 'cancelled';
 
+/** Who besides the host can ever see this event — independent of `status`. `status` asks "has this
+ * been announced"; `visibility` asks "who is it announced TO". Defaults to `private` everywhere a
+ * new event is drafted: creating something is not the same act as broadcasting it. */
+export type EventVisibility = 'private' | 'public';
+
 /** Where it happens. `hybrid` is a real third answer, not the union of two booleans: an event with a
  * room *and* a link reads as online-only to somebody who would have come in person if the model
  * cannot say both. */
@@ -47,8 +52,16 @@ export interface EdmatEvent {
 	subjectSlugs: string[];
 	disciplineSlug: string | null;
 	status: EventStatus;
-	startsAt: string;
-	endsAt: string;
+	visibility: EventVisibility;
+	/** `null` means genuinely unscheduled — no date, no time, nothing guessed in its place. */
+	startsAt: string | null;
+	/** An hour with no known date yet ("sometime around 3pm") — only ever meaningful when `startsAt`
+	 * is `null`; the moment a real instant exists, that is always the more useful of the two and
+	 * every reader (ordering, notifications, calendar-blocking) ignores this field entirely. Stored
+	 * as the bare `HH:MM:SS` the backend's `TimeField` serializes, not an ISO instant. */
+	eventTime: string | null;
+	/** `null` exactly when `startsAt` is — there is nothing to add a duration to. */
+	endsAt: string | null;
 	durationMinutes: number;
 	locationKind: EventLocationKind;
 	locationText: string;
@@ -70,7 +83,28 @@ export interface EdmatEvent {
 	isHost: boolean;
 	canRespond: boolean;
 	responseBlockReason: EventResponseBlockReason | null;
+	/** The bigger event this one belongs to, resolved server-side — `null` when there isn't one, or
+	 * when the viewer isn't allowed to see it (a private parent stays invisible even to somebody who
+	 * can see this sub-event, exactly the OR-logic `_visible_to` already applies everywhere else). */
+	parent: EventSummary | null;
+	/** The smaller events grouped under this one, already filtered to what the viewer may see — a
+	 * private sub-event never leaks through its public parent's own detail response. */
+	subEvents: EventSummary[];
 	createdAt: string;
+}
+
+/** Just enough to name a sub-event or a parent event in a listing — mirrors the backend's own
+ * `EventSummarySerializer`. Link to `/events/[id]` for the rest. */
+export interface EventSummary {
+	id: string;
+	host: EventPerson;
+	title: string;
+	status: EventStatus;
+	visibility: EventVisibility;
+	startsAt: string | null;
+	eventTime: string | null;
+	endsAt: string | null;
+	locationKind: EventLocationKind;
 }
 
 export interface EventDraft {
@@ -80,13 +114,22 @@ export interface EventDraft {
 	subjectSlugs?: string[];
 	disciplineSlug?: string | null;
 	status?: Exclude<EventStatus, 'cancelled'>;
-	startsAt: string;
+	visibility?: EventVisibility;
+	/** `null`/`''` — no date chosen yet. Genuinely optional, unlike every other field here that just
+	 * happens to have a default. */
+	startsAt?: string | null;
+	/** An hour with no date — mutually exclusive with `startsAt` in practice, never enforced as a
+	 * hard rule; see `EdmatEvent.eventTime`. */
+	eventTime?: string | null;
 	durationMinutes: number;
 	locationKind: EventLocationKind;
 	locationText?: string;
 	onlineUrl?: string;
 	capacity?: number;
 	language?: string;
+	/** The bigger event this one is part of — only ever settable to an event the current user hosts
+	 * themselves, and only one that isn't itself a sub-event; see the backend's own `validate_parent`. */
+	parentId?: string | null;
 }
 
 /** One update the host wrote on an event after announcing it — mirrors `backend/events/models.py`'s

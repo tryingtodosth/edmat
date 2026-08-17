@@ -11,13 +11,28 @@ import type {
 	EventDraft,
 	EventPerson,
 	EventPost,
-	EventPostDraft
+	EventPostDraft,
+	EventSummary
 } from '$lib/types/event';
 import { apiClient } from '$lib/api/client';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function mapPerson(raw: any): EventPerson {
 	return { id: String(raw?.id ?? ''), displayName: raw?.display_name ?? '' };
+}
+
+function mapEventSummary(raw: any): EventSummary {
+	return {
+		id: String(raw.id),
+		host: mapPerson(raw.host),
+		title: raw.title,
+		status: raw.status,
+		visibility: raw.visibility ?? 'private',
+		startsAt: raw.starts_at ?? null,
+		eventTime: raw.event_time ?? null,
+		endsAt: raw.ends_at ?? null,
+		locationKind: raw.location_kind
+	};
 }
 
 export function mapEvent(raw: any): EdmatEvent {
@@ -30,8 +45,10 @@ export function mapEvent(raw: any): EdmatEvent {
 		subjectSlugs: raw.subject_slugs ?? [],
 		disciplineSlug: raw.discipline_slug ?? null,
 		status: raw.status,
-		startsAt: raw.starts_at,
-		endsAt: raw.ends_at,
+		visibility: raw.visibility ?? 'private',
+		startsAt: raw.starts_at ?? null,
+		eventTime: raw.event_time ?? null,
+		endsAt: raw.ends_at ?? null,
 		durationMinutes: raw.duration_minutes ?? 60,
 		locationKind: raw.location_kind,
 		locationText: raw.location_text ?? '',
@@ -50,6 +67,8 @@ export function mapEvent(raw: any): EdmatEvent {
 		isHost: raw.is_host ?? false,
 		canRespond: raw.can_respond ?? false,
 		responseBlockReason: raw.response_block_reason ?? null,
+		parent: raw.parent ? mapEventSummary(raw.parent) : null,
+		subEvents: (raw.sub_events ?? []).map(mapEventSummary),
 		createdAt: raw.created_at
 	};
 }
@@ -71,7 +90,11 @@ function mapAttendee(raw: any): EventAttendee {
 function toBody(draft: Partial<EventDraft>): Record<string, unknown> {
 	const body: Record<string, unknown> = {};
 	if (draft.title !== undefined) body.title = draft.title;
-	if (draft.startsAt !== undefined) body.starts_at = draft.startsAt;
+	// `''` and `null` both mean "no date chosen" — normalized to a real `null` here so the backend's
+	// nullable `starts_at` sees an explicit clear rather than an empty string it would reject.
+	if (draft.startsAt !== undefined) body.starts_at = draft.startsAt || null;
+	if (draft.eventTime !== undefined) body.event_time = draft.eventTime || null;
+	if (draft.visibility !== undefined) body.visibility = draft.visibility;
 	if (draft.durationMinutes !== undefined) body.duration_minutes = draft.durationMinutes;
 	if (draft.locationKind !== undefined) body.location_kind = draft.locationKind;
 	if (draft.summary !== undefined) body.summary = draft.summary;
@@ -83,6 +106,7 @@ function toBody(draft: Partial<EventDraft>): Record<string, unknown> {
 	if (draft.onlineUrl !== undefined) body.online_url = draft.onlineUrl;
 	if (draft.capacity !== undefined) body.capacity = draft.capacity;
 	if (draft.language !== undefined) body.language = draft.language;
+	if (draft.parentId !== undefined) body.parent = draft.parentId || null;
 	return body;
 }
 

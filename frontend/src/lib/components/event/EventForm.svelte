@@ -4,8 +4,15 @@
 	import { onMount, untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getAllBranches, getDisciplines } from '$lib/services/taxonomy';
+	import { getEvents } from '$lib/services/events';
 	import type { Branch, Discipline } from '$lib/types/taxonomy';
-	import type { EdmatEvent, EventDraft, EventLocationKind } from '$lib/types/event';
+	import type {
+		EdmatEvent,
+		EventDraft,
+		EventLocationKind,
+		EventSummary,
+		EventVisibility
+	} from '$lib/types/event';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 	import { splitByStatus } from '$lib/utils/taxonomy';
@@ -27,16 +34,41 @@
 	let title = $state(untrack(() => initial?.title ?? ''));
 	let summary = $state(untrack(() => initial?.summary ?? ''));
 	let description = $state(untrack(() => initial?.description ?? ''));
+
+	// Nothing here — visibility, scheduling, location — has to be filled in to save a draft. The
+	// three scheduling states are a real choice, not an inference from which fields happen to be
+	// blank: a host who once picked "just a rough hour" and later clears it should not silently be
+	// treated as "not decided yet" until they explicitly say so.
+	let visibility = $state<EventVisibility>(untrack(() => initial?.visibility ?? 'private'));
+
+	type SchedulingMode = 'exact' | 'timeOnly' | 'none';
+	function initialSchedulingMode(): SchedulingMode {
+		if (initial?.startsAt) return 'exact';
+		if (initial?.eventTime) return 'timeOnly';
+		return 'none';
+	}
+	let schedulingMode = $state<SchedulingMode>(untrack(initialSchedulingMode));
 	// `<input type="datetime-local">` speaks "YYYY-MM-DDTHH:mm" in LOCAL time with no zone, while the
 	// API speaks ISO with one. The two conversions are the whole reason this is not a plain bind —
 	// see `toLocalInput`/`toIso` below.
-	let startsAtLocal = $state(untrack(() => toLocalInput(initial?.startsAt)));
+	let startsAtLocal = $state(untrack(() => toLocalInput(initial?.startsAt ?? undefined)));
+	// A bare `HH:MM` for the time-only input — `<input type="time">` speaks exactly that, so unlike
+	// `startsAtLocal` there is no timezone conversion to do at all.
+	let eventTimeLocal = $state(untrack(() => (initial?.eventTime ?? '').slice(0, 5)));
+
 	let durationMinutes = $state(untrack(() => initial?.durationMinutes ?? 60));
 	let locationKind = $state<EventLocationKind>(untrack(() => initial?.locationKind ?? 'onsite'));
 	let locationText = $state(untrack(() => initial?.locationText ?? ''));
 	let onlineUrl = $state(untrack(() => initial?.onlineUrl ?? ''));
 	let capacity = $state(untrack(() => initial?.capacity ?? 0));
 	let disciplineSlug = $state(untrack(() => initial?.disciplineSlug ?? ''));
+	// "Part of a bigger event" — only ever an event this same host runs, and only one that isn't
+	// itself a sub-event (the backend's own `validate_parent` enforces both, this is just what
+	// narrows the choices to ones that could possibly be accepted). Sourced from the host's own
+	// other top-level events rather than every event in the system, matching the "propose from
+	// something you'd plausibly pick" restraint the taxonomy pickers already use.
+	let parentId = $state(untrack(() => initial?.parent?.id ?? ''));
+	let hostableParents = $state<EventSummary[]>([]);
 	// The API has always accepted these; only the form was missing them, so subject-scoped discovery
 	// worked over HTTP before it worked from the UI.
 	let subjectSlugs = $state<string[]>(untrack(() => [...(initial?.subjectSlugs ?? [])]));
@@ -55,6 +87,13 @@
 		} catch {
 			// A taxonomy that will not load should not stop somebody announcing an event. The select
 			// simply stays at "None", which is a legitimate value, and the subject list stays empty.
+		}
+		try {
+			const hosted = await getEvents({ mine: 'hosting' });
+			hostableParents = hosted.filter((e) => e.parent === null && e.id !== initial?.id);
+		} catch {
+			// Same restraint as the taxonomy fetch above — a failed lookup just leaves "None" as the
+			// only option, not a broken form.
 		}
 	});
 
@@ -112,7 +151,12 @@
 			title: title.trim(),
 			summary: summary.trim(),
 			description: description.trim(),
-			startsAt: toIso(startsAtLocal),
+			visibility,
+			// Only the chosen mode's own field is ever sent as real data — the other is explicitly
+			// cleared, so switching from "just an hour" to "not decided yet" actually forgets the
+			// hour rather than leaving it sitting in the record with nothing showing it.
+			startsAt: schedulingMode === 'exact' ? toIso(startsAtLocal) : null,
+			eventTime: schedulingMode === 'timeOnly' ? eventTimeLocal || null : null,
 			durationMinutes: Number(durationMinutes) || 60,
 			locationKind,
 			// Blanked when the kind does not use them, so switching an event from onsite to online does
@@ -122,7 +166,8 @@
 			capacity: Number(capacity) || 0,
 			disciplineSlug: disciplineSlug || null,
 			subjectSlugs,
-			status: publishNow ? 'published' : 'draft'
+			status: publishNow ? 'published' : 'draft',
+			parentId: parentId || null
 		});
 	}
 </script>
@@ -143,16 +188,81 @@
 		<textarea bind:value={description} rows="5"></textarea>
 	</label>
 
-	<div class="row">
-		<label class="field">
-			<span>{m.events_form_startsAt()}</span>
-			<input type="datetime-local" bind:value={startsAtLocal} required />
-		</label>
-		<label class="field">
-			<span>{m.events_form_duration()}</span>
-			<input type="number" bind:value={durationMinutes} min="5" max="1440" step="5" required />
-		</label>
-	</div>
+	<!-- Visibility, first — it is the question with the biggest consequence, and answering it here
+	     (rather than as an afterthought near the submit button) means every field below it is filled
+	     in already knowing who will ever read it. Two real, self-explanatory choices read better as
+	     radio cards with their own sentence each than as a `<select>` whose meaning you'd have to
+	     guess from one word. -->
+	<fieldset class="segmented" aria-labelledby="event-visibility-legend">
+		<legend id="event-visibility-legend">{m.events_form_visibility()}</legend>
+		<div class="segmented__options">
+			<!-- `option--recommended` is on this card unconditionally, not just while selected — it is
+			     the safe default (§ product direction: a brand-new event should never be world-readable
+			     by accident), and that is worth being visible the instant the form opens, not only once
+			     somebody has already picked it. `option--active` still layers on top for the real
+			     selected-state highlight, so picking "Anyone" instead genuinely reads as switching away
+			     from the recommended choice rather than the two options looking interchangeable. -->
+			<label class="option option--recommended" class:option--active={visibility === 'private'}>
+				<input type="radio" name="event-visibility" value="private" bind:group={visibility} />
+				<span class="option__title">
+					{m.events_form_visibility_private()}
+					<span class="option__badge">{m.events_form_visibility_privateBadge()}</span>
+				</span>
+				<span class="option__hint">{m.events_form_visibility_privateHint()}</span>
+			</label>
+			<label class="option" class:option--active={visibility === 'public'}>
+				<input type="radio" name="event-visibility" value="public" bind:group={visibility} />
+				<span class="option__title">{m.events_form_visibility_public()}</span>
+				<span class="option__hint">{m.events_form_visibility_publicHint()}</span>
+			</label>
+		</div>
+	</fieldset>
+
+	<!-- Scheduling — three real states, not fields left blank. Picking "not decided yet" is itself
+	     the answer, not a fallback for having skipped the question, which is why this is a genuine
+	     three-way choice rather than one date field somebody can simply leave empty. -->
+	<fieldset class="segmented" aria-labelledby="event-scheduling-legend">
+		<legend id="event-scheduling-legend">{m.events_form_scheduling()}</legend>
+		<div class="segmented__options segmented__options--triple">
+			<label class="option" class:option--active={schedulingMode === 'exact'}>
+				<input type="radio" name="event-scheduling" value="exact" bind:group={schedulingMode} />
+				<span class="option__title">{m.events_form_scheduling_exact()}</span>
+			</label>
+			<label class="option" class:option--active={schedulingMode === 'timeOnly'}>
+				<input type="radio" name="event-scheduling" value="timeOnly" bind:group={schedulingMode} />
+				<span class="option__title">{m.events_form_scheduling_timeOnly()}</span>
+			</label>
+			<label class="option" class:option--active={schedulingMode === 'none'}>
+				<input type="radio" name="event-scheduling" value="none" bind:group={schedulingMode} />
+				<span class="option__title">{m.events_form_scheduling_none()}</span>
+			</label>
+		</div>
+
+		{#if schedulingMode === 'exact'}
+			<div class="row scheduling-detail">
+				<label class="field">
+					<span>{m.events_form_startsAt()}</span>
+					<input type="datetime-local" bind:value={startsAtLocal} required />
+				</label>
+				<label class="field">
+					<span>{m.events_form_duration()}</span>
+					<input type="number" bind:value={durationMinutes} min="5" max="1440" step="5" required />
+				</label>
+			</div>
+		{:else if schedulingMode === 'timeOnly'}
+			<div class="row scheduling-detail">
+				<label class="field">
+					<span>{m.events_form_eventTime()}</span>
+					<input type="time" bind:value={eventTimeLocal} required />
+					<small>{m.events_form_eventTimeHint()}</small>
+				</label>
+				<label class="field">
+					<span>{m.events_form_duration()}</span>
+					<input type="number" bind:value={durationMinutes} min="5" max="1440" step="5" required />
+				</label>
+			</div>
+		{/if}
+	</fieldset>
 
 	<label class="field">
 		<span>{m.events_form_locationKind()}</span>
@@ -166,7 +276,7 @@
 	{#if needsPlace}
 		<label class="field">
 			<span>{m.events_form_locationText()}</span>
-			<input type="text" bind:value={locationText} maxlength="300" required />
+			<input type="text" bind:value={locationText} maxlength="300" />
 			<small>{m.events_form_locationTextHint()}</small>
 		</label>
 	{/if}
@@ -174,7 +284,7 @@
 	{#if needsLink}
 		<label class="field">
 			<span>{m.events_form_onlineUrl()}</span>
-			<input type="url" bind:value={onlineUrl} maxlength="500" required />
+			<input type="url" bind:value={onlineUrl} maxlength="500" />
 		</label>
 	{/if}
 
@@ -210,6 +320,19 @@
 			</select>
 		</div>
 	</div>
+
+	{#if hostableParents.length > 0}
+		<label class="field">
+			<span>{m.events_form_parent()}</span>
+			<select bind:value={parentId}>
+				<option value="">{m.events_form_none()}</option>
+				{#each hostableParents as parent (parent.id)}
+					<option value={parent.id}>{parent.title}</option>
+				{/each}
+			</select>
+			<small>{m.events_form_parentHint()}</small>
+		</label>
+	{/if}
 
 	<!-- A checkbox group rather than `<select multiple>`: multi-select is a control most people do not
 	     know they have to hold a modifier key for, and at this catalogue's size the whole list fits. -->
@@ -351,6 +474,109 @@
 		align-items: center;
 		gap: var(--space-2);
 		font-size: var(--font-size-sm);
+	}
+	// The visibility/scheduling radio-card group — a real fieldset, not a `<select>`, since each
+	// choice deserves its own sentence and a click target bigger than a dropdown row.
+	.segmented {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: var(--space-3);
+		legend {
+			font-size: var(--font-size-sm);
+			font-weight: 600;
+			padding: 0 var(--space-1);
+		}
+	}
+	.segmented__options {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: var(--space-2);
+		&--triple {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+	.option {
+		position: relative;
+		// The real, focusable control is the visually-hidden radio inside this label, so
+		// `mix.focus-ring`'s own `&:focus-visible` (which targets THIS element) never fires from a
+		// keyboard tab — `:has()` is what lets the card itself show the ring its child earned.
+		&:has(input:focus-visible) {
+			outline: 2px solid var(--accent);
+			outline-offset: 2px;
+		}
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition:
+			border-color 0.12s ease,
+			background-color 0.12s ease;
+		// The real radio input stays in the DOM (keyboard nav, screen readers, `bind:group`) but is
+		// visually replaced by the card's own selected state — a checked dot on top of a styled card
+		// would be redundant with the border/fill this already communicates.
+		input {
+			position: absolute;
+			opacity: 0;
+			pointer-events: none;
+		}
+		&:hover {
+			border-color: var(--accent);
+		}
+	}
+	.option--active {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+	}
+	// The safe-default card, highlighted regardless of whether it's currently picked — a thicker,
+	// permanently accent-toned border plus a left edge bar, so "Only me" visibly outweighs "Anyone"
+	// the instant the form renders, not only once selected. `option--active` still layers its own
+	// stronger fill on top when it IS selected, so the two states compose rather than fight.
+	.option--recommended {
+		border-width: 2px;
+		border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color));
+		&::before {
+			content: '';
+			position: absolute;
+			inset: 0 auto 0 0;
+			width: 4px;
+			border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+			background: var(--accent);
+		}
+		// The border-width step above shifts a 1px-bordered neighbour by a pixel; padding compensates
+		// so the two cards' text stays aligned instead of the recommended one looking "bigger" by
+		// accident rather than by design.
+		padding: calc(var(--space-2) - 1px) var(--space-3);
+	}
+	.option__title {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+	}
+	.option__badge {
+		font-size: var(--font-size-xs);
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: var(--bg-page);
+		background: var(--accent);
+		border-radius: 999px;
+		padding: 0.05em var(--space-2);
+	}
+	.option__hint {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.scheduling-detail {
+		padding-top: var(--space-1);
+		border-top: 1px dashed var(--border-color);
 	}
 	.subjects {
 		display: flex;

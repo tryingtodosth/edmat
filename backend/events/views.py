@@ -15,7 +15,14 @@ from rest_framework.response import Response
 
 from moderation.permissions import feature_gate
 
-from .models import ATTENDING_STATUSES, PUBLIC_STATUSES, Event, EventAttendance, EventPost
+from .models import (
+    ATTENDING_STATUSES,
+    PUBLIC_STATUSES,
+    PUBLIC_VISIBILITY,
+    Event,
+    EventAttendance,
+    EventPost,
+)
 from .serializers import (
     AttendanceWriteSerializer,
     EventAttendanceSerializer,
@@ -75,13 +82,17 @@ class EventViewSet(viewsets.ModelViewSet):
         return self._filtered(qs, user)
 
     def _visible_to(self, qs, user):
-        """A draft belongs to its host alone.
+        """A private event, or a draft, belongs to its host alone.
 
-        Filtering rather than permission-checking means it is absent from every listing for free, not
-        hidden by a rule each new endpoint would have to remember — and somebody poking at an id they
-        cannot see gets a 404, which is also the honest answer, since for them it does not exist.
+        `status` and `visibility` are two independent gates, both narrowing who ever sees a row
+        besides its host — a published-but-private event is exactly as invisible to a stranger as a
+        public draft is, and both need to clear their own bar before the OTHER filter even matters.
+        Filtering rather than permission-checking means either is absent from every listing for
+        free, not hidden by a rule each new endpoint would have to remember — and somebody poking at
+        an id they cannot see gets a 404, which is also the honest answer, since for them it does
+        not exist.
         """
-        visible = qs.filter(status__in=PUBLIC_STATUSES)
+        visible = qs.filter(status__in=PUBLIC_STATUSES, visibility__in=PUBLIC_VISIBILITY)
         if user.is_authenticated:
             visible = visible | qs.filter(host=user)
         return visible.distinct()
@@ -188,11 +199,16 @@ class EventViewSet(viewsets.ModelViewSet):
         after = (event.starts_at, event.location_kind, event.location_text, event.online_url)
         if before != after and event.status == 'published':
             moved_in_time = before[0] != after[0]
-            note = (
-                timezone.localtime(event.starts_at).strftime('%Y-%m-%d %H:%M')
-                if moved_in_time
-                else (event.location_text or event.online_url or '')[:300]
-            )
+            # `event.starts_at` can itself be `None` (an event can go from scheduled back to
+            # unscheduled, or never have been scheduled at all while still moving something else
+            # notification-worthy) — `timezone.localtime(None)` would raise, so this only builds a
+            # timestamp note when there is a real instant to report.
+            if moved_in_time and event.starts_at is not None:
+                note = timezone.localtime(event.starts_at).strftime('%Y-%m-%d %H:%M')
+            elif moved_in_time:
+                note = ''
+            else:
+                note = (event.location_text or event.online_url or '')[:300]
             notify_attendees_of_change(event, request.user, note)
         return Response(EventSerializer(event, context=self.get_serializer_context()).data)
 

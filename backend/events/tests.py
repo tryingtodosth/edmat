@@ -11,6 +11,7 @@ import tempfile
 from datetime import timedelta
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import TestCase, override_settings
@@ -38,6 +39,16 @@ class ApiTestCase(TestCase):
     databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
+        # `GET /api/events/` is on the anonymous-read response cache's own allowlist
+        # (`config/cachemw.py`) — its admission counters and any already-stored response live in
+        # Django's cache, which (per `config/settings.py`'s own note on the identical trap already
+        # found for throttle counters) persists for the WHOLE test process, not per test. Without
+        # this, the second test anywhere in this file to hit that exact anonymous URL earns
+        # admission, and every later test asking the same question gets served that one's stale,
+        # already-cached response regardless of what its own fixtures actually created — the same
+        # "passes alone, fails in a full run" signature `ThrottleTestCase` already documents for a
+        # different cache-backed feature.
+        cache.clear()
         self.host = User.objects.create_user('kasia', 'kasia@x.example', 'pw12345!')
         self.goer = User.objects.create_user('michal', 'michal@x.example', 'pw12345!')
         self.other = User.objects.create_user('ola', 'ola@x.example', 'pw12345!')
@@ -55,6 +66,12 @@ class ApiTestCase(TestCase):
             'host': self.host,
             'title': 'Analiza II — exam prep',
             'status': 'published',
+            # `visibility` defaults to `private` on the model itself (2026's own "private by
+            # default" product direction) — every test in this file that predates that field was
+            # written assuming a published event is visible to a stranger, so the fixture opts
+            # back into that here rather than every one of those tests needing its own override.
+            # `VisibilityTests` below covers the real private-by-default behavior directly.
+            'visibility': 'public',
             'starts_at': timezone.now() + timedelta(days=3),
             'duration_minutes': 120,
             'location_kind': 'onsite',
@@ -157,11 +174,42 @@ class VisibilityTests(ApiTestCase):
         EventAttendance.objects.create(event=theirs, attendee=self.host, status='not_going')
         self.assertEqual(self.as_(self.host).get('/api/events/?mine=attending').json(), [])
 
+    def test_a_private_event_is_invisible_to_everybody_but_its_host_even_when_published(self):
+        """`status` and `visibility` are two independent gates — a private, published event is
+        exactly as invisible to a stranger as a public draft is, from the opposite direction."""
+        private = self.make_event(visibility='private')
+        self.assertEqual(
+            [e['id'] for e in self.as_(self.host).get('/api/events/').json()], [private.pk]
+        )
+        self.assertEqual(self.as_(self.other).get('/api/events/').json(), [])
+        self.assertEqual(self.client.get('/api/events/').json(), [])
+        self.assertEqual(
+            self.as_(self.other).get(f'/api/events/{private.pk}/').status_code, 404
+        )
+        # 200, not 404 — the host is always exempt from their own visibility choice.
+        self.assertEqual(
+            self.as_(self.host).get(f'/api/events/{private.pk}/').status_code, 200
+        )
+
+    def test_visibility_defaults_to_private_when_not_named_at_all(self):
+        """The model's own default, exercised through a real create rather than asserted against
+        `Event._meta` — the fixture used by every other test in this file opts back into `public`
+        explicitly, so this is the one place the real default is actually created."""
+        event = Event.objects.create(
+            host=self.host,
+            title='Undeclared visibility',
+            status='published',
+            starts_at=timezone.now() + timedelta(days=1),
+        )
+        self.assertEqual(event.visibility, 'private')
+        self.assertEqual(self.as_(self.other).get('/api/events/').json(), [])
+
 
 class AuthoringTests(ApiTestCase):
     def _payload(self, **over):
         body = {
             'title': 'Workshop',
+            'visibility': 'public',
             'starts_at': (timezone.now() + timedelta(days=5)).isoformat(),
             'duration_minutes': 90,
             'location_kind': 'onsite',
@@ -189,30 +237,36 @@ class AuthoringTests(ApiTestCase):
         self.assertIn('can_respond', body)
         self.assertEqual(body['going_count'], 0)
 
-    def test_an_onsite_event_must_say_where(self):
-        response = self.as_(self.goer).post(
+    def test_location_is_optional_regardless_of_kind(self):
+        """Was once a hard requirement ("an event with nowhere to be is not an event"); reversed
+        by explicit product direction — a private, undated entry has nowhere concrete to be YET,
+        and a placeholder room would just be a lie the form makes somebody tell. `location_kind`
+        still exists and still drives which fields the frontend shows, it just no longer gates
+        submission on either of them being filled in."""
+        client = self.as_(self.goer)
+        onsite = client.post(
             '/api/events/', self._payload(location_text=''), format='json'
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(onsite.status_code, 201)
+        self.assertEqual(onsite.json()['location_text'], '')
 
-    def test_an_online_event_must_carry_a_link(self):
-        response = self.as_(self.goer).post(
+        online = client.post(
             '/api/events/',
             self._payload(location_kind='online', location_text='', online_url=''),
             format='json',
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(online.status_code, 201)
+        self.assertEqual(online.json()['online_url'], '')
 
-    def test_a_hybrid_event_needs_both(self):
-        client = self.as_(self.goer)
-        self.assertEqual(
-            client.post(
-                '/api/events/',
-                self._payload(location_kind='hybrid', online_url=''),
-                format='json',
-            ).status_code,
-            400,
+        hybrid = client.post(
+            '/api/events/',
+            self._payload(location_kind='hybrid', location_text='', online_url=''),
+            format='json',
         )
+        self.assertEqual(hybrid.status_code, 201)
+
+    def test_a_hybrid_event_can_still_carry_both(self):
+        client = self.as_(self.goer)
         self.assertEqual(
             client.post(
                 '/api/events/',
@@ -222,13 +276,51 @@ class AuthoringTests(ApiTestCase):
             201,
         )
 
-    def test_a_partial_edit_is_validated_against_the_fields_it_is_not_changing(self):
-        """The real reason `EventWriteSerializer.validate` builds a merged probe: switching an onsite
-        event to online while sending no URL must fail on the URL it does not have, not pass because
-        the request did not mention it."""
+    def test_scheduling_is_entirely_optional(self):
+        """Not even a date or an hour is required — `starts_at` was a mandatory field until this
+        product direction reversed it. Creating with neither set is a genuine, real event: a
+        private "figure this out later" entry, not an error."""
+        response = self.as_(self.goer).post(
+            '/api/events/', self._payload(starts_at=None), format='json'
+        )
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertIsNone(body['starts_at'])
+        self.assertIsNone(body['ends_at'])
+        self.assertFalse(body['is_past'])
+
+    def test_an_hour_can_be_set_with_no_date_at_all(self):
+        """The one case a bare nullable `starts_at` cannot express on its own: a known HOUR with no
+        known day."""
+        response = self.as_(self.goer).post(
+            '/api/events/',
+            self._payload(starts_at=None, event_time='15:00:00'),
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertIsNone(body['starts_at'])
+        self.assertEqual(body['event_time'], '15:00:00')
+
+    def test_a_partial_edit_can_switch_location_kind_with_no_location_set_yet(self):
+        """`EventWriteSerializer.validate` still builds a merged probe from a PATCH's own fields
+        plus whatever the instance already has — location itself stopped being a cross-field rule
+        this probe enforces (location is optional now), but the merge machinery is still what a
+        PATCH runs through, and this is the case that would have 400'd under the old rule."""
         event = self.make_event()
         response = self.as_(self.host).patch(
             f'/api/events/{event.pk}/', {'location_kind': 'online'}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['location_kind'], 'online')
+
+    def test_a_partial_edit_still_enforces_the_one_remaining_cross_field_rule(self):
+        """`duration_minutes` is the one rule the merged probe still runs — a PATCH that only names
+        a field the rule does not itself gate must still see the instance's own `duration_minutes`
+        when deciding whether the result is valid."""
+        event = self.make_event(duration_minutes=10)
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/', {'duration_minutes': 1}, format='json'
         )
         self.assertEqual(response.status_code, 400)
 
@@ -267,6 +359,119 @@ class AuthoringTests(ApiTestCase):
         self.assertEqual(response.status_code, 409)
         self.assertIn('Cancel it', response.json()['detail'])
         self.assertTrue(Event.objects.filter(pk=event.pk).exists())
+
+
+class SubEventTests(ApiTestCase):
+    """A conference made of individual sessions — a real Event holding others, capped at one level
+    deep, and only ever writable by the parent's own host."""
+
+    def test_a_parent_lists_its_public_sub_events(self):
+        parent = self.make_event(title='Conference')
+        child = self.make_event(title='Session 1', parent=parent)
+        body = self.client.get(f'/api/events/{parent.pk}/').json()
+        self.assertEqual([s['id'] for s in body['sub_events']], [child.pk])
+        self.assertEqual(self.client.get(f'/api/events/{child.pk}/').json()['parent']['id'], parent.pk)
+
+    def test_a_private_sub_event_does_not_leak_through_its_public_parent(self):
+        parent = self.make_event(title='Conference')
+        self.make_event(title='Secret session', parent=parent, visibility='private')
+        body = self.client.get(f'/api/events/{parent.pk}/').json()
+        self.assertEqual(body['sub_events'], [])
+        # The host still sees it, same OR-logic every other listing already uses.
+        body = self.as_(self.host).get(f'/api/events/{parent.pk}/').json()
+        self.assertEqual(len(body['sub_events']), 1)
+
+    def test_a_private_parent_is_not_named_to_a_stranger(self):
+        parent = self.make_event(title='Conference', visibility='private')
+        child = self.make_event(title='Session', parent=parent)
+        # The stranger can see the child (it's public) but not the parent it belongs to.
+        body = self.client.get(f'/api/events/{child.pk}/').json()
+        self.assertIsNone(body['parent'])
+        body = self.as_(self.host).get(f'/api/events/{child.pk}/').json()
+        self.assertEqual(body['parent']['id'], parent.pk)
+
+    def test_attaching_a_sub_event_needs_to_be_the_parents_own_host(self):
+        parent = self.make_event(title='Conference')
+        response = self.as_(self.goer).post(
+            '/api/events/',
+            {
+                'title': 'Gatecrash session',
+                'visibility': 'public',
+                'location_kind': 'onsite',
+                'status': 'published',
+                'parent': parent.pk,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('parent', response.json())
+
+    def test_the_parents_own_host_can_attach_a_sub_event(self):
+        parent = self.make_event(title='Conference')
+        response = self.as_(self.host).post(
+            '/api/events/',
+            {
+                'title': 'Session 1',
+                'visibility': 'public',
+                'location_kind': 'onsite',
+                'status': 'published',
+                'parent': parent.pk,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['parent']['id'], parent.pk)
+
+    def test_a_sub_event_cannot_itself_hold_sub_events(self):
+        grandparent = self.make_event(title='Conference')
+        parent = self.make_event(title='Session', parent=grandparent)
+        response = self.as_(self.host).post(
+            '/api/events/',
+            {
+                'title': 'Sub-session',
+                'visibility': 'public',
+                'location_kind': 'onsite',
+                'status': 'published',
+                'parent': parent.pk,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('parent', response.json())
+
+    def test_an_event_cannot_be_its_own_parent(self):
+        event = self.make_event()
+        response = self.as_(self.host).patch(
+            f'/api/events/{event.pk}/', {'parent': event.pk}, format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_deleting_a_parent_cascades_to_its_sub_events(self):
+        parent = self.make_event(title='Conference')
+        child = self.make_event(title='Session', parent=parent)
+        self.as_(self.host).delete(f'/api/events/{parent.pk}/')
+        self.assertFalse(Event.objects.filter(pk=child.pk).exists())
+
+    def test_model_clean_refuses_the_same_depth_and_self_parent_cases(self):
+        """The write serializer's own checks are the honest, specific reasons a request gets a real
+        400 — this is the structural backstop underneath them, so the admin and any seed command are
+        held to the same rule even though nothing routes through the API here."""
+        from django.core.exceptions import ValidationError
+
+        parent = self.make_event(title='Conference')
+        child = self.make_event(title='Session', parent=parent)
+        grandchild = Event(
+            host=self.host,
+            title='Sub-session',
+            location_kind='onsite',
+            parent=child,
+        )
+        with self.assertRaises(ValidationError):
+            grandchild.clean()
+
+        parent.parent_id = parent.pk
+        with self.assertRaises(ValidationError):
+            parent.clean()
 
 
 class AttendanceTests(ApiTestCase):

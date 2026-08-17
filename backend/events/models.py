@@ -51,6 +51,21 @@ PUBLIC_STATUSES = frozenset({'published', 'cancelled'})
 #: are coming to it.
 RESPONDABLE_STATUSES = frozenset({'published'})
 
+# Who besides the host can ever see this event, independent of `status`. Genuinely orthogonal to
+# publishing: `status` asks "has this been announced", `visibility` asks "who is it announced TO".
+# A published-but-private event is a real, coherent thing — a personal calendar entry the host
+# wants their own attendance/notification/schedule machinery for, with nobody else in the loop —
+# not a contradiction the model needs to refuse.
+#
+# Defaults to `private`, per explicit product direction: creating an event is not the same act as
+# broadcasting it, and a visitor's very first event should never be world-readable by accident.
+# Making it public is a deliberate, later choice, not something that falls out of publishing.
+VISIBILITY_CHOICES = [
+    ('private', 'Only me'),
+    ('public', 'Anyone'),
+]
+PUBLIC_VISIBILITY = frozenset({'public'})
+
 # Where it happens. Three values rather than a nullable URL, because "online" and "in a room" and
 # "both" are three genuinely different things to a person deciding whether they can attend, and a
 # hybrid event with only a URL field set would read as online-only to somebody who would have come
@@ -94,6 +109,29 @@ class Event(models.Model):
     summary = models.CharField(max_length=300, blank=True)
     description = models.TextField(blank=True)
 
+    # A bigger event made of smaller ones — a conference with individual sessions, a two-day
+    # workshop with a talk each morning. Self-referential rather than a second model: a sub-event
+    # IS a real, ordinary Event (its own time, its own place, its own roster somebody answers), not
+    # a lighter "session" shape that would need its own attendance/notification machinery
+    # duplicated. `related_name='sub_events'` is what the parent's own serializer reads to list them.
+    #
+    # `on_delete=CASCADE`, deliberately unlike every other FK on this model: a session only exists
+    # IN THE CONTEXT of the conference that groups it, unlike an attendance or a post, which outlive
+    # a deleted account (`SET_NULL`) because the people who need them are someone else. Deleting the
+    # conference deleting its own sessions is the same "the deletion is a statement about the
+    # grouping" reasoning `Chapter`'s own `SET_NULL` note (`courses/models.py`) argues for the
+    # opposite case — there, content survives its chapter; here, a session has no life outside its
+    # own conference to survive INTO.
+    #
+    # Capped at exactly two levels (`clean()` below refuses a sub-event's own parent having a
+    # parent) rather than an arbitrarily deep tree — "sessions of sessions" is not a shape this
+    # feature is for, and a hard cap is also what makes a cycle structurally impossible to construct
+    # without a second, separate cycle-detection pass: a parent that itself has no parent can never
+    # be reached by walking upward from any of its own descendants.
+    parent = models.ForeignKey(
+        'self', null=True, blank=True, related_name='sub_events', on_delete=models.CASCADE
+    )
+
     # Discovery through the taxonomy rather than free-text tags — the same choice `Course` and
     # `Service` both already make, and the reason somebody browsing Analiza Matematyczna II finds the
     # exam-prep session about it without knowing it exists.
@@ -107,12 +145,23 @@ class Event(models.Model):
     )
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    visibility = models.CharField(max_length=8, choices=VISIBILITY_CHOICES, default='private')
 
     # A single instant plus a length, rather than a start and an end. Two datetimes make an event
     # that ends before it begins representable and would need validating at every write; a duration
     # cannot be negative in the first place, and "90 minutes" is also what a host actually knows when
     # they are writing the announcement. `ends_at` is derived below, so read sites still get one.
-    starts_at = models.DateTimeField()
+    #
+    # Nullable, deliberately: a host may know nothing yet — not the day, not the hour — and this app
+    # would rather hold that honestly than force a placeholder date nobody meant. `event_time` is the
+    # one case a bare nullable `starts_at` cannot express on its own: a known HOUR with no known day
+    # ("sometime around 3pm, haven't picked a date"). The two never both carry real information at
+    # once in practice — the moment a host also knows the date, it belongs in `starts_at` instead —
+    # but nothing here enforces that as a hard exclusivity rule; `event_time` is simply ignored by
+    # every consumer (ordering, notifications, calendar-blocking, `?when=`) the instant `starts_at`
+    # is set, since a real instant is always the more useful of the two.
+    starts_at = models.DateTimeField(null=True, blank=True)
+    event_time = models.TimeField(null=True, blank=True)
     duration_minutes = models.PositiveSmallIntegerField(default=60)
 
     location_kind = models.CharField(
@@ -144,22 +193,41 @@ class Event(models.Model):
         return self.title
 
     def clean(self):
-        # An event with nowhere to be is not an event. Checked here rather than only in the
-        # serializer so the admin and any seed command are held to it too.
-        if self.location_kind in NEEDS_PLACE and not (self.location_text or '').strip():
-            raise ValidationError({'location_text': 'Say where this happens.'})
-        if self.location_kind in NEEDS_LINK and not (self.online_url or '').strip():
-            raise ValidationError({'online_url': 'An online event needs a link.'})
+        # Location is a courtesy, not a requirement — deliberately, per explicit product direction:
+        # a private, undated "maybe drinks with the study group" entry has nowhere concrete to be
+        # yet, and forcing a placeholder room/link into it would just be a lie the form makes you
+        # tell. `NEEDS_PLACE`/`NEEDS_LINK` stay defined (and still drive which fields the frontend
+        # shows) but no longer raise — a host who *does* fill one in still gets it rendered, and one
+        # who doesn't gets an honestly-blank field, not a validation error standing in the way.
         if self.duration_minutes is not None and self.duration_minutes < 5:
             raise ValidationError({'duration_minutes': 'An event lasts at least five minutes.'})
+        if self.parent_id is not None:
+            if self.pk is not None and self.parent_id == self.pk:
+                raise ValidationError({'parent': 'An event cannot be part of itself.'})
+            # The depth cap, checked here too (not only in the write serializer) so the admin and
+            # any seed command are held to it as well — the same "the model is the one place a rule
+            # lives" discipline this method's own docstring already established for duration.
+            if self.parent_id is not None and Event.objects.filter(
+                pk=self.parent_id, parent__isnull=False
+            ).exists():
+                raise ValidationError(
+                    {'parent': 'An event that is itself part of another cannot hold sub-events too.'}
+                )
 
     @property
     def ends_at(self):
+        """`None` when there is no `starts_at` to add a duration to — genuinely unscheduled, not a
+        zero-length event. Every reader of this property already has to handle `starts_at` being
+        absent one way or another (ordering/filtering already exclude it via `starts_at__lt`/`__gte`
+        style queries, which simply never match a NULL row), so this stays consistent with that."""
+        if self.starts_at is None:
+            return None
         return self.starts_at + timedelta(minutes=self.duration_minutes or 0)
 
     @property
     def is_past(self) -> bool:
-        return self.ends_at < timezone.now()
+        ends_at = self.ends_at
+        return ends_at is not None and ends_at < timezone.now()
 
     def going_count(self) -> int:
         """People who said they are coming. The host is NOT counted — they are running it, not

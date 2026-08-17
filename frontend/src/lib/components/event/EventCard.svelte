@@ -9,7 +9,7 @@
 	// decides whether the rest is worth reading.
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
-	import { formatDateTime } from '$lib/utils/datetime';
+	import { formatDateTime, formatClock } from '$lib/utils/datetime';
 	import type { EdmatEvent } from '$lib/types/event';
 
 	let { event }: { event: EdmatEvent } = $props();
@@ -19,6 +19,16 @@
 		online: () => m.events_locationKind_online(),
 		hybrid: () => m.events_locationKind_hybrid()
 	};
+
+	// Three real states, not one field that might be empty — see `EventForm`'s own scheduling
+	// fieldset for why. A card only ever reads one of them, in order of how much is actually known.
+	let whenLabel = $derived(
+		event.startsAt
+			? formatDateTime(event.startsAt)
+			: event.eventTime
+				? m.events_timeOnlyDisplay({ time: formatClock(event.eventTime) })
+				: m.events_unscheduled()
+	);
 
 	// "3 of 12 places left" only means something when there is a cap; an uncapped event should say how
 	// many people are coming rather than invent a limit to count down from — the same choice
@@ -31,14 +41,19 @@
 </script>
 
 <a class="event-card" href={resolve('/events/[id]', { id: event.id })}>
-	<p class="when">{formatDateTime(event.startsAt)}</p>
+	<p class="when">{whenLabel}</p>
 	<div class="head">
 		<h3>{event.title}</h3>
-		{#if event.status !== 'published'}
-			<span class="status status--{event.status}">
-				{event.status === 'cancelled' ? m.events_status_cancelled() : m.events_status_draft()}
-			</span>
-		{/if}
+		<div class="badges">
+			{#if event.visibility === 'private'}
+				<span class="status status--private">{m.events_form_visibility_private()}</span>
+			{/if}
+			{#if event.status !== 'published'}
+				<span class="status status--{event.status}">
+					{event.status === 'cancelled' ? m.events_status_cancelled() : m.events_status_draft()}
+				</span>
+			{/if}
+		</div>
 	</div>
 	{#if event.summary}
 		<p class="summary">{event.summary}</p>
@@ -99,6 +114,18 @@
 	}
 	.status--cancelled {
 		color: var(--status-danger, #c0392b);
+	}
+	.badges {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+	.status--private {
+		color: var(--text-secondary);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: 0 var(--space-1);
 	}
 	.summary,
 	.meta {

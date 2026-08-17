@@ -21,6 +21,10 @@ def _when(event) -> str:
     from a row that may since have been edited (or deleted) would be a worse answer than the one that
     was true when the thing happened.
     """
+    # An event can be published with no `starts_at` at all (the date/hour are both genuinely
+    # unknown yet) — the note is simply blank rather than crashing on `timezone.localtime(None)`.
+    if event.starts_at is None:
+        return ''
     return timezone.localtime(event.starts_at).strftime('%Y-%m-%d %H:%M')
 
 

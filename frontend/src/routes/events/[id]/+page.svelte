@@ -9,7 +9,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
-	import { formatDateTime } from '$lib/utils/datetime';
+	import { formatDateTime, formatClock } from '$lib/utils/datetime';
 	import { cancelEvent, getEvent, getEventAttendees, respondToEvent } from '$lib/services/events';
 	import { createAvailabilityException, getMySchedule } from '$lib/services/booking';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -110,19 +110,21 @@
 	 * problem anybody can still act on, and the warning would be noise on every old page. */
 	async function checkClash(current: EdmatEvent) {
 		if (!authStore.isAuthenticated || current.isPast || current.status === 'cancelled') return;
+		// A clash only means anything against a real instant — an event that only has a rough hour, or
+		// no schedule at all yet, has nothing to compare against the tutor's own calendar.
+		if (!current.startsAt || !current.endsAt) return;
+		const startsAt = current.startsAt;
+		const endsAt = current.endsAt;
 		// Start day THROUGH end day, not just the start: an event running to 00:30 has an hour of itself
 		// on a date the first query would never look at.
 		try {
-			const schedule = await getMySchedule(
-				current.startsAt.slice(0, 10),
-				current.endsAt.slice(0, 10)
-			);
+			const schedule = await getMySchedule(startsAt.slice(0, 10), endsAt.slice(0, 10));
 			// A live booking only. A declined or cancelled request is not a commitment, and a completed
 			// one is in the past by definition.
 			const live = schedule.bookings.filter(
 				(b) =>
 					(b.status === 'confirmed' || b.status === 'requested') &&
-					overlaps(current.startsAt, current.endsAt, b.startsAt, b.endsAt)
+					overlaps(startsAt, endsAt, b.startsAt, b.endsAt)
 			);
 			if (live.length > 0) {
 				clash = { kind: 'booking', count: live.length };
@@ -133,7 +135,7 @@
 			if (!current.isHost) return;
 			const stillOffered = schedule.days
 				.flatMap((d) => d.windows)
-				.some((w) => overlaps(current.startsAt, current.endsAt, w.start, w.end));
+				.some((w) => overlaps(startsAt, endsAt, w.start, w.end));
 			if (stillOffered) clash = { kind: 'availability', count: 0 };
 		} catch {
 			// Somebody who runs no tutoring at all has no schedule to read, and a failure here must not
@@ -142,7 +144,7 @@
 	}
 
 	async function holdTheEvening() {
-		if (!event) return;
+		if (!event || !event.startsAt || !event.endsAt) return;
 		blocking = true;
 		actionError = '';
 		try {
@@ -209,9 +211,25 @@
 				<div>
 					<dt>{m.events_when()}</dt>
 					<dd>
-						{formatDateTime(event.startsAt)} · {m.events_duration({
-							count: event.durationMinutes
-						})}
+						{#if event.startsAt}
+							{formatDateTime(event.startsAt)} · {m.events_duration({
+								count: event.durationMinutes
+							})}
+						{:else if event.eventTime}
+							{m.events_timeOnlyDisplay({ time: formatClock(event.eventTime) })} · {m.events_duration(
+								{ count: event.durationMinutes }
+							)}
+						{:else}
+							{m.events_unscheduled()}
+						{/if}
+					</dd>
+				</div>
+				<div>
+					<dt>{m.events_form_visibility()}</dt>
+					<dd>
+						{event.visibility === 'private'
+							? m.events_form_visibility_private()
+							: m.events_form_visibility_public()}
 					</dd>
 				</div>
 				<div>
@@ -243,6 +261,33 @@
 
 			{#if event.description}
 				<section class="description"><p>{event.description}</p></section>
+			{/if}
+
+			{#if event.parent}
+				<p class="part-of">
+					{m.events_partOf()}
+					<a href={resolve('/events/[id]', { id: event.parent.id })}>{event.parent.title}</a>
+				</p>
+			{/if}
+
+			{#if event.subEvents.length > 0}
+				<section class="sub-events">
+					<h2>{m.events_subEvents()}</h2>
+					<ul>
+						{#each event.subEvents as sub (sub.id)}
+							<li>
+								<a href={resolve('/events/[id]', { id: sub.id })}>{sub.title}</a>
+								{#if sub.startsAt}
+									<span class="sub-events__when">{formatDateTime(sub.startsAt)}</span>
+								{:else if sub.eventTime}
+									<span class="sub-events__when">
+										{m.events_timeOnlyDisplay({ time: formatClock(sub.eventTime) })}
+									</span>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</section>
 			{/if}
 
 			<section class="respond">
@@ -427,6 +472,33 @@
 	}
 	.description p {
 		white-space: pre-wrap;
+	}
+	.part-of {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	.sub-events {
+		h2 {
+			font-size: var(--font-size-md);
+			margin-bottom: var(--space-2);
+		}
+		ul {
+			list-style: none;
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-1);
+			padding: 0;
+			margin: 0;
+		}
+		li {
+			display: flex;
+			justify-content: space-between;
+			gap: var(--space-2);
+		}
+	}
+	.sub-events__when {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
 	}
 	.respond {
 		display: flex;

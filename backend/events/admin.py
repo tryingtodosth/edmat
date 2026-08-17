@@ -15,8 +15,8 @@ class PostLinkInline(admin.TabularInline):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ['title', 'host', 'starts_at', 'status', 'location_kind']
-    list_filter = ['status', 'location_kind']
+    list_display = ['title', 'host', 'starts_at', 'event_time', 'status', 'visibility', 'location_kind']
+    list_filter = ['status', 'visibility', 'location_kind']
     search_fields = ['title', 'summary']
     inlines = [AttendanceInline]
 

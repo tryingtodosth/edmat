@@ -11,6 +11,8 @@ from taxonomy.models import Branch, Discipline
 from .models import (
     ATTENDING_STATUSES,
     MAX_POST_LINKS,
+    PUBLIC_STATUSES,
+    PUBLIC_VISIBILITY,
     Event,
     EventAttendance,
     EventPost,
@@ -36,6 +38,29 @@ class PersonSerializer(serializers.Serializer):
         return profile.display_name if profile and profile.display_name else user.username
 
 
+class EventSummarySerializer(serializers.ModelSerializer):
+    """Just enough to name a sub-event or a parent event, the same "minimal reference" shape
+    `PersonSerializer` already establishes for a user. A sub-event's own full detail is a real,
+    independently-loadable Event — this is only what a listing needs to link to it."""
+
+    host = PersonSerializer(read_only=True)
+    ends_at = serializers.DateTimeField(read_only=True, allow_null=True)
+
+    class Meta:
+        model = Event
+        fields = [
+            'id',
+            'host',
+            'title',
+            'status',
+            'visibility',
+            'starts_at',
+            'event_time',
+            'ends_at',
+            'location_kind',
+        ]
+
+
 class EventAttendanceSerializer(serializers.ModelSerializer):
     attendee = PersonSerializer(read_only=True)
 
@@ -51,7 +76,7 @@ class EventSerializer(serializers.ModelSerializer):
     )
     discipline_slug = serializers.SlugRelatedField(source='discipline', slug_field='slug', read_only=True)
 
-    ends_at = serializers.DateTimeField(read_only=True)
+    ends_at = serializers.DateTimeField(read_only=True, allow_null=True)
     is_past = serializers.BooleanField(read_only=True)
     going_count = serializers.SerializerMethodField()
     seats_left = serializers.IntegerField(read_only=True)
@@ -74,6 +99,13 @@ class EventSerializer(serializers.ModelSerializer):
     # announcing it, and would have to open each in turn to find out.
     post_count = serializers.SerializerMethodField()
 
+    # The bigger event this one belongs to, and the smaller ones it contains — both resolved
+    # server-side through the same `_visible_to` OR-logic every other listing already uses, so a
+    # private sub-event never leaks through its public parent's own detail response, and a viewer
+    # who cannot see the parent at all simply gets `null` rather than a dangling reference.
+    parent = serializers.SerializerMethodField()
+    sub_events = serializers.SerializerMethodField()
+
     class Meta:
         model = Event
         fields = [
@@ -85,7 +117,9 @@ class EventSerializer(serializers.ModelSerializer):
             'subject_slugs',
             'discipline_slug',
             'status',
+            'visibility',
             'starts_at',
+            'event_time',
             'ends_at',
             'duration_minutes',
             'location_kind',
@@ -103,8 +137,28 @@ class EventSerializer(serializers.ModelSerializer):
             'is_host',
             'can_respond',
             'response_block_reason',
+            'parent',
+            'sub_events',
             'created_at',
         ]
+
+    def _visible(self, candidate, user):
+        if candidate is None:
+            return False
+        if candidate.status in PUBLIC_STATUSES and candidate.visibility in PUBLIC_VISIBILITY:
+            return True
+        return bool(user and user.is_authenticated and candidate.host_id == user.pk)
+
+    def get_parent(self, event):
+        user = self._user()
+        if event.parent_id is None or not self._visible(event.parent, user):
+            return None
+        return EventSummarySerializer(event.parent, context=self.context).data
+
+    def get_sub_events(self, event):
+        user = self._user()
+        children = [child for child in event.sub_events.all() if self._visible(child, user)]
+        return EventSummarySerializer(children, many=True, context=self.context).data
 
     def _user(self):
         request = self.context.get('request')
@@ -167,6 +221,9 @@ class EventWriteSerializer(serializers.ModelSerializer):
         allow_null=True,
         queryset=Discipline.objects.all(),
     )
+    parent = serializers.PrimaryKeyRelatedField(
+        required=False, allow_null=True, queryset=Event.objects.all()
+    )
 
     class Meta:
         model = Event
@@ -177,13 +234,16 @@ class EventWriteSerializer(serializers.ModelSerializer):
             'subject_slugs',
             'discipline_slug',
             'status',
+            'visibility',
             'starts_at',
+            'event_time',
             'duration_minutes',
             'location_kind',
             'location_text',
             'online_url',
             'capacity',
             'language',
+            'parent',
         ]
 
     def validate(self, attrs):
@@ -204,6 +264,24 @@ class EventWriteSerializer(serializers.ModelSerializer):
         # starts_at, host), so only the cross-field rules are run.
         probe.clean()
         return attrs
+
+    def validate_parent(self, value):
+        """Three refusals, all enforced here rather than left to the model's own `clean()` alone —
+        that one is a structural backstop (the admin, a seed command), this one is the honest,
+        specific reason a request gets back rather than a bare 400."""
+        if value is None:
+            return value
+        if self.instance is not None and value.pk == self.instance.pk:
+            raise serializers.ValidationError('An event cannot be part of itself.')
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not (user and user.is_authenticated and value.host_id == user.pk):
+            raise serializers.ValidationError('Only the parent event’s own host may add to it.')
+        if value.parent_id is not None:
+            raise serializers.ValidationError(
+                'An event that is itself part of another cannot hold sub-events too.'
+            )
+        return value
 
     def validate_status(self, value):
         """Cancelling is a decision with consequences — it notifies everybody who said they were

@@ -13,6 +13,7 @@ forward to a real future date, so the suite does not start failing on a particul
 from datetime import date, datetime, time, timedelta
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -33,6 +34,16 @@ class ApiTestCase(TestCase):
     databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
+        # `GET /api/services/{id}/availability/` is on the anonymous-read response cache's own
+        # allowlist (`config/cachemw.py`) — its admission counters and any already-stored response
+        # live in Django's cache, which persists for the WHOLE test process rather than per test
+        # (the identical trap `config/settings.py`'s own comment already documents for throttle
+        # counters, and `events/tests.py`'s `ApiTestCase` already carries this same fix for its own
+        # `/api/events/`). Without it, whichever test first earns admission on that exact URL leaves
+        # every later test asking the same question a stale cached response instead of a fresh one —
+        # concretely, `KillSwitchTests` toggling the flag off and expecting a 401 was instead served
+        # an earlier test's cached 200.
+        cache.clear()
         self.tutor = User.objects.create_user('kasia', 'kasia@x.example', 'pw12345!')
         self.student = User.objects.create_user('michal', 'michal@x.example', 'pw12345!')
         self.other = User.objects.create_user('ola', 'ola@x.example', 'pw12345!')
