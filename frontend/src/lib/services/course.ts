@@ -116,7 +116,8 @@ function mapLessonSetExercise(raw: any): LessonSetExercise {
 function mapLessonExerciseSet(raw: any): LessonExerciseSet {
 	return {
 		id: String(raw.id),
-		lessonId: String(raw.lesson),
+		lessonId: optionalId(raw.lesson),
+		chapterId: optionalId(raw.chapter),
 		title: raw.title ?? '',
 		note: raw.note ?? '',
 		order: raw.order ?? 0,
@@ -151,6 +152,9 @@ function mapItem(raw: any): CourseItem {
 		exercise: optionalId(raw.exercise),
 		attachment: optionalId(raw.attachment),
 		event: optionalId(raw.event),
+		discussion: optionalId(raw.discussion),
+		discussionTargetType: raw.discussion_target_type ?? '',
+		discussionTargetId: raw.discussion_target_id ?? '',
 		label: raw.label ?? '',
 		order: raw.order ?? 0,
 		note: raw.note ?? '',
@@ -173,6 +177,7 @@ function mapChapter(raw: any): Chapter {
 		isUnlocked: raw.is_unlocked ?? true,
 		lessons: (raw.lessons ?? []).map(mapLesson),
 		items: (raw.items ?? []).map(mapItem),
+		exerciseSets: (raw.exercise_sets ?? []).map(mapLessonExerciseSet),
 		reviews: mapRatingSummary(raw.reviews)
 	};
 }
@@ -455,62 +460,79 @@ export async function deleteLesson(courseId: string, lessonId: string): Promise<
 // takes the source's current list, which keeps that decision with the course rather than with
 // whoever happens to own the set.
 
-function lessonSetsUrl(courseId: string, lessonId: string): string {
-	return `/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}/exercise-sets/`;
+/** Which level a set link hangs off. A set belongs to a session, or to the week itself — the same
+ * two destinations a `CourseItem` files into, and for the same reason: a reading everybody does
+ * before week 3 starts belongs to the week, not to whichever session happens to be first in it. */
+export type SetParentKind = 'lesson' | 'chapter';
+
+function setsUrl(courseId: string, parentKind: SetParentKind, parentId: string): string {
+	// The backend's own segment is plural (`lessons|chapters`), which is also what every other URL
+	// in this API uses, so the singular kind is pluralised here rather than callers having to know.
+	const segment = parentKind === 'lesson' ? 'lessons' : 'chapters';
+	return `/courses/${encodeURIComponent(courseId)}/${segment}/${encodeURIComponent(parentId)}/exercise-sets/`;
 }
 
 export async function getLinkedSets(
 	courseId: string,
-	lessonId: string
+	parentKind: SetParentKind,
+	parentId: string
 ): Promise<LessonExerciseSet[]> {
-	const raw = await apiClient.get<unknown[]>(lessonSetsUrl(courseId, lessonId));
+	const raw = await apiClient.get<unknown[]>(setsUrl(courseId, parentKind, parentId));
 	return raw.map(mapLessonExerciseSet);
 }
 
 /** `setSlug` is the set's own share slug (`ExerciseSet.slug`), which is what every other reference
  * to a set in this app already uses — never its numeric row id. */
-export async function linkSetToLesson(
+export async function linkSet(
 	courseId: string,
-	lessonId: string,
+	parentKind: SetParentKind,
+	parentId: string,
 	setSlug: string,
 	note = ''
 ): Promise<LessonExerciseSet> {
 	return mapLessonExerciseSet(
-		await apiClient.post(lessonSetsUrl(courseId, lessonId), { set: setSlug, note })
+		await apiClient.post(setsUrl(courseId, parentKind, parentId), { set: setSlug, note })
 	);
 }
 
 export async function refreshLinkedSet(
 	courseId: string,
-	lessonId: string,
+	parentKind: SetParentKind,
+	parentId: string,
 	linkId: string
 ): Promise<LessonExerciseSet> {
 	return mapLessonExerciseSet(
-		await apiClient.patch(`${lessonSetsUrl(courseId, lessonId)}${encodeURIComponent(linkId)}/`, {
-			refresh: true
-		})
+		await apiClient.patch(
+			`${setsUrl(courseId, parentKind, parentId)}${encodeURIComponent(linkId)}/`,
+			{ refresh: true }
+		)
 	);
 }
 
 export async function renameLinkedSet(
 	courseId: string,
-	lessonId: string,
+	parentKind: SetParentKind,
+	parentId: string,
 	linkId: string,
 	title: string
 ): Promise<LessonExerciseSet> {
 	return mapLessonExerciseSet(
-		await apiClient.patch(`${lessonSetsUrl(courseId, lessonId)}${encodeURIComponent(linkId)}/`, {
-			title
-		})
+		await apiClient.patch(
+			`${setsUrl(courseId, parentKind, parentId)}${encodeURIComponent(linkId)}/`,
+			{ title }
+		)
 	);
 }
 
-export async function unlinkSetFromLesson(
+export async function unlinkSet(
 	courseId: string,
-	lessonId: string,
+	parentKind: SetParentKind,
+	parentId: string,
 	linkId: string
 ): Promise<void> {
-	await apiClient.delete(`${lessonSetsUrl(courseId, lessonId)}${encodeURIComponent(linkId)}/`);
+	await apiClient.delete(
+		`${setsUrl(courseId, parentKind, parentId)}${encodeURIComponent(linkId)}/`
+	);
 }
 
 export type { EnrollmentStatus };
@@ -596,11 +618,14 @@ export async function getCourseItems(courseId: string): Promise<CourseItem[]> {
 }
 
 export interface CourseItemSubmission {
-	/** Exactly one of these four — the server refuses anything else, and so does the database. */
+	/** Exactly one of these five — the server refuses anything else, and so does the database. */
 	materialId?: string;
 	exerciseId?: string;
 	attachmentId?: string;
 	eventId?: string;
+	/** A comment id, and it must be the START of a thread: the server refuses a reply, and refuses
+	 * a thread private to a different course. */
+	discussionId?: string;
 	/** Where it goes. At most one: a lesson already belongs to a chapter, so sending both would state
 	 * the same fact twice with two chances to disagree. Neither means unfiled. */
 	chapterId?: string | null;
@@ -617,6 +642,7 @@ export async function submitCourseItem(
 	if (submission.exerciseId) body.exercise = Number(submission.exerciseId);
 	if (submission.attachmentId) body.attachment = Number(submission.attachmentId);
 	if (submission.eventId) body.event = Number(submission.eventId);
+	if (submission.discussionId) body.discussion = Number(submission.discussionId);
 	// A lesson wins if both somehow arrive, rather than sending both and letting the server refuse
 	// the whole request: the caller asked for the more specific of the two.
 	if (submission.lessonId) body.lesson = Number(submission.lessonId);

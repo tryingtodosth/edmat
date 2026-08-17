@@ -8,6 +8,7 @@ pin what must NEVER be written, which is the kind of property that only fails si
 
 import ipaddress
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -241,8 +242,15 @@ class ConsentBoundaryTests(TestCase):
         )
 
 
+@override_settings(
+    MIDDLEWARE=settings.MIDDLEWARE + ['config.cachemw.AnonymousReadCacheMiddleware']
+)
 class AnonymousReadCacheTests(TestCase):
     """config/cachemw.py — the earn-your-slot admission and, above all, the security gates.
+
+    The middleware is stripped from `MIDDLEWARE` under the test runner (see settings.py for why: a
+    replayed byte response has no `.data`, and the file cache carried admissions from one test into
+    the next), so this suite — the one that is genuinely about it — puts it back for itself.
 
     Runs on the test settings' LocMemCache: the middleware speaks Django's cache API only, so the
     backend (file, locmem, Redis) is configuration, and what these pin is the logic every backend

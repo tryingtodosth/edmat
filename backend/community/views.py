@@ -15,8 +15,8 @@ from rest_framework.response import Response
 
 from notifications.services import label_for_exercise, notify_comment_reply
 
-from .models import Comment, Review
-from .serializers import CommentSerializer
+from .models import Comment, Review, SavedComment
+from .serializers import CommentSerializer, SavedCommentSerializer
 
 
 def comment_thread_response(request, target, *, on_created=None):
@@ -167,6 +167,61 @@ class CommentViewSet(viewsets.GenericViewSet):
         comment.removed_by_author = True
         comment.save(update_fields=['is_removed', 'removed_by_author'])
         return Response(CommentSerializer(comment).data)
+
+    @action(detail=False, methods=['get'])
+    def saved(self, request):
+        """Everything this caller has kept. Never anybody else's — the queryset is scoped to
+        `request.user` rather than filtered by a permission check, so there is no id to guess at."""
+        rows = (
+            SavedComment.objects.filter(user=request.user)
+            .select_related('comment', 'comment__author', 'comment__author__profile')
+        )
+        return Response(SavedCommentSerializer(rows, many=True, context={'request': request}).data)
+
+    # `url_path` spelled out, not left to the default. DRF derives `url_name` from the method name
+    # with underscores turned into hyphens but leaves `url_path` as the name VERBATIM — so the route
+    # would be `/save_for_me/` while `reverse('comment-save-for-me')` resolved happily, meaning the
+    # tests passed against a URL no client would ever build. Found by a browser run, not by them.
+    @action(detail=True, methods=['post', 'delete'], url_path='save-for-me')
+    def save_for_me(self, request, pk=None):
+        """Keep this comment, or stop keeping it.
+
+        One endpoint answering to two methods rather than a save/unsave pair, because there is one
+        row and it either exists or does not — a client holding a stale "saved" flag cannot get the
+        two out of step by calling the wrong one.
+
+        Saving is deliberately allowed on any comment the caller can reach, including one whose
+        thread is private to a course they are in: this list is theirs alone and publishes nothing.
+        What it will not keep is a comment that is already gone — there is no body left to come back
+        to, so saving it would bookmark a placeholder.
+
+        Named `save_for_me` because DRF routes an action on its method name and `save` is
+        `ModelSerializer`'s own — the URL is `/api/comments/{id}/save-for-me/`.
+        """
+        comment = self.get_object()
+        if request.method == 'DELETE':
+            SavedComment.objects.filter(user=request.user, comment=comment).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        if comment.is_removed or comment.auto_hidden_at is not None:
+            return Response(
+                {'detail': 'This comment is no longer available.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        note = (request.data.get('note') or '').strip()[:300]
+        row, created = SavedComment.objects.get_or_create(
+            user=request.user, comment=comment, defaults={'note': note}
+        )
+        # Saving something already saved is not an error — it is the same statement made twice, and
+        # the honest answer is the row that already says it. A later note replaces an earlier one,
+        # since the second is what the person just typed.
+        if not created and note:
+            row.note = note
+            row.save(update_fields=['note'])
+        return Response(
+            SavedCommentSerializer(row, context={'request': request}).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 class ReviewViewSet(viewsets.GenericViewSet):

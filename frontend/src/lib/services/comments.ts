@@ -74,3 +74,64 @@ export async function deleteComment(
 	const raw = await apiClient.delete<RawComment>(`/comments/${encodeURIComponent(commentId)}/`);
 	return mapComment(raw, targetType, targetId);
 }
+
+/* --- kept for yourself ---------------------------------------------------------------------- */
+
+/** A comment somebody kept. Carries enough of its own context to be readable on the settings page,
+ * a long way from the thread it was written in — including WHERE it lives, which the server has to
+ * resolve because a comment has no page of its own. */
+export interface SavedComment {
+	id: string;
+	comment: Comment;
+	/** Empty for a thread hanging off something the backend's own target map has not been taught
+	 * about yet — the row still renders, it just cannot be linked to. */
+	targetType: CommentTargetType | '';
+	targetId: string;
+	note: string;
+	createdAt: string;
+}
+
+function mapSavedComment(raw: RawSavedComment): SavedComment {
+	const targetType = (raw.target_type || '') as CommentTargetType | '';
+	const targetId = String(raw.target_id ?? '');
+	return {
+		id: String(raw.id),
+		// Mapped through the same `mapComment` as every other comment: the target is exactly what it
+		// needs and exactly what this row carries. The fallback only feeds that mapper's own bookkeeping
+		// — `targetType` above keeps the honest empty string, so nothing renders a link to a guess.
+		comment: mapComment(raw.comment, targetType || 'exercise', targetId),
+		targetType,
+		targetId,
+		note: raw.note ?? '',
+		createdAt: raw.created_at
+	};
+}
+
+interface RawSavedComment {
+	id: number | string;
+	comment: RawComment;
+	target_type?: string;
+	target_id?: string | number;
+	note?: string;
+	created_at: string;
+}
+
+export async function getSavedComments(): Promise<SavedComment[]> {
+	const raw = await apiClient.get<RawSavedComment[]>('/comments/saved/');
+	return raw.map(mapSavedComment);
+}
+
+/** Keep this comment. Saving one already saved is not an error — it is the same statement made
+ * twice, and the server answers with the row that already says it. */
+export async function saveComment(commentId: string, note = ''): Promise<SavedComment> {
+	return mapSavedComment(
+		await apiClient.post<RawSavedComment>(
+			`/comments/${encodeURIComponent(commentId)}/save-for-me/`,
+			{ note }
+		)
+	);
+}
+
+export async function unsaveComment(commentId: string): Promise<void> {
+	await apiClient.delete(`/comments/${encodeURIComponent(commentId)}/save-for-me/`);
+}

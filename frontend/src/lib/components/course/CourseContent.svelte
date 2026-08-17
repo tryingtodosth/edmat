@@ -16,7 +16,9 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import LessonFeedback from '$lib/components/course/LessonFeedback.svelte';
 	import LessonProgressPanel from '$lib/components/course/LessonProgressPanel.svelte';
+	import LinkedContentEditor from '$lib/components/course/LinkedContentEditor.svelte';
 	import { getSetsForUser } from '$lib/services/exerciseSets';
+	import { commentAnchorId, type ParsedContentRef } from '$lib/utils/contentLinks';
 	import type { ExerciseSet } from '$lib/types';
 	import type { Chapter, CourseItem, Course, Lesson, LessonExerciseSet } from '$lib/types/course';
 
@@ -32,6 +34,7 @@
 		onlinkset,
 		onunlinkset,
 		onrefreshset,
+		onlinkcontent,
 		onreorder
 	}: {
 		course: Course;
@@ -60,12 +63,23 @@
 			chapterId: string,
 			draft: { title: string; description: string; participantNotes: string }
 		) => void;
-		/** Pin a whole saved set into a lesson, by the set's own share slug. */
-		onlinkset?: (lessonId: string, setSlug: string) => void;
-		onunlinkset?: (lessonId: string, linkId: string) => void;
+		/** Pin a whole saved set into a lesson or a chapter, by the set's own share slug. The level is
+		 * named rather than inferred: a chapter and a lesson have separate id sequences, so an id
+		 * alone cannot say which was meant. */
+		onlinkset?: (parentKind: 'lesson' | 'chapter', parentId: string, setSlug: string) => void;
+		onunlinkset?: (parentKind: 'lesson' | 'chapter', parentId: string, linkId: string) => void;
 		/** Re-copy the source set's current list. Only meaningful while the source still exists and
 		 * is still readable — the server refuses with a 409 otherwise, and says which. */
-		onrefreshset?: (lessonId: string, linkId: string) => void;
+		onrefreshset?: (parentKind: 'lesson' | 'chapter', parentId: string, linkId: string) => void;
+		/** File an exercise, a material or a discussion thread into a chapter or a lesson — the
+		 * thing that used to be a link pasted into the description. A set arrives here too and the
+		 * page routes it to `onlinkset`, so this editor has one way in for all four kinds. */
+		onlinkcontent?: (
+			parentKind: 'lesson' | 'chapter',
+			parentId: string,
+			ref: ParsedContentRef,
+			note: string
+		) => void;
 		/** Whole groups, never a single move — a drag between two lessons changes both, and the
 		 * server takes them together so there is no moment where an item is in both or neither. */
 		onreorder?: (
@@ -84,22 +98,42 @@
 	let mySetsLoaded = $state(false);
 	let pickedSlug = $state('');
 
+	/** Only the curator's OWN sets are offered as a list — there is no way to enumerate somebody
+	 * else's, by design. A set a colleague shared is linked by pasting the slug from its link, which
+	 * is the same thing that link already is. Loaded once and kept: the edit dialogs open and close
+	 * repeatedly while somebody works through a course, and re-fetching per open would be a request
+	 * per click for a list that does not change while the dialog is up. */
+	async function loadMySets() {
+		if (mySetsLoaded) return;
+		mySets = await getSetsForUser('');
+		mySetsLoaded = true;
+	}
+
 	async function beginLinkSet(lessonId: string) {
 		linkingIn = lessonId;
 		pickedSlug = '';
-		if (mySetsLoaded) return;
-		// Only the curator's OWN sets are offered as a list — there is no way to enumerate somebody
-		// else's, by design. A set a colleague shared is linked by pasting the slug from its link,
-		// which is the same thing that link already is.
-		mySets = await getSetsForUser('');
-		mySetsLoaded = true;
+		await loadMySets();
 	}
 
 	function saveLinkSet() {
 		const slug = pickedSlug.trim();
 		if (!slug || !linkingIn) return;
-		onlinkset?.(linkingIn, slug);
+		onlinkset?.('lesson', linkingIn, slug);
 		linkingIn = null;
+	}
+
+	/** One entry point for all four linkable kinds, so `LinkedContentEditor` does not have to know
+	 * that a set is stored by a different mechanism from the other three. It genuinely is a different
+	 * mechanism — a set is pinned (its membership copied), everything else is referenced live — but
+	 * that is a fact about how the course keeps the link, not about the act of adding one. */
+	function addLink(
+		parentKind: 'lesson' | 'chapter',
+		parentId: string,
+		ref: ParsedContentRef,
+		note: string
+	) {
+		if (ref.kind === 'set') onlinkset?.(parentKind, parentId, ref.slug);
+		else onlinkcontent?.(parentKind, parentId, ref, note);
 	}
 
 	// --- drag and drop, staff only ---------------------------------------------------------------
@@ -154,12 +188,23 @@
 		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 	}
 
+	/** Re-resolved from `course` rather than captured when the dialog opened, so the list of links
+	 * inside it redraws as soon as the page has the course back — adding one is a real request, and
+	 * a snapshot would leave the dialog showing what was true before the click. */
+	let editedChapter = $derived(course.chapters.find((c) => c.id === editingChapter) ?? null);
+	let editedLesson = $derived(
+		course.chapters.flatMap((c) => c.lessons).find((l) => l.id === editingLesson) ?? null
+	);
+
 	function beginChapterEdit(chapter: Chapter) {
 		editingLesson = null;
 		editingChapter = chapter.id;
 		draftTitle = chapter.title;
 		draftUnlocksAt = toLocalInput(chapter.unlocksAt);
 		draftDescription = chapter.description;
+		// Not awaited: the set picker is one field in a dialog full of them, and blocking the dialog
+		// from opening on a request nobody has asked for yet would be the wrong trade.
+		loadMySets();
 	}
 
 	function beginLessonEdit(lesson: Lesson) {
@@ -168,6 +213,7 @@
 		draftTitle = lesson.title;
 		draftDescription = lesson.description;
 		draftNotes = lesson.participantNotes;
+		loadMySets();
 	}
 
 	function saveChapter(chapterId: string) {
@@ -291,13 +337,23 @@
 		return Object.fromEntries(chapters.map((c) => [c.id, c.lessons.map((l) => l.id)]));
 	}
 
-	/** A linked set only ever lives in a lesson — `LessonExerciseSet.lesson` is NOT NULL — so unlike
+	/** The group key for a set link's own level. Prefixed for the same reason the "move to" select's
+	 * options are: a chapter and a lesson have separate id sequences, so a bare `7` cannot say which
+	 * of the two it means — and unlike an item, a set link can now hang off either. The server
+	 * accepts both forms and reads a bare id as a lesson, which is what every payload written before
+	 * chapters became possible meant. */
+	function dragGroupKey(parentKind: 'lesson' | 'chapter', parentId: string): string {
+		return `${parentKind}:${parentId}`;
+	}
+
+	/** A linked set always hangs off exactly one of the two levels — never neither — so unlike
 	 * `itemGroups` there is no `''` unfiled group here for one to be dropped into. */
 	function setGroups(): Record<string, string[]> {
 		const groups: Record<string, string[]> = {};
 		for (const chapter of chapters) {
+			groups[dragGroupKey('chapter', chapter.id)] = chapter.exerciseSets.map((link) => link.id);
 			for (const lesson of chapter.lessons) {
-				groups[lesson.id] = lesson.exerciseSets.map((link) => link.id);
+				groups[dragGroupKey('lesson', lesson.id)] = lesson.exerciseSets.map((link) => link.id);
 			}
 		}
 		return groups;
@@ -326,7 +382,35 @@
 				attachmentId: item.attachment ?? ''
 			});
 		}
-		return resolve('/events/[id]', { id: item.event ?? '' });
+		if (item.kind === 'event') return resolve('/events/[id]', { id: item.event ?? '' });
+		return discussionHref(item);
+	}
+
+	/** Where a linked thread is read. A comment has no page of its own — it hangs off whatever its
+	 * own target hangs off — so the server says which that is (`discussionTargetType`/`Id`) and this
+	 * turns it into a route plus the anchor `CommentNode` renders. An unknown target type means the
+	 * backend's own map has not been taught about it yet; the link degrades to the course rather
+	 * than to a broken route. */
+	function discussionHref(item: CourseItem): string {
+		const anchor = `#${commentAnchorId(item.discussion ?? '')}`;
+		const id = item.discussionTargetId;
+		switch (item.discussionTargetType) {
+			case 'exercise':
+				return resolve('/exercises/[id]', { id }) + anchor;
+			case 'material':
+			case 'materialCoverage':
+				return resolve('/materials/[id]', { id }) + anchor;
+			case 'service':
+				return resolve('/services/[id]', { id }) + anchor;
+			case 'taughtCourse':
+			case 'courseLesson':
+			case 'courseChapter':
+				// All three live on the course page — a week's and a session's threads are rendered
+				// inside it rather than at routes of their own.
+				return resolve('/courses/[id]', { id: course.id }) + anchor;
+			default:
+				return resolve('/courses/[id]', { id: course.id });
+		}
 	}
 
 	/** The `kind:id` the move select should currently show. Prefixed for the same reason the options
@@ -356,7 +440,8 @@
 		if (item.kind === 'material') return m.course_items_material();
 		if (item.kind === 'exercise') return m.course_items_exercise();
 		if (item.kind === 'attachment') return m.course_items_attachment();
-		return m.course_items_event();
+		if (item.kind === 'event') return m.course_items_event();
+		return m.course_items_discussion();
 	}
 
 	/** A date somebody can read, in their own locale rather than an ISO string. */
@@ -482,6 +567,18 @@
 						{@render itemRow(item)}
 					{/each}
 				</ul>
+			{/if}
+
+			{#if chapter.exerciseSets.length > 0}
+				<!-- A whole set pinned to the week rather than to one of its sessions — "these ten
+				     before Tuesday". Drawn here for the same reason the chapter's own items are:
+				     it belongs to the week, and putting it under the first lesson would say it
+				     belonged to that session instead. -->
+				<div class="sets sets--chapter">
+					{#each chapter.exerciseSets as link (link.id)}
+						{@render linkedSet('chapter', chapter.id, link)}
+					{/each}
+				</div>
 			{/if}
 
 			{#if chapter.lessons.length > 0}
@@ -621,7 +718,7 @@
 										<h5>{m.course_sets_heading()}</h5>
 									{/if}
 									{#each lesson.exerciseSets as link (link.id)}
-										{@render linkedSet(lesson, link)}
+										{@render linkedSet('lesson', lesson.id, link)}
 									{/each}
 									{#if course.canCurate && onlinkset}
 										<button type="button" class="link" onclick={() => beginLinkSet(lesson.id)}>
@@ -746,15 +843,33 @@
 			</label>
 			<label class="field field--grow">
 				<span>{m.course_chapters_description()}</span>
-				<!-- As tall as the dialog can reasonably give it: a chapter's description is the one
-				     field here somebody is actually likely to write more than a sentence into. -->
-				<textarea bind:value={draftDescription} rows="8"></textarea>
+				<!-- Four rows, not the eight it used to have. That height was "as tall as the dialog
+				     can reasonably give it", which was true when the description was the only thing
+				     here worth space; now the dialog also carries the linked-content section, and
+				     eight rows pushed both that and the Save button below the fold. -->
+				<textarea bind:value={draftDescription} rows="4"></textarea>
 			</label>
 			<label class="field">
 				<span>{m.course_chapters_unlocksAt()}</span>
 				<input type="datetime-local" bind:value={draftUnlocksAt} />
 				<span class="hint">{m.course_chapters_unlocksAtHint()}</span>
 			</label>
+
+			{#if editedChapter}
+				<!-- Inside the form but outside the save: adding a link is its own request, made when
+				     the button in this section is pressed, so it neither waits for Save nor is lost by
+				     Cancel. That is deliberate — the alternative is a dialog where half the fields are
+				     staged and half are live, with nothing on screen saying which is which. -->
+				<LinkedContentEditor
+					items={editedChapter.items}
+					sets={editedChapter.exerciseSets}
+					{mySets}
+					onadd={(ref, note) => addLink('chapter', editedChapter!.id, ref, note)}
+					onremoveitem={(itemId) => onremove?.(itemId)}
+					onunlinkset={(linkId) => onunlinkset?.('chapter', editedChapter!.id, linkId)}
+				/>
+			{/if}
+
 			<div class="modal-actions">
 				<button type="submit" class="primary">{m.course_edit_save()}</button>
 				<button type="button" class="link" onclick={() => (editingChapter = null)}>
@@ -784,7 +899,9 @@
 			</label>
 			<label class="field field--grow">
 				<span>{m.course_newLessonDescription()}</span>
-				<textarea bind:value={draftDescription} rows="8"></textarea>
+				<!-- Four rows for the same reason as the chapter dialog above: this one now carries a
+				     linked-content section as well, and eight pushed the Save button off the panel. -->
+				<textarea bind:value={draftDescription} rows="4"></textarea>
 				<span class="hint">{m.course_newLessonDescriptionHint()}</span>
 			</label>
 			<label class="field">
@@ -792,6 +909,20 @@
 				<textarea bind:value={draftNotes} rows="3"></textarea>
 				<span class="hint">{m.course_newLessonNotesHint()}</span>
 			</label>
+
+			{#if editedLesson}
+				<!-- Same editor, same reasoning as the chapter dialog above — the level a link hangs
+				     off is a parameter, not a different feature. -->
+				<LinkedContentEditor
+					items={editedLesson.items}
+					sets={editedLesson.exerciseSets}
+					{mySets}
+					onadd={(ref, note) => addLink('lesson', editedLesson!.id, ref, note)}
+					onremoveitem={(itemId) => onremove?.(itemId)}
+					onunlinkset={(linkId) => onunlinkset?.('lesson', editedLesson!.id, linkId)}
+				/>
+			{/if}
+
 			<div class="modal-actions">
 				<button type="submit" class="primary">{m.course_edit_save()}</button>
 				<button type="button" class="link" onclick={() => (editingLesson = null)}>
@@ -885,7 +1016,7 @@
 	</li>
 {/snippet}
 
-{#snippet linkedSet(lesson: Lesson, link: LessonExerciseSet)}
+{#snippet linkedSet(parentKind: 'lesson' | 'chapter', parentId: string, link: LessonExerciseSet)}
 	<!-- The provenance line is not decoration. A linked set is a COPY of what the source held when
 	     it was linked, and the one thing a reader must never have to guess is whether the block in
 	     front of them tracks somebody else's list or does not. So it says so, every time. -->
@@ -896,7 +1027,7 @@
 		draggable={course.canCurate}
 		ondragstart={(e) => {
 			e.stopPropagation();
-			startDrag(e, 'lesson_set', link.id, lesson.id);
+			startDrag(e, 'lesson_set', link.id, dragGroupKey(parentKind, parentId));
 		}}
 		ondragover={(e) => {
 			e.stopPropagation();
@@ -904,7 +1035,7 @@
 		}}
 		ondrop={(e) => {
 			e.stopPropagation();
-			dropOn('lesson_set', lesson.id, link.id);
+			dropOn('lesson_set', dragGroupKey(parentKind, parentId), link.id);
 		}}
 	>
 		<header class="set__head">
@@ -914,12 +1045,20 @@
 			<h6>{link.title}</h6>
 			{#if course.canCurate && link.hasDrifted && onrefreshset}
 				<span class="pill pill--pending">{m.course_sets_drifted()}</span>
-				<button type="button" class="link" onclick={() => onrefreshset?.(lesson.id, link.id)}>
+				<button
+					type="button"
+					class="link"
+					onclick={() => onrefreshset?.(parentKind, parentId, link.id)}
+				>
 					{m.course_sets_refresh()}
 				</button>
 			{/if}
 			{#if course.canCurate && onunlinkset}
-				<button type="button" class="link danger" onclick={() => onunlinkset?.(lesson.id, link.id)}>
+				<button
+					type="button"
+					class="link danger"
+					onclick={() => onunlinkset?.(parentKind, parentId, link.id)}
+				>
 					{m.course_sets_unlink()}
 				</button>
 			{/if}
@@ -1115,10 +1254,15 @@
 	   sentence into — a chapter's own description, a lesson's own. Bounded by the viewport rather
 	   than a fixed height, so it grows on a tall screen and still leaves room for the fields below
 	   it and the dialog's own chrome on a short one; ModalShell's own panel already scrolls past
-	   that, so nothing here can push the buttons off screen. */
+	   that, so nothing here can push the buttons off screen.
+
+	   Down from 30vh, because the dialogs now carry a linked-content section as well: at the old
+	   height the description alone filled the panel, so the section below it and the Save button
+	   both started below the fold and looked, on opening, like they were not there. The field is
+	   still resizable by hand for anybody writing at length. */
 	.modal-form .field--grow textarea {
-		min-height: 30vh;
-		max-height: 50vh;
+		min-height: 14vh;
+		max-height: 40vh;
 	}
 	.modal-actions {
 		display: flex;

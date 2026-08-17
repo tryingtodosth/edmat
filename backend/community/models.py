@@ -69,3 +69,38 @@ class Comment(models.Model):
 
     def __str__(self) -> str:
         return f'comment by {self.author} on {self.target!r}'
+
+
+class SavedComment(models.Model):
+    """A comment somebody kept for themselves — the private half of the "⋯" menu on a comment.
+
+    The other half of that menu files a thread into a course, which is a public act by somebody with
+    a role there (`courses.CourseItem`). This one is neither: it is a bookmark, it belongs to one
+    person, and nobody else can see it. Plenty of what is worth keeping — a clear explanation of a
+    step, a warning about a wrong solution — is worth keeping to *you* without being course material,
+    and having only the course path would mean the only way to save something was to publish it.
+
+    Deliberately as thin as `services.ServiceWatch`, which is the same idea about a listing: a row
+    saying who and what, and nothing else. There is no folder, no tag and no ordering, because a
+    saved comment is read from a single list on the settings page and inventing structure nobody has
+    asked for is how a bookmark becomes a filing system.
+
+    `note` is the one exception, and it is here because a comment out of its thread is the thing most
+    likely to stop making sense later: what was obvious when you saved it ("this is the counterexample
+    for Tuesday") is exactly what is gone in three weeks. Optional, and blank in the common case.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='saved_comments', on_delete=models.CASCADE
+    )
+    comment = models.ForeignKey(Comment, related_name='saves', on_delete=models.CASCADE)
+    note = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'comment')]
+        # Newest first: this list is read as "what have I kept lately", never browsed as an archive.
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.user} saved comment {self.comment_id}'

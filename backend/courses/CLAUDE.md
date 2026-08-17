@@ -33,6 +33,20 @@ Also `attachmentfile.py` (upload validation), `search.py` (in-course search with
   `approval` (the only value safe to pick on someone's behalf). Content is **referenced, never
   copied**. Pending items visible to staff + own submitter only; EVERY staff member notified
   (a one-person queue stalls). Two partial unique constraints (NULLs don't compare equal in SQL).
+- **Five item kinds**, exactly one FK set per row: `material`, `exercise`, `attachment`, `event`,
+  `discussion`. The last points at a `community.Comment` and needs two rules the others don't —
+  it must be a **root** comment (a reply is half a conversation), and a thread private to ANOTHER
+  course is refused (`community.targets.PRIVATE_TARGET_TYPES`), on exactly the reasoning that
+  already refuses another course's attachment. `target_is_available_to` drops a linked thread once
+  its opening post is removed/auto-hidden — for participants, not for curators, who are the people
+  who can replace it. The response carries `discussion_target_type`/`_id`, because a comment has no
+  page of its own and only the server can say which page it hangs off.
+- `LessonExerciseSet` files into a lesson **or a chapter** (exactly-one check constraint), same
+  reasoning as `CourseItem`: a set everybody does before week 3 belongs to the week. One pair of
+  endpoints for both — `/{lessons|chapters}/{id}/exercise-sets/`. Its reorder group ids are
+  therefore **prefixed** (`chapter:7`/`lesson:7`); a bare id still means a lesson, so payloads
+  written before chapters were possible keep their meaning. The model keeps its `Lesson`-shaped
+  name deliberately — renaming would rewrite six files to say what the docstring says better.
 - `Chapter` holds the time gate (`unlocks_at`; NULL = never gated ≠ a passed date). A locked
   chapter still renders title/description/date — its contents don't. Deleting a chapter keeps
   content unfiled (`CourseItem.chapter` is SET_NULL). Known accepted gap: chapter locking
@@ -55,5 +69,5 @@ Also `attachmentfile.py` (upload validation), `search.py` (in-course search with
 ## Verify
 
 `manage.py test courses`. E2E: `classroom.mjs`, `classroom-overhaul.mjs`, `course-tabs.mjs`,
-`course-search.mjs`, `course-add-chapter.mjs`, `course-lessons-linking.mjs` (names still say
-"classroom" — that's just history).
+`course-search.mjs`, `course-add-chapter.mjs`, `course-lessons-linking.mjs`,
+`course-content-links.mjs` (names still say "classroom" — that's just history).
