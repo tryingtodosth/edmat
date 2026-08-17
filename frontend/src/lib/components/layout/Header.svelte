@@ -611,7 +611,19 @@
 								<span class="account-trigger__name">{authStore.user?.displayName}</span>
 								<span class="account-trigger__avatar" aria-hidden="true">
 									{#if authStore.user?.avatarUrl}
-										<img class="account-trigger__img" src={authStore.user.avatarUrl} alt="" />
+										<!-- Explicit dimensions because this one is in the ROOT LAYOUT, so it is on
+										     every page, and it appears late — only once authStore.init() has
+										     answered. An unsized image arriving after first paint is the textbook
+										     way to shift a header that had already settled. Avatars are stored
+										     square (accounts/avatar.py centre-crops to 512x512), so the ratio
+										     these reserve is always the right one. -->
+										<img
+											class="account-trigger__img"
+											src={authStore.user.avatarUrl}
+											alt=""
+											width="28"
+											height="28"
+										/>
 									{:else}
 										{@render personIcon()}
 									{/if}

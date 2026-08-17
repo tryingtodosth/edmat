@@ -31,6 +31,10 @@ conflict on every merge. `edmat-boards/README.md` records that reasoning and its
 also restates its own rules at the top, so an agent that opens one needs nothing else.
 
 ---
+**New to this file?** `CLAUDE_MAP.md` is a ~57 KB orientation map — repo layout, every backend app and
+frontend layer summarized, the recurring lessons — meant to be read first for a fast, current-state
+picture. This file is what it points back to: the full chronological build log, authoritative
+whenever the two disagree.
 
 **Status:** ✅ Phase 1 (frontend, fully mocked), Phase 2 (Django REST Framework backend, real
 migrated corpus), and Phase 3 (frontend wired to the real backend, mocks deleted) all built — see

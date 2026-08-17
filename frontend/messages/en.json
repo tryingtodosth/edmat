@@ -1555,4 +1555,15 @@
 	"savedComments_none": "You have not saved anything yet.",
 	"savedComments_open": "Open the thread",
 	"savedComments_remove": "Remove"
+	"seo_home_description": "A living database of university mathematics, physics and computer-science exercises — every one with a worked solution, community ratings and discussion. Browse by discipline, branch and topic.",
+	"seo_disciplines_description": "Browse EdMat by discipline and branch — mathematics, physics and computer science, each with its university courses and exercise collections.",
+	"seo_courses_description": "Courses run on EdMat by their own instructors, open to join — with chapters, lessons and contributed material.",
+	"seo_materials_description": "Course scripts, formula sheets, past exams and lecture notes, filed by course and topic and searchable by content.",
+	"seo_events_description": "Guest lectures, workshops, study sessions and exam-prep meetups — one-off events you can sign up for.",
+	"seo_services_description": "Find a tutor by course, online or in person, with published availability you can book directly.",
+	"seo_search_description": "Search across EdMat's exercises, materials, courses, events and tutoring listings.",
+	"seo_levels_description": "How standing works on EdMat — the capability and moderation ladders, vote weight, and what is live today versus designed.",
+	"seo_privacy_description": "What EdMat stores, why, and what it never collects.",
+	"seo_login_description": "Sign in to EdMat to rate exercises, join the discussion, submit corrections and save your own study sets.",
+	"seo_register_description": "Create an EdMat account to contribute exercises and translations, review material and build shareable study sets."
 }

@@ -12,13 +12,12 @@
 	import { getLocale } from '$lib/paraglide/runtime.js';
 	import { m } from '$lib/paraglide/messages.js';
 	import { privacyPolicyFor } from '$lib/content/privacy';
+	import PageHead from '$lib/components/shared/PageHead.svelte';
 
 	const policy = $derived(privacyPolicyFor(getLocale()));
 </script>
 
-<svelte:head>
-	<title>{m.privacy_metaTitle()} — {m.common_appName()}</title>
-</svelte:head>
+<PageHead title={m.privacy_metaTitle()} description={m.seo_privacy_description()} />
 
 <article class="policy">
 	<header class="policy__header">

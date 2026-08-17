@@ -8,6 +8,7 @@
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
+	import PageHead from '$lib/components/shared/PageHead.svelte';
 
 	let displayName = $state('');
 	let email = $state('');
@@ -64,9 +65,7 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{m.auth_register_heading()} — {m.common_appName()}</title>
-</svelte:head>
+<PageHead title={m.auth_register_heading()} description={m.seo_register_description()} />
 
 <div class="page">
 	<h1>{m.auth_register_heading()}</h1>
