@@ -52,6 +52,7 @@
 	let contentLocale = $state('');
 	let loading = $state(true);
 	let notFound = $state(false);
+	let loadFailed = $state(false);
 
 	// "Requires" — the exact same open-propose/governor-only-bulk-edit/open-vote shape the material
 	// detail page's own Requires section already establishes (routes/materials/[id]/+page.svelte),
@@ -90,14 +91,29 @@
 	async function loadAll(id: string) {
 		loading = true;
 		notFound = false;
+		loadFailed = false;
 		showHint = showAnswer = showSolution = showEditForm = showTranslateForm = false;
 		submissionNotice = null;
 		contentLocale = getLocale();
 
+		// The whole load is guarded, deliberately: any one of the requests below throwing used to
+		// leave `loading` true forever — an infinite spinner with the only evidence in the browser
+		// console. Found the hard way on the live server (2026-08-17), where a permissions problem
+		// made every write 500 and every logged-in exercise page spin: the SERVER bug was fixed,
+		// but the page should never have presented it as an endless load in the first place.
+		try {
+			await loadAllInner(id);
+		} catch {
+			loadFailed = true;
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function loadAllInner(id: string) {
 		const ex = await getExerciseById(id, contentLocale);
 		if (!ex) {
 			notFound = true;
-			loading = false;
 			return;
 		}
 		exercise = ex;
@@ -128,7 +144,6 @@
 			...cmts.map((c2) => c2.authorId)
 		];
 		await resolveUsers(authorIds);
-		loading = false;
 	}
 
 	async function switchLocale(next: string) {
@@ -260,6 +275,15 @@
 <div class="page">
 	{#if loading}
 		<p class="loading">{m.common_loading()}</p>
+	{:else if loadFailed}
+		<!-- A failed request is not a missing exercise: say so, and offer the retry that an
+		     infinite spinner used to stand in for. -->
+		<p class="empty">
+			{m.exercise_loadFailed()}
+			<button type="button" class="retry" onclick={() => loadAll(page.params.id!)}
+				>{m.common_retry()}</button
+			>
+		</p>
 	{:else if notFound || !exercise}
 		<p class="empty">{m.exercise_notFound()}</p>
 	{:else}
@@ -803,6 +827,20 @@
 			font-weight: 600;
 		}
 	}
+	.retry {
+		margin-left: var(--space-1);
+		padding: 0.15rem 0.6rem;
+		font-size: inherit;
+		color: var(--text-primary);
+		background: var(--bg-surface);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+	}
+	.retry:hover {
+		background: var(--bg-surface-alt);
+	}
+
 	.loading,
 	.empty {
 		color: var(--text-secondary);

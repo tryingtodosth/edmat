@@ -117,6 +117,8 @@
 	"exercise_requirementsAdd": "Dodaj",
 	"exercise_requirementsSaveError": "Nie udało się zapisać wymagań — być może nie masz uprawnień opiekuna dla tego działu.",
 	"exercise_notFound": "Nie znaleziono zadania.",
+	"exercise_loadFailed": "Nie udało się wczytać tego zadania.",
+	"common_retry": "Spróbuj ponownie",
 	"exercise_original": "Oryginał",
 	"exercise_originalExplanation": "To jest wersja w języku oryginału",
 	"exercise_language": "Język",

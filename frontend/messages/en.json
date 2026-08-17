@@ -117,6 +117,8 @@
 	"exercise_requirementsAdd": "Add",
 	"exercise_requirementsSaveError": "Couldn't save requirements — you may not have governor access to this branch.",
 	"exercise_notFound": "Exercise not found.",
+	"exercise_loadFailed": "Something went wrong loading this exercise.",
+	"common_retry": "Try again",
 	"exercise_original": "Original",
 	"exercise_originalExplanation": "This is the original-language version",
 	"exercise_language": "Language",
