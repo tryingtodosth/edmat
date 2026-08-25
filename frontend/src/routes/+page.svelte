@@ -37,6 +37,7 @@
 	import { getBranchById } from '$lib/services/taxonomy';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
+	import Loading from '$lib/components/shared/Loading.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
@@ -253,7 +254,9 @@
 		tabindex="-1"
 	>
 		{#if loading[active]}
-			<p class="status">{m.common_loading()}</p>
+			<!-- A card-shaped skeleton, not a line of text: it reserves the grid's height, so the footer
+			     does not leap down when the cards arrive (PageSpeed's whole CLS score was that leap). -->
+			<Loading variant="card" count={6} />
 		{:else if failed[active]}
 			<p class="status">{m.common_error_generic()}</p>
 		{:else if active === 'exercises'}
@@ -407,6 +410,14 @@
 		border-bottom-color: var(--accent);
 	}
 	.panel {
+		// On a phone, tall enough that the footer starts below the fold while a tab is still loading:
+		// the single-column cards that replace the skeleton are taller than it, and the footer moving
+		// DOWN on screen was this page's entire layout-shift score. A shift that happens off-screen is
+		// not one. Not on wide screens — there the multi-column skeleton already matches the cards'
+		// height, and a forced minimum would only open a gap above the footer.
+		@media (max-width: 720px) {
+			min-height: 70vh;
+		}
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-5);

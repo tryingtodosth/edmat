@@ -5799,6 +5799,17 @@ production `PUBLIC_API_BASE_URL=/api` has no origin and crashes the prerender (`
 `/submit-material`; both loads moved into `onMount`). `pack.sh` now refuses a build missing any of
 the prerendered pages, so this cannot ship silently again.
 
+**PageSpeed follow-up (same day):** its mobile run reported the prerendered `<h1>` waiting 2.3 s on
+nineteen ~1 KB render-blocking component stylesheets, KaTeX's fonts (`font-display: block`) at the end
+of a 7.3 s critical chain, and a CLS of 0.21 that was entirely the footer leaping down when the home
+tab's cards replaced a one-line "Loading…". Three changes: `kit.inlineStyleThreshold` (5 KB) inlines
+the small sheets so only the shared 12 KB layout sheet is linked; a five-line Vite transform rewrites
+KaTeX's `font-display: block` to `swap` at build time (no fork of the vendor file); and the home tab
+renders the card skeleton inside a panel with `min-height: 70vh`, so the footer sits below a phone's
+fold while loading — measured CLS 0 at 412 px and 1280 px. The 3 s of "script evaluation" PageSpeed
+attributed to the Svelte runtime chunk could not be reproduced: a CPU profile of the same build under
+4× throttling shows ~250 ms of script work; re-measure after deploying before chasing it.
+
 What it does not fix, stated plainly: the bundle itself (43 preloaded modules, 1.4 MB of chunks,
 323 KB of CSS across 78 files) still takes ~5 s to boot on that link; the shell makes the wait
 honest, it does not shorten it. The real lever there is SSR (`adapter-node`), which is a deployment
