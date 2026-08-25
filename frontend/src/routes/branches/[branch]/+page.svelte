@@ -15,6 +15,7 @@
 	import { getExercisesForBranch, type ExerciseFilters } from '$lib/services/exercises';
 	import { getMaterialsForBranch } from '$lib/services/materials';
 	import FiltersSidebar from '$lib/components/branch/FiltersSidebar.svelte';
+	import Loading from '$lib/components/shared/Loading.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
 	import MaterialFilterBar from '$lib/components/material/MaterialFilterBar.svelte';
@@ -37,6 +38,10 @@
 	// `exercises` are mounted into the DOM at once. No URL state, no virtualization.
 	const EXERCISES_PAGE_SIZE = 30;
 	let visibleExerciseCount = $state(EXERCISES_PAGE_SIZE);
+	// True from the moment an exercise request is sent until its answer is the one on screen. Without
+	// it a branch with 300+ exercises said "Nothing here yet" for the whole round trip — an empty grid
+	// and a list that has not arrived look identical to `exercises.length === 0`.
+	let exercisesLoading = $state(true);
 	let visibleExercises = $derived(exercises.slice(0, visibleExerciseCount));
 
 	async function loadCourse(branchId: string) {
@@ -88,10 +93,12 @@
 		const sourceType = filters.sourceType;
 		const query = filters.query;
 		let superseded = false;
+		exercisesLoading = true;
 		getExercisesForBranch(branch.id, getLocale(), { topicId, difficulty, sourceType, query }).then(
 			(list) => {
 				if (superseded) return;
 				exercises = list;
+				exercisesLoading = false;
 				// A new answer means the filters changed (or the branch did) — start back at page one
 				// rather than leaving whatever "show more" progress the visitor had made on the old list.
 				visibleExerciseCount = EXERCISES_PAGE_SIZE;
@@ -180,14 +187,18 @@
 			<div class="layout">
 				<FiltersSidebar {topics} bind:filters resultCount={exercises.length} />
 				<div class="exercises-column">
-					<div class="grid">
-						{#each visibleExercises as exercise (exercise.id)}
-							<ExerciseCard {exercise} />
-						{/each}
-						{#if exercises.length === 0}
-							<p class="empty">{m.home_noResults()}</p>
-						{/if}
-					</div>
+					{#if exercisesLoading}
+						<Loading variant="card" count={6} />
+					{:else}
+						<div class="grid">
+							{#each visibleExercises as exercise (exercise.id)}
+								<ExerciseCard {exercise} />
+							{/each}
+							{#if exercises.length === 0}
+								<p class="empty">{m.home_noResults()}</p>
+							{/if}
+						</div>
+					{/if}
 					{#if visibleExerciseCount < exercises.length}
 						<button
 							type="button"
