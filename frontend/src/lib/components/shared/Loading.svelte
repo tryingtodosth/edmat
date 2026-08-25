@@ -67,18 +67,28 @@
 		background: var(--bg-surface);
 	}
 	.bar {
+		position: relative;
+		overflow: hidden;
 		height: 0.75rem;
 		border-radius: var(--radius-sm, 4px);
 		background: var(--border-color);
-		// A sweep rather than a pulse: a pulsing block reads as a broken image, where a sweep is the
-		// established "this is filling in" idiom.
-		background-image: linear-gradient(
+	}
+	// A sweep rather than a pulse: a pulsing block reads as a broken image, where a sweep is the
+	// established "this is filling in" idiom. The highlight is its own element moved with
+	// `transform`, not an animated `background-position`: only transform/opacity animations run on
+	// the compositor, and PageSpeed flagged every bar as a non-composited animation (a layout-and-
+	// paint per frame, on the very screen that is waiting for the main thread to be free).
+	.bar::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
 			90deg,
 			transparent 0%,
 			var(--bg-surface-alt, rgba(255, 255, 255, 0.35)) 50%,
 			transparent 100%
 		);
-		background-size: 200% 100%;
+		transform: translateX(-100%);
 		animation: sweep 1.4s ease-in-out infinite;
 	}
 	.bar--title {
@@ -90,18 +100,15 @@
 	}
 
 	@keyframes sweep {
-		from {
-			background-position: 200% 0;
-		}
 		to {
-			background-position: -200% 0;
+			transform: translateX(100%);
 		}
 	}
 
 	// Somebody who has asked for less motion gets a still placeholder, which still reserves the
 	// space — the point of the skeleton — without the sweep.
 	@media (prefers-reduced-motion: reduce) {
-		.bar {
+		.bar::after {
 			animation: none;
 		}
 	}

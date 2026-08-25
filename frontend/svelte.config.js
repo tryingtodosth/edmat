@@ -27,8 +27,10 @@ const config = {
 		// Inline any stylesheet under this size into the page's own <style>. The home page used to link
 		// NINETEEN component stylesheets of ~1 KB each, every one render-blocking on its own round trip
 		// — PageSpeed measured the prerendered <h1> waiting 2.3 s on them. Above the threshold (the
-		// 12 KB layout sheet) a link still wins, because it is shared by every page and cached.
-		inlineStyleThreshold: 5000
+		// 12 KB gzipped layout sheet, the 10–23 KB per-route sheets) a link still wins, because it is
+		// cached across visits. 8 KB rather than 5: the threshold is RAW bytes, and two ~6 KB component
+		// sheets (1.7 KB on the wire) were still being linked — PageSpeed's next run named them.
+		inlineStyleThreshold: 8192
 	}
 };
 
