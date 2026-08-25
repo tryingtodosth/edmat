@@ -22,6 +22,7 @@ class MaterialCoverageSerializer(serializers.ModelSerializer):
     topic = TopicSerializer(read_only=True)
     subtopic = SubtopicSerializer(read_only=True, allow_null=True)
     vote_summary = serializers.SerializerMethodField()
+    importance_summary = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -29,17 +30,23 @@ class MaterialCoverageSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'material',
+            'kind',
             'topic',
             'subtopic',
             'level',
             'proposed_by',
             'created_at',
             'vote_summary',
+            'importance_summary',
             'comment_count',
         ]
 
     def get_vote_summary(self, obj):
         votes = list(obj.votes.select_related('voter__profile'))
+        return build_vote_summary(votes, self.context.get('request'))
+
+    def get_importance_summary(self, obj):
+        votes = list(obj.importance_votes.select_related('voter__profile'))
         return build_vote_summary(votes, self.context.get('request'))
 
     def get_comment_count(self, obj):
@@ -59,7 +66,7 @@ class MaterialCoverageCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MaterialCoverage
-        fields = ['id', 'topic', 'subtopic', 'level']
+        fields = ['id', 'kind', 'topic', 'subtopic', 'level']
 
 
 class MaterialRequirementSerializer(serializers.ModelSerializer):

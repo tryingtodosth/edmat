@@ -54,18 +54,26 @@ export interface CoverageVoteSummary {
 	currentUserVote?: CoverageVoteValue;
 }
 
-// One (topic, subtopic?, level) claim about how deeply a Material treats that pairing — replaces
-// Material's old flat, weightless `topicIds: string[]` outright (2.1 in spirit: one richer shape,
-// not two competing sources of truth for "what does this material cover"). `level` (1-100) is
-// deliberately one number, not four separate difficulty/time/requirement fields — the UI derives a
-// "what it covers" badge, a difficulty-ish bucket, and a rough relative-time weight all from this
-// one figure. Anyone authenticated can propose a new coverage row; the community verifies/corrects
-// a claimed level via `voteSummary` + a discussion thread (targetType: 'materialCoverage', see
-// comment.ts) rather than a moderation queue — see the backend's own MaterialCoverage model doc
-// comment for the full reasoning.
+// Which question a claim answers. `covers`: how thoroughly the material treats the topic.
+// `requires`: how much of the topic you should already know before the material is useful. They
+// used to be one row read both ways; a row now answers exactly one, and a material can carry both
+// kinds for the same topic.
+export type ClaimKind = 'covers' | 'requires';
+
+// One (kind, topic, subtopic?, level) claim about a Material. `level` (1-100) is one number for
+// that one reading. Anyone authenticated can propose a claim; the community corrects the level via
+// `voteSummary` (agree/disagree, weighted) and decides the display ORDER via `importanceSummary`
+// (a separate up/down vote — an accurate claim about a side topic still belongs at the bottom), and
+// discusses it in its own thread (targetType: 'materialCoverage', see comment.ts).
+// What the claim is ABOUT. A material's claim and a user-run course's claim share every other field,
+// every component and every vote/thread service; `ownerKind` is only what picks the endpoint.
+export type ClaimOwnerKind = 'material' | 'course' | 'exercise';
+
 export interface MaterialCoverage {
 	id: string;
-	materialId: string;
+	ownerKind: ClaimOwnerKind;
+	ownerId: string;
+	kind: ClaimKind;
 	topicId: string;
 	topicName: string;
 	subtopicId?: string;
@@ -74,6 +82,7 @@ export interface MaterialCoverage {
 	proposedByUserId?: string;
 	createdAt: string;
 	voteSummary: CoverageVoteSummary;
+	importanceSummary: CoverageVoteSummary;
 	commentCount: number;
 }
 

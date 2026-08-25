@@ -403,13 +403,19 @@ function mapVoteSummary(json: RawCoverageVoteSummary): CoverageVoteSummary {
 
 export interface RawMaterialCoverage {
 	id: number;
-	material: number;
+	// Exactly one of these: `material` from /materials, `course` from /courses/{id}/claims/,
+	// `exercise` from /exercises/{id}/claims/.
+	material?: number;
+	course?: number;
+	exercise?: number;
+	kind: 'covers' | 'requires';
 	topic: RawTopic;
 	subtopic: RawSubtopic | null;
 	level: number;
 	proposed_by: number | null;
 	created_at: string;
 	vote_summary: RawCoverageVoteSummary;
+	importance_summary: RawCoverageVoteSummary;
 	comment_count: number;
 }
 
@@ -417,7 +423,10 @@ export function mapMaterialCoverage(json: RawMaterialCoverage): MaterialCoverage
 	const topicId = String(json.topic.id);
 	return {
 		id: String(json.id),
-		materialId: String(json.material),
+		ownerKind:
+			json.course !== undefined ? 'course' : json.exercise !== undefined ? 'exercise' : 'material',
+		ownerId: String(json.course ?? json.exercise ?? json.material),
+		kind: json.kind,
 		topicId,
 		topicName: json.topic.name,
 		subtopicId: json.subtopic ? String(json.subtopic.id) : undefined,
@@ -426,6 +435,7 @@ export function mapMaterialCoverage(json: RawMaterialCoverage): MaterialCoverage
 		proposedByUserId: idOrUndefined(json.proposed_by),
 		createdAt: json.created_at,
 		voteSummary: mapVoteSummary(json.vote_summary),
+		importanceSummary: mapVoteSummary(json.importance_summary),
 		commentCount: json.comment_count
 	};
 }
@@ -569,6 +579,10 @@ export interface RawComment {
 	is_auto_hidden: boolean;
 	is_edited: boolean;
 	removed_by_author: boolean;
+	upvotes: number;
+	downvotes: number;
+	score: number;
+	current_user_vote: number | null;
 }
 
 /** `targetType`/`targetId` come from the calling context (every comment fetch/post in this app is
@@ -591,7 +605,11 @@ export function mapComment(
 		isRemoved: json.is_removed,
 		isAutoHidden: json.is_auto_hidden,
 		isEdited: json.is_edited,
-		removedByAuthor: json.removed_by_author
+		removedByAuthor: json.removed_by_author,
+		upvotes: json.upvotes,
+		downvotes: json.downvotes,
+		score: json.score,
+		currentUserVote: (json.current_user_vote ?? undefined) as Comment['currentUserVote']
 	};
 }
 

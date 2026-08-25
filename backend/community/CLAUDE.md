@@ -25,6 +25,16 @@ materials, coverage claims, courses, lessons, chapters. Because it's generic:
   regardless of what the comment targets. Auto-hide gracefully no-ops when the target has no
   viewer pool (e.g. a coverage claim) — don't "fix" that into a crash.
 
+## `CommentVote`
+
+`(comment, voter, value ±1)`, `unique_together`. `POST|DELETE /api/comments/{id}/vote/`
+(signed-in; 409 on a removed/auto-hidden comment). `CommentSerializer` exposes `upvotes`,
+`downvotes`, `score`, `current_user_vote` — the last needs `context={'request': …}`, which every
+thread GET now passes (with `prefetch_related('votes')`); without it the field is honestly
+`None`. **Unweighted on purpose**: the 2x contributor weight lives in `materials.services`, and
+importing it here would run the dependency the wrong way. A score orders and signals; it never
+hides — hiding stays with reports.
+
 ## `SavedComment`
 
 A per-user bookmark on a `Comment` (`unique_together (user, comment)`, optional `note`), as thin

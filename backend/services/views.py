@@ -271,7 +271,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         content_type = ContentType.objects.get_for_model(Service)
         if request.method == 'GET':
             qs = Comment.objects.filter(content_type=content_type, object_id=service.pk)
-            serializer = CommentSerializer(qs, many=True)
+            serializer = CommentSerializer(qs.prefetch_related('votes'), many=True, context={'request': request})
             return Response(serializer.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)

@@ -1,8 +1,14 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
-	import type { Branch, MaterialCoverageDraft, MaterialType, Topic } from '$lib/types';
+	import type { Branch, Discipline, MaterialCoverageDraft, MaterialType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { getAllBranches, getTopicsForBranch } from '$lib/services/taxonomy';
+	import {
+		getAllBranches,
+		getDisciplines,
+		getTopicsForBranch,
+		proposeTaxonomyNode
+	} from '$lib/services/taxonomy';
 	import { submitMaterial } from '$lib/services/materials';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -11,7 +17,7 @@
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
-	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
+	import TaxonomyOptions, { OTHER_VALUE } from '$lib/components/shared/TaxonomyOptions.svelte';
 
 	// "exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word document should be accepted
 	// too, scanned and kept safe" — the actual real content-type sniffing + optional malware scan
@@ -22,6 +28,13 @@
 
 	let branches = $state<Branch[]>([]);
 	let branchId = $state('');
+	// "Other…" in the branch picker: this form lists every branch flat with no discipline step, so
+	// naming a new branch also asks which discipline it belongs to (a branch cannot exist without
+	// one). Both are created when the form is submitted and the material is filed under the result.
+	let customBranchName = $state('');
+	let customBranchDisciplineId = $state('');
+	let disciplines = $state<Discipline[]>([]);
+	let isCustomBranch = $derived(branchId === OTHER_VALUE);
 	let topics = $state<Topic[]>([]);
 	let type = $state<MaterialType>('examCollection');
 	let title = $state('');
@@ -111,10 +124,19 @@
 		branches = await getAllBranches();
 		if (branches.length) branchId = branches[0].id;
 	}
-	init();
+	// In onMount, not at top level: this page is prerendered, and a top-level call runs at BUILD
+	// time too, where `fetch('/api/…')` has no origin to resolve against and the build dies
+	// (found by pack.sh's production build, not by the dev one, whose .env named a real host).
+	onMount(() => {
+		init();
+	});
 
 	$effect(() => {
-		if (!branchId) return;
+		if (!branchId || branchId === OTHER_VALUE) {
+			topics = [];
+			coverage = [];
+			return;
+		}
 		getTopicsForBranch(branchId).then((t) => {
 			topics = t;
 			coverage = [];
@@ -128,7 +150,30 @@
 
 	// A file OR a link, never neither — the same rule the backend enforces, checked here so the
 	// button is honest rather than the refusal arriving after a submit.
-	let canSubmit = $derived(Boolean(branchId && title.trim() && (file || url.trim())));
+	let canSubmit = $derived(
+		Boolean(branchId && title.trim() && (file || url.trim())) &&
+			(!isCustomBranch || Boolean(customBranchName.trim() && customBranchDisciplineId))
+	);
+
+	$effect(() => {
+		if (isCustomBranch && disciplines.length === 0) {
+			getDisciplines().then((d) => {
+				disciplines = d;
+				if (!customBranchDisciplineId && d.length) customBranchDisciplineId = d[0].id;
+			});
+		}
+	});
+
+	async function resolveBranch(): Promise<string> {
+		if (!isCustomBranch) return branchId;
+		return (
+			await proposeTaxonomyNode({
+				kind: 'branch',
+				name: customBranchName.trim(),
+				parent: customBranchDisciplineId
+			})
+		).slug;
+	}
 
 	/** The backend field is a real `URLField`, which rejects a bare `example.edu/x.pdf` outright.
 	 * Someone typing a link by hand very reasonably omits the scheme, so prepend `https://` when
@@ -144,9 +189,10 @@
 		errorMessage = '';
 		submitting = true;
 		try {
+			const filedBranchId = await resolveBranch();
 			await submitMaterial(
 				{
-					branchId,
+					branchId: filedBranchId,
 					type,
 					title: title.trim(),
 					description: description.trim(),
@@ -225,17 +271,27 @@
 				<div class="field">
 					<div class="field-heading">
 						<label for="submit-material-branch">{m.submitMaterial_field_course()}</label>
-						<ProposeNodeButton
-							kind="branch"
-							onproposed={async (slug) => {
-								branches = await getAllBranches();
-								branchId = slug;
-							}}
-						/>
 					</div>
 					<select id="submit-material-branch" bind:value={branchId}>
-						<TaxonomyOptions nodes={branches} />
+						<TaxonomyOptions nodes={branches} allowOther />
 					</select>
+					{#if isCustomBranch}
+						<input
+							type="text"
+							class="other-name"
+							bind:value={customBranchName}
+							placeholder={m.taxonomy_otherBranchName()}
+							aria-label={m.taxonomy_otherBranchName()}
+							required
+						/>
+						<label class="other-parent">
+							<span>{m.taxonomy_otherDisciplineFor()}</span>
+							<select bind:value={customBranchDisciplineId}>
+								<TaxonomyOptions nodes={disciplines} />
+							</select>
+						</label>
+						<p class="other-hint">{m.taxonomy_otherPending()}</p>
+					{/if}
 				</div>
 
 				<label class="field">
@@ -608,5 +664,21 @@
 	.add-coverage-btn {
 		@include mix.button-secondary;
 		flex-shrink: 0;
+	}
+	.other-name {
+		margin-top: var(--space-2);
+		width: 100%;
+	}
+	.other-parent {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		margin-top: var(--space-2);
+		font-size: var(--font-size-sm);
+	}
+	.other-hint {
+		margin-top: var(--space-1);
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 </style>

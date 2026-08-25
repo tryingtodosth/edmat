@@ -1122,3 +1122,63 @@ class AttachmentWriteSerializer(serializers.ModelSerializer):
         function correct on its own rather than by trusting a caller's ordering.
         """
         return process_attachment_file(upload)
+
+
+# --- covers / requires claims -------------------------------------------------------------------
+
+from django.contrib.contenttypes.models import ContentType  # noqa: E402
+from community.models import Comment  # noqa: E402
+from materials.services import build_vote_summary  # noqa: E402
+from taxonomy.serializers import SubtopicSerializer, TopicSerializer  # noqa: E402
+
+from .models import CourseClaim  # noqa: E402
+
+
+class CourseClaimSerializer(serializers.ModelSerializer):
+    """The same wire shape as `MaterialCoverageSerializer`, with `course` where that one has
+    `material` — the frontend maps both through one function."""
+
+    topic = TopicSerializer(read_only=True)
+    subtopic = SubtopicSerializer(read_only=True, allow_null=True)
+    vote_summary = serializers.SerializerMethodField()
+    importance_summary = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CourseClaim
+        fields = [
+            'id',
+            'course',
+            'kind',
+            'topic',
+            'subtopic',
+            'level',
+            'proposed_by',
+            'created_at',
+            'vote_summary',
+            'importance_summary',
+            'comment_count',
+        ]
+
+    def get_vote_summary(self, obj):
+        return build_vote_summary(
+            list(obj.votes.select_related('voter__profile')), self.context.get('request')
+        )
+
+    def get_importance_summary(self, obj):
+        return build_vote_summary(
+            list(obj.importance_votes.select_related('voter__profile')), self.context.get('request')
+        )
+
+    def get_comment_count(self, obj):
+        return Comment.objects.filter(
+            content_type=ContentType.objects.get_for_model(CourseClaim),
+            object_id=obj.pk,
+            is_removed=False,
+        ).count()
+
+
+class CourseClaimCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseClaim
+        fields = ['id', 'kind', 'topic', 'subtopic', 'level']

@@ -15,7 +15,7 @@ from rest_framework.response import Response
 
 from notifications.services import label_for_exercise, notify_comment_reply
 
-from .models import Comment, Review, SavedComment
+from .models import Comment, CommentVote, Review, SavedComment
 from .serializers import CommentSerializer, SavedCommentSerializer
 
 
@@ -38,7 +38,7 @@ def comment_thread_response(request, target, *, on_created=None):
 
     if request.method == 'GET':
         qs = Comment.objects.filter(content_type=content_type, object_id=target.pk)
-        return Response(CommentSerializer(qs, many=True).data)
+        return Response(CommentSerializer(qs.prefetch_related('votes'), many=True, context={'request': request}).data)
 
     if not request.user.is_authenticated:
         return Response(status=status.HTTP_401_UNAUTHORIZED)
@@ -167,6 +167,35 @@ class CommentViewSet(viewsets.GenericViewSet):
         comment.removed_by_author = True
         comment.save(update_fields=['is_removed', 'removed_by_author'])
         return Response(CommentSerializer(comment).data)
+
+    @action(detail=True, methods=['post', 'delete'])
+    def vote(self, request, pk=None):
+        """POST `{value: 1|-1}` / DELETE — `/api/comments/{id}/vote/`. One row per voter, upserted
+        on POST and removed on DELETE, the same shape as every claim vote in `materials`. Open to
+        anybody signed in, on anybody's comment — including your own, which the UI does not offer
+        but which is not worth a rule here. A comment that is gone (removed or auto-hidden) cannot
+        be voted on: 409, nothing about the request was wrong, the comment is simply not there."""
+        comment = self.get_object()
+        if comment.is_removed or comment.auto_hidden_at is not None:
+            return Response(
+                {'detail': 'This comment is no longer available.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if request.method == 'DELETE':
+            CommentVote.objects.filter(comment=comment, voter=request.user).delete()
+        else:
+            try:
+                value = int(request.data.get('value'))
+            except (TypeError, ValueError):
+                value = None
+            if value not in (1, -1):
+                return Response(
+                    {'value': ['Must be 1 (up) or -1 (down).']}, status=status.HTTP_400_BAD_REQUEST
+                )
+            CommentVote.objects.update_or_create(
+                comment=comment, voter=request.user, defaults={'value': value}
+            )
+        return Response(CommentSerializer(comment, context={'request': request}).data)
 
     @action(detail=False, methods=['get'])
     def saved(self, request):

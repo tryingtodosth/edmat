@@ -234,7 +234,7 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Must be a JSON array of {topic_id, level} objects.')
 
         cleaned = []
-        seen_topic_ids = set()
+        seen = set()
         for entry in value:
             if not isinstance(entry, dict):
                 raise serializers.ValidationError('Each coverage entry must be an object.')
@@ -245,10 +245,15 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError('Each coverage entry needs a real topic_id and level.')
             if not (1 <= level <= 100):
                 raise serializers.ValidationError('level must be between 1 and 100.')
-            if topic_id in seen_topic_ids:
+            # `kind` is optional and defaults to a "covers" claim; a "requires" claim on the same
+            # topic is a different statement, so the two may coexist.
+            kind = entry.get('kind') or 'covers'
+            if kind not in ('covers', 'requires'):
+                raise serializers.ValidationError("kind must be 'covers' or 'requires'.")
+            if (topic_id, kind) in seen:
                 raise serializers.ValidationError('The same topic was listed more than once.')
-            seen_topic_ids.add(topic_id)
-            cleaned.append({'topic_id': topic_id, 'level': level})
+            seen.add((topic_id, kind))
+            cleaned.append({'topic_id': topic_id, 'level': level, 'kind': kind})
         return cleaned
 
     def validate(self, attrs):

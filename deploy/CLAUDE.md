@@ -2,7 +2,8 @@
 
 `DEPLOYMENT.md` (Part A: routine sync; Part B: full from-scratch setup),
 `UPDATE-2026-08-10.md` (the breaking-upgrade runbook — taxonomy rename etc., applied
-2026-08-10), `apache/edmat.conf` + `edmat-stage1-http-only.conf` (the real vhosts: TLS, and the
+2026-08-10), `UPDATE-2026-08-25.md` (the claims/first-paint release — the shape a routine,
+additive update should take), `apache/edmat.conf` + `edmat-stage1-http-only.conf` (the real vhosts: TLS, and the
 pre-certificate bootstrap).
 
 ## Production shape — facts that constrain code

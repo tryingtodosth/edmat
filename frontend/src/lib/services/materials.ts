@@ -1,4 +1,6 @@
 import type {
+	ClaimKind,
+	ClaimOwnerKind,
 	CoverageVoteValue,
 	Material,
 	MaterialBrowseFilters,
@@ -108,6 +110,7 @@ export async function searchMaterials(query: string): Promise<Material[]> {
  * one to get-or-create under the chosen topic on the fly (`subtopicSlug`/`subtopicName`), never
  * both. Neither set at all means "topic-level coverage, no subtopic breakdown." */
 export interface ProposeCoverageInput {
+	kind: ClaimKind;
 	topicId: string;
 	subtopicId?: string;
 	subtopicSlug?: string;
@@ -129,6 +132,7 @@ export async function proposeCoverage(
 		const raw = await apiClient.post<RawMaterialCoverage>(
 			`/materials/${encodeURIComponent(materialId)}/coverage/`,
 			{
+				kind: input.kind,
 				topic: Number(input.topicId),
 				subtopic: input.subtopicId ? Number(input.subtopicId) : undefined,
 				subtopic_slug: input.subtopicSlug,
@@ -144,21 +148,86 @@ export async function proposeCoverage(
 	}
 }
 
+/** A claim's own endpoint root — a material's claim and a course's claim answer to different
+ * routes but the identical vote/importance/comments actions, so every service below takes the
+ * claim rather than a bare id. */
+const CLAIM_ROOT: Record<ClaimOwnerKind, string> = {
+	material: '/material-coverage',
+	course: '/course-claims',
+	exercise: '/exercise-claims'
+};
+// Where an owner's claims are listed and proposed.
+const CLAIM_LIST_PATH: Record<ClaimOwnerKind, (ownerId: string) => string> = {
+	material: (id) => `/materials/${encodeURIComponent(id)}/coverage/`,
+	course: (id) => `/courses/${encodeURIComponent(id)}/claims/`,
+	exercise: (id) => `/exercises/${encodeURIComponent(id)}/claims/`
+};
+
+export function claimPath(claim: Pick<MaterialCoverage, 'id' | 'ownerKind'>): string {
+	return `${CLAIM_ROOT[claim.ownerKind]}/${encodeURIComponent(claim.id)}`;
+}
+
+/** An owner's claims. A material's ride along on the material itself; a course's and an
+ * exercise's have their own list endpoint. */
+export async function getClaims(
+	ownerKind: ClaimOwnerKind,
+	ownerId: string
+): Promise<MaterialCoverage[]> {
+	if (ownerKind === 'material') return (await getMaterialById(ownerId))?.coverage ?? [];
+	const raw = await apiClient.get<RawMaterialCoverage[]>(CLAIM_LIST_PATH[ownerKind](ownerId));
+	return raw.map(mapMaterialCoverage);
+}
+
+/** Propose a claim on any owner; 409 becomes `DuplicateCoverageError` so the form can say
+ * "vote on the existing one" rather than failing generically. */
+export async function proposeClaim(
+	ownerKind: ClaimOwnerKind,
+	ownerId: string,
+	input: ProposeCoverageInput
+): Promise<MaterialCoverage> {
+	try {
+		const raw = await apiClient.post<RawMaterialCoverage>(CLAIM_LIST_PATH[ownerKind](ownerId), {
+			kind: input.kind,
+			topic: Number(input.topicId),
+			subtopic: input.subtopicId ? Number(input.subtopicId) : undefined,
+			subtopic_slug: input.subtopicSlug,
+			subtopic_name: input.subtopicName,
+			locale: input.locale,
+			level: input.level
+		});
+		return mapMaterialCoverage(raw);
+	} catch (e) {
+		if (e instanceof ApiError && e.status === 409) throw new DuplicateCoverageError(e.message);
+		throw e;
+	}
+}
+
 export async function castCoverageVote(
-	coverageId: string,
+	claim: MaterialCoverage,
 	value: CoverageVoteValue
 ): Promise<MaterialCoverage> {
-	const raw = await apiClient.post<RawMaterialCoverage>(
-		`/material-coverage/${encodeURIComponent(coverageId)}/vote/`,
-		{ value }
-	);
+	const raw = await apiClient.post<RawMaterialCoverage>(`${claimPath(claim)}/vote/`, { value });
 	return mapMaterialCoverage(raw);
 }
 
-export async function retractCoverageVote(coverageId: string): Promise<MaterialCoverage> {
-	const raw = await apiClient.delete<RawMaterialCoverage>(
-		`/material-coverage/${encodeURIComponent(coverageId)}/vote/`
-	);
+export async function retractCoverageVote(claim: MaterialCoverage): Promise<MaterialCoverage> {
+	const raw = await apiClient.delete<RawMaterialCoverage>(`${claimPath(claim)}/vote/`);
+	return mapMaterialCoverage(raw);
+}
+
+/** The ordering vote — "show this higher/lower" — separate from the accuracy vote above. */
+export async function castImportanceVote(
+	claim: MaterialCoverage,
+	value: CoverageVoteValue
+): Promise<MaterialCoverage> {
+	const raw = await apiClient.post<RawMaterialCoverage>(`${claimPath(claim)}/importance/`, {
+		value
+	});
+	return mapMaterialCoverage(raw);
+}
+
+export async function retractImportanceVote(claim: MaterialCoverage): Promise<MaterialCoverage> {
+	const raw = await apiClient.delete<RawMaterialCoverage>(`${claimPath(claim)}/importance/`);
 	return mapMaterialCoverage(raw);
 }
 

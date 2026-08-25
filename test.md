@@ -259,6 +259,12 @@ cd frontend
 node e2e/classroom.mjs
 node e2e/education-auth.mjs
 node e2e/material-claims.mjs
+node e2e/material-claims-rework.mjs   # E2E_BASE=http://localhost:5173; signs in as ola@edmat.example
+node e2e/course-claims.mjs            # E2E_COURSE=<public course id with a subject branch>
+node e2e/login-return.mjs
+node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
+node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
+E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
 node e2e/booking.mjs
@@ -518,6 +524,49 @@ an accessible name, that it opens a modal holding **every** claim rather than on
 remainder, in the same sort order the card established, that drilling into one claim and closing it
 returns to the list rather than the card, that two modals are never stacked, and that the whole path
 works from the keyboard.
+
+**`e2e/material-claims-rework.mjs` (28 checks)** — a claim's popover shows ONE reading (a `covers`
+claim never shows a "prior knowledge" line and vice versa), a requirement is proposed as a structured
+claim with an exactly-typed level and appears bucketed with a requirement word, the accuracy and the
+importance vote are tallied separately, a comment posts into the claim's thread and its score moves
+1 → 0 → -1 through the arrows, an importance upvote moves a claim to the front of the list **and the
+order survives a reload**, and the browse card's Requires chip opens the same popover. Creates one
+`requires` claim (plus votes and a comment) as `ola` on material 1 — delete them with
+`MaterialCoverage.objects.filter(kind='requires', proposed_by=ola).delete()` and the importance vote
+before re-running, or the duplicate refusal (correct behaviour) fails the add step. Do not run
+`npm run check` against a live dev server right before it: `svelte-kit sync` leaves Vite in a
+"next HMR update reloads" state that breaks the script's next navigation.
+
+**`e2e/course-claims.mjs` (13 checks)** — the covers/requires claims on a user-run course: both groups
+render, no add button signed out, a covers and a requires claim proposed through the real form land
+with the right depth words, the requirement popover shows only the prior-knowledge line, accuracy and
+importance votes land through the course endpoints, a comment posts into the claim's thread and can be
+upvoted, and the claim's comment count survives a reload. Needs a public course with at least one
+subject branch (`E2E_COURSE`, default 6); creates claims as `ola` — delete
+`CourseClaim.objects.filter(proposed_by=ola)` before re-running. The one console 404 it tolerates is
+the course page's own `GET /courses/{id}/attachments/` for a non-member, which predates it.
+
+**`e2e/exercise-claims.mjs` (12 checks)** — the shared claim groups on an exercise page: both groups
+render, the free-text requirement editor is gone, no add button signed out, a covers and a requires
+claim proposed with the right depth words, the popover worded for an exercise, accuracy + importance
+votes through the exercise endpoints, a comment posted and upvoted, and the count surviving a reload.
+Creates claims as `ola` on the exercise — delete `ExerciseClaim.objects.filter(proposed_by=ola)` first.
+
+**`e2e/taxonomy-other.mjs` (8 checks)** — the navbar says Exercises; on `/submit`, choosing "Other…"
+for the discipline reveals a name box and forces the branch to "Other…" too; with both named, the
+title and a statement, the form submits, and the API then lists the named discipline and branch as
+`pending`. Creates `e2e-other-*` nodes and one exercise submission — delete them before re-running
+(a second run hits "already exists").
+
+**`e2e/fcp.mjs` (11 checks)** — First Contentful Paint on the production build, localhost and a
+throttled link: on every measured route something paints well before the app has booted, the boot
+shell is gone once it has, and with JS disabled a fallback route still shows the brand bar. Needs a
+static server for `build/` that falls back to `200.html` (`python3 -m http.server` does not); the
+throttled numbers are the ones that mean anything.
+
+**`e2e/login-return.mjs` (5 checks)** — signing in returns to the page "Log in" was clicked on: from
+the header on a deep page, from a login link inside a modal, across the login → register → login hop
+(query string kept), a cold `/login` still landing on home, and a cross-origin `?next=` refused.
 
 **`e2e/course-search.mjs` (24 checks)** — searching inside one course, in three contexts, because
 the whole point is that the same box shows the owner, a participant and a stranger different things.

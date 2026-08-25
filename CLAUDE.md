@@ -5349,7 +5349,9 @@ An owner-requested simplification of the scheme above. Three changes, one decisi
   "collapsed icons migrate to the action row beside the dice / Disciplines merges into a search
   icon left of Add / Courses vanishes outright" arrangement is gone. Two new icons existed nowhere
   before and were needed for the two links that previously had no icon form: a compass
-  (Disciplines) and a mortarboard (Courses). Each link carries a permanent `aria-label`, so the
+  (Disciplines — replaced on 2026-08-25 by a worksheet-with-a-tick once that link was renamed
+  Exercises/Zadania, since a compass stood for nothing a reader could name any more) and a
+  mortarboard (Courses). Each link carries a permanent `aria-label`, so the
   accessible name survives the text hiding. The drawer renders the same `browseLinks` snippet and
   stays text-only at every width (the icon spans' base rule hides them; every stage rule is scoped
   under `.site-nav`). **Consequence, flagged rather than hidden: the header no longer links to
@@ -5712,6 +5714,97 @@ has other work in flight, so it is reported rather than edited.
 - **Nothing notifies the author** when their comment is filed into a course.
 
 ---
+
+## 17AD. Material claims: one question per row, ranked by the community, comments votable (✅ built)
+
+Reported: "assessing what a material covers" opened a popover that printed the **same number under
+both "As a requirement" and "As content covered"**. That was designed in — one `MaterialCoverage.level`
+deliberately read two ways — and the design was the bug: a single figure cannot honestly answer
+two different questions, and a reader was shown it answering both.
+
+- **`MaterialCoverage.kind`** (`covers` / `requires`, migration `materials.0015`). A row answers one
+  question; a material may carry both kinds on the same topic (unique per `(material, kind, topic,
+  subtopic)`). Existing rows are all `covers`. The popover shows **only** the line its kind means,
+  and says in a sentence which kind it is. Requirements are therefore **structured claims** — topic,
+  optional subtopic, a 1–100 level typed exactly or slid, a thread, votes — exactly like coverage,
+  replacing the free-text `MaterialRequirement` list in the UI (the model, governor PUT and reports
+  stay; zero rows existed, and the page still renders any that appear). Browse filters, `sort=level`
+  and the recommender read `covers` only.
+- **An importance vote, separate from the accuracy vote** (`MaterialCoverageImportanceVote`,
+  `/material-coverage/{id}/importance/`): "should this be shown near the top?" is not "is the level
+  right?", and folding them into one agree/disagree would make the ordering argue with the accuracy.
+  Every list of claims — card, detail page, "+N more" modal — is ordered by importance net weight,
+  then accuracy (`sortClaims`, `lib/utils/coverage.ts`); an upvote visibly moves a claim to the
+  front and the order survives a reload.
+- **Comment up/down votes** (`community.CommentVote`, `/comments/{id}/vote/`), rendered as a ▲ score
+  ▼ column in the shared `CommentNode`, so every thread in the app gets them, not only claim
+  threads. Unweighted (see community/CLAUDE.md for why); disabled with a tooltip when signed out.
+- A `requires` claim is drawn in the **warning hue** on badges and card chips so it can never be
+  read as "taught here"; the card's Requires chips are now clickable like the Covers ones.
+
+**Verified**: 325 backend tests across materials/community/moderation/exercises/taxonomy (18 new),
+`makemigrations --check` clean; `e2e/material-claims-rework.mjs` 28/28 and the pre-existing
+`material-claims.mjs` 14/14, zero console errors; screenshots looked at (which is how the header
+card missing a just-added claim was found and fixed). `npm run check` 0/0, eslint clean, both
+catalogues key-identical.
+
+**Courses got the same claims** (a follow-up in the same session): `courses.CourseClaim` inherits a new
+abstract `materials.ClaimBase`, its votes/importance/thread go through the shared `materials/claims.py`
+handlers, and the course page renders `CourseClaims.svelte` above the enrol block using the material
+badge/popover/form unchanged — a claim's `ownerKind` (`material` | `course`) picks the endpoint. Topics
+come from the course's subject branches. 8 tests in `courses/test_claims.py`; `e2e/course-claims.mjs`
+13/13. **Also**: signing in or registering now returns you to the page where you clicked "Log in"
+(`lib/utils/returnTo.ts` — remembered in sessionStorage across the login↔register hop, `?next=`
+honoured, same-origin paths only; `e2e/login-return.mjs` 5/5).
+
+**Exercises got the same claims too** (`exercises.ExerciseClaim` on `ClaimBase`, `/exercises/{id}/claims/`
++ `/exercise-claims/{id}/…`, topics from the exercise's branch; the exercise page's free-text
+requirement list — never used, zero rows — was replaced by the shared `ClaimGroups.svelte`, which
+`CourseClaims` now also wraps; 5 tests in `exercises/test_claims.py`, `e2e/exercise-claims.mjs` 12/12).
+**The navbar's "Disciplines" link now reads "Exercises" / "Zadania"** (`nav_browse`; the route is still
+`/disciplines`). **"Other…" in the discipline and branch pickers** of `/submit` and `/submit-material`
+reveals a text box; submitting proposes the named node through the existing `/taxonomy/propose/`
+(pending unless a moderator) and files the submission under it — one act rather than a detour through
+the propose dialog, which those two pickers no longer show (topics and material types keep it).
+`TaxonomyOptions` exports `OTHER_VALUE`; `e2e/taxonomy-other.mjs` 8/8.
+
+**Left open**: `CommentSerializer` fetches votes per comment when a caller forgets
+`prefetch_related('votes')` (every thread GET passes it today); no per-claim "sort by accuracy"
+toggle — importance is the one order; legacy `MaterialRequirement` proposing has no UI any more and
+could be retired from the API once nothing else reads it.
+
+## 17AE. First Contentful Paint: prerendered hubs and a boot shell for the SPA fallback (✅ built)
+
+Measured on the production build (`e2e/fcp.mjs`, real Chromium, CDP-throttled to 150 ms / 1.6 Mbit/s):
+the prerendered home painted at ~90 ms, but **every route served from the SPA fallback `200.html`
+painted nothing until the whole module graph had booted** — 5.3 s on the throttled link, and "FCP"
+was simply the hydration time. Two cheap changes, no infrastructure:
+
+- **Seven more hub routes are prerendered** (`/disciplines`, `/materials`, `/courses`, `/events`,
+  `/services`, `/submit`, `/submit-material` — a one-line `+page.ts` each): their chrome, heading,
+  filters and loading states are static text; the lists are still fetched client-side after
+  hydration, so nothing stale is baked in. `/search` cannot be (it reads the URL query at load).
+  Apache's existing `$1.html` rewrite serves the new pages with no config change.
+- **A boot shell in `app.html`** — a real brand-bar link and a loading line, painted from the HTML
+  alone on any fallback route, hidden by one CSS rule the instant the SvelteKit body div has content
+  (build time on a prerendered page, hydration on a fallback one). **The rule must exclude
+  `script`**: SvelteKit puts its bootstrap `<script>` INSIDE that div, so a bare `> *` matched it and
+  the shell never showed — found by a JS-disabled screenshot that came back blank, not by the
+  numbers. After the fix a fallback route's throttled FCP is ~1.45 s (HTML + CSS arrival) against
+  an app header at ~5.5 s; localhost 60–90 ms.
+
+One trap the packaging step found and the dev build hides: a prerendered page that calls a service
+at component top level makes the build itself perform `fetch('/api/…')`, which under the
+production `PUBLIC_API_BASE_URL=/api` has no origin and crashes the prerender (`/submit`,
+`/submit-material`; both loads moved into `onMount`). `pack.sh` now refuses a build missing any of
+the prerendered pages, so this cannot ship silently again.
+
+What it does not fix, stated plainly: the bundle itself (43 preloaded modules, 1.4 MB of chunks,
+323 KB of CSS across 78 files) still takes ~5 s to boot on that link; the shell makes the wait
+honest, it does not shorten it. The real lever there is SSR (`adapter-node`), which is a deployment
+change webek4's Apache/mod_wsgi setup was not built for. The dev server's own first paint (Vite's
+unbundled module graph, ~2.7 s cold, 250 requests, component styles injected by JS so collapsed
+nav icons can flash unstyled) is not what users get and was not chased.
 
 ## 18. Open questions
 

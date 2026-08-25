@@ -523,6 +523,7 @@ def _apply_material_submission(submission, reviewer):
             material=material,
             topic_id=entry['topic_id'],
             level=entry['level'],
+            kind=entry.get('kind', 'covers'),
             proposed_by=submission.submitted_by,
         )
         for entry in (submission.coverage or [])

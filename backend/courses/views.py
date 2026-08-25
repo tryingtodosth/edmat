@@ -423,7 +423,7 @@ class CourseViewSet(viewsets.ModelViewSet):
             if not course.discussion_visible_to(request.user):
                 return Response(status=status.HTTP_403_FORBIDDEN)
             qs = Comment.objects.filter(content_type=content_type, object_id=course.pk)
-            return Response(CommentSerializer(qs, many=True).data)
+            return Response(CommentSerializer(qs.prefetch_related('votes'), many=True, context={'request': request}).data)
 
         if not course.discussion_writable_by(request.user):
             return Response(status=status.HTTP_403_FORBIDDEN)
@@ -461,6 +461,44 @@ class CourseViewSet(viewsets.ModelViewSet):
                 skip=[replied_to] if replied_to else None,
             )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    # --- covers / requires claims ---------------------------------------------------------------
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        permission_classes=[permissions.IsAuthenticatedOrReadOnly, _CoursesFeatureGate],
+    )
+    def claims(self, request, pk=None):
+        """GET lists a course's claims; POST proposes one — `/api/courses/{id}/claims/`, sharing
+        this viewset's visibility queryset and feature gate. Per-claim actions live on
+        `CourseClaimViewSet` at the bottom of this module."""
+        course = self.get_object()
+        if request.method == 'GET':
+            qs = course.claims.select_related('topic', 'subtopic').prefetch_related(
+                'votes__voter__profile', 'importance_votes__voter__profile'
+            )
+            return Response(CourseClaimSerializer(qs, many=True, context={'request': request}).data)
+
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        # A course's topics are those of every subject branch it names — the taxonomy it was filed
+        # under is what a claim can be about.
+        topics = Topic.objects.filter(branch__in=course.subjects.all())
+        kind, topic, subtopic, error = resolve_claim_input(request, topics)
+        if error is not None:
+            return error
+        if CourseClaim.objects.filter(course=course, kind=kind, topic=topic, subtopic=subtopic).exists():
+            return Response(DUPLICATE_CLAIM, status=status.HTTP_409_CONFLICT)
+        serializer = CourseClaimCreateSerializer(
+            data={**request.data, 'kind': kind, 'topic': topic.pk, 'subtopic': subtopic.pk if subtopic else None}
+        )
+        serializer.is_valid(raise_exception=True)
+        claim = serializer.save(course=course, proposed_by=request.user)
+        return Response(
+            CourseClaimSerializer(claim, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     # --- lessons --------------------------------------------------------------------------------
 
@@ -1826,3 +1864,64 @@ def invite_accept(request, token=None):
             course=course,
         )
     return Response({'detail': 'joined', 'course_id': course.pk, 'role': invite.role})
+
+
+# --- covers / requires claims -------------------------------------------------------------------
+
+from materials.claims import DUPLICATE_CLAIM, resolve_claim_input, thread_response, vote_response  # noqa: E402
+from taxonomy.models import Topic  # noqa: E402
+
+from .models import CourseClaim, CourseClaimImportanceVote, CourseClaimVote  # noqa: E402
+from .serializers import CourseClaimCreateSerializer, CourseClaimSerializer  # noqa: E402
+
+
+def _visible_courses(user):
+    """The same visibility rule `CourseViewSet.get_queryset` applies, for a claim reached by its own
+    id: listed courses, plus anything the caller runs or is enrolled in."""
+    qs = Course.objects.all()
+    visible = qs.filter(visibility__in=LISTED_VISIBILITIES)
+    if user.is_authenticated:
+        visible = (
+            visible
+            | qs.filter(staff__user=user)
+            | qs.filter(
+                enrollments__participant=user, enrollments__status__in=ACTIVE_ENROLLMENT_STATUSES
+            )
+        )
+    return visible.distinct()
+
+
+class CourseClaimViewSet(viewsets.GenericViewSet):
+    """`/api/course-claims/{id}/vote|importance|comments/` — the per-claim actions, mirroring
+    `MaterialCoverageViewSet`. A claim on a course the caller may not see is a 404, by queryset."""
+
+    serializer_class = CourseClaimSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, _CoursesFeatureGate]
+
+    def get_queryset(self):
+        return CourseClaim.objects.filter(course__in=_visible_courses(self.request.user))
+
+    @action(detail=True, methods=['post', 'delete'])
+    def vote(self, request, pk=None):
+        return vote_response(
+            request, self.get_object(), CourseClaimVote, 'claim', CourseClaimSerializer,
+            labels=('agree', 'disagree'),
+        )
+
+    @action(detail=True, methods=['post', 'delete'])
+    def importance(self, request, pk=None):
+        return vote_response(
+            request, self.get_object(), CourseClaimImportanceVote, 'claim', CourseClaimSerializer,
+            labels=('more important', 'less important'),
+        )
+
+    @action(detail=True, methods=['get', 'post'])
+    def comments(self, request, pk=None):
+        claim = self.get_object()
+        return thread_response(
+            request,
+            claim,
+            on_created=lambda comment: notify_comment_reply(
+                comment, target_label=f'{claim.course.title} — {claim.topic.slug}'
+            ),
+        )

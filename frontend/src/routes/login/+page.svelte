@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { rememberReturnTo, takeReturnTo } from '$lib/utils/returnTo';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -7,6 +9,8 @@
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+
+	afterNavigate((nav) => rememberReturnTo(nav.from?.url));
 
 	let email = $state('');
 	let password = $state('');
@@ -26,7 +30,9 @@
 			// header re-renders reactively the moment this resolves, nothing here needs to await it.
 			notificationStore.refresh();
 			messagesStore.refresh();
-			goto(resolve('/'));
+			// Back to wherever "Log in" was clicked, not the home page — see lib/utils/returnTo.ts.
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- an in-app path remembered at runtime (validated same-origin in returnTo.ts), not a literal route resolve() could name
+			goto(takeReturnTo(page.url));
 		} else {
 			error = true;
 		}

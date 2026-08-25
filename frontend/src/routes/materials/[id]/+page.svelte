@@ -10,6 +10,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type {
+		ClaimKind,
 		Comment,
 		Branch,
 		Discipline,
@@ -20,14 +21,13 @@
 		User
 	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
+	import { claimsOfKind } from '$lib/utils/coverage';
 	import {
 		castRequirementVote,
 		DuplicateCoverageError,
-		DuplicateRequirementError,
 		getMaterialById,
 		getMaterialReviews,
 		proposeCoverage,
-		proposeRequirement,
 		retractRequirementVote,
 		setMaterialRequirements,
 		submitMaterialReview
@@ -60,34 +60,32 @@
 	let usersById = $state<Record<string, User>>({});
 	let submissionNotice = $state<'review' | null>(null);
 
-	// Coverage — proposing a brand-new claim is open to any authenticated user (materials/models.py's
-	// MaterialCoverage doc comment: a community-verified peer-review signal, not moderator-gated).
-	let coverageOverlay = $state<MaterialCoverage[]>([]);
-	let allCoverage = $derived([...(material?.coverage ?? []), ...coverageOverlay]);
-	let sortedCoverage = $derived(
-		[...allCoverage].sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
-	);
+	// Claims — proposing a new one of either kind is open to any authenticated user (a community-
+	// verified peer-review signal, not moderator-gated). Both groups are the same rows split by
+	// `kind`, in the order the community's importance votes produce.
+	// New and updated claims are written straight into `material.coverage` (a `$state` object, so
+	// deep reactive) rather than a side overlay: the header card renders the same `material`, and an
+	// overlay it cannot see left a just-added claim missing from the card until a reload.
+	let allCoverage = $derived(material?.coverage ?? []);
+	let sortedCoverage = $derived(claimsOfKind(allCoverage, 'covers'));
+	let sortedRequirements = $derived(claimsOfKind(allCoverage, 'requires'));
 	let openCoverageId = $state<string | null>(null);
 	let openCoverage = $derived(allCoverage.find((c) => c.id === openCoverageId) ?? null);
-	let addingCoverage = $state(false);
+	// Which kind the open "add" form is proposing, or null when it is closed.
+	let addingKind = $state<ClaimKind | null>(null);
 	let addError = $state<string | null>(null);
 
-	// Requirements — a real, found gap: proposing a brand-new one used to be governor-only end to
-	// end, same as bulk-reordering/removing — an ordinary user had NO way to add one at all, unlike
-	// `coverage`'s own "anyone can propose" openness. `propose_requirement` (backend) opened just
-	// the PROPOSE half to any authenticated user; bulk reorder/removal (`editingRequirements` below)
-	// stays governor-only, materials/views.py's own `requirements` action doc comment.
+	// Legacy free-text requirements (`MaterialRequirement`) — kept readable and governor-editable
+	// for any material that still carries them, but no longer offered for new entries: a
+	// requirement is now a claim like any other, with a topic, a level, votes and a thread.
 	let requirementsOverlay = $state<Material['requirements'] | null>(null);
-	let sortedRequirements = $derived(
+	let legacyRequirements = $derived(
 		[...(requirementsOverlay ?? material?.requirements ?? [])].sort(
 			(a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight
 		)
 	);
 	let editingRequirements = $state(false);
 	let requirementsError = $state<string | null>(null);
-	let proposingRequirement = $state(false);
-	let newRequirementLabel = $state('');
-	let proposeRequirementError = $state<string | null>(null);
 
 	async function resolveUsers(ids: string[]) {
 		const unique = [...new Set(ids)].filter((id) => !usersById[id]);
@@ -101,7 +99,6 @@
 	async function loadAll(id: string) {
 		loading = true;
 		notFound = false;
-		coverageOverlay = [];
 		requirementsOverlay = null;
 		submissionNotice = null;
 
@@ -150,6 +147,7 @@
 	}
 
 	async function handleProposeCoverage(input: {
+		kind: ClaimKind;
 		topicId: string;
 		subtopicName: string;
 		level: number;
@@ -158,14 +156,15 @@
 		addError = null;
 		try {
 			const coverage = await proposeCoverage(material.id, {
+				kind: input.kind,
 				topicId: input.topicId,
 				level: input.level,
 				...(input.subtopicName
 					? { subtopicSlug: slugify(input.subtopicName), subtopicName: input.subtopicName }
 					: {})
 			});
-			coverageOverlay = [...coverageOverlay, coverage];
-			addingCoverage = false;
+			material.coverage = [...material.coverage, coverage];
+			addingKind = null;
 		} catch (e) {
 			addError =
 				e instanceof DuplicateCoverageError ? m.coverage_addDuplicate() : m.common_error_generic();
@@ -176,7 +175,6 @@
 		if (material) {
 			material.coverage = material.coverage.map((c) => (c.id === updated.id ? updated : c));
 		}
-		coverageOverlay = coverageOverlay.map((c) => (c.id === updated.id ? updated : c));
 	}
 
 	async function handleRequirementVote(requirementId: string, value: 1 | -1) {
@@ -203,25 +201,6 @@
 			editingRequirements = false;
 		} catch {
 			requirementsError = m.material_requirementsSaveError();
-		}
-	}
-
-	async function handleProposeRequirement() {
-		if (!material) return;
-		const label = newRequirementLabel.trim();
-		if (!label) return;
-		proposeRequirementError = null;
-		try {
-			const requirement = await proposeRequirement(material.id, label);
-			const base = requirementsOverlay ?? material.requirements;
-			requirementsOverlay = [...base, requirement];
-			newRequirementLabel = '';
-			proposingRequirement = false;
-		} catch (e) {
-			proposeRequirementError =
-				e instanceof DuplicateRequirementError
-					? m.material_requirementAddDuplicate()
-					: m.common_error_generic();
 		}
 	}
 
@@ -278,12 +257,13 @@
 					<button
 						type="button"
 						class="add-trigger"
-						onclick={() => ((addingCoverage = true), (addError = null))}
+						onclick={() => ((addingKind = 'covers'), (addError = null))}
 					>
 						+ {m.coverage_addTrigger()}
 					</button>
 				{/if}
 			</div>
+			<p class="group-hint">{m.material_coversHint()}</p>
 			{#if sortedCoverage.length === 0}
 				<p class="status">{m.material_coversEmpty()}</p>
 			{:else}
@@ -298,16 +278,32 @@
 		<section class="claim-group">
 			<div class="claim-group__heading">
 				<h2>{m.material_requiresHeading()}</h2>
-				<div class="claim-group__actions">
-					{#if authStore.isAuthenticated}
-						<button
-							type="button"
-							class="add-trigger"
-							onclick={() => ((proposingRequirement = true), (proposeRequirementError = null))}
-						>
-							+ {m.material_requirementAddTrigger()}
-						</button>
-					{/if}
+				{#if authStore.isAuthenticated && topics.length > 0}
+					<button
+						type="button"
+						class="add-trigger"
+						onclick={() => ((addingKind = 'requires'), (addError = null))}
+					>
+						+ {m.coverage_addRequirementTrigger()}
+					</button>
+				{/if}
+			</div>
+			<p class="group-hint">{m.material_requiresHint()}</p>
+			{#if sortedRequirements.length === 0}
+				<p class="status">{m.material_requiresEmpty()}</p>
+			{:else}
+				<div class="claim-group__badges">
+					{#each sortedRequirements as coverage (coverage.id)}
+						<CoverageBadge {coverage} onclick={() => (openCoverageId = coverage.id)} />
+					{/each}
+				</div>
+			{/if}
+		</section>
+
+		{#if legacyRequirements.length > 0}
+			<section class="claim-group">
+				<div class="claim-group__heading">
+					<h2>{m.material_legacyRequirementsHeading()}</h2>
 					{#if authStore.canModerate}
 						<button
 							type="button"
@@ -318,12 +314,8 @@
 						</button>
 					{/if}
 				</div>
-			</div>
-			{#if sortedRequirements.length === 0}
-				<p class="status">{m.material_requiresEmpty()}</p>
-			{:else}
 				<ul class="requirement-list">
-					{#each sortedRequirements as requirement (requirement.id)}
+					{#each legacyRequirements as requirement (requirement.id)}
 						<li class="requirement-row">
 							<span class="requirement-row__label">{requirement.label}</span>
 							<CoverageVoteWidget
@@ -336,8 +328,8 @@
 						</li>
 					{/each}
 				</ul>
-			{/if}
-		</section>
+			</section>
+		{/if}
 
 		<section class="content-section">
 			<h2>{m.review_heading()}</h2>
@@ -376,48 +368,20 @@
 	/>
 {/if}
 
-{#if addingCoverage}
-	<ModalShell title={m.coverage_addTrigger()} onClose={() => (addingCoverage = false)}>
+{#if addingKind}
+	<ModalShell
+		title={addingKind === 'requires' ? m.coverage_addRequirementTrigger() : m.coverage_addTrigger()}
+		onClose={() => (addingKind = null)}
+	>
 		{#if addError}
 			<p class="add-error">{addError}</p>
 		{/if}
 		<AddCoverageForm
+			kind={addingKind}
 			{topics}
 			onSubmit={handleProposeCoverage}
-			onCancel={() => (addingCoverage = false)}
+			onCancel={() => (addingKind = null)}
 		/>
-	</ModalShell>
-{/if}
-
-{#if proposingRequirement}
-	<ModalShell
-		title={m.material_requirementAddTrigger()}
-		onClose={() => (proposingRequirement = false)}
-	>
-		{#if proposeRequirementError}
-			<p class="add-error">{proposeRequirementError}</p>
-		{/if}
-		<form
-			class="propose-requirement-form"
-			onsubmit={(e) => (e.preventDefault(), handleProposeRequirement())}
-		>
-			<label class="field">
-				<span class="visually-hidden">{m.material_requirementsAddPlaceholder()}</span>
-				<input
-					type="text"
-					bind:value={newRequirementLabel}
-					placeholder={m.material_requirementsAddPlaceholder()}
-				/>
-			</label>
-			<div class="propose-requirement-form__actions">
-				<button type="button" class="cancel" onclick={() => (proposingRequirement = false)}>
-					{m.common_cancel()}
-				</button>
-				<button type="submit" class="submit" disabled={!newRequirementLabel.trim()}>
-					{m.material_requirementsAdd()}
-				</button>
-			</div>
-		</form>
 	</ModalShell>
 {/if}
 
@@ -430,7 +394,7 @@
 			<p class="add-error">{requirementsError}</p>
 		{/if}
 		<RequirementsEditor
-			initial={sortedRequirements.map((r) => r.label)}
+			initial={legacyRequirements.map((r) => r.label)}
 			onSubmit={handleSaveRequirements}
 			onCancel={() => (editingRequirements = false)}
 		/>
@@ -483,11 +447,6 @@
 		flex-wrap: wrap;
 		gap: var(--space-1);
 	}
-	.claim-group__actions {
-		display: flex;
-		gap: var(--space-2);
-		flex-shrink: 0;
-	}
 	.status {
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);
@@ -509,33 +468,10 @@
 	.add-error {
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 	}
-	.propose-requirement-form {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
-	}
-	.propose-requirement-form .field input {
-		@include mix.focus-ring;
-		width: 100%;
-		padding: var(--space-2);
-		border: 1px solid var(--border-color);
-		border-radius: var(--radius-sm);
-		background: var(--bg-page);
-		color: var(--text-primary);
-	}
-	.visually-hidden {
-		@include mix.visually-hidden;
-	}
-	.propose-requirement-form__actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: var(--space-2);
-	}
-	.propose-requirement-form__actions .cancel {
-		@include mix.button-secondary;
-	}
-	.propose-requirement-form__actions .submit {
-		@include mix.button-primary;
+	.group-hint {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+		margin-top: calc(-1 * var(--space-1));
 	}
 	.requirement-list {
 		display: flex;

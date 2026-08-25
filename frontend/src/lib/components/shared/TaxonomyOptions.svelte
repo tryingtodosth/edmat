@@ -1,3 +1,8 @@
+<script lang="ts" module>
+	/** The `<option>` value meaning "none of these — I will name a new one". */
+	export const OTHER_VALUE = '__other__';
+</script>
+
 <script lang="ts">
 	// The <select> half of the "Others" grouping — settled nodes first, then anything somebody has
 	// proposed, under an <optgroup>.
@@ -20,7 +25,9 @@
 		status: TaxonomyStatus;
 	}
 
-	let { nodes }: { nodes: Option[] } = $props();
+	// `allowOther` appends an "Other…" row whose value is OTHER_VALUE — a caller that renders it
+	// shows a text box when it is selected and proposes the named node on submit.
+	let { nodes, allowOther = false }: { nodes: Option[]; allowOther?: boolean } = $props();
 	let grouped = $derived(splitByStatus(nodes));
 </script>
 
@@ -33,4 +40,7 @@
 			<option value={node.id}>{node.name}</option>
 		{/each}
 	</optgroup>
+{/if}
+{#if allowOther}
+	<option value={OTHER_VALUE}>{m.taxonomy_other()}</option>
 {/if}

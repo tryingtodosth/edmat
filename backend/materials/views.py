@@ -16,6 +16,7 @@ from taxonomy.models import Subtopic, SubtopicTranslation, Topic
 from .models import (
     Material,
     MaterialCoverage,
+    MaterialCoverageImportanceVote,
     MaterialCoverageVote,
     MaterialRequirement,
     MaterialRequirementVote,
@@ -94,15 +95,17 @@ def _filter_materials(qs, params):
     except (TypeError, ValueError):
         min_level_int = None
 
+    # Browse filters read the `covers` claims only — "what does this material teach", never
+    # "what does it expect you to know already".
     if topic_id:
-        coverage_filter = Q(coverage__topic_id=topic_id)
+        coverage_filter = Q(coverage__topic_id=topic_id, coverage__kind='covers')
         if min_level_int is not None:
             coverage_filter &= Q(coverage__level__gte=min_level_int)
         qs = qs.filter(coverage_filter)
     elif min_level_int is not None:
         # No specific topic named — "any coverage claim at all reaches this depth," a coarser
         # "well-covered material" filter than the topic-scoped one above.
-        qs = qs.filter(coverage__level__gte=min_level_int)
+        qs = qs.filter(coverage__level__gte=min_level_int, coverage__kind='covers')
 
     q = params.get('q')
     if q:
@@ -134,7 +137,7 @@ def _sort_materials(materials, sort, locale, topic_id=None):
         return sorted(materials, key=lambda m: resolved_title(m, locale).casefold())
     if sort == 'level':
         def best_level(m):
-            rows = m.coverage.all()
+            rows = [r for r in m.coverage.all() if r.kind == 'covers']
             if topic_id:
                 rows = [r for r in rows if str(r.topic_id) == str(topic_id)]
             levels = [r.level for r in rows]
@@ -183,6 +186,7 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
             qs.prefetch_related(
                 'translations',
                 'coverage__votes__voter__profile',
+                'coverage__importance_votes__voter__profile',
                 'coverage__topic',
                 'tags',
                 'requirements__votes__voter__profile',
@@ -255,6 +259,12 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
 
+        kind = request.data.get('kind') or 'covers'
+        if kind not in ('covers', 'requires'):
+            return Response(
+                {'kind': ["Must be 'covers' or 'requires'."]}, status=status.HTTP_400_BAD_REQUEST
+            )
+
         topic_id = request.data.get('topic')
         if not topic_id:
             return Response({'topic': ['This field is required.']}, status=status.HTTP_400_BAD_REQUEST)
@@ -290,7 +300,9 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
                     subtopic=subtopic, locale=locale, defaults={'name': subtopic_name}
                 )
 
-        if MaterialCoverage.objects.filter(material=material, topic=topic, subtopic=subtopic).exists():
+        if MaterialCoverage.objects.filter(
+            material=material, kind=kind, topic=topic, subtopic=subtopic
+        ).exists():
             return Response(
                 {
                     'detail': (
@@ -304,6 +316,7 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = MaterialCoverageCreateSerializer(
             data={
                 **request.data,
+                'kind': kind,
                 'topic': topic.pk,
                 'subtopic': subtopic.pk if subtopic else None,
             }
@@ -446,7 +459,7 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
         content_type = ContentType.objects.get_for_model(Material)
         if request.method == 'GET':
             qs = Comment.objects.filter(content_type=content_type, object_id=material.pk)
-            serializer = CommentSerializer(qs, many=True)
+            serializer = CommentSerializer(qs.prefetch_related('votes'), many=True, context={'request': request})
             return Response(serializer.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
@@ -566,13 +579,42 @@ class MaterialCoverageViewSet(viewsets.GenericViewSet):
         serializer = MaterialCoverageSerializer(coverage, context={'request': request})
         return Response(serializer.data)
 
+    @action(detail=True, methods=['post', 'delete'])
+    def importance(self, request, pk=None):
+        """POST/DELETE /api/material-coverage/{id}/importance/ — the ordering vote (see
+        MaterialCoverageImportanceVote): +1 "show this higher", -1 "show this lower". Same
+        one-row-per-voter upsert/retract shape as `vote` above; a different question, so a
+        different row, never the same one re-used."""
+        coverage = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        if request.method == 'DELETE':
+            MaterialCoverageImportanceVote.objects.filter(coverage=coverage, voter=request.user).delete()
+        else:
+            try:
+                value = int(request.data.get('value'))
+            except (TypeError, ValueError):
+                value = None
+            if value not in (1, -1):
+                return Response(
+                    {'value': ['Must be 1 (more important) or -1 (less important).']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            MaterialCoverageImportanceVote.objects.update_or_create(
+                coverage=coverage, voter=request.user, defaults={'value': value}
+            )
+
+        serializer = MaterialCoverageSerializer(coverage, context={'request': request})
+        return Response(serializer.data)
+
     @action(detail=True, methods=['get', 'post'])
     def comments(self, request, pk=None):
         coverage = self.get_object()
         content_type = ContentType.objects.get_for_model(MaterialCoverage)
         if request.method == 'GET':
             qs = Comment.objects.filter(content_type=content_type, object_id=coverage.pk)
-            serializer = CommentSerializer(qs, many=True)
+            serializer = CommentSerializer(qs.prefetch_related('votes'), many=True, context={'request': request})
             return Response(serializer.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)

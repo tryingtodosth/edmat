@@ -1589,3 +1589,47 @@ class LessonProgress(models.Model):
 
     def __str__(self) -> str:
         return f'{self.participant} — {self.lesson.title}: {self.status}'
+
+
+# --- covers / requires claims -------------------------------------------------------------------
+#
+# The same claims a material carries (`materials.ClaimBase`): "this course teaches topic X to
+# depth Y" and "you should know topic X to depth Y before joining". Topics come from the course's
+# own `subjects` (its taxonomy branches). Anybody signed in who can see the course may propose one;
+# the community corrects the level, ranks the order, and discusses each in its own thread. The
+# vote and importance-vote rows mirror `MaterialCoverageVote`/`MaterialCoverageImportanceVote`
+# exactly, and the request handling is shared in `materials/claims.py`.
+
+from materials.models import ClaimBase, VOTE_CHOICES  # noqa: E402 — courses already depends on materials
+
+
+class CourseClaim(ClaimBase):
+    course = models.ForeignKey(Course, related_name='claims', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = [('course', 'kind', 'topic', 'subtopic')]
+        ordering = ['topic', 'subtopic']
+
+    def __str__(self) -> str:
+        sub = f'/{self.subtopic.slug}' if self.subtopic else ''
+        return f'{self.course}@{self.kind}:{self.topic.slug}{sub}={self.level}'
+
+
+class CourseClaimVote(models.Model):
+    claim = models.ForeignKey(CourseClaim, related_name='votes', on_delete=models.CASCADE)
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=VOTE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('claim', 'voter')]
+
+
+class CourseClaimImportanceVote(models.Model):
+    claim = models.ForeignKey(CourseClaim, related_name='importance_votes', on_delete=models.CASCADE)
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=[(1, 'More important'), (-1, 'Less important')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('claim', 'voter')]

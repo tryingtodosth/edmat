@@ -60,6 +60,13 @@ class CommentSerializer(serializers.ModelSerializer):
     # for the same reason `is_auto_hidden` is one: a reader needs to know THAT it changed (so a
     # reply sitting under it can be read in that light), not when.
     is_edited = serializers.SerializerMethodField()
+    # Up/down votes. `current_user_vote` needs a request in the context; the many thread endpoints
+    # that build this serializer without one simply report None there, which is also what an
+    # anonymous reader gets.
+    upvotes = serializers.SerializerMethodField()
+    downvotes = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+    current_user_vote = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
@@ -78,7 +85,39 @@ class CommentSerializer(serializers.ModelSerializer):
             # comment was author-deleted, and a moderator removal correctly leaves it False.
             'removed_by_author',
             'is_edited',
+            'upvotes',
+            'downvotes',
+            'score',
+            'current_user_vote',
         ]
+        read_only_fields = [
+            'author',
+            'content_type',
+            'object_id',
+            'is_removed',
+            'removed_by_author',
+        ]
+
+    def _votes(self, obj):
+        # `.all()` so a caller's `prefetch_related('votes')` is honoured; a caller without one pays
+        # one small query per comment, which this app's thread sizes can afford.
+        return list(obj.votes.all())
+
+    def get_upvotes(self, obj):
+        return sum(1 for v in self._votes(obj) if v.value == 1)
+
+    def get_downvotes(self, obj):
+        return sum(1 for v in self._votes(obj) if v.value == -1)
+
+    def get_score(self, obj):
+        return sum(v.value for v in self._votes(obj))
+
+    def get_current_user_vote(self, obj):
+        request = self.context.get('request')
+        if request is None or not request.user.is_authenticated:
+            return None
+        mine = next((v for v in self._votes(obj) if v.voter_id == request.user.id), None)
+        return mine.value if mine else None
         read_only_fields = [
             'author',
             'content_type',

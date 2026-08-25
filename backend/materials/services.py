@@ -102,7 +102,7 @@ def build_vote_summary(votes, request) -> dict:
 
 
 def _best_coverage_level(material) -> int:
-    levels = [c.level for c in material.coverage.all()]
+    levels = [c.level for c in material.coverage.all() if c.kind == 'covers']
     return max(levels) if levels else -1
 
 
@@ -119,6 +119,7 @@ def _materials_queryset():
     return Material.objects.filter(published=True).select_related('branch').prefetch_related(
         'translations',
         'coverage__votes__voter__profile',
+        'coverage__importance_votes__voter__profile',
         'coverage__topic',
         'tags',
         'requirements__votes__voter__profile',
@@ -221,7 +222,7 @@ def get_recommended_materials(user, limit: int = 12) -> tuple[list[Material], bo
         if material.branch_id in active_branch_ids:
             s += 5.0
         rows = list(material.coverage.all())
-        overlap_rows = [r for r in rows if r.topic_id in engaged_topic_ids]
+        overlap_rows = [r for r in rows if r.topic_id in engaged_topic_ids and r.kind == 'covers']
         # Up to +5 per topic this material covers deeply (level is 1-100) that the visitor has
         # actually been reading about — a well-covered overlap counts for more than a token one.
         for row in overlap_rows:

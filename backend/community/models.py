@@ -104,3 +104,22 @@ class SavedComment(models.Model):
 
     def __str__(self) -> str:
         return f'{self.user} saved comment {self.comment_id}'
+
+
+class CommentVote(models.Model):
+    """An up (+1) or down (-1) vote on one comment, one row per voter. Unweighted on purpose —
+    a comment's score is a plain count, unlike a claim vote, where a verified contributor counts
+    double: the claim weight lives in `materials.services` and importing it here would run the
+    dependency the wrong way (materials already imports community). A score only ever orders and
+    signals; it never hides anything — hiding stays with the report flow, which keeps a record."""
+
+    comment = models.ForeignKey(Comment, related_name='votes', on_delete=models.CASCADE)
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=[(1, 'Up'), (-1, 'Down')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('comment', 'voter')]
+
+    def __str__(self) -> str:
+        return f'{self.value:+d} by {self.voter} on comment {self.comment_id}'

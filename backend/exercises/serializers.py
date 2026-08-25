@@ -318,3 +318,54 @@ class ExerciseSourceTranslationSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExerciseSourceTranslation
         fields = ['id', 'source', 'locale', 'name']
+
+
+# --- covers / requires claims -------------------------------------------------------------------
+
+from django.contrib.contenttypes.models import ContentType  # noqa: E402
+from community.models import Comment  # noqa: E402
+from materials.services import build_vote_summary  # noqa: E402
+from taxonomy.serializers import SubtopicSerializer, TopicSerializer  # noqa: E402
+
+from .models import ExerciseClaim  # noqa: E402
+
+
+class ExerciseClaimSerializer(serializers.ModelSerializer):
+    """Same wire shape as `MaterialCoverageSerializer`/`CourseClaimSerializer`, with `exercise` as
+    the owner key — the frontend maps all three through one function."""
+
+    topic = TopicSerializer(read_only=True)
+    subtopic = SubtopicSerializer(read_only=True, allow_null=True)
+    vote_summary = serializers.SerializerMethodField()
+    importance_summary = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExerciseClaim
+        fields = [
+            'id', 'exercise', 'kind', 'topic', 'subtopic', 'level', 'proposed_by', 'created_at',
+            'vote_summary', 'importance_summary', 'comment_count',
+        ]
+
+    def get_vote_summary(self, obj):
+        return build_vote_summary(
+            list(obj.votes.select_related('voter__profile')), self.context.get('request')
+        )
+
+    def get_importance_summary(self, obj):
+        return build_vote_summary(
+            list(obj.importance_votes.select_related('voter__profile')), self.context.get('request')
+        )
+
+    def get_comment_count(self, obj):
+        return Comment.objects.filter(
+            content_type=ContentType.objects.get_for_model(ExerciseClaim),
+            object_id=obj.pk,
+            is_removed=False,
+        ).count()
+
+
+class ExerciseClaimCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExerciseClaim
+        fields = ['id', 'kind', 'topic', 'subtopic', 'level']

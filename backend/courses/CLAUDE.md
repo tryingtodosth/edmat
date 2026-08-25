@@ -65,9 +65,18 @@ Also `attachmentfile.py` (upload validation), `search.py` (in-course search with
   `announce_*` settings → per-enrollment `notify` → account category). Joining an open course
   notifies nobody; pending requesters are never told about course internals.
 - Behind the `courses` FeatureFlag (seeded on; reads gated; staff bypass).
+- **Covers/requires claims** (`CourseClaim` + `CourseClaimVote` + `CourseClaimImportanceVote`,
+  migration 0018): the same claims a material carries, inheriting `materials.ClaimBase`; the
+  request handling (topic/subtopic resolution, duplicate 409, both vote upserts, the thread with
+  its same-thread `parent` check) is shared in `materials/claims.py`. `GET|POST
+  /courses/{id}/claims/` on the course viewset (its visibility queryset + gate), per-claim
+  `/course-claims/{id}/vote|importance|comments/` scoped to `_visible_courses` (404 otherwise).
+  A claim's topic must belong to one of the course's `subjects` branches. `community.targets`
+  maps it to `courseClaim`. Frontend: `components/course/CourseClaims.svelte` reuses the
+  material badge/popover/form unchanged — a claim's `ownerKind` picks the endpoint.
 
 ## Verify
 
 `manage.py test courses`. E2E: `classroom.mjs`, `classroom-overhaul.mjs`, `course-tabs.mjs`,
 `course-search.mjs`, `course-add-chapter.mjs`, `course-lessons-linking.mjs`,
-`course-content-links.mjs` (names still say "classroom" — that's just history).
+`course-content-links.mjs`, `course-claims.mjs` (names still say "classroom" — that's just history).

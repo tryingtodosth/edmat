@@ -284,13 +284,53 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         serializer.save(exercise=exercise, author=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED if existing is None else status.HTTP_200_OK)
 
+    # --- covers / requires claims ---------------------------------------------------------------
+
+    @action(detail=True, methods=['get', 'post'])
+    def claims(self, request, pk=None):
+        """GET lists this exercise's covers/requires claims; POST proposes one —
+        `/api/exercises/{id}/claims/`. Topics are the exercise's own branch's. Per-claim actions
+        live on `ExerciseClaimViewSet` at the bottom of this module; the handling is shared with
+        materials and courses in `materials/claims.py`."""
+        exercise = self.get_object()
+        if request.method == 'GET':
+            qs = exercise.claims.select_related('topic', 'subtopic').prefetch_related(
+                'votes__voter__profile', 'importance_votes__voter__profile'
+            )
+            return Response(ExerciseClaimSerializer(qs, many=True, context={'request': request}).data)
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        kind, topic, subtopic, error = resolve_claim_input(
+            request, Topic.objects.filter(branch=exercise.branch)
+        )
+        if error is not None:
+            return error
+        if ExerciseClaim.objects.filter(
+            exercise=exercise, kind=kind, topic=topic, subtopic=subtopic
+        ).exists():
+            return Response(DUPLICATE_CLAIM, status=status.HTTP_409_CONFLICT)
+        serializer = ExerciseClaimCreateSerializer(
+            data={
+                **request.data,
+                'kind': kind,
+                'topic': topic.pk,
+                'subtopic': subtopic.pk if subtopic else None,
+            }
+        )
+        serializer.is_valid(raise_exception=True)
+        claim = serializer.save(exercise=exercise, proposed_by=request.user)
+        return Response(
+            ExerciseClaimSerializer(claim, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
     @action(detail=True, methods=['get', 'post'])
     def comments(self, request, pk=None):
         exercise = self.get_object()
         content_type = ContentType.objects.get_for_model(Exercise)
         if request.method == 'GET':
             qs = Comment.objects.filter(content_type=content_type, object_id=exercise.pk)
-            serializer = CommentSerializer(qs, many=True)
+            serializer = CommentSerializer(qs.prefetch_related('votes'), many=True, context={'request': request})
             return Response(serializer.data)
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
@@ -509,3 +549,49 @@ class ExerciseRequirementViewSet(viewsets.GenericViewSet):
 
         serializer = ExerciseRequirementSerializer(requirement, context={'request': request})
         return Response(serializer.data)
+
+
+# --- covers / requires claims: per-claim actions ------------------------------------------------
+
+from materials.claims import DUPLICATE_CLAIM, resolve_claim_input, thread_response, vote_response  # noqa: E402
+from taxonomy.models import Topic  # noqa: E402
+
+from .models import ExerciseClaim, ExerciseClaimImportanceVote, ExerciseClaimVote  # noqa: E402
+from .serializers import ExerciseClaimCreateSerializer, ExerciseClaimSerializer  # noqa: E402
+
+
+class ExerciseClaimViewSet(viewsets.GenericViewSet):
+    """`/api/exercise-claims/{id}/vote|importance|comments/` — mirrors `MaterialCoverageViewSet`.
+    Claims on an unpublished exercise are reachable only through the same visibility the exercise
+    itself has."""
+
+    serializer_class = ExerciseClaimSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        return ExerciseClaim.objects.filter(exercise__published=True)
+
+    @action(detail=True, methods=['post', 'delete'])
+    def vote(self, request, pk=None):
+        return vote_response(
+            request, self.get_object(), ExerciseClaimVote, 'claim', ExerciseClaimSerializer,
+            labels=('agree', 'disagree'),
+        )
+
+    @action(detail=True, methods=['post', 'delete'])
+    def importance(self, request, pk=None):
+        return vote_response(
+            request, self.get_object(), ExerciseClaimImportanceVote, 'claim', ExerciseClaimSerializer,
+            labels=('more important', 'less important'),
+        )
+
+    @action(detail=True, methods=['get', 'post'])
+    def comments(self, request, pk=None):
+        claim = self.get_object()
+        return thread_response(
+            request,
+            claim,
+            on_created=lambda comment: notify_comment_reply(
+                comment, target_label=label_for_exercise(claim.exercise), exercise=claim.exercise
+            ),
+        )

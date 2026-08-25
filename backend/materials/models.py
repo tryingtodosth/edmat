@@ -332,42 +332,56 @@ class MaterialView(models.Model):
         return f'{self.user} viewed {self.material}'
 
 
-class MaterialCoverage(models.Model):
-    """One (topic, subtopic?, level) claim about how deeply a Material treats that pairing.
+CLAIM_KIND_CHOICES = [('covers', 'Covers'), ('requires', 'Requires')]
 
-    `level` is a single 1-100 self-assessed/community-verified depth score — deliberately NOT split
-    into separate difficulty/time/requirement fields: the frontend derives a "what it covers" badge
-    (any coverage row at all), a difficulty-ish bucket, and a rough relative-time weight from this
-    one number, the same way a single confidence score can back several different UI readings
-    without needing to be four separate inputs. `subtopic` is optional — a coverage row can claim
-    topic-level coverage without breaking it down further.
 
-    Anyone authenticated can propose a new coverage row (see materials/views.py's `coverage`
-    action) — there's no moderation queue for this specific action, because the whole point of
-    MaterialCoverageVote below is that the community verifies/corrects a claimed level
-    collaboratively (a peer-review signal), not that a moderator gatekeeps it up front. Re-proposing
-    an EXISTING (material, topic, subtopic) triple is rejected (unique_together), not silently
-    overwritten — disagreeing with a claimed level is a vote/discussion, not a unilateral edit.
+class ClaimBase(models.Model):
+    """The fields every covers/requires claim shares, whatever it is a claim ABOUT. `MaterialCoverage`
+    below and `courses.CourseClaim` each add the one FK that names their owner; the kind, topic,
+    subtopic, level and attribution mean exactly the same thing on both, and so do the two votes and
+    the thread (see `materials/claims.py`). Abstract — a GenericForeignKey would have meant
+    migrating the real corpus's rows and giving up the plain `material.coverage` relation every
+    prefetch here is built on."""
+
+    kind = models.CharField(max_length=10, choices=CLAIM_KIND_CHOICES, default='covers')
+    topic = models.ForeignKey(Topic, related_name='+', on_delete=models.CASCADE)
+    subtopic = models.ForeignKey(
+        Subtopic, related_name='+', null=True, blank=True, on_delete=models.CASCADE
+    )
+    level = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(100)])
+    proposed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+
+
+class MaterialCoverage(ClaimBase):
+    """One (kind, topic, subtopic?, level) claim about a Material and a topic — see `ClaimBase` for
+    the shared fields and `kind` for the two questions a row can answer.
+
+    Anyone authenticated can propose a row (materials/views.py's `coverage` action) — there's no
+    moderation queue for this, because the whole point of MaterialCoverageVote below is that the
+    community verifies/corrects a claimed level collaboratively. Re-proposing an EXISTING
+    (material, kind, topic, subtopic) tuple is rejected, not silently overwritten — disagreeing
+    with a claimed level is a vote/discussion, not a unilateral edit.
     """
 
     material = models.ForeignKey(Material, related_name='coverage', on_delete=models.CASCADE)
+    # Same columns as the base, re-declared only to keep the reverse names the taxonomy views and
+    # the moderation node-merge already rely on (`topic.material_coverage`).
     topic = models.ForeignKey(Topic, related_name='material_coverage', on_delete=models.CASCADE)
     subtopic = models.ForeignKey(
         Subtopic, related_name='material_coverage', null=True, blank=True, on_delete=models.CASCADE
     )
-    level = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(100)])
-    proposed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL
-    )  # null for migrated legacy content, matching Exercise.submitted_by's own convention
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = [('material', 'topic', 'subtopic')]
+        unique_together = [('material', 'kind', 'topic', 'subtopic')]
         ordering = ['topic', 'subtopic']
 
     def __str__(self) -> str:
         sub = f'/{self.subtopic.slug}' if self.subtopic else ''
-        return f'{self.material}@{self.topic.slug}{sub}={self.level}'
+        return f'{self.material}@{self.kind}:{self.topic.slug}{sub}={self.level}'
 
 
 class MaterialCoverageVote(models.Model):
@@ -392,6 +406,28 @@ class MaterialCoverageVote(models.Model):
 
     def __str__(self) -> str:
         return f'{self.get_value_display()} by {self.voter} on {self.coverage}'
+
+
+class MaterialCoverageImportanceVote(models.Model):
+    """A second, separate vote on a claim: not "is the level right" but "how high up should this be
+    shown". The two are different questions with different answers — a perfectly accurate claim
+    about a minor side topic belongs at the bottom of the list, and folding both into one
+    agree/disagree would make the ordering argue with the accuracy. Claims are displayed in the
+    order this vote's net weight produces (ties broken by the accuracy vote), same 2x weighting
+    for a verified contributor as every other vote here."""
+
+    coverage = models.ForeignKey(
+        MaterialCoverage, related_name='importance_votes', on_delete=models.CASCADE
+    )
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=[(1, 'More important'), (-1, 'Less important')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('coverage', 'voter')]
+
+    def __str__(self) -> str:
+        return f'importance {self.value:+d} by {self.voter} on {self.coverage}'
 
 
 class MaterialTranslation(models.Model):

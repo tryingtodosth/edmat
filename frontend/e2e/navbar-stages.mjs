@@ -179,9 +179,9 @@ await width(signed, 930);
 check('the Add label is gone', !(await signed.locator('.add-trigger__text').isVisible()));
 check('the plus itself remains', await signed.locator('.add-trigger').isVisible());
 
-console.log('[7] Stage 6 — Disciplines becomes a compass icon, in place (no search-icon merge)');
+console.log('[7] Stage 6 — Exercises (formerly Disciplines) becomes a worksheet icon, in place');
 await width(signed, 880);
-check('the Disciplines text is gone', !(await navText(signed, 'disciplines').isVisible()));
+check('the Exercises text is gone', !(await navText(signed, 'disciplines').isVisible()));
 check('the compass icon appears', await navIcon(signed, 'disciplines').isVisible());
 check(
 	'the old search icon is gone for good',

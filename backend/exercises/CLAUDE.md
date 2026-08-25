@@ -39,6 +39,14 @@
 `TagViewSet.apply/` (POST attach / DELETE-with-body remove, any authenticated user — additive,
 reversible metadata, deliberately not moderation-gated).
 
+## Covers / requires claims
+
+`ExerciseClaim` (+ `ExerciseClaimVote`, `ExerciseClaimImportanceVote`, migration 0008) inherits
+`materials.ClaimBase`; handlers are shared in `materials/claims.py`. `GET|POST /exercises/{id}/claims/`
+(topics = the exercise's branch), per-claim `/exercise-claims/{id}/vote|importance|comments/` scoped
+to published exercises. `community.targets` maps it to `exerciseClaim`. The free-text
+`ExerciseRequirement` API stays but has no UI any more (the exercise page renders `ClaimGroups`).
+
 ## Verify
 
 `manage.py test exercises` — the `many=True` regression test lives here. E2E: exercise pages are

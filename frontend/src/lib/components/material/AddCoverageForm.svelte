@@ -1,31 +1,60 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import type { Topic } from '$lib/types';
+	import type { ClaimKind, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
 
+	// One form for both claim kinds. The fields are identical — topic, optional subtopic, a 1-100
+	// number — only the question the number answers differs, so the copy is chosen by `kind`
+	// rather than the form being written twice.
 	let {
+		kind,
 		topics,
 		onSubmit,
 		onCancel
 	}: {
+		kind: ClaimKind;
 		topics: Topic[];
-		onSubmit: (input: { topicId: string; subtopicName: string; level: number }) => void;
+		onSubmit: (input: {
+			kind: ClaimKind;
+			topicId: string;
+			subtopicName: string;
+			level: number;
+		}) => void;
 		onCancel: () => void;
 	} = $props();
 
 	let topicId = $state(untrack(() => topics[0]?.id ?? ''));
 	let subtopicName = $state('');
 	let level = $state(50);
+	// The typed value, kept as a string (type="text" — see frontend/CLAUDE.md on number inputs) and
+	// folded back into `level` on every keystroke that parses. The slider and the box are two
+	// handles on the same number: the slider for a feel, the box for an exact figure.
+	let levelText = $state('50');
+
+	function setFromSlider(value: number) {
+		level = value;
+		levelText = String(value);
+	}
+
+	function setFromText(value: string) {
+		levelText = value;
+		const parsed = Number.parseInt(value, 10);
+		if (Number.isFinite(parsed)) level = Math.min(100, Math.max(1, parsed));
+	}
 
 	function submit() {
 		if (!topicId) return;
-		onSubmit({ topicId, subtopicName: subtopicName.trim(), level });
+		onSubmit({ kind, topicId, subtopicName: subtopicName.trim(), level });
 	}
+
+	let isRequirement = $derived(kind === 'requires');
 </script>
 
 <form class="add-coverage" onsubmit={(e) => (e.preventDefault(), submit())}>
-	<p class="add-coverage__intro">{m.coverage_addIntro()}</p>
+	<p class="add-coverage__intro">
+		{isRequirement ? m.coverage_addIntroRequires() : m.coverage_addIntro()}
+	</p>
 
 	<label class="field">
 		<span>{m.coverage_topicLabel()}</span>
@@ -39,11 +68,36 @@
 		<input type="text" bind:value={subtopicName} placeholder={m.coverage_subtopicPlaceholder()} />
 	</label>
 
-	<label class="field">
-		<span>{m.coverage_levelLabel({ level })}</span>
-		<input type="range" min="1" max="100" bind:value={level} />
-		<span class="level-hint">{m.coverage_levelHint()}</span>
-	</label>
+	<div class="field">
+		<span id="level-label">
+			{isRequirement ? m.coverage_requiredLevelLabel({ level }) : m.coverage_levelLabel({ level })}
+		</span>
+		<div class="level-row">
+			<input
+				type="range"
+				min="1"
+				max="100"
+				value={level}
+				aria-labelledby="level-label"
+				oninput={(e) => setFromSlider(Number(e.currentTarget.value))}
+			/>
+			<input
+				class="level-box"
+				type="text"
+				inputmode="numeric"
+				pattern="[0-9]*"
+				maxlength="3"
+				aria-label={m.coverage_levelInputLabel()}
+				value={levelText}
+				oninput={(e) => setFromText(e.currentTarget.value)}
+				onblur={() => (levelText = String(level))}
+			/>
+			<span class="level-max">/ 100</span>
+		</div>
+		<span class="level-hint">
+			{isRequirement ? m.coverage_requiredLevelHint() : m.coverage_levelHint()}
+		</span>
+	</div>
 
 	<div class="add-coverage__actions">
 		<button type="button" class="cancel" onclick={onCancel}>{m.common_cancel()}</button>
@@ -82,6 +136,23 @@
 		border-radius: var(--radius-sm);
 		background: var(--bg-page);
 		color: var(--text-primary);
+	}
+	.level-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		input[type='range'] {
+			flex: 1;
+		}
+	}
+	.level-box {
+		width: 4.5em;
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+	.level-max {
+		color: var(--text-secondary);
+		font-weight: 400;
 	}
 	.level-hint {
 		font-size: var(--font-size-xs);

@@ -15,7 +15,7 @@
 	import { resolve } from '$app/paths';
 	import type { Material, MaterialCoverage } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { coverageDepth } from '$lib/utils/coverage';
+	import { claimsOfKind, coverageDepth } from '$lib/utils/coverage';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
@@ -62,22 +62,18 @@
 		coverageVoteOverlay = { ...coverageVoteOverlay, [updated.id]: updated };
 	}
 
-	// Sorted by net community vote (highest-agreed-with first) — the whole point of making both
-	// groups votable is that a reader sees the most-vetted claims first, not creation order. The
-	// full sorted list is derived once and the preview sliced off the front of it, so the "+N more"
-	// modal opens in the SAME order the card's own top few established — a list that silently
-	// reordered itself on expand would read as a different set of claims rather than more of them.
-	let sortedCoverage = $derived(
-		[...effectiveCoverage].sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
-	);
+	// Both groups are claims of one kind or the other, in the community's own order (`sortClaims`:
+	// importance vote, then accuracy vote). The full sorted list is derived once and the preview
+	// sliced off the front of it, so the "+N more" modal opens in the SAME order the card's own top
+	// few established — a list that silently reordered itself on expand would read as a different
+	// set of claims rather than more of them.
+	let sortedCoverage = $derived(claimsOfKind(effectiveCoverage, 'covers'));
 	let topCoverage = $derived(sortedCoverage.slice(0, PREVIEW_COUNT));
-	let extraCoverageCount = $derived(Math.max(0, material.coverage.length - PREVIEW_COUNT));
+	let extraCoverageCount = $derived(Math.max(0, sortedCoverage.length - PREVIEW_COUNT));
 
-	let sortedRequirements = $derived(
-		[...material.requirements].sort((a, b) => b.voteSummary.netWeight - a.voteSummary.netWeight)
-	);
+	let sortedRequirements = $derived(claimsOfKind(effectiveCoverage, 'requires'));
 	let topRequirements = $derived(sortedRequirements.slice(0, PREVIEW_COUNT));
-	let extraRequirementCount = $derived(Math.max(0, material.requirements.length - PREVIEW_COUNT));
+	let extraRequirementCount = $derived(Math.max(0, sortedRequirements.length - PREVIEW_COUNT));
 
 	// Which group's full list is open, if any. The count next to each group used to be an inert
 	// `<span>` — it named a number ("+27 more") with nothing behind it, which reads as a broken
@@ -151,9 +147,16 @@
 		<div class="claim-line">
 			<span class="claim-line__label">{m.material_requiresLabel()}</span>
 			{#each topRequirements as requirement (requirement.id)}
-				<span class="claim-chip claim-chip--requirement" title={requirement.label}
-					>{requirement.label}</span
+				<button
+					type="button"
+					class="claim-chip claim-chip--coverage claim-chip--requirement claim-chip--requirement-{coverageDepth(
+						requirement.level
+					)}"
+					title={requirement.subtopicName ?? requirement.topicName}
+					onclick={() => (openCoverageId = requirement.id)}
 				>
+					{requirement.subtopicName ?? requirement.topicName}
+				</button>
 			{/each}
 			{#if extraRequirementCount > 0}
 				<button
@@ -277,9 +280,8 @@
 {#if openClaimList && !openCoverage}
 	<ClaimListModal
 		title={openClaimList === 'coverage' ? m.material_coversHeading() : m.material_requiresHeading()}
-		coverage={openClaimList === 'coverage' ? sortedCoverage : undefined}
-		requirements={openClaimList === 'requirement' ? sortedRequirements : undefined}
-		onSelectCoverage={(id) => (openCoverageId = id)}
+		claims={openClaimList === 'coverage' ? sortedCoverage : sortedRequirements}
+		onSelect={(id) => (openCoverageId = id)}
 		onClose={() => (openClaimList = null)}
 	/>
 {/if}
@@ -385,9 +387,29 @@
 			opacity: 0.9;
 		}
 	}
+	// A requirement chip is the same interactive chip in the warning hue — "you need this first"
+	// must never be mistaken for "this is taught here" on a card where both lines sit together.
 	.claim-chip--requirement {
-		color: var(--accent);
-		background: var(--accent-soft);
+		color: var(--status-warning);
+		background: var(--status-warning-bg);
+		&:hover {
+			background: var(--status-warning-bg);
+			color: var(--status-warning);
+			opacity: 0.85;
+		}
+	}
+	.claim-chip--requirement-moderate {
+		border-color: var(--status-warning);
+	}
+	.claim-chip--requirement-deep {
+		color: var(--accent-contrast);
+		background: var(--status-warning);
+		border-color: var(--status-warning);
+		font-weight: 600;
+		&:hover {
+			background: var(--status-warning);
+			color: var(--accent-contrast);
+		}
 	}
 	.claim-more {
 		@include mix.focus-ring;

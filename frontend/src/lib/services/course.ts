@@ -1087,3 +1087,43 @@ export async function searchCourse(courseId: string, query: string): Promise<Cou
 	};
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/* --- covers / requires claims ------------------------------------------------------------- */
+
+import { mapMaterialCoverage, type RawMaterialCoverage } from '$lib/api/mappers';
+import type { MaterialCoverage } from '$lib/types';
+import { DuplicateCoverageError, type ProposeCoverageInput } from '$lib/services/materials';
+
+/** The claims on a course — the same rows a material carries (`MaterialCoverage`, with
+ * `ownerKind: 'course'`), read from `/courses/{id}/claims/`. Voting, ranking and the thread go
+ * through the shared claim services in `materials.ts`, which pick the course route by `ownerKind`. */
+export async function getCourseClaims(courseId: string): Promise<MaterialCoverage[]> {
+	const raw = await apiClient.get<RawMaterialCoverage[]>(
+		`/courses/${encodeURIComponent(courseId)}/claims/`
+	);
+	return raw.map(mapMaterialCoverage);
+}
+
+export async function proposeCourseClaim(
+	courseId: string,
+	input: ProposeCoverageInput
+): Promise<MaterialCoverage> {
+	try {
+		const raw = await apiClient.post<RawMaterialCoverage>(
+			`/courses/${encodeURIComponent(courseId)}/claims/`,
+			{
+				kind: input.kind,
+				topic: Number(input.topicId),
+				subtopic: input.subtopicId ? Number(input.subtopicId) : undefined,
+				subtopic_slug: input.subtopicSlug,
+				subtopic_name: input.subtopicName,
+				locale: input.locale,
+				level: input.level
+			}
+		);
+		return mapMaterialCoverage(raw);
+	} catch (e) {
+		if (e instanceof ApiError && e.status === 409) throw new DuplicateCoverageError(e.message);
+		throw e;
+	}
+}

@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import type { Branch, Difficulty, Discipline, SourceType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
 		getBranchesForDiscipline,
 		getDisciplines,
-		getTopicsForBranch
+		getTopicsForBranch,
+		proposeTaxonomyNode
 	} from '$lib/services/taxonomy';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import { submitExercise } from '$lib/services/submissions';
@@ -19,7 +21,7 @@
 	import { isComposingKey } from '$lib/utils/textInput';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
-	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
+	import TaxonomyOptions, { OTHER_VALUE } from '$lib/components/shared/TaxonomyOptions.svelte';
 
 	let fields = $state<Discipline[]>([]);
 	let branches = $state<Branch[]>([]);
@@ -27,6 +29,14 @@
 
 	let disciplineId = $state('');
 	let branchId = $state('');
+	// "Other…" in either picker: the name typed here becomes a real (pending) node when the form
+	// is submitted, and the exercise is filed under it — proposing and filing are one act, not a
+	// detour through a dialog and back. A new discipline has no branches yet, so choosing it
+	// forces the branch to be new too.
+	let customDisciplineName = $state('');
+	let customBranchName = $state('');
+	let isCustomDiscipline = $derived(disciplineId === OTHER_VALUE);
+	let isCustomBranch = $derived(branchId === OTHER_VALUE);
 	let title = $state('');
 	let difficulty = $state<Difficulty>('medium');
 	let selectedTopicIds = $state<string[]>([]);
@@ -57,7 +67,12 @@
 		fields = await getDisciplines();
 		if (fields.length) await onFieldChange(fields[0].id);
 	}
-	init();
+	// In onMount, not at top level: this page is prerendered, and a top-level call runs at BUILD
+	// time too, where `fetch('/api/…')` has no origin to resolve against and the build dies
+	// (found by pack.sh's production build, not by the dev one, whose .env named a real host).
+	onMount(() => {
+		init();
+	});
 
 	// Discipline → Branch cascade — same pattern RandomExerciseButton.svelte's own filter popover
 	// already establishes: picking a field resets the branch (and, transitively via the $effect
@@ -65,12 +80,21 @@
 	// list a submitter had to scroll through to find the right one.
 	async function onFieldChange(next: string) {
 		disciplineId = next;
+		if (next === OTHER_VALUE) {
+			branches = [];
+			branchId = OTHER_VALUE;
+			return;
+		}
 		branches = disciplineId ? await getBranchesForDiscipline(disciplineId) : [];
 		branchId = branches.length ? branches[0].id : '';
 	}
 
 	$effect(() => {
-		if (!branchId) return;
+		if (!branchId || branchId === OTHER_VALUE) {
+			topics = [];
+			selectedTopicIds = [];
+			return;
+		}
 		getTopicsForBranch(branchId).then((t) => {
 			topics = t;
 			selectedTopicIds = [];
@@ -103,11 +127,35 @@
 		requirements = requirements.filter((_, i) => i !== index);
 	}
 
-	let canSubmit = $derived(Boolean(branchId && title.trim() && statement.trim()));
+	let canSubmit = $derived(
+		Boolean(branchId && title.trim() && statement.trim()) &&
+			(!isCustomDiscipline || Boolean(customDisciplineName.trim())) &&
+			(!isCustomBranch || Boolean(customBranchName.trim()))
+	);
+
+	/** Turns an "Other…" choice into a real node (pending unless a moderator proposed it) and
+	 * returns the branch slug to file under. */
+	async function resolveBranch(): Promise<string> {
+		let disciplineSlug = disciplineId;
+		if (isCustomDiscipline) {
+			disciplineSlug = (
+				await proposeTaxonomyNode({ kind: 'discipline', name: customDisciplineName.trim() })
+			).slug;
+		}
+		if (!isCustomBranch) return branchId;
+		return (
+			await proposeTaxonomyNode({
+				kind: 'branch',
+				name: customBranchName.trim(),
+				parent: disciplineSlug
+			})
+		).slug;
+	}
 
 	async function handleSubmit() {
 		if (!authStore.user || !canSubmit) return;
-		const result = await submitExercise(branchId, authStore.user.id, {
+		const filedBranchId = await resolveBranch();
+		const result = await submitExercise(filedBranchId, authStore.user.id, {
 			title: title.trim(),
 			topicIds: selectedTopicIds,
 			difficulty,
@@ -174,42 +222,47 @@
 				<div class="field">
 					<div class="field-heading">
 						<label for="submit-discipline">{m.submit_field_field()}</label>
-						<!-- Selecting what was just proposed rather than only refreshing the list: somebody
-						     who suggested a discipline did so BECAUSE they wanted to file under it. -->
-						<ProposeNodeButton
-							kind="discipline"
-							onproposed={async (slug) => {
-								fields = await getDisciplines();
-								await onFieldChange(slug);
-							}}
-						/>
 					</div>
 					<select
 						id="submit-discipline"
 						value={disciplineId}
 						onchange={(e) => onFieldChange(e.currentTarget.value)}
 					>
-						<TaxonomyOptions nodes={fields} />
+						<TaxonomyOptions nodes={fields} allowOther />
 					</select>
+					{#if isCustomDiscipline}
+						<input
+							type="text"
+							class="other-name"
+							bind:value={customDisciplineName}
+							placeholder={m.taxonomy_otherDisciplineName()}
+							aria-label={m.taxonomy_otherDisciplineName()}
+							required
+						/>
+						<p class="other-hint">{m.taxonomy_otherPending()}</p>
+					{/if}
 				</div>
 
 				<div class="field">
 					<div class="field-heading">
 						<label for="submit-branch">{m.submit_field_course()}</label>
-						{#if disciplineId}
-							<ProposeNodeButton
-								kind="branch"
-								parent={disciplineId}
-								onproposed={async (slug) => {
-									branches = await getBranchesForDiscipline(disciplineId);
-									branchId = slug;
-								}}
-							/>
-						{/if}
 					</div>
-					<select id="submit-branch" bind:value={branchId}>
-						<TaxonomyOptions nodes={branches} />
+					<select id="submit-branch" bind:value={branchId} disabled={isCustomDiscipline}>
+						<TaxonomyOptions nodes={branches} allowOther />
 					</select>
+					{#if isCustomBranch}
+						<input
+							type="text"
+							class="other-name"
+							bind:value={customBranchName}
+							placeholder={m.taxonomy_otherBranchName()}
+							aria-label={m.taxonomy_otherBranchName()}
+							required
+						/>
+						{#if !isCustomDiscipline}
+							<p class="other-hint">{m.taxonomy_otherPending()}</p>
+						{/if}
+					{/if}
 				</div>
 
 				<label class="field">
@@ -516,5 +569,14 @@
 	.submit {
 		@include mix.button-primary;
 		align-self: flex-start;
+	}
+	.other-name {
+		margin-top: var(--space-2);
+		width: 100%;
+	}
+	.other-hint {
+		margin-top: var(--space-1);
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
 	}
 </style>

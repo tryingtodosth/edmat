@@ -7,7 +7,14 @@
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { authStore } from '$lib/state/auth.svelte';
-	import { deleteComment, saveComment, unsaveComment, updateComment } from '$lib/services/comments';
+	import {
+		deleteComment,
+		retractCommentVote,
+		saveComment,
+		unsaveComment,
+		updateComment,
+		voteOnComment
+	} from '$lib/services/comments';
 	import { commentAnchorId } from '$lib/utils/contentLinks';
 	import MeatballsMenu from '$lib/components/shared/MeatballsMenu.svelte';
 	import ReportModal from '$lib/components/shared/ReportModal.svelte';
@@ -136,6 +143,24 @@
 		}
 	}
 
+	// Up/down. Clicking the vote you already cast takes it back; the server's answer replaces the
+	// row the same way an edit does, so the score shown is always what the server tallied.
+	async function vote(value: 1 | -1) {
+		if (busy) return;
+		busy = true;
+		error = null;
+		try {
+			local =
+				comment.currentUserVote === value
+					? await retractCommentVote(comment.id, comment.targetType, comment.targetId)
+					: await voteOnComment(comment.id, value, comment.targetType, comment.targetId);
+		} catch {
+			error = m.common_error_generic();
+		} finally {
+			busy = false;
+		}
+	}
+
 	async function saveEdit(body: string) {
 		busy = true;
 		error = null;
@@ -166,83 +191,121 @@
 <!-- The anchor that gives a comment an address. `contentLinks.ts` parses this exact fragment back
      into a comment id, which is what lets a pasted link become a real link from a course. -->
 <li class="comment" id={commentAnchorId(comment.id)}>
-	<div class="comment__top">
-		{#if usersById[comment.authorId] && !hidden}
-			<a class="comment__author" href={resolve('/users/[id]', { id: comment.authorId })}>
-				{usersById[comment.authorId].displayName}
-			</a>
+	{#if !hidden}
+		<!-- The vote column sits beside the whole comment rather than in the "⋯" menu: a vote is the
+		     one thing most readers do to a comment, and burying it behind a menu nobody opens would
+		     make the score a number nobody moves. Signed-out readers see the score and are told why
+		     the arrows do nothing. -->
+		<div
+			class="comment__votes"
+			title={m.comment_scoreTitle({ up: comment.upvotes, down: comment.downvotes })}
+		>
+			<button
+				type="button"
+				class="vote-arrow"
+				class:vote-arrow--active={comment.currentUserVote === 1}
+				aria-pressed={comment.currentUserVote === 1}
+				aria-label={m.comment_upvote()}
+				disabled={!authStore.isAuthenticated || busy}
+				title={authStore.isAuthenticated ? m.comment_upvote() : m.comment_loginToVote()}
+				onclick={() => vote(1)}>▲</button
+			>
+			<span
+				class="comment__score"
+				class:comment__score--positive={comment.score > 0}
+				class:comment__score--negative={comment.score < 0}>{comment.score}</span
+			>
+			<button
+				type="button"
+				class="vote-arrow"
+				class:vote-arrow--active={comment.currentUserVote === -1}
+				aria-pressed={comment.currentUserVote === -1}
+				aria-label={m.comment_downvote()}
+				disabled={!authStore.isAuthenticated || busy}
+				title={authStore.isAuthenticated ? m.comment_downvote() : m.comment_loginToVote()}
+				onclick={() => vote(-1)}>▼</button
+			>
+		</div>
+	{/if}
+	<div class="comment__main">
+		<div class="comment__top">
+			{#if usersById[comment.authorId] && !hidden}
+				<a class="comment__author" href={resolve('/users/[id]', { id: comment.authorId })}>
+					{usersById[comment.authorId].displayName}
+				</a>
+			{:else}
+				<span class="comment__author">—</span>
+			{/if}
+			<span class="comment__date">{formatRelativeDate(comment.createdAt, getLocale())}</span>
+			{#if comment.isEdited && !hidden}
+				<!-- "(edited)" — a reply may have been written in answer to what this used to say. -->
+				<span class="comment__edited">{m.comment_editedMarker()}</span>
+			{/if}
+			{#if menuItems.length > 0}
+				<span class="comment__menu">
+					<MeatballsMenu items={menuItems} label={m.comment_actionsLabel()} />
+				</span>
+			{/if}
+		</div>
+
+		{#if comment.isRemoved}
+			<p class="comment__body comment__body--hidden">
+				{comment.removedByAuthor
+					? m.comment_deletedByAuthorPlaceholder()
+					: m.comment_removedPlaceholder()}
+			</p>
+		{:else if comment.isAutoHidden}
+			<p class="comment__body comment__body--hidden">{m.comment_autoHiddenPlaceholder()}</p>
+		{:else if editing}
+			<div class="comment__edit-form">
+				<CommentForm
+					placeholder={m.discussion_composerPlaceholder()}
+					submitLabel={m.comment_saveEdit()}
+					initialBody={comment.body}
+					onSubmit={saveEdit}
+					onCancel={() => (editing = false)}
+				/>
+			</div>
 		{:else}
-			<span class="comment__author">—</span>
+			<p class="comment__body">{comment.body}</p>
 		{/if}
-		<span class="comment__date">{formatRelativeDate(comment.createdAt, getLocale())}</span>
-		{#if comment.isEdited && !hidden}
-			<!-- "(edited)" — a reply may have been written in answer to what this used to say. -->
-			<span class="comment__edited">{m.comment_editedMarker()}</span>
+
+		{#if error}<p class="comment__error">{error}</p>{/if}
+
+		{#if confirmingDelete}
+			<div class="comment__confirm">
+				<span>{m.comment_deleteConfirm()}</span>
+				<button type="button" class="confirm-yes" disabled={busy} onclick={confirmDelete}>
+					{m.comment_delete()}
+				</button>
+				<button type="button" class="confirm-no" onclick={() => (confirmingDelete = false)}>
+					{m.common_cancel()}
+				</button>
+			</div>
 		{/if}
-		{#if menuItems.length > 0}
-			<span class="comment__menu">
-				<MeatballsMenu items={menuItems} label={m.comment_actionsLabel()} />
-			</span>
+
+		{#if replying}
+			<div class="comment__reply-form">
+				<CommentForm
+					placeholder={m.discussion_replyPlaceholder()}
+					submitLabel={m.discussion_post()}
+					onSubmit={(body) => {
+						onReply(comment.id, body);
+						replying = false;
+					}}
+					onCancel={() => (replying = false)}
+				/>
+			</div>
+		{/if}
+
+		{#if node.replies.length > 0}
+			<ul class="comment__replies">
+				{#each node.replies as reply (reply.comment.id)}
+					<CommentNode node={reply} {usersById} {onReply} />
+				{/each}
+			</ul>
 		{/if}
 	</div>
-
-	{#if comment.isRemoved}
-		<p class="comment__body comment__body--hidden">
-			{comment.removedByAuthor
-				? m.comment_deletedByAuthorPlaceholder()
-				: m.comment_removedPlaceholder()}
-		</p>
-	{:else if comment.isAutoHidden}
-		<p class="comment__body comment__body--hidden">{m.comment_autoHiddenPlaceholder()}</p>
-	{:else if editing}
-		<div class="comment__edit-form">
-			<CommentForm
-				placeholder={m.discussion_composerPlaceholder()}
-				submitLabel={m.comment_saveEdit()}
-				initialBody={comment.body}
-				onSubmit={saveEdit}
-				onCancel={() => (editing = false)}
-			/>
-		</div>
-	{:else}
-		<p class="comment__body">{comment.body}</p>
-	{/if}
-
-	{#if error}<p class="comment__error">{error}</p>{/if}
-
-	{#if confirmingDelete}
-		<div class="comment__confirm">
-			<span>{m.comment_deleteConfirm()}</span>
-			<button type="button" class="confirm-yes" disabled={busy} onclick={confirmDelete}>
-				{m.comment_delete()}
-			</button>
-			<button type="button" class="confirm-no" onclick={() => (confirmingDelete = false)}>
-				{m.common_cancel()}
-			</button>
-		</div>
-	{/if}
-
-	{#if replying}
-		<div class="comment__reply-form">
-			<CommentForm
-				placeholder={m.discussion_replyPlaceholder()}
-				submitLabel={m.discussion_post()}
-				onSubmit={(body) => {
-					onReply(comment.id, body);
-					replying = false;
-				}}
-				onCancel={() => (replying = false)}
-			/>
-		</div>
-	{/if}
-
-	{#if node.replies.length > 0}
-		<ul class="comment__replies">
-			{#each node.replies as reply (reply.comment.id)}
-				<CommentNode node={reply} {usersById} {onReply} />
-			{/each}
-		</ul>
-	{/if}
 </li>
 
 {#if linkingToCourse}
@@ -254,10 +317,60 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.comment {
+		display: flex;
+		flex-direction: row;
+		align-items: flex-start;
+		gap: var(--space-2);
+	}
+	.comment__main {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
+		min-width: 0;
+		flex: 1;
+	}
+	.comment__votes {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		flex-shrink: 0;
+		width: 1.75rem;
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.vote-arrow {
+		@include mix.focus-ring;
+		background: none;
+		border: none;
+		padding: 0 var(--space-1);
+		line-height: 1.2;
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		cursor: pointer;
+		&:hover:not(:disabled) {
+			color: var(--accent);
+		}
+		&:disabled {
+			cursor: default;
+			opacity: 0.5;
+		}
+	}
+	.vote-arrow--active {
+		color: var(--accent);
+		opacity: 1;
+	}
+	.comment__score {
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+	}
+	.comment__score--positive {
+		color: var(--status-success);
+	}
+	.comment__score--negative {
+		color: var(--status-danger);
 	}
 	.comment__top {
 		display: flex;
@@ -291,8 +404,8 @@
 		// Direct-child selectors on purpose: replies are `.comment`s nested inside this one, so a
 		// descendant match would light up every ancestor's menu at once while the pointer sits on a
 		// reply deep in the thread.
-		.comment:hover > .comment__top > &,
-		.comment:focus-within > .comment__top > & {
+		.comment:hover > .comment__main > .comment__top > &,
+		.comment:focus-within > .comment__main > .comment__top > & {
 			opacity: 1;
 		}
 	}

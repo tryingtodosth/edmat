@@ -9,6 +9,12 @@ function targetPath(targetType: CommentTargetType, targetId: string): string {
 		return `/material-coverage/${encodeURIComponent(targetId)}/comments/`;
 	}
 	if (targetType === 'service') return `/services/${encodeURIComponent(targetId)}/comments/`;
+	if (targetType === 'exerciseClaim') {
+		return `/exercise-claims/${encodeURIComponent(targetId)}/comments/`;
+	}
+	if (targetType === 'courseClaim') {
+		return `/course-claims/${encodeURIComponent(targetId)}/comments/`;
+	}
 	if (targetType === 'taughtCourse') {
 		return `/courses/${encodeURIComponent(targetId)}/comments/`;
 	}
@@ -72,6 +78,30 @@ export async function deleteComment(
 	targetId: string
 ): Promise<Comment> {
 	const raw = await apiClient.delete<RawComment>(`/comments/${encodeURIComponent(commentId)}/`);
+	return mapComment(raw, targetType, targetId);
+}
+
+/** Up (+1) or down (-1) on a comment; the server answers with the comment's fresh tallies. */
+export async function voteOnComment(
+	commentId: string,
+	value: 1 | -1,
+	targetType: CommentTargetType,
+	targetId: string
+): Promise<Comment> {
+	const raw = await apiClient.post<RawComment>(`/comments/${encodeURIComponent(commentId)}/vote/`, {
+		value
+	});
+	return mapComment(raw, targetType, targetId);
+}
+
+export async function retractCommentVote(
+	commentId: string,
+	targetType: CommentTargetType,
+	targetId: string
+): Promise<Comment> {
+	const raw = await apiClient.delete<RawComment>(
+		`/comments/${encodeURIComponent(commentId)}/vote/`
+	);
 	return mapComment(raw, targetType, targetId);
 }
 

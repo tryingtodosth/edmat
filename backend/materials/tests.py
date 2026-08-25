@@ -1004,3 +1004,106 @@ class MaterialTypeVocabularyTests(APITestCase):
         [n] = Notification.objects.filter(recipient=self.user)
         self.assertEqual(n.type, 'taxonomy_approved')
         self.assertEqual(n.target_label, 'Lab notebook')
+
+
+class MaterialClaimKindTests(APITestCase):
+    """`kind` splits what used to be one number read two ways: a `covers` claim and a `requires`
+    claim on the same topic are different statements and may coexist; two of the same kind may not."""
+
+    def setUp(self):
+        self.branch = make_course()
+        self.material = make_material(self.branch, 'skrypt')
+        self.topic = make_topic(self.branch)
+        self.user = make_user('kind-proposer')
+        self.client.force_authenticate(self.user)
+
+    def _propose(self, **body):
+        return self.client.post(
+            reverse('material-coverage', kwargs={'pk': self.material.pk}),
+            {'topic': self.topic.pk, 'level': 40, **body},
+            format='json',
+        )
+
+    def test_kind_defaults_to_covers(self):
+        response = self._propose()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['kind'], 'covers')
+
+    def test_a_requires_claim_may_coexist_with_a_covers_claim_on_the_same_topic(self):
+        self.assertEqual(self._propose(kind='covers').status_code, status.HTTP_201_CREATED)
+        response = self._propose(kind='requires', level=20)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['kind'], 'requires')
+        self.assertEqual(MaterialCoverage.objects.filter(material=self.material).count(), 2)
+
+    def test_a_duplicate_of_the_same_kind_is_refused(self):
+        self._propose(kind='requires')
+        self.assertEqual(self._propose(kind='requires').status_code, status.HTTP_409_CONFLICT)
+
+    def test_an_unknown_kind_is_refused(self):
+        self.assertEqual(self._propose(kind='wants').status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_browse_filters_read_covers_claims_only(self):
+        """A material that merely REQUIRES a topic must not turn up when somebody searches for
+        materials that cover it."""
+        MaterialCoverage.objects.create(
+            material=self.material, topic=self.topic, level=90, kind='requires', proposed_by=self.user
+        )
+        response = self.client.get(reverse('material-list'), {'topic_id': self.topic.pk})
+        self.assertEqual([row['slug'] for row in response.data], [])
+
+        MaterialCoverage.objects.create(
+            material=self.material, topic=self.topic, level=30, kind='covers', proposed_by=self.user
+        )
+        response = self.client.get(reverse('material-list'), {'topic_id': self.topic.pk})
+        self.assertEqual([row['slug'] for row in response.data], ['skrypt'])
+
+
+class MaterialClaimImportanceVoteTests(APITestCase):
+    def setUp(self):
+        self.branch = make_course()
+        self.material = make_material(self.branch, 'skrypt')
+        self.topic = make_topic(self.branch)
+        self.coverage = MaterialCoverage.objects.create(
+            material=self.material, topic=self.topic, level=70, proposed_by=make_user('imp-proposer')
+        )
+
+    def _vote(self, user, value):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            reverse('material-coverage-importance', kwargs={'pk': self.coverage.pk}),
+            {'value': value},
+            format='json',
+        )
+
+    def test_importance_is_tallied_separately_from_accuracy(self):
+        voter = make_user('imp-voter')
+        response = self._vote(voter, 1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['importance_summary']['net_weight'], 1)
+        self.assertEqual(response.data['importance_summary']['current_user_vote'], 1)
+        # The accuracy vote is untouched by an importance vote.
+        self.assertEqual(response.data['vote_summary']['agree_count'], 0)
+        self.assertIsNone(response.data['vote_summary']['current_user_vote'])
+
+    def test_a_verified_contributor_counts_double_here_too(self):
+        response = self._vote(make_user('imp-vip', is_verified_contributor=True), -1)
+        self.assertEqual(response.data['importance_summary']['disagree_weight'], 2)
+
+    def test_retracting_removes_the_vote(self):
+        voter = make_user('imp-remover')
+        self._vote(voter, 1)
+        response = self.client.delete(
+            reverse('material-coverage-importance', kwargs={'pk': self.coverage.pk})
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['importance_summary']['net_weight'], 0)
+
+    def test_anonymous_cannot_vote(self):
+        self.client.force_authenticate(None)
+        response = self.client.post(
+            reverse('material-coverage-importance', kwargs={'pk': self.coverage.pk}),
+            {'value': 1},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

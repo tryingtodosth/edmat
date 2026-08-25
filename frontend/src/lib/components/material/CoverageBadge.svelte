@@ -1,33 +1,32 @@
 <script lang="ts">
 	import type { MaterialCoverage } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { coverageDepth } from '$lib/utils/coverage';
+	import { coverageDepth, depthLabel } from '$lib/utils/coverage';
 
 	let { coverage, onclick }: { coverage: MaterialCoverage; onclick: () => void } = $props();
 
 	let depth = $derived(coverageDepth(coverage.level));
 	let label = $derived(coverage.subtopicName ?? coverage.topicName);
-
-	const depthLabels = {
-		light: m.coverage_depth_light,
-		moderate: m.coverage_depth_moderate,
-		deep: m.coverage_depth_deep
-	};
+	let title = $derived(
+		coverage.kind === 'requires'
+			? m.coverage_badgeTitleRequires({ level: coverage.level }) // "Needs prior knowledge at {level}/100 — open to vote or discuss"
+			: m.coverage_badgeTitle({ level: coverage.level }) // "Covers this to {level}/100 — open to vote or discuss"
+	);
 </script>
 
-<!-- A clickable badge, not a plain pill — opens the verification popover (discussion + weighted
-	 vote) for this exact topic-subtopic-level claim. Compact by necessity (several of these wrap on
-	 one card), so it shows one bucketed depth label; the popover behind it spells out the same
-	 number under both the requirement AND coverage framings in full — see that component's own
-	 note on why the two aren't collapsed into one there. The tooltip here hints at both up front. -->
+<!-- A clickable badge, not a plain pill — opens the popover (discussion + weighted vote + ranking
+	 vote) for this one claim. Compact by necessity (several of these wrap on one card), so it shows
+	 one bucketed label; the popover spells the number out. A `requires` claim is drawn in a
+	 different hue from a `covers` one so the two groups can never be confused for each other when
+	 they sit on the same card. -->
 <button
 	type="button"
-	class="coverage-badge coverage-badge--{depth}"
+	class="coverage-badge coverage-badge--{depth} coverage-badge--{coverage.kind}"
 	{onclick}
-	title={m.coverage_badgeTitle({ level: coverage.level })}
+	{title}
 >
 	<span class="coverage-badge__label">{label}</span>
-	<span class="coverage-badge__depth">{depthLabels[depth]()}</span>
+	<span class="coverage-badge__depth">{depthLabel(coverage.kind, depth)}</span>
 	{#if coverage.commentCount > 0}
 		<span
 			class="coverage-badge__count"
@@ -60,33 +59,35 @@
 	}
 	.coverage-badge--moderate {
 		// Outlined, not filled: pale background plus a matching border so it reads as one step up
-		// from `--light` above rather than blurring into `--deep`'s own filled treatment below —
-		// the two used to be the same pale-pill shape in different hues, which read as near-
-		// identical at a glance (especially to anyone with a color-vision deficiency skimming a
-		// grid of these).
+		// from `--light` above rather than blurring into `--deep`'s own filled treatment below.
 		color: var(--status-info);
 		background: var(--status-info-bg);
 		border-color: var(--status-info);
 	}
 	.coverage-badge--deep {
-		// Filled (solid background, contrast-checked light text), not just another pale pill: the
-		// strongest of the three depths gets the strongest visual weight. `--accent` on white
-		// clears 5.8:1 in the light theme (AA for normal text needs 4.5:1) — well above the
-		// 3.92:1 failure Phase 4's own accessibility pass already fixed once for
-		// `$light-status-success`, so this reuses the same accent token without repeating that
-		// mistake in a new spot. `--accent-contrast` is dark-on-teal in the dark theme, so it
-		// stays correct there without a separate override.
+		// Filled (solid background, contrast-checked light text): the strongest of the three depths
+		// gets the strongest visual weight. `--accent` on white clears 5.8:1 in the light theme.
 		color: var(--accent-contrast);
 		background: var(--accent);
 		border-color: var(--accent);
 		font-weight: 600;
 	}
+	// A requirement is drawn in the warning hue instead of info/accent — "you need this first" is a
+	// caution, and it must not be mistaken for "this is taught here" at a glance.
+	.coverage-badge--requires.coverage-badge--moderate {
+		color: var(--status-warning);
+		background: var(--status-warning-bg);
+		border-color: var(--status-warning);
+	}
+	.coverage-badge--requires.coverage-badge--deep {
+		color: var(--accent-contrast);
+		background: var(--status-warning);
+		border-color: var(--status-warning);
+	}
 	.coverage-badge__label {
-		// A topic/subtopic name is real, unbounded-length text, not a short fixed-vocabulary
-		// label — truncate just the label (not the whole badge) so the depth/comment-count
-		// suffixes stay visible, matching the identical fix already applied to MaterialCard's
-		// own `.claim-chip` and TagChip's `.tag-chip__trigger`. `inline-block` (not the default
-		// `inline`) is required for `text-overflow: ellipsis` to actually take effect at all.
+		// A topic/subtopic name is real, unbounded-length text — truncate just the label (not the
+		// whole badge) so the depth/comment-count suffixes stay visible. `inline-block` is required
+		// for `text-overflow: ellipsis` to take effect at all.
 		display: inline-block;
 		max-width: 220px;
 		overflow: hidden;
@@ -99,10 +100,8 @@
 	.coverage-badge__count {
 		opacity: 0.75;
 	}
-	// The 0.75 opacity above is fine against `--light`/`--moderate`'s own pale backgrounds, but
-	// blended over `--deep`'s solid fill it drops the depth/count text to ~4.07:1 — under the
-	// 4.5:1 normal-text floor even though the full-opacity label right next to it clears 5.8:1.
-	// Full opacity here keeps that sub-text at the same contrast as the label.
+	// Blended over a solid fill the 0.75 opacity drops the sub-text under the 4.5:1 floor, so it
+	// goes back to full opacity there.
 	.coverage-badge--deep .coverage-badge__depth,
 	.coverage-badge--deep .coverage-badge__count {
 		opacity: 1;

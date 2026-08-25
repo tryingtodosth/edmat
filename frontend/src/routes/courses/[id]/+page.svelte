@@ -54,6 +54,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 
+	import CourseClaims from '$lib/components/course/CourseClaims.svelte';
 	let course = $state<Course | null>(null);
 	let participants = $state<Enrollment[]>([]);
 	let loading = $state(true);
@@ -462,6 +463,11 @@
 		{#if course.description}
 			<p class="description">{course.description}</p>
 		{/if}
+
+		<!-- What the course teaches and what it expects you to know first — the same claims a
+		     material carries, rendered by the same components. Above the enrol block: it is what
+		     somebody weighs before deciding to join. -->
+		<CourseClaims {course} />
 
 		<!-- Joining, leaving, or the reason neither is on offer. -->
 		<section class="enrol">

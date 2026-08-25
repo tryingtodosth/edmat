@@ -484,7 +484,7 @@ class MaterialSubmissionApiTests(_TempMediaRootMixin, APITestCase):
             self.client, coverage=json.dumps([{'topic_id': topic.pk, 'level': 40}])
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['coverage'], [{'topic_id': topic.pk, 'level': 40}])
+        self.assertEqual(response.data['coverage'], [{'topic_id': topic.pk, 'level': 40, 'kind': 'covers'}])
 
     def test_uploading_with_a_coverage_topic_from_a_different_course_is_rejected(self):
         import json

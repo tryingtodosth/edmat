@@ -528,3 +528,72 @@ class SavedCommentTests(APITestCase):
             self.client.post(self.save_url(), {}, format='json').status_code,
             status.HTTP_201_CREATED,
         )
+
+
+class CommentVoteTests(APITestCase):
+    def setUp(self):
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
+        self.author = make_user('cv-author')
+        content_type = ContentType.objects.get_for_model(self.exercise)
+        self.comment = Comment.objects.create(
+            content_type=content_type, object_id=self.exercise.pk, author=self.author, body='hm'
+        )
+        self.url = reverse('comment-vote', kwargs={'pk': self.comment.pk})
+
+    def _vote(self, user, value):
+        self.client.force_authenticate(user)
+        return self.client.post(self.url, {'value': value}, format='json')
+
+    def test_up_and_down_votes_produce_a_score(self):
+        self._vote(make_user('cv-1'), 1)
+        self._vote(make_user('cv-2'), 1)
+        response = self._vote(make_user('cv-3'), -1)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['upvotes'], 2)
+        self.assertEqual(response.data['downvotes'], 1)
+        self.assertEqual(response.data['score'], 1)
+        self.assertEqual(response.data['current_user_vote'], -1)
+
+    def test_revoting_replaces_rather_than_adds(self):
+        voter = make_user('cv-flip')
+        self._vote(voter, 1)
+        response = self._vote(voter, -1)
+        self.assertEqual(response.data['score'], -1)
+        self.assertEqual(self.comment.votes.count(), 1)
+
+    def test_retracting(self):
+        voter = make_user('cv-retract')
+        self._vote(voter, 1)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['score'], 0)
+        self.assertIsNone(response.data['current_user_vote'])
+
+    def test_thread_listing_carries_the_score_and_the_readers_own_vote(self):
+        voter = make_user('cv-reader')
+        self._vote(voter, 1)
+        response = self.client.get(
+            reverse('exercise-comments', kwargs={'pk': self.exercise.pk})
+        )
+        self.assertEqual(response.data[0]['score'], 1)
+        self.assertEqual(response.data[0]['current_user_vote'], 1)
+        self.client.force_authenticate(None)
+        response = self.client.get(
+            reverse('exercise-comments', kwargs={'pk': self.exercise.pk})
+        )
+        self.assertEqual(response.data[0]['score'], 1)
+        self.assertIsNone(response.data[0]['current_user_vote'])
+
+    def test_a_removed_comment_cannot_be_voted_on(self):
+        self.comment.is_removed = True
+        self.comment.save(update_fields=['is_removed'])
+        self.assertEqual(self._vote(make_user('cv-late'), 1).status_code, status.HTTP_409_CONFLICT)
+
+    def test_an_invalid_value_is_refused(self):
+        self.assertEqual(self._vote(make_user('cv-bad'), 5).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_anonymous_cannot_vote(self):
+        self.client.force_authenticate(None)
+        response = self.client.post(self.url, {'value': 1}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -94,6 +94,18 @@ Theming: token bridge (`_tokens.scss` → `_theme.scss` → CSS custom propertie
 swap, no-flash inline script in `app.html`). `adapter-static` SPA fallback is a deliberate
 non-change — nothing needs SSR.
 
+## First paint
+
+Only prerendered routes paint from HTML; everything else is the SPA fallback `200.html`, whose body
+div is empty except SvelteKit's bootstrap `<script>`. `app.html` carries a boot shell hidden by
+`body:has(> div[style] > :not(script))` — keep the `:not(script)` or the shell never shows. Static
+hub pages should get a `+page.ts` with `export const prerender = true` (not pages that read
+`url.searchParams` at load — `/search` fails the build). **A prerendered page must not call a
+service at component top level**: that runs at build time too, where `fetch('/api/…')` has no
+origin and the production build dies (`/submit` did, only under `PUBLIC_API_BASE_URL=/api` — the
+dev `.env` names a real host, so `npm run build` alone hides it). Put the initial load in `onMount`. Measure with `e2e/fcp.mjs` against a static
+serve of `build/` that falls back to 200.html; the dev server's paint is not representative.
+
 ## Verify
 
 `npm run check` (0 errors/0 warnings expected), `npm run lint`, `npm run build`,

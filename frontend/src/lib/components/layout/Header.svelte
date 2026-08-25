@@ -253,7 +253,7 @@
 		title={m.nav_browse()}
 		{onclick}
 	>
-		<span class="nav-link__icon" aria-hidden="true">{@render compassIcon()}</span>
+		<span class="nav-link__icon" aria-hidden="true">{@render exerciseIcon()}</span>
 		<span class="nav-link__text">{m.nav_browse()}</span>
 	</a>
 	<a
@@ -451,9 +451,11 @@
 	</svg>
 {/snippet}
 
-{#snippet compassIcon()}
-	<!-- Disciplines: a compass — "browse/explore the catalogue". The book was already taken by
-	     Materials, and the old stage-6 search-icon merge is gone with the rearranging scheme. -->
+{#snippet exerciseIcon()}
+	<!-- Exercises: a worksheet with a tick — a task to do, and done. The link was "Disciplines" and
+	     drew a compass ("explore the catalogue"); once the word became Exercises/Zadania the compass
+	     stood for nothing a reader could name, so the picture changed with the word. Distinct from
+	     Materials' book (a thing to read) and Courses' mortarboard (a thing to attend). -->
 	<svg
 		class="icon"
 		viewBox="0 0 24 24"
@@ -464,8 +466,10 @@
 		stroke-linejoin="round"
 		aria-hidden="true"
 	>
-		<circle cx="12" cy="12" r="9" />
-		<path d="m15.5 8.5-2 5-5 2 2-5z" />
+		<path d="M7 3h7l5 5v13H7z" />
+		<path d="M14 3v5h5" />
+		<path d="M9.5 15.5l2 2 3.5-4" />
+		<path d="M10 11h2" />
 	</svg>
 {/snippet}
 
@@ -1110,7 +1114,7 @@
 		}
 	}
 
-	// Stage 6 — Disciplines becomes a compass icon, in place (previously it merged into a search
+	// Stage 6 — Exercises (formerly Disciplines) becomes a worksheet icon, in place (previously it merged into a search
 	// icon over by the Add trigger — dropped with the rest of the rearranging scheme).
 	@media (max-width: 900px) {
 		.site-nav .nav-link--disciplines .nav-link__text {

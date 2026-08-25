@@ -7,19 +7,38 @@ distinct: who wrote it vs. where it came from; both optional, never fabricated),
 `price_amount`/`price_currency` (curated 4-value choices `PLN/EUR/USD/GBP`, display-only — no
 payment processing exists anywhere) and `estimated_minutes`.
 
-## The trust split (deliberate, don't flatten it)
+## Claims: one row answers one question (`MaterialCoverage.kind`)
 
-- **Coverage claims**: any authenticated user may claim "covers topic X at level Y"; community
-  votes correct it, `is_verified_contributor` votes count **double**. Not moderation-gated —
-  additive, reversible, low-stakes metadata.
-- **Requirements**: governor-only to edit (`PUT /materials/{id}/requirements/`, staff or
-  `moderation.services.is_governor_of_course` — pre-rename name, takes a Branch) — they read as
-  structural claims about the material. Full ordered
-  replace inside a small `transaction.atomic()` (two fast statements, one table — the safe shape;
-  see backend/CLAUDE.md SQLite rules). Case-insensitive duplicate labels are **rejected** (400
-  naming the duplicate), never silently deduped — shared guard in `services.py`
-  (`clean_requirement_labels` / `find_duplicate_requirement_label`), used by BOTH write paths
-  (governor PUT and submission-time validate).
+- `kind='covers'` — how thoroughly the material treats a topic; `kind='requires'` — how much of
+  it a reader should already know first. They used to be ONE row read both ways (the popover
+  showed the same number under both labels — a real reported bug). Unique per
+  `(material, kind, topic, subtopic)`, so both kinds may coexist on one topic. Browse filters
+  (`topic_id`/`min_level`), `sort=level`, `_best_coverage_level` and the recommender's overlap
+  term read **`covers` only**.
+- Any authenticated user may propose either kind (`POST /materials/{id}/coverage/`, body
+  `kind` defaults to `covers`); the community corrects it. Not moderation-gated.
+- **Two votes per claim, different questions**: `MaterialCoverageVote` (agree/disagree — is the
+  level right, `vote_summary`) and `MaterialCoverageImportanceVote` (+1/-1 — show it higher/lower,
+  `importance_summary`, `POST|DELETE /material-coverage/{id}/importance/`). The frontend lists
+  claims by importance net weight, then accuracy net weight (`lib/utils/coverage.ts sortClaims`).
+  Both weigh `is_verified_contributor` **double**; both prefetch via
+  `coverage__(importance_)votes__voter__profile` everywhere materials are listed.
+- Claim threads are the generic `community.Comment`; comments carry up/down votes (see
+  community/CLAUDE.md).
+- **`ClaimBase` (abstract) + `claims.py`** are what `courses.CourseClaim` builds on — the same
+  fields, the same `resolve_claim_input` / `vote_response` / `thread_response`. Change claim
+  semantics there, not in one owner's viewset.
+
+## Legacy free-text requirements (`MaterialRequirement`)
+
+Still in the schema and API (governor `PUT /materials/{id}/requirements/`, `propose_requirement`,
+per-row votes, reportable), but the UI no longer offers new ones — a requirement is a `requires`
+claim now. The detail page renders legacy rows only when a material still has some (none did at
+the time of the switch). Governor-only edit, full ordered replace inside a small
+`transaction.atomic()` (two fast statements, one table — the safe shape; see backend/CLAUDE.md
+SQLite rules). Case-insensitive duplicate labels are **rejected** (400 naming the duplicate) —
+shared guard in `services.py` (`clean_requirement_labels` / `find_duplicate_requirement_label`),
+used by BOTH write paths (governor PUT and submission-time validate).
 
 ## Upload safety (`validators.py`, `materialfile.py`)
 
@@ -44,4 +63,5 @@ real deployment. Scan status is surfaced to the reviewing moderator, not hidden.
 ## Verify
 
 `manage.py test materials` (+ submission/approval paths in `moderation`). E2E:
-`material-claims.mjs`, `material-types.mjs`.
+`material-claims.mjs`, `material-claims-rework.mjs` (kind split, importance vote, comment votes),
+`material-types.mjs`.

@@ -252,3 +252,44 @@ class ExerciseRequirementVote(models.Model):
 
     def __str__(self) -> str:
         return f'{self.get_value_display()} by {self.voter} on {self.requirement}'
+
+
+# --- covers / requires claims -------------------------------------------------------------------
+#
+# The same claims a material and a course carry (`materials.ClaimBase`): what this exercise
+# practises, and what you should already know to attempt it. Topics come from the exercise's own
+# branch. Request handling is shared in `materials/claims.py`; votes mirror the material ones.
+
+from materials.models import ClaimBase, VOTE_CHOICES  # noqa: E402 — materials imports exercises.Tag; this import is resolved at call time only
+
+
+class ExerciseClaim(ClaimBase):
+    exercise = models.ForeignKey(Exercise, related_name='claims', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = [('exercise', 'kind', 'topic', 'subtopic')]
+        ordering = ['topic', 'subtopic']
+
+    def __str__(self) -> str:
+        sub = f'/{self.subtopic.slug}' if self.subtopic else ''
+        return f'{self.exercise}@{self.kind}:{self.topic.slug}{sub}={self.level}'
+
+
+class ExerciseClaimVote(models.Model):
+    claim = models.ForeignKey(ExerciseClaim, related_name='votes', on_delete=models.CASCADE)
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=VOTE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('claim', 'voter')]
+
+
+class ExerciseClaimImportanceVote(models.Model):
+    claim = models.ForeignKey(ExerciseClaim, related_name='importance_votes', on_delete=models.CASCADE)
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=[(1, 'More important'), (-1, 'Less important')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('claim', 'voter')]

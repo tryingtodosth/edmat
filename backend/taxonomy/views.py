@@ -81,7 +81,12 @@ class BranchViewSet(viewsets.ReadOnlyModelViewSet):
         qs = _filter_materials(Material.objects.filter(published=True), params)
         materials = list(
             qs.prefetch_related(
-                'translations', 'coverage__votes__voter__profile', 'coverage__topic', 'tags', 'requirements'
+                'translations',
+                'coverage__votes__voter__profile',
+                'coverage__importance_votes__voter__profile',
+                'coverage__topic',
+                'tags',
+                'requirements',
             )
         )
         materials = _sort_materials(

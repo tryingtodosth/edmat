@@ -2,21 +2,24 @@
 	import { untrack } from 'svelte';
 	import type { Comment, MaterialCoverage, User } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
-	import { coverageDepth } from '$lib/utils/coverage';
-	import { castCoverageVote, retractCoverageVote } from '$lib/services/materials';
+	import { coverageDepth, depthLabel } from '$lib/utils/coverage';
+	import {
+		castCoverageVote,
+		castImportanceVote,
+		retractCoverageVote,
+		retractImportanceVote
+	} from '$lib/services/materials';
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
 	import { getUserById } from '$lib/services/users';
 	import { authStore } from '$lib/state/auth.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import CoverageVoteWidget from './CoverageVoteWidget.svelte';
+	import ImportanceVoteWidget from './ImportanceVoteWidget.svelte';
 
-	// `onVoteChange` (new, optional): the material detail page now sorts its own "Covers" group by
-	// net vote weight ("split material tags into two groups... each votable, so users can sort by
-	// that") — without this, a vote cast here would update only this popover's own local `coverage`
-	// copy, leaving the PARENT page's sort order (and any other on-screen count of the same claim)
-	// stale until a full reload. Optional because a caller with no such list to keep in sync (none
-	// today, but nothing requires one) shouldn't need to pass a no-op.
+	// `onVoteChange`: a vote cast here changes the claim's tallies — and, for the importance vote,
+	// the ORDER the parent lists claims in — so the updated row is handed back up rather than left
+	// to go stale until a reload.
 	let {
 		coverage: initial,
 		onClose,
@@ -27,11 +30,17 @@
 		onVoteChange?: (updated: MaterialCoverage) => void;
 	} = $props();
 
-	// A local, mutable copy — voting/retracting return the server's own freshly-recomputed row
-	// (vote_summary included), so this just gets reassigned wholesale rather than needing its own
-	// optimistic-update math (same "server is authoritative, no client-side tallying" trust model
-	// Exercise.averageRating/reviewCount already use elsewhere in this app).
+	// A local, mutable copy — every vote endpoint returns the server's own freshly-recomputed row,
+	// so this is reassigned wholesale rather than tallied client-side.
 	let coverage = $state(untrack(() => initial));
+	// A material's claim and a course's claim have their own comment endpoints; the rest is shared.
+	const threadTarget = untrack(() =>
+		initial.ownerKind === 'course'
+			? ('courseClaim' as const)
+			: initial.ownerKind === 'exercise'
+				? ('exerciseClaim' as const)
+				: ('materialCoverage' as const)
+	);
 	let comments = $state<Comment[]>([]);
 	let usersById = $state<Record<string, User>>({});
 	let loading = $state(true);
@@ -47,7 +56,7 @@
 
 	async function load() {
 		loading = true;
-		const cmts = await getCommentsForTarget('materialCoverage', coverage.id);
+		const cmts = await getCommentsForTarget(threadTarget, coverage.id);
 		comments = cmts;
 		const authorIds = [
 			...(coverage.proposedByUserId ? [coverage.proposedByUserId] : []),
@@ -60,19 +69,29 @@
 	load();
 
 	async function handleVote(value: 1 | -1) {
-		coverage = await castCoverageVote(coverage.id, value);
+		coverage = await castCoverageVote(coverage, value);
 		onVoteChange?.(coverage);
 	}
 
 	async function handleRetract() {
-		coverage = await retractCoverageVote(coverage.id);
+		coverage = await retractCoverageVote(coverage);
+		onVoteChange?.(coverage);
+	}
+
+	async function handleImportance(value: 1 | -1) {
+		coverage = await castImportanceVote(coverage, value);
+		onVoteChange?.(coverage);
+	}
+
+	async function handleImportanceRetract() {
+		coverage = await retractImportanceVote(coverage);
 		onVoteChange?.(coverage);
 	}
 
 	async function handleComment(body: string, parentId?: string) {
 		if (!authStore.user) return;
 		const comment = await submitComment(
-			'materialCoverage',
+			threadTarget,
 			coverage.id,
 			authStore.user.id,
 			body,
@@ -81,12 +100,35 @@
 		comments = [...comments, comment];
 	}
 
+	// One sentence naming what kind of claim this is, worded for what it is a claim ABOUT.
+	function kindExplanation(): string {
+		if (coverage.ownerKind === 'course') {
+			return isRequirement
+				? m.coverage_kindExplainRequiresCourse()
+				: m.coverage_kindExplainCoversCourse();
+		}
+		if (coverage.ownerKind === 'exercise') {
+			return isRequirement
+				? m.coverage_kindExplainRequiresExercise()
+				: m.coverage_kindExplainCoversExercise();
+		}
+		return isRequirement ? m.coverage_kindExplainRequires() : m.coverage_kindExplainCovers();
+	}
+
 	let depth = $derived(coverageDepth(coverage.level));
-	let popoverTitle = $derived(coverage.subtopicName ?? coverage.topicName);
+	let isRequirement = $derived(coverage.kind === 'requires');
+	let popoverTitle = $derived(
+		(isRequirement ? m.coverage_popoverTitleRequires() : m.coverage_popoverTitleCovers()) +
+			': ' +
+			(coverage.subtopicName ?? coverage.topicName)
+	);
 </script>
 
 <ModalShell title={popoverTitle} {onClose}>
 	<div class="coverage-popover">
+		<p class="coverage-popover__kind coverage-popover__kind--{coverage.kind}">
+			{kindExplanation()}
+		</p>
 		<dl class="coverage-popover__meta">
 			<div>
 				<dt>{m.coverage_topicLabel()}</dt>
@@ -98,36 +140,37 @@
 					<dd>{coverage.subtopicName}</dd>
 				</div>
 			{/if}
-			<!-- The same `level` number, shown under BOTH readings deliberately, not collapsed into
-				 one blended "depth" label — a material can be both a prerequisite claim ("you should
-				 know this to roughly this depth before using it") AND a content claim ("this is how
-				 much the material itself teaches on the topic"), and a reader shouldn't have to
-				 guess which one a single figure meant. -->
+			<!-- One number, under the ONE label its kind means. A claim answers a single question;
+				 the other reading is a different claim, listed in the other group. -->
 			<div>
-				<dt>{m.coverage_requirementLabel()}</dt>
-				<dd class="depth depth--{depth}">{m.coverage_levelValue({ level: coverage.level })}</dd>
-			</div>
-			<div>
-				<dt>{m.coverage_coversLabel()}</dt>
-				<dd class="depth depth--{depth}">{m.coverage_levelValue({ level: coverage.level })}</dd>
-			</div>
-			<div>
-				<dt>{m.coverage_depthLabel()}</dt>
+				<dt>{isRequirement ? m.coverage_requirementLabel() : m.coverage_coversLabel()}</dt>
 				<dd class="depth depth--{depth}">
-					{depth === 'light'
-						? m.coverage_depth_light()
-						: depth === 'moderate'
-							? m.coverage_depth_moderate()
-							: m.coverage_depth_deep()}
+					{m.coverage_levelValue({ level: coverage.level })}
+					<span class="depth-word">· {depthLabel(coverage.kind, depth)}</span>
 				</dd>
 			</div>
+			{#if coverage.proposedByUserId && usersById[coverage.proposedByUserId]}
+				<div>
+					<dt>{m.coverage_proposedBy()}</dt>
+					<dd>{usersById[coverage.proposedByUserId].displayName}</dd>
+				</div>
+			{/if}
 		</dl>
 
 		<section class="coverage-popover__section">
 			<CoverageVoteWidget
 				summary={coverage.voteSummary}
+				question={isRequirement ? m.coverage_voteQuestionRequires : m.coverage_voteQuestion}
 				onVote={handleVote}
 				onRetract={handleRetract}
+			/>
+		</section>
+
+		<section class="coverage-popover__section">
+			<ImportanceVoteWidget
+				summary={coverage.importanceSummary}
+				onVote={handleImportance}
+				onRetract={handleImportanceRetract}
 			/>
 		</section>
 
@@ -143,10 +186,24 @@
 </ModalShell>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.coverage-popover {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
+	}
+	.coverage-popover__kind {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		padding: var(--space-2) var(--space-3);
+		border-radius: var(--radius-sm);
+		border-left: 3px solid var(--status-info);
+		background: var(--status-info-bg);
+	}
+	.coverage-popover__kind--requires {
+		border-left-color: var(--status-warning);
+		background: var(--status-warning-bg);
 	}
 	.coverage-popover__meta {
 		display: flex;
@@ -163,6 +220,10 @@
 			margin: 0;
 			font-weight: 600;
 		}
+	}
+	.depth-word {
+		font-weight: 400;
+		color: var(--text-secondary);
 	}
 	.depth--light {
 		color: var(--text-secondary);

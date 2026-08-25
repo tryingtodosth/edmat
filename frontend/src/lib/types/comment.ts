@@ -19,6 +19,9 @@ export type CommentTargetType =
 	// to be first.
 	| 'courseLesson'
 	| 'courseChapter'
+	// A covers/requires claim on a user-run course — the course-side twin of 'materialCoverage'.
+	| 'courseClaim'
+	| 'exerciseClaim'
 	// The three review kinds. Replying to somebody's review is not a new kind of object — it is a
 	// Comment whose target happens to be a Review, which is why it inherits the same threading,
 	// reporting and moderation everything else here already has. All three exist because
@@ -47,4 +50,10 @@ export interface Comment {
 	// body; only this decides which of the two the reader is told, and telling them the wrong one
 	// is a placeholder that lies about what happened to somebody's words.
 	removedByAuthor: boolean;
+	// Plain up/down counts (a comment vote is unweighted, unlike a claim vote) and their difference.
+	// `currentUserVote` is the reader's own, undefined when signed out or not yet voted.
+	upvotes: number;
+	downvotes: number;
+	score: number;
+	currentUserVote?: 1 | -1;
 }

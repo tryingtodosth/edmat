@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { rememberReturnTo, takeReturnTo } from '$lib/utils/returnTo';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -9,6 +11,8 @@
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+
+	afterNavigate((nav) => rememberReturnTo(nav.from?.url));
 
 	let displayName = $state('');
 	let email = $state('');
@@ -55,7 +59,9 @@
 			// One path rather than two: setting the locale it is already in is a no-op inside the
 			// store, so there is nothing left for a branch here to decide.
 			localeStore.set(preferredLocale);
-			goto(resolve('/'));
+			// Back to wherever "Log in" was clicked, not the home page — see lib/utils/returnTo.ts.
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- an in-app path remembered at runtime (validated same-origin in returnTo.ts), not a literal route resolve() could name
+			goto(takeReturnTo(page.url));
 		} else if (result.error === 'emailTaken') {
 			error = 'emailTaken';
 		} else {

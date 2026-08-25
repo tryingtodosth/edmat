@@ -55,5 +55,46 @@
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
+		<!-- The boot shell — what a route that is NOT prerendered paints while the JS bundle is still
+		     downloading. SvelteKit's SPA fallback (200.html) ships an EMPTY body div, so until the
+		     module graph has booted the page is blank: First Contentful Paint was measured at "whenever
+		     the bundle finished", not at HTML arrival. This is a real brand bar (a working link) and a
+		     loading line, painted from the HTML alone. It is hidden by CSS the instant the div above has
+		     content other than SvelteKit's own bootstrap script (which sits INSIDE that div in the fallback,
+		     and matched a bare `> *` — the shell never showed until that was excluded) — at build time
+		     on a prerendered page, at hydration on a fallback one — so no page
+		     ever shows two headers, and nothing here has to be torn down by script. Plain inline
+		     styles with fallbacks: the theme variables it reads come from the stylesheet linked in
+		     <head>, which is also at first paint. -->
+		<div class="boot-shell" aria-hidden="true">
+			<div class="boot-shell__bar"><a class="boot-shell__brand" href="/">∫ EdMat</a></div>
+			<p class="boot-shell__loading">…</p>
+		</div>
+		<style>
+			body:has(> div[style] > :not(script)) > .boot-shell {
+				display: none;
+			}
+			.boot-shell__bar {
+				height: 60px;
+				display: flex;
+				align-items: center;
+				padding: 0 clamp(12px, 3vw, 28px);
+				background: var(--bg-surface, #ffffff);
+				border-bottom: 1px solid var(--border-color, #e3e5ec);
+			}
+			.boot-shell__brand {
+				font-weight: 700;
+				font-size: 1.25rem;
+				color: var(--text-primary, #1a1c26);
+				text-decoration: none;
+			}
+			.boot-shell__loading {
+				max-width: 780px;
+				margin: 24px auto;
+				padding: 0 16px;
+				color: var(--text-secondary, #5a5f73);
+				letter-spacing: 0.3em;
+			}
+		</style>
 	</body>
 </html>
