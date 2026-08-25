@@ -5810,6 +5810,12 @@ fold while loading — measured CLS 0 at 412 px and 1280 px. The 3 s of "script 
 attributed to the Svelte runtime chunk could not be reproduced: a CPU profile of the same build under
 4× throttling shows ~250 ms of script work; re-measure after deploying before chasing it.
 
+**KaTeX lazy-loaded (same day, `mathRender.ts`):** the 381 KB KaTeX + markdown-it + DOMPurify chunk
+was imported by the app entry, so every page parsed it. `MathTitle`/`MathContent` now reach it
+through a dynamic import (a page without math never fetches it; the home page's entry preloads fell
+from 704 KB to 327 KB), the root `+layout.ts` awaits it server-side so prerendering still typesets,
+and the client shows the escaped source for the instant before the chunk lands.
+
 What it does not fix, stated plainly: the bundle itself (43 preloaded modules, 1.4 MB of chunks,
 323 KB of CSS across 78 files) still takes ~5 s to boot on that link; the shell makes the wait
 honest, it does not shorten it. The real lever there is SSR (`adapter-node`), which is a deployment

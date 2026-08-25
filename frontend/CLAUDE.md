@@ -47,6 +47,13 @@ Discipline/Branch ids are the backend slug; everything else `String(pk)`, opaque
 
 ## Rendering math (`lib/utils/renderContent.ts`) — the pipeline ORDER is the point
 
+**The renderer is loaded on demand** (`lib/utils/mathRender.ts`): `MathTitle`/`MathContent` never
+import `renderContent.ts` statically — it is a ~380 KB chunk fetched by the first component that
+needs it; the root `+layout.ts` awaits it server-side so prerendering typesets synchronously, and
+the KaTeX stylesheet stays in the root layout so prerendered math never paints unstyled. A page with
+no math never downloads it. Keep it that way: one static import of `renderContent` from anything in
+the layout tree puts it back into every page's entry.
+
 Extract + KaTeX-render every `\(…\)`/`\[…\]` FIRST (stash behind inert placeholders) → run the
 remainder through markdown-it → splice the KaTeX back → THEN DOMPurify. CommonMark treats `\[`
 as escaped punctuation in ordinary paragraphs, so display math between `<p>` blocks silently
