@@ -152,6 +152,21 @@ optional env vars (`DJANGO_ALLOWED_HOSTS`/`DJANGO_CSRF_TRUSTED_ORIGINS`/
 `DJANGO_CORS_ALLOWED_ORIGINS`), see Part B Step 6 for the exact values; not required if the old
 hardcoded equivalents were already working.
 
+### 3c. Re-install the vhost if `deploy/apache/edmat.conf` changed
+
+The sync above lands the tracked vhost in `~/todonet/deploy/apache/`, but Apache reads the copy in
+`/etc/apache2/sites-available/`, and nothing updates that copy for you. Found on 2026-08-25: the
+rewrite that serves prerendered pages (added 2026-08-12) was never installed, so `/login`,
+`/levels` and every newer prerendered page fell back to the SPA shell for two weeks.
+
+```bash
+diff /etc/apache2/sites-available/edmat.conf /home/todoonet/todonet/deploy/apache/edmat.conf && echo "vhost unchanged"
+# if it differs (the file needs no site-specific edits — its variables come from /etc/apache2/envvars):
+sudo cp /etc/apache2/sites-available/edmat.conf ~/edmat.conf.bak-$(date +%Y%m%d)
+sudo cp /home/todoonet/todonet/deploy/apache/edmat.conf /etc/apache2/sites-available/edmat.conf
+sudo apache2ctl configtest
+```
+
 ### 4. Restart
 
 ```bash
