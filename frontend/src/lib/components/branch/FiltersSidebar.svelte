@@ -16,7 +16,12 @@
 		topics,
 		filters = $bindable(),
 		resultCount
-	}: { topics: Topic[]; filters: ExerciseFilters; resultCount: number } = $props();
+	}: {
+		topics: Topic[];
+		filters: ExerciseFilters;
+		/** Undefined while the list is still being fetched — "Results: 0" would be a lie then. */
+		resultCount: number | undefined;
+	} = $props();
 
 	// The box holds what the visitor is typing; `filters.query` holds the question actually being
 	// asked of the server. Keeping the two apart is what turns a word into one request instead of one
@@ -123,7 +128,11 @@
 	</label>
 
 	<div class="filters__footer">
-		<span class="result-count">{m.filters_resultCount({ count: resultCount })}</span>
+		<span class="result-count">
+			{resultCount === undefined
+				? m.filters_resultCounting()
+				: m.filters_resultCount({ count: resultCount })}
+		</span>
 		{#if hasActiveFilters}
 			<button type="button" class="link-button" onclick={clear}>{m.filters_clear()}</button>
 		{/if}

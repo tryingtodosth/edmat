@@ -78,6 +78,7 @@
 	"filters_searchPlaceholder": "Search exercises…",
 	"filters_clear": "Clear filters",
 	"filters_resultCount": "Results: {count}",
+	"filters_resultCounting": "Counting…",
 	"difficulty_easy": "Easy",
 	"difficulty_medium": "Medium",
 	"difficulty_hard": "Hard",

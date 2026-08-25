@@ -185,7 +185,11 @@
 
 		{#if tab === 'exercises'}
 			<div class="layout">
-				<FiltersSidebar {topics} bind:filters resultCount={exercises.length} />
+				<FiltersSidebar
+					{topics}
+					bind:filters
+					resultCount={exercisesLoading ? undefined : exercises.length}
+				/>
 				<div class="exercises-column">
 					{#if exercisesLoading}
 						<Loading variant="card" count={6} />

@@ -78,6 +78,7 @@
 	"filters_searchPlaceholder": "Szukaj zadań…",
 	"filters_clear": "Wyczyść filtry",
 	"filters_resultCount": "Wyniki: {count}",
+	"filters_resultCounting": "Liczenie…",
 	"difficulty_easy": "Łatwe",
 	"difficulty_medium": "Średnie",
 	"difficulty_hard": "Trudne",
