@@ -5905,6 +5905,22 @@ errors — the link's position and hit area measured, a guest's anonymous public
 private one, its 404 to the reporter, staff resolving it with a note and the reporter's notification
 linking back, the phone drawer, and the kill switch removing all four links; screenshots looked at.
 
+### Addendum (same day): the phone bar — ☰ inside the bar, borderless; the drawer gets its own ✕
+
+Owner's decisions, superseding two rules 17V.4 wrote down: the drawer toggle now lives **inside**
+`.site-header__row` (in flow, `margin-left: auto`, **30×30, no border** — "people know what these
+three lines mean") and therefore **tucks away with the bar** on scroll down; scrolling up brings
+both back, which is the gesture 17V.4 already relied on. Because the header sits below the scrim's
+z-index, the toggle can no longer double as the ✕ while the drawer is open — the drawer carries
+its own `.drawer__close` in `.drawer__top`, styled exactly like the old floating toggle (bordered
+40×40, surface background, modal shadow) at the owner's request. The focus trap is now scoped to
+the drawer alone (its ✕ is inside it); Escape still returns focus to the ☰. On phones the "Report
+issue" link sits beside the brand in the flow, since a 43px bar has no room for it underneath.
+`e2e/phone-navbar.mjs` (12 checks) pins all of it; the older `events-and-nav.mjs` assertion that
+the toggle "stays exactly where it was" was inverted to match. Both `events-and-nav.mjs` and
+`known-issues.mjs` currently die earlier, in their event-form sections (`fd70011` made date/time
+optional and the "Starts" field no longer matches) — pre-existing, filed on the board.
+
 **Left open**: no screenshot/attachment on a report; no editing or deleting your own report; no
 "my reports" list (private ones are deliberately staff-only); comments on an issue are not yet
 in `PRIVATE_TARGET_TYPES`, so linking a private issue's thread into a course would be refused only

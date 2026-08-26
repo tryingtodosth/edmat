@@ -158,11 +158,9 @@
 	}
 
 	function trapFocus(event: KeyboardEvent) {
-		// The toggle button leads the loop deliberately. It is the drawer's ✕ while the drawer is open,
-		// and it lives OUTSIDE the drawer element (it has to — see the comment at its markup), so a trap
-		// scoped to the drawer alone would put the close button out of a keyboard's reach, which is a
-		// worse bug than the one being fixed.
-		const items = [toggleEl, ...drawerFocusables()].filter((el): el is HTMLElement => el !== null);
+		// Scoped to the drawer: its ✕ is inside it now (`.drawer__close`), and the toggle in the bar
+		// is under the scrim while the drawer is open, so it is deliberately not a stop.
+		const items = drawerFocusables();
 		if (items.length === 0) return;
 
 		const first = items[0];
@@ -687,23 +685,23 @@
 				{/if}
 			</div>
 		</div>
+		<!-- In the bar's own flow, at the owner's request (it used to float outside the header so it
+		     would outlive the bar tucking away on scroll). It now tucks with the bar; scrolling up brings
+		     both back. While the drawer is open this button sits under the scrim, so the drawer carries
+		     its own ✕ in `.drawer__top`. Three lines, no border, 30×30 — people know what they mean. -->
+		<button
+			class="drawer-toggle no-print"
+			type="button"
+			bind:this={toggleEl}
+			aria-expanded={drawerOpen}
+			aria-controls="site-drawer"
+			aria-label={m.nav_openMenu()}
+			onclick={() => openDrawer()}
+		>
+			<span aria-hidden="true">☰</span>
+		</button>
 	</div>
 </header>
-
-<!-- OUTSIDE the header, and that placement is the requirement rather than a layout preference: the
-     header is what slides away on scroll, so a button inside it would slide away with it. This is the
-     one control that has to survive the bar hiding, because it is what brings the bar's contents back. -->
-<button
-	class="drawer-toggle no-print"
-	type="button"
-	bind:this={toggleEl}
-	aria-expanded={drawerOpen}
-	aria-controls="site-drawer"
-	aria-label={drawerOpen ? m.nav_closeMenu() : m.nav_openMenu()}
-	onclick={() => (drawerOpen ? closeDrawer() : openDrawer())}
->
-	<span aria-hidden="true">{drawerOpen ? '✕' : '☰'}</span>
-</button>
 
 {#if drawerOpen}
 	<!-- A real <button> rather than a <div> with a click handler: it makes the scrim an interactive
@@ -735,6 +733,14 @@
 	     its contents. The padding keeps it clear of the ✕, which floats over the drawer. -->
 	<div class="drawer__top">
 		<LocaleSwitcher />
+		<button
+			class="drawer__close"
+			type="button"
+			aria-label={m.nav_closeMenu()}
+			onclick={() => closeDrawer()}
+		>
+			<span aria-hidden="true">✕</span>
+		</button>
 	</div>
 
 	{#if authStore.isAuthenticated}
@@ -1240,9 +1246,13 @@
 		}
 		.site-header__row {
 			flex-wrap: nowrap;
-			// Room for the toggle, which floats over the bar rather than sitting in its flow — it has
-			// to outlive the bar, so it cannot be laid out by it.
-			padding-right: calc(var(--space-4) + 44px);
+		}
+		// On a phone the bar is short, so the link cannot hang under the wordmark without leaving the
+		// bar's box — it sits beside the brand instead, in the flow, still inside the bar.
+		.brand__report {
+			position: static;
+			margin-left: var(--space-1);
+			padding: 6px;
 		}
 		.site-header {
 			transition: transform 180ms ease;
@@ -1257,25 +1267,18 @@
 			display: inline-flex;
 			align-items: center;
 			justify-content: center;
-			position: fixed;
-			// Deliberately not `top: 0`: the button sits level with the bar while the bar is there, and
-			// stays exactly where it is once the bar has gone, so it never appears to move.
-			top: 8px;
-			right: 12px;
-			width: 40px;
-			height: 40px;
-			// Above the scrim as well as the drawer, since it doubles as the close control.
-			z-index: calc(var(--z-modal) + 1);
-			border: 1px solid var(--border-color);
+			margin-left: auto;
+			flex: 0 0 auto;
+			width: 30px;
+			height: 30px;
+			padding: 0;
+			border: 0;
 			border-radius: var(--radius-sm);
-			background: var(--bg-surface);
+			background: none;
 			color: var(--text-primary);
 			font-size: var(--font-size-md);
 			line-height: 1;
 			cursor: pointer;
-			// A button that can end up over page content rather than over the bar needs to stay legible
-			// against whatever is behind it.
-			box-shadow: var(--shadow-modal);
 		}
 
 		.drawer-scrim {
@@ -1298,10 +1301,6 @@
 			bottom: 0;
 			width: min(20rem, 86vw);
 			z-index: var(--z-modal);
-			// The top padding used to be `space-4 + 40px`, reserving a whole empty band for the ✕ that
-			// floats over the drawer. The language selector now lives IN that band, level with the
-			// close button, so the reservation moved from here onto `.drawer__top`'s own height —
-			// which also reclaims 40px of dead space at the top of every drawer.
 			padding: var(--space-2) var(--space-4) var(--space-4);
 			background: var(--bg-surface);
 			border-left: 1px solid var(--border-color);
@@ -1330,16 +1329,31 @@
 		.drawer__name {
 			font-weight: 700;
 		}
-		/* Level with the ✕, which floats over the drawer at top: 8px / right: 12px — so the padding
-		   here keeps the selector clear of it rather than under it. */
 		.drawer__top {
 			display: flex;
 			align-items: center;
-			// Exactly the band the ✕ occupies (it is fixed at top: 8px and about 40px tall), so the
-			// selector sits level with it rather than below it. The right padding is what keeps the
-			// two from overlapping: the button floats over this row rather than being laid out in it.
+			justify-content: space-between;
 			min-height: 40px;
-			padding-right: 3.25rem;
+		}
+		// The ✕ keeps the look the floating toggle had in production — a bordered 40px box on the
+		// surface colour with the modal shadow — at the owner's request; only the ☰ in the bar went
+		// borderless. Laid out in `.drawer__top` rather than fixed, at the same spot it used to float.
+		.drawer__close {
+			@include mix.focus-ring;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 40px;
+			height: 40px;
+			padding: 0;
+			border: 1px solid var(--border-color);
+			border-radius: var(--radius-sm);
+			background: var(--bg-surface);
+			color: var(--text-primary);
+			font-size: var(--font-size-md);
+			line-height: 1;
+			cursor: pointer;
+			box-shadow: var(--shadow-modal);
 		}
 
 		.drawer__section--you {

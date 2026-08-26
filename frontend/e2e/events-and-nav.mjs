@@ -694,9 +694,11 @@ check(
 	headerAfter.y + headerAfter.height <= 1,
 	JSON.stringify(headerAfter)
 );
+// Since 2026-08-26 the ☰ lives IN the bar and tucks with it (owner's decision, §17AG addendum);
+// scrolling up brings both back. `e2e/phone-navbar.mjs` covers the rest of the new bar.
 check(
-	'while the menu button stays exactly where it was',
-	Math.abs(toggleAfter.y - toggleBefore.y) < 1 && (await toggle.isVisible()),
+	'and the menu button goes with it',
+	toggleAfter.y < toggleBefore.y,
 	`${JSON.stringify(toggleBefore)} → ${JSON.stringify(toggleAfter)}`
 );
 
