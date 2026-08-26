@@ -16,7 +16,7 @@
 	import '$lib/state/locale.svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
-	import ReportIssueModal from '$lib/components/issues/ReportIssueModal.svelte';
+	import { issueReportStore } from '$lib/state/issueReport.svelte';
 
 	let { children } = $props();
 
@@ -53,7 +53,16 @@
 		{@render children()}
 	</main>
 	<Footer />
-	<ReportIssueModal />
+	<!-- Loaded on demand, not imported: mounted statically here, the modal's own chunk and
+	     `ModalShell`'s stylesheet were pulled into the root layout and so inlined into EVERY page
+	     (PageSpeed: ~15 KiB of unused CSS above the fold). The store stays a static import — it is a
+	     few lines — so the three triggers can flip `isOpen` before the component ever exists; the
+	     first open fetches it, after which it manages its own visibility. -->
+	{#if issueReportStore.isOpen}
+		{#await import('$lib/components/issues/ReportIssueModal.svelte') then { default: ReportIssueModal }}
+			<ReportIssueModal />
+		{/await}
+	{/if}
 </div>
 
 <style lang="scss">

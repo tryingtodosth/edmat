@@ -903,7 +903,7 @@
 	.brand__report {
 		@include mix.focus-ring;
 		position: absolute;
-		left: calc(var(--hdr-pad-x) - 6px);
+		left: calc(var(--hdr-pad-x) + 11px); // under the wordmark, not the ∫ (owner-tuned)
 		top: calc(50% + 0.65em);
 		z-index: 1;
 		padding: 4px 6px;
