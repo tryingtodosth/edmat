@@ -72,6 +72,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             'donation_links',
             'offers_tutoring',
             'tutoring_note',
+            'exercises_published_count',
+            'exercises_private_count',
         ]
 
     def get_is_node_governor(self, obj):
@@ -134,6 +136,9 @@ class PublicProfileSerializer(serializers.ModelSerializer):
     is_moderator = serializers.BooleanField(source='user.is_staff', read_only=True)
     is_profile_public = serializers.BooleanField(source='show_profile_publicly', read_only=True)
     donation_links = DonationLinkSerializer(many=True, read_only=True)
+    # The unpublished count is the owner's own business and nobody else's: it is `null` for any
+    # other reader rather than 0, so a client can tell "none" from "not yours to know".
+    exercises_private_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -155,10 +160,21 @@ class PublicProfileSerializer(serializers.ModelSerializer):
             # an unrelated privacy toggle would defeat the entire point of opting in.
             'offers_tutoring',
             'tutoring_note',
+            # Public regardless of show_profile_publicly: it counts exercises that are themselves
+            # public (`?submitted_by=` lists them for anyone), so it withholds nothing that flag guards.
+            'exercises_published_count',
+            'exercises_private_count',
         ]
 
     def get_email(self, obj):
         return ''
+
+    def get_exercises_private_count(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is not None and user.is_authenticated and user.pk == obj.user_id:
+            return obj.exercises_private_count
+        return None
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)

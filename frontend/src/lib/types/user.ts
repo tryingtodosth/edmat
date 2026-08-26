@@ -38,6 +38,12 @@ export interface User {
 	// includes these at all (accounts/serializers.py's PublicProfileSerializer deliberately excludes
 	// them), so they stay undefined when resolving someone else.
 	showProfilePublicly?: boolean;
+	/** Stored on the profile and recounted server-side on every exercise save/delete
+	 * (accounts/counters.py) — NOT counted from the activity feed, which is sliced at 50. */
+	exercisesPublishedCount: number;
+	/** Exercises of yours that are not shown to anyone (unpublished, auto-hidden, removed). Only
+	 * ever a number on your OWN profile; `null`/undefined on anybody else's. */
+	exercisesPrivateCount?: number | null;
 	/** How this account wants clocks and calendars drawn. Real stored settings rather than something
 	 * inferred from `preferredLocale`: the interface language is not a statement about either, and
 	 * Intl's own per-locale default would hand an English reader 12-hour and a Sunday-first week

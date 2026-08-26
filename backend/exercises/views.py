@@ -136,7 +136,7 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(status=status.HTTP_201_CREATED)
 
 
-def _annotated_exercises():
+def _annotated_exercises(published=True):
     # A hidden review (removed by a moderator, or auto-hidden pending one — community/models.py's
     # Review.is_removed/auto_hidden_at) must not pull the exercise's own average up or down, or
     # inflate its count — a plain queryset .filter() on the related field would instead drop the
@@ -144,7 +144,7 @@ def _annotated_exercises():
     # a conditional aggregate (filter= on Avg/Count) is what actually excludes just the hidden rows
     # from the calculation while keeping every exercise.
     visible_reviews = Q(reviews__is_removed=False, reviews__auto_hidden_at__isnull=True)
-    return Exercise.objects.filter(published=True).annotate(
+    return Exercise.objects.filter(published=published).annotate(
         average_rating=Avg('reviews__rating', filter=visible_reviews),
         review_count=Count('reviews', filter=visible_reviews, distinct=True),
     )
@@ -200,8 +200,23 @@ class ExerciseViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
+        params = self.request.query_params
+        # `?unpublished=1` turns the list into the caller's OWN unpublished exercises — what the
+        # profile's "N unpublished" link opens. Owner-only, or staff: an unpublished exercise is
+        # hidden from everybody else everywhere in this API, and a list endpoint is not the place
+        # to make an exception. Anybody else asking gets nothing rather than the published list
+        # under a heading that says "unpublished".
+        if params.get('unpublished') in ('1', 'true'):
+            user = self.request.user
+            if not user.is_authenticated:
+                return Exercise.objects.none()
+            target = params.get('submitted_by') or str(user.pk)
+            if target != str(user.pk) and not user.is_staff:
+                return Exercise.objects.none()
+            qs = _annotated_exercises(published=False).filter(submitted_by_id=target)
+            return _filter_exercises(qs, params).order_by('-id')
         qs = _annotated_exercises()
-        return _filter_exercises(qs, self.request.query_params)
+        return _filter_exercises(qs, params)
 
     def get_serializer_class(self):
         if self.action == 'retrieve':

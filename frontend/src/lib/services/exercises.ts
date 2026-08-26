@@ -111,6 +111,16 @@ export async function getExercisesBySubmitter(
 	return raw.map(mapResolvedExerciseList);
 }
 
+/** The caller's OWN unpublished exercises — what the profile's "+ N unpublished" link opens.
+ * The server answers only the owner (or staff) and hands anybody else an empty list, so this never
+ * needs a user id: it is always "mine". */
+export async function getMyUnpublishedExercises(locale: string): Promise<ResolvedExercise[]> {
+	const raw = await apiClient.get<RawExerciseCommon[]>(
+		`/exercises/${toQueryString({ unpublished: '1', lang: locale })}`
+	);
+	return raw.map(mapResolvedExerciseList);
+}
+
 export async function getTopRatedExercises(locale: string, limit = 6): Promise<ResolvedExercise[]> {
 	const raw = await apiClient.get<RawExerciseCommon[]>(
 		`/exercises/${toQueryString({ sort: 'top', limit: String(limit), lang: locale })}`

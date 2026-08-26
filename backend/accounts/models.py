@@ -64,6 +64,14 @@ class Profile(models.Model):
     # visitor never chose to publish, e.g. the joined date) does not gate it.
     bio = models.TextField(max_length=1000, blank=True)
     is_verified_contributor = models.BooleanField(default=False)
+    # How many exercises this account has contributed, as stored integers rather than something
+    # counted at read time from a list that is sliced at 50 — which is exactly what the profile page
+    # did, so anybody past fifty exercises read as fifty. `exercises/signals.py` recounts both on
+    # every Exercise save or delete; accounts/counters.py explains why a recount and not an
+    # increment. "Private" means `published=False` for whatever reason (a moderator unpublished it,
+    # an auto-hide, a deliberate removal) — the exercise is still theirs, it is just not shown.
+    exercises_published_count = models.PositiveIntegerField(default=0)
+    exercises_private_count = models.PositiveIntegerField(default=0)
     # How many courses this account may own in total. Counted over every course it owns rather than
     # only the unfinished ones: "you have 3 of your 5" is a sentence somebody can act on, whereas a
     # cap that silently frees a slot when a course is marked finished is one people would discover

@@ -88,6 +88,11 @@
 
 	const isMe = $derived(Boolean(user && authStore.user?.id === user.id));
 
+	/** Your own unpublished exercises — a number only on your own profile (the API answers `null` to
+	 * anybody else), and the one thing that can put an Exercises tile on a profile whose published
+	 * count is zero: somebody whose every contribution was hidden should still be able to find them. */
+	const privateCount = $derived(isMe ? (user?.exercisesPrivateCount ?? 0) : 0);
+
 	/** Whether the badge row renders anything — the same four conditions the markup uses. A private
 	 * profile with no roles renders an empty row, and hanging "what these badges mean" off a row with no
 	 * badges in it would be explaining nothing. */
@@ -130,7 +135,9 @@
 		course_joined: () => m.profile_tile_taking() // "Takes"
 	};
 	const tiles = $derived(
-		TILE_ORDER.filter((kind) => (feed.counts[kind] ?? 0) > 0).map((kind) => ({
+		TILE_ORDER.filter(
+			(kind) => (feed.counts[kind] ?? 0) > 0 || (kind === 'exercise' && privateCount > 0)
+		).map((kind) => ({
 			kind,
 			count: feed.counts[kind] ?? 0
 		}))
@@ -340,6 +347,15 @@
 							<span class="tile__count">{tile.count}</span>
 							<span class="tile__label">{TILE_LABEL[tile.kind]()}</span>
 						</button>
+						{#if tile.kind === 'exercise' && privateCount > 0 && user}
+							<!-- A sibling of the button, not a child: an anchor inside a button is invalid
+							     HTML, and this goes somewhere the tile itself does not — the owner-only list
+							     of exercises nobody else can see. -->
+							<a class="tile__private" href={resolve('/users/[id]/unpublished', { id: user.id })}>
+								{m.profile_tile_unpublished({ count: privateCount })}
+								<!-- "+ {count} unpublished" -->
+							</a>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -712,6 +728,18 @@
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
 		text-align: center;
+	}
+	.tiles li {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.tile__private {
+		@include mix.focus-ring;
+		font-size: var(--font-size-xs);
+		color: var(--accent);
+		text-align: center;
+		text-decoration: underline;
 	}
 
 	.row {

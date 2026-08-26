@@ -396,6 +396,19 @@ class UserActivityView(APIView):
         items.sort(key=lambda i: (i['created_at'] is not None, i['created_at'] or ''), reverse=True)
 
         tags = sorted({t for item in items for t in item['tags']})
+        counts = {
+            kind: sum(1 for i in items if i['kind'] == kind) for kind in {i['kind'] for i in items}
+        }
+        # The exercise total comes from the stored counter, not from the list above, which is
+        # sliced at 50: somebody with 300 exercises used to read as having 50. The feed still shows
+        # its 50 newest; the tile says how many there really are. See accounts/counters.py.
+        published_total = (
+            Profile.objects.filter(user_id=pk)
+            .values_list('exercises_published_count', flat=True)
+            .first()
+        )
+        if published_total:
+            counts['exercise'] = published_total
         return Response(
             {
                 'items': items,
@@ -404,9 +417,6 @@ class UserActivityView(APIView):
                 # Per-kind totals, so the summary tiles on a one-screen profile do not each have to
                 # re-count a list the client may be filtering anyway. Counted from what this reader
                 # was actually given, so the tiles can never advertise something the feed withholds.
-                'counts': {
-                    kind: sum(1 for i in items if i['kind'] == kind)
-                    for kind in {i['kind'] for i in items}
-                },
+                'counts': counts,
             }
         )

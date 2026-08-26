@@ -5823,6 +5823,49 @@ change webek4's Apache/mod_wsgi setup was not built for. The dev server's own fi
 unbundled module graph, ~2.7 s cold, 250 requests, component styles injected by JS so collapsed
 nav icons can flash unstyled) is not what users get and was not chased.
 
+## 17AF. Profile exercise counts are stored integers, and the owner sees the unpublished ones (✅ built)
+
+Reported: a profile with more than fifty exercises said fifty. `UserActivityView` computed the
+tile's `counts` from its own `items`, and every source in that feed is sliced `[:50]` — so the
+number on the tile was the size of a page, not a total.
+
+- **Two integers on `Profile`** — `exercises_published_count` / `exercises_private_count`
+  (migration `accounts.0018`, with a backfill). "Private" is `published=False` for any reason: a
+  moderator unpublished it, an auto-hide, a removal. **Recounted, never incremented**
+  (`accounts/counters.py`): two `COUNT`s over an indexed FK are cheap, and a recount cannot drift —
+  an increment that misses one code path is wrong forever, a recount is right the next time
+  anything changes. `exercises/signals.py` calls it on every Exercise save and delete, and a
+  `pre_save` remembers the previous submitter so a reassignment recounts both people. The honest
+  limit is pinned by a test: a `QuerySet.update()` fires no signal, and is corrected by the next
+  save rather than never.
+- **The feed's `counts.exercise` is the stored number**; the feed still lists its 50 newest.
+- **`PublicProfileSerializer` carries `exercises_published_count` for anyone** (it counts exercises
+  that are themselves public, so `show_profile_publicly` guards nothing here) and
+  `exercises_private_count` **only for the owner — `null` to everybody else**, so a client can tell
+  "none" from "not yours to know".
+- **`GET /api/exercises/?unpublished=1`** lists the caller's own unpublished exercises (owner or
+  staff; anybody else gets an empty list, never the published list under a heading that says
+  otherwise). `_annotated_exercises` took a `published=` argument for it.
+- **Frontend**: the Exercises tile shows the published total, and on your own profile a
+  "+ N unpublished" link beneath it — a sibling of the tile button, not a child, because an anchor
+  inside a button is invalid HTML — opening `/users/[id]/unpublished`, which renders
+  `ExerciseCard`s and tells a non-owner in words that it is not theirs. The tile also appears when
+  everything you contributed is hidden (published 0, private > 0), or those exercises would be
+  unfindable.
+
+**One trap, worth the line**: `Count('pk', filter=Q(published=False))` in an annotation named
+`published` reads the *annotation*, not the column (`COUNT(...) FILTER (WHERE COUNT(...) = 0)`,
+which SQLite rejects as "misuse of aggregate function"). The annotations are `n_published` /
+`n_private` for that reason.
+
+**Verified**: 14 new tests (`accounts/test_exercise_counts.py`) — including 60 exercises reading
+as 60 with 50 items — alongside the accounts/exercises/community/moderation/study/taxonomy suites;
+`e2e/profile-exercise-counts.mjs` 10/10, zero console errors, screenshots looked at (which is how
+the list page's missing container was found). `npm run check` 0/0.
+
+**Left open**: no such counter for materials — `counts.material` is still the feed slice, so the
+same bug exists there past 50 materials; the same shape (two integers, a signal) fixes it.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

@@ -919,6 +919,8 @@ export interface RawProfile {
 	// show_profile_publicly (opting in to tutoring is itself the point of setting it).
 	offers_tutoring: boolean;
 	tutoring_note: string;
+	exercises_published_count?: number;
+	exercises_private_count?: number | null;
 }
 
 export function mapUser(json: RawProfile): User {
@@ -935,6 +937,8 @@ export function mapUser(json: RawProfile): User {
 		preferredLocale: json.preferred_locale,
 		offersTutoring: json.offers_tutoring,
 		tutoringNote: json.tutoring_note,
+		exercisesPublishedCount: json.exercises_published_count ?? 0,
+		exercisesPrivateCount: json.exercises_private_count,
 		isProfilePublic: json.is_profile_public ?? json.show_profile_publicly,
 		donationLinks: json.donation_links?.map(mapDonationLink),
 		showProfilePublicly: json.show_profile_publicly,
