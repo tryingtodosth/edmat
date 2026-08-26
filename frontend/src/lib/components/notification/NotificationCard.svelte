@@ -126,7 +126,8 @@
 		taxonomyApproved: () => m.notification_taxonomyApproved({ title: notification.targetLabel }),
 		taxonomyMerged: () => m.notification_taxonomyMerged({ title: notification.targetLabel }),
 		taxonomyMoved: () => m.notification_taxonomyMoved({ title: notification.targetLabel }),
-		taxonomyRejected: () => m.notification_taxonomyRejected({ title: notification.targetLabel })
+		taxonomyRejected: () => m.notification_taxonomyRejected({ title: notification.targetLabel }),
+		issueStatusChanged: () => m.notification_issueStatusChanged({ title: notification.targetLabel })
 	};
 
 	// A booking has no page of its own, and deliberately so: both parties' destination is the same
@@ -152,15 +153,17 @@
 			: // An event, unlike a booking, DOES have a page of its own — and it is the page carrying
 				// the new time or the cancellation notice, so it is where somebody clicking a
 				// notification about one wants to land.
-				notification.eventId
-				? resolve('/events/[id]', { id: notification.eventId })
-				: notification.exerciseId
-					? resolve('/exercises/[id]', { id: notification.exerciseId })
-					: notification.materialId
-						? resolve('/materials/[id]', { id: notification.materialId })
-						: notification.courseId
-							? resolve('/courses/[id]', { id: notification.courseId })
-							: undefined
+				notification.issueId
+				? resolve('/issues/[id]', { id: notification.issueId })
+				: notification.eventId
+					? resolve('/events/[id]', { id: notification.eventId })
+					: notification.exerciseId
+						? resolve('/exercises/[id]', { id: notification.exerciseId })
+						: notification.materialId
+							? resolve('/materials/[id]', { id: notification.materialId })
+							: notification.courseId
+								? resolve('/courses/[id]', { id: notification.courseId })
+								: undefined
 	);
 
 	function handleClick() {

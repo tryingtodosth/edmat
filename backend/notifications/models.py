@@ -90,6 +90,8 @@ NOTIFICATION_TYPES = [
     ('taxonomy_merged', 'Your suggestion already existed and was merged'),
     ('taxonomy_moved', 'Your suggestion was moved somewhere else in the taxonomy'),
     ('taxonomy_rejected', 'Your suggestion was not added'),
+    # Site issue reports (issues/): staff moved a report the recipient filed under their name.
+    ('issue_status_changed', 'Your issue report changed status'),
 ]
 
 
@@ -123,6 +125,10 @@ class Notification(models.Model):
     # cannot click is markedly less useful than one you can.
     event = models.ForeignKey(
         'events.Event', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    # Same shape again, for an issue report — the page it opens is the report itself.
+    issue = models.ForeignKey(
+        'issues.Issue', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
     # A moderator's own review_note/resolved_note, or a comment reply's own short preview — whatever
     # extra context that event type actually has, blank when it doesn't.

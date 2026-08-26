@@ -2222,6 +2222,7 @@ class FeatureFlagTests(APITestCase):
                 'exercise_submissions',
                 'material_submissions',
                 'events',
+                'issues',
                 'material_uploads_verified_only',
             },
         )
@@ -2239,6 +2240,7 @@ class FeatureFlagTests(APITestCase):
                     'exercise_submissions',
                     'material_submissions',
                     'events',
+                    'issues',
                 )
             )
         )

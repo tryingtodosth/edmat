@@ -72,6 +72,9 @@ class Profile(models.Model):
     # an auto-hide, a deliberate removal) — the exercise is still theirs, it is just not shown.
     exercises_published_count = models.PositiveIntegerField(default=0)
     exercises_private_count = models.PositiveIntegerField(default=0)
+    # The same pair for materials — `materials/signals.py`, the same bug, the same fix.
+    materials_published_count = models.PositiveIntegerField(default=0)
+    materials_private_count = models.PositiveIntegerField(default=0)
     # How many courses this account may own in total. Counted over every course it owns rather than
     # only the unfinished ones: "you have 3 of your 5" is a sentence somebody can act on, whereas a
     # cap that silently frees a slot when a course is marked finished is one people would discover

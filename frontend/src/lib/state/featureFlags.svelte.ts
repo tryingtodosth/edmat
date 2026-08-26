@@ -14,11 +14,18 @@ import type { FeatureFlag, FeatureFlagKey } from '$lib/types';
 import { getFeatureFlags, setFeatureFlag as apiSetFeatureFlag } from '$lib/services/featureFlags';
 
 let flags = $state<Record<string, FeatureFlag>>({});
+// Whether `refresh()` has completed once. Before that `isEnabled` fails open, which is right for
+// rendering links but wrong for firing a request the API will refuse — a page can wait on this.
+let loaded = $state(false);
 
 export const featureFlagsStore = {
 	get all(): FeatureFlag[] {
 		return Object.values(flags);
 	},
+	get isLoaded(): boolean {
+		return loaded;
+	},
+
 	isEnabled(key: FeatureFlagKey): boolean {
 		return flags[key]?.isEnabled ?? true;
 	},
@@ -27,6 +34,7 @@ export const featureFlagsStore = {
 		const next: Record<string, FeatureFlag> = {};
 		for (const flag of list) next[flag.key] = flag;
 		flags = next;
+		loaded = true;
 	},
 	async toggle(key: FeatureFlagKey, isEnabled: boolean): Promise<void> {
 		const updated = await apiSetFeatureFlag(key, isEnabled);

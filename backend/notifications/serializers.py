@@ -22,6 +22,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             'material_id',
             'course_id',
             'event_id',
+            'issue_id',
             'note',
             'is_read',
             'created_at',

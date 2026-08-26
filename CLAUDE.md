@@ -5863,8 +5863,53 @@ as 60 with 50 items — alongside the accounts/exercises/community/moderation/st
 `e2e/profile-exercise-counts.mjs` 10/10, zero console errors, screenshots looked at (which is how
 the list page's missing container was found). `npm run check` 0/0.
 
-**Left open**: no such counter for materials — `counts.material` is still the feed slice, so the
-same bug exists there past 50 materials; the same shape (two integers, a signal) fixes it.
+**Left open**: ~~no such counter for materials~~ — closed in 17AG (`materials/signals.py`, migration
+`accounts.0019`), the same shape; no "+ N unpublished" link for materials yet.
+
+## 17AG. "Report issue / Zgłoś błąd": site issue reports, filed from where you stand (✅ built, full stack)
+
+A new `issues` app. Distinct from `moderation.Report`, which flags one piece of content: an
+`Issue` is about the SITE — something broken, wrong content the reporter cannot point a report at,
+an idea, anything else — and it travels with where the person was when it occurred to them.
+
+- **Three entry points, one dialog.** A small link under the ∫ EdMat wordmark, **drawn over the bar
+  rather than in its flow** (absolutely positioned; the header does not grow — measured at the same
+  60px with and without it), with padding around the 11px label so the target is ~19px tall and
+  12px wider than the text; the same action in the account menu, the phone drawer and the footer.
+  All open `ReportIssueModal`, mounted once in the root layout and driven by `issueReportStore`.
+- **Context by default, editable.** `open()` captures the path and page title at the moment of the
+  click; the modal adds locale, viewport and browser, shows all of it, and lets the person change
+  the address and title. The type is pre-picked — `content` on an exercise/material/course page,
+  `bug` elsewhere — and shown as a select, because a guess shown as a fact is how wrong reports
+  get filed. Four kinds: bug / content / idea / other.
+- **Anonymity is real.** The owner chose "truly anonymous — not stored at all": an anonymous report
+  has `reporter=NULL` and a blank `contact_email`, and the hint says the cost out loud (nobody can
+  reply). Guests may file; they are anonymous unless they leave an email, which only staff ever see.
+- **Publication is the reporter's call.** Unpublished reports are staff-only — a 404 to everybody
+  else, the reporter included (chosen: "private to staff only; the reporter gets notifications").
+  Staff may un-publish, never publish (`IssueStaffUpdateSerializer.validate_is_public`), and cannot
+  edit the reporter's words. A published report has a page, `/issues/[id]`, with the shared
+  `DiscussionThread` under it (a fifteenth `Comment` target: `('issues', 'issue') → 'issue'`).
+- **Status is one field** (`open → in_progress → resolved / closed`), moved by staff from a panel on
+  the page, with a note. A status change notifies the reporter (`issue_status_changed`, under the
+  moderation-decision preference, with a nullable `Notification.issue` FK like `event` before it);
+  a note alone does not, and an anonymous report notifies nobody.
+- **`issues` is a kill switch** like every other feature: off, filing 403s, `/issues` shows the
+  disabled notice, and every link — under the logo, in both menus, in the footer — goes.
+  `featureFlagsStore` gained `isLoaded`, because a gated page firing its list request before the
+  flags arrive fails open into a 403 in the console.
+- Filing has its own throttle scope (`issue_report`, 10/hour per IP): the form is open to guests.
+
+**Verified**: 20 tests in `issues/tests.py`; `e2e/issue-reports.mjs` 34 checks, zero console/page
+errors — the link's position and hit area measured, a guest's anonymous public report, a named
+private one, its 404 to the reporter, staff resolving it with a note and the reporter's notification
+linking back, the phone drawer, and the kill switch removing all four links; screenshots looked at.
+
+**Left open**: no screenshot/attachment on a report; no editing or deleting your own report; no
+"my reports" list (private ones are deliberately staff-only); comments on an issue are not yet
+in `PRIVATE_TARGET_TYPES`, so linking a private issue's thread into a course would be refused only
+by the 404 on the issue itself; the profile's material tile now uses the stored counter (17AF's own
+left-open item, closed here) but there is no "+ N unpublished" link for materials.
 
 ## 18. Open questions
 

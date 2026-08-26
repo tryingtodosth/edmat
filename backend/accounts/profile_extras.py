@@ -402,13 +402,16 @@ class UserActivityView(APIView):
         # The exercise total comes from the stored counter, not from the list above, which is
         # sliced at 50: somebody with 300 exercises used to read as having 50. The feed still shows
         # its 50 newest; the tile says how many there really are. See accounts/counters.py.
-        published_total = (
+        stored = (
             Profile.objects.filter(user_id=pk)
-            .values_list('exercises_published_count', flat=True)
+            .values('exercises_published_count', 'materials_published_count')
             .first()
         )
-        if published_total:
-            counts['exercise'] = published_total
+        if stored:
+            if stored['exercises_published_count']:
+                counts['exercise'] = stored['exercises_published_count']
+            if stored['materials_published_count']:
+                counts['material'] = stored['materials_published_count']
         return Response(
             {
                 'items': items,

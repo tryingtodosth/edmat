@@ -43,6 +43,7 @@
 	import { moderationQueueStore } from '$lib/state/moderationQueue.svelte';
 	import { saveTargetsStore } from '$lib/state/saveTargets.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import { issueReportStore } from '$lib/state/issueReport.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import Popover from '$lib/components/shared/Popover.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
@@ -63,6 +64,7 @@
 	let canSubmitMaterial = $derived(can('material_submissions'));
 	let canClassroom = $derived(can('classroom'));
 	let canTutoring = $derived(can('tutoring'));
+	let canIssues = $derived(can('issues'));
 	let canEvents = $derived(can('events'));
 	let canMessaging = $derived(can('messaging'));
 
@@ -347,6 +349,19 @@
 		</a>
 	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
+	{#if canIssues}
+		<button
+			type="button"
+			role="menuitem"
+			class="{itemClass} menu-item--button"
+			onclick={() => {
+				onclick();
+				issueReportStore.open();
+			}}
+		>
+			{m.nav_reportIssue()}
+		</button>
+	{/if}
 	<button
 		type="button"
 		role="menuitem"
@@ -512,6 +527,15 @@
 			<span class="brand__mark" aria-hidden="true">∫</span>
 			<span class="brand__name">{m.common_appName()}</span>
 		</a>
+		{#if canIssues}
+			<!-- Drawn OVER the bar, under the wordmark, rather than in the flow: the bar must not grow
+			     for it. Absolutely positioned against the row, with padding around the text so the hit
+			     area is comfortably larger than the 11px label itself. -->
+			<button type="button" class="brand__report no-print" onclick={() => issueReportStore.open()}>
+				{m.nav_reportIssue()}
+				<!-- "Report issue" -->
+			</button>
+		{/if}
 
 		<!-- Places to go and look at things. Create flows are deliberately not in here any more, and
 		     neither is moderation — see the shield in the icon cluster for where that went. -->
@@ -799,6 +823,18 @@
 			<a class="drawer__item" href={resolve('/login')} onclick={closeOnNavigate}>
 				{m.nav_login()}
 			</a>
+			{#if canIssues}
+				<button
+					type="button"
+					class="drawer__item menu-item--button"
+					onclick={() => {
+						closeOnNavigate();
+						issueReportStore.open();
+					}}
+				>
+					{m.nav_reportIssue()}
+				</button>
+			{/if}
 			<a
 				class="drawer__item drawer__item--primary"
 				href={resolve('/register')}
@@ -840,6 +876,7 @@
 	.site-header__row {
 		max-width: 1100px;
 		margin: 0 auto;
+		position: relative; // the anchor for .brand__report
 		display: flex;
 		align-items: center;
 		gap: var(--hdr-gap);
@@ -860,6 +897,28 @@
 	}
 	.brand__mark {
 		color: var(--accent);
+	}
+	// Under the wordmark, over the bar's bottom padding — the row never grows for it. The padding
+	// is the hit area: the label is 11px, the target is ~19px tall and wider than the text by 12px.
+	.brand__report {
+		@include mix.focus-ring;
+		position: absolute;
+		left: calc(var(--hdr-pad-x) - 6px);
+		top: calc(50% + 0.65em);
+		z-index: 1;
+		padding: 4px 6px;
+		font-size: 11px;
+		line-height: 1;
+		white-space: nowrap;
+		color: var(--text-secondary);
+		background: none;
+		border: 0;
+		cursor: pointer;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.site-nav {
 		display: flex;
@@ -1129,7 +1188,8 @@
 	// the brand plus the drawer button, so the brand must come back there. In the 721–850px band a
 	// Home entry appears in the account menu, and page breadcrumbs keep home reachable for guests.
 	@media (max-width: 850px) and (min-width: 721px) {
-		.brand {
+		.brand,
+		.brand__report {
 			display: none;
 		}
 	}

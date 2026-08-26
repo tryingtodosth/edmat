@@ -16,6 +16,7 @@
 	import '$lib/state/locale.svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
+	import ReportIssueModal from '$lib/components/issues/ReportIssueModal.svelte';
 
 	let { children } = $props();
 
@@ -52,6 +53,7 @@
 		{@render children()}
 	</main>
 	<Footer />
+	<ReportIssueModal />
 </div>
 
 <style lang="scss">

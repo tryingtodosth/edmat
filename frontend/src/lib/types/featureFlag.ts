@@ -15,6 +15,7 @@ export type FeatureFlagKey =
 	| 'exercise_submissions'
 	| 'material_submissions'
 	| 'events'
+	| 'issues'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

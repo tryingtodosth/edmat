@@ -35,6 +35,7 @@ TARGET_TYPE_BY_MODEL = {
     ('courses', 'courseclaim'): 'courseClaim',
     ('exercises', 'exerciseclaim'): 'exerciseClaim',
     ('community', 'review'): 'review',
+    ('issues', 'issue'): 'issue',
 }
 
 # The targets whose own threads are NOT public: a course's discussion, and a week's or a session's

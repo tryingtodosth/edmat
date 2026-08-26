@@ -311,6 +311,8 @@ FEATURE_FLAG_CHOICES = [
     # points at them — the nav entry, the "Add…" menu item, the homepage tab and the profile links.
     # A killed feature that still shows its buttons is a feature that only breaks louder.
     ('events', 'One-off events'),
+    # Site issue reports (issues/). Off: no filing, no /issues page, and every link to it goes.
+    ('issues', 'Site issue reports'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

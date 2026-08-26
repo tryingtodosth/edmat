@@ -74,6 +74,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             'tutoring_note',
             'exercises_published_count',
             'exercises_private_count',
+            'materials_published_count',
+            'materials_private_count',
         ]
 
     def get_is_node_governor(self, obj):
@@ -139,6 +141,7 @@ class PublicProfileSerializer(serializers.ModelSerializer):
     # The unpublished count is the owner's own business and nobody else's: it is `null` for any
     # other reader rather than 0, so a client can tell "none" from "not yours to know".
     exercises_private_count = serializers.SerializerMethodField()
+    materials_private_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -164,17 +167,23 @@ class PublicProfileSerializer(serializers.ModelSerializer):
             # public (`?submitted_by=` lists them for anyone), so it withholds nothing that flag guards.
             'exercises_published_count',
             'exercises_private_count',
+            'materials_published_count',
+            'materials_private_count',
         ]
 
     def get_email(self, obj):
         return ''
 
-    def get_exercises_private_count(self, obj):
+    def _is_owner(self, obj) -> bool:
         request = self.context.get('request')
         user = getattr(request, 'user', None)
-        if user is not None and user.is_authenticated and user.pk == obj.user_id:
-            return obj.exercises_private_count
-        return None
+        return user is not None and user.is_authenticated and user.pk == obj.user_id
+
+    def get_exercises_private_count(self, obj):
+        return obj.exercises_private_count if self._is_owner(obj) else None
+
+    def get_materials_private_count(self, obj):
+        return obj.materials_private_count if self._is_owner(obj) else None
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)

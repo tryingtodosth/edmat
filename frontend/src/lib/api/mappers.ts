@@ -59,6 +59,7 @@ import type {
 	Topic,
 	User
 } from '$lib/types';
+import type { Issue } from '$lib/types/issue';
 
 function undefinedIfEmpty(value: string | null | undefined): string | undefined {
 	return value ? value : undefined;
@@ -879,7 +880,8 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	taxonomy_approved: 'taxonomyApproved',
 	taxonomy_merged: 'taxonomyMerged',
 	taxonomy_moved: 'taxonomyMoved',
-	taxonomy_rejected: 'taxonomyRejected'
+	taxonomy_rejected: 'taxonomyRejected',
+	issue_status_changed: 'issueStatusChanged'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -959,6 +961,50 @@ export function mapUser(json: RawProfile): User {
 	};
 }
 
+// ---- issues -----------------------------------------------------------------------------------
+
+export interface RawIssue {
+	id: number;
+	kind: Issue['kind'];
+	title: string;
+	body: string;
+	context: Record<string, string>;
+	reporter: number | null;
+	reporter_display_name: string;
+	contact_email: string;
+	is_public: boolean;
+	status: Issue['status'];
+	staff_note: string;
+	comment_count: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export function mapIssue(json: RawIssue): Issue {
+	return {
+		id: String(json.id),
+		kind: json.kind,
+		title: json.title,
+		body: json.body,
+		context: {
+			path: json.context?.path,
+			pageTitle: json.context?.page_title,
+			locale: json.context?.locale,
+			viewport: json.context?.viewport,
+			userAgent: json.context?.user_agent
+		},
+		reporterId: json.reporter !== null ? String(json.reporter) : undefined,
+		reporterDisplayName: json.reporter_display_name,
+		contactEmail: json.contact_email,
+		isPublic: json.is_public,
+		status: json.status,
+		staffNote: json.staff_note,
+		commentCount: json.comment_count ?? 0,
+		createdAt: json.created_at,
+		updatedAt: json.updated_at
+	};
+}
+
 // ---- node governors -----------------------------------------------------------------------------
 
 export interface RawNodeGovernorGrant {
@@ -1028,6 +1074,7 @@ export interface RawNotification {
 	material_id: number | null;
 	course_id: number | null;
 	event_id: number | null;
+	issue_id?: number | null;
 	note: string;
 	is_read: boolean;
 	created_at: string;
@@ -1046,6 +1093,8 @@ export function mapNotification(json: RawNotification): Notification {
 			json.course_id !== null && json.course_id !== undefined ? String(json.course_id) : undefined,
 		eventId:
 			json.event_id !== null && json.event_id !== undefined ? String(json.event_id) : undefined,
+		issueId:
+			json.issue_id !== null && json.issue_id !== undefined ? String(json.issue_id) : undefined,
 		note: json.note,
 		isRead: json.is_read,
 		createdAt: json.created_at

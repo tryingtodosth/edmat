@@ -147,3 +147,45 @@ class UnpublishedListTests(CounterTestCase):
     def test_the_ordinary_list_is_untouched(self):
         res = APIClient().get(f'/api/exercises/?submitted_by={self.me.pk}')
         self.assertEqual([e['id'] for e in res.data], [self.shown.pk])
+
+
+class MaterialCounterTests(CounterTestCase):
+    """The material twin — same signals, same feed override, same owner-only private count."""
+
+    def upload(self, user, *, published=True):
+        from testing.factories import make_material
+
+        material = make_material(self.branch, slug=f'm-{self.next_number}')
+        self.next_number += 1
+        material.submitted_by = user
+        material.published = published
+        material.save()
+        return material
+
+    def material_counts(self, user):
+        profile = Profile.objects.get(user=user)
+        return (profile.materials_published_count, profile.materials_private_count)
+
+    def test_saving_unpublishing_and_deleting_move_the_counters(self):
+        material = self.upload(self.me)
+        self.assertEqual(self.material_counts(self.me), (1, 0))
+        material.published = False
+        material.save()
+        self.assertEqual(self.material_counts(self.me), (0, 1))
+        material.delete()
+        self.assertEqual(self.material_counts(self.me), (0, 0))
+
+    def test_the_tile_count_is_the_stored_total_not_the_feed_slice(self):
+        for _ in range(55):
+            self.upload(self.me)
+        res = APIClient().get(f'/api/users/{self.me.pk}/activity/')
+        self.assertEqual(res.data['counts']['material'], 55)
+        self.assertEqual(sum(1 for i in res.data['items'] if i['kind'] == 'material'), 50)
+
+    def test_only_the_owner_sees_the_private_count(self):
+        self.upload(self.me, published=False)
+        mine = self.as_(self.me).get(f'/api/users/{self.me.pk}/')
+        self.assertEqual(mine.data['materials_private_count'], 1)
+        self.assertEqual(mine.data['materials_published_count'], 0)
+        theirs = APIClient().get(f'/api/users/{self.me.pk}/')
+        self.assertIsNone(theirs.data['materials_private_count'])

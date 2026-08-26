@@ -263,6 +263,7 @@ node e2e/material-claims-rework.mjs   # E2E_BASE=http://localhost:5173; signs in
 node e2e/course-claims.mjs            # E2E_COURSE=<public course id with a subject branch>
 node e2e/login-return.mjs
 E2E_USER=<id> E2E_PUBLISHED=55 E2E_PRIVATE=2 node e2e/profile-exercise-counts.mjs   # needs an account with >50 exercises; see its header
+node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs in as ola + kasia, toggles the `issues` flag and restores it
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
@@ -575,6 +576,13 @@ to `/users/{id}/unpublished` (a stranger and another signed-in user both get nei
 the list). Needs an account with more than 50 exercises — the done.md entry for this work has the
 `manage.py shell` snippet that seeds 57 (and note that a scratch `Exercise` needs an
 `ExerciseSource` row, or the card mapper throws on `source.type`).
+
+**`e2e/issue-reports.mjs` (34 checks)** — "Report issue": the link under the logo measured as drawn
+over the bar with a hit area larger than its text; the modal pre-filling path/title/type; a guest's
+anonymous public report (no reporter stored, checked via the API); a signed-in private report
+404ing to its own reporter and listed for staff; a comment under a public one; staff resolving with
+a note and the reporter's notification linking to the report; the phone drawer; and the kill switch
+removing every link, the page and the API. Deletes nothing — remove `e2e-issue-*` rows afterwards.
 
 **`e2e/course-search.mjs` (24 checks)** — searching inside one course, in three contexts, because
 the whole point is that the same box shows the owner, a participant and a stranger different things.

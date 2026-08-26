@@ -207,7 +207,8 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		taxonomyApproved: 'notifyOnModerationDecision',
 		taxonomyMerged: 'notifyOnModerationDecision',
 		taxonomyMoved: 'notifyOnModerationDecision',
-		taxonomyRejected: 'notifyOnModerationDecision'
+		taxonomyRejected: 'notifyOnModerationDecision',
+		issueStatusChanged: 'notifyOnModerationDecision'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -250,7 +251,8 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	taxonomyApproved: m.notifPref_taxonomyApproved,
 	taxonomyMerged: m.notifPref_taxonomyMerged,
 	taxonomyMoved: m.notifPref_taxonomyMoved,
-	taxonomyRejected: m.notifPref_taxonomyRejected
+	taxonomyRejected: m.notifPref_taxonomyRejected,
+	issueStatusChanged: m.notifPref_issueStatusChanged
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
@@ -263,5 +265,6 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	exercise_submissions: m.featureFlags_label_exerciseSubmissions,
 	material_submissions: m.featureFlags_label_materialSubmissions,
 	events: m.featureFlags_label_events,
+	issues: m.featureFlags_label_issues,
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };

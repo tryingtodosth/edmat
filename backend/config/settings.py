@@ -133,6 +133,7 @@ INSTALLED_APPS = [
     'notifications',
     'services',
     'messaging',
+    'issues',
     'telemetry',
     'identity',
     'courses',
@@ -528,6 +529,9 @@ REST_FRAMEWORK = {
         # Per-IP password guessing. 10/min is roughly 3x what a human fumbling a password does and
         # ~4 orders of magnitude below a useful brute-force rate.
         'login': '10/min',
+        # Filing a site issue is open to guests, so it needs its own bound: enough for a person who
+        # hits three things in a row, far too few for a script filling the queue.
+        'issue_report': '10/hour',
         # Per-account, IP-independent — the credential-stuffing case a per-IP limit cannot see. Much
         # looser than the per-IP rate on purpose: this key is one an attacker who knows a victim's
         # email can deliberately exhaust to lock the real owner out, so it's sized to stop a

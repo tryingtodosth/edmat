@@ -59,7 +59,9 @@ export type NotificationType =
 	| 'taxonomyApproved'
 	| 'taxonomyMerged'
 	| 'taxonomyMoved'
-	| 'taxonomyRejected';
+	| 'taxonomyRejected'
+	// Staff moved a site issue report the recipient filed under their name (issues/).
+	| 'issueStatusChanged';
 
 export interface Notification {
 	id: string;
@@ -71,6 +73,7 @@ export interface Notification {
 	materialId?: string; // set instead of exerciseId when a newTaggedContent notification targets a Material
 	courseId?: string; // set for the branch types, which have neither an exercise nor a material
 	eventId?: string; // set for the event types, which have none of the three above
+	issueId?: string; // set for issueStatusChanged — the report itself is the page to open
 	note: string;
 	isRead: boolean;
 	createdAt: string;

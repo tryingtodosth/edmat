@@ -61,6 +61,7 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'event_updated': 'notify_on_event',
     'event_cancelled': 'notify_on_event',
     'event_posted': 'notify_on_event',
+    'issue_status_changed': 'notify_on_moderation_decision',
     # Taxonomy proposals (taxonomy/). Under the existing moderation-decision category rather than a
     # new one: somebody proposed a word, a moderator decided on it, and that is the same kind of
     # event as a decision on a submitted exercise — a separate switch would be splitting hairs the
@@ -112,6 +113,7 @@ def notify(
     material=None,
     course=None,
     event=None,
+    issue=None,
     note: str = '',
 ):
     """Creates one Notification, or silently no-ops when there's genuinely nothing to notify:
@@ -159,6 +161,7 @@ def notify(
         material=material,
         course=course,
         event=event,
+        issue=issue,
         note=(note or '')[:500],
     )
 

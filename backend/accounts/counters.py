@@ -20,11 +20,22 @@ from .models import Profile
 
 def recount_exercises(user_id) -> None:
     """Recompute both exercise counters for one account from the Exercise table itself."""
-    if user_id is None:
-        return
     from exercises.models import Exercise
 
-    totals = Exercise.objects.filter(submitted_by_id=user_id).order_by().aggregate(
+    _recount(user_id, Exercise, 'exercises')
+
+
+def recount_materials(user_id) -> None:
+    """The same for materials — `Material.submitted_by`/`published` have the identical meaning."""
+    from materials.models import Material
+
+    _recount(user_id, Material, 'materials')
+
+
+def _recount(user_id, model, prefix: str) -> None:
+    if user_id is None:
+        return
+    totals = model.objects.filter(submitted_by_id=user_id).order_by().aggregate(
         # Named so as not to shadow the `published` column inside the second filter.
         n_published=Count('pk', filter=Q(published=True)),
         n_private=Count('pk', filter=Q(published=False)),
@@ -33,6 +44,8 @@ def recount_exercises(user_id) -> None:
     # it cannot overwrite a concurrent edit to somebody's bio with a stale copy, and it is a no-op
     # (0 rows) for a user that has no Profile row yet rather than an exception.
     Profile.objects.filter(user_id=user_id).update(
-        exercises_published_count=totals['n_published'] or 0,
-        exercises_private_count=totals['n_private'] or 0,
+        **{
+            f'{prefix}_published_count': totals['n_published'] or 0,
+            f'{prefix}_private_count': totals['n_private'] or 0,
+        }
     )
