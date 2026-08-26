@@ -5917,9 +5917,13 @@ its own `.drawer__close` in `.drawer__top`, styled exactly like the old floating
 the drawer alone (its ✕ is inside it); Escape still returns focus to the ☰. On phones the "Report
 issue" link sits beside the brand in the flow, since a 43px bar has no room for it underneath.
 `e2e/phone-navbar.mjs` (12 checks) pins all of it; the older `events-and-nav.mjs` assertion that
-the toggle "stays exactly where it was" was inverted to match. Both `events-and-nav.mjs` and
-`known-issues.mjs` currently die earlier, in their event-form sections (`fd70011` made date/time
-optional and the "Starts" field no longer matches) — pre-existing, filed on the board.
+the toggle "stays exactly where it was" was inverted to match. Both `events-and-nav.mjs` (92/92)
+and `known-issues.mjs` (23/23) were then repaired from four drifts none of which was an app bug:
+`fd70011` made an event's date optional and private by default (the scripts now pick the exact-
+date mode and public visibility), `goto` waited for `networkidle` (never fires on a signed-in page,
+e2e/CLAUDE.md trap 2), "My Set"/"Disciplines" wording, and a `hasText: /^Events$/` that never
+matched once the in-place icon span left the anchor's textContent as `" Events"` — found by
+dumping the anchors, not by reading the assertion.
 
 **Left open**: no screenshot/attachment on a report; no editing or deleting your own report; no
 "my reports" list (private ones are deliberately staff-only); comments on an issue are not yet

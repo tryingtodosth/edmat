@@ -61,7 +61,9 @@ const settle = (page, ms = 900) => page.waitForTimeout(ms);
  * label's own span instead, which is the text a person actually reads as the field's name. */
 const placeInput = (page) => page.locator('label.field:has(span:text-is("Place")) input');
 async function goto(page, path) {
-	await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+	// 'load', not 'networkidle': the notification SSE stream keeps a request open on every signed-in
+	// page, so networkidle never fires there (e2e/CLAUDE.md, trap 2).
+	await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
 	await settle(page);
 }
 
@@ -124,6 +126,10 @@ check('with real subjects in it', subjectCount > 0, `count=${subjectCount}`);
 // exactly the kind of thing a new field silently shifts.
 const TITLE = `Warsztat ${Date.now()}`;
 await host.getByLabel('Title', { exact: true }).fill(TITLE);
+// Since fd70011 the date is optional: pick the "exact" scheduling mode so the field renders.
+await host.locator('input[name="event-scheduling"][value="exact"]').check({ force: true });
+await host.locator('input[name="event-visibility"][value="public"]').check({ force: true });
+await host.locator('input[type="datetime-local"]').waitFor();
 await host.locator('input[type="datetime-local"]').fill(whenLocal);
 await placeInput(host).fill('Sala 101');
 const firstSubjectLabel = (await host.locator('.subjects .check span').first().innerText()).trim();

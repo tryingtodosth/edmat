@@ -588,8 +588,10 @@ removing every link, the page and the API. Deletes nothing — remove `e2e-issue
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;
 the Report-issue link inside the bar; focus trapped in the drawer over 60 Tabs; Escape returning
-focus to the ☰. Signs nobody in. **Known:** `events-and-nav.mjs` and `known-issues.mjs` both stop in
-their event-form sections since `fd70011` (the "Starts" field), before reaching their drawer checks.
+focus to the ☰. Signs nobody in. (`events-and-nav.mjs` 92/92 and `known-issues.mjs` 23/23 are green
+again as of 2026-08-26 — both had drifted from the event form: the exact-date scheduling mode and
+public visibility now have to be chosen explicitly, `goto` had to stop waiting for `networkidle`,
+and a drawer link is found by role because the icon span leaves its textContent as " Events".)
 
 **`e2e/course-search.mjs` (24 checks)** — searching inside one course, in three contexts, because
 the whole point is that the same box shows the owner, a participant and a stranger different things.

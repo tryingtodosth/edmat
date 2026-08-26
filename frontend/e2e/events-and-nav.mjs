@@ -87,7 +87,9 @@ async function renew(page) {
 const settle = (page, ms = 900) => page.waitForTimeout(ms);
 
 async function goto(page, path) {
-	await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
+	// 'load', not 'networkidle': the notification SSE stream keeps a request open on every signed-in
+	// page, so networkidle never fires there (e2e/CLAUDE.md, trap 2).
+	await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
 	await settle(page, 900);
 }
 
@@ -242,7 +244,8 @@ const accountMenu = hostPage.locator('header [role="menu"]').last();
 const accountItems = (await accountMenu.innerText()).replace(/\n+/g, ' | ');
 for (const [label, needle] of [
 	['Profile', /Profile/i],
-	['My Set', /My Set/i],
+	// My Set moved out of this menu onto the bar's bookmark icon; Report issue (2026-08-26) joined it.
+	['Report issue', /Report issue/i],
 	['the schedule', /My schedule/i],
 	['Settings', /Settings/i],
 	['Log out', /Log out/i]
@@ -343,6 +346,13 @@ await field(/^Title/).fill(TITLE);
 // Anchored, because "Place" is also a substring of "Limit on places" — a real strict-mode violation
 // this hit on the first run.
 await field(/^Place/).fill('room 4070, Banacha 2');
+// Since fd70011 the date is optional: the "exact" scheduling mode has to be chosen before the
+// datetime field exists at all.
+await hostPage.locator('input[name="event-scheduling"][value="exact"]').check({ force: true });
+// …and, since the same change, an event is private ("only me") by default; everything below needs
+// a second person to be able to see it.
+await hostPage.locator('input[name="event-visibility"][value="public"]').check({ force: true });
+await field(/^Starts/).waitFor();
 // `datetime-local` wants a LOCAL "YYYY-MM-DDTHH:mm" with no zone, so it is built from the browser's
 // own clock rather than from an ISO string, which would silently shift the hour.
 await field(/^Starts/).evaluate((el) => {
@@ -524,7 +534,9 @@ const live = (
 			duration_minutes: 60,
 			location_kind: 'online',
 			online_url: 'https://example.invalid/room',
-			status: 'published'
+			status: 'published',
+			// Private by default since fd70011; the goer below has to be able to see it.
+			visibility: 'public'
 		})
 	})
 ).body;
@@ -663,9 +675,9 @@ const drawer = phone.locator('#site-drawer');
 check('it opens a drawer', await drawer.isVisible());
 const drawerText = (await drawer.innerText()).replace(/\n+/g, ' | ');
 for (const [label, needle] of [
-	// Was /Browse fields/ — the taxonomy rename made the nav say Disciplines, and this assertion
-	// was never updated, so it failed on wording rather than on anything being missing.
-	['the browse links', /Disciplines/i],
+	// Was /Browse fields/, then /Disciplines/ — the link reads "Exercises" since 2026-08-25. Each
+	// time it failed on wording rather than on anything being missing.
+	['the browse links', /\bExercises\b/],
 	['the events link', /\bEvents\b/],
 	['the create actions', /Host an event/i],
 	['the account items', /Log out/i],
@@ -713,8 +725,10 @@ check(
 // torn down by the navigation, so a drawer left open would sit over the page it just went to.
 await toggle.click();
 await settle(phone, 700);
+// By accessible name, not `hasText`: the in-place icon span (2026-08-10) leaves the anchor's
+// textContent as " Events", and a regex `hasText` does not trim, so /^Events$/ matched nothing.
 await drawer
-	.locator('a', { hasText: /^Events$/ })
+	.getByRole('link', { name: /^Events$/ })
 	.first()
 	.click();
 await settle(phone, 1800);
