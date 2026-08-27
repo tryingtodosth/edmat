@@ -43,7 +43,7 @@ REPORT_REASONS = [
     '',  # a real, common case — a report with no written reason at all
 ]
 
-EDIT_FIELDS = ['statement', 'hint', 'answer', 'solution', 'title']
+EDIT_FIELDS = ['statement', 'answer', 'title']  # hint/solution edits target SolutionEntry rows now
 
 MANIFEST_DEFAULT = '/tmp/edmat_loadtest_manifest.json'
 
@@ -141,9 +141,7 @@ class Command(BaseCommand):
                 payload={
                     'title': f'Load-test submission {i}',
                     'statement': f'<p>Prove that the sequence $a_n = 1/n$ converges to 0. (synthetic load-test item {i})</p>',
-                    'hint': 'Use the definition of a limit with epsilon.',
                     'answer': '',
-                    'solution': '<p>For any epsilon &gt; 0, choose N &gt; 1/epsilon.</p>',
                     'difficulty': random.choice(['easy', 'medium', 'hard']),
                     'locale': 'pl',
                     'topic_ids': [],
@@ -190,9 +188,7 @@ class Command(BaseCommand):
                 locale='en',
                 title=f'Load-test translation {i}',
                 statement=f'<p>Synthetic English translation for load-test item {i}.</p>',
-                hint='',
                 answer='',
-                solution='',
                 status='pending',
                 translated_by=random.choice(users),
             )

@@ -27,7 +27,10 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('accounts', '0018_profile_exercise_counts'),
-        ('materials', '__latest__'),
+        # Pinned from ('materials', '__latest__') — same latent graph bug accounts.0018 hit with
+        # exercises: a dynamic dependency breaks the instant materials gains a migration after this
+        # one is applied.
+        ('materials', '0015_alter_materialcoverage_unique_together_and_more'),
     ]
 
     operations = [

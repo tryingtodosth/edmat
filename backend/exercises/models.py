@@ -137,17 +137,20 @@ class ExerciseSourceTranslation(models.Model):
 
 
 class ExerciseTranslation(models.Model):
-    """THE translation table — the one place title/statement/hint/answer/solution live, for every
-    locale including the original. `status` makes a submitted-but-unreviewed translation a real,
-    queryable thing (CLAUDE.md Section 10)."""
+    """THE translation table — the one place title/statement/answer live, for every locale
+    including the original. `status` makes a submitted-but-unreviewed translation a real,
+    queryable thing (CLAUDE.md Section 10).
+
+    `hint`/`solution` used to live here too and were MOVED OUT (migrations 0009–0011, 2026-08) into
+    the `SolutionEntry` pool below — an exercise now carries any number of peer hints/solutions,
+    each in one language, voted on and individually reviewed. A "translation" of a solution is just
+    another entry in that language, never a field here."""
 
     exercise = models.ForeignKey(Exercise, related_name='translations', on_delete=models.CASCADE)
     locale = models.CharField(max_length=8)
     title = models.CharField(max_length=300)
     statement = models.TextField()
-    hint = models.TextField(blank=True)
     answer = models.TextField(blank=True)
-    solution = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=TRANSLATION_STATUS_CHOICES, default='pending')
     translated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -201,10 +204,106 @@ class ExerciseTranslation(models.Model):
 
         self.title = sanitize_content(self.title)
         self.statement = sanitize_content(self.statement)
-        self.hint = sanitize_content(self.hint)
         self.answer = sanitize_content(self.answer)
-        self.solution = sanitize_content(self.solution)
         super().save(*args, **kwargs)
+
+
+ENTRY_KIND_CHOICES = [
+    ('hint', 'Hint'),
+    ('solution', 'Solution'),
+]
+
+
+class SolutionEntry(models.Model):
+    """One hint or one solution for an exercise — a PEER in a ranked pool, not a field on a
+    translation. This model replaced `ExerciseTranslation.hint`/`.solution` outright (2026-08,
+    migrations 0009–0011): an exercise can now carry several solutions and several hints, each
+    written by a named person in one language, voted on, discussed, reportable, and individually
+    review-gated. The corpus's own original hints/solutions were migrated in as PINNED, published
+    rows (`author=None`, the same "nobody here submitted this" honesty `Exercise.submitted_by`
+    already carries for migrated content).
+
+    Design decisions, each made explicitly with the owner (2026-08-27), not defaulted to:
+
+    - **All entries are peers; `pinned` floats one (or more) to the top.** The original corpus
+      solutions are pinned; staff/node governors can pin/unpin any entry. Ordering everywhere is
+      pinned-first, then net weighted vote score.
+    - **`locale` is the language the entry is WRITTEN in** — not a translation axis. A solution
+      rendered into another language is simply another entry in that language, never a translation
+      row of an existing one. Readers see entries matching their content locale by default and can
+      pull in the rest through an explicit action ("2 more in English").
+    - **`status` gates non-verified authors only**: an entry by a verified contributor / staff /
+      governor publishes immediately; anybody else's starts `pending`, visible inline to its own
+      author and to reviewers. ONE accept (any verified contributor, staff, or a governor of the
+      exercise's branch — see `views.can_review_entry`, the single seam where a future
+      field/branch-expert SKILL check will slot in) publishes it; one deny (note required) rejects
+      it and notifies the author.
+    - **`Exercise.verified` is DERIVED from this table** (signals.py's `recount_verified`): at
+      least one published, visible solution that passed review — pinned, or reviewed by someone,
+      or written by a verified contributor. Recounted, never incremented, same reasoning as
+      accounts/counters.py.
+    - `is_removed`/`auto_hidden_at` wire this into the existing report/auto-hide system exactly
+      like a Comment (`REPORT_KIND_MODELS['solution_entry']`); the viewer pool is the exercise's.
+    """
+
+    exercise = models.ForeignKey(Exercise, related_name='entries', on_delete=models.CASCADE)
+    kind = models.CharField(max_length=10, choices=ENTRY_KIND_CHOICES)
+    locale = models.CharField(max_length=8)
+    body = models.TextField()
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        related_name='solution_entries',
+        on_delete=models.SET_NULL,
+    )
+    status = models.CharField(max_length=10, choices=TRANSLATION_STATUS_CHOICES, default='pending')
+    pinned = models.BooleanField(default=False)
+    is_removed = models.BooleanField(default=False)
+    auto_hidden_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    review_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-pinned', 'created_at']
+        verbose_name_plural = 'solution entries'
+
+    def __str__(self) -> str:
+        return f'{self.kind} for {self.exercise} [{self.locale}/{self.status}]'
+
+    def save(self, *args, **kwargs):
+        # Same one-choke-point server-side sanitization every ExerciseTranslation write already
+        # gets — see that model's own save() for why this lives here and not at each call site.
+        from config.sanitize import sanitize_content
+
+        self.body = sanitize_content(self.body)
+        super().save(*args, **kwargs)
+
+    def is_visible_to_readers(self) -> bool:
+        return self.status == 'published' and not self.is_removed and self.auto_hidden_at is None
+
+
+class SolutionEntryVote(models.Model):
+    """One ▲/▼ per user per entry — "is this correct and helpful", a single axis on purpose (the
+    claims system's separate accuracy/importance votes answer two genuinely different questions; a
+    solution has only one). Weight is applied at read time by the same shared
+    `materials/services.py` vote math every claim/requirement vote already uses (a verified
+    contributor's vote counts double), via this model's own `related_name='votes'`."""
+
+    entry = models.ForeignKey(SolutionEntry, related_name='votes', on_delete=models.CASCADE)
+    voter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    value = models.SmallIntegerField(choices=[(1, 'Up'), (-1, 'Down')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('entry', 'voter')]
+
+    def __str__(self) -> str:
+        return f'{self.get_value_display()} by {self.voter} on {self.entry}'
 
 
 class ExerciseRequirement(models.Model):

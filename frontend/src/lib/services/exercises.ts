@@ -3,6 +3,8 @@ import type {
 	Difficulty,
 	ExerciseRequirement,
 	ResolvedExercise,
+	SolutionEntry,
+	SolutionEntryKind,
 	SourceType
 } from '$lib/types';
 import { apiClient, ApiError } from '$lib/api/client';
@@ -10,9 +12,11 @@ import {
 	mapExerciseRequirement,
 	mapResolvedExerciseDetail,
 	mapResolvedExerciseList,
+	mapSolutionEntry,
 	type RawExerciseCommon,
 	type RawExerciseDetail,
-	type RawExerciseRequirement
+	type RawExerciseRequirement,
+	type RawSolutionEntry
 } from '$lib/api/mappers';
 import { getTopicsForBranch } from './taxonomy';
 
@@ -281,4 +285,80 @@ export async function retractExerciseRequirementVote(
 		`/exercise-requirements/${encodeURIComponent(requirementId)}/vote/`
 	);
 	return mapExerciseRequirement(raw);
+}
+
+// ---- the solution/hint pool (backend exercises.SolutionEntry) ----------------------------------
+// Peer hints/solutions per exercise: anyone signed in can add one (a verified contributor's /
+// staff's / branch governor's publishes immediately, anybody else's waits as `pending` for ONE
+// reviewer accept), everyone votes (▲/▼, weighted), staff/governors pin, authors edit their own
+// (a non-verified author's edit re-queues it). The pool itself arrives embedded on
+// `ResolvedExercise.entries`; these functions are the per-entry actions.
+
+export type SolutionEntryDraft = {
+	kind: SolutionEntryKind;
+	locale: string;
+	body: string;
+};
+
+export async function submitSolutionEntry(
+	exerciseId: string,
+	draft: SolutionEntryDraft
+): Promise<SolutionEntry> {
+	const raw = await apiClient.post<RawSolutionEntry>(
+		`/exercises/${encodeURIComponent(exerciseId)}/entries/`,
+		draft
+	);
+	return mapSolutionEntry(raw);
+}
+
+/** One accept publishes, one deny (note required) rejects — reviewer circle: verified
+ * contributors, staff, branch governors. The moderation queue's tab calls this same endpoint. */
+export async function reviewSolutionEntry(
+	entryId: string,
+	decision: 'approve' | 'reject',
+	note = ''
+): Promise<SolutionEntry> {
+	const raw = await apiClient.post<RawSolutionEntry>(
+		`/solution-entries/${encodeURIComponent(entryId)}/review/`,
+		{ decision, note }
+	);
+	return mapSolutionEntry(raw);
+}
+
+export async function voteSolutionEntry(entryId: string, value: 1 | -1): Promise<SolutionEntry> {
+	const raw = await apiClient.post<RawSolutionEntry>(
+		`/solution-entries/${encodeURIComponent(entryId)}/vote/`,
+		{ value }
+	);
+	return mapSolutionEntry(raw);
+}
+
+export async function retractSolutionEntryVote(entryId: string): Promise<SolutionEntry> {
+	const raw = await apiClient.delete<RawSolutionEntry>(
+		`/solution-entries/${encodeURIComponent(entryId)}/vote/`
+	);
+	return mapSolutionEntry(raw);
+}
+
+export async function pinSolutionEntry(entryId: string, pinned: boolean): Promise<SolutionEntry> {
+	const raw = await apiClient.post<RawSolutionEntry>(
+		`/solution-entries/${encodeURIComponent(entryId)}/pin/`,
+		{ pinned }
+	);
+	return mapSolutionEntry(raw);
+}
+
+export async function updateSolutionEntry(
+	entryId: string,
+	changes: Partial<SolutionEntryDraft>
+): Promise<SolutionEntry> {
+	const raw = await apiClient.patch<RawSolutionEntry>(
+		`/solution-entries/${encodeURIComponent(entryId)}/`,
+		changes
+	);
+	return mapSolutionEntry(raw);
+}
+
+export async function deleteSolutionEntry(entryId: string): Promise<void> {
+	await apiClient.delete(`/solution-entries/${encodeURIComponent(entryId)}/`);
 }

@@ -29,6 +29,8 @@ NOTIFICATION_TYPES = [
     # other way round from the five course types services.py was missing.
     ('material_submission_approved', 'Material upload approved'),
     ('material_submission_rejected', 'Material upload rejected'),
+    ('solution_entry_approved', 'Solution/hint accepted'),
+    ('solution_entry_rejected', 'Solution/hint declined'),
     ('edit_suggestion_approved', 'Edit suggestion approved'),
     ('edit_suggestion_rejected', 'Edit suggestion rejected'),
     ('translation_approved', 'Translation approved'),

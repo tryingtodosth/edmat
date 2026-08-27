@@ -1,8 +1,13 @@
 # moderation — the queue, scoped governors, reports/auto-hide, kill switches
 
-Models: `ExerciseSubmission` (JSON `payload` draft), `EditSuggestion`, `MaterialSubmission`
-(real typed fields + a file — no rich text to draft), `Report`, `ContentView` (the viewer pool
-auto-hide divides by), `NodeGovernor`, `FeatureFlag`.
+Models: `ExerciseSubmission` (JSON `payload` draft), `EditSuggestion` (nullable `entry` FK →
+a solution/hint row — those suggestions derive exercise/locale/field from the entry, are decided
+by the entry's AUTHOR + staff/governors via `/edit-suggestions/{id}/decide/`, and only
+title/statement/answer remain valid translation fields), `MaterialSubmission` (real typed fields
++ a file — no rich text to draft), `Report`, `ContentView` (the viewer pool auto-hide divides
+by), `NodeGovernor`, `FeatureFlag`. The queue payload also carries `solution_entries` (pending
+pool entries, governor-scoped) — their approve/reject goes through the exercises app's ONE
+review endpoint, never a new `_KIND_MODELS` kind.
 
 ## Roles
 

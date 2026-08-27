@@ -49,6 +49,7 @@ import type {
 	Review,
 	ScheduleEvent,
 	Service,
+	SolutionEntry,
 	ServiceAvailability,
 	ServiceReview,
 	ServiceWatch,
@@ -203,13 +204,52 @@ export interface RawExerciseCommon {
  * rather than paying that cost for every exercise in a 383-item branch listing. */
 export interface RawExerciseDetail extends RawExerciseCommon {
 	statement: string;
-	hint: string;
 	answer: string;
-	solution: string;
+	entries: RawSolutionEntry[];
 	translated_by: number | null;
 	available_locales: string[];
 	requirements: RawExerciseRequirement[];
 	contributors: RawExerciseContributor[];
+}
+
+export interface RawSolutionEntry {
+	id: number;
+	exercise: number;
+	kind: 'hint' | 'solution';
+	locale: string;
+	body: string;
+	author: number | null;
+	author_display_name: string;
+	status: 'published' | 'pending' | 'rejected';
+	pinned: boolean;
+	is_removed: boolean;
+	auto_hidden_at: string | null;
+	reviewed_by: number | null;
+	review_note: string;
+	vote_summary: RawCoverageVoteSummary;
+	comment_count: number;
+	created_at: string;
+}
+
+export function mapSolutionEntry(json: RawSolutionEntry): SolutionEntry {
+	return {
+		id: String(json.id),
+		exerciseId: String(json.exercise),
+		kind: json.kind,
+		locale: json.locale,
+		body: json.body,
+		authorId: idOrUndefined(json.author),
+		authorDisplayName: json.author_display_name,
+		status: json.status,
+		pinned: json.pinned,
+		isRemoved: json.is_removed,
+		autoHiddenAt: json.auto_hidden_at ?? undefined,
+		reviewedByUserId: idOrUndefined(json.reviewed_by),
+		reviewNote: json.review_note,
+		voteSummary: mapVoteSummary(json.vote_summary),
+		commentCount: json.comment_count,
+		createdAt: json.created_at
+	};
 }
 
 export interface RawExerciseContributor {
@@ -270,9 +310,8 @@ export function mapResolvedExerciseList(json: RawExerciseCommon): ResolvedExerci
 		isOriginal: json.resolved_locale === json.original_locale,
 		title: json.title,
 		statement: '',
-		hint: '',
 		answer: '',
-		solution: '',
+		entries: [],
 		translatedByUserId: undefined,
 		availableLocales: [],
 		// Empty on the list shape for the same reason `requirements` is: a card never credits anybody,
@@ -290,9 +329,8 @@ export function mapResolvedExerciseDetail(json: RawExerciseDetail): ResolvedExer
 		isOriginal: json.resolved_locale === json.original_locale,
 		title: json.title,
 		statement: json.statement,
-		hint: json.hint,
 		answer: json.answer,
-		solution: json.solution,
+		entries: (json.entries ?? []).map(mapSolutionEntry),
 		translatedByUserId: idOrUndefined(json.translated_by),
 		availableLocales: json.available_locales,
 		requirements: (json.requirements ?? []).map(mapExerciseRequirement),
@@ -313,9 +351,7 @@ export interface RawExerciseTranslation {
 	locale: string;
 	title: string;
 	statement: string;
-	hint: string;
 	answer: string;
-	solution: string;
 	status: ExerciseTranslation['status'];
 	translated_by: number | null;
 	reviewed_by: number | null;
@@ -330,9 +366,7 @@ export function mapExerciseTranslation(json: RawExerciseTranslation): ExerciseTr
 		locale: json.locale,
 		title: json.title,
 		statement: json.statement,
-		hint: json.hint,
 		answer: json.answer,
-		solution: json.solution,
 		status: json.status,
 		translatedByUserId: idOrUndefined(json.translated_by),
 		reviewedByUserId: idOrUndefined(json.reviewed_by),
@@ -703,6 +737,7 @@ export interface RawEditSuggestion {
 	exercise: number;
 	locale: string;
 	field: EditSuggestion['field'];
+	entry: number | null;
 	proposed_value: string;
 	reason: string;
 	submitted_by: number;
@@ -718,6 +753,7 @@ export function mapEditSuggestion(json: RawEditSuggestion): EditSuggestion {
 		exerciseId: String(json.exercise),
 		locale: json.locale,
 		field: json.field,
+		entryId: idOrUndefined(json.entry),
 		proposedValue: json.proposed_value,
 		reason: undefinedIfEmpty(json.reason),
 		submittedByUserId: String(json.submitted_by),
@@ -852,6 +888,8 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	edit_suggestion_rejected: 'editSuggestionRejected',
 	translation_approved: 'translationApproved',
 	translation_rejected: 'translationRejected',
+	solution_entry_approved: 'solutionEntryApproved',
+	solution_entry_rejected: 'solutionEntryRejected',
 	comment_reply: 'commentReply',
 	content_auto_hidden: 'contentAutoHidden',
 	content_restored: 'contentRestored',

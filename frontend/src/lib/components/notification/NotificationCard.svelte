@@ -27,6 +27,10 @@
 			m.notification_translationApproved({ title: notification.targetLabel }),
 		translationRejected: () =>
 			m.notification_translationRejected({ title: notification.targetLabel }),
+		solutionEntryApproved: () =>
+			m.notification_solutionEntryApproved({ title: notification.targetLabel }),
+		solutionEntryRejected: () =>
+			m.notification_solutionEntryRejected({ title: notification.targetLabel }),
 		commentReply: () =>
 			m.notification_commentReply({
 				actor: notification.actorDisplayName || m.notification_someone(),

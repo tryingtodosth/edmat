@@ -1,10 +1,25 @@
 # exercises — the core content model (742-exercise corpus lives here)
 
 `Exercise` is structural only (branch, number, topics, difficulty, tags, published, verified,
-`original_locale`, `submitted_by` — null for migrated corpus rows). ALL text lives in
+`original_locale`, `submitted_by` — null for migrated corpus rows). Translation text lives in
 `ExerciseTranslation`, one row per (exercise, locale, status) **including the original**
-(`translated_by=None`, locale='pl' for corpus rows). Also: `ExerciseSource` (+ translation),
-`Tag` + `TagFollow` (per-tag `notify` is separate from following), `ExerciseRequirement` (+ vote).
+(`translated_by=None`, locale='pl' for corpus rows) — **title/statement/answer ONLY since
+2026-08-27**: hints/solutions moved to the `SolutionEntry` pool (below, migrations 0009–0011,
+columns dropped). Also: `ExerciseSource` (+ translation), `Tag` + `TagFollow` (per-tag `notify`
+is separate from following), `ExerciseRequirement` (+ vote).
+
+## The solution/hint pool (`SolutionEntry`, root CLAUDE.md §17AH)
+
+Peer hints/solutions per exercise: one language each, ▲/▼ votes (verified-contributor weight 2×),
+`pinned` corpus originals first then net score, per-entry Comment thread + reports/auto-hide.
+`exercises/entries.py` owns EVERY trust rule (publish-without-review, reviewer circle, edit-
+suggestion deciding circle, per-caller visibility, ordering) — and is the seam for the future
+SKILL expert tier. One review path only: `POST /solution-entries/{id}/review/` (one accept
+publishes; a deny REQUIRES a note; WHERE-anchored claim → 409) — the moderation queue's tab calls
+this same endpoint, deliberately not a `_KIND_MODELS` kind. **`Exercise.verified` is DERIVED**
+(signals.recount_verified — a published solution that is pinned/reviewed/verified-authored);
+never hand-toggle it, and call the recount after any queryset-`update()` on entries.
+`EditSuggestion.entry` (moderation app) targets a row; its deciders are author+staff+governors.
 
 ## Invariants (each one closed a real bug)
 

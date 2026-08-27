@@ -2,13 +2,14 @@ import type { ExerciseTranslation } from '$lib/types';
 import { apiClient } from '$lib/api/client';
 import { mapExerciseTranslation, type RawExerciseTranslation } from '$lib/api/mappers';
 
+// hint/solution left this draft with the solution-pool feature: a solution rendered into another
+// language is submitted as a NEW entry in that language (submitSolutionEntry), never as part of a
+// translation — translations cover title/statement/answer only now.
 export interface TranslationDraft {
 	locale: string;
 	title: string;
 	statement: string;
-	hint: string;
 	answer: string;
-	solution: string;
 }
 
 export async function getTranslationsForExercise(

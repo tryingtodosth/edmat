@@ -10,6 +10,7 @@
 		MaterialSubmission,
 		NodeGovernorGrant,
 		ReportGroup,
+		SolutionEntry,
 		User
 	} from '$lib/types';
 	import type { TaxonomyProposal } from '$lib/services/moderation';
@@ -28,13 +29,14 @@
 	} from '$lib/services/moderation';
 	import { getUserById } from '$lib/services/users';
 	import { getBranchById, getDisciplines, getAllBranches } from '$lib/services/taxonomy';
-	import { getExercisesByIds } from '$lib/services/exercises';
+	import { getExercisesByIds, reviewSolutionEntry } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { FEATURE_FLAG_LABELS } from '$lib/utils/labels';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import { resolve } from '$app/paths';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
+	import MathContent from '$lib/components/shared/MathContent.svelte';
 
 	// "reports" first — this is the literal "gets a priority in the moderation queue" requirement:
 	// reported content (some of it possibly already auto-hidden, waiting on a decision) is the
@@ -43,7 +45,14 @@
 	// tab option for a global (is_staff) moderator; a scoped governor never sees it at all (see the
 	// tab bar's own `{#if authStore.isModerator}` guard below).
 	let tab = $state<
-		'reports' | 'submissions' | 'materials' | 'edits' | 'translations' | 'governors' | 'flags'
+		| 'reports'
+		| 'submissions'
+		| 'materials'
+		| 'edits'
+		| 'translations'
+		| 'entries'
+		| 'governors'
+		| 'flags'
 	>('reports');
 	let flagTogglePending = $state<Record<string, boolean>>({});
 	let flagError = $state('');
@@ -82,6 +91,7 @@
 	let materialSubmissions = $state<MaterialSubmission[]>([]);
 	let editSuggestions = $state<EditSuggestion[]>([]);
 	let translations = $state<ExerciseTranslation[]>([]);
+	let solutionEntries = $state<SolutionEntry[]>([]);
 	let usersById = $state<Record<string, User>>({});
 	let coursesById = $state<Record<string, Branch>>({});
 	let exerciseTitles = $state<Record<string, string>>({});
@@ -111,12 +121,14 @@
 		materialSubmissions = queue.materialSubmissions;
 		editSuggestions = queue.editSuggestions;
 		translations = queue.translations;
+		solutionEntries = queue.solutionEntries;
 
 		const userIds = [
 			...submissions.map((s) => s.submittedByUserId),
 			...materialSubmissions.map((s) => s.submittedByUserId),
 			...editSuggestions.map((e) => e.submittedByUserId),
-			...translations.map((t) => t.translatedByUserId).filter((id): id is string => Boolean(id))
+			...translations.map((t) => t.translatedByUserId).filter((id): id is string => Boolean(id)),
+			...solutionEntries.map((e) => e.authorId).filter((id): id is string => Boolean(id))
 		];
 		const users = await Promise.all([...new Set(userIds)].map((id) => getUserById(id)));
 		const uMap: Record<string, User> = {};
@@ -137,7 +149,8 @@
 		const exerciseIds = [
 			...new Set([
 				...editSuggestions.map((e) => e.exerciseId),
-				...translations.map((t) => t.exerciseId)
+				...translations.map((t) => t.exerciseId),
+				...solutionEntries.map((e) => e.exerciseId)
 			])
 		];
 		// ✅ Phase 4 — one bulk request instead of one GET per distinct exercise id. Under a real
@@ -212,6 +225,15 @@
 		await decideEditSuggestion(e.id, 'rejected', authStore.user.id, notes[e.id]);
 		await load();
 	}
+	// The pool's pending hints/solutions — decided through the SAME endpoint the exercise page's
+	// inline accept/deny uses (SolutionEntryViewSet.review), so there is exactly one review path.
+	// A rejection requires a note server-side ("say what went wrong"), which is why the reject
+	// button below stays disabled until one is typed rather than round-tripping for the 400.
+	async function decideEntry(e: SolutionEntry, decision: 'approve' | 'reject') {
+		await reviewSolutionEntry(e.id, decision, notes[`entry:${e.id}`] ?? '');
+		await load();
+	}
+
 	async function approveTranslation(t: ExerciseTranslation) {
 		if (!authStore.user) return;
 		await decideTranslation(t.id, 'approved', authStore.user.id, notes[t.id]);
@@ -239,7 +261,8 @@
 		tag: m.report_kind_tag,
 		material: m.report_kind_material,
 		requirement: m.report_kind_requirement,
-		service_review: m.report_kind_service_review
+		service_review: m.report_kind_service_review,
+		solution_entry: m.report_kind_solution_entry
 	};
 
 	async function restoreReport(r: ReportGroup) {
@@ -453,6 +476,17 @@
 			>
 				{m.moderation_tab_translations({ count: translations.length })}
 			</button>
+			<button
+				type="button"
+				role="tab"
+				id="mod-tab-entries"
+				aria-selected={tab === 'entries'}
+				aria-controls="mod-tabpanel"
+				class:active={tab === 'entries'}
+				onclick={() => (tab = 'entries')}
+			>
+				{m.moderation_tab_entries({ count: solutionEntries.length })}
+			</button>
 			{#if authStore.isModerator}
 				<!-- Staff (global moderator) only — a scoped node governor can't grant/revoke this role
 				     at all in v1 (CLAUDE.md's own documented scope decision), so this tab simply isn't
@@ -513,6 +547,7 @@
 				{:else if tab === 'translations'}{m.moderation_tab_translations({
 						count: translations.length
 					})}
+				{:else if tab === 'entries'}{m.moderation_tab_entries({ count: solutionEntries.length })}
 				{:else if tab === 'governors'}{m.moderation_tab_governors({ count: allGovernors.length })}
 				{:else}{m.moderation_tab_flags()}
 				{/if}
@@ -762,6 +797,45 @@
 									>
 									<button type="button" class="reject" onclick={() => rejectTranslation(t)}
 										>{m.moderation_reject()}</button
+									>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{:else if tab === 'entries'}
+				{#if solutionEntries.length === 0}
+					<p class="empty">{m.moderation_empty()}</p>
+				{:else}
+					<ul class="queue">
+						{#each solutionEntries as e (e.id)}
+							<li class="queue-item">
+								<h3>
+									{e.kind === 'hint' ? m.entry_kindHint() : m.entry_kindSolution()}
+									({e.locale.toUpperCase()}) — <MathTitle
+										text={exerciseTitles[e.exerciseId] ?? e.exerciseId}
+									/>
+								</h3>
+								<p class="meta">
+									{m.moderation_submittedBy({
+										name: e.authorId ? (usersById[e.authorId]?.displayName ?? '—') : '—'
+									})}
+								</p>
+								<div class="excerpt"><MathContent source={e.body} /></div>
+								<textarea
+									rows="1"
+									placeholder={m.entry_denyNotePlaceholder()}
+									bind:value={notes[`entry:${e.id}`]}></textarea>
+								<div class="actions">
+									<button type="button" class="approve" onclick={() => decideEntry(e, 'approve')}
+										>{m.moderation_approve()}</button
+									>
+									<button
+										type="button"
+										class="reject"
+										disabled={!notes[`entry:${e.id}`]?.trim()}
+										title={m.entry_denyNoteRequired()}
+										onclick={() => decideEntry(e, 'reject')}>{m.moderation_reject()}</button
 									>
 								</div>
 							</li>

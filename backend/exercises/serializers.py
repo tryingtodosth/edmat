@@ -22,6 +22,7 @@ from .models import (
     ExerciseSource,
     ExerciseSourceTranslation,
     ExerciseTranslation,
+    SolutionEntry,
     Tag,
     TagFollow,
 )
@@ -57,6 +58,91 @@ class ExerciseRequirementSerializer(serializers.ModelSerializer):
 
         votes = list(obj.votes.select_related('voter__profile'))
         return build_vote_summary(votes, self.context.get('request'))
+
+
+class SolutionEntrySerializer(serializers.ModelSerializer):
+    """One hint/solution in the pool (models.SolutionEntry). `vote_summary` is the same shared
+    weighted math every claim/requirement vote already reads (materials/services.py);
+    `comment_count` follows ExerciseClaimSerializer's own per-row COUNT precedent (a handful of
+    entries per exercise, never a bulk-listed shape)."""
+
+    author_display_name = serializers.SerializerMethodField()
+    vote_summary = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SolutionEntry
+        fields = [
+            'id',
+            'exercise',
+            'kind',
+            'locale',
+            'body',
+            'author',
+            'author_display_name',
+            'status',
+            'pinned',
+            'is_removed',
+            'auto_hidden_at',
+            'reviewed_by',
+            'review_note',
+            'vote_summary',
+            'comment_count',
+            'created_at',
+        ]
+        read_only_fields = [
+            'exercise',
+            'author',
+            'status',
+            'pinned',
+            'is_removed',
+            'auto_hidden_at',
+            'reviewed_by',
+            'review_note',
+            'created_at',
+        ]
+
+    def get_author_display_name(self, obj):
+        if obj.author is None:
+            return ''
+        profile = getattr(obj.author, 'profile', None)
+        return (profile.display_name if profile and profile.display_name else obj.author.username)
+
+    def get_vote_summary(self, obj):
+        from materials.services import build_vote_summary
+
+        # select_related over a bare .all(): _vote_weight reads each voter's profile, so without
+        # the join this is one query PER VOTE — same call ExerciseRequirementSerializer makes.
+        return build_vote_summary(
+            list(obj.votes.select_related('voter__profile')), self.context.get('request')
+        )
+
+    def get_comment_count(self, obj):
+        from django.contrib.contenttypes.models import ContentType
+
+        from community.models import Comment
+
+        return Comment.objects.filter(
+            content_type=ContentType.objects.get_for_model(SolutionEntry),
+            object_id=obj.pk,
+            is_removed=False,
+        ).count()
+
+
+class SolutionEntryCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SolutionEntry
+        fields = ['kind', 'locale', 'body']
+
+    def validate_body(self, value):
+        if not value.strip():
+            raise serializers.ValidationError('This field may not be blank.')
+        return value
+
+    def validate_locale(self, value):
+        if not value.strip():
+            raise serializers.ValidationError('This field may not be blank.')
+        return value.strip()
 
 
 def _resolve_exercise_translation(exercise, locale, status='published'):
@@ -176,9 +262,12 @@ class ExerciseListSerializer(serializers.ModelSerializer):
 
 class ExerciseDetailSerializer(ExerciseListSerializer):
     statement = serializers.SerializerMethodField()
-    hint = serializers.SerializerMethodField()
     answer = serializers.SerializerMethodField()
-    solution = serializers.SerializerMethodField()
+    # The solution/hint pool, replacing the old per-translation `hint`/`solution` text fields —
+    # ALL locales, sorted pinned-first then net vote score, visibility resolved per caller
+    # (a pending entry is included for its own author and for reviewers; see
+    # entries.visible_entries). The frontend groups by locale itself.
+    entries = serializers.SerializerMethodField()
     translated_by = serializers.SerializerMethodField()
     available_locales = serializers.SerializerMethodField()
     # Detail-only, matching this class's own established "Card is lightweight, Detail resolves the
@@ -190,9 +279,8 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
     class Meta(ExerciseListSerializer.Meta):
         fields = ExerciseListSerializer.Meta.fields + [
             'statement',
-            'hint',
             'answer',
-            'solution',
+            'entries',
             'translated_by',
             'available_locales',
             'requirements',
@@ -203,17 +291,17 @@ class ExerciseDetailSerializer(ExerciseListSerializer):
         t = self._translation(obj)
         return t.statement if t else ''
 
-    def get_hint(self, obj):
-        t = self._translation(obj)
-        return t.hint if t else ''
-
     def get_answer(self, obj):
         t = self._translation(obj)
         return t.answer if t else ''
 
-    def get_solution(self, obj):
-        t = self._translation(obj)
-        return t.solution if t else ''
+    def get_entries(self, obj):
+        from .entries import sort_entries, visible_entries
+
+        request = self.context.get('request')
+        user = request.user if request is not None else None
+        rows = sort_entries(visible_entries(obj, user))
+        return SolutionEntrySerializer(rows, many=True, context=self.context).data
 
     def get_translated_by(self, obj):
         t = self._translation(obj)
@@ -302,9 +390,7 @@ class ExerciseTranslationSerializer(serializers.ModelSerializer):
             'locale',
             'title',
             'statement',
-            'hint',
             'answer',
-            'solution',
             'status',
             'translated_by',
             'reviewed_by',

@@ -27,7 +27,7 @@ interface Row {
 	locale: string;
 	status: string;
 	ref: string;
-	title: string;
+	title?: string;
 	statement?: string;
 	hint?: string;
 	answer?: string;
@@ -61,7 +61,16 @@ function check(
 	if (!raw) return;
 	const rendered = renderFn(raw);
 	const hasKatexError = rendered.includes('katex-error');
-	const withoutAnnotations = rendered.replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/g, '');
+	// Strip KaTeX's own MathML block wholesale, not just <annotation> tags: since the
+	// isomorphic-dompurify change (CLAUDE.md 17Q) sanitization runs for real in Node too, and
+	// DOMPurify's default allowlist drops the <annotation> TAG while keeping its raw-TeX text —
+	// so the old annotation-only strip left legitimate `\\[2mm]` line-break syntax sitting bare
+	// inside <math> and flagged 100+ perfectly fine corpus fields (statements included) as
+	// leftover delimiters. The whole katex-mathml block is visually hidden a11y/copy-paste
+	// duplicate; the HTML half beside it is what readers see and what this check should judge.
+	const withoutAnnotations = rendered
+		.replace(/<math[\s\S]*?<\/math>/g, '')
+		.replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/g, '');
 	const leftoverDelimiter = /\\[()[\]]/.test(withoutAnnotations);
 	if (hasKatexError || leftoverDelimiter) {
 		issues.push({
@@ -82,8 +91,11 @@ for (const row of rows) {
 	check(row, 'title', row.title, renderTitle);
 	if (row.kind === 'exercise') {
 		check(row, 'statement', row.statement, renderContent);
-		check(row, 'hint', row.hint, renderContent);
 		check(row, 'answer', row.answer, renderContent);
+	} else if (row.kind === 'solution_entry') {
+		// The pool (exercises.SolutionEntry) — dump_text_fields emits one row per entry with the
+		// body under its own kind's key ('hint' or 'solution'), no title of its own.
+		check(row, 'hint', row.hint, renderContent);
 		check(row, 'solution', row.solution, renderContent);
 	} else {
 		check(row, 'description', row.description, renderContent);

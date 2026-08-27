@@ -34,9 +34,20 @@ class Command(BaseCommand):
                     'ref': str(t.exercise),
                     'title': t.title,
                     'statement': t.statement,
-                    'hint': t.hint,
                     'answer': t.answer,
-                    'solution': t.solution,
+                }
+            )
+        from exercises.models import SolutionEntry
+
+        for e in SolutionEntry.objects.select_related('exercise').all():
+            fields.append(
+                {
+                    'kind': 'solution_entry',
+                    'id': e.exercise_id,
+                    'locale': e.locale,
+                    'status': e.status,
+                    'ref': str(e.exercise),
+                    e.kind: e.body,
                 }
             )
         for t in MaterialTranslation.objects.select_related('material').all():

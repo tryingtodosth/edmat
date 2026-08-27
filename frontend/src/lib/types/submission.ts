@@ -32,14 +32,19 @@ export interface ExerciseSubmission {
 	resultingExerciseId?: string;
 }
 
-export type EditableField = 'title' | 'statement' | 'hint' | 'answer' | 'solution';
+// hint/solution are no longer translation fields — an edit to one targets its SolutionEntry row
+// (`entryId` below) with field 'body' instead.
+export type EditableField = 'title' | 'statement' | 'answer' | 'body';
 
-/** A proposed change to ONE field of an existing exercise's translation. */
+/** A proposed change to ONE field of an existing exercise's translation — or, when `entryId` is
+ * set, to a solution/hint entry's own body (decided by the entry's author/staff/governors, not by
+ * the moderation queue's usual circle). */
 export interface EditSuggestion {
 	id: string;
 	exerciseId: string;
 	locale: string;
 	field: EditableField;
+	entryId?: string;
 	proposedValue: string;
 	reason?: string;
 	submittedByUserId: string;

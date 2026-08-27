@@ -267,6 +267,7 @@ node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
+node e2e/solution-entries.mjs         # E2E_EXERCISE=<published exercise with pinned corpus entries>, default 1; ola + michal + kasia, resets its own scratch first
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -584,6 +585,19 @@ anonymous public report (no reporter stored, checked via the API); a signed-in p
 404ing to its own reporter and listed for staff; a comment under a public one; staff resolving with
 a note and the reporter's notification linking to the report; the phone drawer; and the kill switch
 removing every link, the page and the API. Deletes nothing — remove `e2e-issue-*` rows afterwards.
+
+**`e2e/solution-entries.mjs` (27 checks)** — the solution/hint pool (root CLAUDE.md §17AH): the
+anonymous reveal with counts and the pinned corpus originals; a plain user's (ola) entry queueing
+with the composer's live KaTeX preview, visible to its author and to a verified contributor
+(michal) but not to a stranger; one inline accept publishing it; a weighted (2×) vote; a verified
+author's English entry publishing immediately and sitting behind "Show 1 more in other languages";
+an edit suggestion sent by michal and APPLIED by the entry's own author; the moderation queue's
+"Solutions & hints" tab with reject-needs-a-note; the author reading the rejection note; the
+homepage Activity tab; and API cleanup back to the two pinned corpus rows. **Resets its own scratch
+through the real API at the start using all three accounts' tokens** — a rejected entry is visible
+to its author alone, so kasia's view cannot find ola's rejects. Each account signs in exactly once
+(the login throttle). Two of the queue's pending entries are the migration's own (a pending
+translation's hint/solution), so the tab count is asserted as a live number, not an exact one.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

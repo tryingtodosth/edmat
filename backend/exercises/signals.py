@@ -13,7 +13,54 @@ from django.dispatch import receiver
 
 from accounts.counters import recount_exercises
 
-from .models import Exercise
+from .models import Exercise, SolutionEntry
+
+
+def recount_verified(exercise_id) -> None:
+    """Keeps the DERIVED `Exercise.verified` true — recomputed, never toggled by hand (an owner
+    decision, 2026-08-27, replacing the manual moderator flag): verified means "at least one
+    published, visible SOLUTION that passed review" — pinned (the corpus originals, or a
+    staff/governor pin), reviewed by someone, or written by a verified contributor. Recount-not-
+    increment, the same reasoning accounts/counters.py already writes down.
+
+    The verified-contributor clause is evaluated as of NOW — revoking somebody's contributor tier
+    does not sweep every exercise they ever touched, only ones whose entries change again. A full
+    sweep on tier changes would be the complete fix; flagged here rather than silently absent.
+
+    Called from the SolutionEntry signals below, and EXPLICITLY from any write that bypasses
+    save()/delete() — the review action's own WHERE-anchored claim `update()` fires no signal.
+    """
+    from django.db.models import Q
+
+    if exercise_id is None:
+        return
+    passed = (
+        SolutionEntry.objects.filter(
+            exercise_id=exercise_id,
+            kind='solution',
+            status='published',
+            is_removed=False,
+            auto_hidden_at__isnull=True,
+        )
+        .filter(
+            Q(pinned=True)
+            | Q(reviewed_by__isnull=False)
+            | Q(author__profile__is_verified_contributor=True)
+        )
+        .exists()
+    )
+    # update(), not save(): no signal recursion, and no other column is touched.
+    Exercise.objects.filter(pk=exercise_id).exclude(verified=passed).update(verified=passed)
+
+
+@receiver(post_save, sender=SolutionEntry)
+def recount_verified_after_entry_save(sender, instance, **kwargs):
+    recount_verified(instance.exercise_id)
+
+
+@receiver(post_delete, sender=SolutionEntry)
+def recount_verified_after_entry_delete(sender, instance, **kwargs):
+    recount_verified(instance.exercise_id)
 
 
 @receiver(pre_save, sender=Exercise)

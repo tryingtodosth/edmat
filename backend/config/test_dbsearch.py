@@ -85,8 +85,10 @@ class UcontainsLookupTests(TestCase):
         self.assertEqual(ExerciseTranslation.objects.filter(title__ucontains='0_ zb').count(), 0)
 
     def test_matches_nothing_rather_than_erroring_on_a_null_column(self):
-        # `hint` is blank rather than NULL in this schema, but the lookup has to survive either.
-        self.assertFalse(ExerciseTranslation.objects.filter(hint__ucontains='cokolwiek').exists())
+        # `answer` is blank rather than NULL in this schema, but the lookup has to survive either.
+        # (Was `hint`, until hints/solutions moved off the translation table into the SolutionEntry
+        # pool — root CLAUDE.md §17AH.)
+        self.assertFalse(ExerciseTranslation.objects.filter(answer__ucontains='cokolwiek').exists())
 
     def test_icontains_is_the_bug_this_exists_to_route_around(self):
         """A statement of the defect, not of desired behaviour.

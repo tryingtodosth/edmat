@@ -22,6 +22,8 @@ export type CommentTargetType =
 	// A covers/requires claim on a user-run course — the course-side twin of 'materialCoverage'.
 	| 'courseClaim'
 	| 'exerciseClaim'
+	// One hint/solution in an exercise's pool — "different solutions may have their own comments".
+	| 'solutionEntry'
 	// A site issue report (issues/) — its discussion is the reason a published one has a page.
 	| 'issue'
 	// The three review kinds. Replying to somebody's review is not a new kind of object — it is a

@@ -47,7 +47,20 @@ class ExerciseSubmission(models.Model):
 class EditSuggestion(models.Model):
     exercise = models.ForeignKey(Exercise, related_name='edit_suggestions', on_delete=models.CASCADE)
     locale = models.CharField(max_length=8)  # which translation this edits
-    field = models.CharField(max_length=30)  # 'statement' | 'hint' | 'answer' | 'solution' | ...
+    field = models.CharField(max_length=30)  # 'statement' | 'answer' | 'title', or 'body' when entry is set
+    # Set when the suggestion targets a SOLUTION/HINT row (`exercises.SolutionEntry`) rather than a
+    # translation field — hints/solutions left `ExerciseTranslation` entirely (2026-08, the
+    # solution-pool feature), so an edit to one is an edit to a specific, OWNED entry. `field` is
+    # always 'body' for these; `exercise`/`locale` mirror the entry's own for queue scoping. Who may
+    # DECIDE one differs too: the entry's own author may (it is their entry), alongside
+    # staff/governors — see EditSuggestionViewSet.decide and `can_decide_entry_suggestion`.
+    entry = models.ForeignKey(
+        'exercises.SolutionEntry',
+        null=True,
+        blank=True,
+        related_name='edit_suggestions',
+        on_delete=models.CASCADE,
+    )
     proposed_value = models.TextField()
     reason = models.TextField(blank=True)
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

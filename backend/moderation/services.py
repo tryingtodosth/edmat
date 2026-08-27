@@ -16,7 +16,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from community.models import Comment, Review
-from exercises.models import Exercise, ExerciseTranslation, Tag
+from exercises.models import Exercise, ExerciseTranslation, SolutionEntry, Tag
 from materials.models import Material, MaterialRequirement
 from services.models import Service, ServiceReview
 from taxonomy.models import Branch, Discipline
@@ -38,6 +38,10 @@ REPORT_KIND_MODELS = {
     'exercise': Exercise,
     'comment': Comment,
     'review': Review,
+    # A hint/solution from the pool (exercises.SolutionEntry) — public, user-generated content
+    # exactly like a comment, and (unlike most kinds here) with a REAL viewer pool to measure
+    # against: its exercise's own ContentView count, same as a Comment borrows its parent's.
+    'solution_entry': SolutionEntry,
     'service': Service,
     'tag': Tag,
     'material': Material,
@@ -129,6 +133,8 @@ def resolve_view_scope_exercise(target):
     if isinstance(target, Exercise):
         return target
     if isinstance(target, Review):
+        return target.exercise
+    if isinstance(target, SolutionEntry):
         return target.exercise
     if isinstance(target, Comment):
         parent = target.target
@@ -229,6 +235,12 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
     if kind == 'requirement':
         return target.label[:150], None, None
 
+    if kind == 'solution_entry':
+        exercise = target.exercise
+        t = _resolve_exercise_translation(exercise, DEFAULT_FALLBACK_LOCALE)
+        exercise_title = t.title if t else f'#{exercise.number}'
+        return target.body[:150], exercise.pk, exercise_title
+
     if kind == 'service_review':
         # Same "no viewer-pool concept" shape as `service` itself — a tutoring listing's own review
         # isn't scoped to an Exercise page either.
@@ -315,7 +327,7 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
         if _REVERSE_KIND_MODELS.get(model) is None:
             continue  # a report on something outside the moderator-facing kinds (see the model's own note)
         qs = model.objects.filter(pk__in=obj_ids)
-        if model is Review:
+        if model is Review or model is SolutionEntry:
             qs = qs.select_related('exercise')
         for obj in qs:
             targets_by_key[(ct_id, obj.pk)] = obj
@@ -332,7 +344,7 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
         if ct_id == exercise_ct_id:
             scope_exercise_by_key[key] = obj
             needed_exercise_ids.add(obj_id)
-        elif isinstance(obj, Review):
+        elif isinstance(obj, (Review, SolutionEntry)):
             scope_exercise_by_key[key] = obj.exercise
             if obj.exercise_id:
                 needed_exercise_ids.add(obj.exercise_id)
@@ -361,7 +373,7 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
             content_type = ContentType.objects.get_for_id(ct_id)
             model = content_type.model_class()
             qs = model.objects.filter(pk__in=obj_ids)
-            if model is Review:
+            if model is Review or model is SolutionEntry:
                 qs = qs.select_related('exercise')
             for obj in qs:
                 comment_targets_by_key[(ct_id, obj.pk)] = obj
@@ -372,6 +384,10 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
             if isinstance(direct_target, Exercise):
                 scope_exercise_by_key[key] = direct_target
                 needed_exercise_ids.add(direct_target.pk)
+            elif isinstance(direct_target, SolutionEntry):
+                scope_exercise_by_key[key] = direct_target.exercise
+                if direct_target.exercise_id:
+                    needed_exercise_ids.add(direct_target.exercise_id)
             elif isinstance(direct_target, Review):
                 scope_exercise_by_key[key] = direct_target.exercise
                 if direct_target.exercise_id:
@@ -513,7 +529,8 @@ def build_moderation_queue_payload(user=None) -> dict:
     and scopes every one of the four queue sections to it — `None` from THAT resolution (a global
     `is_staff` moderator) still means unfiltered, so today's global-moderator experience is
     completely unchanged; only a real, non-staff node governor ever sees a narrower queue."""
-    from exercises.serializers import ExerciseTranslationSerializer
+    from exercises.entries import entry_queryset_for_queue
+    from exercises.serializers import ExerciseTranslationSerializer, SolutionEntrySerializer
 
     from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission
     from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer, MaterialSubmissionSerializer
@@ -539,6 +556,12 @@ def build_moderation_queue_payload(user=None) -> dict:
         'material_submissions': MaterialSubmissionSerializer(material_submissions, many=True).data,
         'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
         'translations': ExerciseTranslationSerializer(translations, many=True).data,
+        # Pending hints/solutions (the pool, exercises.SolutionEntry) — reviewable inline on the
+        # exercise page by any verified contributor, AND here; both surfaces act through the ONE
+        # review endpoint (SolutionEntryViewSet.review), never a second kind in _KIND_MODELS.
+        'solution_entries': SolutionEntrySerializer(
+            entry_queryset_for_queue(branch_ids), many=True
+        ).data,
         'reports': build_report_queue(branch_ids=branch_ids),
     }
 
@@ -569,7 +592,7 @@ def count_pending_moderation(user=None) -> dict:
     Scoped exactly as the queue is, so a node governor's badge counts what a node governor's queue
     shows — a number that disagreed with the page it links to would be worse than no number.
     """
-    from exercises.models import ExerciseTranslation
+    from exercises.models import ExerciseTranslation, SolutionEntry as _SolutionEntry
 
     from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission, Report
 
@@ -579,11 +602,13 @@ def count_pending_moderation(user=None) -> dict:
     material_submissions = MaterialSubmission.objects.filter(status='pending')
     edits = EditSuggestion.objects.filter(status='pending')
     translations = ExerciseTranslation.objects.filter(status='pending')
+    entries = _SolutionEntry.objects.filter(status='pending', is_removed=False)
     if branch_ids is not None:
         submissions = submissions.filter(branch_id__in=branch_ids)
         material_submissions = material_submissions.filter(branch_id__in=branch_ids)
         edits = edits.filter(exercise__branch_id__in=branch_ids)
         translations = translations.filter(exercise__branch_id__in=branch_ids)
+        entries = entries.filter(exercise__branch_id__in=branch_ids)
 
     # Reports carry no branch column of their own — resolving one means walking a GenericForeignKey
     # per row, which is the cost this function exists to avoid. A scoped moderator's report count is
@@ -604,6 +629,7 @@ def count_pending_moderation(user=None) -> dict:
         'material_submissions': material_submissions.count(),
         'edit_suggestions': edits.count(),
         'translations': translations.count(),
+        'solution_entries': entries.count(),
         'taxonomy_proposals': len(build_taxonomy_proposal_queue()),
         'reports': reports,
     }

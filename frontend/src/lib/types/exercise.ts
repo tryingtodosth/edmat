@@ -28,7 +28,10 @@ export interface Exercise {
 	source: ExerciseSource;
 	tags: string[];
 	published: boolean;
-	verified: boolean; // a full, correct solution/answer exists — unchanged meaning from the source corpus
+	// DERIVED (2026-08, the solution-pool feature): at least one published solution entry that
+	// passed review — pinned (a corpus original / staff pin), reviewed, or by a verified
+	// contributor. Recomputed server-side (exercises/signals.py); never hand-toggled anymore.
+	verified: boolean;
 	originalLocale: string; // which ExerciseTranslation row is canonical, e.g. 'pl'
 	submittedByUserId?: string; // absent for migrated legacy content
 	createdAt: string;
@@ -50,15 +53,43 @@ export interface ExerciseRequirement {
 
 export type TranslationStatus = 'published' | 'pending' | 'rejected';
 
+export type SolutionEntryKind = 'hint' | 'solution';
+
+/**
+ * One hint or one solution in an exercise's pool (backend exercises.SolutionEntry) — a PEER in a
+ * ranked list, not a translation field: written in ONE language (`locale`), voted on (▲/▼,
+ * verified-contributor weight 2x, the same shared math claim votes use), individually
+ * review-gated (`status` — a non-verified author's entry waits for one accept), discussable
+ * (its own comment thread) and reportable. `pinned` floats the corpus originals (and anything a
+ * moderator/governor pins) above the vote ordering.
+ */
+export interface SolutionEntry {
+	id: string;
+	exerciseId: string;
+	kind: SolutionEntryKind;
+	locale: string;
+	body: string; // Markdown + LaTeX source, same pipeline as every other content field
+	authorId?: string; // absent for the migrated corpus originals
+	authorDisplayName: string;
+	status: TranslationStatus;
+	pinned: boolean;
+	isRemoved: boolean;
+	autoHiddenAt?: string;
+	reviewedByUserId?: string;
+	reviewNote: string;
+	voteSummary: CoverageVoteSummary;
+	commentCount: number;
+	createdAt: string;
+}
+
 export interface ExerciseTranslation {
 	id: string;
 	exerciseId: string;
 	locale: string; // free string, not constrained to the interface's own Paraglide locale list
 	title: string;
 	statement: string; // Markdown + LaTeX source — see lib/utils/renderContent.ts
-	hint: string;
 	answer: string;
-	solution: string;
+	// hint/solution left this shape with the solution-pool feature — see SolutionEntry above.
 	status: TranslationStatus;
 	translatedByUserId?: string; // absent for the migrated original
 	reviewedByUserId?: string;
@@ -88,9 +119,10 @@ export interface ResolvedExercise extends Exercise {
 	isOriginal: boolean;
 	title: string;
 	statement: string;
-	hint: string;
 	answer: string;
-	solution: string;
+	/** The whole visible solution/hint pool, every locale, pinned-first then by net vote score —
+	 * the page groups by its current content locale itself. Empty on list-shaped results. */
+	entries: SolutionEntry[];
 	translatedByUserId?: string;
 	availableLocales: string[]; // every locale with at least one PUBLISHED translation, original first
 	requirements: ExerciseRequirement[];

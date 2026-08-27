@@ -13,6 +13,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, OperationalError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -152,14 +153,83 @@ class EditSuggestionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = EditSuggestion.objects.all()
         if not self.request.user.is_staff:
-            qs = qs.filter(submitted_by=self.request.user)
+            # Your own suggestions — plus, new with the solution pool, every PENDING suggestion
+            # against an entry YOU authored: its author is one of the people who may decide it
+            # (see `decide` below), and they cannot decide what they cannot list.
+            from django.db.models import Q
+
+            qs = qs.filter(
+                Q(submitted_by=self.request.user)
+                | Q(status='pending', entry__author=self.request.user)
+            )
         exercise = self.request.query_params.get('exercise')
         if exercise:
             qs = qs.filter(exercise_id=exercise)
-        return qs
+        entry = self.request.query_params.get('entry')
+        if entry:
+            qs = qs.filter(entry_id=entry)
+        return qs.distinct()
 
     def perform_create(self, serializer):
         serializer.save(submitted_by=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def decide(self, request, pk=None):
+        """POST /api/edit-suggestions/{id}/decide/ {decision: 'approve'|'reject', note?} — the
+        decision path for a suggestion that targets a SOLUTION ENTRY, where the deciding circle is
+        different from the moderation queue's: the entry's own AUTHOR (it is their entry), staff,
+        or a governor of the exercise's branch (`can_decide_entry_suggestion` — also the seam the
+        future field-expert tier lands in). Deliberately NOT every verified contributor: folding
+        words into somebody else's solution is a different act than reviewing a new standalone
+        entry. Translation-targeted suggestions stay with `ModerationActionView` alone and are
+        refused here — one deciding circle per target kind, stated rather than blurred.
+
+        Same idempotent claim pattern as every other decision in this app; the submitter is
+        notified through the identical `edit_suggestion_*` types a queue decision produces."""
+        suggestion = self.get_object()
+        if suggestion.entry_id is None:
+            return Response(
+                {'detail': 'Only a suggestion against a solution/hint entry is decided here.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from exercises.entries import can_decide_entry_suggestion
+
+        if not can_decide_entry_suggestion(request.user, suggestion.entry):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        decision = request.data.get('decision')
+        if decision not in ('approve', 'reject'):
+            return Response(
+                {'decision': ["Must be 'approve' or 'reject'."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        note = (request.data.get('note') or '').strip()
+        target_status = 'approved' if decision == 'approve' else 'rejected'
+        claimed = EditSuggestion.objects.filter(pk=suggestion.pk, status='pending').update(
+            status=target_status, reviewed_by=request.user, review_note=note
+        )
+        if not claimed:
+            return Response(
+                {'detail': 'This suggestion has already been decided.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        suggestion.refresh_from_db()
+        if decision == 'approve':
+            try:
+                _apply_edit_suggestion(suggestion)
+            except Exception:
+                EditSuggestion.objects.filter(pk=suggestion.pk).update(
+                    status='pending', reviewed_by=None, review_note=''
+                )
+                raise
+        notify(
+            suggestion.submitted_by,
+            f'edit_suggestion_{target_status}',
+            actor=request.user,
+            target_label=label_for_exercise(suggestion.exercise),
+            exercise=suggestion.exercise,
+            note=note,
+        )
+        return Response(EditSuggestionSerializer(suggestion).data)
 
 
 class MaterialSubmissionViewSet(viewsets.ModelViewSet):
@@ -433,26 +503,52 @@ def _apply_submission(submission, reviewer):
         locale=payload.get('locale', 'pl'),
         title=payload.get('title', ''),
         statement=payload.get('statement', ''),
-        hint=payload.get('hint', ''),
         answer=payload.get('answer', ''),
-        solution=payload.get('solution', ''),
         status='published',
         translated_by=None,
     )
+    # The submission form's own hint/solution become real SolutionEntry rows — the founding
+    # entries of this exercise's pool. Pinned only when a MODERATOR approved (submission.reviewed_by
+    # was set by the claim step before this runs); the verified-contributor fast path publishes but
+    # does not pin, since nobody actually reviewed it — the same honesty that path's own
+    # `reviewed_by is None` already keeps for the submission itself.
+    from exercises.models import SolutionEntry
+
+    for kind in ('hint', 'solution'):
+        body = (payload.get(kind) or '').strip()
+        if body:
+            SolutionEntry.objects.create(
+                exercise=exercise,
+                kind=kind,
+                locale=payload.get('locale', 'pl'),
+                body=body,
+                author=submission.submitted_by,
+                status='published',
+                pinned=submission.reviewed_by_id is not None,
+                reviewed_by=submission.reviewed_by,
+            )
     submission.resulting_exercise = exercise
     return exercise
 
 
 def _apply_edit_suggestion(suggestion):
-    """Applies a proposed field change onto the (exercise, locale) translation it targets — creating
-    a fresh translation row if none exists yet for that locale."""
+    """Applies a proposed change onto its target: a SolutionEntry's `body` when the suggestion
+    carries an `entry` (hints/solutions left the translation table — see EditSuggestion.entry's
+    own comment), else onto the (exercise, locale) translation it targets. The translation field
+    set is title/statement/answer only now; 'hint'/'solution' can no longer arrive from the
+    serializer and the two historical values would target columns that no longer exist."""
+    if suggestion.entry_id is not None:
+        entry = suggestion.entry
+        entry.body = suggestion.proposed_value
+        entry.save(update_fields=['body'])
+        return
     translation, _created = ExerciseTranslation.objects.get_or_create(
         exercise=suggestion.exercise,
         locale=suggestion.locale,
         status='published',
         defaults={'title': ''},
     )
-    if suggestion.field in {'title', 'statement', 'hint', 'answer', 'solution'}:
+    if suggestion.field in {'title', 'statement', 'answer'}:
         setattr(translation, suggestion.field, suggestion.proposed_value)
         translation.save(update_fields=[suggestion.field])
 

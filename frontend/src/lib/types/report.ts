@@ -13,7 +13,10 @@ export type ReportKind =
 	| 'tag'
 	| 'material'
 	| 'requirement'
-	| 'service_review';
+	| 'service_review'
+	// A hint/solution from the pool (exercises.SolutionEntry) — auto-hide measures against its
+	// exercise's own viewer pool, same as a comment borrows its parent's.
+	| 'solution_entry';
 
 // One GROUP per reported target (moderation/services.py's build_report_queue) — not one row per
 // individual Report, since a moderator reviews and resolves every pending report against a target

@@ -256,12 +256,27 @@ class Command(BaseCommand):
             defaults={
                 'title': item['title'],
                 'statement': item['statement'],
-                'hint': item['hint'],
                 'answer': item['answer'],
-                'solution': item['solution'],
                 'translated_by': None,  # the original, not a translation of anything
             },
         )
+        # Hints/solutions live in the SolutionEntry pool now, not on the translation (the
+        # peer-solutions feature) — imported as pinned, published originals with no author, the
+        # same honesty every other corpus-content field keeps. Upsert by (exercise, kind, locale,
+        # pinned): re-running the import updates the corpus original in place and never touches
+        # community entries, keeping the command idempotent the way it always was.
+        from exercises.models import SolutionEntry
+
+        for kind in ('hint', 'solution'):
+            body = item.get(kind, '') or ''
+            if body.strip():
+                SolutionEntry.objects.update_or_create(
+                    exercise=exercise,
+                    kind=kind,
+                    locale=ORIGINAL_LOCALE,
+                    pinned=True,
+                    defaults={'body': body, 'author': None, 'status': 'published'},
+                )
         stats['exercises'] += 1
 
     def _import_material(

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import type { EditableField } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 
 	let {
@@ -8,28 +7,32 @@
 		onSubmit,
 		onCancel
 	}: {
-		currentValues: Record<EditableField, string>;
-		onSubmit: (field: EditableField, proposedValue: string, reason: string) => void;
+		currentValues: Record<'title' | 'statement' | 'answer', string>;
+		onSubmit: (
+			field: 'title' | 'statement' | 'answer',
+			proposedValue: string,
+			reason: string
+		) => void;
 		onCancel: () => void;
 	} = $props();
 
-	const fields: EditableField[] = ['title', 'statement', 'hint', 'answer', 'solution'];
-	const fieldLabels: Record<EditableField, () => string> = {
+	// hint/solution left this form with the solution-pool feature: an edit to one of those targets
+	// its own entry, right on the entry's card ("Suggest an edit"), never a translation field.
+	const fields = ['title', 'statement', 'answer'] as const;
+	const fieldLabels: Record<(typeof fields)[number], () => string> = {
 		title: m.editSuggestion_field_title,
 		statement: m.editSuggestion_field_statement,
-		hint: m.editSuggestion_field_hint,
-		answer: m.editSuggestion_field_answer,
-		solution: m.editSuggestion_field_solution
+		answer: m.editSuggestion_field_answer
 	};
 
-	let field = $state<EditableField>('statement');
+	let field = $state<(typeof fields)[number]>('statement');
 	// Deliberate one-time read of the prop, not a live sync — the form pre-fills once, then the
 	// user edits freely without the field snapping back if currentValues ever changed underneath it.
 	let proposedValue = $state(untrack(() => currentValues.statement));
 	let reason = $state('');
 
 	function onFieldChange(e: Event) {
-		field = (e.target as HTMLSelectElement).value as EditableField;
+		field = (e.target as HTMLSelectElement).value as (typeof fields)[number];
 		proposedValue = currentValues[field];
 	}
 

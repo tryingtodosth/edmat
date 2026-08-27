@@ -20,15 +20,32 @@ from community.views import reply_counts_for
 from moderation.services import is_governor_of_course
 from notifications.services import label_for_exercise, notify_comment_reply, notify_tag_followers
 
-from .models import Exercise, ExerciseRequirement, ExerciseRequirementVote, Tag, TagFollow
+from .entries import (
+    can_autopublish_entry,
+    can_review_entry,
+    sort_entries,
+    visible_entries,
+)
+from .models import (
+    Exercise,
+    ExerciseRequirement,
+    ExerciseRequirementVote,
+    SolutionEntry,
+    SolutionEntryVote,
+    Tag,
+    TagFollow,
+)
 from .serializers import (
     ExerciseDetailSerializer,
     ExerciseListSerializer,
     ExerciseRequirementSerializer,
     ExerciseTranslationSerializer,
+    SolutionEntryCreateSerializer,
+    SolutionEntrySerializer,
     TagFollowSerializer,
     TagSerializer,
 )
+from .signals import recount_verified
 
 
 def _notify_reply(comment, exercise):
@@ -273,6 +290,37 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         # applies ONLY to a brand-new exercise, never to a translation, regardless of who submitted it.
         serializer.save(status='pending', translated_by=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get', 'post'])
+    def entries(self, request, pk=None):
+        """The solution/hint pool. GET lists what this caller may see (the same list
+        ExerciseDetailSerializer already embeds — offered separately so the page can refresh the
+        pool without re-fetching the whole exercise); POST adds a new entry:
+        `{kind: 'hint'|'solution', locale, body}`. A verified contributor / staff / branch
+        governor publishes immediately (the §18.4 fast path's own reasoning, extended by owner
+        decision to this content type); anybody else's entry starts `pending`, visible to its
+        author and to reviewers, and needs ONE accept (`SolutionEntryViewSet.review`)."""
+        exercise = self.get_object()
+        if request.method == 'GET':
+            rows = sort_entries(visible_entries(exercise, request.user))
+            return Response(
+                SolutionEntrySerializer(rows, many=True, context={'request': request}).data
+            )
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        serializer = SolutionEntryCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        entry = serializer.save(
+            exercise=exercise,
+            author=request.user,
+            status=(
+                'published' if can_autopublish_entry(request.user, exercise.branch) else 'pending'
+            ),
+        )
+        return Response(
+            SolutionEntrySerializer(entry, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=['get', 'post'])
     def reviews(self, request, pk=None):
@@ -523,7 +571,13 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             .filter(pk__in=ids)
             .select_related('branch', 'source')
             .prefetch_related(
-                'translations', 'topics', 'tags', 'source__translations', 'requirements__votes__voter__profile'
+                'translations',
+                'topics',
+                'tags',
+                'source__translations',
+                'requirements__votes__voter__profile',
+                'entries__votes__voter__profile',
+                'entries__author__profile',
             )
         )
         serializer = ExerciseDetailSerializer(qs, many=True, context={'request': request})
@@ -610,3 +664,160 @@ class ExerciseClaimViewSet(viewsets.GenericViewSet):
                 comment, target_label=label_for_exercise(claim.exercise), exercise=claim.exercise
             ),
         )
+
+
+# --- the solution/hint pool: per-entry actions ---------------------------------------------------
+
+from notifications.services import notify  # noqa: E402
+
+
+class SolutionEntryViewSet(viewsets.GenericViewSet):
+    """`/api/solution-entries/{id}/review|vote|pin|comments/`, plus PATCH/DELETE for the author —
+    an entry is always REACHED through its exercise (ExerciseDetailSerializer.entries /
+    `ExerciseViewSet.entries`), so there is no list/retrieve here, mirroring
+    ExerciseRequirementViewSet's own shape. Scoped to published exercises, same as claims: an
+    unpublished exercise's pool is exactly as invisible as the exercise itself."""
+
+    queryset = SolutionEntry.objects.select_related('exercise__branch', 'author__profile').filter(
+        exercise__published=True
+    )
+    serializer_class = SolutionEntrySerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def _serialized(self, entry, request):
+        return Response(SolutionEntrySerializer(entry, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def review(self, request, pk=None):
+        """The ONE review path for a pending entry — the inline accept/deny on the exercise page
+        AND the moderation queue's own tab both call this, so there is a single claim/notify
+        sequence to keep correct, not two (the drift the moderation app's `_KIND_MODELS` registry
+        was deliberately NOT widened for). Body: `{decision: 'approve'|'reject', note?}` — a
+        rejection REQUIRES a note ("a comment with what went wrong", the owner's own wording);
+        the author is notified of either outcome. One accept publishes: any verified contributor,
+        staff, or a governor of the exercise's branch (`can_review_entry`, the future expert-tier
+        seam). Idempotency is the house pattern: a WHERE-anchored claim UPDATE, 0 rows → 409."""
+        entry = self.get_object()
+        if not can_review_entry(request.user, entry.exercise.branch):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        decision = request.data.get('decision')
+        if decision not in ('approve', 'reject'):
+            return Response(
+                {'decision': ["Must be 'approve' or 'reject'."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        note = (request.data.get('note') or '').strip()
+        if decision == 'reject' and not note:
+            return Response(
+                {'note': ['A rejection must say what went wrong.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_status = 'published' if decision == 'approve' else 'rejected'
+        claimed = SolutionEntry.objects.filter(pk=entry.pk, status='pending').update(
+            status=target_status, reviewed_by=request.user, review_note=note
+        )
+        if not claimed:
+            return Response(
+                {'detail': 'This entry has already been reviewed.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        entry.refresh_from_db()
+        # The claim was a queryset update — no signal fired, so the derived Exercise.verified is
+        # recounted explicitly (see signals.recount_verified's own docstring).
+        recount_verified(entry.exercise_id)
+        notify(
+            entry.author,
+            f'solution_entry_{"approved" if decision == "approve" else "rejected"}',
+            actor=request.user,
+            target_label=label_for_exercise(entry.exercise),
+            exercise=entry.exercise,
+            note=note,
+        )
+        return self._serialized(entry, request)
+
+    @action(detail=True, methods=['post', 'delete'])
+    def vote(self, request, pk=None):
+        """▲/▼ on a published entry — one vote per user, weighted at read time (a verified
+        contributor counts double, the same shared math every claim vote uses). 409 on anything
+        not currently reader-visible: an unreviewed, hidden or rejected entry has no business
+        accumulating score."""
+        entry = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        if not entry.is_visible_to_readers():
+            return Response(
+                {'detail': 'Only a published entry can be voted on.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if request.method == 'DELETE':
+            SolutionEntryVote.objects.filter(entry=entry, voter=request.user).delete()
+        else:
+            try:
+                value = int(request.data.get('value'))
+            except (TypeError, ValueError):
+                value = None
+            if value not in (1, -1):
+                return Response(
+                    {'value': ['Must be 1 (up) or -1 (down).']}, status=status.HTTP_400_BAD_REQUEST
+                )
+            SolutionEntryVote.objects.update_or_create(
+                entry=entry, voter=request.user, defaults={'value': value}
+            )
+        return self._serialized(entry, request)
+
+    @action(detail=True, methods=['post'])
+    def pin(self, request, pk=None):
+        """`{pinned: bool}` — staff/branch-governor only. Pinned entries sort above everything
+        regardless of votes; the migrated corpus originals arrive pinned."""
+        entry = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        if not (request.user.is_staff or is_governor_of_course(request.user, entry.exercise.branch)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        entry.pinned = bool(request.data.get('pinned', True))
+        entry.save(update_fields=['pinned'])  # fires the signal → verified recount
+        return self._serialized(entry, request)
+
+    @action(detail=True, methods=['get', 'post'])
+    def comments(self, request, pk=None):
+        """Each entry's own discussion — "different solutions may have their own comments", via
+        the same generic Comment thread everything else here uses."""
+        entry = self.get_object()
+        return thread_response(
+            request,
+            entry,
+            on_created=lambda comment: notify_comment_reply(
+                comment, target_label=label_for_exercise(entry.exercise), exercise=entry.exercise
+            ),
+        )
+
+    def partial_update(self, request, pk=None):
+        """The author editing their OWN entry (staff may too). A non-verified author's edit
+        re-queues the entry — an accepted entry is what a reviewer saw, and an unreviewed change
+        to it deserves the same gate a new one gets (the same reasoning the translation flow's
+        own always-queue rule already states)."""
+        entry = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        if not (request.user.is_staff or (entry.author_id and entry.author_id == request.user.pk)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        serializer = SolutionEntryCreateSerializer(entry, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        entry = serializer.save()
+        if entry.author_id == request.user.pk and not can_autopublish_entry(
+            request.user, entry.exercise.branch
+        ):
+            entry.status = 'pending'
+            entry.reviewed_by = None
+            entry.review_note = ''
+            entry.save(update_fields=['status', 'reviewed_by', 'review_note'])
+        return self._serialized(entry, request)
+
+    def destroy(self, request, pk=None):
+        entry = self.get_object()
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        if not (request.user.is_staff or (entry.author_id and entry.author_id == request.user.pk)):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        entry.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

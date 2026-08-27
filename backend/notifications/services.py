@@ -26,6 +26,10 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'edit_suggestion_rejected': 'notify_on_moderation_decision',
     'translation_approved': 'notify_on_moderation_decision',
     'translation_rejected': 'notify_on_moderation_decision',
+    # A hint/solution from the pool (exercises.SolutionEntry) accepted/denied by a reviewer —
+    # the same "somebody decided on my contribution" event as every other pair in this category.
+    'solution_entry_approved': 'notify_on_moderation_decision',
+    'solution_entry_rejected': 'notify_on_moderation_decision',
     'content_auto_hidden': 'notify_on_content_action',
     'content_restored': 'notify_on_content_action',
     'content_removed': 'notify_on_content_action',

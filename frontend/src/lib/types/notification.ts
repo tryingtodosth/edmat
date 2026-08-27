@@ -9,6 +9,9 @@ export type NotificationType =
 	| 'editSuggestionRejected'
 	| 'translationApproved'
 	| 'translationRejected'
+	// A hint/solution from the pool (exercises.SolutionEntry) accepted or declined by a reviewer.
+	| 'solutionEntryApproved'
+	| 'solutionEntryRejected'
 	| 'commentReply'
 	| 'contentAutoHidden'
 	| 'contentRestored'

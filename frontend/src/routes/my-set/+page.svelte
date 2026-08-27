@@ -15,6 +15,16 @@
 	type IncludeFlags = Record<IncludeField, boolean>;
 
 	let exercises = $state<ResolvedExercise[]>([]);
+
+	// The printable hint/solution content comes from the pool (`exercise.entries`): the published
+	// entries in the exercise's own resolved locale (pinned/top-voted order preserved from the
+	// server); if that locale has none, whatever published entries exist — a language beats a
+	// blank on a printed study sheet.
+	function printableEntries(exercise: ResolvedExercise, kind: 'hint' | 'solution') {
+		const published = exercise.entries.filter((e) => e.kind === kind && e.status === 'published');
+		const local = published.filter((e) => e.locale === exercise.locale);
+		return local.length > 0 ? local : published;
+	}
 	let savedSets = $state<ExerciseSet[]>([]);
 	let newSetName = $state('');
 	// Which saved set's own share link was just copied — per-row, not a single page-wide flag, so
@@ -310,17 +320,21 @@
 							</label>
 						</div>
 						<MathContent source={exercise.statement} />
-						{#if options?.hint && exercise.hint}
+						{#if options?.hint && printableEntries(exercise, 'hint').length > 0}
 							<p class="content-label">{m.myset_field_hint()}</p>
-							<MathContent source={exercise.hint} />
+							{#each printableEntries(exercise, 'hint') as entry (entry.id)}
+								<MathContent source={entry.body} />
+							{/each}
 						{/if}
 						{#if options?.answer && exercise.answer}
 							<p class="content-label">{m.myset_field_answer()}</p>
 							<MathContent source={exercise.answer} />
 						{/if}
-						{#if options?.solution && exercise.solution}
+						{#if options?.solution && printableEntries(exercise, 'solution').length > 0}
 							<p class="content-label">{m.myset_field_solution()}</p>
-							<MathContent source={exercise.solution} />
+							{#each printableEntries(exercise, 'solution') as entry (entry.id)}
+								<MathContent source={entry.body} />
+							{/each}
 						{/if}
 					</li>
 				{/each}

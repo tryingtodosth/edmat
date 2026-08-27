@@ -38,13 +38,16 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import Loading from '$lib/components/shared/Loading.svelte';
+	import { getSiteActivity, type ActivityItem } from '$lib/services/activity';
+	import { formatRelativeDate } from '$lib/utils/format';
+	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import EventCard from '$lib/components/event/EventCard.svelte';
 
-	type TabId = 'exercises' | 'materials' | 'branches' | 'tutoring' | 'events';
+	type TabId = 'exercises' | 'materials' | 'branches' | 'tutoring' | 'events' | 'activity';
 
 	// Each tab names the flag that governs its content, or `null` for the two that are always there.
 	// A tab whose feature a moderator has killed is not rendered at all — a tab strip that opens onto
@@ -59,7 +62,10 @@
 		{ id: 'materials', label: () => m.home_tab_materials(), flag: null },
 		{ id: 'branches', label: () => m.home_tab_courses(), flag: 'classroom' },
 		{ id: 'tutoring', label: () => m.home_tab_tutoring(), flag: 'tutoring' },
-		{ id: 'events', label: () => m.home_tab_events(), flag: 'events' }
+		{ id: 'events', label: () => m.home_tab_events(), flag: 'events' },
+		// Deliberately last, deliberately near-placeholder (an owner decision alongside the
+		// solution-pool feature): the newest public actions across the site, to be grown later.
+		{ id: 'activity', label: () => m.home_tab_activity(), flag: null }
 	];
 
 	let visibleTabs = $derived(
@@ -138,6 +144,7 @@
 	let courses = $state<Course[]>([]);
 	let services = $state<Service[]>([]);
 	let events = $state<EdmatEvent[]>([]);
+	let activity = $state<ActivityItem[]>([]);
 
 	let loaded = $state<Record<string, boolean>>({});
 	let loading = $state<Record<string, boolean>>({ exercises: true });
@@ -169,6 +176,8 @@
 				services = (await getServices()).slice(0, 6);
 			} else if (id === 'events') {
 				events = (await getEvents({ when: 'upcoming' })).slice(0, 6);
+			} else if (id === 'activity') {
+				activity = await getSiteActivity();
 			}
 			loaded = { ...loaded, [id]: true };
 		} catch {
@@ -328,6 +337,51 @@
 					</div>
 				{/if}
 			</section>
+		{:else if active === 'activity'}
+			<section class="section">
+				<h2>{m.home_activity_heading()}</h2>
+				{#if activity.length === 0}
+					<p class="status">{m.home_noResults()}</p>
+				{:else}
+					<ul class="activity">
+						{#each activity as item, i (i)}
+							<li class="activity__row">
+								<span class="activity__kind">
+									{item.kind === 'exercise'
+										? m.activity_kind_exercise()
+										: item.kind === 'material'
+											? m.activity_kind_material()
+											: item.entryKind === 'hint'
+												? m.activity_kind_hint()
+												: m.activity_kind_solution()}
+								</span>
+								{#if item.exerciseId}
+									<a
+										class="activity__title"
+										href={resolve('/exercises/[id]', { id: item.exerciseId })}
+										><MathTitle text={item.title} /></a
+									>
+								{:else if item.materialId}
+									<a
+										class="activity__title"
+										href={resolve('/materials/[id]', { id: item.materialId })}
+										><MathTitle text={item.title} /></a
+									>
+								{:else}
+									<span class="activity__title"><MathTitle text={item.title} /></span>
+								{/if}
+								{#if item.actorDisplayName}
+									<span class="activity__actor"
+										>{m.activity_by({ name: item.actorDisplayName })}</span
+									>
+								{/if}
+								<span class="activity__when">{formatRelativeDate(item.createdAt, getLocale())}</span
+								>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</section>
 		{:else if active === 'events'}
 			<section class="section">
 				<div class="section__head">
@@ -350,6 +404,34 @@
 
 <style lang="scss">
 	@use '../lib/styles/mixins' as mix;
+
+	.activity {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: 0;
+	}
+	.activity__row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+	}
+	.activity__kind {
+		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+		flex: 0 0 auto;
+	}
+	.activity__title {
+		font-weight: 600;
+		color: var(--accent);
+	}
+	.activity__actor,
+	.activity__when {
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
+	}
 
 	.page {
 		max-width: 1100px;

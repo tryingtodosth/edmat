@@ -1265,7 +1265,7 @@ class EditSuggestionApprovalTests(APITestCase):
         self.exercise = make_exercise(self.branch, 1)
         self.client.force_authenticate(self.moderator)
 
-    def _suggest(self, field='hint', proposed_value='A helpful hint.'):
+    def _suggest(self, field='statement', proposed_value='A clearer statement.'):
         from moderation.models import EditSuggestion
 
         return EditSuggestion.objects.create(
@@ -1289,10 +1289,10 @@ class EditSuggestionApprovalTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         translation = self.exercise.translations.get(locale='pl')
-        self.assertEqual(translation.hint, 'A helpful hint.')
+        self.assertEqual(translation.statement, 'A clearer statement.')
 
     def test_rejecting_an_edit_suggestion_leaves_the_field_unchanged(self):
-        original_hint = self.exercise.translations.get(locale='pl').hint
+        original_statement = self.exercise.translations.get(locale='pl').statement
         suggestion = self._suggest()
 
         response = self.client.post(
@@ -1305,7 +1305,7 @@ class EditSuggestionApprovalTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         translation = self.exercise.translations.get(locale='pl')
-        self.assertEqual(translation.hint, original_hint)
+        self.assertEqual(translation.statement, original_statement)
 
 
 class ModerationQueuePermissionTests(APITestCase):
@@ -2543,7 +2543,7 @@ class ModerationQueueCountTests(APITestCase):
         EditSuggestion.objects.create(
             exercise=exercise,
             locale='pl',
-            field='hint',
+            field='statement',
             proposed_value='better',
             submitted_by=make_user('count-a2'),
         )
@@ -2557,6 +2557,7 @@ class ModerationQueueCountTests(APITestCase):
             + len(queue['material_submissions'])
             + len(queue['edit_suggestions'])
             + len(queue['translations'])
+            + len(queue['solution_entries'])
             + len(queue['reports'])
             + len(queue['taxonomy_proposals'])
         )

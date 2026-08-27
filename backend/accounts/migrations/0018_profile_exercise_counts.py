@@ -31,7 +31,11 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('accounts', '0017_certificate'),
-        ('exercises', '__latest__'),
+        # Was ('exercises', '__latest__') — a dynamic dependency that re-resolves every time the
+        # exercises app gains a migration, and broke the graph the first time one landed AFTER this
+        # was already applied ("applied before its dependency"). Pinned to what "__latest__"
+        # actually meant on the day this migration ran.
+        ('exercises', '0008_exerciseclaim_exerciseclaimimportancevote_and_more'),
     ]
 
     operations = [

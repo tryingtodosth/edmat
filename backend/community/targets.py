@@ -34,6 +34,7 @@ TARGET_TYPE_BY_MODEL = {
     ('courses', 'chapter'): 'courseChapter',
     ('courses', 'courseclaim'): 'courseClaim',
     ('exercises', 'exerciseclaim'): 'exerciseClaim',
+    ('exercises', 'solutionentry'): 'solutionEntry',
     ('community', 'review'): 'review',
     ('issues', 'issue'): 'issue',
 }

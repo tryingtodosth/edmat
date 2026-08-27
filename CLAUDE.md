@@ -5931,6 +5931,119 @@ in `PRIVATE_TARGET_TYPES`, so linking a private issue's thread into a course wou
 by the 404 on the issue itself; the profile's material tile now uses the stored counter (17AF's own
 left-open item, closed here) but there is no "+ N unpublished" link for materials.
 
+## 17AH. The solution/hint pool: peer solutions and hints per exercise, voted, reviewed (✅ built, full stack)
+
+An exercise used to have at most ONE hint and ONE solution — two text fields on its translation,
+editable only through the moderation queue. Now it has a POOL (`exercises.SolutionEntry`): any
+number of peer hints and solutions, each written by a named person in one language, voted on,
+individually review-gated, discussable and reportable. Every shape decision below was put to the
+owner as an explicit question first (2026-08-27), not defaulted to.
+
+### The model, and the migration that emptied two columns
+
+`SolutionEntry(exercise, kind: hint|solution, locale, body, author, status, pinned, is_removed,
+auto_hidden_at, reviewed_by, review_note)` + `SolutionEntryVote` (▲/▼, one per user, weighted 2×
+for a verified contributor by the same shared `materials/services.py` math every claim vote uses).
+Ordering everywhere is pinned-first, then net weighted score (`exercises/entries.py`'s
+`sort_entries` — that module also owns visibility and every trust rule, one place, not scattered).
+
+**Migrate & retire, the owner's call over keeping the fields as "the original":**
+`ExerciseTranslation.hint`/`.solution` were copied out (migrations `exercises.0009–0011`) — every
+published translation's text became a **pinned, published** entry ("the currently attached ones
+should be pinned"), a pending translation's became pending entries, and the columns were DROPPED.
+Translations are title/statement/answer only now; a solution in another language is just another
+entry in that language, never a translation row (`TranslateForm` says so in words). Readers see
+entries matching their content locale, with "Show N more in other languages" as the explicit
+escape ("we don't want to overwhelm users with the main interface"). 1485 entries migrated;
+`import_legacy_corpus` upserts corpus originals into the pool by `(exercise, kind, locale,
+pinned=True)` and stays idempotent.
+
+**`Exercise.verified` is DERIVED now** (owner's call): ≥1 published, visible solution that passed
+review — pinned, reviewed, or by a verified contributor — recomputed by `exercises/signals.py`'s
+`recount_verified` (recount-not-increment; the review action's queryset-`update()` claim fires no
+signal, so it calls it explicitly). **A real, counted consequence, accepted with the decision:**
+389 corpus exercises carried a full solution while hand-flagged `verified=False`; the badge now
+asserts "a reviewed/original solution exists," so they flipped to True (verified went 353 → 742
+of 746). The migration writes this; the old hand-toggle is gone as a concept.
+
+### Who publishes, who reviews, who decides an edit
+
+- **Publishing**: a verified contributor / staff / branch governor's entry goes live immediately
+  (the §18.4 fast path's reasoning, extended); anybody else's starts `pending` — visible inline to
+  its author and to reviewers, nowhere else (a rejected one stays visible to its author alone,
+  with the note).
+- **Review**: ONE accept (any verified contributor, staff, or governor of the branch —
+  `can_review_entry`, the single seam where the future field/branch-expert SKILL tier lands)
+  publishes; one deny **with a required note** ("a comment with what went wrong") rejects and
+  notifies the author (`solution_entry_approved/rejected`, moderation-decision category). The ONE
+  endpoint (`POST /api/solution-entries/{id}/review/`, idempotent WHERE-anchored claim → 409) is
+  called by BOTH the exercise page's inline accept/deny AND the moderation queue's new "Solutions
+  & hints" tab — deliberately not a second `_KIND_MODELS` kind, so there is one review path.
+- **Edit suggestions target the row** (`EditSuggestion.entry`, migration `moderation.0023`;
+  `exercise/locale/field` derive from the entry server-side): decided by the entry's own AUTHOR +
+  staff/governors (`POST /api/edit-suggestions/{id}/decide/`) — deliberately NOT every verified
+  contributor: folding words into somebody else's solution is a different act than reviewing a
+  new standalone entry. A non-verified author's own edit re-queues their entry. The old
+  'hint'/'solution' translation-field suggestions are refused at validation; pending ones were
+  retargeted (or honestly closed) by `moderation.0024`.
+- Entries are reportable (`REPORT_KIND_MODELS['solution_entry']`, auto-hide measured against the
+  exercise's own viewer pool) and each has its own generic-Comment thread
+  (`targets.py: 'solutionEntry'`) — "different solutions may have their own comments".
+
+### Frontend, and the Activity tab
+
+`SolutionEntrySection.svelte` (per-kind reveal — progressive-reveal pedagogy unchanged — plus the
+composer with live KaTeX preview and the other-languages toggle) and `SolutionEntryCard.svelte`
+(votes, badges, accept/deny, author edit/delete, suggest-an-edit, the author's own suggestion
+inbox, lazy per-entry discussion, report) replaced the two static reveal blocks on
+`exercises/[id]`. My Set and shared-set printouts render the pool's published entries
+(locale-matching first). The moderation page gained the tab; `EditSuggestionForm`/`TranslateForm`
+narrowed to title/statement/answer. And — the owner's add-on — the homepage gained a deliberately
+near-placeholder **Activity** tab (last tab, `GET /api/activity/`, community/views.py's
+`SiteActivityView`): newest public exercises/materials/authored entries, derived on read, "we
+will improve it later." Corpus-migrated entries are excluded there (no author, migration
+timestamp — "somebody added a solution" is only true of authored rows).
+
+### Verified
+
+**40 new backend tests** (`exercises/test_solution_entries.py`) — publish/review circles, pending
+leaks (exactly the author + reviewers), derived-verified transitions, weighted votes, pin, the
+suggestion deciding circle (a verified contributor correctly NOT in it), cross-thread comment
+parents refused, report → auto-hide → gone from the reader list, submission-created founding
+entries (pinned only when a moderator approved), the activity feed. Full suite re-run after.
+**Browser: `e2e/solution-entries.mjs`, 27 checks, zero console/page errors, rerunnable** (resets
+its scratch through the real API first — a positional `.first()` reject once hit the WRONG queue
+row, e2e/CLAUDE.md trap 6 relearned). Screenshots actually looked at. `npm run check` 0/0,
+eslint clean, both catalogs +54 keys, key-set identical.
+
+**Two real pre-existing problems found and fixed on the way, neither caused by this feature:**
+(1) `accounts.0018/0019` depended on `('exercises'|'materials', '__latest__')` — a dynamic
+dependency that breaks the migration graph the instant that app gains a migration after it was
+applied ("applied before its dependency"); pinned to the concrete migrations they actually meant.
+(2) `check:katex` had been silently broken since the isomorphic-dompurify fix (§17Q): DOMPurify in
+Node strips the `<annotation>` TAG but keeps its raw-TeX text inside `<math>`, so the checker's
+annotation-only strip flagged 103 perfectly fine fields (`\\[2mm]` line breaks — 57 of them plain
+statements this feature never touched) as leftover delimiters, and it now needs an 8GB heap
+(wired into the npm script). The checker strips the whole MathML block now: **0 issues across
+2241 rows**, the corpus + pool genuinely clean.
+
+### Left open, not built
+
+- **The expert tier is a seam, not a feature**: `can_review_entry`/`can_decide_entry_suggestion`
+  (exercises/entries.py) are where the SKILL-based field-expert circle lands — one clause each.
+- **A rejected entry is visible to its author only** — staff can't enumerate somebody else's
+  rejected entries outside the Django admin. Honest, but it means no oversight surface for
+  reject decisions (and e2e cleanup needed the author's own token).
+- **The Activity tab is the placeholder it was asked to be** — 3 sources, 20 rows, no pagination,
+  no filters, no per-user tailoring.
+- **No cap on entries per exercise**, and no collapse of near-duplicate solutions — votes are the
+  only ranking pressure.
+- **Old message keys** (`exercise_showHint`, `editSuggestion_field_hint`, …) are unused but left
+  in both catalogs — harmless, removable in a sweep.
+- **Revoking a contributor's verified tier does not sweep `verified` recounts** over exercises
+  whose entries qualified through their authorship — only the next entry change recounts
+  (flagged in `recount_verified`'s own docstring).
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

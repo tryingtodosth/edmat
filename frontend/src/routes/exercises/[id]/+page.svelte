@@ -29,6 +29,8 @@
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import ClaimGroups from '$lib/components/material/ClaimGroups.svelte';
+	import SolutionEntrySection from '$lib/components/exercise/SolutionEntrySection.svelte';
+	import type { SolutionEntry } from '$lib/types';
 
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
 	let branch = $state<Branch | undefined>(undefined);
@@ -41,9 +43,7 @@
 	let notFound = $state(false);
 	let loadFailed = $state(false);
 
-	let showHint = $state(false);
 	let showAnswer = $state(false);
-	let showSolution = $state(false);
 	let showEditForm = $state(false);
 	let showTranslateForm = $state(false);
 	let submissionNotice = $state<'review' | 'comment' | 'edit' | 'translation' | null>(null);
@@ -61,7 +61,7 @@
 		loading = true;
 		notFound = false;
 		loadFailed = false;
-		showHint = showAnswer = showSolution = showEditForm = showTranslateForm = false;
+		showAnswer = showEditForm = showTranslateForm = false;
 		submissionNotice = null;
 		contentLocale = getLocale();
 
@@ -169,8 +169,23 @@
 		comments = [...comments, comment];
 	}
 
+	// The solution/hint pool's own state handlers — the page owns `exercise.entries`; the section
+	// and each card report changes back here instead of mutating shared state themselves.
+	function entryUpdated(entry: SolutionEntry) {
+		if (!exercise) return;
+		exercise.entries = exercise.entries.map((e) => (e.id === entry.id ? entry : e));
+	}
+	function entryDeleted(id: string) {
+		if (!exercise) return;
+		exercise.entries = exercise.entries.filter((e) => e.id !== id);
+	}
+	function entryCreated(entry: SolutionEntry) {
+		if (!exercise) return;
+		exercise.entries = [...exercise.entries, entry];
+	}
+
 	async function handleEditSuggestion(
-		field: 'title' | 'statement' | 'hint' | 'answer' | 'solution',
+		field: 'title' | 'statement' | 'answer',
 		proposedValue: string,
 		reason: string
 	) {
@@ -291,16 +306,15 @@
 				<MathContent source={exercise.statement} />
 			</section>
 
-			{#if exercise.hint}
-				<section class="content-section">
-					<button type="button" class="reveal-toggle" onclick={() => (showHint = !showHint)}>
-						{showHint ? m.exercise_hideHint() : m.exercise_showHint()}
-					</button>
-					{#if showHint}
-						<MathContent source={exercise.hint} />
-					{/if}
-				</section>
-			{/if}
+			<SolutionEntrySection
+				kind="hint"
+				exerciseId={exercise.id}
+				entries={exercise.entries.filter((e) => e.kind === 'hint')}
+				{contentLocale}
+				onUpdated={entryUpdated}
+				onDeleted={entryDeleted}
+				onCreated={entryCreated}
+			/>
 
 			{#if exercise.answer}
 				<section class="content-section">
@@ -313,23 +327,15 @@
 				</section>
 			{/if}
 
-			{#if exercise.solution}
-				<section class="content-section">
-					<button
-						type="button"
-						class="reveal-toggle"
-						onclick={() => (showSolution = !showSolution)}
-					>
-						{showSolution ? m.exercise_hideSolution() : m.exercise_showSolution()}
-					</button>
-					{#if showSolution}
-						{#if !exercise.answer}
-							<p class="hint-note">{m.exercise_noAnswerNote()}</p>
-						{/if}
-						<MathContent source={exercise.solution} />
-					{/if}
-				</section>
-			{/if}
+			<SolutionEntrySection
+				kind="solution"
+				exerciseId={exercise.id}
+				entries={exercise.entries.filter((e) => e.kind === 'solution')}
+				{contentLocale}
+				onUpdated={entryUpdated}
+				onDeleted={entryDeleted}
+				onCreated={entryCreated}
+			/>
 
 			<section class="content-section">
 				<h2>{m.exercise_source()}</h2>
@@ -402,9 +408,7 @@
 					currentValues={{
 						title: exercise.title,
 						statement: exercise.statement,
-						hint: exercise.hint,
-						answer: exercise.answer,
-						solution: exercise.solution
+						answer: exercise.answer
 					}}
 					onSubmit={handleEditSuggestion}
 					onCancel={() => (showEditForm = false)}
@@ -416,9 +420,7 @@
 					sourceValues={{
 						title: exercise.title,
 						statement: exercise.statement,
-						hint: exercise.hint,
-						answer: exercise.answer,
-						solution: exercise.solution
+						answer: exercise.answer
 					}}
 					onSubmit={handleTranslationSubmit}
 					onCancel={() => (showTranslateForm = false)}
@@ -556,11 +558,6 @@
 		align-self: flex-start;
 		font-size: var(--font-size-xs);
 		padding: var(--space-1) var(--space-3);
-	}
-	.hint-note {
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-		font-style: italic;
 	}
 	.source-line {
 		font-size: var(--font-size-sm);

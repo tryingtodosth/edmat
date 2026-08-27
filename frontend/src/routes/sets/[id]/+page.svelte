@@ -23,6 +23,16 @@
 
 	let set = $state<ExerciseSet | undefined>(undefined);
 	let exercises = $state<ResolvedExercise[]>([]);
+
+	// The printable hint/solution content comes from the pool (`exercise.entries`): the published
+	// entries in the exercise's own resolved locale (pinned/top-voted order preserved from the
+	// server); if that locale has none, whatever published entries exist — a language beats a
+	// blank on a printed study sheet.
+	function printableEntries(exercise: ResolvedExercise, kind: 'hint' | 'solution') {
+		const published = exercise.entries.filter((e) => e.kind === kind && e.status === 'published');
+		const local = published.filter((e) => e.locale === exercise.locale);
+		return local.length > 0 ? local : published;
+	}
 	let loading = $state(true);
 	let notFound = $state(false);
 	let loadedIntoMySet = $state(false);
@@ -142,17 +152,21 @@
 							<DifficultyBadge difficulty={exercise.difficulty} />
 						</div>
 						<MathContent source={exercise.statement} />
-						{#if options?.includeHint && exercise.hint}
+						{#if options?.includeHint && printableEntries(exercise, 'hint').length > 0}
 							<p class="content-label">{m.myset_field_hint()}</p>
-							<MathContent source={exercise.hint} />
+							{#each printableEntries(exercise, 'hint') as entry (entry.id)}
+								<MathContent source={entry.body} />
+							{/each}
 						{/if}
 						{#if options?.includeAnswer && exercise.answer}
 							<p class="content-label">{m.myset_field_answer()}</p>
 							<MathContent source={exercise.answer} />
 						{/if}
-						{#if options?.includeSolution && exercise.solution}
+						{#if options?.includeSolution && printableEntries(exercise, 'solution').length > 0}
 							<p class="content-label">{m.myset_field_solution()}</p>
-							<MathContent source={exercise.solution} />
+							{#each printableEntries(exercise, 'solution') as entry (entry.id)}
+								<MathContent source={entry.body} />
+							{/each}
 						{/if}
 					</li>
 				{/each}

@@ -18,13 +18,13 @@
 	let locale = $state('');
 	let title = $state(untrack(() => sourceValues.title));
 	let statement = $state(untrack(() => sourceValues.statement));
-	let hint = $state(untrack(() => sourceValues.hint));
 	let answer = $state(untrack(() => sourceValues.answer));
-	let solution = $state(untrack(() => sourceValues.solution));
 
 	function submit() {
 		if (!locale.trim() || !title.trim() || !statement.trim()) return;
-		onSubmit({ locale: locale.trim().toLowerCase(), title, statement, hint, answer, solution });
+		// hint/solution are deliberately absent: a solution rendered into another language is a NEW
+		// entry in the pool ("Add a solution" on the exercise page), not part of a translation.
+		onSubmit({ locale: locale.trim().toLowerCase(), title, statement, answer });
 	}
 </script>
 
@@ -46,17 +46,10 @@
 		<textarea rows="4" bind:value={statement} required></textarea>
 	</label>
 	<label class="field">
-		<span>{m.exercise_hint()}</span>
-		<textarea rows="2" bind:value={hint}></textarea>
-	</label>
-	<label class="field">
 		<span>{m.exercise_answer()}</span>
 		<textarea rows="2" bind:value={answer}></textarea>
 	</label>
-	<label class="field">
-		<span>{m.exercise_solution()}</span>
-		<textarea rows="4" bind:value={solution}></textarea>
-	</label>
+	<p class="hint">{m.translate_solutionsNote()}</p>
 
 	<div class="translate-form__actions">
 		<button type="button" class="cancel" onclick={onCancel}>{m.common_cancel()}</button>

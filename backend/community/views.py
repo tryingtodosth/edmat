@@ -12,6 +12,7 @@ from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from notifications.services import label_for_exercise, notify_comment_reply
 
@@ -283,3 +284,81 @@ class ReviewViewSet(viewsets.GenericViewSet):
                 exercise=review.exercise,
             ),
         )
+
+
+class SiteActivityView(APIView):
+    """GET /api/activity/ — the homepage Activity tab's feed: the newest public actions across the
+    platform, merged newest-first. Deliberately near-placeholder (an explicit owner decision,
+    2026-08-27, alongside the solution-pool feature: "make it almost as simple as placeholder — we
+    will improve it later"): three sources — newly published exercises, materials, and
+    solution/hint entries — derived on read like the per-user activity feed
+    (accounts/profile_extras.py's UserActivityView), never stored. Public content only; nothing
+    here needs or reads authentication.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from exercises.models import Exercise, SolutionEntry
+        from materials.models import Material
+        from notifications.services import label_for_exercise, label_for_material
+
+        def display_name(user):
+            if user is None:
+                return ''
+            profile = getattr(user, 'profile', None)
+            return profile.display_name if profile and profile.display_name else user.username
+
+        items = []
+        for exercise in (
+            Exercise.objects.filter(published=True)
+            .select_related('submitted_by__profile')
+            .prefetch_related('translations')
+            .order_by('-created_at')[:15]
+        ):
+            items.append(
+                {
+                    'kind': 'exercise',
+                    'title': label_for_exercise(exercise),
+                    'exercise_id': exercise.pk,
+                    'actor_display_name': display_name(exercise.submitted_by),
+                    'created_at': exercise.created_at.isoformat(),
+                }
+            )
+        for material in (
+            Material.objects.filter(published=True)
+            .select_related('submitted_by__profile')
+            .prefetch_related('translations')
+            .order_by('-created_at')[:15]
+        ):
+            items.append(
+                {
+                    'kind': 'material',
+                    'title': label_for_material(material),
+                    'material_id': material.pk,
+                    'actor_display_name': display_name(material.submitted_by),
+                    'created_at': material.created_at.isoformat(),
+                }
+            )
+        for entry in (
+            # `author__isnull=False`: the migrated corpus originals all carry the migration's own
+            # timestamp and no author — "somebody added a solution" is only true of authored rows.
+            SolutionEntry.objects.filter(
+                status='published', is_removed=False, auto_hidden_at__isnull=True,
+                exercise__published=True, author__isnull=False,
+            )
+            .select_related('exercise', 'author__profile')
+            .order_by('-created_at')[:15]
+        ):
+            items.append(
+                {
+                    'kind': 'solution_entry',
+                    'entry_kind': entry.kind,
+                    'title': label_for_exercise(entry.exercise),
+                    'exercise_id': entry.exercise_id,
+                    'actor_display_name': display_name(entry.author),
+                    'created_at': entry.created_at.isoformat(),
+                }
+            )
+        items.sort(key=lambda i: i['created_at'], reverse=True)
+        return Response(items[:20])

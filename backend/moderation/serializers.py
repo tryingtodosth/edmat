@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
+from exercises.models import SolutionEntry
 from materials.services import clean_requirement_labels, find_duplicate_requirement_label
 from taxonomy.models import Branch
 
@@ -69,6 +70,16 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
 
 
 class EditSuggestionSerializer(serializers.ModelSerializer):
+    # Which SolutionEntry this edits, when it edits one at all — hints/solutions are pool entries
+    # now (exercises.SolutionEntry), so a suggestion against one names the ROW, not a translation
+    # field. `exercise`/`locale`/`field` are then derived server-side from the entry itself
+    # (queue scoping still reads them), never trusted from the client.
+    entry = serializers.PrimaryKeyRelatedField(
+        queryset=SolutionEntry.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = EditSuggestion
         fields = [
@@ -76,6 +87,7 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
             'exercise',
             'locale',
             'field',
+            'entry',
             'proposed_value',
             'reason',
             'submitted_by',
@@ -85,8 +97,41 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['submitted_by', 'status', 'reviewed_by', 'review_note']
+        # `exercise`/`locale`/`field` are required for a translation-targeted suggestion but
+        # derived for an entry-targeted one — enforced in validate(), not by field flags.
+        extra_kwargs = {
+            'exercise': {'required': False},
+            'locale': {'required': False, 'allow_blank': True},
+            'field': {'required': False, 'allow_blank': True},
+        }
 
     def validate(self, attrs):
+        entry = attrs.get('entry') or getattr(self.instance, 'entry', None)
+        if entry is not None:
+            # An entry-targeted suggestion: everything positional comes from the entry itself.
+            if not entry.is_visible_to_readers():
+                raise serializers.ValidationError(
+                    {'entry': ['Only a published entry can receive edit suggestions.']}
+                )
+            attrs['exercise'] = entry.exercise
+            attrs['locale'] = entry.locale
+            attrs['field'] = 'body'
+            return attrs
+
+        exercise = attrs.get('exercise') or getattr(self.instance, 'exercise', None)
+        locale = attrs.get('locale') or getattr(self.instance, 'locale', None)
+        field = attrs.get('field') or getattr(self.instance, 'field', None)
+        if exercise is None or not locale or not field:
+            raise serializers.ValidationError(
+                {'field': ['exercise, locale and field are required unless an entry is named.']}
+            )
+        # Hints/solutions are no longer translation fields — a suggestion against one must name
+        # the entry it edits (see `entry` above); accepting the old field names here would produce
+        # a suggestion `_apply_edit_suggestion` can never apply.
+        if field not in ('title', 'statement', 'answer'):
+            raise serializers.ValidationError(
+                {'field': ["Must be one of 'title', 'statement', 'answer' — a hint/solution edit names its entry instead."]}
+            )
         # An edit suggestion is a proposed change to an EXISTING translation, never a way to
         # originate a brand-new one for a locale nobody has translated yet — that's what the
         # separate translation-submission flow (`POST /api/exercises/{id}/translations/`) is
@@ -96,13 +141,10 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
         # locale with no existing translation — publishing a near-empty exercise (blank title,
         # blank statement, just the one edited field) straight to readers, with no real
         # translation review ever having happened.
-        exercise = attrs.get('exercise') or getattr(self.instance, 'exercise', None)
-        locale = attrs.get('locale') or getattr(self.instance, 'locale', None)
-        if exercise is not None and locale is not None:
-            if not exercise.translations.filter(locale=locale).exists():
-                raise serializers.ValidationError(
-                    {'locale': [f'No existing translation for locale "{locale}" on this exercise.']}
-                )
+        if not exercise.translations.filter(locale=locale).exists():
+            raise serializers.ValidationError(
+                {'locale': [f'No existing translation for locale "{locale}" on this exercise.']}
+            )
         return attrs
 
 

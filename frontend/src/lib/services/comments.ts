@@ -13,6 +13,9 @@ function targetPath(targetType: CommentTargetType, targetId: string): string {
 	if (targetType === 'exerciseClaim') {
 		return `/exercise-claims/${encodeURIComponent(targetId)}/comments/`;
 	}
+	if (targetType === 'solutionEntry') {
+		return `/solution-entries/${encodeURIComponent(targetId)}/comments/`;
+	}
 	if (targetType === 'courseClaim') {
 		return `/course-claims/${encodeURIComponent(targetId)}/comments/`;
 	}

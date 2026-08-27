@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import Exercise, ExerciseSource, ExerciseSourceTranslation, ExerciseTranslation, Tag, TagFollow
+from .models import (
+    Exercise,
+    ExerciseSource,
+    ExerciseSourceTranslation,
+    ExerciseTranslation,
+    SolutionEntry,
+    Tag,
+    TagFollow,
+)
 
 
 class ExerciseTranslationInline(admin.TabularInline):
@@ -43,3 +51,10 @@ class TagAdmin(admin.ModelAdmin):
 class TagFollowAdmin(admin.ModelAdmin):
     list_display = ['user', 'tag', 'notify', 'created_at']
     list_filter = ['notify']
+
+
+@admin.register(SolutionEntry)
+class SolutionEntryAdmin(admin.ModelAdmin):
+    list_display = ['__str__', 'kind', 'locale', 'status', 'pinned', 'author', 'created_at']
+    list_filter = ['kind', 'status', 'pinned', 'locale']
+    raw_id_fields = ['exercise', 'author', 'reviewed_by']

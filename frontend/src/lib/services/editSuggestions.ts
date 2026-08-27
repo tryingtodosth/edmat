@@ -28,3 +28,41 @@ export async function getEditSuggestionsForExercise(exerciseId: string): Promise
 	);
 	return raw.map(mapEditSuggestion);
 }
+
+// ---- suggestions against a solution/hint entry (the pool) --------------------------------------
+
+/** Propose a change to somebody's solution/hint entry — the entry's own author (or staff/a branch
+ * governor) decides it, not the moderation queue's usual circle. */
+export async function submitEntryEditSuggestion(
+	entryId: string,
+	proposedValue: string,
+	reason?: string
+): Promise<EditSuggestion> {
+	const raw = await apiClient.post<RawEditSuggestion>('/edit-suggestions/', {
+		entry: Number(entryId),
+		proposed_value: proposedValue,
+		reason: reason?.trim() || ''
+	});
+	return mapEditSuggestion(raw);
+}
+
+/** Pending suggestions against one entry — the backend lists these to the suggester themselves,
+ * the entry's author, and staff; anybody else gets an empty list. */
+export async function getEditSuggestionsForEntry(entryId: string): Promise<EditSuggestion[]> {
+	const raw = await apiClient.get<RawEditSuggestion[]>(
+		`/edit-suggestions/?entry=${encodeURIComponent(entryId)}`
+	);
+	return raw.map(mapEditSuggestion);
+}
+
+export async function decideEntryEditSuggestion(
+	suggestionId: string,
+	decision: 'approve' | 'reject',
+	note = ''
+): Promise<EditSuggestion> {
+	const raw = await apiClient.post<RawEditSuggestion>(
+		`/edit-suggestions/${encodeURIComponent(suggestionId)}/decide/`,
+		{ decision, note }
+	);
+	return mapEditSuggestion(raw);
+}

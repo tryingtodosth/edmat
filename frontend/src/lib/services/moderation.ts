@@ -7,7 +7,8 @@ import type {
 	ModerationStatus,
 	NodeGovernorGrant,
 	ReportGroup,
-	ReportKind
+	ReportKind,
+	SolutionEntry
 } from '$lib/types';
 import { apiClient } from '$lib/api/client';
 import {
@@ -17,12 +18,14 @@ import {
 	mapMaterialSubmission,
 	mapNodeGovernorGrant,
 	mapReportGroup,
+	mapSolutionEntry,
 	type RawEditSuggestion,
 	type RawExerciseSubmission,
 	type RawExerciseTranslation,
 	type RawMaterialSubmission,
 	type RawNodeGovernorGrant,
-	type RawReportGroup
+	type RawReportGroup,
+	type RawSolutionEntry
 } from '$lib/api/mappers';
 
 export interface ModerationQueue {
@@ -34,6 +37,9 @@ export interface ModerationQueue {
 	materialSubmissions: MaterialSubmission[];
 	editSuggestions: EditSuggestion[];
 	translations: ExerciseTranslation[];
+	/** Pending hints/solutions from the pool — decided through the same one review endpoint the
+	 * exercise page's inline accept/deny uses (`reviewSolutionEntry`), never a separate path. */
+	solutionEntries: SolutionEntry[];
 	// Already priority-sorted by the backend (build_report_queue: auto-hidden first, then report
 	// count descending) — this app's own established convention of not re-deriving server-computed
 	// ordering client-side (same trust model Exercise.averageRating/reviewCount already get).
@@ -46,6 +52,7 @@ export async function getModerationQueue(): Promise<ModerationQueue> {
 		material_submissions: RawMaterialSubmission[];
 		edit_suggestions: RawEditSuggestion[];
 		translations: RawExerciseTranslation[];
+		solution_entries: RawSolutionEntry[];
 		reports: RawReportGroup[];
 		taxonomy_proposals: unknown[];
 	}>('/moderation/queue/');
@@ -54,6 +61,7 @@ export async function getModerationQueue(): Promise<ModerationQueue> {
 		materialSubmissions: raw.material_submissions.map(mapMaterialSubmission),
 		editSuggestions: raw.edit_suggestions.map(mapEditSuggestion),
 		translations: raw.translations.map(mapExerciseTranslation),
+		solutionEntries: (raw.solution_entries ?? []).map(mapSolutionEntry),
 		reports: raw.reports.map(mapReportGroup),
 		taxonomyProposals: (raw.taxonomy_proposals ?? []).map(mapTaxonomyProposal)
 	};
