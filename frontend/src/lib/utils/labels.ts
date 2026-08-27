@@ -270,5 +270,6 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	material_submissions: m.featureFlags_label_materialSubmissions,
 	events: m.featureFlags_label_events,
 	issues: m.featureFlags_label_issues,
+	posts: m.featureFlags_label_posts,
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };

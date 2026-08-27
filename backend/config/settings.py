@@ -140,6 +140,9 @@ INSTALLED_APPS = [
     # Booking sessions with a tutor — attaches to `services.Service` rather than being a marketplace
     # of its own, and hides behind the same `tutoring` feature flag. See booking/models.py.
     'booking',
+    # The activity feed's stored, public-by-construction event log + anchored micro-posts —
+    # root CLAUDE.md §17AI.
+    'activity',
     # One-off happenings people organise — a guest lecture, a workshop, an exam-prep meetup.
     # Deliberately its own app rather than a variant of courses or booking; see events/models.py
     # for why neither of those is the same shape.
@@ -538,6 +541,9 @@ REST_FRAMEWORK = {
         # systematic search, not to punish typos. See accounts/throttles.py for the full reasoning.
         'login_username': '30/hour',
         'register': '10/hour',
+        # Publishing a micro-post is immediate (no review queue), so the flood-bound lives here:
+        # plenty for a person with thoughts, far too few for a spam script.
+        'post_create': '12/hour',
         # `PasswordResetView` is still the honest always-200 stub Phase 2 shipped (no email backend
         # exists yet, Section 18 item 9), so there is nothing here to brute-force TODAY. Throttled
         # anyway, because the moment a real email backend lands this becomes an unauthenticated

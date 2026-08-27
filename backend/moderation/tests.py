@@ -2223,6 +2223,7 @@ class FeatureFlagTests(APITestCase):
                 'material_submissions',
                 'events',
                 'issues',
+                'posts',
                 'material_uploads_verified_only',
             },
         )

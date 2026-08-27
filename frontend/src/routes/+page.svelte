@@ -38,9 +38,9 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import Loading from '$lib/components/shared/Loading.svelte';
-	import { getSiteActivity, type ActivityItem } from '$lib/services/activity';
-	import { formatRelativeDate } from '$lib/utils/format';
-	import MathTitle from '$lib/components/shared/MathTitle.svelte';
+	import { getActivityFeed } from '$lib/services/activity';
+	import type { FeedItem } from '$lib/types';
+	import ActivityRow from '$lib/components/activity/ActivityRow.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
 	import MaterialCard from '$lib/components/material/MaterialCard.svelte';
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
@@ -144,7 +144,7 @@
 	let courses = $state<Course[]>([]);
 	let services = $state<Service[]>([]);
 	let events = $state<EdmatEvent[]>([]);
-	let activity = $state<ActivityItem[]>([]);
+	let activity = $state<FeedItem[]>([]);
 
 	let loaded = $state<Record<string, boolean>>({});
 	let loading = $state<Record<string, boolean>>({ exercises: true });
@@ -177,7 +177,7 @@
 			} else if (id === 'events') {
 				events = (await getEvents({ when: 'upcoming' })).slice(0, 6);
 			} else if (id === 'activity') {
-				activity = await getSiteActivity();
+				activity = await getActivityFeed({ limit: 10 });
 			}
 			loaded = { ...loaded, [id]: true };
 		} catch {
@@ -339,47 +339,18 @@
 			</section>
 		{:else if active === 'activity'}
 			<section class="section">
-				<h2>{m.home_activity_heading()}</h2>
+				<div class="section__head">
+					<h2>{m.home_activity_heading()}</h2>
+					<a href={resolve('/activity')}>{m.home_seeAll()}</a>
+				</div>
 				{#if activity.length === 0}
 					<p class="status">{m.home_noResults()}</p>
 				{:else}
-					<ul class="activity">
-						{#each activity as item, i (i)}
-							<li class="activity__row">
-								<span class="activity__kind">
-									{item.kind === 'exercise'
-										? m.activity_kind_exercise()
-										: item.kind === 'material'
-											? m.activity_kind_material()
-											: item.entryKind === 'hint'
-												? m.activity_kind_hint()
-												: m.activity_kind_solution()}
-								</span>
-								{#if item.exerciseId}
-									<a
-										class="activity__title"
-										href={resolve('/exercises/[id]', { id: item.exerciseId })}
-										><MathTitle text={item.title} /></a
-									>
-								{:else if item.materialId}
-									<a
-										class="activity__title"
-										href={resolve('/materials/[id]', { id: item.materialId })}
-										><MathTitle text={item.title} /></a
-									>
-								{:else}
-									<span class="activity__title"><MathTitle text={item.title} /></span>
-								{/if}
-								{#if item.actorDisplayName}
-									<span class="activity__actor"
-										>{m.activity_by({ name: item.actorDisplayName })}</span
-									>
-								{/if}
-								<span class="activity__when">{formatRelativeDate(item.createdAt, getLocale())}</span
-								>
-							</li>
+					<div class="activity">
+						{#each activity as item (item.id)}
+							<ActivityRow {item} />
 						{/each}
-					</ul>
+					</div>
 				{/if}
 			</section>
 		{:else if active === 'events'}
@@ -406,31 +377,9 @@
 	@use '../lib/styles/mixins' as mix;
 
 	.activity {
-		list-style: none;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
-		padding: 0;
-	}
-	.activity__row {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		gap: var(--space-2);
-		font-size: var(--font-size-sm);
-	}
-	.activity__kind {
-		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
-		flex: 0 0 auto;
-	}
-	.activity__title {
-		font-weight: 600;
-		color: var(--accent);
-	}
-	.activity__actor,
-	.activity__when {
-		color: var(--text-secondary);
-		font-size: var(--font-size-xs);
 	}
 
 	.page {

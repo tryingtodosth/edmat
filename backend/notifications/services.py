@@ -117,6 +117,7 @@ def notify(
     material=None,
     course=None,
     event=None,
+    post=None,
     issue=None,
     note: str = '',
 ):
@@ -165,6 +166,7 @@ def notify(
         material=material,
         course=course,
         event=event,
+        post=post,
         issue=issue,
         note=(note or '')[:500],
     )
@@ -239,7 +241,14 @@ def notify_tag_followers(tag, *, actor, exercise=None, material=None):
 
 
 def notify_comment_reply(
-    comment, *, target_label: str, exercise=None, material=None, course=None, root_recipient=None
+    comment,
+    *,
+    target_label: str,
+    exercise=None,
+    material=None,
+    course=None,
+    post=None,
+    root_recipient=None,
 ):
     """Called right after a new Comment is saved — the one shared implementation for
     exercises/views.py's `ExerciseViewSet.comments`, materials/views.py's
@@ -273,8 +282,9 @@ def notify_comment_reply(
         material=material,
         # `course` is new: a reply inside a course had nowhere to link to, and a notification you
         # cannot click is markedly less useful than one you can — the same reasoning that added the
-        # `material` link here before it.
+        # `material` link here before it. `post` (activity.Post) joined on the identical reasoning.
         course=course,
+        post=post,
         note=comment.body[:200],
     )
 

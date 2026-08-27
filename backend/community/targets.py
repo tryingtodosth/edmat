@@ -37,6 +37,7 @@ TARGET_TYPE_BY_MODEL = {
     ('exercises', 'solutionentry'): 'solutionEntry',
     ('community', 'review'): 'review',
     ('issues', 'issue'): 'issue',
+    ('activity', 'post'): 'post',
 }
 
 # The targets whose own threads are NOT public: a course's discussion, and a week's or a session's

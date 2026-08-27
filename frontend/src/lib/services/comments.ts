@@ -5,6 +5,7 @@ import { mapComment, type RawComment } from '$lib/api/mappers';
 function targetPath(targetType: CommentTargetType, targetId: string): string {
 	if (targetType === 'exercise') return `/exercises/${encodeURIComponent(targetId)}/comments/`;
 	if (targetType === 'issue') return `/issues/${encodeURIComponent(targetId)}/comments/`;
+	if (targetType === 'post') return `/posts/${encodeURIComponent(targetId)}/comments/`;
 	if (targetType === 'material') return `/materials/${encodeURIComponent(targetId)}/comments/`;
 	if (targetType === 'materialCoverage') {
 		return `/material-coverage/${encodeURIComponent(targetId)}/comments/`;

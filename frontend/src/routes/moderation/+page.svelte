@@ -262,7 +262,8 @@
 		material: m.report_kind_material,
 		requirement: m.report_kind_requirement,
 		service_review: m.report_kind_service_review,
-		solution_entry: m.report_kind_solution_entry
+		solution_entry: m.report_kind_solution_entry,
+		post: m.report_kind_post
 	};
 
 	async function restoreReport(r: ReportGroup) {

@@ -16,6 +16,9 @@ export type FeatureFlagKey =
 	| 'material_submissions'
 	| 'events'
 	| 'issues'
+	// Anchored micro-posts on the activity feed (backend activity/). Off: the composer, every
+	// post row in the feed, and the post pages all go.
+	| 'posts'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

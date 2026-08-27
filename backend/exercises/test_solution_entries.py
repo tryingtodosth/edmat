@@ -489,12 +489,20 @@ class SubmissionCreatesEntriesTests(APITestCase):
 
 
 class SiteActivityTests(APITestCase):
-    def test_the_feed_lists_new_entries_and_exercises(self):
+    def test_a_published_entry_reaches_the_activity_feed(self):
+        """§17AI made the feed a STORED, public-by-construction log — a row appears when the
+        publish path runs (the API), never from a bare objects.create the way the old derived
+        feed re-queried. The full feed behavior lives in activity/tests.py; this pins just the
+        one seam this app owns: the entry-create endpoint records its feed row."""
         branch = make_branch(slug='pool-activity')
         exercise = make_exercise(branch, 1)
-        make_entry(exercise, author=make_user('act-author', is_verified_contributor=True))
+        self.client.force_authenticate(make_user('act-author', is_verified_contributor=True))
+        self.client.post(
+            f'/api/exercises/{exercise.pk}/entries/',
+            {'kind': 'solution', 'locale': 'pl', 'body': '<p>x</p>'},
+            format='json',
+        )
         response = self.client.get('/api/activity/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         kinds = {item['kind'] for item in response.data}
-        self.assertIn('exercise', kinds)
         self.assertIn('solution_entry', kinds)

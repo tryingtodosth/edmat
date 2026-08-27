@@ -15,6 +15,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
 
+from activity.models import Post as ActivityPost
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, SolutionEntry, Tag
 from materials.models import Material, MaterialRequirement
@@ -42,6 +43,9 @@ REPORT_KIND_MODELS = {
     # exactly like a comment, and (unlike most kinds here) with a REAL viewer pool to measure
     # against: its exercise's own ContentView count, same as a Comment borrows its parent's.
     'solution_entry': SolutionEntry,
+    # An anchored micro-post (activity.Post) — its viewer pool is the referenced exercise's when
+    # one is referenced, else honestly none (the Service posture).
+    'post': ActivityPost,
     'service': Service,
     'tag': Tag,
     'material': Material,
@@ -136,6 +140,8 @@ def resolve_view_scope_exercise(target):
         return target.exercise
     if isinstance(target, SolutionEntry):
         return target.exercise
+    if isinstance(target, ActivityPost):
+        return target.ref_exercise
     if isinstance(target, Comment):
         parent = target.target
         if parent is None or parent is target:
@@ -178,6 +184,11 @@ def check_auto_hide(target) -> bool:
         target.published = False
         update_fields.append('published')
     target.save(update_fields=update_fields)
+
+    # The feed forgets what just stopped being public — activity/models.py's own contract.
+    from activity.services import remove_activity_for
+
+    remove_activity_for(target)
 
     kind = _REVERSE_KIND_MODELS.get(type(target))
     if kind is not None:
@@ -234,6 +245,14 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
 
     if kind == 'requirement':
         return target.label[:150], None, None
+
+    if kind == 'post':
+        exercise = target.ref_exercise
+        exercise_title = None
+        if exercise is not None:
+            t = _resolve_exercise_translation(exercise, DEFAULT_FALLBACK_LOCALE)
+            exercise_title = t.title if t else f'#{exercise.number}'
+        return target.body[:150], exercise.pk if exercise else None, exercise_title
 
     if kind == 'solution_entry':
         exercise = target.exercise
@@ -329,6 +348,8 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
         qs = model.objects.filter(pk__in=obj_ids)
         if model is Review or model is SolutionEntry:
             qs = qs.select_related('exercise')
+        if model is ActivityPost:
+            qs = qs.select_related('ref_exercise')
         for obj in qs:
             targets_by_key[(ct_id, obj.pk)] = obj
 
@@ -348,6 +369,10 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
             scope_exercise_by_key[key] = obj.exercise
             if obj.exercise_id:
                 needed_exercise_ids.add(obj.exercise_id)
+        elif isinstance(obj, ActivityPost):
+            scope_exercise_by_key[key] = obj.ref_exercise
+            if obj.ref_exercise_id:
+                needed_exercise_ids.add(obj.ref_exercise_id)
         elif isinstance(obj, (Service, Tag, Material, MaterialRequirement, ServiceReview)):
             # None of these five have a viewer-pool concept at all (not page-scoped to one Exercise
             # the way a Comment/Review borrows its parent's) — resolved directly to None, matching

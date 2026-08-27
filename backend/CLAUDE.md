@@ -1,4 +1,4 @@
-# backend/ — Django 5.2 + DRF, 15 apps + `config/` + `testing/` + `imaging.py`, SQLite
+# backend/ — Django 5.2 + DRF, 16 apps + `config/` + `testing/` + `imaging.py`, SQLite
 
 Scoped context for backend work. Per-app specifics live in each app's own `CLAUDE.md`; full
 chronological history and design reasoning live in the root `CLAUDE.md` (authoritative when they
@@ -66,6 +66,15 @@ still exist on disk — the live app is `courses/`; never resurrect `classroom`.
   shared bounds in `backend/imaging.py` (byte cap → magic sniff → declared-dimensions pixel cap
   BEFORE decode → decode/EXIF-transpose/re-encode WebP). The pixel cap is the decompression-bomb
   defense; EXIF stripping is a privacy fix (GPS in phone photos).
+
+## The activity feed (activity/)
+
+`ActivityEvent` is **public-by-construction, never an audit log** — `record_activity()` is the
+only writer (called only for already-public events), `remove_activity_for()` the forgetting half
+(auto-hide, removes, tombstones), 90-day self-trim. Community rows come from `activity/signals.py`
+with a strict never-privatizable-targets allowlist. `Post` = words + exactly-one
+discipline/branch/tag anchor (DB CheckConstraint) + optional re-encoded image; `posts` kill
+switch strips its feed rows too. See activity/CLAUDE.md.
 
 ## Notifications
 

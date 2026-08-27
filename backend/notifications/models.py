@@ -129,6 +129,11 @@ class Notification(models.Model):
         'events.Event', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
     # Same shape again, for an issue report — the page it opens is the report itself.
+    # An anchored micro-post (activity.Post) — same shape and reasoning as `event` before it: a
+    # reply notification a reader cannot click is markedly less useful than one they can.
+    post = models.ForeignKey(
+        'activity.Post', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
     issue = models.ForeignKey(
         'issues.Issue', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )

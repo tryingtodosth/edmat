@@ -268,6 +268,7 @@ node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with i
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
 node e2e/solution-entries.mjs         # E2E_EXERCISE=<published exercise with pinned corpus entries>, default 1; ola + michal + kasia, resets its own scratch first
+node e2e/activity-feed.mjs            # the activity feed + micro-posts; ola + michal (UI) + kasia (API); toggles the `posts` flag and restores it; cleans its posts
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -598,6 +599,14 @@ through the real API at the start using all three accounts' tokens** — a rejec
 to its author alone, so kasia's view cannot find ola's rejects. Each account signs in exactly once
 (the login throttle). Two of the queue's pending entries are the migration's own (a pending
 translation's hint/solution), so the tab count is asserted as a live number, not an exact one.
+
+**`e2e/activity-feed.mjs` (20 checks)** — the real activity feed (root CLAUDE.md §17AI): the
+public feed page; publishing a post through the actual composer (branch anchor + an exercise
+attached via the search picker); the anchor chip opening the feed filtered to that anchor; the
+kind filter; the post's own page with its thread and the author's `comment_reply` notification
+carrying `post_id`; Followed's honest empty state; the home-tab slice; delete-as-tombstone with
+the feed forgetting the row; and the `posts` kill switch removing the composer, the filter option
+and every post row from the feed API. Resets by tombstoning any earlier run's posts as staff.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

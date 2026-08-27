@@ -76,6 +76,7 @@ export interface Notification {
 	materialId?: string; // set instead of exerciseId when a newTaggedContent notification targets a Material
 	courseId?: string; // set for the branch types, which have neither an exercise nor a material
 	eventId?: string; // set for the event types, which have none of the three above
+	postId?: string; // a reply on an activity micro-post — the post's page is where to read it
 	issueId?: string; // set for issueStatusChanged — the report itself is the page to open
 	note: string;
 	isRead: boolean;

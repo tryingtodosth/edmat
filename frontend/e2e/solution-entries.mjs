@@ -128,7 +128,10 @@ await ola.getByRole('button', { name: 'Add a solution' }).click();
 await ola.locator('.composer textarea').fill('An alternative way: substitute \\(u = x^2\\).');
 await ola.getByRole('button', { name: 'Show preview' }).click();
 await settle(600);
-check('the composer preview typesets KaTeX', (await ola.locator('.composer__preview .katex').count()) > 0);
+check(
+	'the composer preview typesets KaTeX',
+	(await ola.locator('.composer__preview .katex').count()) > 0
+);
 await ola.getByRole('button', { name: /^Add$/ }).click();
 await settle(900);
 check(
@@ -158,10 +161,7 @@ const pendingCard = michal.locator('.entry--pending').first();
 check('a verified contributor sees the pending card inline', (await pendingCard.count()) === 1);
 await pendingCard.getByRole('button', { name: 'Accept' }).click();
 await settle(900);
-check(
-	'one accept publishes it',
-	(await michal.locator('.entry--pending').count()) === 0
-);
+check('one accept publishes it', (await michal.locator('.entry--pending').count()) === 0);
 
 // Votes: michal (verified, weight 2) downvotes the corpus original, upvotes ola's — ola's should
 // outrank the unpinned... corpus original is pinned so stays first; instead check the score text.
@@ -185,7 +185,10 @@ check(
 	(await michal.getByText('Published — thank you!').count()) === 1
 );
 const otherToggle = michal.getByRole('button', { name: /Show 1 more in other languages/ });
-check('the English entry sits behind the other-languages action', (await otherToggle.count()) === 1);
+check(
+	'the English entry sits behind the other-languages action',
+	(await otherToggle.count()) === 1
+);
 await otherToggle.click();
 await settle(400);
 check(
@@ -199,7 +202,9 @@ await michal.getByRole('button', { name: /Show solutions/ }).click();
 await settle(500);
 const target = michal.locator('.entry', { hasText: 'alternative way' }).first();
 await target.getByRole('button', { name: 'Suggest an edit' }).click();
-await target.locator('.entry__form textarea').fill('An alternative way: substitute \\(u = x^2\\), then simplify.');
+await target
+	.locator('.entry__form textarea')
+	.fill('An alternative way: substitute \\(u = x^2\\), then simplify.');
 await target.getByRole('button', { name: 'Send suggestion' }).click();
 await settle(800);
 check(
@@ -219,10 +224,7 @@ check(
 );
 await own.getByRole('button', { name: 'Apply' }).click();
 await settle(800);
-check(
-	'applying it mutates the body in place',
-	(await own.textContent()).includes('then simplify')
-);
+check('applying it mutates the body in place', (await own.textContent()).includes('then simplify'));
 
 // ---------------------------------------------------------------- 5. the moderation-queue tab
 // Ola files a pending HINT; kasia (staff) rejects it from the queue tab with a note.

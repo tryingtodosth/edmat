@@ -16,6 +16,7 @@ export * from './service';
 export * from './booking';
 export * from './message';
 export * from './featureFlag';
+export * from './activity';
 export * from './identity';
 export * from './course';
 export * from './event';

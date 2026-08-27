@@ -16,7 +16,10 @@ export type ReportKind =
 	| 'service_review'
 	// A hint/solution from the pool (exercises.SolutionEntry) — auto-hide measures against its
 	// exercise's own viewer pool, same as a comment borrows its parent's.
-	| 'solution_entry';
+	| 'solution_entry'
+	// An anchored micro-post (activity.Post) — auto-hide borrows the referenced exercise's pool
+	// when one is referenced, else honestly no-ops (the Service posture).
+	| 'post';
 
 // One GROUP per reported target (moderation/services.py's build_report_queue) — not one row per
 // individual Report, since a moderator reviews and resolves every pending report against a target

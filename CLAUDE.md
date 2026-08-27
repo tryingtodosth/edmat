@@ -6044,6 +6044,79 @@ statements this feature never touched) as leftover delimiters, and it now needs 
   whose entries qualified through their authorship — only the next entry change recounts
   (flagged in `recount_verified`'s own docstring).
 
+## 17AI. The activity feed for real: a public-by-construction event log, and anchored micro-posts (✅ built, full stack)
+
+§17AH's Activity tab was a deliberate placeholder — three sources re-queried per read, 20 rows, no
+filters. This replaces it with a real system, designed in a second owner Q&A (2026-08-27). Two
+decisions define it, one of them made AGAINST the owner's first instinct after asked-for criticism:
+
+**A stored `ActivityEvent` log that is PUBLIC BY CONSTRUCTION — explicitly NOT a filtered view of
+a who-does-what audit log** (the owner's original framing; the criticism that moved it: an audit
+log wants completeness and permanence, a feed wants curation and forgetting, and "the log,
+filtered" makes every private thing one missing WHERE clause away from public — the exact failure
+`PublicProfileSerializer` was rebuilt to make impossible). So: `record_activity()`
+(activity/services.py) is the ONE writer and is only ever called for events public at that
+instant; a rejection and its note never get a row; `remove_activity_for()` is the forgetting half
+(wired into auto-hide, moderator remove, tombstones, hard deletes — by generic `source` AND by
+link target, so a hidden exercise takes its solutions'/comments' rows down with it); and the
+table self-trims past 90 days on write (the owner's "truncated" instinct, kept in the retention
+sense). New content records at its PUBLISH moment via explicit calls (several are queryset-update
+transitions no signal can see); community actions (reviews, claims, comments) go through
+`activity/signals.py` with a STRICT allowlist of never-privatizable comment targets — course and
+issue threads are simply not in it. Courses/events/listings announce on their status transition
+into publicness (pre/post_save pairs). A backfill migration seeds the last 90 days of content
+kinds so day one isn't empty; community kinds accrue from go-live (reconstructing their
+historical publicness would be exactly the after-the-fact filtering the rule exists to avoid).
+
+**`Post` — "Twitter-like, but educational by construction":** your words (same Markdown+LaTeX
+pipeline, live preview) + a REQUIRED anchor, exactly one discipline/branch/tag (a real DB
+CheckConstraint, not just serializer validation) — the owner's refinement that turns posts into
+"a thread around that" topic area rather than a general timeline — + at most one referenced
+exercise/material/course + an optional image (re-encoded through the shared `imaging.py` bounds,
+aspect-preserving like an event-post picture, EXIF stripped, never the uploaded bytes;
+activity/postimage.py). Publishing is immediate, bounded by a per-account `post_create` throttle
+(12/hour) and its own `posts` kill switch — which removes the composer, the post pages, the kind-
+filter option AND every post row from the feed (links leave with the feature, the house rule).
+Reportable (`REPORT_KIND_MODELS['post']` — auto-hide borrows the referenced exercise's viewer
+pool when there is one, honestly no-ops otherwise, the Service posture); its own generic Comment
+thread (`'post'` target; replies notify via a new nullable `Notification.post` FK); delete is a
+TOMBSTONE (the Comment precedent — replies hang off a generic thread with no FK to cascade).
+
+**Frontend:** `/activity` — composer on top, All/**Followed** toggle (followed tags + courses
+you're in, the two real follow signals), kind/discipline filters in the URL (shareable; a post's
+anchor chip links to the feed filtered to its anchor), burst grouping (≥3 consecutive same-actor
+same-kind rows collapse, expandable), id-cursor "load more". `/posts/[id]` with the thread open.
+The home tab is the newest slice + "See all". `SiteActivityView` and its placeholder URL handling
+retired; `/api/activity/` kept, now reading the table.
+
+### Verified
+
+**21 backend tests** (`activity/tests.py`) — the never-produces-a-row cases (a pending entry, a
+course-thread comment), accept-is-what-publishes, forgetting on auto-hide/tombstone/delete, the
+anchor invariant, at-most-one-reference, the re-encoded image (stored bytes ≠ uploaded bytes),
+the author notification carrying the post link, Followed's two signals AND its honest empty
+state, filters + cursor, and the kill switch end to end. Regression suites over every app the
+signals touch re-run green. **Browser: `e2e/activity-feed.mjs`, 20 checks, zero console/page
+errors, twice** — the composer's real search-picker flow, the anchor chip as a filtered-feed
+link, typeset KaTeX in a post, the thread + notification, tombstone + feed forgetting, and the
+kill switch removing composer/filter-option/rows. Screenshots looked at. `npm run check` 0/0,
++48 keys both catalogs.
+
+### Left open, not built
+
+- **No votes on posts** — the feed is chronological; a post competes by being worth reading.
+  Deliberate for v1 (the pool's votes answer "is this correct", which a post doesn't ask).
+- **No editing UI for posts** (the API supports PATCH; only delete is surfaced).
+- **Burst grouping is per fetched page** — a burst cut by the cursor boundary shows as two.
+- **The Followed view has no branch-follow signal** (no such concept exists yet) — tags and
+  course membership only.
+- **Comment feed rows say the words but not where** — a comment row links to its
+  exercise/material, which is right, but the feed doesn't render which THREAD beyond the label.
+- **No per-branch posts section on branch pages** — the anchor-filtered feed is the thread view;
+  embedding it on `/branches/[branch]` would be the natural next step.
+- **Image judgment rides on reports alone** (the re-encode covers the security half; there is no
+  pre-publication review of pictures) — flagged at design time, accepted.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

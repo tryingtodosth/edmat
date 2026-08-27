@@ -317,6 +317,17 @@ class ExerciseViewSet(viewsets.ModelViewSet):
                 'published' if can_autopublish_entry(request.user, exercise.branch) else 'pending'
             ),
         )
+        if entry.status == 'published':
+            from activity.services import record_activity
+
+            record_activity(
+                'solution_entry',
+                actor=request.user,
+                target_label=label_for_exercise(exercise),
+                exercise=exercise,
+                source=entry,
+                entry_kind=entry.kind,
+            )
         return Response(
             SolutionEntrySerializer(entry, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
@@ -725,6 +736,17 @@ class SolutionEntryViewSet(viewsets.GenericViewSet):
         # The claim was a queryset update — no signal fired, so the derived Exercise.verified is
         # recounted explicitly (see signals.recount_verified's own docstring).
         recount_verified(entry.exercise_id)
+        if decision == 'approve':
+            from activity.services import record_activity
+
+            record_activity(
+                'solution_entry',
+                actor=entry.author,
+                target_label=label_for_exercise(entry.exercise),
+                exercise=entry.exercise,
+                source=entry,
+                entry_kind=entry.kind,
+            )
         notify(
             entry.author,
             f'solution_entry_{"approved" if decision == "approve" else "rejected"}',

@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import CommentViewSet, ReviewViewSet, SiteActivityView
+from .views import CommentViewSet, ReviewViewSet
 
 router = DefaultRouter()
 # `/api/reviews/{id}/comments/` — the thread under one exercise review. Addressed by the review's
@@ -12,8 +12,4 @@ router.register('reviews', ReviewViewSet, basename='review')
 # happens through the thread it belongs to, so this router entry deliberately exposes no list.
 router.register('comments', CommentViewSet, basename='comment')
 
-urlpatterns = [
-    # The homepage Activity tab's site-wide feed — see SiteActivityView.
-    path('activity/', SiteActivityView.as_view(), name='site-activity'),
-    path('', include(router.urls)),
-]
+urlpatterns = [path('', include(router.urls))]

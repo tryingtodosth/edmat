@@ -528,6 +528,15 @@ def _apply_submission(submission, reviewer):
                 reviewed_by=submission.reviewed_by,
             )
     submission.resulting_exercise = exercise
+    from activity.services import record_activity
+
+    record_activity(
+        'exercise',
+        actor=submission.submitted_by,
+        target_label=payload.get('title', ''),
+        exercise=exercise,
+        tags=list(exercise.tags.all()),
+    )
     return exercise
 
 
@@ -625,6 +634,14 @@ def _apply_material_submission(submission, reviewer):
         for entry in (submission.coverage or [])
     )
     submission.resulting_material = material
+    from activity.services import record_activity
+
+    record_activity(
+        'material',
+        actor=submission.submitted_by,
+        target_label=submission.title,
+        material=material,
+    )
     return material
 
 
@@ -873,6 +890,15 @@ class ModerationActionView(APIView):
                             status=status.HTTP_409_CONFLICT,
                         )
                     obj.status = 'published'
+                    from activity.services import record_activity
+
+                    record_activity(
+                        'translation',
+                        actor=obj.translated_by,
+                        target_label=label_for_exercise(obj.exercise),
+                        exercise=obj.exercise,
+                        source=obj,
+                    )
             except Exception:
                 model.objects.filter(pk=pk).update(status='pending', reviewed_by=None, review_note='')
                 raise
@@ -1044,6 +1070,11 @@ class ReportActionView(APIView):
                 target.is_active = False
                 update_fields.append('is_active')
         target.save(update_fields=update_fields)
+        if decision == 'remove':
+            # The feed forgets what stops being public — models/activity's own contract.
+            from activity.services import remove_activity_for
+
+            remove_activity_for(target)
 
         content_type = ContentType.objects.get_for_model(model)
         Report.objects.filter(content_type=content_type, object_id=pk, status='pending').update(

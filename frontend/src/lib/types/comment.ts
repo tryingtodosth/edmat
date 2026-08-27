@@ -26,6 +26,8 @@ export type CommentTargetType =
 	| 'solutionEntry'
 	// A site issue report (issues/) — its discussion is the reason a published one has a page.
 	| 'issue'
+	// An anchored micro-post on the activity feed (activity.Post) — its own thread.
+	| 'post'
 	// The three review kinds. Replying to somebody's review is not a new kind of object — it is a
 	// Comment whose target happens to be a Review, which is why it inherits the same threading,
 	// reporting and moderation everything else here already has. All three exist because

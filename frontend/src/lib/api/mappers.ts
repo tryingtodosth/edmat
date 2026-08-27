@@ -1112,6 +1112,7 @@ export interface RawNotification {
 	material_id: number | null;
 	course_id: number | null;
 	event_id: number | null;
+	post_id?: number | null;
 	issue_id?: number | null;
 	note: string;
 	is_read: boolean;
@@ -1131,6 +1132,7 @@ export function mapNotification(json: RawNotification): Notification {
 			json.course_id !== null && json.course_id !== undefined ? String(json.course_id) : undefined,
 		eventId:
 			json.event_id !== null && json.event_id !== undefined ? String(json.event_id) : undefined,
+		postId: json.post_id !== null && json.post_id !== undefined ? String(json.post_id) : undefined,
 		issueId:
 			json.issue_id !== null && json.issue_id !== undefined ? String(json.issue_id) : undefined,
 		note: json.note,

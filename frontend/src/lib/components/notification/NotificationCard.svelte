@@ -157,17 +157,19 @@
 			: // An event, unlike a booking, DOES have a page of its own — and it is the page carrying
 				// the new time or the cancellation notice, so it is where somebody clicking a
 				// notification about one wants to land.
-				notification.issueId
-				? resolve('/issues/[id]', { id: notification.issueId })
-				: notification.eventId
-					? resolve('/events/[id]', { id: notification.eventId })
-					: notification.exerciseId
-						? resolve('/exercises/[id]', { id: notification.exerciseId })
-						: notification.materialId
-							? resolve('/materials/[id]', { id: notification.materialId })
-							: notification.courseId
-								? resolve('/courses/[id]', { id: notification.courseId })
-								: undefined
+				notification.postId
+				? resolve('/posts/[id]', { id: notification.postId })
+				: notification.issueId
+					? resolve('/issues/[id]', { id: notification.issueId })
+					: notification.eventId
+						? resolve('/events/[id]', { id: notification.eventId })
+						: notification.exerciseId
+							? resolve('/exercises/[id]', { id: notification.exerciseId })
+							: notification.materialId
+								? resolve('/materials/[id]', { id: notification.materialId })
+								: notification.courseId
+									? resolve('/courses/[id]', { id: notification.courseId })
+									: undefined
 	);
 
 	function handleClick() {

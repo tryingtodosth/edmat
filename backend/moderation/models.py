@@ -326,6 +326,9 @@ FEATURE_FLAG_CHOICES = [
     ('events', 'One-off events'),
     # Site issue reports (issues/). Off: no filing, no /issues page, and every link to it goes.
     ('issues', 'Site issue reports'),
+    # Anchored micro-posts (activity/). Off: no posting, no post pages, the composer and every
+    # post row leave the feed surface; the feed's system events stay.
+    ('posts', 'Activity micro-posts'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's
