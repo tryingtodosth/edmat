@@ -616,13 +616,16 @@ genuinely painted OPAQUE pixels (the probe must require alpha — a transparent 
 reads as "dark" under a red-channel-only check and passed vacuously once), paging, zoom growing
 the rendered width, hide unmounting. Stateless; signs nobody in.
 
-**`e2e/topic-threads.mjs` (10 checks)** — topic threads (root CLAUDE.md §17AK): a covers claim
+**`e2e/topic-threads.mjs` (14 checks)** — topic threads (root CLAUDE.md §17AK): a covers claim
 chip's popover linking "Posts about {topic}"; the topic-filtered feed rendering SCOPED (rows or
 the honest empty state — an arbitrary topic can have zero retained rows, so asserting rows fails
 on honest data); the composer pre-anchored with its "change" escape; publishing into the thread;
-the post's anchor chip naming the topic and the API confirming the anchor; the tag-chip menu's
-"Posts about this tag" (checked on an exercise page — material cards don't render TagChips).
-Cleans up by marker text only, never wholesale.
+the post's anchor chip naming the topic and the API confirming the anchor; the link proven on a
+material BROWSE card's chip and a course page's claim group too (live, not assumed from the
+shared component); the exercise page's topic pills linking to their threads; no duplicated topic
+row in a subtopic-less popover; the tag-chip menu's "Posts about this tag" (checked on an
+exercise page — material cards don't render TagChips). Tolerates exactly the course page's known
+pre-existing attachments-404 console error. Cleans up by marker text only, never wholesale.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

@@ -147,6 +147,13 @@
 		return topics.find((t) => t.id === topicId)?.name ?? topicId;
 	}
 
+	function topicThreadHref(topicId: string): string {
+		const url = new URL(resolve('/activity'), 'http://x');
+		url.searchParams.set('topic', topicId);
+		url.searchParams.set('label', topicName(topicId));
+		return url.pathname + url.search;
+	}
+
 	async function handleReviewSubmit(rating: number, body: string) {
 		if (!exercise || !authStore.user) return;
 		const review = await submitReview(exercise.id, authStore.user.id, rating, body);
@@ -296,7 +303,10 @@
 				<div class="topics">
 					<span class="label">{m.exercise_topics()}:</span>
 					{#each exercise.topicIds as topicId (topicId)}
-						<span class="topic-pill">{topicName(topicId)}</span>
+						<!-- A topic named on the page links to its thread (§17AK) — the same
+						     destination a claim chip's popover offers, one click closer here. -->
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built on resolve('/activity'), query params only -->
+						<a class="topic-pill" href={topicThreadHref(topicId)}>{topicName(topicId)}</a>
 					{/each}
 				</div>
 			{/if}
@@ -539,6 +549,12 @@
 	}
 	.topic-pill {
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
+	}
+	a.topic-pill {
+		text-decoration: none;
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.content-section {
 		@include mix.card-surface;

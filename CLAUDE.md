@@ -6186,6 +6186,16 @@ One script-side lesson kept in the file: an arbitrary topic can honestly have ze
 rows, so the "scoped feed" assertion accepts the empty state — asserting rows would fail on
 honest data.
 
+**Follow-up, same day (the owner's screenshot):** (1) the popover's DZIAŁ/Topic row repeated the
+name its own title already carries — it now renders only when a SUBTOPIC exists (title=subtopic,
+row=parent topic: genuinely different information; for a plain topic claim the title says it
+once). (2) Cross-surface accessibility checked LIVE, not assumed from the shared import: the
+thread link proven present from a material browse card's chip, a course page's claim group, and
+the material detail popover — and the exercise page's own topic pills ("Topics: Całki"), which
+were dead text, now link straight to their topic's thread. `e2e/topic-threads.mjs` grew to 14
+checks (it also tolerates exactly the course page's known pre-existing attachments-404 console
+error, the same single one course-claims.mjs tolerates — everything else still fails the run).
+
 **Left open:** no dedicated `/topics/[id]` hub page (the filtered feed with `&label=` in the URL
 plays that role; a real hub — topic info + covering materials/exercises via claims + the thread —
 is the natural upgrade); subtopic-level threads (anchors are topic-level; a subtopic chip links

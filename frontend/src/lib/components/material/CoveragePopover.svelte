@@ -138,11 +138,15 @@
 			{kindExplanation()}
 		</p>
 		<dl class="coverage-popover__meta">
-			<div>
-				<dt>{m.coverage_topicLabel()}</dt>
-				<dd>{coverage.topicName}</dd>
-			</div>
+			<!-- The topic row only when a SUBTOPIC exists: the popover title already names the claim
+			     ("Covers: Szeregi"), so for a plain topic claim this row repeated the same word one
+			     line lower (the owner's own screenshot). With a subtopic the title names the
+			     subtopic and this row names its parent — genuinely different information. -->
 			{#if coverage.subtopicName}
+				<div>
+					<dt>{m.coverage_topicLabel()}</dt>
+					<dd>{coverage.topicName}</dd>
+				</div>
 				<div>
 					<dt>{m.coverage_subtopicLabel()}</dt>
 					<dd>{coverage.subtopicName}</dd>
