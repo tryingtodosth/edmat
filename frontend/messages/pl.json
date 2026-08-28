@@ -1788,5 +1788,6 @@
 	"post_pageTitle": "Wpis",
 	"post_notFound": "Nie znaleziono wpisu.",
 	"report_kind_post": "Wpis",
-	"featureFlags_label_posts": "Mikro-wpisy w aktywności"
+	"featureFlags_label_posts": "Mikro-wpisy w aktywności",
+	"nav_add_post": "Napisz wpis"
 }

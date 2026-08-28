@@ -1788,5 +1788,6 @@
 	"post_pageTitle": "Post",
 	"post_notFound": "Post not found.",
 	"report_kind_post": "Post",
-	"featureFlags_label_posts": "Activity micro-posts"
+	"featureFlags_label_posts": "Activity micro-posts",
+	"nav_add_post": "Write a post"
 }

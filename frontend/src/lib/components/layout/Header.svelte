@@ -66,6 +66,7 @@
 	let canTutoring = $derived(can('tutoring'));
 	let canIssues = $derived(can('issues'));
 	let canEvents = $derived(can('events'));
+	let canPosts = $derived(can('posts'));
 	let canMessaging = $derived(can('messaging'));
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
@@ -326,6 +327,13 @@
 	{#if canTutoring}
 		<a role="menuitem" class={itemClass} href={resolve('/services/new')} {onclick}>
 			{m.nav_add_service()}
+		</a>
+	{/if}
+	{#if canPosts}
+		<!-- The composer lives at the top of /activity — this entry is what makes it findable
+		     from anywhere, the same job every other create action in this menu does. -->
+		<a role="menuitem" class={itemClass} href={resolve('/activity')} {onclick}>
+			{m.nav_add_post()}
 		</a>
 	{/if}
 {/snippet}
