@@ -3,7 +3,8 @@
 `DEPLOYMENT.md` (Part A: routine sync; Part B: full from-scratch setup),
 `UPDATE-2026-08-10.md` (the breaking-upgrade runbook — taxonomy rename etc., applied
 2026-08-10), `UPDATE-2026-08-25.md` (the claims/first-paint release — the shape a routine,
-additive update should take), `apache/edmat.conf` + `edmat-stage1-http-only.conf` (the real vhosts: TLS, and the
+additive update should take), `UPDATE-2026-08-28.md` (the solution-pool + activity release —
+NOT purely additive: `exercises.0011` drops two columns; the step-0 backup is the rollback), `apache/edmat.conf` + `edmat-stage1-http-only.conf` (the real vhosts: TLS, and the
 pre-certificate bootstrap).
 
 ## Production shape — facts that constrain code
