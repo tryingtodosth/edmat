@@ -47,6 +47,7 @@
 	import ReviewList from '$lib/components/review/ReviewList.svelte';
 	import ReviewForm from '$lib/components/review/ReviewForm.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
+	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
 
 	let material = $state<Material | undefined>(undefined);
 	let branch = $state<Branch | undefined>(undefined);
@@ -54,6 +55,12 @@
 	let topics = $state<Topic[]>([]);
 	let loading = $state(true);
 	let notFound = $state(false);
+
+	// The in-browser preview (§17AJ) — offered for hosted PDFs only (a link-only material lives at
+	// its own URL, and other file types have no in-browser story). Collapsed until asked for:
+	// PdfViewer only mounts on the click, which is also when its ~1.5 MB pdf.js chunk loads.
+	let showPreview = $state(false);
+	let isPdf = $derived(Boolean(material?.fileUrl && /\.pdf($|\?)/i.test(material.fileUrl)));
 
 	let comments = $state<Comment[]>([]);
 	let reviews = $state<MaterialReview[]>([]);
@@ -249,6 +256,24 @@
 		     crawler alike as sections that outrank the thing they belong to. -->
 		<MaterialCard {material} linkTitle={false} headingLevel={1} />
 		<ReportButton kind="material" objectId={material.id} />
+
+		{#if isPdf}
+			<section class="content-section pdf-preview">
+				<div class="pdf-preview__head">
+					<h2>{m.pdfPreview_heading()}</h2>
+					<button
+						type="button"
+						class="pdf-preview__toggle"
+						onclick={() => (showPreview = !showPreview)}
+					>
+						{showPreview ? m.pdfPreview_hide() : m.pdfPreview_show()}
+					</button>
+				</div>
+				{#if showPreview}
+					<PdfViewer url={material.fileUrl} />
+				{/if}
+			</section>
+		{/if}
 
 		<section class="claim-group">
 			<div class="claim-group__heading">
@@ -492,6 +517,23 @@
 	.requirement-row__label {
 		font-weight: 600;
 		font-size: var(--font-size-sm);
+	}
+	.pdf-preview__head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+	}
+	.pdf-preview__toggle {
+		font: inherit;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		padding: var(--space-1) var(--space-3);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		cursor: pointer;
 	}
 	.content-section {
 		@include mix.card-surface;

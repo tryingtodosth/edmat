@@ -52,7 +52,9 @@ import `renderContent.ts` statically — it is a ~380 KB chunk fetched by the fi
 needs it; the root `+layout.ts` awaits it server-side so prerendering typesets synchronously, and
 the KaTeX stylesheet stays in the root layout so prerendered math never paints unstyled. A page with
 no math never downloads it. Keep it that way: one static import of `renderContent` from anything in
-the layout tree puts it back into every page's entry.
+the layout tree puts it back into every page's entry. The same discipline covers Leaflet (maps) and
+`pdfjs-dist` (~420 KB + worker — the material-page PDF preview, dynamically imported inside
+`PdfViewer.svelte`, which itself mounts only on the "Show preview" click).
 
 Extract + KaTeX-render every `\(…\)`/`\[…\]` FIRST (stash behind inert placeholders) → run the
 remainder through markdown-it → splice the KaTeX back → THEN DOMPurify. CommonMark treats `\[`

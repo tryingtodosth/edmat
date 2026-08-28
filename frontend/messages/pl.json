@@ -1789,5 +1789,14 @@
 	"post_notFound": "Nie znaleziono wpisu.",
 	"report_kind_post": "Wpis",
 	"featureFlags_label_posts": "Mikro-wpisy w aktywności",
-	"nav_add_post": "Napisz wpis"
+	"nav_add_post": "Napisz wpis",
+	"pdfPreview_heading": "Podgląd",
+	"pdfPreview_show": "Pokaż podgląd",
+	"pdfPreview_hide": "Ukryj podgląd",
+	"pdfPreview_failed": "Nie udało się wczytać podglądu PDF — skorzystaj z linku pobierania.",
+	"pdfPreview_pageOf": "Strona {page} z {total}",
+	"pdfPreview_previousPage": "Poprzednia strona",
+	"pdfPreview_nextPage": "Następna strona",
+	"pdfPreview_zoomIn": "Powiększ",
+	"pdfPreview_zoomOut": "Pomniejsz"
 }

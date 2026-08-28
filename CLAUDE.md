@@ -6117,6 +6117,43 @@ kill switch removing composer/filter-option/rows. Screenshots looked at. `npm ru
 - **Image judgment rides on reports alone** (the re-encode covers the security half; there is no
   pre-publication review of pictures) — flagged at design time, accepted.
 
+## 17AJ. In-browser PDF preview for materials (✅ built)
+
+"If a material is a PDF, let users look at it in the browser." Options were weighed with the
+owner first, and the deciding constraint was the Aug-5 Apache hardening: everything under
+`/media/` is served `Content-Disposition: attachment` on purpose, so the native browser viewer
+(an iframe, or open-in-tab) would need a `.pdf`-only carve-out in the vhost — a security-posture
+change plus the hand-applied server step that once sat undone for two weeks. **Chosen instead:
+PDF.js rendered in-app** (`pdfjs-dist`, a new dependency) — it FETCHES the bytes, and a
+disposition header only governs navigation, so the hardening stays exactly as is and the whole
+feature ships in an ordinary bundle.
+
+`PdfViewer.svelte` (lib/components/material/): pages painted onto a canvas at devicePixelRatio,
+prev/next + zoom, fit-width default, 75vh scroll box. Deliberately a functional pager, not a full
+reader — no text layer, so no in-document search/selection in v1; the download link beside it
+stays the full-fidelity route. Mounted behind a collapsed "Preview" section on `/materials/[id]`,
+offered only for hosted `.pdf` files — and the ~1.5 MB pdfjs chunk + worker are imported
+dynamically INSIDE the component, which itself only mounts on the click: verified absent from the
+entry HTML's 46 modulepreloads (the KaTeX/Leaflet lazy discipline).
+
+**Two real bugs found by looking, not by the assertions:** (1) pdf.js v6 puts `destroy()` on the
+loading TASK, not the document proxy — the unmount cleanup threw a real page error, caught by the
+e2e's zero-console-errors rule. (2) The first render silently no-oped: `loading = false` is what
+mounts the canvas, and `renderPage()` ran before Svelte's flush resolved `bind:this` — a blank
+default 300×150 canvas that the e2e's own pixel probe PASSED vacuously (transparent black pixels
+read as "dark" under a red-channel-only check; e2e/CLAUDE.md trap 8). A screenshot told the
+truth; fixed with `await tick()` and an opaque-pixels-only probe.
+
+**Verified:** `e2e/pdf-preview.mjs` — 7 checks, zero console errors, twice: the collapsed
+section, nothing mounted before asking, a real page count (429 — the AM2 skrypt), genuinely
+painted opaque pixels, paging, zoom growing the rendered page, hide unmounting. Screenshots
+looked at (which is what caught bug 2). `npm run check` 0/0, build clean.
+
+**Left open:** no text layer (search/selection); link-only materials (`Material.url`) get no
+preview (external origins can't be fetched); no page-1 thumbnails on cards (poppler-style
+server-side rendering is the route there, noted and not taken); the native-viewer/vhost carve-out
+remains a possible later add-on if the in-app viewer proves limiting.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

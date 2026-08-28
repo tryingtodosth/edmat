@@ -269,6 +269,7 @@ node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, de
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
 node e2e/solution-entries.mjs         # E2E_EXERCISE=<published exercise with pinned corpus entries>, default 1; ola + michal + kasia, resets its own scratch first
 node e2e/activity-feed.mjs            # the activity feed + micro-posts; ola + michal (UI) + kasia (API); toggles the `posts` flag and restores it; cleans its posts
+node e2e/pdf-preview.mjs              # E2E_MATERIAL=<hosted-PDF material id>, default 1; signs nobody in
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -607,6 +608,12 @@ kind filter; the post's own page with its thread and the author's `comment_reply
 carrying `post_id`; Followed's honest empty state; the home-tab slice; delete-as-tombstone with
 the feed forgetting the row; and the `posts` kill switch removing the composer, the filter option
 and every post row from the feed API. Resets by tombstoning any earlier run's posts as staff.
+
+**`e2e/pdf-preview.mjs` (7 checks)** — the in-browser PDF preview (root CLAUDE.md §17AJ): the
+collapsed Preview section, nothing mounted before asking, a real page count, the canvas holding
+genuinely painted OPAQUE pixels (the probe must require alpha — a transparent unpainted canvas
+reads as "dark" under a red-channel-only check and passed vacuously once), paging, zoom growing
+the rendered width, hide unmounting. Stateless; signs nobody in.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

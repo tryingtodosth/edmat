@@ -47,6 +47,7 @@
 		"katex": "^0.16.11",
 		"leaflet": "^1.9.4",
 		"markdown-it": "^14.1.0",
+		"pdfjs-dist": "^6.2.108",
 		"svelte-easy-crop": "^5.0.1"
 	}
 }
