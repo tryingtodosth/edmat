@@ -3,7 +3,7 @@
      reference and one image. Publishing is immediate; the server enforces everything this form
      merely encourages. -->
 <script lang="ts">
-	import type { Material, ResolvedExercise, Post } from '$lib/types';
+	import type { FixedAnchor, Material, ResolvedExercise, Post } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { createPost } from '$lib/services/activity';
@@ -14,7 +14,22 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import { onMount } from 'svelte';
 
-	let { onCreated }: { onCreated: (post: Post) => void } = $props();
+	let {
+		onCreated,
+		fixedAnchor = null
+	}: {
+		onCreated: (post: Post) => void;
+		/** Set when the page is already filtered to one anchor (a claim chip landed here): the
+		 * composer posts INTO that thread by default, with a "change" escape back to the pickers.
+		 * This is also the only way to anchor to a TOPIC — the manual pickers deliberately don't
+		 * offer topics (a branch→topic cascade for thousands of topics is a picker nobody asked
+		 * for; the claim chips ARE the topic picker). */
+		fixedAnchor?: FixedAnchor | null;
+	} = $props();
+
+	// The escape hatch: "change" drops back to the manual pickers for this composer session.
+	let useFixed = $state(true);
+	let activeFixed = $derived(useFixed && fixedAnchor ? fixedAnchor : null);
 
 	let body = $state('');
 	let showPreview = $state(false);
@@ -90,9 +105,28 @@
 		try {
 			const post = await createPost({
 				body,
-				disciplineId: anchorKind === 'discipline' ? anchorDiscipline : undefined,
-				branchId: anchorKind === 'branch' ? anchorBranch : undefined,
-				tagSlug: anchorKind === 'tag' ? anchorTag.trim().replace(/^#/, '') : undefined,
+				disciplineId: activeFixed
+					? activeFixed.kind === 'discipline'
+						? activeFixed.id
+						: undefined
+					: anchorKind === 'discipline'
+						? anchorDiscipline
+						: undefined,
+				branchId: activeFixed
+					? activeFixed.kind === 'branch'
+						? activeFixed.id
+						: undefined
+					: anchorKind === 'branch'
+						? anchorBranch
+						: undefined,
+				topicId: activeFixed?.kind === 'topic' ? activeFixed.id : undefined,
+				tagSlug: activeFixed
+					? activeFixed.kind === 'tag'
+						? activeFixed.id
+						: undefined
+					: anchorKind === 'tag'
+						? anchorTag.trim().replace(/^#/, '')
+						: undefined,
 				refExerciseId: refKind === 'exercise' ? refChosen?.id : undefined,
 				refMaterialId: refKind === 'material' ? refChosen?.id : undefined,
 				refCourseId: refKind === 'course' ? refChosen?.id : undefined,
@@ -123,44 +157,54 @@
 <div class="composer">
 	<textarea rows="4" bind:value={body} placeholder={m.post_composerPlaceholder()}></textarea>
 
-	<div class="composer__row">
-		<label class="field">
-			<span>{m.post_anchorLabel()}</span>
-			<select bind:value={anchorKind}>
-				<option value="branch">{m.post_anchorBranch()}</option>
-				<option value="discipline">{m.post_anchorDiscipline()}</option>
-				<option value="tag">{m.post_anchorTag()}</option>
-			</select>
-		</label>
-		{#if anchorKind === 'branch'}
-			<select class="anchor-value" bind:value={anchorBranch}>
-				<option value="">{m.post_anchorPick()}</option>
-				{#each branches as branch (branch.id)}
-					<option value={branch.id}>{branch.name}</option>
-				{/each}
-			</select>
-		{:else if anchorKind === 'discipline'}
-			<select class="anchor-value" bind:value={anchorDiscipline}>
-				<option value="">{m.post_anchorPick()}</option>
-				{#each disciplines as discipline (discipline.id)}
-					<option value={discipline.id}>{discipline.name}</option>
-				{/each}
-			</select>
-		{:else}
-			<input
-				class="anchor-value"
-				type="text"
-				list="post-composer-tags"
-				bind:value={anchorTag}
-				placeholder={m.post_anchorTagPlaceholder()}
-			/>
-			<datalist id="post-composer-tags">
-				{#each tags as tag (tag)}
-					<option value={tag}></option>
-				{/each}
-			</datalist>
-		{/if}
-	</div>
+	{#if activeFixed}
+		<div class="composer__row">
+			<span class="field"><span>{m.post_anchorLabel()}</span></span>
+			<span class="fixed-anchor">{activeFixed.label}</span>
+			<button type="button" class="link" onclick={() => (useFixed = false)}
+				>{m.post_anchorChange()}</button
+			>
+		</div>
+	{:else}
+		<div class="composer__row">
+			<label class="field">
+				<span>{m.post_anchorLabel()}</span>
+				<select bind:value={anchorKind}>
+					<option value="branch">{m.post_anchorBranch()}</option>
+					<option value="discipline">{m.post_anchorDiscipline()}</option>
+					<option value="tag">{m.post_anchorTag()}</option>
+				</select>
+			</label>
+			{#if anchorKind === 'branch'}
+				<select class="anchor-value" bind:value={anchorBranch}>
+					<option value="">{m.post_anchorPick()}</option>
+					{#each branches as branch (branch.id)}
+						<option value={branch.id}>{branch.name}</option>
+					{/each}
+				</select>
+			{:else if anchorKind === 'discipline'}
+				<select class="anchor-value" bind:value={anchorDiscipline}>
+					<option value="">{m.post_anchorPick()}</option>
+					{#each disciplines as discipline (discipline.id)}
+						<option value={discipline.id}>{discipline.name}</option>
+					{/each}
+				</select>
+			{:else}
+				<input
+					class="anchor-value"
+					type="text"
+					list="post-composer-tags"
+					bind:value={anchorTag}
+					placeholder={m.post_anchorTagPlaceholder()}
+				/>
+				<datalist id="post-composer-tags">
+					{#each tags as tag (tag)}
+						<option value={tag}></option>
+					{/each}
+				</datalist>
+			{/if}
+		</div>
+	{/if}
 
 	<div class="composer__row">
 		<label class="field">
@@ -292,6 +336,11 @@
 	}
 	.anchor-value {
 		min-width: 14rem;
+	}
+	.fixed-anchor {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--accent);
 	}
 	.ref-chosen {
 		font-size: var(--font-size-sm);

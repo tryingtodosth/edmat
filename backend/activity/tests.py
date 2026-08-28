@@ -16,7 +16,7 @@ from exercises.models import SolutionEntry, Tag, TagFollow
 from moderation.models import FeatureFlag
 from notifications.models import Notification
 from telemetry.routers import all_log_shards
-from testing.factories import make_branch, make_exercise, make_user, make_viewer
+from testing.factories import make_branch, make_exercise, make_topic, make_user, make_viewer
 
 from .models import ActivityEvent, Post
 from .services import record_activity, remove_activity_for
@@ -167,6 +167,31 @@ class PostTests(ActivityTestCase):
         tag = Tag.objects.create(slug='post-two-anchors')
         response = self._create(tag=tag.slug)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+    def test_a_topic_is_the_fourth_anchor(self):
+        # The claim-chip ask (root CLAUDE.md 17AK): a covers/requires chip names a TOPIC, so
+        # topics must be anchorable or the chip has nowhere to send anyone. Anchored by pk; the
+        # feed's ?topic= matches BOTH the anchored post and content events whose exercise carries
+        # the topic.
+        topic = make_topic(self.branch, slug='post-topic-anchor')
+        exercise = make_exercise(self.branch, 41)
+        exercise.topics.add(topic)
+        response = self._create(branch=None, topic=topic.pk)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['topic'], topic.pk)
+        # The anchor label resolves to the topic's own name, not a bare slug/pk.
+        self.assertTrue(response.data['anchor_label'])
+        # And a topic + branch together is two anchors — refused.
+        double = self._create(topic=topic.pk)
+        self.assertEqual(double.status_code, status.HTTP_400_BAD_REQUEST)
+
+        from .services import record_activity
+
+        record_activity('exercise', exercise=exercise, target_label='carries the topic')
+        listed = self.client.get(f'/api/activity/?topic={topic.pk}').data
+        kinds = {item['kind'] for item in listed}
+        self.assertEqual(kinds, {'post', 'exercise'})
 
     def test_at_most_one_reference(self):
         exercise = make_exercise(self.branch, 1)

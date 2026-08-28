@@ -1798,5 +1798,10 @@
 	"pdfPreview_previousPage": "Poprzednia strona",
 	"pdfPreview_nextPage": "Następna strona",
 	"pdfPreview_zoomIn": "Powiększ",
-	"pdfPreview_zoomOut": "Pomniejsz"
+	"pdfPreview_zoomOut": "Pomniejsz",
+	"coverage_threadLabel": "Wątek",
+	"coverage_topicThreadLink": "Wpisy o „{topic}” →",
+	"activity_topicFallback": "ten temat",
+	"post_anchorChange": "zmień",
+	"tag_viewPosts": "Wpisy z tym tagiem"
 }

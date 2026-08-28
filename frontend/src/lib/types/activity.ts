@@ -23,9 +23,11 @@ export interface Post {
 	authorDisplayName: string;
 	body: string; // Markdown + LaTeX, same pipeline as everything else
 	imageUrl?: string;
-	/** The anchor — exactly one of these three is set. Slug-identified, like all taxonomy ids. */
+	/** The anchor — exactly one of these four is set. Discipline/branch by slug, topic by pk
+	 * (topic slugs repeat across branches), tag by slug. */
 	disciplineId?: string;
 	branchId?: string;
+	topicId?: string;
 	tagSlug?: string;
 	/** The anchor's human name, resolved server-side per locale ("Analiza Matematyczna II", "#indukcja"). */
 	anchorLabel: string;
@@ -61,4 +63,14 @@ export interface FeedItem {
 	disciplineId?: string;
 	tags: string[];
 	createdAt: string;
+}
+
+/** A single anchor the /activity page is currently filtered to — what the composer posts into
+ * when a claim chip or anchor chip landed the reader there. Also the ONLY way to anchor a post
+ * to a topic: the manual pickers deliberately don't offer topics (the claim chips are the topic
+ * picker). */
+export interface FixedAnchor {
+	kind: 'discipline' | 'branch' | 'topic' | 'tag';
+	id: string;
+	label: string;
 }

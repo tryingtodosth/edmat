@@ -270,6 +270,7 @@ node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submissi
 node e2e/solution-entries.mjs         # E2E_EXERCISE=<published exercise with pinned corpus entries>, default 1; ola + michal + kasia, resets its own scratch first
 node e2e/activity-feed.mjs            # the activity feed + micro-posts; ola + michal (UI) + kasia (API); toggles the `posts` flag and restores it; cleans its posts
 node e2e/pdf-preview.mjs              # E2E_MATERIAL=<hosted-PDF material id>, default 1; signs nobody in
+node e2e/topic-threads.mjs            # E2E_MATERIAL=<material with covers claims>, default 1; ola (UI) + kasia (API); cleans its marker posts
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -614,6 +615,14 @@ collapsed Preview section, nothing mounted before asking, a real page count, the
 genuinely painted OPAQUE pixels (the probe must require alpha — a transparent unpainted canvas
 reads as "dark" under a red-channel-only check and passed vacuously once), paging, zoom growing
 the rendered width, hide unmounting. Stateless; signs nobody in.
+
+**`e2e/topic-threads.mjs` (10 checks)** — topic threads (root CLAUDE.md §17AK): a covers claim
+chip's popover linking "Posts about {topic}"; the topic-filtered feed rendering SCOPED (rows or
+the honest empty state — an arbitrary topic can have zero retained rows, so asserting rows fails
+on honest data); the composer pre-anchored with its "change" escape; publishing into the thread;
+the post's anchor chip naming the topic and the API confirming the anchor; the tag-chip menu's
+"Posts about this tag" (checked on an exercise page — material cards don't render TagChips).
+Cleans up by marker text only, never wholesale.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

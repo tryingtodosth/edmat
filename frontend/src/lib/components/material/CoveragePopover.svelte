@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { resolve } from '$app/paths';
 	import type { Comment, MaterialCoverage, User } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { coverageDepth, depthLabel } from '$lib/utils/coverage';
@@ -117,6 +118,13 @@
 
 	let depth = $derived(coverageDepth(coverage.level));
 	let isRequirement = $derived(coverage.kind === 'requires');
+	function topicThreadHref(): string {
+		const url = new URL(resolve('/activity'), 'http://x');
+		url.searchParams.set('topic', coverage.topicId);
+		url.searchParams.set('label', coverage.topicName);
+		return url.pathname + url.search;
+	}
+
 	let popoverTitle = $derived(
 		(isRequirement ? m.coverage_popoverTitleRequires() : m.coverage_popoverTitleCovers()) +
 			': ' +
@@ -140,6 +148,18 @@
 					<dd>{coverage.subtopicName}</dd>
 				</div>
 			{/if}
+			<div>
+				<dt>{m.coverage_threadLabel()}</dt>
+				<dd>
+					<!-- The page a claim chip is FOR (the owner's ask, root CLAUDE.md §17AK): the
+					     activity feed filtered to this topic — its posts, its content activity, and a
+					     composer already anchored to it. -->
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built on resolve('/activity'), query params only -->
+					<a class="topic-thread-link" href={topicThreadHref()}
+						>{m.coverage_topicThreadLink({ topic: coverage.topicName })}</a
+					>
+				</dd>
+			</div>
 			<!-- One number, under the ONE label its kind means. A claim answers a single question;
 				 the other reading is a different claim, listed in the other group. -->
 			<div>
@@ -187,6 +207,11 @@
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
+
+	.topic-thread-link {
+		color: var(--accent);
+		font-weight: 600;
+	}
 
 	.coverage-popover {
 		display: flex;

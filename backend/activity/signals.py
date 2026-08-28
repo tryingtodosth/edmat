@@ -71,9 +71,10 @@ def _comment_feed_context(comment):
         if not target.is_visible_to_readers():
             return None
         extra = {
-            'branch': target.branch,
+            'branch': target.branch or (target.topic.branch if target.topic_id else None),
             'discipline': target.discipline
             or (target.branch.discipline if target.branch_id else None),
+            'topic': target.topic,
             'tags': [target.tag] if target.tag_id else (),
         }
         return {'post': target}, target.body[:150], extra

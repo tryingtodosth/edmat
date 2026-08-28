@@ -6154,6 +6154,44 @@ preview (external origins can't be fetched); no page-1 thumbnails on cards (popp
 server-side rendering is the route there, noted and not taken); the native-viewer/vhost carve-out
 remains a possible later add-on if the in-app viewer proves limiting.
 
+## 17AK. Topic threads: a claim chip opens the page for its topic (✅ built)
+
+The owner's report: a covers/requires chip on a material "should redirect to a page made for that
+tag where users post, reply, etc. — but it's not." The page existed (§17AI's anchor-filtered
+`/activity` — composer, posts, replies), but claim chips name TOPICS and topics were not an
+anchor kind, so the chips had nowhere to send anyone. Closed end to end:
+
+- **`topic` is the fourth Post anchor** (`activity.0003`): by pk (topic slugs repeat across
+  branches), a rejected taxonomy proposal not anchorable, a PENDING one deliberately anchorable
+  (taxonomy's own "a pending row is real and referenceable" rule). The DB CheckConstraint became
+  exactly-one-of-four; a topic-anchored post inherits its topic's branch for scoping.
+- **The feed learned `?topic=`**, matching topic-anchored posts AND content events whose exercise
+  carries the topic (`Q(topic) | Q(exercise__topics)`) — so the page a chip opens shows the
+  topic's real activity, not only its posts.
+- **The shared claim popover** (`CoveragePopover`, all three claim surfaces —
+  material/course/exercise) gained a "Posts about "{topic}" →" row, linking with the topic's pk
+  AND its human label in the URL (`&label=`) so the landing page names the filter without a
+  lookup of its own. `TagChip`'s hover menu gained the sibling "Posts about this tag" row.
+- **The composer pre-anchors from the URL**: `/activity` filtered to any single anchor passes a
+  `FixedAnchor` to `PostComposer` — "Posting to: {label}" with a "change" escape back to the
+  manual pickers. This is also deliberately the ONLY way to anchor to a topic: a branch→topic
+  cascade over thousands of topics is a picker nobody asked for; the claim chips ARE the topic
+  picker.
+
+**Verified:** the activity suite grew to 22 (the fourth anchor, two-anchors-refused, the resolved
+label, and `?topic=` returning both halves); `e2e/topic-threads.mjs` — 10 checks, zero console
+errors, twice: chip → popover link → topic-filtered feed → pre-anchored composer → publish →
+anchor chip naming the topic → API-confirmed anchor → the tag-chip row → marker-scoped cleanup.
+One script-side lesson kept in the file: an arbitrary topic can honestly have zero retained feed
+rows, so the "scoped feed" assertion accepts the empty state — asserting rows would fail on
+honest data.
+
+**Left open:** no dedicated `/topics/[id]` hub page (the filtered feed with `&label=` in the URL
+plays that role; a real hub — topic info + covering materials/exercises via claims + the thread —
+is the natural upgrade); subtopic-level threads (anchors are topic-level; a subtopic chip links
+to its parent topic's thread); the `label` URL param is display-only and can go stale/spoofed —
+cosmetic by design, the id does the filtering.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

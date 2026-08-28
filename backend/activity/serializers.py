@@ -4,7 +4,7 @@ from rest_framework import serializers
 from community.models import Comment
 from exercises.models import Exercise, Tag
 from materials.models import Material
-from taxonomy.models import Branch, Discipline
+from taxonomy.models import Branch, Discipline, Topic
 
 from .models import ActivityEvent, Post
 from .postimage import process_activity_post_image
@@ -28,6 +28,9 @@ class PostSerializer(serializers.ModelSerializer):
     discipline = serializers.SlugRelatedField(slug_field='slug', read_only=True)
     branch = serializers.SlugRelatedField(slug_field='slug', read_only=True)
     tag = serializers.SlugRelatedField(slug_field='slug', read_only=True)
+    # A bare pk (topic slugs are only unique per branch, so the pk is the id convention here,
+    # matching the frontend's own Topic ids).
+    topic = serializers.PrimaryKeyRelatedField(read_only=True)
     anchor_label = serializers.SerializerMethodField()
     ref_exercise_title = serializers.SerializerMethodField()
     ref_material_title = serializers.SerializerMethodField()
@@ -45,6 +48,7 @@ class PostSerializer(serializers.ModelSerializer):
             'discipline',
             'branch',
             'tag',
+            'topic',
             'anchor_label',
             'ref_exercise',
             'ref_exercise_title',
@@ -83,7 +87,7 @@ class PostSerializer(serializers.ModelSerializer):
         from config.i18n_utils import request_locale, resolve_translation
 
         locale = request_locale(self.context)
-        node = obj.discipline or obj.branch
+        node = obj.discipline or obj.branch or obj.topic
         if node is not None:
             translation = resolve_translation(node.translations.all(), locale)
             return translation.name if translation else node.slug
@@ -127,6 +131,12 @@ class PostCreateSerializer(serializers.ModelSerializer):
     tag = serializers.SlugRelatedField(
         slug_field='slug', queryset=Tag.objects.filter(is_removed=False), required=False, allow_null=True
     )
+    # By pk (the frontend's Topic id convention — topic slugs repeat across branches). A rejected
+    # taxonomy proposal is not anchorable; a PENDING one deliberately is, per taxonomy's own
+    # "a pending row is real and referenceable" rule.
+    topic = serializers.PrimaryKeyRelatedField(
+        queryset=Topic.objects.exclude(status='rejected'), required=False, allow_null=True
+    )
     ref_exercise = serializers.PrimaryKeyRelatedField(
         queryset=Exercise.objects.filter(published=True), required=False, allow_null=True
     )
@@ -137,7 +147,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ['body', 'discipline', 'branch', 'tag', 'ref_exercise', 'ref_material', 'ref_course', 'image']
+        fields = ['body', 'discipline', 'branch', 'tag', 'topic', 'ref_exercise', 'ref_material', 'ref_course', 'image']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -161,10 +171,11 @@ class PostCreateSerializer(serializers.ModelSerializer):
             attrs.get('discipline', getattr(instance, 'discipline', None)),
             attrs.get('branch', getattr(instance, 'branch', None)),
             attrs.get('tag', getattr(instance, 'tag', None)),
+            attrs.get('topic', getattr(instance, 'topic', None)),
         ]
         if sum(1 for a in anchors if a is not None) != 1:
             raise serializers.ValidationError(
-                {'anchor': ['Pick exactly one: a discipline, a branch, or a tag.']}
+                {'anchor': ['Pick exactly one: a discipline, a branch, a topic, or a tag.']}
             )
         refs = [
             attrs.get('ref_exercise', getattr(instance, 'ref_exercise', None)),

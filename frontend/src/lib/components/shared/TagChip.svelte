@@ -164,6 +164,13 @@
 				</a>
 			{/if}
 
+			<!-- The tag's own thread: the activity feed filtered to this tag — posts, replies, and a
+			     composer pre-anchored to it (root CLAUDE.md §17AK). -->
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built on resolve('/activity'), query params only -->
+			<a class="tag-chip__item" href={`${resolve('/activity')}?tag=${encodeURIComponent(tag)}`}>
+				{m.tag_viewPosts()}
+			</a>
+
 			<button
 				type="button"
 				class="tag-chip__item"

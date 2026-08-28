@@ -9,7 +9,7 @@
 	import { resolve } from '$app/paths';
 	import { browser } from '$app/environment';
 	import { untrack } from 'svelte';
-	import type { FeedItem, FeedKind, Discipline, Post } from '$lib/types';
+	import type { FeedItem, FeedKind, FixedAnchor, Discipline, Post } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getActivityFeed } from '$lib/services/activity';
 	import { getDisciplines } from '$lib/services/taxonomy';
@@ -41,6 +41,30 @@
 	let disciplineFilter = $derived(browser ? (page.url.searchParams.get('discipline') ?? '') : '');
 	let branchFilter = $derived(browser ? (page.url.searchParams.get('branch') ?? '') : '');
 	let tagFilter = $derived(browser ? (page.url.searchParams.get('tag') ?? '') : '');
+	let topicFilter = $derived(browser ? (page.url.searchParams.get('topic') ?? '') : '');
+	// A human name for the anchor filter, carried in the URL by whatever linked here (an anchor
+	// chip, a claim popover) — display only; the id params are what actually filter.
+	let anchorLabelParam = $derived(browser ? (page.url.searchParams.get('label') ?? '') : '');
+
+	/** The single anchor this page is filtered to, if any — what the composer posts into. */
+	let fixedAnchor = $derived.by((): FixedAnchor | null => {
+		if (topicFilter)
+			return {
+				kind: 'topic',
+				id: topicFilter,
+				label: anchorLabelParam || m.activity_topicFallback()
+			};
+		if (tagFilter) return { kind: 'tag', id: tagFilter, label: `#${tagFilter}` };
+		if (branchFilter)
+			return { kind: 'branch', id: branchFilter, label: anchorLabelParam || branchFilter };
+		if (disciplineFilter)
+			return {
+				kind: 'discipline',
+				id: disciplineFilter,
+				label: anchorLabelParam || disciplineFilter
+			};
+		return null;
+	});
 
 	function setParam(key: string, value: string) {
 		const url = new URL(page.url);
@@ -60,6 +84,7 @@
 				disciplineId: disciplineFilter || undefined,
 				branchId: branchFilter || undefined,
 				tagSlug: tagFilter || undefined,
+				topicId: topicFilter || undefined,
 				followed: view === 'followed',
 				beforeId: append && items.length > 0 ? items[items.length - 1].id : undefined,
 				limit: PAGE_SIZE
@@ -82,6 +107,7 @@
 		void disciplineFilter;
 		void branchFilter;
 		void tagFilter;
+		void topicFilter;
 		untrack(() => {
 			load();
 		});
@@ -150,7 +176,7 @@
 		{#if composerNotice}
 			<p class="notice">{m.post_published()}</p>
 		{/if}
-		<PostComposer onCreated={handlePostCreated} />
+		<PostComposer onCreated={handlePostCreated} {fixedAnchor} />
 	{/if}
 
 	<div class="controls">

@@ -103,6 +103,12 @@ class ActivityEvent(models.Model):
     discipline = models.ForeignKey(
         'taxonomy.Discipline', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
+    # A topic-anchored post's own scope — what makes `?topic=` a database filter. Content events
+    # don't set this (an exercise's topics reach the topic feed through `exercise__topics` in the
+    # read query instead of denormalizing an M2M here).
+    topic = models.ForeignKey(
+        'taxonomy.Topic', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
     tags = models.ManyToManyField('exercises.Tag', blank=True, related_name='+')
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -149,7 +155,10 @@ class Post(models.Model):
         upload_to=post_image_upload_path, blank=True, validators=[validate_activity_post_image]
     )
 
-    # The required anchor — exactly one.
+    # The required anchor — exactly one. `topic` joined the original three (2026-08-28, the
+    # "covers/requires chips open the thread about that topic" ask): a claim chip names a TOPIC,
+    # and the feed filtered to an anchor is the page those chips open — so topics had to be
+    # anchorable or the chips had nowhere to send anyone.
     discipline = models.ForeignKey(
         'taxonomy.Discipline', null=True, blank=True, related_name='posts', on_delete=models.CASCADE
     )
@@ -158,6 +167,9 @@ class Post(models.Model):
     )
     tag = models.ForeignKey(
         'exercises.Tag', null=True, blank=True, related_name='posts', on_delete=models.CASCADE
+    )
+    topic = models.ForeignKey(
+        'taxonomy.Topic', null=True, blank=True, related_name='posts', on_delete=models.CASCADE
     )
 
     # The optional content reference — at most one. SET_NULL: deleting the referenced thing
@@ -187,16 +199,25 @@ class Post(models.Model):
                         models.Q(discipline__isnull=False)
                         & models.Q(branch__isnull=True)
                         & models.Q(tag__isnull=True)
+                        & models.Q(topic__isnull=True)
                     )
                     | (
                         models.Q(discipline__isnull=True)
                         & models.Q(branch__isnull=False)
                         & models.Q(tag__isnull=True)
+                        & models.Q(topic__isnull=True)
                     )
                     | (
                         models.Q(discipline__isnull=True)
                         & models.Q(branch__isnull=True)
                         & models.Q(tag__isnull=False)
+                        & models.Q(topic__isnull=True)
+                    )
+                    | (
+                        models.Q(discipline__isnull=True)
+                        & models.Q(branch__isnull=True)
+                        & models.Q(tag__isnull=True)
+                        & models.Q(topic__isnull=False)
                     )
                 ),
             ),

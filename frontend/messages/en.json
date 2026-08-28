@@ -1798,5 +1798,10 @@
 	"pdfPreview_previousPage": "Previous page",
 	"pdfPreview_nextPage": "Next page",
 	"pdfPreview_zoomIn": "Zoom in",
-	"pdfPreview_zoomOut": "Zoom out"
+	"pdfPreview_zoomOut": "Zoom out",
+	"coverage_threadLabel": "Thread",
+	"coverage_topicThreadLink": "Posts about “{topic}” →",
+	"activity_topicFallback": "this topic",
+	"post_anchorChange": "change",
+	"tag_viewPosts": "Posts about this tag"
 }

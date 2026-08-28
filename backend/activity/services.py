@@ -40,6 +40,7 @@ def record_activity(
     source=None,
     branch=None,
     discipline=None,
+    topic=None,
     tags=(),
     entry_kind: str = '',
 ):
@@ -56,7 +57,11 @@ def record_activity(
     if source is None:
         source = link_target
     if branch is None:
-        branch = getattr(exercise, 'branch', None) or getattr(material, 'branch', None)
+        branch = (
+            getattr(exercise, 'branch', None)
+            or getattr(material, 'branch', None)
+            or getattr(topic, 'branch', None)
+        )
     if discipline is None and branch is not None:
         discipline = branch.discipline
 
@@ -77,6 +82,7 @@ def record_activity(
         source_object_id=source.pk if source is not None else None,
         branch=branch,
         discipline=discipline,
+        topic=topic,
     )
     if tags:
         event.tags.set(tags)
@@ -118,6 +124,7 @@ def feed_events(
     discipline_slug: str | None = None,
     branch_slug: str | None = None,
     tag_slug: str | None = None,
+    topic_id: int | None = None,
     followed_for=None,
     before_id: int | None = None,
     limit: int = 20,
@@ -145,6 +152,13 @@ def feed_events(
         qs = qs.filter(branch__slug=branch_slug)
     if tag_slug:
         qs = qs.filter(tags__slug=tag_slug)
+    if topic_id:
+        # The topic thread: posts anchored to the topic, plus every content event whose exercise
+        # carries it — so the page a claim chip opens shows the topic's real activity, not only
+        # its posts. distinct(): the M2M join can duplicate a row.
+        from django.db.models import Q
+
+        qs = qs.filter(Q(topic_id=topic_id) | Q(exercise__topics=topic_id)).distinct()
     if followed_for is not None and followed_for.is_authenticated:
         from django.db.models import Q
 

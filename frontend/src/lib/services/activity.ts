@@ -13,6 +13,7 @@ interface RawPost {
 	discipline: string | null;
 	branch: string | null;
 	tag: string | null;
+	topic: number | null;
 	anchor_label: string;
 	ref_exercise: number | null;
 	ref_exercise_title: string;
@@ -58,6 +59,7 @@ export function mapPost(json: RawPost): Post {
 		imageUrl: json.image ?? undefined,
 		disciplineId: json.discipline ?? undefined,
 		branchId: json.branch ?? undefined,
+		topicId: idOr(json.topic),
 		tagSlug: json.tag ?? undefined,
 		anchorLabel: json.anchor_label,
 		refExerciseId: idOr(json.ref_exercise),
@@ -101,6 +103,8 @@ export interface FeedFilters {
 	disciplineId?: string;
 	branchId?: string;
 	tagSlug?: string;
+	/** By pk — the topic thread: anchored posts plus content events carrying the topic. */
+	topicId?: string;
 	/** Signed-in only: narrow to followed tags + courses the reader is in. */
 	followed?: boolean;
 	/** The id cursor — rows strictly older than this feed row. */
@@ -114,6 +118,7 @@ export async function getActivityFeed(filters: FeedFilters = {}): Promise<FeedIt
 	if (filters.disciplineId) search.set('discipline', filters.disciplineId);
 	if (filters.branchId) search.set('branch', filters.branchId);
 	if (filters.tagSlug) search.set('tag', filters.tagSlug);
+	if (filters.topicId) search.set('topic', filters.topicId);
 	if (filters.followed) search.set('followed', '1');
 	if (filters.beforeId) search.set('before', filters.beforeId);
 	if (filters.limit) search.set('limit', String(filters.limit));
@@ -126,9 +131,10 @@ export async function getActivityFeed(filters: FeedFilters = {}): Promise<FeedIt
 
 export interface PostDraft {
 	body: string;
-	/** Exactly one of the three anchors. */
+	/** Exactly one of the four anchors. */
 	disciplineId?: string;
 	branchId?: string;
+	topicId?: string;
 	tagSlug?: string;
 	/** At most one reference. */
 	refExerciseId?: string;
@@ -143,6 +149,7 @@ function draftToForm(draft: PostDraft): FormData {
 	if (draft.disciplineId) form.set('discipline', draft.disciplineId);
 	if (draft.branchId) form.set('branch', draft.branchId);
 	if (draft.tagSlug) form.set('tag', draft.tagSlug);
+	if (draft.topicId) form.set('topic', draft.topicId);
 	if (draft.refExerciseId) form.set('ref_exercise', draft.refExerciseId);
 	if (draft.refMaterialId) form.set('ref_material', draft.refMaterialId);
 	if (draft.refCourseId) form.set('ref_course', draft.refCourseId);

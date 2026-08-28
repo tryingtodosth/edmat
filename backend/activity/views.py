@@ -44,12 +44,17 @@ class FeedView(APIView):
             limit = int(params.get('limit', '') or 20)
         except ValueError:
             limit = 20
+        try:
+            topic_id = int(params.get('topic', '') or 0) or None
+        except ValueError:
+            topic_id = None
         events = feed_events(
             kind=kind,
             include_posts=is_feature_enabled('posts') or request.user.is_staff,
             discipline_slug=params.get('discipline') or None,
             branch_slug=params.get('branch') or None,
             tag_slug=params.get('tag') or None,
+            topic_id=topic_id,
             followed_for=request.user if params.get('followed') in ('1', 'true') else None,
             before_id=before_id,
             limit=limit,
@@ -97,8 +102,9 @@ class PostViewSet(viewsets.GenericViewSet):
             actor=request.user,
             target_label=post.body[:150],
             post=post,
-            branch=post.branch,
+            branch=post.branch or (post.topic.branch if post.topic_id else None),
             discipline=post.discipline or (post.branch.discipline if post.branch_id else None),
+            topic=post.topic,
             tags=[post.tag] if post.tag_id else (),
         )
         return Response(
