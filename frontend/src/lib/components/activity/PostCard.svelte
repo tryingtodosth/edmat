@@ -100,11 +100,12 @@
 		}
 	});
 
-	async function handleCommentSubmit(body: string, parentId?: string) {
+	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
 		if (!authStore.user) return;
 		const comment = await submitComment('post', post.id, authStore.user.id, body, parentId);
 		comments = [...comments, comment];
 		await resolveUsers([comment.authorId]);
+		return comment;
 	}
 </script>
 

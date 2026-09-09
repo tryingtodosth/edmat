@@ -32,11 +32,12 @@
 		}
 	}
 	load();
-	async function handleComment(body: string, parentId?: string) {
+	async function handleComment(body: string, parentId?: string): Promise<Comment | void> {
 		if (!authStore.user) return;
 		const c = await submitComment('eventSession', sessionId, authStore.user.id, body, parentId);
 		comments = [...comments, c];
 		await resolveUsers([c.authorId]);
+		return c;
 	}
 </script>
 

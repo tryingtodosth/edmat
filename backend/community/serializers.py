@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
-from .models import Comment, Review, SavedComment
+from .models import CommentAttachment, Comment, Review, SavedComment
 from .targets import target_type_for
 
 
@@ -47,7 +47,22 @@ class ReviewSerializer(ReplyCountMixin, serializers.ModelSerializer):
         return getattr(obj.author.profile, 'display_name', '') or obj.author.username
 
 
+class CommentAttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommentAttachment
+        fields = ['id', 'kind', 'url', 'original_name', 'size_bytes']
+
+    def get_url(self, a) -> str:
+        if not a.file:
+            return ''
+        request = self.context.get('request')
+        return request.build_absolute_uri(a.file.url) if request else a.file.url
+
+
 class CommentSerializer(serializers.ModelSerializer):
+    attachments = serializers.SerializerMethodField()
     author_display_name = serializers.SerializerMethodField()
     # True the instant community reports cross moderation/services.py's own threshold, independent
     # of (and possible without) `is_removed` ever being set — the frontend needs to tell "hidden
@@ -71,6 +86,7 @@ class CommentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comment
         fields = [
+            'attachments',
             'id',
             'content_type',
             'object_id',
@@ -131,6 +147,12 @@ class CommentSerializer(serializers.ModelSerializer):
 
     def get_is_edited(self, obj):
         return obj.edited_at is not None
+
+    def get_attachments(self, comment):
+        # Blanked with the body: a tombstoned or held comment shows nothing of what was on it.
+        if comment.is_removed or comment.auto_hidden_at is not None:
+            return []
+        return CommentAttachmentSerializer(comment.attachments.all(), many=True, context=self.context).data
 
     def get_author_display_name(self, obj):
         if obj.is_removed or obj.auto_hidden_at is not None:

@@ -89,7 +89,7 @@
 		onVoteChange?.(coverage);
 	}
 
-	async function handleComment(body: string, parentId?: string) {
+	async function handleComment(body: string, parentId?: string): Promise<Comment | void> {
 		if (!authStore.user) return;
 		const comment = await submitComment(
 			threadTarget,
@@ -99,6 +99,7 @@
 			parentId
 		);
 		comments = [...comments, comment];
+		return comment;
 	}
 
 	// One sentence naming what kind of claim this is, worded for what it is a claim ABOUT.

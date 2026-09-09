@@ -2038,5 +2038,8 @@
 	"sort_reviews": "Most reviewed",
 	"sort_solutions": "Most solutions",
 	"sort_views": "Most read",
-	"sort_recent": "Newest"
+	"sort_recent": "Newest",
+	"comment_attach": "Add a picture or PDF",
+	"comment_fileTooBig": "Up to 5 MB per file.",
+	"comment_filesNotAdded": "The comment was posted, but the files could not be added."
 }

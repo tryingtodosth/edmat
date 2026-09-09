@@ -121,10 +121,11 @@
 		if (refreshed) service = refreshed;
 	}
 
-	async function handleCommentSubmit(body: string, parentId?: string) {
+	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
 		if (!service || !authStore.user) return;
 		const comment = await submitComment('service', service.id, authStore.user.id, body, parentId);
 		comments = [...comments, comment];
+		return comment;
 	}
 
 	async function toggleWatch() {

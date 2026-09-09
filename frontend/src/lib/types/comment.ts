@@ -47,6 +47,8 @@ export interface Comment {
 	body: string;
 	createdAt: string;
 	isRemoved: boolean; // tombstone, not hard-delete — preserves thread structure, mirrors CLAUDE.md's model
+	/** Pictures and small PDFs on the comment (AUDIENCE-BRIEF.md §6); empty on a tombstone. */
+	attachments: CommentAttachment[];
 	// True the instant community reports cross the auto-hide threshold (moderation/services.py),
 	// independent of — and possibly without ever becoming — isRemoved. Distinct on purpose: this is
 	// reversible ("restore," a moderator decided the reports were unfounded), isRemoved isn't.
@@ -64,4 +66,12 @@ export interface Comment {
 	downvotes: number;
 	score: number;
 	currentUserVote?: 1 | -1;
+}
+
+export interface CommentAttachment {
+	id: string;
+	kind: 'image' | 'pdf';
+	url: string;
+	originalName: string;
+	sizeBytes: number;
 }

@@ -9,6 +9,15 @@ rule and the whole frontend `DiscussionThread` come for free here.
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
+
+from accounts.minors import hold_for_review, is_minor
+from config.audience import MINOR_AUDIENCES
+
+from .attachments import MAX_ATTACHMENTS_PER_COMMENT, attachment_upload_path, process_attachment
+from .serializers import CommentAttachmentSerializer
+from .models import CommentAttachment
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -212,6 +221,51 @@ class CommentViewSet(viewsets.GenericViewSet):
     # with underscores turned into hyphens but leaves `url_path` as the name VERBATIM — so the route
     # would be `/save_for_me/` while `reverse('comment-save-for-me')` resolved happily, meaning the
     # tests passed against a URL no client would ever build. Found by a browser run, not by them.
+    @action(detail=True, methods=['post'], url_path='attachments', parser_classes=[MultiPartParser, FormParser])
+    def attachments(self, request, pk=None):
+        """Add one picture or PDF to your own comment — at most three, within your upload
+        allowance. A picture landing on a thread for a minor band, or on a minor's own comment,
+        holds the comment for a moderator (accounts/minors.py)."""
+        comment = self.get_object()
+        if comment.author_id != request.user.pk:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if comment.is_removed:
+            return Response({'detail': 'removed'}, status=status.HTTP_409_CONFLICT)
+        if comment.attachments.count() >= MAX_ATTACHMENTS_PER_COMMENT:
+            return Response({'detail': 'too_many'}, status=status.HTTP_409_CONFLICT)
+        upload = request.FILES.get('file')
+        if upload is None:
+            return Response({'file': ['A file is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            kind, content, name, size = process_attachment(upload)
+        except ValidationError as e:
+            return Response(e.message_dict if hasattr(e, 'message_dict') else {'file': e.messages}, status=status.HTTP_400_BAD_REQUEST)
+        profile = request.user.profile
+        quota = profile.material_upload_quota_bytes
+        used = profile.material_upload_bytes + sum(
+            CommentAttachment.objects.filter(comment__author=request.user).values_list('size_bytes', flat=True)
+        )
+        if quota and used + size > quota:
+            return Response({'detail': 'quota'}, status=status.HTTP_409_CONFLICT)
+        row = CommentAttachment(comment=comment, kind=kind, original_name=name, size_bytes=size, order=comment.attachments.count())
+        row.file.save(attachment_upload_path(row, name), content, save=True)
+        target_audience = getattr(comment.target, 'audience', None)
+        if kind == 'image' and (is_minor(request.user) or target_audience in MINOR_AUDIENCES):
+            hold_for_review(comment, request.user)
+        return Response(CommentAttachmentSerializer(row, context={'request': request}).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['delete'], url_path='attachments/(?P<attachment_id>[^/.]+)')
+    def attachment_delete(self, request, pk=None, attachment_id=None):
+        comment = self.get_object()
+        if not (comment.author_id == request.user.pk or request.user.is_staff):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        row = comment.attachments.filter(pk=attachment_id).first()
+        if row is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        row.file.delete(save=False)
+        row.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=['post', 'delete'], url_path='save-for-me')
     def save_for_me(self, request, pk=None):
         """Keep this comment, or stop keeping it.

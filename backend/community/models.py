@@ -123,3 +123,21 @@ class CommentVote(models.Model):
 
     def __str__(self) -> str:
         return f'{self.value:+d} by {self.voter} on comment {self.comment_id}'
+
+
+class CommentAttachment(models.Model):
+    """A picture or a small PDF on a comment (AUDIENCE-BRIEF.md §6). See community/attachments.py
+    for what the file is allowed to be and how it is made safe."""
+
+    KIND_CHOICES = [('image', 'Picture'), ('pdf', 'PDF')]
+
+    comment = models.ForeignKey(Comment, related_name='attachments', on_delete=models.CASCADE)
+    kind = models.CharField(max_length=5, choices=KIND_CHOICES)
+    file = models.FileField(upload_to='comment-attachments/')
+    original_name = models.CharField(max_length=120, blank=True)
+    size_bytes = models.PositiveIntegerField(default=0)
+    order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'id']

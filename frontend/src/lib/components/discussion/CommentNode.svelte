@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
 	// Self-imports for recursion — one component renders both a comment and its nested replies.
 	import type { CommentNode as CommentNodeT } from '$lib/utils/commentTree';
 	import type { Comment, User } from '$lib/types';
@@ -29,7 +30,7 @@
 	}: {
 		node: CommentNodeT;
 		usersById: Record<string, User>;
-		onReply: (parentId: string, body: string) => void;
+		onReply: (parentId: string, body: string, files?: File[]) => void;
 	} = $props();
 
 	// MeatballsMenu declares this shape in its own instance script, which cannot be imported as a
@@ -67,6 +68,7 @@
 	// different author: a moderator's decision, the community-report threshold firing, or the
 	// person themselves taking it down.
 	let hidden = $derived(comment.isRemoved || comment.isAutoHidden);
+	let openPdf = $state<string | null>(null);
 
 	let menuItems = $derived.by<MenuItem[]>(() => {
 		if (!authStore.isAuthenticated || hidden) return [];
@@ -269,6 +271,30 @@
 		{:else}
 			<p class="comment__body">{comment.body}</p>
 		{/if}
+		{#if !hidden && comment.attachments.length > 0}
+			<ul class="comment__attachments">
+				{#each comment.attachments as a (a.id)}
+					<li>
+						<!-- eslint-disable svelte/no-navigation-without-resolve -- a media file, not a route -->
+						{#if a.kind === 'image'}
+							<a href={a.url} target="_blank" rel="noopener"
+								><img src={a.url} alt={a.originalName} loading="lazy" /></a
+							>
+						{:else}
+							<button
+								type="button"
+								class="pdf-chip"
+								aria-expanded={openPdf === a.id}
+								onclick={() => (openPdf = openPdf === a.id ? null : a.id)}
+								>📄 {a.originalName || 'PDF'} · {Math.round(a.sizeBytes / 1024)} kB</button
+							>
+						{/if}
+						<!-- eslint-enable svelte/no-navigation-without-resolve -->
+						{#if openPdf === a.id}<div class="comment__pdf"><PdfViewer url={a.url} /></div>{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
 
 		{#if error}<p class="comment__error">{error}</p>{/if}
 
@@ -289,8 +315,9 @@
 				<CommentForm
 					placeholder={m.discussion_replyPlaceholder()}
 					submitLabel={m.discussion_post()}
-					onSubmit={(body) => {
-						onReply(comment.id, body);
+					allowFiles={true}
+					onSubmit={(body, files) => {
+						onReply(comment.id, body, files);
 						replying = false;
 					}}
 					onCancel={() => (replying = false)}
@@ -470,5 +497,34 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
+	}
+	.comment__attachments {
+		list-style: none;
+		padding: 0;
+		margin: 0.4rem 0 0;
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.comment__attachments img {
+		max-height: 160px;
+		max-width: 240px;
+		border-radius: 6px;
+		border: 1px solid var(--border);
+		display: block;
+	}
+	.pdf-chip {
+		min-height: 36px;
+		padding: 0 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--border);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		font: inherit;
+		font-size: 0.85rem;
+		cursor: pointer;
+	}
+	.comment__pdf {
+		flex-basis: 100%;
 	}
 </style>

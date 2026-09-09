@@ -1,3 +1,4 @@
+import type { CommentAttachment } from '$lib/types/comment';
 import type { Comment, CommentTargetType } from '$lib/types';
 import { apiClient } from '$lib/api/client';
 import { mapComment, type RawComment } from '$lib/api/mappers';
@@ -172,4 +173,36 @@ export async function saveComment(commentId: string, note = ''): Promise<SavedCo
 
 export async function unsaveComment(commentId: string): Promise<void> {
 	await apiClient.delete(`/comments/${encodeURIComponent(commentId)}/save-for-me/`);
+}
+
+// ---- attachments (AUDIENCE-BRIEF.md §6) --------------------------------------------------------------
+
+export async function uploadCommentAttachment(
+	commentId: string,
+	file: File
+): Promise<CommentAttachment> {
+	const form = new FormData();
+	form.set('file', file);
+	const a = await apiClient.postForm<{
+		id: number;
+		kind: 'image' | 'pdf';
+		url: string;
+		original_name: string;
+		size_bytes: number;
+	}>(`/comments/${encodeURIComponent(commentId)}/attachments/`, form);
+	return {
+		id: String(a.id),
+		kind: a.kind,
+		url: a.url,
+		originalName: a.original_name,
+		sizeBytes: a.size_bytes
+	};
+}
+export async function deleteCommentAttachment(
+	commentId: string,
+	attachmentId: string
+): Promise<void> {
+	await apiClient.delete(
+		`/comments/${encodeURIComponent(commentId)}/attachments/${encodeURIComponent(attachmentId)}/`
+	);
 }

@@ -277,6 +277,7 @@ node e2e/event-registration.mjs       # registration (§17AN); kasia/ola/michał
 node e2e/event-contributions.mjs      # the call for contributions (§17AO); kasia (host) / michał (reviewer) / ola (author); deletes the scratch event
 node e2e/guardian-accounts.mjs        # guardian accounts + minor defaults (§17AP); kasia makes and deletes a child 'e2e-zosia'; clear backend/cachedata BEFORE (never during) a run
 node e2e/sorting-and-languages.mjs    # sort keys in the URL + the content-language rule (§17AQ); English-interface contexts; resets ola's content_locales
+node e2e/comment-attachments.mjs      # pictures/PDFs on comments (§17AR); ola on exercise 1 with generated files; deletes its marker comments
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -694,6 +695,13 @@ the branch page's sort goes into the URL, the first card matches the API's first
 English interface shows the banner and one click adds Polish; Ola's Settings save an extra language
 on her profile (press the Save in THAT section's form — the settings page has several); the listing
 form asks for a language defaulting to the interface's.
+
+**`e2e/comment-attachments.mjs` (10 checks)** — pictures and small PDFs on comments (root
+CLAUDE.md §17AR): the composer's picker, two chips queued, a comment posted with a generated
+2000×1000 PNG and a minimal PDF, the thumbnail genuinely loading (`naturalWidth > 0`), the PDF chip
+opening the in-page viewer, the API holding a `.webp` smaller than the upload, a disguised
+executable refused in words while the comment itself still posts, a reply (through the "⋯" menu)
+carrying a picture. Generates its files in a temp dir; deletes its marker comments.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

@@ -225,10 +225,11 @@
 		if (refreshed) material = refreshed;
 	}
 
-	async function handleCommentSubmit(body: string, parentId?: string) {
+	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
 		if (!material || !authStore.user) return;
 		const comment = await submitComment('material', material.id, authStore.user.id, body, parentId);
 		comments = [...comments, comment];
+		return comment;
 	}
 </script>
 

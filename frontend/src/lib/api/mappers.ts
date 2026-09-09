@@ -617,6 +617,13 @@ export interface RawComment {
 	is_removed: boolean;
 	is_auto_hidden: boolean;
 	is_edited: boolean;
+	attachments?: {
+		id: number;
+		kind: 'image' | 'pdf';
+		url: string;
+		original_name: string;
+		size_bytes: number;
+	}[];
 	removed_by_author: boolean;
 	upvotes: number;
 	downvotes: number;
@@ -642,6 +649,13 @@ export function mapComment(
 		body: json.body,
 		createdAt: json.created_at,
 		isRemoved: json.is_removed,
+		attachments: (json.attachments ?? []).map((a) => ({
+			id: String(a.id),
+			kind: a.kind,
+			url: a.url,
+			originalName: a.original_name,
+			sizeBytes: a.size_bytes
+		})),
 		isAutoHidden: json.is_auto_hidden,
 		isEdited: json.is_edited,
 		removedByAuthor: json.removed_by_author,

@@ -6534,6 +6534,45 @@ the profile field validated, `language` on a listing and a post); eight app suit
 narrowed by language (only posts carry one); no sort control on materials beyond their own four
 keys, none on sets; the notice's "Show them" adds every language rather than the one hidden.
 
+## 17AR. Pictures and small PDFs on comments (✅ built, full stack)
+
+`AUDIENCE-BRIEF.md` §6. A sketch of the triangle in question is the most useful thing a reply
+can carry, and a comment could carry only words.
+
+- **`CommentAttachment`** (picture or PDF, at most three per comment, ≤ 5 MB each), added by the
+  author AFTER the comment exists through one multipart route, `POST /api/comments/{id}/
+  attachments/` — the many comment endpoints stay JSON, and one route serves them all.
+  `DELETE …/attachments/{id}/` by the author or staff.
+- **A picture is never the bytes that were uploaded**: the same `imaging` pipeline as a post
+  picture (libmagic sniff, byte and pixel bounds, decode, re-encode WebP bounded to 1600 px with
+  the aspect kept, EXIF gone). **A PDF cannot be re-encoded**, so it gets what a material upload
+  gets — the sniff, the size cap, and the ClamAV scan when a daemon exists (`scan_for_malware`,
+  refused when the scanner flags it, honest about "no scanner reachable"). Stored under a random
+  name; the original name is kept for display only.
+- **Counted against the same allowance as material uploads** (`Profile.material_upload_bytes`
+  plus the account's attachment bytes against `material_upload_quota_bytes`, 0 = no cap).
+- **Held for a moderator** when a picture lands on a minor's comment or on a thread whose target
+  is in a minor band (§17AP's `hold_for_review`, the same report-queue row); a PDF is not, since
+  the pre-publication review is about pictures.
+- **Blanked with the body**: a tombstoned or held comment serializes `attachments: []`.
+- **Frontend**: `CommentForm` gains the picker (three chips, 5 MB checked client-side too, off for
+  edits); `DiscussionThread` uploads after the comment is created and overlays the result on the
+  comments its parent owns, so none of the eleven pages that render a thread had to learn about
+  files — they only return the created comment now. `CommentNode` renders thumbnails and a PDF
+  chip that opens the existing `PdfViewer` in place.
+
+**Verified**: `community/test_attachments.py` 6 tests (a 2400×1200 PNG stored as a 1600×800 WebP,
+a PDF kept, a disguised executable refused, the limit of three, author-only, the allowance, removal
+by author and staff, a tombstone hiding them, a picture on a primary-band thread held while a PDF is
+not); community / exercises / materials / events / issues / activity suites 415 green;
+`e2e/comment-attachments.mjs` — a real generated PNG and PDF through the actual form, the
+thumbnail genuinely loading, the PDF chip opening the viewer, the stored file a smaller WebP, a
+disguised executable refused in words while the comment still posts, a reply carrying a picture.
+
+**Left open**: no delete button for an attachment in the UI (the endpoint exists; the whole
+comment can be deleted); attachments are not searched; a held comment's picture is reviewed by
+whoever restores the comment, with no picture-specific queue; no image alt text asked for.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

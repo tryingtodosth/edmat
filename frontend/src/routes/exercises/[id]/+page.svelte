@@ -172,10 +172,11 @@
 		submissionNotice = 'review';
 	}
 
-	async function handleCommentSubmit(body: string, parentId?: string) {
+	async function handleCommentSubmit(body: string, parentId?: string): Promise<Comment | void> {
 		if (!exercise || !authStore.user) return;
 		const comment = await submitComment('exercise', exercise.id, authStore.user.id, body, parentId);
 		comments = [...comments, comment];
+		return comment;
 	}
 
 	// The solution/hint pool's own state handlers — the page owns `exercise.entries`; the section
