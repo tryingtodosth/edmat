@@ -87,6 +87,14 @@
 		// what happened rather than repeating it — the same restraint courseNewLesson follows.
 		eventPosted: () => m.notification_eventPosted({ title: notification.targetLabel }),
 		sessionChanged: () => m.notification_sessionChanged({ title: notification.targetLabel }),
+		registrationConfirmed: () =>
+			m.notification_registrationConfirmed({ title: notification.targetLabel }),
+		registrationWaitlisted: () =>
+			m.notification_registrationWaitlisted({ title: notification.targetLabel }),
+		registrationPromoted: () =>
+			m.notification_registrationPromoted({ title: notification.targetLabel }),
+		registrationDeclined: () =>
+			m.notification_registrationDeclined({ title: notification.targetLabel }),
 		bookingCancelled: () =>
 			m.notification_bookingCancelled({
 				actor: notification.actorDisplayName || m.notification_someone(),

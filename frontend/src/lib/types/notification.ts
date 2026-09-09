@@ -47,6 +47,10 @@ export type NotificationType =
 	// wrote something and the reader should go and read it. `note` carries its opening words.
 	| 'eventPosted'
 	| 'sessionChanged'
+	| 'registrationConfirmed'
+	| 'registrationWaitlisted'
+	| 'registrationPromoted'
+	| 'registrationDeclined'
 	// Emitted by courses/ and moderation/ and never listed here until now, which meant
 	// `mapNotification` fell back to `commentReply` and rendered every one of them as a reply to
 	// a comment that does not exist.

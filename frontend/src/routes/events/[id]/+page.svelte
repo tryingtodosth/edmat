@@ -1,4 +1,9 @@
 <script lang="ts">
+	import RegistrationForm from '$lib/components/event/RegistrationForm.svelte';
+	import RegistrationFieldsEditor from '$lib/components/event/RegistrationFieldsEditor.svelte';
+	import RegistrationsPanel from '$lib/components/event/RegistrationsPanel.svelte';
+	import { setRegistrationFields } from '$lib/services/events';
+	import type { RegistrationAnswers, RegistrationFieldDraft } from '$lib/types/event';
 	import { ApiError } from '$lib/api/client';
 	// One event: what it is, when, where, and the one decision a reader came here to make.
 	//
@@ -76,7 +81,13 @@
 	async function loadAttendees(id: string) {
 		// The roster is private (a 403 to anybody not going and not staff) — do not even ask for
 		// it when the answer is known, or every stranger's visit logs a failed request.
-		if (!(event && (event.canOrganise || event.isHost || event.myAttendance === 'going'))) {
+		if (!(
+			event &&
+			(event.canOrganise ||
+				event.isHost ||
+				event.myAttendance === 'going' ||
+				event.showAttendeesPublicly)
+		)) {
 			attendees = [];
 			return;
 		}
@@ -100,12 +111,36 @@
 		}
 	});
 
-	async function respond(status: 'going' | 'not_going') {
+	let showForm = $state(false);
+	let fieldsBusy = $state(false);
+	let fieldsError = $state('');
+	async function saveFields(fields: RegistrationFieldDraft[]) {
+		if (!event) return;
+		fieldsBusy = true;
+		fieldsError = '';
+		try {
+			const saved = await setRegistrationFields(event.id, fields);
+			event = { ...event, registrationFields: saved };
+		} catch {
+			fieldsError = m.common_error();
+		} finally {
+			fieldsBusy = false;
+		}
+	}
+	function startRegistering() {
+		if (!event) return;
+		// Claiming an offered seat is one click, whatever the mode — the questions were answered
+		// when the person first asked.
+		if (event.registrationMode === 'form' && event.myAttendance !== 'promoted') showForm = true;
+		else void respond('going');
+	}
+	async function respond(status: 'going' | 'not_going', answers?: RegistrationAnswers) {
 		if (!event) return;
 		busy = true;
 		actionError = '';
 		try {
-			event = await respondToEvent(event.id, status);
+			event = await respondToEvent(event.id, status, '', answers);
+			showForm = false;
 			await loadAttendees(event.id);
 		} catch (e) {
 			actionError = e instanceof Error ? e.message : m.common_error_generic();
@@ -291,6 +326,12 @@
 					<dt>{m.events_attendees()}</dt>
 					<dd>
 						{m.events_goingCount({ count: event.goingCount })} · {seatsLine}
+						{#if event.waitlistCount > 0}
+							· {m.events_waitlistCount({ count: event.waitlistCount })}
+						{/if}
+						{#if event.canOrganise && event.pendingCount > 0}
+							· {m.events_pendingCount({ count: event.pendingCount })}
+						{/if}
 						{#if event.isHost && event.declinedCount > 0}
 							· {m.events_declinedCount({ count: event.declinedCount })}
 						{/if}
@@ -343,8 +384,28 @@
 						{/if}
 					</div>
 				{:else}
+					{#if event.myAttendance === 'pending'}
+						<p class="mine">{m.events_youArePending()}</p>
+					{:else if event.myAttendance === 'waitlisted'}
+						<p class="mine">
+							{m.events_youAreWaitlisted({ position: event.myWaitlistPosition ?? 0 })}
+						</p>
+					{:else if event.myAttendance === 'promoted'}
+						<p class="mine mine--offer">
+							{m.events_seatOffered({
+								when: event.myRegistration?.promotionExpiresAt
+									? formatDateTime(event.myRegistration.promotionExpiresAt)
+									: ''
+							})}
+						</p>
+					{:else if event.myAttendance === 'expired'}
+						<p class="mine">{m.events_offerExpired()}</p>
+					{/if}
 					{#if event.myAttendance === 'going'}
-						<p class="mine">{m.events_youAreGoing()}</p>
+						<p class="mine">
+							{m.events_youAreGoing()}{#if event.myRegistration?.checkedIn}
+								· {m.events_checkedIn()}{/if}
+						</p>
 						<!-- Saying you are coming deliberately does NOT withdraw your bookable hours
 						     (booking/availability.py explains why an RSVP must not quietly cost somebody
 						     income). This is the escape hatch for the person who does want them held, so
@@ -373,11 +434,21 @@
 							<button
 								type="button"
 								class="primary"
-								disabled={busy || event.myAttendance === 'going' || !event.canRespond}
+								disabled={busy ||
+									['going', 'pending', 'waitlisted'].includes(event.myAttendance ?? '') ||
+									!event.canRespond}
 								aria-pressed={event.myAttendance === 'going'}
-								onclick={() => respond('going')}
+								onclick={startRegistering}
 							>
-								{m.events_going()}
+								{event.myAttendance === 'promoted'
+									? m.events_claimSeat()
+									: event.registrationMode === 'approval'
+										? m.events_askToJoin()
+										: event.isFull && event.myAttendance !== 'going'
+											? m.events_joinWaitlist()
+											: event.registrationMode === 'form'
+												? m.events_register()
+												: m.events_going()}
 							</button>
 							<button
 								type="button"
@@ -389,6 +460,14 @@
 								{m.events_notGoing()}
 							</button>
 						</div>
+						{#if showForm}
+							<RegistrationForm
+								{event}
+								{busy}
+								onsubmit={(answers) => respond('going', answers)}
+								oncancel={() => (showForm = false)}
+							/>
+						{/if}
 					{/if}
 
 					<!-- The refusal is always named. A disabled button with no explanation is the thing
@@ -424,6 +503,22 @@
 			     once they have already decided to come, and below the answer buttons, because
 			     deciding whether to come is what everybody else opens it for. -->
 			<Programme {event} />
+			{#if event.canOrganise && event.registrationMode === 'form'}
+				<RegistrationFieldsEditor
+					initial={event.registrationFields}
+					busy={fieldsBusy}
+					error={fieldsError}
+					onsave={saveFields}
+				/>
+			{/if}
+			{#if event.canCheckIn}
+				<RegistrationsPanel
+					{event}
+					onchanged={async () => {
+						if (event) event = await getEvent(event.id);
+					}}
+				/>
+			{/if}
 			{#if event.canOrganise}
 				<EventStaffPanel
 					{staff}
@@ -449,9 +544,14 @@
 					<ul>
 						{#each attendees as row (row.id)}
 							<li>
-								<a href={resolve('/users/[id]', { id: row.attendee.id })}>
-									{row.attendee.displayName}
-								</a>
+								{#if row.attendee.id}
+									<a href={resolve('/users/[id]', { id: row.attendee.id })}>
+										{row.attendee.displayName}
+									</a>
+								{:else}
+									<!-- The organiser's masked public list carries no ids on purpose. -->
+									<span>{row.attendee.displayName}</span>
+								{/if}
 								{#if row.status === 'not_going'}
 									<span class="declined">{m.events_notGoing()}</span>
 								{/if}

@@ -43,9 +43,11 @@ _EventsFeatureGate = feature_gate('events')
 
 
 from .agenda_views import ProgrammeMixin
+from .registration import demote_over_capacity, expire_promotions, mask_name, register, validate_answers, withdraw
+from .registration_views import RegistrationMixin
 
 
-class EventViewSet(ProgrammeMixin, viewsets.ModelViewSet):
+class EventViewSet(ProgrammeMixin, RegistrationMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate]
 
     def get_queryset(self):
@@ -187,7 +189,7 @@ class EventViewSet(ProgrammeMixin, viewsets.ModelViewSet):
 
     def _mine_or_404(self):
         event = self.get_object()
-        if event.host_id != self.request.user.pk:
+        if not event.can_organise(self.request.user):
             return None
         return event
 
@@ -201,6 +203,9 @@ class EventViewSet(ProgrammeMixin, viewsets.ModelViewSet):
         write = self.get_serializer(event, data=request.data, partial=kwargs.pop('partial', False))
         write.is_valid(raise_exception=True)
         event = write.save()
+        # Capacity cut below the people seated: the most recently seated go back to the waiting
+        # list, last in first out, and are told why (registration.demote_over_capacity).
+        demote_over_capacity(event, request.user)
         after = (event.starts_at, event.location_kind, event.location_text, event.online_url)
         if before != after and event.status == 'published':
             moved_in_time = before[0] != after[0]
@@ -268,44 +273,30 @@ class EventViewSet(ProgrammeMixin, viewsets.ModelViewSet):
         write = AttendanceWriteSerializer(data=request.data)
         write.is_valid(raise_exception=True)
         wanted = write.validated_data['status']
-
-        existing = event.attendances.filter(attendee=request.user).first()
-        # The cap is re-checked here against the database, not trusted from the `can_respond` the
-        # client was last shown: two people answering a one-seat event at the same moment both saw
-        # a free seat.
         reason = event.response_block_reason(request.user)
-        if reason is not None and not (reason == 'full' and wanted == 'not_going'):
+        if reason is not None and wanted != 'not_going':
             return Response({'detail': reason}, status=status.HTTP_409_CONFLICT)
-
-        try:
-            with transaction.atomic():
-                if existing:
-                    existing.status = wanted
-                    existing.note = write.validated_data.get('note', existing.note)
-                    existing.save(update_fields=['status', 'note', 'responded_at'])
-                    attendance = existing
-                    # A change of mind is not news. The host was told the first time; being told
-                    # again every time somebody toggles would be noise, and there is no event here
-                    # worth interrupting them for.
-                    newly_going = False
-                else:
-                    attendance = EventAttendance.objects.create(
-                        event=event,
-                        attendee=request.user,
-                        status=wanted,
-                        note=write.validated_data.get('note', ''),
-                    )
-                    newly_going = wanted in ATTENDING_STATUSES
-        except IntegrityError:
-            # The unique constraint firing means somebody double-clicked, or two tabs answered at
-            # once. Not an error worth showing: read the row that won and answer with it.
-            attendance = event.attendances.filter(attendee=request.user).first()
+        if wanted == 'not_going':
+            attendance = withdraw(event, request.user, note=write.validated_data.get('note', ''), actor=request.user)
             newly_going = False
-
-        if newly_going:
-            notify_host_of_response(event, request.user, wanted)
-
-        event.refresh_from_db()
+        else:
+            answers = write.validated_data.get('answers')
+            # The questions are answered when somebody first asks; claiming an offered seat, or
+            # re-asking while still pending/waiting, must not demand them again.
+            mine = event.attendances.filter(attendee=request.user).first()
+            fresh = mine is None or mine.status in ('not_going', 'expired')
+            if event.registration_mode == 'form' and fresh:
+                problems = validate_answers(event, answers)
+                if problems:
+                    return Response({'answers': problems}, status=status.HTTP_400_BAD_REQUEST)
+            # The engine decides what "I am coming" becomes here — a seat, the waiting list, or a
+            # request for the organiser — and re-checks capacity against the database itself.
+            attendance, newly_going = register(
+                event, request.user, answers=answers, note=write.validated_data.get('note', ''), actor=request.user
+            )
+        if newly_going and attendance.status == 'going':
+            notify_host_of_response(event, request.user, 'going')
+        event = Event.objects.get(pk=event.pk)
         return Response(
             {
                 'attendance': EventAttendanceSerializer(attendance).data,
@@ -407,13 +398,26 @@ class EventViewSet(ProgrammeMixin, viewsets.ModelViewSet):
         """
         event = self.get_object()
         user = request.user
-        if not user.is_authenticated:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        is_host = event.host_id == user.pk
-        mine = event.attendances.filter(attendee=user).first()
-        if not is_host and not (mine and mine.status in ATTENDING_STATUSES):
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        rows = event.attendances.select_related('attendee', 'attendee__profile')
-        if not is_host:
+        expire_promotions(event)
+        is_staff_member = event.is_staff_member(user)
+        mine = event.attendances.filter(attendee=user).first() if user.is_authenticated else None
+        member = is_staff_member or bool(mine and mine.status in ATTENDING_STATUSES)
+        if not member:
+            if not event.show_attendees_publicly:
+                return Response(status=status.HTTP_403_FORBIDDEN)
+            # The organiser's optional public list: first name + last initial, nothing else.
+            rows = event.attendances.filter(status__in=ATTENDING_STATUSES).select_related('attendee__profile')
+            return Response([
+                {
+                    'id': r.pk,
+                    'attendee': {'id': None, 'display_name': mask_name(
+                        getattr(getattr(r.attendee, 'profile', None), 'display_name', '') or r.attendee.username
+                    )},
+                    'status': r.status, 'note': '', 'responded_at': r.responded_at,
+                }
+                for r in rows
+            ])
+        rows = event.attendances.select_related('attendee', 'attendee__profile', 'registered_by__profile').prefetch_related('session_registrations')
+        if not is_staff_member:
             rows = rows.filter(status__in=ATTENDING_STATUSES)
         return Response(EventAttendanceSerializer(rows, many=True).data)

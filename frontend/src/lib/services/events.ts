@@ -6,7 +6,6 @@
 
 import type {
 	EdmatEvent,
-	EventAttendanceStatus,
 	EventAttendee,
 	EventDraft,
 	EventPerson,
@@ -16,6 +15,9 @@ import type {
 } from '$lib/types/event';
 import { apiClient } from '$lib/api/client';
 import type {
+	RegistrationAnswers,
+	RegistrationField,
+	RegistrationFieldDraft,
 	EventStaffMember,
 	EventStaffRole,
 	MyAgenda,
@@ -76,6 +78,14 @@ export function mapEvent(raw: any): EdmatEvent {
 		myAttendance: raw.my_attendance ?? null,
 		isHost: raw.is_host ?? false,
 		canOrganise: raw.can_organise ?? raw.is_host ?? false,
+		canCheckIn: raw.can_check_in ?? raw.is_host ?? false,
+		registrationMode: raw.registration_mode ?? 'rsvp',
+		showAttendeesPublicly: raw.show_attendees_publicly ?? false,
+		registrationFields: (raw.registration_fields ?? []).map(mapRegistrationField),
+		waitlistCount: raw.waitlist_count ?? 0,
+		pendingCount: raw.pending_count ?? 0,
+		myRegistration: raw.my_registration ? mapAttendee(raw.my_registration) : null,
+		myWaitlistPosition: raw.my_waitlist_position ?? null,
 		canRespond: raw.can_respond ?? false,
 		responseBlockReason: raw.response_block_reason ?? null,
 		parent: raw.parent ? mapEventSummary(raw.parent) : null,
@@ -90,6 +100,13 @@ function mapAttendee(raw: any): EventAttendee {
 		attendee: mapPerson(raw.attendee),
 		status: raw.status,
 		note: raw.note ?? '',
+		answers: raw.answers ?? {},
+		registeredBy: raw.registered_by ? mapPerson(raw.registered_by) : null,
+		waitlistedAt: raw.waitlisted_at ?? null,
+		promotionExpiresAt: raw.promotion_expires_at ?? null,
+		checkedIn: raw.checked_in ?? false,
+		checkedInAt: raw.checked_in_at ?? null,
+		sessionIds: (raw.session_ids ?? []).map(String),
 		respondedAt: raw.responded_at
 	};
 }
@@ -119,6 +136,9 @@ function toBody(draft: Partial<EventDraft>): Record<string, unknown> {
 	if (draft.language !== undefined) body.language = draft.language;
 	if (draft.audience !== undefined) body.audience = draft.audience;
 	if (draft.runsUntil !== undefined) body.runs_until = draft.runsUntil || null;
+	if (draft.registrationMode !== undefined) body.registration_mode = draft.registrationMode;
+	if (draft.showAttendeesPublicly !== undefined)
+		body.show_attendees_publicly = draft.showAttendeesPublicly;
 	if (draft.parentId !== undefined) body.parent = draft.parentId || null;
 	return body;
 }
@@ -163,11 +183,69 @@ export async function cancelEvent(id: string): Promise<EdmatEvent> {
  * note on why an `attend`/`unattend` pair would leave a stale page able to send the wrong one. */
 export async function respondToEvent(
 	id: string,
-	status: EventAttendanceStatus,
-	note = ''
+	status: 'going' | 'not_going',
+	note = '',
+	answers?: RegistrationAnswers
 ): Promise<EdmatEvent> {
-	const body = await apiClient.post<any>(`/events/${id}/attend/`, { status, note });
+	const body = await apiClient.post<any>(`/events/${id}/attend/`, { status, note, answers });
 	return mapEvent(body.event);
+}
+
+function mapRegistrationField(raw: any): RegistrationField {
+	return {
+		id: String(raw.id),
+		label: raw.label,
+		kind: raw.kind,
+		required: !!raw.required,
+		options: raw.options ?? []
+	};
+}
+
+// ---- registration (AUDIENCE-BRIEF.md §3.3) ---------------------------------------------------------
+
+export async function getRegistrations(eventId: string): Promise<EventAttendee[]> {
+	return (await apiClient.get<any[]>(`/events/${eventId}/registrations/`)).map(mapAttendee);
+}
+export async function decideRegistration(
+	eventId: string,
+	rowId: string,
+	decision: 'accept' | 'decline',
+	note = ''
+): Promise<EventAttendee> {
+	return mapAttendee(
+		await apiClient.post<any>(`/events/${eventId}/registrations/${rowId}/decide/`, {
+			decision,
+			note
+		})
+	);
+}
+export async function setCheckedIn(
+	eventId: string,
+	rowId: string,
+	on: boolean
+): Promise<EventAttendee> {
+	const path = `/events/${eventId}/registrations/${rowId}/checkin/`;
+	return mapAttendee(on ? await apiClient.post<any>(path) : await apiClient.delete<any>(path));
+}
+export async function getRegistrationsCsv(eventId: string): Promise<string> {
+	return apiClient.getText(`/events/${eventId}/registrations/export/`);
+}
+export async function setRegistrationFields(
+	eventId: string,
+	fields: RegistrationFieldDraft[]
+): Promise<RegistrationField[]> {
+	return (await apiClient.put<any[]>(`/events/${eventId}/registration-fields/`, fields)).map(
+		mapRegistrationField
+	);
+}
+export async function setSessionSeat(
+	eventId: string,
+	sessionId: string,
+	on: boolean
+): Promise<{ registered: boolean; registeredCount: number }> {
+	const path = `/events/${eventId}/sessions/${sessionId}/register/`;
+	const raw = on ? await apiClient.post<any>(path) : await apiClient.delete<any>(path);
+	return { registered: !!raw.registered, registeredCount: raw.registered_count ?? 0 };
 }
 
 export async function getEventAttendees(id: string): Promise<EventAttendee[]> {
@@ -306,7 +384,9 @@ export function mapSession(raw: any): Session {
 			note: l.note ?? ''
 		})),
 		bookmarkCount: raw.bookmark_count ?? 0,
-		isBookmarked: raw.is_bookmarked ?? false
+		isBookmarked: raw.is_bookmarked ?? false,
+		registeredCount: raw.registered_count ?? 0,
+		isRegistered: raw.is_registered ?? false
 	};
 }
 

@@ -499,18 +499,17 @@ class AttendanceTests(ApiTestCase):
         first = self.as_(self.goer)
         first.post(f'/api/events/{event.pk}/attend/', {'status': 'going'}, format='json')
         second = self.as_(self.other)
-        self.assertEqual(
-            second.post(
-                f'/api/events/{event.pk}/attend/', {'status': 'going'}, format='json'
-            ).status_code,
-            409,
-        )
+        # A full event no longer refuses (AUDIENCE-BRIEF.md §3.3): the second person waits.
+        waited = second.post(f'/api/events/{event.pk}/attend/', {'status': 'going'}, format='json')
+        self.assertEqual(waited.status_code, 200)
+        self.assertEqual(waited.json()['attendance']['status'], 'waitlisted')
         first.post(f'/api/events/{event.pk}/attend/', {'status': 'not_going'}, format='json')
+        # The freed seat was offered to them (a 24h claim); asking again takes it.
         self.assertEqual(
             second.post(
                 f'/api/events/{event.pk}/attend/', {'status': 'going'}, format='json'
-            ).status_code,
-            200,
+            ).json()['attendance']['status'],
+            'going',
         )
 
     def test_a_full_event_still_lets_somebody_holding_a_seat_decline(self):
@@ -573,8 +572,10 @@ class AttendanceTests(ApiTestCase):
             f'/api/events/{event.pk}/attend/', {'status': 'going'}, format='json'
         )
         body = self.as_(self.other).get(f'/api/events/{event.pk}/').json()
-        self.assertFalse(body['can_respond'])
-        self.assertEqual(body['response_block_reason'], 'full')
+        # Full is no longer a refusal — the waiting list is the answer — but the page still has
+        # to be able to say so before the person clicks: seats_left 0 and is_full true.
+        self.assertTrue(body['can_respond'])
+        self.assertTrue(body['is_full'])
         self.assertEqual(body['seats_left'], 0)
 
     def test_an_uncapped_event_reports_no_seat_count_rather_than_a_large_one(self):

@@ -96,10 +96,28 @@ NEEDS_LINK = frozenset({'online', 'hybrid'})
 ATTENDANCE_STATUS_CHOICES = [
     ('going', 'Going'),
     ('not_going', 'Not going'),
+    # Registration states (AUDIENCE-BRIEF.md §3.3). `pending` waits for an organiser (approval
+    # mode); `waitlisted` waits for a seat; `promoted` HOLDS a seat for 24 hours while the person
+    # confirms it; `expired` let that window lapse — the seat went on to the next in line.
+    ('pending', 'Awaiting approval'),
+    ('waitlisted', 'On the waiting list'),
+    ('promoted', 'Seat offered — awaiting confirmation'),
+    ('expired', 'Offer expired'),
 ]
+
+REGISTRATION_MODE_CHOICES = [
+    ('rsvp', 'Anyone may register, immediately'),
+    ('approval', 'The organiser confirms each registration'),
+    ('form', 'A registration form, confirmed immediately'),
+]
+PROMOTION_WINDOW = timedelta(hours=24)
 
 #: The one status that occupies a seat.
 ATTENDING_STATUSES = frozenset({'going'})
+# What occupies a seat: the people going, and the people a seat is being held for while they
+# confirm. A `promoted` row that did not count would let the next person take the very seat that
+# was just offered.
+SEAT_HOLDING_STATUSES = frozenset({'going', 'promoted'})
 
 
 class Event(models.Model):
@@ -190,6 +208,14 @@ class Event(models.Model):
     # duration. Null for the ordinary one-evening event, whose end is derived exactly as before —
     # so nothing that predates the field changes its meaning. See `ends_at`.
     runs_until = models.DateTimeField(null=True, blank=True)
+    # How somebody gets in (AUDIENCE-BRIEF.md §3.3). `rsvp` is what every event did before the
+    # field existed. Capacity is enforced on every path regardless of mode; a full event waitlists.
+    registration_mode = models.CharField(
+        max_length=10, choices=REGISTRATION_MODE_CHOICES, default='rsvp'
+    )
+    # The organiser's choice to show a MASKED list (first name + last initial) of who is going to
+    # anybody who can see the event. Off, the roster stays what it was: attendees and staff only.
+    show_attendees_publicly = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -280,16 +306,25 @@ class Event(models.Model):
     def declined_count(self) -> int:
         return self.attendances.filter(status='not_going').count()
 
+    def seat_holder_count(self) -> int:
+        return self.attendances.filter(status__in=SEAT_HOLDING_STATUSES).count()
+
+    def waitlist_count(self) -> int:
+        return self.attendances.filter(status='waitlisted').count()
+
+    def pending_count(self) -> int:
+        return self.attendances.filter(status='pending').count()
+
     @property
     def seats_left(self):
         """`None` for an uncapped event — genuinely different from 0, which means full."""
         if not self.capacity:
             return None
-        return max(0, self.capacity - self.going_count())
+        return max(0, self.capacity - self.seat_holder_count())
 
     @property
     def is_full(self) -> bool:
-        return self.capacity > 0 and self.going_count() >= self.capacity
+        return self.capacity > 0 and self.seat_holder_count() >= self.capacity
 
     def response_block_reason(self, user):
         """Why this person cannot say they are coming, or `None` if they can.
@@ -309,9 +344,9 @@ class Event(models.Model):
         # Somebody who already holds a seat is never blocked by the cap — otherwise a full event
         # would refuse to let one of its own attendees change their mind and then change it back,
         # and would refuse to let them decline, which is the one answer a full event most wants.
-        already = self.attendances.filter(attendee=user).first()
-        if self.is_full and not (already and already.status in ATTENDING_STATUSES):
-            return 'full'
+        # A full event no longer refuses: the answer is the waiting list (§3.3). `full` stays a
+        # value of this function's contract for clients that predate the field, but is never
+        # returned now.
         return None
 
 
@@ -440,6 +475,31 @@ class EventAttendance(models.Model):
     # colleague". Mirrors the note on a course enrolment request, which exists for the same reason:
     # the answer alone frequently is not the whole of what somebody wanted to say.
     note = models.CharField(max_length=300, blank=True)
+    # Registration (AUDIENCE-BRIEF.md §3.3). `answers` is keyed by RegistrationField id (a JSON
+    # object) — a form event's answers travel with the row rather than a second table, because
+    # they are read together and never queried apart. `registered_by` is set when a guardian
+    # registers a child (step 5); null means the person registered themselves.
+    answers = models.JSONField(default=dict, blank=True)
+    registered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='registrations_made',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    # Waiting-list order is `waitlisted_at` (first asked, first promoted); a promotion holds a seat
+    # until `promotion_expires_at`. Check-in is a timestamp on a `going` row, not a status: an
+    # undo is clearing it, and the seat is never touched by either.
+    waitlisted_at = models.DateTimeField(null=True, blank=True)
+    promotion_expires_at = models.DateTimeField(null=True, blank=True)
+    checked_in_at = models.DateTimeField(null=True, blank=True)
+    checked_in_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='event_checkins_done',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
     responded_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -673,4 +733,51 @@ class SessionBookmark(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=['user', 'session'], name='unique_bookmark_per_session'),
+        ]
+
+
+# ---- registration forms and per-session seats (AUDIENCE-BRIEF.md §3.3) ------------------------
+
+FIELD_KIND_CHOICES = [
+    ('text', 'Short text'),
+    ('long_text', 'Longer text'),
+    ('choice', 'One of a list'),
+    ('multi', 'Any of a list'),
+    ('checkbox', 'Yes / no'),
+]
+
+
+class RegistrationField(models.Model):
+    """One question on a `form` event's registration form — the Indico pattern cut down to what a
+    small organiser uses. Baseline questions every form has (attendance mode for a hybrid event,
+    accessibility needs, the consent line) are rendered by the client, not stored here; these are
+    the organiser's own additions (affiliation, student number, dietary needs…)."""
+
+    event = models.ForeignKey(Event, related_name='registration_fields', on_delete=models.CASCADE)
+    label = models.CharField(max_length=200)
+    kind = models.CharField(max_length=10, choices=FIELD_KIND_CHOICES, default='text')
+    required = models.BooleanField(default=False)
+    options = models.JSONField(default=list, blank=True)  # for choice / multi
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self) -> str:
+        return self.label
+
+
+class SessionAttendance(models.Model):
+    """A seat in one capped session, held by somebody who already holds a seat at the event.
+    Only capped sessions need rows; an uncapped session is open to everybody going."""
+
+    session = models.ForeignKey(Session, related_name='registrations', on_delete=models.CASCADE)
+    attendance = models.ForeignKey(
+        EventAttendance, related_name='session_registrations', on_delete=models.CASCADE
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['session', 'attendance'], name='one_seat_per_session'),
         ]

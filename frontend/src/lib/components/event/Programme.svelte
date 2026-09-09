@@ -17,6 +17,7 @@
 		getSessions,
 		getTracks,
 		setSessionBookmark,
+		setSessionSeat,
 		updateSession
 	} from '$lib/services/events';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -68,10 +69,7 @@
 	});
 	const weekDays = $derived.by(() => {
 		if (sessions.length === 0) return [] as string[];
-		const first = startOfWeek(
-			new Date(sessions[0].startsAt),
-			displayPrefs.weekStartsOn === 'sunday' ? 0 : 1
-		);
+		const first = startOfWeek(new Date(sessions[0].startsAt), displayPrefs.weekStartsOn);
 		return dayRange(first, 7);
 	});
 	const entries = $derived<CalendarEntry[]>(
@@ -106,6 +104,30 @@
 	}
 	function addToSet(s: Session) {
 		added = { ...added, [s.id]: guestSetStore.addMany(exerciseIds(s)) };
+	}
+	let seatError = $state<Record<string, string>>({});
+	async function toggleSeat(s: Session) {
+		seatError = { ...seatError, [s.id]: '' };
+		try {
+			const r = await setSessionSeat(event.id, s.id, !s.isRegistered);
+			sessions = sessions.map((x) =>
+				x.id === s.id ? { ...x, isRegistered: r.registered, registeredCount: r.registeredCount } : x
+			);
+		} catch (e) {
+			const detail =
+				e instanceof ApiError
+					? String((e.body as { detail?: string } | undefined)?.detail ?? '')
+					: '';
+			seatError = {
+				...seatError,
+				[s.id]:
+					detail === 'not_going'
+						? m.events_seatNeedsGoing()
+						: detail === 'session_full'
+							? m.events_sessionFull()
+							: m.common_error()
+			};
+		}
 	}
 	async function toggleBookmark(s: Session) {
 		if (!authStore.isAuthenticated) return;
@@ -301,6 +323,21 @@
 												· {s.bookmarkCount}{/if}
 										</button>
 									{/if}
+									{#if s.capacity > 0 && authStore.isAuthenticated}
+										<button
+											type="button"
+											class:on={s.isRegistered}
+											aria-pressed={s.isRegistered}
+											onclick={() => toggleSeat(s)}
+										>
+											{s.isRegistered ? m.events_seatTaken() : m.events_takeSeat()} · {s.registeredCount}/{s.capacity}
+										</button>
+									{:else if s.capacity > 0}
+										<span class="seats"
+											>{m.events_seats({ taken: s.registeredCount, capacity: s.capacity })}</span
+										>
+									{/if}
+									{#if seatError[s.id]}<span class="seat-error">{seatError[s.id]}</span>{/if}
 									{#if exerciseIds(s).length > 0}
 										<button type="button" onclick={() => addToSet(s)}>
 											{added[s.id] !== undefined
@@ -478,8 +515,18 @@
 		min-height: 36px;
 		font-size: 0.85rem;
 	}
-	.status {
+	.status,
+	.seats {
 		color: var(--text-secondary);
+	}
+	.seats {
+		font-size: 0.85rem;
+		align-self: center;
+	}
+	.seat-error {
+		color: var(--status-danger);
+		font-size: 0.85rem;
+		align-self: center;
 	}
 	.week {
 		overflow-x: auto;

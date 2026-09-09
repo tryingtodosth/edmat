@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { RegistrationMode } from '$lib/types/event';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
 	// Shared by creating and editing, since they ask exactly the same questions — two copies would
@@ -55,6 +56,10 @@
 	// see `toLocalInput`/`toIso` below.
 	let startsAtLocal = $state(untrack(() => toLocalInput(initial?.startsAt ?? undefined)));
 	let runsUntilLocal = $state(untrack(() => toLocalInput(initial?.runsUntil ?? undefined)));
+	let registrationMode = $state<RegistrationMode>(
+		untrack(() => initial?.registrationMode ?? 'rsvp')
+	);
+	let showAttendeesPublicly = $state(untrack(() => initial?.showAttendeesPublicly ?? false));
 	// A bare `HH:MM` for the time-only input — `<input type="time">` speaks exactly that, so unlike
 	// `startsAtLocal` there is no timezone conversion to do at all.
 	let eventTimeLocal = $state(untrack(() => (initial?.eventTime ?? '').slice(0, 5)));
@@ -163,6 +168,8 @@
 			// hour rather than leaving it sitting in the record with nothing showing it.
 			startsAt: schedulingMode === 'exact' ? toIso(startsAtLocal) : null,
 			runsUntil: schedulingMode === 'exact' && runsUntilLocal ? toIso(runsUntilLocal) : null,
+			registrationMode,
+			showAttendeesPublicly,
 			eventTime: schedulingMode === 'timeOnly' ? eventTimeLocal || null : null,
 			durationMinutes: Number(durationMinutes) || 60,
 			locationKind,
@@ -333,6 +340,38 @@
 	</div>
 
 	<AudienceSelect bind:value={audience} />
+
+	<!-- How somebody gets in (AUDIENCE-BRIEF.md §3.3). Radio cards with a sentence each, because the
+	     difference between them is a paragraph, not a word — the availability-mode precedent. -->
+	<fieldset class="segmented" aria-labelledby="event-registration-legend">
+		<legend id="event-registration-legend">{m.events_form_registration()}</legend>
+		<div class="segmented__options segmented__options--triple">
+			<label class="option" class:option--active={registrationMode === 'rsvp'}>
+				<input type="radio" name="event-registration" value="rsvp" bind:group={registrationMode} />
+				<span class="option__title">{m.events_registration_rsvp()}</span>
+				<span class="option__hint">{m.events_registration_rsvpHint()}</span>
+			</label>
+			<label class="option" class:option--active={registrationMode === 'approval'}>
+				<input
+					type="radio"
+					name="event-registration"
+					value="approval"
+					bind:group={registrationMode}
+				/>
+				<span class="option__title">{m.events_registration_approval()}</span>
+				<span class="option__hint">{m.events_registration_approvalHint()}</span>
+			</label>
+			<label class="option" class:option--active={registrationMode === 'form'}>
+				<input type="radio" name="event-registration" value="form" bind:group={registrationMode} />
+				<span class="option__title">{m.events_registration_form()}</span>
+				<span class="option__hint">{m.events_registration_formHint()}</span>
+			</label>
+		</div>
+		<label class="checkbox-row">
+			<input type="checkbox" bind:checked={showAttendeesPublicly} />
+			<span>{m.events_form_publicList()}</span>
+		</label>
+	</fieldset>
 
 	{#if hostableParents.length > 0}
 		<label class="field">

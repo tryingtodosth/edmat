@@ -122,13 +122,15 @@ class SessionSerializer(serializers.ModelSerializer):
     ends_at = serializers.DateTimeField(read_only=True)
     bookmark_count = serializers.SerializerMethodField()
     is_bookmarked = serializers.SerializerMethodField()
+    registered_count = serializers.SerializerMethodField()
+    is_registered = serializers.SerializerMethodField()
 
     class Meta:
         model = Session
         fields = [
             'id', 'event', 'track', 'kind', 'title', 'abstract', 'starts_at', 'duration_minutes',
             'ends_at', 'location_text', 'online_url', 'capacity', 'order', 'speakers', 'links',
-            'bookmark_count', 'is_bookmarked', 'updated_at',
+            'bookmark_count', 'is_bookmarked', 'registered_count', 'is_registered', 'updated_at',
         ]
         read_only_fields = ['id', 'event', 'updated_at']
 
@@ -145,6 +147,16 @@ class SessionSerializer(serializers.ModelSerializer):
         if cached is not None:
             return any(b.user_id == user.pk for b in cached)
         return session.bookmarks.filter(user=user).exists()
+
+    def get_registered_count(self, session) -> int:
+        return session.registrations.count() if session.capacity else 0
+
+    def get_is_registered(self, session) -> bool:
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not (user and user.is_authenticated) or not session.capacity:
+            return False
+        return session.registrations.filter(attendance__attendee=user).exists()
 
     def validate(self, attrs):
         event = self.context['event']

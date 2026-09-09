@@ -6299,6 +6299,75 @@ registers people for sessions; the week view shows the first session's week only
 download, not a subscribable URL (by decision); a session's Q&A is not reachable from the
 notification bell (a reply notification links to the event, not the thread).
 
+## 17AN. Events, step 3: registration modes, forms, the waiting list, check-in, session seats (✅ built, full stack)
+
+`AUDIENCE-BRIEF.md` §3.3. `EventAttendance` was one row per person with two answers; it is now
+the registration engine, and its states are moved by exactly the functions in
+`events/registration.py`:
+
+```
+ (none) ──► going ─────────────────────────────► not_going   (seat freed → promote next)
+    │         ▲  ▲
+    ├──► pending ┘  │  (approval mode: organiser accepts; full → waitlisted)
+    └──► waitlisted ┴─► promoted (24h claim) ──► going | expired ──► next in line
+ going ◄──► checked_in_at set / cleared   (never touches the seat)
+ going ──► waitlisted    (capacity cut below the holders: LIFO demotion, notified)
+```
+
+- **`Event.registration_mode`** rsvp / approval / form (rsvp is what every event did before).
+  A form event carries the organiser's own `RegistrationField`s (text / longer text / one of a
+  list / any of a list / yes-no, required or not), replaced whole on PUT; the baseline questions
+  every form asks — attendance mode for a hybrid event, accessibility needs, the consent line
+  naming who sees the answers — are rendered by the client and stored under reserved keys in
+  `EventAttendance.answers`, so the export shows them beside the organiser's. Answers are
+  checked on a FRESH registration only; claiming an offered seat never asks again.
+- **A full event never refuses any more.** `response_block_reason` no longer returns `full`; the
+  answer is the waiting list. `SEAT_HOLDING_STATUSES` is `going` + `promoted`: a held seat counts,
+  or the next person could take the very seat just offered. First asked is first offered
+  (`waitlisted_at`); the offer lasts `PROMOTION_WINDOW` (24 h) and **expiry is lazy** — there is no
+  scheduler in this project, so `expire_promotions` runs at the start of every read or write that
+  cares about seats, which for a live event is soon enough and is said in the module docstring
+  rather than pretended to be a clock.
+- **Cutting capacity below the seated demotes the most recently seated** (LIFO) back to the
+  waiting list, told why (`registration_waitlisted` with note `capacity_reduced`). Withdrawing
+  drops any session seats and passes the event seat on. A change of mind (no → yes) no longer
+  re-notifies the host — that rule survived the rewrite via `first_seat_possible`.
+- **Approval**: `pending` until an organiser accepts (a seat, or the waiting list when full) or
+  declines (told; the decision recorded in `note`). **Check-in** is a timestamp on a `going` row
+  (undo clears it, the seat untouched) and is open to every staff member, volunteers included —
+  that is what the role is for; deciding stays organiser-only.
+- **The roster** (`/attendees/`) has a third audience now: with `show_attendees_publicly` on,
+  anybody who can see the event gets first name + last initial and no ids; attendees see names;
+  staff see every state. `GET /registrations/` (staff) carries answers, and
+  `/registrations/export/` is the CSV — `registrations.csv` collided with DRF's own
+  format-suffix route (`registrations\.(?P<format>…)`), found by the test, not by reading.
+- **Session seats**: `SessionAttendance` for a capped session, only for somebody `going`,
+  re-checked against the database on every call (`session_full` / `not_going` / `uncapped` as
+  honest 409s); `registered_count` / `is_registered` on the session.
+- **Frontend**: the respond section is mode-aware (Register / Ask to join / Join the waiting list
+  / Claim my seat, with the state said in words: position on the list, the offer's deadline, an
+  expired offer), `RegistrationForm`, `RegistrationFieldsEditor` (organisers of a form event),
+  `RegistrationsPanel` (status pills, answers, accept/decline, check-in/undo, CSV), the session
+  "Take a seat · n/cap" button, the event form's mode radios and public-list checkbox. The
+  header's counts refresh after a panel action.
+
+**Verified**: `events/test_registration.py` 14 tests (a full event waitlists; first asked gets
+the offer and a newcomer cannot take the held seat; a lapsed claim expires and passes on; LIFO
+demotion; approval accept/decline/decide-twice; required and choice answers checked; CSV with
+answers; volunteer check-in and undo, refused for somebody waiting; the masked list opt-in;
+session seats), two legacy tests updated to the new rule; events / booking / notifications suites
+green; `e2e/event-registration.mjs` 26/26, zero console errors, screenshot looked at. Three
+real bugs found only in the browser: native `required` on the consent box pre-empted the
+form's own validation, the masked list's id-less rows crashed the roster's profile link, and a
+seat claim on a form event reopened the questions. And one script lesson: the API login
+throttle (10/min, file cache) silently turns a re-run into `undefined is not iterable` at the
+first authenticated fetch.
+
+**Left open**: no guardian-registers-a-child UI yet (`registered_by` exists for step 5); no
+"cancel my session seat when I change session" flow beyond the toggle; the 24 h window is not
+configurable; expiry is lazy (stated above); no reminder before the event; the public list has
+no opt-out per attendee.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

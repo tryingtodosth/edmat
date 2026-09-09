@@ -23,7 +23,26 @@ export type EventLocationKind = 'onsite' | 'online' | 'hybrid';
 
 /** What somebody said. "No" is a stored answer rather than the absence of one — see the backend's
  * own note: it is what makes changing your mind give a seat back rather than race a delete. */
-export type EventAttendanceStatus = 'going' | 'not_going';
+export type EventAttendanceStatus =
+	'going' | 'not_going' | 'pending' | 'waitlisted' | 'promoted' | 'expired';
+export type RegistrationMode = 'rsvp' | 'approval' | 'form';
+export type RegistrationFieldKind = 'text' | 'long_text' | 'choice' | 'multi' | 'checkbox';
+
+export interface RegistrationField {
+	id: string;
+	label: string;
+	kind: RegistrationFieldKind;
+	required: boolean;
+	options: string[];
+}
+export interface RegistrationFieldDraft {
+	label: string;
+	kind: RegistrationFieldKind;
+	required: boolean;
+	options: string[];
+}
+/** Answers keyed by field id; `_attendance_mode` / `_needs` / `_consent` are the baseline questions. */
+export type RegistrationAnswers = Record<string, string | string[] | boolean>;
 
 /** Why the viewer cannot answer. A reason rather than a boolean, because "full" and "this already
  * happened" are the same refusal to a boolean and completely different to a person — the same
@@ -41,6 +60,13 @@ export interface EventAttendee {
 	attendee: EventPerson;
 	status: EventAttendanceStatus;
 	note: string;
+	answers: RegistrationAnswers;
+	registeredBy: EventPerson | null;
+	waitlistedAt: string | null;
+	promotionExpiresAt: string | null;
+	checkedIn: boolean;
+	checkedInAt: string | null;
+	sessionIds: string[];
 	respondedAt: string;
 }
 
@@ -87,6 +113,15 @@ export interface EdmatEvent {
 	isHost: boolean;
 	/** Host or an `organiser` staff row — who may edit the event and its programme. */
 	canOrganise: boolean;
+	/** Any staff member, volunteers included — who may check people in. */
+	canCheckIn: boolean;
+	registrationMode: RegistrationMode;
+	showAttendeesPublicly: boolean;
+	registrationFields: RegistrationField[];
+	waitlistCount: number;
+	pendingCount: number;
+	myRegistration: EventAttendee | null;
+	myWaitlistPosition: number | null;
 	canRespond: boolean;
 	responseBlockReason: EventResponseBlockReason | null;
 	/** The bigger event this one belongs to, resolved server-side — `null` when there isn't one, or
@@ -135,6 +170,8 @@ export interface EventDraft {
 	language?: string;
 	audience?: Audience;
 	runsUntil?: string | null;
+	registrationMode?: RegistrationMode;
+	showAttendeesPublicly?: boolean;
 	/** The bigger event this one is part of — only ever settable to an event the current user hosts
 	 * themselves, and only one that isn't itself a sub-event; see the backend's own `validate_parent`. */
 	parentId?: string | null;
@@ -247,6 +284,9 @@ export interface Session {
 	links: SessionLink[];
 	bookmarkCount: number;
 	isBookmarked: boolean;
+	/** Only meaningful for a capped session (capacity > 0). */
+	registeredCount: number;
+	isRegistered: boolean;
 }
 
 export interface SessionSpeakerDraft {

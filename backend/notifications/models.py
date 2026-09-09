@@ -86,6 +86,10 @@ NOTIFICATION_TYPES = [
     # indistinguishable from "the slides are up", which is how people learn to ignore both.
     ('event_posted', 'A new update on an event you are going to'),
     ('session_changed', 'A session on your agenda moved'),
+    ('registration_confirmed', 'Your registration was confirmed'),
+    ('registration_waitlisted', 'You are on the waiting list'),
+    ('registration_promoted', 'A seat is yours — confirm it'),
+    ('registration_declined', 'Your registration was declined'),
     # Taxonomy proposals (taxonomy/). Four rather than one with the outcome in the text, because the
     # reader's next move differs: approved and rejected are finished, while merged and moved both
     # mean "whatever you filed under this is somewhere else now", and the note says where.

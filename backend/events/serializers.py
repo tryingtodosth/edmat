@@ -9,6 +9,7 @@ from rest_framework.fields import empty
 from taxonomy.models import Branch, Discipline
 
 from .models import (
+    RegistrationField,
     ATTENDING_STATUSES,
     MAX_POST_LINKS,
     PUBLIC_STATUSES,
@@ -63,10 +64,41 @@ class EventSummarySerializer(serializers.ModelSerializer):
 
 class EventAttendanceSerializer(serializers.ModelSerializer):
     attendee = PersonSerializer(read_only=True)
+    registered_by = PersonSerializer(read_only=True)
+    checked_in = serializers.SerializerMethodField()
+    session_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = EventAttendance
-        fields = ['id', 'attendee', 'status', 'note', 'responded_at']
+        fields = [
+            'id', 'attendee', 'status', 'note', 'answers', 'registered_by', 'waitlisted_at',
+            'promotion_expires_at', 'checked_in', 'checked_in_at', 'session_ids', 'responded_at',
+        ]
+
+    def get_checked_in(self, row) -> bool:
+        return row.checked_in_at is not None
+
+    def get_session_ids(self, row) -> list[int]:
+        return [r.session_id for r in row.session_registrations.all()]
+
+
+class RegistrationFieldSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RegistrationField
+        fields = ['id', 'label', 'kind', 'required', 'options', 'order']
+        read_only_fields = ['id', 'order']
+
+    def validate(self, attrs):
+        kind = attrs.get('kind', getattr(self.instance, 'kind', 'text'))
+        options = attrs.get('options', getattr(self.instance, 'options', []))
+        if kind in ('choice', 'multi'):
+            cleaned = [str(o).strip() for o in (options or []) if str(o).strip()]
+            if len(cleaned) < 2:
+                raise serializers.ValidationError({'options': 'A choice needs at least two options.'})
+            attrs['options'] = cleaned
+        else:
+            attrs['options'] = []
+        return attrs
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -89,6 +121,12 @@ class EventSerializer(serializers.ModelSerializer):
     my_attendance = serializers.SerializerMethodField()
     is_host = serializers.SerializerMethodField()
     can_organise = serializers.SerializerMethodField()
+    can_check_in = serializers.SerializerMethodField()
+    waitlist_count = serializers.SerializerMethodField()
+    pending_count = serializers.SerializerMethodField()
+    my_registration = serializers.SerializerMethodField()
+    my_waitlist_position = serializers.SerializerMethodField()
+    registration_fields = RegistrationFieldSerializer(many=True, read_only=True)
     can_respond = serializers.SerializerMethodField()
     response_block_reason = serializers.SerializerMethodField()
     # Present for the host, absent (0) for everybody else — a decline is between the person who made
@@ -139,6 +177,14 @@ class EventSerializer(serializers.ModelSerializer):
             'my_attendance',
             'is_host',
             'can_organise',
+            'can_check_in',
+            'registration_mode',
+            'show_attendees_publicly',
+            'registration_fields',
+            'waitlist_count',
+            'pending_count',
+            'my_registration',
+            'my_waitlist_position',
             'can_respond',
             'response_block_reason',
             'parent',
@@ -187,6 +233,40 @@ class EventSerializer(serializers.ModelSerializer):
         if counted is not None:
             return len(counted)
         return event.posts.count()
+
+    def get_can_check_in(self, event) -> bool:
+        request = self.context.get('request')
+        return event.is_staff_member(getattr(request, 'user', None))
+
+    def get_waitlist_count(self, event) -> int:
+        return event.waitlist_count()
+
+    def get_pending_count(self, event) -> int:
+        return event.pending_count()
+
+    def _mine(self, event):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not (user and user.is_authenticated):
+            return None
+        for row in event.attendances.all():
+            if row.attendee_id == user.pk:
+                return row
+        return None
+
+    def get_my_registration(self, event):
+        row = self._mine(event)
+        return EventAttendanceSerializer(row).data if row else None
+
+    def get_my_waitlist_position(self, event):
+        row = self._mine(event)
+        if not row or row.status != 'waitlisted':
+            return None
+        ahead = [
+            r for r in event.attendances.all()
+            if r.status == 'waitlisted' and (r.waitlisted_at, r.pk) < (row.waitlisted_at, row.pk)
+        ]
+        return len(ahead) + 1
 
     def get_can_organise(self, event) -> bool:
         request = self.context.get('request')
@@ -253,6 +333,8 @@ class EventWriteSerializer(serializers.ModelSerializer):
             'language',
             'audience',
             'runs_until',
+            'registration_mode',
+            'show_attendees_publicly',
             'parent',
         ]
 
@@ -504,6 +586,7 @@ class EventPostWriteSerializer(serializers.ModelSerializer):
 class AttendanceWriteSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=['going', 'not_going'])
     note = serializers.CharField(max_length=300, required=False, allow_blank=True)
+    answers = serializers.JSONField(required=False)
 
 
 #: Re-exported so views can talk about "a seat" without importing the model constant separately.
