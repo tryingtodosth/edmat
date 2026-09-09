@@ -6573,6 +6573,54 @@ disguised executable refused in words while the comment still posts, a reply car
 comment can be deleted); attachments are not searched; a held comment's picture is reviewed by
 whoever restores the comment, with no picture-specific queue; no image alt text asked for.
 
+## 17AS. A rich-text editor for people who will not type LaTeX (✅ built, full stack)
+
+`AUDIENCE-BRIEF.md` §7. **Storage does not change**: a content field is still Markdown-with-HTML
+plus `\( \)` / `\[ \]` maths, sanitized by `bleach` on write and DOMPurify on read. The rich
+editor is a SECOND INPUT for the same field, emitting HTML the sanitizer already allows.
+
+- **Tiptap 2 (MIT), not TinyMCE** — the §10 default: TinyMCE 7 is GPL-or-commercial with a paid
+  maths plugin, and bundling GPL code into this app's own build is a licence question a student
+  project should not have to answer. `@tiptap/core` + StarterKit + Link, **imported lazily on the
+  first rich mount**, the KaTeX/Leaflet discipline — a reader never downloads it (pinned by the
+  browser check: no tiptap chunk requested until Editor is clicked).
+- **`RichEditor.svelte`**: two modes, Editor and Source, remembered per account
+  (`Profile.editor_mode`, default `source` — university users keep exactly what they had) and
+  per browser for a guest. Rich → Source shows the document's HTML in the box; Source → Rich
+  parses the box. Bold / italic / heading / lists / code block / link on the toolbar; no image
+  button (pictures come through the comment picker of §17AR, and a hot-linked one would not
+  survive the sanitizer anyway). Mounted in the comment form, the post composer, the four
+  `/submit` fields and the solution-pool composer.
+- **Maths for people who will not type LaTeX**: a palette (fraction, power, root, sum, integral,
+  ±, ×, ÷, ≤, α, π, θ) that inserts KaTeX under the hood at the cursor in either mode. It renders
+  in the preview and on the page, not live inside the editor — deliberately not an equation
+  editor.
+- **Sanitizer widening, deliberately small**: `figure` / `figcaption`, and `<img>` allowed only
+  when its `src` is this site's own media (`/media/…` relative, or absolute on one of
+  `ALLOWED_HOSTS`) — a hot-linked picture is a tracking pixel by another name and a broken link a
+  year later, so it loses its `src` and bleach drops the empty tag. `style`, `iframe` and
+  handlers stay refused. Every widening has the refusal that goes with it in
+  `exercises/test_sanitize_widening.py`, and maths inside rich markup is left alone.
+
+**Verified**: 5 sanitizer tests; accounts / exercises / community suites green;
+`e2e/rich-editor.mjs` 11/11 — Source by default, no Tiptap download until Editor is clicked,
+the toolbar, a bold word plus a palette fraction posted and stored as `<strong>` with the KaTeX
+delimiters intact, the mode remembered on the profile and after a reload, Source one click back,
+the palette inserting into the source box too.
+
+**Two findings from the screenshot, both fixed**: a comment's body was rendered as plain text
+(so the editor's HTML showed as tags) — `CommentNode` now renders it through `MathContent`, the
+same sanitized Markdown+KaTeX pipeline as every content field; and a comment was never sanitized
+on write at all (only the frontend's DOMPurify pass stood between a `<script>` and the next
+reader) — `Comment.save()` now cleans the body like every translatable field, pinned by a test
+that posts `onclick` and `<script>` and gets `<strong>` back with the maths intact.
+
+**Left open**: no live maths rendering inside the editor (a real maths node would need
+`@tiptap/extension-mathematics` configured for this site's delimiters); no image button; no
+tables; the link button uses a `prompt()`; an edit of an existing comment keeps the mode but the
+document was written as Markdown+HTML and round-trips through Tiptap as HTML, which is what
+the sanitizer normalises anyway.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

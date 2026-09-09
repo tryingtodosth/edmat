@@ -41,11 +41,13 @@ _TEXT_TAGS = [
 ]
 _SVG_TAGS = ['svg', 'circle', 'line', 'path', 'polygon', 'polyline', 'rect', 'text', 'g', 'ellipse']
 
-ALLOWED_TAGS = _TEXT_TAGS + _SVG_TAGS + ['a', 'img']
+# `figure`/`figcaption` are what a rich editor wraps a picture in (AUDIENCE-BRIEF.md §7); the
+# picture itself is only ever one of this site's own media files — see `_img_src_allowed`.
+ALLOWED_TAGS = _TEXT_TAGS + _SVG_TAGS + ['a', 'img', 'figure', 'figcaption']
 
 ALLOWED_ATTRIBUTES = {
     'a': ['href', 'title'],
-    'img': ['src', 'alt', 'title', 'width', 'height'],
+    'img': ['alt', 'title', 'width', 'height'],  # `src` is decided by `_img_src_allowed` below
     'svg': ['width', 'height', 'viewbox', 'viewBox', 'role', 'aria-label', 'xmlns'],
     'circle': ['cx', 'cy', 'r', 'fill', 'stroke', 'stroke-width'],
     'line': ['x1', 'y1', 'x2', 'y2', 'stroke', 'stroke-width', 'stroke-dasharray'],
@@ -81,6 +83,31 @@ _DISPLAY_MATH = re.compile(r'\\\[.*?\\\]', re.DOTALL)
 _INLINE_MATH = re.compile(r'\\\(.*?\\\)', re.DOTALL)
 _PLACEHOLDER = 'EDMATSANITIZEPLACEHOLDERx{}xEND'
 _PLACEHOLDER_RE = re.compile(r'EDMATSANITIZEPLACEHOLDERx(\d+)xEND')
+
+
+def _img_src_allowed(tag, name, value) -> bool:
+    """An `<img>` may only point at this site's own media: a relative `/media/…` path, or an
+    absolute URL whose path starts with `/media/` on one of this deployment's own hosts. A picture
+    hot-linked from elsewhere is a tracking pixel by another name and a broken link a year later;
+    a picture that came through the upload pipeline is neither. Anything else loses its `src`,
+    which leaves an inert `<img>` bleach then drops as empty."""
+    if name != 'src':
+        return name in ('alt', 'title', 'width', 'height')
+    from urllib.parse import urlparse
+
+    from django.conf import settings
+
+    media = '/' + settings.MEDIA_URL.strip('/') + '/'
+    if value.startswith(media) or value.startswith(settings.MEDIA_URL):
+        return True
+    parsed = urlparse(value)
+    if parsed.scheme not in ('http', 'https') or not parsed.path.startswith(media):
+        return False
+    hosts = set(settings.ALLOWED_HOSTS) | {'localhost', '127.0.0.1'}
+    return parsed.hostname in hosts
+
+
+ALLOWED_ATTRIBUTES['img'] = _img_src_allowed
 
 
 def sanitize_content(value: str | None) -> str:

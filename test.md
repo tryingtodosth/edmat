@@ -278,6 +278,7 @@ node e2e/event-contributions.mjs      # the call for contributions (§17AO); kas
 node e2e/guardian-accounts.mjs        # guardian accounts + minor defaults (§17AP); kasia makes and deletes a child 'e2e-zosia'; clear backend/cachedata BEFORE (never during) a run
 node e2e/sorting-and-languages.mjs    # sort keys in the URL + the content-language rule (§17AQ); English-interface contexts; resets ola's content_locales
 node e2e/comment-attachments.mjs      # pictures/PDFs on comments (§17AR); ola on exercise 1 with generated files; deletes its marker comments
+node e2e/rich-editor.mjs              # the Tiptap editor + maths palette (§17AS); ola on exercise 2; resets her editor_mode to source
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -702,6 +703,12 @@ CLAUDE.md §17AR): the composer's picker, two chips queued, a comment posted wit
 opening the in-page viewer, the API holding a `.webp` smaller than the upload, a disguised
 executable refused in words while the comment itself still posts, a reply (through the "⋯" menu)
 carrying a picture. Generates its files in a temp dir; deletes its marker comments.
+
+**`e2e/rich-editor.mjs` (11 checks)** — the rich editor (root CLAUDE.md §17AS): Source by default
+for an account that never chose; no tiptap/prosemirror request until Editor is clicked, then the
+toolbar; typing, bolding a word, inserting a fraction from the palette; the posted comment's stored
+body is HTML with `<strong>` and `\(\frac{a}{b}\)` intact; `editor_mode` on the profile; Editor
+after a reload; Source one click back and remembered; the palette inserting into the source box.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

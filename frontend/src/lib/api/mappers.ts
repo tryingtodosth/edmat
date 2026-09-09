@@ -971,6 +971,7 @@ export interface RawProfile {
 	save_menu_layout?: string;
 	audience_filter?: string[];
 	content_locales?: string[];
+	editor_mode?: string;
 	is_verified_contributor: boolean;
 	is_minor?: boolean;
 	guardian_of?: { id: number; username: string; display_name: string }[];
@@ -1036,6 +1037,7 @@ export function mapUser(json: RawProfile): User {
 		saveMenuLayout: json.save_menu_layout === 'above' ? 'above' : 'beside',
 		audienceFilter: (json.audience_filter ?? []) as User['audienceFilter'],
 		contentLocales: json.content_locales ?? [],
+		editorMode: json.editor_mode === 'rich' ? 'rich' : 'source',
 		notifyOnCourseActivity: json.notify_on_course_activity,
 		notifyOnBooking: json.notify_on_booking,
 		notifyOnEvent: json.notify_on_event,

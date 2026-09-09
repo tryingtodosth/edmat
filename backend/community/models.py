@@ -67,6 +67,15 @@ class Comment(models.Model):
     class Meta:
         ordering = ['created_at']
 
+    def save(self, *args, **kwargs):
+        """Sanitized on write like every translatable field (config/sanitize.py) — a comment is
+        rendered through the same Markdown+KaTeX pipeline now that the rich editor (§17AS) writes
+        HTML into it, and the frontend's DOMPurify pass was never meant to be the only layer."""
+        from config.sanitize import sanitize_content
+
+        self.body = sanitize_content(self.body)
+        super().save(*args, **kwargs)
+
     def __str__(self) -> str:
         return f'comment by {self.author} on {self.target!r}'
 

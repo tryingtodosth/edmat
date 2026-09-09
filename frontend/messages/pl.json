@@ -2041,5 +2041,20 @@
 	"sort_recent": "Najnowsze",
 	"comment_attach": "Dodaj obrazek lub PDF",
 	"comment_fileTooBig": "Do 5 MB na plik.",
-	"comment_filesNotAdded": "Komentarz został dodany, ale plików nie udało się dołączyć."
+	"comment_filesNotAdded": "Komentarz został dodany, ale plików nie udało się dołączyć.",
+	"editor_toolbar": "Narzędzia edytora",
+	"editor_mode": "Tryb wpisywania",
+	"editor_modeRich": "Edytor",
+	"editor_modeSource": "Źródło",
+	"editor_formatting": "Formatowanie",
+	"editor_bold": "Pogrubienie",
+	"editor_italic": "Kursywa",
+	"editor_heading": "Nagłówek",
+	"editor_bulletList": "Lista punktowana",
+	"editor_orderedList": "Lista numerowana",
+	"editor_code": "Kod",
+	"editor_link": "Link",
+	"editor_linkPrompt": "Adres linku",
+	"editor_math": "Matematyka",
+	"editor_failed": "Nie udało się wczytać edytora; pokazano pole źródłowe."
 }

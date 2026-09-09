@@ -75,4 +75,5 @@ export interface User {
 	audienceFilter?: Audience[];
 	/** Extra content languages beyond the interface one (AUDIENCE-BRIEF.md §5). */
 	contentLocales?: string[];
+	editorMode?: 'rich' | 'source';
 }

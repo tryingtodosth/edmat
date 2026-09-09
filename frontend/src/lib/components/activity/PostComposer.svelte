@@ -3,6 +3,7 @@
      reference and one image. Publishing is immediate; the server enforces everything this form
      merely encourages. -->
 <script lang="ts">
+	import RichEditor from '$lib/components/editor/RichEditor.svelte';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
 	import type { FixedAnchor, Material, ResolvedExercise, Post } from '$lib/types';
@@ -161,7 +162,7 @@
 </script>
 
 <div class="composer">
-	<textarea rows="4" bind:value={body} placeholder={m.post_composerPlaceholder()}></textarea>
+	<RichEditor bind:value={body} placeholder={m.post_composerPlaceholder()} rows={4} />
 	<AudienceSelect bind:value={audience} />
 	<label class="field">
 		<span>{m.contentLocales_fieldLanguage()}</span>
@@ -323,7 +324,6 @@
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-md);
 		background: var(--bg-surface);
-		textarea,
 		input,
 		select {
 			font: inherit;

@@ -5,6 +5,7 @@
      interface" call. Adding an entry is right here too, since "I solved it differently" happens
      exactly where you've just read the existing solutions. -->
 <script lang="ts">
+	import RichEditor from '$lib/components/editor/RichEditor.svelte';
 	import type { SolutionEntry, SolutionEntryKind } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -118,8 +119,11 @@
 					<span>{m.entry_composerLanguage()}</span>
 					<input type="text" bind:value={composerLocale} maxlength="8" />
 				</label>
-				<textarea rows="6" bind:value={composerBody} placeholder={m.entry_composerPlaceholder()}
-				></textarea>
+				<RichEditor
+					bind:value={composerBody}
+					placeholder={m.entry_composerPlaceholder()}
+					rows={6}
+				/>
 				<div class="composer__actions">
 					<button
 						type="button"
@@ -217,7 +221,6 @@
 				width: 5rem;
 			}
 		}
-		textarea,
 		input {
 			font: inherit;
 			padding: var(--space-1);

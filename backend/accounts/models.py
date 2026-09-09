@@ -165,6 +165,10 @@ class Profile(models.Model):
     # Extra content languages this reader wants lists to include besides the interface language
     # (AUDIENCE-BRIEF.md §5). Empty means "the interface language only".
     content_locales = models.JSONField(default=list, blank=True)
+    # Which input a content field opens with (AUDIENCE-BRIEF.md §7): the rich editor, or the
+    # Markdown+LaTeX source box with its preview. `source` for every account that predates the
+    # field — university users keep exactly what they had; the toggle is one click and remembered.
+    editor_mode = models.CharField(max_length=6, choices=[('rich', 'Editor'), ('source', 'Source')], default='source')
     # Under the consent age (16 in Poland, GDPR Art. 8) — the account was made by a guardian
     # (`Guardianship`) and every rule in accounts/minors.py applies. Only the flag is stored, never
     # a birth date: the year is asked at registration purely to branch, then discarded.

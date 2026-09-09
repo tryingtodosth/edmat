@@ -74,6 +74,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'muted_notification_types',
             'audience_filter',
             'content_locales',
+            'editor_mode',
             'is_minor',
             'guardian_of',
             'guardians',
@@ -157,6 +158,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'muted_notification_types',
             'audience_filter',
             'content_locales',
+            'editor_mode',
             'offers_tutoring',
             'tutoring_note',
         ]

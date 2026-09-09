@@ -2041,5 +2041,20 @@
 	"sort_recent": "Newest",
 	"comment_attach": "Add a picture or PDF",
 	"comment_fileTooBig": "Up to 5 MB per file.",
-	"comment_filesNotAdded": "The comment was posted, but the files could not be added."
+	"comment_filesNotAdded": "The comment was posted, but the files could not be added.",
+	"editor_toolbar": "Editor tools",
+	"editor_mode": "Input mode",
+	"editor_modeRich": "Editor",
+	"editor_modeSource": "Source",
+	"editor_formatting": "Formatting",
+	"editor_bold": "Bold",
+	"editor_italic": "Italic",
+	"editor_heading": "Heading",
+	"editor_bulletList": "Bulleted list",
+	"editor_orderedList": "Numbered list",
+	"editor_code": "Code",
+	"editor_link": "Link",
+	"editor_linkPrompt": "Address of the link",
+	"editor_math": "Maths",
+	"editor_failed": "The editor could not load; the source box is shown instead."
 }

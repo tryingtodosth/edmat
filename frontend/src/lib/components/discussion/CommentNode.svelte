@@ -1,4 +1,5 @@
 <script lang="ts">
+	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
 	// Self-imports for recursion — one component renders both a comment and its nested replies.
 	import type { CommentNode as CommentNodeT } from '$lib/utils/commentTree';
@@ -269,7 +270,9 @@
 				/>
 			</div>
 		{:else}
-			<p class="comment__body">{comment.body}</p>
+			<!-- Through the same sanitized Markdown+KaTeX pipeline as every content field: a comment
+			     written in the rich editor (§17AS) is HTML, and maths in either mode is KaTeX. -->
+			<div class="comment__body"><MathContent source={comment.body} /></div>
 		{/if}
 		{#if !hidden && comment.attachments.length > 0}
 			<ul class="comment__attachments">

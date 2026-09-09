@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RichEditor from '$lib/components/editor/RichEditor.svelte';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
@@ -350,19 +351,19 @@
 
 				<label class="field">
 					<span>{m.submit_field_statement()}</span>
-					<textarea rows="4" bind:value={statement} required></textarea>
+					<RichEditor bind:value={statement} rows={4} required={true} />
 				</label>
 				<label class="field">
 					<span>{m.submit_field_hint()} <em>({m.common_optional()})</em></span>
-					<textarea rows="2" bind:value={hint}></textarea>
+					<RichEditor bind:value={hint} rows={2} />
 				</label>
 				<label class="field">
 					<span>{m.submit_field_answer()} <em>({m.common_optional()})</em></span>
-					<textarea rows="2" bind:value={answer}></textarea>
+					<RichEditor bind:value={answer} rows={2} />
 				</label>
 				<label class="field">
 					<span>{m.submit_field_solution()} <em>({m.common_optional()})</em></span>
-					<textarea rows="4" bind:value={solution}></textarea>
+					<RichEditor bind:value={solution} rows={4} />
 				</label>
 
 				<p class="markdown-hint">{m.submit_markdownHint()}</p>
@@ -502,8 +503,7 @@
 		gap: var(--space-2);
 	}
 	input,
-	select,
-	textarea {
+	select {
 		@include mix.focus-ring;
 		padding: var(--space-2);
 		border: 1px solid var(--border-color);

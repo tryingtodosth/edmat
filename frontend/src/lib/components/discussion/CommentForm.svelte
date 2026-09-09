@@ -1,4 +1,5 @@
 <script lang="ts">
+	import RichEditor from '$lib/components/editor/RichEditor.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 
 	let {
@@ -51,7 +52,7 @@
 </script>
 
 <form class="comment-form" onsubmit={(e) => (e.preventDefault(), submit())}>
-	<textarea rows="2" {placeholder} bind:value={body}></textarea>
+	<RichEditor bind:value={body} {placeholder} rows={2} />
 	{#if allowFiles}
 		<div class="comment-form__files">
 			{#each files as f, i (i)}
@@ -132,14 +133,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
-	}
-	textarea {
-		@include mix.focus-ring;
-		padding: var(--space-2);
-		border: 1px solid var(--border-color);
-		border-radius: var(--radius-sm);
-		background: var(--bg-page);
-		resize: vertical;
 	}
 	.comment-form__actions {
 		display: flex;
