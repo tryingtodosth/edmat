@@ -517,7 +517,7 @@
 		display: block;
 	}
 	.pdf-chip {
-		min-height: 36px;
+		min-height: 44px;
 		padding: 0 0.7rem;
 		border-radius: 999px;
 		border: 1px solid var(--border);

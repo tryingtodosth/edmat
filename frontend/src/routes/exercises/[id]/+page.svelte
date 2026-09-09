@@ -507,10 +507,6 @@
 		align-items: baseline;
 		gap: 0.25rem;
 	}
-	.contributors__role {
-		opacity: 0.8;
-	}
-
 	.page {
 		max-width: 780px;
 		margin: 0 auto;

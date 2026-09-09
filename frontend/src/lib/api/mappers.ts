@@ -972,6 +972,8 @@ export interface RawProfile {
 	audience_filter?: string[];
 	content_locales?: string[];
 	editor_mode?: string;
+	text_size?: string;
+	high_contrast?: boolean;
 	is_verified_contributor: boolean;
 	is_minor?: boolean;
 	guardian_of?: { id: number; username: string; display_name: string }[];
@@ -1038,6 +1040,8 @@ export function mapUser(json: RawProfile): User {
 		audienceFilter: (json.audience_filter ?? []) as User['audienceFilter'],
 		contentLocales: json.content_locales ?? [],
 		editorMode: json.editor_mode === 'rich' ? 'rich' : 'source',
+		textSize: json.text_size === 'large' || json.text_size === 'larger' ? json.text_size : 'normal',
+		highContrast: json.high_contrast ?? false,
 		notifyOnCourseActivity: json.notify_on_course_activity,
 		notifyOnBooking: json.notify_on_booking,
 		notifyOnEvent: json.notify_on_event,

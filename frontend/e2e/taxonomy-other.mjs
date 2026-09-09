@@ -44,7 +44,7 @@ await page
 	.click();
 await page.waitForURL(/\/login/);
 await settle(1200);
-await page.locator('form input[type="email"]').fill('ola@edmat.example');
+await page.locator('form input[autocomplete="username"]').fill('ola@edmat.example');
 await page.locator('form input[type="password"]').fill('password123');
 await page.locator('form button[type="submit"]').click();
 await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 10000 });

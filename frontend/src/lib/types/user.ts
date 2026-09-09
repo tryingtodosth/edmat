@@ -76,4 +76,6 @@ export interface User {
 	/** Extra content languages beyond the interface one (AUDIENCE-BRIEF.md §5). */
 	contentLocales?: string[];
 	editorMode?: 'rich' | 'source';
+	textSize?: 'normal' | 'large' | 'larger';
+	highContrast?: boolean;
 }

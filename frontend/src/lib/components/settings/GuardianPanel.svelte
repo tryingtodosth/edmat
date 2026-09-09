@@ -207,7 +207,7 @@
 		color: var(--status-warning);
 	}
 	button {
-		min-height: 36px;
+		min-height: 44px;
 		padding: 0 0.8rem;
 		border-radius: 8px;
 		border: 1px solid var(--border);
@@ -255,6 +255,6 @@
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
-		min-height: 40px;
+		min-height: 44px;
 	}
 </style>

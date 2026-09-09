@@ -35,7 +35,7 @@ const exerciseTile = () =>
 async function signIn(email) {
 	await page.goto(`${BASE}/login`, { waitUntil: 'load' });
 	await settle(1200);
-	await page.locator('form input[type="email"]').fill(email);
+	await page.locator('form input[autocomplete="username"]').fill(email);
 	await page.locator('form input[type="password"]').fill('password123');
 	await page.locator('form button[type="submit"]').click();
 	await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 10000 });

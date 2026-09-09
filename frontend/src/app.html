@@ -23,6 +23,14 @@
 								? 'dark'
 								: 'light';
 					document.documentElement.setAttribute('data-theme', resolved);
+					// Reading comfort (AUDIENCE-BRIEF.md §8), restored before paint like the theme.
+					try {
+						var ts = localStorage.getItem('edmat.textSize');
+						if (ts === 'large' || ts === 'larger')
+							document.documentElement.setAttribute('data-text-size', ts);
+						if (localStorage.getItem('edmat.highContrast') === '1')
+							document.documentElement.setAttribute('data-contrast', 'high');
+					} catch (e) {}
 				} catch (e) {
 					// localStorage/matchMedia can throw in a locked-down context — the CSS-only
 					// :root/@media fallback in _theme.scss still applies.

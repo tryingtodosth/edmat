@@ -143,7 +143,7 @@ async function login(email) {
 	for (let attempt = 0; attempt < 2; attempt++) {
 		if (attempt === 0) await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
 		await settle(600);
-		await page.locator('form input[type="email"]').fill(email);
+		await page.locator('form input[autocomplete="username"]').fill(email);
 		await page.locator('form input[type="password"]').fill(PASSWORD);
 		await page.locator('form button[type="submit"]').click();
 		try {

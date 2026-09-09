@@ -141,7 +141,7 @@ check(
 // 2. Signed in: the choice is saved on the profile and shows in Settings.
 await page.goto(`${BASE}/login`, { waitUntil: 'load' });
 await settle(2000);
-await page.locator('form input[type="email"]').fill('ola@edmat.example');
+await page.locator('form input[autocomplete="username"]').fill('ola@edmat.example');
 await page.locator('form input[type="password"]').fill('password123');
 await page.locator('form button[type="submit"]').click();
 await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 10000 });

@@ -78,14 +78,16 @@ async function main() {
 	// corpus's own four courses are 1-exercise stubs (Section 3), and auditing one of those would
 	// never exercise the exercise-detail page's real progressive-reveal hint/answer/solution
 	// sections or its real, LaTeX-heavy content at any meaningful scale.
-	const fields = await fetchJson<RawFieldRow[]>('/api/fields/');
+	const fields = await fetchJson<RawFieldRow[]>('/api/disciplines/');
 	let bestCourseSlug = '';
 	let bestFieldSlug = '';
 	let bestExerciseCount = -1;
 	for (const field of fields) {
-		const courses = await fetchJson<RawCourseRow[]>(`/api/fields/${field.slug}/courses/`);
+		const courses = await fetchJson<RawCourseRow[]>(`/api/disciplines/${field.slug}/branches/`);
 		for (const course of courses) {
-			const exercises = await fetchJson<RawExerciseRow[]>(`/api/courses/${course.slug}/exercises/`);
+			const exercises = await fetchJson<RawExerciseRow[]>(
+				`/api/branches/${course.slug}/exercises/`
+			);
 			if (exercises.length > bestExerciseCount) {
 				bestExerciseCount = exercises.length;
 				bestCourseSlug = course.slug;
@@ -95,7 +97,7 @@ async function main() {
 	}
 	const fieldSlug = bestFieldSlug;
 	const courseSlug = bestCourseSlug;
-	const exercises = await fetchJson<RawExerciseRow[]>(`/api/courses/${courseSlug}/exercises/`);
+	const exercises = await fetchJson<RawExerciseRow[]>(`/api/branches/${courseSlug}/exercises/`);
 	// Prefer a real, migrated exercise (a >2-digit id, not one of the low-numbered test fixtures
 	// created during earlier Phase 3 verification passes) so the audited page has real, representative
 	// content — long statements, hints, solutions — not a two-word placeholder.
@@ -127,8 +129,15 @@ async function main() {
 	// Anonymous pages — no auth token set.
 	const anonPages: { name: string; url: string }[] = [
 		{ name: 'Home', url: '/' },
-		{ name: 'Field', url: `/fields/${fieldSlug}` },
-		{ name: 'Course', url: `/courses/${courseSlug}` },
+		{ name: 'Discipline', url: `/disciplines/${fieldSlug}` },
+		{ name: 'Branch', url: `/branches/${courseSlug}` },
+		// The lifelong-learning portal's own pages (AUDIENCE-BRIEF.md): the hubs, an event with a
+		// programme, the activity feed.
+		{ name: 'Materials hub', url: '/materials' },
+		{ name: 'Events hub', url: '/events' },
+		{ name: 'Tutoring hub', url: '/services' },
+		{ name: 'Courses hub', url: '/courses' },
+		{ name: 'Activity feed', url: '/activity' },
 		{ name: 'Exercise detail', url: `/exercises/${exerciseId}` },
 		{ name: 'My Set (guest)', url: '/my-set' },
 		{ name: 'Login', url: '/login' },
@@ -142,7 +151,11 @@ async function main() {
 		{ name: 'Settings', url: '/settings' },
 		{ name: 'Submit exercise', url: '/submit' },
 		{ name: 'Moderation queue', url: '/moderation' },
-		{ name: 'Notifications', url: '/notifications' }
+		{ name: 'Notifications', url: '/notifications' },
+		{ name: 'Submit material', url: '/submit-material' },
+		{ name: 'My agenda', url: '/events/agenda' },
+		{ name: 'Host an event', url: '/events/new' },
+		{ name: 'Offer tutoring', url: '/services/new' }
 	];
 
 	const context = await browser.newContext();

@@ -75,6 +75,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             'audience_filter',
             'content_locales',
             'editor_mode',
+            'text_size',
+            'high_contrast',
             'is_minor',
             'guardian_of',
             'guardians',
@@ -159,6 +161,8 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'audience_filter',
             'content_locales',
             'editor_mode',
+            'text_size',
+            'high_contrast',
             'offers_tutoring',
             'tutoring_note',
         ]

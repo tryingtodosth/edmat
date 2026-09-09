@@ -143,12 +143,12 @@ async function goto(path, waitFor) {
 // explicitly and then ASSERTED: a submit fired before the page had hydrated silently does nothing,
 // and every later check then fails as "the curator's buttons are missing" — which reads exactly
 // like a broken feature rather than a script that never signed in.
-await goto('/login', 'form input[type="email"]');
+await goto('/login', 'form input[autocomplete="username"]');
 // The input being VISIBLE is not the same as the page being interactive — it is in the server-
 // rendered HTML, so waiting on it can still land before hydration, and a click before then is
 // handled by nobody. The first page of a fresh context also pays Vite's cold-compile cost.
 await settle(3500);
-await page.locator('form input[type="email"]').fill('kasia@edmat.example');
+await page.locator('form input[autocomplete="username"]').fill('kasia@edmat.example');
 await page.locator('form input[type="password"]').fill('password123');
 await page.locator('form button[type="submit"]').click();
 await page

@@ -115,7 +115,7 @@
 		position: relative;
 		cursor: pointer;
 		color: var(--accent);
-		min-height: 36px;
+		min-height: 44px;
 		display: inline-flex;
 		align-items: center;
 	}

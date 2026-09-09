@@ -388,7 +388,7 @@
 		align-items: center;
 	}
 	button {
-		min-height: 40px;
+		min-height: 44px;
 		padding: 0 0.8rem;
 		border: 1px solid var(--border);
 		border-radius: 8px;
@@ -512,7 +512,7 @@
 		margin-top: 0.5rem;
 	}
 	.session__actions button {
-		min-height: 36px;
+		min-height: 44px;
 		font-size: 0.85rem;
 	}
 	.status,

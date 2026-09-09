@@ -50,7 +50,7 @@
 	select,
 	button {
 		font: inherit;
-		min-height: 40px;
+		min-height: 44px;
 		padding: 0 0.6rem;
 		border: 1px solid var(--border);
 		border-radius: 8px;

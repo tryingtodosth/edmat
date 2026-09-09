@@ -191,14 +191,18 @@
 				</select>
 			</label>
 			{#if anchorKind === 'branch'}
-				<select class="anchor-value" bind:value={anchorBranch}>
+				<select class="anchor-value" aria-label={m.post_anchorBranch()} bind:value={anchorBranch}>
 					<option value="">{m.post_anchorPick()}</option>
 					{#each branches as branch (branch.id)}
 						<option value={branch.id}>{branch.name}</option>
 					{/each}
 				</select>
 			{:else if anchorKind === 'discipline'}
-				<select class="anchor-value" bind:value={anchorDiscipline}>
+				<select
+					class="anchor-value"
+					aria-label={m.post_anchorDiscipline()}
+					bind:value={anchorDiscipline}
+				>
 					<option value="">{m.post_anchorPick()}</option>
 					{#each disciplines as discipline (discipline.id)}
 						<option value={discipline.id}>{discipline.name}</option>
@@ -207,6 +211,7 @@
 			{:else}
 				<input
 					class="anchor-value"
+					aria-label={m.post_anchorTag()}
 					type="text"
 					list="post-composer-tags"
 					bind:value={anchorTag}

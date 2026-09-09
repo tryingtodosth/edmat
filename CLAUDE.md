@@ -6621,6 +6621,55 @@ tables; the link button uses a `prompt()`; an edit of an existing comment keeps 
 document was written as Markdown+HTML and round-trips through Tiptap as HTML, which is what
 the sanitizer normalises anyway.
 
+## 17AT. Reading comfort: text size, high contrast, 44px targets, the audit widened (✅ built, full stack)
+
+`AUDIENCE-BRIEF.md` §8 — accessibility as a constraint on everything the earlier steps built, not
+a feature of its own. Four things, and a sweep.
+
+- **Three text sizes** (`Profile.text_size` normal / large / larger, migration `accounts.0024`)
+  set as `data-text-size` on the root element, where `_theme.scss` scales the root font
+  (112.5 % / 125 %) so every `rem`-sized thing follows. The header's **"Aa" button**
+  (`TextSizeControl`, beside the theme toggle) cycles them for anybody, signed in or not — the
+  people who need it most are the least likely to find it in Settings — and a signed-in press
+  saves on the profile. `lib/state/a11yPrefs.svelte.ts` is a leaf like the theme store:
+  localStorage for a guest, synced from the profile on login, restored by `app.html`'s inline
+  script before first paint so a reload never flashes the small size.
+- **High contrast** (`Profile.high_contrast` → `data-contrast="high"`): a token override block in
+  `_theme.scss` for both the light and the dark theme — near-black on white (or near-white on
+  black), stronger borders, a darker accent — rather than a third theme, so it composes with
+  whichever theme is chosen. Both live in a "Reading comfort" section of Settings; the section's
+  text-size draft follows the header button, so the select never disagrees with the page it is on.
+- **A 44px floor** on every button, select, input and textarea inside `main` (`global.scss`,
+  written with `:where()` so a component can still deliberately go smaller). Eleven controls in
+  the components steps 2–8 had written (`36px` / `40px` in Programme, SessionEditor,
+  RegistrationsPanel, RegistrationFieldsEditor, ContributionsPanel, GuardianPanel, CommentForm,
+  CommentNode's PDF chip, SortSelect) and the hidden-languages notice's "Show them" were raised
+  to 44 — the last one found by the browser check, not by reading.
+- **Copy for the wider audience**: the hero ("Learn, practise, and ask — at any age" /
+  "Ucz się, ćwicz i pytaj — w każdym wieku") and the tagline no longer say "university
+  exercises".
+- **The axe audit widened** (`scripts/check_accessibility.ts`): its URLs had gone stale
+  (`/api/fields/`, `/courses/…` — renamed long ago to disciplines/branches, so the script had been
+  auditing 404 shells) and it now covers 22 pages — the four hubs, the activity feed, submit
+  material, My agenda, Host an event, Offer tutoring — with the same load-problem guard. It found
+  three real violations, fixed: the post composer's three anchor selects had no accessible name,
+  the avatar file input had none, and the exercise page's contributor role text was faded to
+  `opacity: 0.8` below the contrast ratio.
+
+**Verified**: accounts suite 122 green (the two new fields validated and returned);
+`npm run check:a11y` — "Audited 22 pages (0 had a load problem). 0 critical/serious violation
+node(s), 0 moderate/minor violation node(s)"; `e2e/reading-comfort.mjs` 17/17, zero console
+errors, screenshot looked at: the hero copy, the "Aa" press really growing the root font and
+surviving a reload for a guest, saved on a signed-in profile, every visible button in `main` at
+least 44px, Settings applying high contrast + larger at once, both stored and both surviving a
+reload, the palette genuinely different, off again removing the attribute. `svelte-check` 0/0,
+eslint clean.
+
+**Left open**: the three profile edit modals keep 32px chip-remove buttons (pre-existing, a
+denser design); the header's own icon buttons are 40px (outside `main`; the "Aa" is 44); no
+reduced-motion audit beyond what the drawer already honours; no dyslexia-friendly font option;
+the audit is still axe (about a third of WCAG by its own account) — no screen-reader pass.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

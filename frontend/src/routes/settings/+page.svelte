@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { a11yPrefsStore } from '$lib/state/a11yPrefs.svelte';
 	import { SUPPORTED_CONTENT_LOCALES, contentLocalesStore } from '$lib/state/contentLocales.svelte';
 	import GuardianPanel from '$lib/components/settings/GuardianPanel.svelte';
 	import { AUDIENCES, AUDIENCE_LABELS } from '$lib/utils/labels';
@@ -34,6 +35,8 @@
 	let saveMenuLayout = $state<'beside' | 'above'>('beside');
 	let audienceFilter = new SvelteSet<Audience>();
 	let contentExtras = new SvelteSet<string>();
+	let textSize = $state<'normal' | 'large' | 'larger'>('normal');
+	let highContrast = $state(false);
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, branch-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
@@ -98,6 +101,8 @@
 		timeFormat = authStore.user.timeFormat ?? '24h';
 		weekStartsOn = authStore.user.weekStartsOn ?? 'monday';
 		saveMenuLayout = authStore.user.saveMenuLayout ?? 'beside';
+		textSize = authStore.user.textSize ?? 'normal';
+		highContrast = authStore.user.highContrast ?? false;
 		contentExtras.clear();
 		for (const l of authStore.user.contentLocales ?? []) contentExtras.add(l);
 		audienceFilter.clear();
@@ -110,6 +115,13 @@
 		for (const type of authStore.user.mutedNotificationTypes ?? []) {
 			mutedTypes.add(type);
 		}
+	});
+
+	// The header's "Aa" button changes the same text size this section edits; the draft follows
+	// it so the select never disagrees with the page it is on. Reads only the store, so editing
+	// the select does not re-run it.
+	$effect(() => {
+		textSize = a11yPrefsStore.textSize;
 	});
 
 	async function handleSave(event: SubmitEvent) {
@@ -132,6 +144,8 @@
 			saveMenuLayout,
 			audienceFilter: Array.from(audienceFilter),
 			contentLocales: Array.from(contentExtras),
+			textSize,
+			highContrast,
 			mutedNotificationTypes: Array.from(mutedTypes),
 			offersTutoring,
 			tutoringNote
@@ -140,6 +154,8 @@
 		if (result.ok) {
 			saved = true;
 			contentLocalesStore.set(Array.from(contentExtras));
+			a11yPrefsStore.setTextSize(textSize);
+			a11yPrefsStore.setHighContrast(highContrast);
 		} else {
 			saveError = result.error;
 		}
@@ -327,6 +343,25 @@
 					</select>
 				</label>
 				<p class="field-hint">{m.settings_datesHint()}</p>
+			</section>
+
+			<!-- Reading comfort (AUDIENCE-BRIEF.md §8): text size and high contrast, real settings that
+			     follow the account. The header's "Aa" button changes the same size. -->
+			<section class="field-group">
+				<h2>{m.settings_readingHeading()}</h2>
+				<label>
+					<span>{m.settings_textSize()}</span>
+					<select bind:value={textSize}>
+						<option value="normal">{m.textSize_normal()}</option>
+						<option value="large">{m.textSize_large()}</option>
+						<option value="larger">{m.textSize_larger()}</option>
+					</select>
+				</label>
+				<label class="checkbox-row">
+					<input type="checkbox" bind:checked={highContrast} />
+					<span>{m.settings_highContrast()}</span>
+				</label>
+				<p class="field-hint">{m.settings_readingHint()}</p>
 			</section>
 
 			<!-- The audience bands lists are narrowed to (AUDIENCE-BRIEF.md §1). Same choice the

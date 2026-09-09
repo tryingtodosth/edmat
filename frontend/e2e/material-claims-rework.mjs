@@ -90,7 +90,7 @@ console.log('signed-in reader');
 for (let attempt = 0; attempt < 3; attempt++) {
 	await goto('/login');
 	await settle(page, 1200);
-	await page.locator('form input[type="email"]').fill(EMAIL);
+	await page.locator('form input[autocomplete="username"]').fill(EMAIL);
 	await page.locator('form input[type="password"]').fill(PASSWORD);
 	await page.locator('form button[type="submit"]').click();
 	try {

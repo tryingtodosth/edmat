@@ -197,6 +197,7 @@
 	<input
 		bind:this={fileInput}
 		type="file"
+		aria-label={m.settings_avatarUpload()}
 		accept="image/png,image/jpeg,image/webp"
 		class="visually-hidden-input"
 		onchange={handleFilePicked}

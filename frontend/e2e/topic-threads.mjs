@@ -59,7 +59,7 @@ const kasiaToken = (await login.json()).token;
 // 1. Sign in, open the material, open a covers claim's popover.
 await page.goto(`${BASE}/login`, { waitUntil: 'load' });
 await settle(2800);
-await page.locator('form input[type="email"]').fill('ola@edmat.example');
+await page.locator('form input[autocomplete="username"]').fill('ola@edmat.example');
 await page.locator('form input[type="password"]').fill('password123');
 await page.locator('form button[type="submit"]').click();
 await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 10000 });

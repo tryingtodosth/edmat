@@ -43,7 +43,7 @@ async function login(page, email) {
 	// A fresh context's first page pays Vite's cold-compile cost (e2e/CLAUDE.md trap 11) — filling
 	// before hydration makes the form submit natively as a GET to /login? and nothing logs in.
 	await settle(2500);
-	await page.locator('form input[type="email"]').fill(email);
+	await page.locator('form input[autocomplete="username"]').fill(email);
 	await page.locator('form input[type="password"]').fill('password123');
 	await page.locator('form button[type="submit"]').click();
 	await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 10000 });

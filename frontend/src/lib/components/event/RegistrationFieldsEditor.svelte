@@ -140,7 +140,7 @@
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
-		min-height: 40px;
+		min-height: 44px;
 		flex: 1 1 10rem;
 	}
 	.req {
@@ -161,7 +161,7 @@
 		gap: 0.5rem;
 	}
 	.actions button {
-		min-height: 40px;
+		min-height: 44px;
 		padding: 0 0.9rem;
 		border-radius: 8px;
 		border: 1px solid var(--border);

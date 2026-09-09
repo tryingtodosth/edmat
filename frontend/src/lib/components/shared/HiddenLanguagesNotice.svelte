@@ -38,7 +38,7 @@
 		font-size: 0.9rem;
 	}
 	button {
-		min-height: 36px;
+		min-height: 44px;
 		padding: 0 0.8rem;
 		border-radius: 8px;
 		border: 1px solid currentColor;

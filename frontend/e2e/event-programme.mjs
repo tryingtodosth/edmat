@@ -58,7 +58,7 @@ const login = async (p, email) => {
 	// Vite's cold compile of freshly added components, which a fixed settle does not.
 	await p.goto(`${BASE}/login`, { waitUntil: 'networkidle', timeout: 90000 });
 	await settle(p, 800);
-	await p.locator('form input[type="email"]').fill(email);
+	await p.locator('form input[autocomplete="username"]').fill(email);
 	await p.locator('form input[type="password"]').fill('password123');
 	await p.locator('form button[type="submit"]').click();
 	await p.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 15000 });

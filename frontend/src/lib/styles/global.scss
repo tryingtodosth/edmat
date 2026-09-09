@@ -25,3 +25,19 @@ html[data-session='restoring'] [data-session-hidden] {
 .session-restoring {
 	color: var(--text-secondary);
 }
+
+// Touch targets (AUDIENCE-BRIEF.md §8): every control in the page body is at least 44px tall.
+// `:where()` keeps this at zero specificity, so a component that sets its own height wins.
+:where(main)
+	:where(
+		button,
+		select,
+		input:not([type='checkbox']):not([type='radio']):not([type='file']),
+		textarea
+	) {
+	min-height: 44px;
+}
+:where(main) :where(input[type='checkbox'], input[type='radio']) {
+	width: 1.25rem;
+	height: 1.25rem;
+}

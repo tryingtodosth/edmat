@@ -135,7 +135,7 @@ async function goto(path) {
 
 // Sign in through the real form, so the session is one the app itself created.
 await goto('/login');
-await page.locator('form input[type="email"]').fill('kasia@edmat.example');
+await page.locator('form input[autocomplete="username"]').fill('kasia@edmat.example');
 await page.locator('form input[type="password"]').fill('password123');
 await page.locator('form button[type="submit"]').click();
 await settle(2200);

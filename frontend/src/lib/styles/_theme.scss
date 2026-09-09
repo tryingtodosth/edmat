@@ -114,3 +114,60 @@
 :root[data-theme='light'] {
 	@include light-theme-vars;
 }
+
+// Reading comfort (AUDIENCE-BRIEF.md §8). Text size scales the root, so every rem-based measure
+// follows; the header's own clamp() sizes are in px and stay put on purpose.
+:root[data-text-size='large'] {
+	font-size: 112.5%;
+}
+:root[data-text-size='larger'] {
+	font-size: 125%;
+}
+// High contrast: the same tokens, pushed to black-on-white (or white-on-black) with hard borders
+// and a darker accent that still clears 7:1 on white. Everything reads the tokens, so nothing
+// else has to know.
+:root[data-contrast='high'] {
+	--bg-page: #ffffff;
+	--bg-surface: #ffffff;
+	--bg-surface-alt: #f2f2f2;
+	--bg-elevated: #ffffff;
+	--bg-menu: #ffffff;
+	--border: #000000;
+	--text-primary: #000000;
+	--text-secondary: #1a1a1a;
+	--accent: #0b4f4f;
+	--accent-soft: #dff0f0;
+	--accent-contrast: #ffffff;
+	--status-success: #0a5a2a;
+	--status-warning: #6b4600;
+	--status-danger: #8a0f0f;
+}
+:root[data-contrast='high'][data-theme='dark'],
+:root[data-contrast='high']:not([data-theme='light']) {
+	@media (prefers-color-scheme: dark) {
+		--bg-page: #000000;
+		--bg-surface: #000000;
+		--bg-surface-alt: #141414;
+		--bg-elevated: #000000;
+		--bg-menu: #000000;
+		--border: #ffffff;
+		--text-primary: #ffffff;
+		--text-secondary: #e6e6e6;
+		--accent: #7fe0e0;
+		--accent-soft: #0f2a2a;
+		--accent-contrast: #000000;
+	}
+}
+:root[data-contrast='high'][data-theme='dark'] {
+	--bg-page: #000000;
+	--bg-surface: #000000;
+	--bg-surface-alt: #141414;
+	--bg-elevated: #000000;
+	--bg-menu: #000000;
+	--border: #ffffff;
+	--text-primary: #ffffff;
+	--text-secondary: #e6e6e6;
+	--accent: #7fe0e0;
+	--accent-soft: #0f2a2a;
+	--accent-contrast: #000000;
+}

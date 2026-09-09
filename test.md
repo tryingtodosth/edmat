@@ -279,6 +279,7 @@ node e2e/guardian-accounts.mjs        # guardian accounts + minor defaults (§17
 node e2e/sorting-and-languages.mjs    # sort keys in the URL + the content-language rule (§17AQ); English-interface contexts; resets ola's content_locales
 node e2e/comment-attachments.mjs      # pictures/PDFs on comments (§17AR); ola on exercise 1 with generated files; deletes its marker comments
 node e2e/rich-editor.mjs              # the Tiptap editor + maths palette (§17AS); ola on exercise 2; resets her editor_mode to source
+node e2e/reading-comfort.mjs          # text size / high contrast / 44px floor / hero copy (§17AT); a guest + ola; resets her text_size/high_contrast
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -703,6 +704,17 @@ CLAUDE.md §17AR): the composer's picker, two chips queued, a comment posted wit
 opening the in-page viewer, the API holding a `.webp` smaller than the upload, a disguised
 executable refused in words while the comment itself still posts, a reply (through the "⋯" menu)
 carrying a picture. Generates its files in a temp dir; deletes its marker comments.
+
+**`e2e/reading-comfort.mjs` (17 checks)** — reading comfort (root CLAUDE.md §17AT): the hero
+copy speaks to every age; a guest's "Aa" press sets `data-text-size` and really grows the root
+font, twice, survives a reload (localStorage + the app.html restore) and wraps back; every visible
+button inside `main` is at least 44px (the check prints the offenders — this is how the notice's
+36px "Show them" was found); Ola's press is saved on the profile and the Settings select follows
+it; saving larger + high contrast sets both root attributes at once, stores both, and both survive
+a reload; the body colour genuinely differs under high contrast; unticking removes the attribute.
+Waits for `networkidle` on the guest pages (the first page after a Vite restart is a cold compile,
+and a press before hydration has no handler) and signs Ola in through the real login form. Resets
+her `text_size`/`high_contrast` at the start and the end.
 
 **`e2e/rich-editor.mjs` (11 checks)** — the rich editor (root CLAUDE.md §17AS): Source by default
 for an account that never chose; no tiptap/prosemirror request until Editor is clicked, then the

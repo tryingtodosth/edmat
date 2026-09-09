@@ -1,4 +1,5 @@
 <script lang="ts">
+	import TextSizeControl from './TextSizeControl.svelte';
 	// **Rebuilt from a flat row of ten links into three groups, and again for phones.**
 	//
 	// The bar had grown one link per feature — browse, materials, my set, submit exercise, submit
@@ -561,6 +562,7 @@
 			<RandomExerciseButton />
 
 			<ThemeToggle />
+			<TextSizeControl />
 			<!-- Stage 8: once somebody HAS an account, the language picker moves into the account
 			     menu at narrow widths — a signed-out visitor keeps it here at every width, since the
 			     one control a person may need before they can read anything else must not be behind

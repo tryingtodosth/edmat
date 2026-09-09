@@ -101,7 +101,7 @@ async function goto(page, path) {
 async function login(page, email) {
 	for (let attempt = 0; attempt < 2; attempt++) {
 		if (attempt === 0) await goto(page, '/login');
-		await page.locator('form input[type="email"]').fill(email);
+		await page.locator('form input[autocomplete="username"]').fill(email);
 		await page.locator('form input[type="password"]').fill(PASSWORD);
 		await page.locator('form button[type="submit"]').click();
 		try {

@@ -44,6 +44,11 @@ test-runner suite.
     deleted, so a "scratch data removed" check fails while the row is genuinely gone. Verify
     cleanup (and any post-mutation count) through an AUTHENTICATED request, which bypasses it.
 
+13. **The login form's identifier field is `type="text"` (email OR username since the guardian
+    accounts, §17AP)** — `form input[type="email"]` no longer matches anything on `/login`, and a
+    script written before then times out at sign-in in a way that reads like a broken page. Use
+    `form input[autocomplete="username"]` (the register form keeps a real email input).
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

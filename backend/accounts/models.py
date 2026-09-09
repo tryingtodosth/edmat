@@ -169,6 +169,10 @@ class Profile(models.Model):
     # Markdown+LaTeX source box with its preview. `source` for every account that predates the
     # field — university users keep exactly what they had; the toggle is one click and remembered.
     editor_mode = models.CharField(max_length=6, choices=[('rich', 'Editor'), ('source', 'Source')], default='source')
+    # Reading comfort (AUDIENCE-BRIEF.md §8): three text sizes and a high-contrast palette, both
+    # real settings that follow the account rather than one browser.
+    text_size = models.CharField(max_length=6, choices=[('normal', 'Normal'), ('large', 'Large'), ('larger', 'Larger')], default='normal')
+    high_contrast = models.BooleanField(default=False)
     # Under the consent age (16 in Poland, GDPR Art. 8) — the account was made by a guardian
     # (`Guardianship`) and every rule in accounts/minors.py applies. Only the flag is stored, never
     # a birth date: the year is asked at registration purely to branch, then discarded.

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { a11yPrefsStore } from '$lib/state/a11yPrefs.svelte';
 	import '$lib/styles/global.scss';
 	import 'katex/dist/katex.min.css';
 	import { onMount } from 'svelte';
@@ -38,6 +39,7 @@
 	// only worth fetching once a real session actually resolves — a fresh, momentarily-unauthenticated
 	// page load never has anything to fetch anyway (the bell itself is hidden until authenticated).
 	onMount(() => {
+		a11yPrefsStore.applyStored();
 		authStore.init().then(() => {
 			if (authStore.isAuthenticated) {
 				notificationStore.refresh();
