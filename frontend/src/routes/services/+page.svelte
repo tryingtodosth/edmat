@@ -1,4 +1,5 @@
 <script lang="ts">
+	import HiddenLanguagesNotice from '$lib/components/shared/HiddenLanguagesNotice.svelte';
 	// The tutoring/services listings browse page — branch-scoped discovery (the whole reason a
 	// Service is tied to real Courses, see backend/services/models.py's own doc comment) plus, for
 	// an authenticated visitor, a "My listings" management tab. No +page.ts — same "plain
@@ -165,6 +166,7 @@
 			hourlyRate: service.hourlyRate !== null ? String(service.hourlyRate) : '',
 			currency: service.currency,
 			audience: service.audience,
+			language: service.language,
 			isActive: !service.isActive,
 			// Carried through explicitly. This helper rebuilds the ENTIRE draft from the existing
 			// listing just to flip one boolean, so anything omitted here is actively erased — for an
@@ -243,6 +245,7 @@
 		<div class="page__header">
 			<div>
 				<h1>{m.services_heading()}</h1>
+				<HiddenLanguagesNotice path="/services/" />
 				<p class="subtitle">{m.services_subtitle()}</p>
 			</div>
 			{#if authStore.isAuthenticated}

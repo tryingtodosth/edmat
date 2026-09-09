@@ -3,6 +3,7 @@ from django.db import transaction
 from django.db.models import Max, Q
 from rest_framework import permissions, status, viewsets
 from config.audience import apply_audience_filter
+from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -184,6 +185,7 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
 
     def list(self, request, *args, **kwargs):
         qs = self.filter_queryset(self.get_queryset())
+        qs, hidden = apply_content_locale_filter(qs, request.query_params, 'translations__locale')
         materials = list(
             qs.prefetch_related(
                 'translations',
@@ -201,7 +203,9 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
             topic_id=request.query_params.get('topic_id'),
         )
         serializer = self.get_serializer(materials, many=True)
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        response[HIDDEN_HEADER] = str(hidden)
+        return response
 
     def retrieve(self, request, *args, **kwargs):
         """Records a real "view" the first time a signed-in user loads this material's own detail

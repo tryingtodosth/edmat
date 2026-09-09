@@ -50,15 +50,20 @@ class BranchViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['get'])
     def exercises(self, request, slug=None):
-        from exercises.views import _annotated_exercises, _filter_exercises
+        from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
+        from exercises.views import _annotated_exercises, _filter_exercises, sort_exercises
         from exercises.serializers import ExerciseListSerializer
 
         branch = self.get_object()
         params = request.query_params.copy()
         params['branch'] = branch.slug
         qs = _filter_exercises(_annotated_exercises(), params)
+        qs, hidden = apply_content_locale_filter(qs, params, 'translations__locale', published_only=True)
+        qs = sort_exercises(qs, params)
         serializer = ExerciseListSerializer(qs, many=True, context={'request': request})
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        response[HIDDEN_HEADER] = str(hidden)
+        return response
 
     @action(detail=True, methods=['get'])
     def materials(self, request, slug=None):

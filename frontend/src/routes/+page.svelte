@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { contentLocalesStore } from '$lib/state/contentLocales.svelte';
+	import HiddenLanguagesNotice from '$lib/components/shared/HiddenLanguagesNotice.svelte';
 	import AudienceChips from '$lib/components/shared/AudienceChips.svelte';
 	import { audienceFilterStore } from '$lib/state/audienceFilter.svelte';
 	// The homepage used to be exercises and nothing else — top-rated and recent, and no acknowledgement
@@ -151,9 +153,9 @@
 	let loaded = $state<Record<string, boolean>>({});
 	// The band chips narrow every list, and a tab fetched before the chips changed is stale. Reset
 	// the per-tab cache and refetch the open tab — `untrack` so the effect depends on the bands only.
-	let lastBands = audienceFilterStore.param;
+	let lastBands = audienceFilterStore.param + '|' + contentLocalesStore.param;
 	$effect(() => {
-		const bands = audienceFilterStore.param;
+		const bands = audienceFilterStore.param + '|' + contentLocalesStore.param;
 		if (bands === lastBands) return;
 		lastBands = bands;
 		untrack(() => {
@@ -242,6 +244,7 @@
 		</div>
 		<a class="hero__browse" href={resolve('/disciplines')}>{m.home_hero_cta()}</a>
 		<div class="hero__audience"><AudienceChips /></div>
+		<HiddenLanguagesNotice path="/exercises/" />
 	</section>
 
 	<!-- `tabindex="-1"` on the list itself, with the roving tabindex living on the tabs: the container

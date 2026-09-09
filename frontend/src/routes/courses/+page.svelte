@@ -1,4 +1,5 @@
 <script lang="ts">
+	import HiddenLanguagesNotice from '$lib/components/shared/HiddenLanguagesNotice.svelte';
 	// Browsing courses people are running, at `/courses` — the route the taxonomy used to hold for
 	// its przedmiot rows, which are now `/branches/[branch]`.
 	import { resolve } from '$app/paths';
@@ -71,6 +72,7 @@
 	<header class="head">
 		<div>
 			<h1>{m.course_browseHeading()}</h1>
+			<HiddenLanguagesNotice path="/courses/" />
 			<p class="lead">{m.course_browseLead()}</p>
 		</div>
 		{#if authStore.isAuthenticated}

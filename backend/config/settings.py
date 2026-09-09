@@ -594,6 +594,10 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:5173',
     'http://127.0.0.1:5174',
 ] + _split_env_list('DJANGO_CORS_ALLOWED_ORIGINS')
+# The content-language rule's hidden count (config/content_locale.py) rides a custom response
+# header; a cross-origin dev frontend cannot read it unless it is exposed. Same-origin in
+# production, where this is moot.
+CORS_EXPOSE_HEADERS = ['X-EdMat-Hidden-Languages']
 CORS_ALLOW_CREDENTIALS = True
 
 # --- Real-TLS settings, gated behind one environment variable rather than hardcoded on ------------

@@ -35,6 +35,7 @@ export interface Service {
 	title: string;
 	description: string;
 	audience: Audience;
+	language: string;
 	// Real Branch ids (== slugs, see taxonomy.ts's own note on Branch.id), not free text — the whole
 	// reason a listing is tied to the taxonomy at all is so a visitor browsing one specific branch
 	// can discover tutors for THAT branch.
@@ -92,6 +93,7 @@ export interface ServiceDraft {
 	title: string;
 	description: string;
 	audience: Audience;
+	language: string;
 	branchIds: string[];
 	hourlyRate: string;
 	currency: ServiceCurrency;

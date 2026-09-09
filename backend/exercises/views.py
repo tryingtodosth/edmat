@@ -11,6 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Avg, Count, Max, Q
 from config.audience import apply_audience_filter
+from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -28,6 +29,7 @@ from .entries import (
     visible_entries,
 )
 from .models import (
+    ExerciseTranslation,
     Exercise,
     ExerciseRequirement,
     ExerciseRequirementVote,
@@ -168,6 +170,46 @@ def _annotated_exercises(published=True):
     )
 
 
+EXERCISE_SORT_KEYS = ('number', 'title', 'difficulty', 'rating', 'reviews', 'solutions', 'views', 'recent', 'top')
+
+
+def sort_exercises(qs, params):
+    """`?sort=` (AUDIENCE-BRIEF.md §4) with `&dir=asc|desc`. Each key has its own natural
+    direction; `dir` flips it. `top` stays as the old alias of `rating`. Unknown → the model's
+    default order. `title` is locale-aware: the published title in `?lang=`, else the original."""
+    from django.db.models import Case, Count, F, IntegerField, OuterRef, Q, Subquery, Value, When
+    from django.db.models.functions import Coalesce, Lower
+
+    from config.i18n_utils import DEFAULT_FALLBACK_LOCALE
+
+    sort = params.get('sort') or ''
+    direction = params.get('dir')
+    if sort == 'top':
+        sort = 'rating'
+    if sort not in EXERCISE_SORT_KEYS:
+        return qs
+    if sort == 'title':
+        lang = params.get('lang', DEFAULT_FALLBACK_LOCALE)
+        wanted = ExerciseTranslation.objects.filter(exercise=OuterRef('pk'), status='published', locale=lang).values('title')[:1]
+        original = ExerciseTranslation.objects.filter(exercise=OuterRef('pk'), status='published', locale=OuterRef('original_locale')).values('title')[:1]
+        qs = qs.annotate(sort_title=Lower(Coalesce(Subquery(wanted), Subquery(original))))
+        field, natural = 'sort_title', 'asc'
+    elif sort == 'difficulty':
+        qs = qs.annotate(sort_difficulty=Case(When(difficulty='easy', then=Value(0)), When(difficulty='medium', then=Value(1)), default=Value(2), output_field=IntegerField()))
+        field, natural = 'sort_difficulty', 'asc'
+    elif sort == 'solutions':
+        qs = qs.annotate(solution_count=Count('entries', filter=Q(entries__kind='solution', entries__status='published', entries__is_removed=False, entries__auto_hidden_at__isnull=True), distinct=True))
+        field, natural = 'solution_count', 'desc'
+    elif sort == 'views':
+        qs = qs.annotate(view_count=Count('views', distinct=True))
+        field, natural = 'view_count', 'desc'
+    else:
+        field, natural = {'number': ('number', 'asc'), 'rating': ('average_rating', 'desc'), 'reviews': ('review_count', 'desc'), 'recent': ('created_at', 'desc')}[sort]
+    final = direction if direction in ('asc', 'desc') else natural
+    ordering = F(field).asc(nulls_last=True) if final == 'asc' else F(field).desc(nulls_last=True)
+    return qs.order_by(ordering, 'id')
+
+
 def _filter_exercises(qs, params):
     branch = params.get('branch')
     if branch:
@@ -263,11 +305,8 @@ class ExerciseViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         qs = self.filter_queryset(self.get_queryset())
-        sort = request.query_params.get('sort')
-        if sort == 'top':
-            qs = qs.order_by('-average_rating')
-        elif sort == 'recent':
-            qs = qs.order_by('-created_at')
+        qs, hidden = apply_content_locale_filter(qs, request.query_params, 'translations__locale', published_only=True)
+        qs = sort_exercises(qs, request.query_params)
         limit = request.query_params.get('limit')
         if limit:
             try:
@@ -275,7 +314,9 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             except ValueError:
                 pass
         serializer = self.get_serializer(qs, many=True)
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        response[HIDDEN_HEADER] = str(hidden)
+        return response
 
     @action(detail=True, methods=['get', 'post'])
     def translations(self, request, pk=None):

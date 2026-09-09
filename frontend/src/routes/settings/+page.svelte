@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SUPPORTED_CONTENT_LOCALES, contentLocalesStore } from '$lib/state/contentLocales.svelte';
 	import GuardianPanel from '$lib/components/settings/GuardianPanel.svelte';
 	import { AUDIENCES, AUDIENCE_LABELS } from '$lib/utils/labels';
 	import type { Audience } from '$lib/types';
@@ -32,6 +33,7 @@
 	let weekStartsOn = $state<'monday' | 'sunday'>('monday');
 	let saveMenuLayout = $state<'beside' | 'above'>('beside');
 	let audienceFilter = new SvelteSet<Audience>();
+	let contentExtras = new SvelteSet<string>();
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, branch-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
@@ -96,6 +98,8 @@
 		timeFormat = authStore.user.timeFormat ?? '24h';
 		weekStartsOn = authStore.user.weekStartsOn ?? 'monday';
 		saveMenuLayout = authStore.user.saveMenuLayout ?? 'beside';
+		contentExtras.clear();
+		for (const l of authStore.user.contentLocales ?? []) contentExtras.add(l);
 		audienceFilter.clear();
 		for (const b of authStore.user.audienceFilter ?? []) audienceFilter.add(b);
 		offersTutoring = authStore.user.offersTutoring;
@@ -127,6 +131,7 @@
 			weekStartsOn,
 			saveMenuLayout,
 			audienceFilter: Array.from(audienceFilter),
+			contentLocales: Array.from(contentExtras),
 			mutedNotificationTypes: Array.from(mutedTypes),
 			offersTutoring,
 			tutoringNote
@@ -134,6 +139,7 @@
 		saving = false;
 		if (result.ok) {
 			saved = true;
+			contentLocalesStore.set(Array.from(contentExtras));
 		} else {
 			saveError = result.error;
 		}
@@ -339,6 +345,24 @@
 					</label>
 				{/each}
 				<p class="field-hint">{m.settings_audienceHint()}</p>
+			</section>
+
+			<!-- The content-language rule (AUDIENCE-BRIEF.md §5): lists show the interface language;
+			     these are the extra languages this reader wants included too. -->
+			<section class="field-group">
+				<h2>{m.settings_contentLocalesHeading()}</h2>
+				{#each SUPPORTED_CONTENT_LOCALES as l (l)}
+					<label class="checkbox-row">
+						<input
+							type="checkbox"
+							checked={contentExtras.has(l)}
+							onchange={(e) =>
+								e.currentTarget.checked ? contentExtras.add(l) : contentExtras.delete(l)}
+						/>
+						<span>{l === 'pl' ? 'Polski' : l === 'en' ? 'English' : l}</span>
+					</label>
+				{/each}
+				<p class="field-hint">{m.settings_contentLocalesHint()}</p>
 			</section>
 
 			<!-- Where the save menu puts the "add to a course" half. Its own small section rather than

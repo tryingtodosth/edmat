@@ -162,6 +162,9 @@ class Profile(models.Model):
     # a senior to senior+adult; content marked `all` passes any narrowing. Sent by the frontend as
     # `?audience=` on every list request; guests keep the same list in localStorage.
     audience_filter = models.JSONField(default=list, blank=True)
+    # Extra content languages this reader wants lists to include besides the interface language
+    # (AUDIENCE-BRIEF.md §5). Empty means "the interface language only".
+    content_locales = models.JSONField(default=list, blank=True)
     # Under the consent age (16 in Poland, GDPR Art. 8) — the account was made by a guardian
     # (`Guardianship`) and every rule in accounts/minors.py applies. Only the flag is stored, never
     # a birth date: the year is asked at registration purely to branch, then discarded.

@@ -158,6 +158,9 @@ class Post(models.Model):
     audience = models.CharField(
         max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
     )
+    # The language the text is written in (AUDIENCE-BRIEF.md §5): what the content-language rule
+    # narrows lists by. 'pl' for every row that predates the field — true of all of them.
+    language = models.CharField(max_length=8, default='pl')
     image = models.ImageField(
         upload_to=post_image_upload_path, blank=True, validators=[validate_activity_post_image]
     )

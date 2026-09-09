@@ -1,4 +1,5 @@
 <script lang="ts">
+	import HiddenLanguagesNotice from '$lib/components/shared/HiddenLanguagesNotice.svelte';
 	// The materials search/filter/sort overhaul's own cross-branch browse hub — before this route
 	// existed, materials could only be seen scoped inside one branch's own Materials tab, and the
 	// backend's real GET /api/materials/ (type/topic/tag/min_level/q/sort, plus the personalized
@@ -111,6 +112,7 @@
 <div class="page">
 	<header>
 		<h1>{m.materialsHub_heading()}</h1>
+		<HiddenLanguagesNotice path="/materials/" />
 		<p>{m.materialsHub_subtitle()}</p>
 	</header>
 

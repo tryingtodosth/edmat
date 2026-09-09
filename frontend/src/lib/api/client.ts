@@ -6,6 +6,8 @@
 
 import { PUBLIC_API_BASE_URL } from '$env/static/public';
 import { audienceFilterStore } from '$lib/state/audienceFilter.svelte';
+import { contentLocalesStore } from '$lib/state/contentLocales.svelte';
+import { hiddenCountsStore } from '$lib/state/hiddenCounts.svelte';
 import { tokenStore } from '$lib/state/token.svelte';
 
 /** A non-2xx response, carrying the parsed JSON error body (DRF's own {field: [messages]} shape,
@@ -48,10 +50,19 @@ const AUDIENCE_LIST_PATHS = [
 	/^\/activity\/(\?|$)/
 ];
 function withAudience(path: string): string {
+	if (!AUDIENCE_LIST_PATHS.some((re) => re.test(path))) return path;
+	let out = path;
 	const bands = audienceFilterStore.param;
-	if (!bands || !AUDIENCE_LIST_PATHS.some((re) => re.test(path))) return path;
-	if (/[?&]audience=/.test(path)) return path;
-	return `${path}${path.includes('?') ? '&' : '?'}audience=${encodeURIComponent(bands)}`;
+	if (bands && !/[?&]audience=/.test(out)) {
+		out = `${out}${out.includes('?') ? '&' : '?'}audience=${encodeURIComponent(bands)}`;
+	}
+	// The content-language rule (AUDIENCE-BRIEF.md §5) rides the same hook: every browse list is
+	// narrowed to the interface language plus the reader's extras; the server answers with how many
+	// it left out, recorded below per path for HiddenLanguagesNotice.
+	if (!/[?&]content_locales=/.test(out)) {
+		out = `${out}${out.includes('?') ? '&' : '?'}content_locales=${encodeURIComponent(contentLocalesStore.param)}`;
+	}
+	return out;
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -82,6 +93,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 		headers,
 		credentials: 'omit'
 	});
+
+	const hidden = res.headers.get('X-EdMat-Hidden-Languages');
+	if (hidden !== null) hiddenCountsStore.record(path.split('?')[0], Number(hidden) || 0);
 
 	if (res.status === 204) return undefined as T;
 

@@ -3,6 +3,7 @@
 // exact same lists, per this codebase's own "three strikes" convention for when a duplicated pattern
 // earns a shared utility.
 
+import type { ExerciseSort } from '$lib/services/exercises';
 import type {
 	Audience,
 	SessionKind,
@@ -337,4 +338,26 @@ export const SESSION_LINK_ROLE_LABELS: Record<SessionLinkRole, () => string> = {
 	recording: m.events_linkRole_recording, // "Recording"
 	solutions: m.events_linkRole_solutions, // "Solutions"
 	other: m.events_linkRole_other // "Related"
+};
+
+// Exercise sort keys (AUDIENCE-BRIEF.md §4) — mirrors exercises/views.py's EXERCISE_SORT_KEYS.
+export const EXERCISE_SORTS: ExerciseSort[] = [
+	'number',
+	'title',
+	'difficulty',
+	'rating',
+	'reviews',
+	'solutions',
+	'views',
+	'recent'
+];
+export const EXERCISE_SORT_LABELS: Record<ExerciseSort, () => string> = {
+	number: m.sort_number, // "Course number"
+	title: m.sort_title, // "Title"
+	difficulty: m.sort_difficulty, // "Difficulty"
+	rating: m.sort_rating, // "Rating"
+	reviews: m.sort_reviews, // "Most reviewed"
+	solutions: m.sort_solutions, // "Most solutions"
+	views: m.sort_views, // "Most read"
+	recent: m.sort_recent // "Newest"
 };

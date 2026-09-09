@@ -6478,6 +6478,62 @@ appears in the moderation queue as a report by the author, which reads oddly unt
 learns a "held" label; no age band per child (a child is a minor, nothing finer); the
 `early_years` band still has no adult-mediated "play" surface of its own.
 
+## 17AQ. Sorting, and the content-language rule (✅ built, full stack)
+
+`AUDIENCE-BRIEF.md` §4 and §5. Two things a list did not know how to do: be ordered by anything
+but "top" or "recent", and say what it was leaving out.
+
+### Sorting (§4)
+
+`?sort=` on `/api/exercises/` and `/api/branches/{slug}/exercises/` — `number` / `title` /
+`difficulty` / `rating` / `reviews` / `solutions` / `views` / `recent`, each with a natural
+direction and `&dir=asc|desc` to flip it (`exercises/views.py`'s `sort_exercises`; `top` stays as
+the old alias of `rating`). `title` is locale-aware — the published title in `?lang=`, else the
+original, lower-cased. `solutions` counts visible published solution entries, `views` the
+`ContentView` rows. **Unrated / unviewed rows sort last in BOTH directions** (`nulls_last`), which
+is what a reader means by "worst first" — the flipped direction reorders the rated ones, it does
+not promote the unrated. The branch page carries `SortSelect` (the choice in the URL, the last one
+remembered in localStorage).
+
+### The content-language rule (§5)
+
+A LIST shows only items with a published version in the reader's languages — the interface
+language plus whatever extras they opted into — and says how many it left out; a DETAIL page
+never narrows, so a shared link resolves and falls back exactly as before.
+
+- `config/content_locale.py`: `?content_locales=pl,en` narrows (a translation relation with
+  `status='published'` for exercises — a pending translation does not make an item appear in that
+  language; a plain `language` column for events, taught courses, listings and posts, the last
+  two gaining the field with `'pl'` for every row that predates it); the count left out rides
+  back in **`X-EdMat-Hidden-Languages`**, since these lists are plain arrays with no envelope.
+  Exposed through CORS (`CORS_EXPOSE_HEADERS`) — a cross-origin dev frontend cannot read a custom
+  header otherwise, which is exactly how the browser check first failed while `curl` showed the
+  header plainly.
+- `lib/state/contentLocales.svelte.ts` (a leaf, like the audience store: the interface language
+  from Paraglide plus `Profile.content_locales` / localStorage extras) and `hiddenCounts.svelte.ts`
+  (per request path, written by `client.ts` from the header). `client.ts` appends
+  `?content_locales=` on the same browse-path hook as `?audience=`, so no list can forget it.
+- `HiddenLanguagesNotice` ("N items in other languages are hidden — Show them") on the homepage,
+  the branch page and the four hubs; "Show them" adds every supported language (and saves it on a
+  signed-in profile). The exercise page says "This is in PL; you are reading the EN interface"
+  with a one-click "show PL content everywhere". Settings has the languages as checkboxes; the
+  listing form and the post composer ask for the content's language, defaulting to the interface.
+- **The day-one consequence, seen and kept**: a fresh browser reads the English interface, so the
+  homepage opens on **743 of 746 exercises hidden** behind the notice. That is the rule working;
+  the banner is what stops it reading as an empty site. Machine-translation drafts (§10's old
+  note) are the real fix and remain a follow-up.
+
+**Verified**: `exercises/test_sorting_locale.py` 9 tests (every key, the flip, the locale-aware
+title, nulls last both ways, an unknown key harmless; the header on exercises / materials /
+events / listings / courses, a pending translation not counting, a detail page never narrowing,
+the profile field validated, `language` on a listing and a post); eight app suites green;
+`e2e/sorting-and-languages.mjs` 15/15, zero console errors, screenshot looked at.
+
+**Left open**: `title` order is bytewise after lower-casing, so Polish letters sort after `z`
+(SQLite has no locale collation; PostgreSQL would); the activity feed's content rows are not
+narrowed by language (only posts carry one); no sort control on materials beyond their own four
+keys, none on sets; the notice's "Show them" adds every language rather than the one hidden.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

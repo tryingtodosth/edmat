@@ -13,6 +13,7 @@ from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from config.audience import apply_audience_filter
+from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -103,6 +104,13 @@ def notify_course_comment_reply(course, comment, *, where=''):
 class CourseViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, _CoursesFeatureGate]
 
+    _hidden_by_language = 0
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        response[HIDDEN_HEADER] = str(self._hidden_by_language)
+        return response
+
     def get_queryset(self):
         user = self.request.user
         qs = (
@@ -185,6 +193,8 @@ class CourseViewSet(viewsets.ModelViewSet):
         qs = visible.distinct()
 
         qs = apply_audience_filter(qs, self.request.query_params)
+        if self.action == 'list':
+            qs, self._hidden_by_language = apply_content_locale_filter(qs, self.request.query_params, 'language')
         subject = self.request.query_params.get('subject')
         if subject:
             qs = qs.filter(subjects__slug=subject)

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { contentLocalesStore } from '$lib/state/contentLocales.svelte';
 	import AppearsInSessions from '$lib/components/event/AppearsInSessions.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
@@ -291,6 +292,22 @@
 					</p>
 				{/if}
 				<div class="exercise__toolbar">
+					{#if exercise.locale !== getLocale() && !contentLocalesStore.extras.includes(exercise.locale)}
+						<p class="other-language" role="status">
+							{m.contentLocales_detailOther({
+								lang: exercise.locale.toUpperCase(),
+								ui: getLocale().toUpperCase()
+							})}
+							<button
+								type="button"
+								onclick={() => {
+									contentLocalesStore.set([...contentLocalesStore.extras, exercise!.locale]);
+									if (authStore.isAuthenticated)
+										void authStore.updateProfile({ contentLocales: contentLocalesStore.extras });
+								}}>{m.contentLocales_showLang({ lang: exercise.locale.toUpperCase() })}</button
+							>
+						</p>
+					{/if}
 					<LanguagePicker
 						availableLocales={exercise.availableLocales}
 						value={contentLocale}

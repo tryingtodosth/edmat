@@ -1,4 +1,5 @@
 <script lang="ts">
+	import HiddenLanguagesNotice from '$lib/components/shared/HiddenLanguagesNotice.svelte';
 	// Browsing one-off events. Wrapped in `FeatureGate` for the same reason every other gated route
 	// is: the API refuses outright when a moderator has pulled the `events` switch, and without this
 	// a visitor would reach the real page and discover it only as a raw 403 from the first fetch.
@@ -80,6 +81,7 @@
 		<header class="head">
 			<div>
 				<h1>{m.events_browseHeading()}</h1>
+				<HiddenLanguagesNotice path="/events/" />
 				<p class="lead">{m.events_browseLead()}</p>
 			</div>
 			{#if authStore.isAuthenticated}

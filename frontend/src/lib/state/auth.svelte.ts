@@ -1,4 +1,5 @@
 import { audienceFilterStore } from './audienceFilter.svelte';
+import { contentLocalesStore } from './contentLocales.svelte';
 import type { Audience } from '$lib/types/audience';
 // Session state — a Svelte 5 rune module. Phase 3: real auth against the Django backend's
 // TokenAuthentication (CLAUDE.md Section 18, resolved in Phase 2). The raw token itself lives in
@@ -88,6 +89,7 @@ export const authStore = {
 			const raw = await apiClient.get<RawProfile>('/auth/me/');
 			user = mapUser(raw);
 			audienceFilterStore.syncFromProfile(user.audienceFilter);
+			contentLocalesStore.syncFromProfile(user.contentLocales);
 		} catch {
 			tokenStore.set(null);
 			user = null;
@@ -110,6 +112,7 @@ export const authStore = {
 			tokenStore.set(res.token);
 			user = mapUser(res.profile);
 			audienceFilterStore.syncFromProfile(user.audienceFilter);
+			contentLocalesStore.syncFromProfile(user.contentLocales);
 			return { ok: true };
 		} catch {
 			return { ok: false, error: 'invalidCredentials' };
@@ -136,6 +139,7 @@ export const authStore = {
 			tokenStore.set(res.token);
 			user = mapUser(res.profile);
 			audienceFilterStore.syncFromProfile(user.audienceFilter);
+			contentLocalesStore.syncFromProfile(user.contentLocales);
 			return { ok: true };
 		} catch (e) {
 			if (e instanceof ApiError && e.body && typeof e.body === 'object' && 'birth_year' in e.body) {
@@ -187,6 +191,7 @@ export const authStore = {
 			weekStartsOn: 'monday' | 'sunday';
 			saveMenuLayout: 'beside' | 'above';
 			audienceFilter: Audience[];
+			contentLocales: string[];
 			notifyOnCommentReply: boolean;
 			notifyOnModerationDecision: boolean;
 			notifyOnContentAction: boolean;
@@ -208,6 +213,7 @@ export const authStore = {
 		if (patch.weekStartsOn !== undefined) body.week_starts_on = patch.weekStartsOn;
 		if (patch.saveMenuLayout !== undefined) body.save_menu_layout = patch.saveMenuLayout;
 		if (patch.audienceFilter !== undefined) body.audience_filter = patch.audienceFilter;
+		if (patch.contentLocales !== undefined) body.content_locales = patch.contentLocales;
 		if (patch.notifyOnCommentReply !== undefined)
 			body.notify_on_comment_reply = patch.notifyOnCommentReply;
 		if (patch.notifyOnModerationDecision !== undefined) {
@@ -230,6 +236,7 @@ export const authStore = {
 			const raw = await apiClient.patch<RawProfile>('/auth/me/', body);
 			user = mapUser(raw);
 			audienceFilterStore.syncFromProfile(user.audienceFilter);
+			contentLocalesStore.syncFromProfile(user.contentLocales);
 			return { ok: true };
 		} catch (e) {
 			const message = e instanceof ApiError ? e.message : undefined;
@@ -254,6 +261,7 @@ export const authStore = {
 			const raw = await apiClient.postForm<RawProfile>('/auth/me/avatar/', formData);
 			user = mapUser(raw);
 			audienceFilterStore.syncFromProfile(user.audienceFilter);
+			contentLocalesStore.syncFromProfile(user.contentLocales);
 			return { ok: true };
 		} catch (e) {
 			const message = e instanceof ApiError ? e.message : undefined;
@@ -267,6 +275,7 @@ export const authStore = {
 			const raw = await apiClient.delete<RawProfile>('/auth/me/avatar/');
 			user = mapUser(raw);
 			audienceFilterStore.syncFromProfile(user.audienceFilter);
+			contentLocalesStore.syncFromProfile(user.contentLocales);
 			return { ok: true };
 		} catch (e) {
 			const message = e instanceof ApiError ? e.message : undefined;

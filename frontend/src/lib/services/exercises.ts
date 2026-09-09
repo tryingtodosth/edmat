@@ -20,11 +20,16 @@ import {
 } from '$lib/api/mappers';
 import { getTopicsForBranch } from './taxonomy';
 
+export type ExerciseSort =
+	'number' | 'title' | 'difficulty' | 'rating' | 'reviews' | 'solutions' | 'views' | 'recent';
+
 export interface ExerciseFilters {
 	topicId?: string;
 	difficulty?: Difficulty;
 	sourceType?: SourceType;
 	query?: string;
+	sort?: ExerciseSort | '';
+	dir?: 'asc' | 'desc' | '';
 }
 
 function toQueryString(params: Record<string, string | undefined>): string {
@@ -60,6 +65,8 @@ export async function getExercisesForBranch(
 		source_type: filters.sourceType,
 		q: filters.query,
 		topic: topicSlug,
+		sort: filters.sort || undefined,
+		dir: filters.dir || undefined,
 		lang: locale
 	});
 	const raw = await apiClient.get<RawExerciseCommon[]>(

@@ -73,4 +73,6 @@ export interface User {
 	mutedNotificationTypes?: NotificationType[];
 	/** Bands this person wants lists narrowed to; empty = everything (AUDIENCE-BRIEF.md §1). */
 	audienceFilter?: Audience[];
+	/** Extra content languages beyond the interface one (AUDIENCE-BRIEF.md §5). */
+	contentLocales?: string[];
 }

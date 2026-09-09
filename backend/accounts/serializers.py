@@ -73,6 +73,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'notify_on_event',
             'muted_notification_types',
             'audience_filter',
+            'content_locales',
             'is_minor',
             'guardian_of',
             'guardians',
@@ -121,6 +122,11 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             attrs['offers_tutoring'] = False
         return attrs
 
+    def validate_content_locales(self, value):
+        if not isinstance(value, list) or any(not isinstance(v, str) or not (2 <= len(v) <= 8) for v in value):
+            raise serializers.ValidationError('A list of locale codes.')
+        return sorted({v.lower() for v in value})
+
     def validate_audience_filter(self, value):
         if not isinstance(value, list) or any(v not in AUDIENCE_VALUES for v in value):
             raise serializers.ValidationError('Unknown audience band.')
@@ -150,6 +156,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'notify_on_event',
             'muted_notification_types',
             'audience_filter',
+            'content_locales',
             'offers_tutoring',
             'tutoring_note',
         ]

@@ -35,6 +35,7 @@
 
 	let body = $state('');
 	let audience = $state<Audience | ''>('');
+	let language = $state(getLocale());
 	let showPreview = $state(false);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
@@ -109,6 +110,7 @@
 			const post = await createPost({
 				body,
 				audience,
+				language,
 				disciplineId: activeFixed
 					? activeFixed.kind === 'discipline'
 						? activeFixed.id
@@ -161,6 +163,13 @@
 <div class="composer">
 	<textarea rows="4" bind:value={body} placeholder={m.post_composerPlaceholder()}></textarea>
 	<AudienceSelect bind:value={audience} />
+	<label class="field">
+		<span>{m.contentLocales_fieldLanguage()}</span>
+		<select bind:value={language}>
+			<option value="pl">Polski</option>
+			<option value="en">English</option>
+		</select>
+	</label>
 
 	{#if activeFixed}
 		<div class="composer__row">

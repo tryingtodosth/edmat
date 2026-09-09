@@ -1,4 +1,8 @@
 <script lang="ts">
+	import SortSelect from '$lib/components/exercise/SortSelect.svelte';
+	import HiddenLanguagesNotice from '$lib/components/shared/HiddenLanguagesNotice.svelte';
+	import { replaceState } from '$app/navigation';
+	import type { ExerciseSort } from '$lib/services/exercises';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type {
@@ -29,6 +33,37 @@
 	let exercises = $state<ResolvedExercise[]>([]);
 	let tab = $state<'exercises' | 'materials'>('exercises');
 	let filters = $state<ExerciseFilters>({});
+	// The sort lives in the URL (shareable, back-button friendly) and the last choice is remembered.
+	let sort = $state<ExerciseSort | ''>(
+		((page.url.searchParams.get('sort') as ExerciseSort | null) ?? readRemembered('sort')) as
+			ExerciseSort | ''
+	);
+	let dir = $state<'asc' | 'desc' | ''>(
+		(page.url.searchParams.get('dir') as 'asc' | 'desc' | null) ?? ''
+	);
+	function readRemembered(key: string): string {
+		try {
+			return localStorage.getItem(`edmat.exerciseSort.${key}`) ?? '';
+		} catch {
+			return '';
+		}
+	}
+	$effect(() => {
+		const s = sort;
+		const d = dir;
+		try {
+			localStorage.setItem('edmat.exerciseSort.sort', s);
+		} catch {
+			/* ignore */
+		}
+		const url = new URL(page.url);
+		if (s) url.searchParams.set('sort', s);
+		else url.searchParams.delete('sort');
+		if (d) url.searchParams.set('dir', d);
+		else url.searchParams.delete('dir');
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the current page's own URL with its query updated, not a route
+		if (url.search !== page.url.search) void replaceState(url, page.state);
+	});
 	let materialFilters = $state<MaterialBrowseFilters>({});
 	let loading = $state(true);
 	let notFound = $state(false);
@@ -92,18 +127,25 @@
 		const difficulty = filters.difficulty;
 		const sourceType = filters.sourceType;
 		const query = filters.query;
+		const chosenSort = sort;
+		const chosenDir = dir;
 		let superseded = false;
 		exercisesLoading = true;
-		getExercisesForBranch(branch.id, getLocale(), { topicId, difficulty, sourceType, query }).then(
-			(list) => {
-				if (superseded) return;
-				exercises = list;
-				exercisesLoading = false;
-				// A new answer means the filters changed (or the branch did) — start back at page one
-				// rather than leaving whatever "show more" progress the visitor had made on the old list.
-				visibleExerciseCount = EXERCISES_PAGE_SIZE;
-			}
-		);
+		getExercisesForBranch(branch.id, getLocale(), {
+			topicId,
+			difficulty,
+			sourceType,
+			query,
+			sort: chosenSort,
+			dir: chosenDir
+		}).then((list) => {
+			if (superseded) return;
+			exercises = list;
+			exercisesLoading = false;
+			// A new answer means the filters changed (or the branch did) — start back at page one
+			// rather than leaving whatever "show more" progress the visitor had made on the old list.
+			visibleExerciseCount = EXERCISES_PAGE_SIZE;
+		});
 		return () => {
 			superseded = true;
 		};
@@ -191,6 +233,8 @@
 					resultCount={exercisesLoading ? undefined : exercises.length}
 				/>
 				<div class="exercises-column">
+					<SortSelect bind:sort bind:dir />
+					<HiddenLanguagesNotice path={`/branches/${branch.id}/exercises/`} />
 					{#if exercisesLoading}
 						<Loading variant="card" count={6} />
 					{:else}

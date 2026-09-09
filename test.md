@@ -276,6 +276,7 @@ node e2e/event-programme.mjs          # the programme (§17AM); kasia builds it 
 node e2e/event-registration.mjs       # registration (§17AN); kasia/ola/michał; clears the login throttle cache first if re-running (backend/cachedata)
 node e2e/event-contributions.mjs      # the call for contributions (§17AO); kasia (host) / michał (reviewer) / ola (author); deletes the scratch event
 node e2e/guardian-accounts.mjs        # guardian accounts + minor defaults (§17AP); kasia makes and deletes a child 'e2e-zosia'; clear backend/cachedata BEFORE (never during) a run
+node e2e/sorting-and-languages.mjs    # sort keys in the URL + the content-language rule (§17AQ); English-interface contexts; resets ola's content_locales
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -683,6 +684,16 @@ for a hosted event (API, `registered_by`) and for another host's event through t
 "Register a child" select; deleting the account removes it from panel and API. One tolerated
 console line: the refusal under test is a 400. Clear `backend/cachedata` before a run, not during —
 a delete under the server's feet is a stale-file-handle 500 that looks like an app bug.
+
+**`e2e/sorting-and-languages.mjs` (15 checks)** — sorting and the content-language rule (root
+CLAUDE.md §17AQ): the API hides the Polish corpus from an English-only reader and the header says
+how many; `sort=title` orders A→Z and `dir=desc` flips it; a fresh English-interface visitor sees
+the hidden-count notice on the homepage, "Show them" reveals more and the choice survives a reload;
+the branch page's sort goes into the URL, the first card matches the API's first, the flip adds
+`dir=`, and a shared `?sort=title&dir=desc` URL renders that order; a Polish exercise under the
+English interface shows the banner and one click adds Polish; Ola's Settings save an extra language
+on her profile (press the Save in THAT section's form — the settings page has several); the listing
+form asks for a language defaulting to the interface's.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

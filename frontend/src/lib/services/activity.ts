@@ -135,6 +135,7 @@ export async function getActivityFeed(filters: FeedFilters = {}): Promise<FeedIt
 export interface PostDraft {
 	body: string;
 	audience: Audience;
+	language: string;
 	/** Exactly one of the four anchors. */
 	disciplineId?: string;
 	branchId?: string;
@@ -151,6 +152,7 @@ function draftToForm(draft: PostDraft): FormData {
 	const form = new FormData();
 	form.set('body', draft.body);
 	form.set('audience', draft.audience);
+	form.set('language', draft.language);
 	if (draft.disciplineId) form.set('discipline', draft.disciplineId);
 	if (draft.branchId) form.set('branch', draft.branchId);
 	if (draft.tagSlug) form.set('tag', draft.tagSlug);

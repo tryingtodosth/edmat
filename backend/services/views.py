@@ -7,6 +7,7 @@ from accounts.minors import is_minor
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import mixins, permissions, status, viewsets
 from config.audience import apply_audience_filter
+from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -73,6 +74,13 @@ class ServiceViewSet(viewsets.ModelViewSet):
     -only query params already follow rather than 401ing on a param a guest simply can't use).
     """
 
+    _hidden_by_language = 0
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        response[HIDDEN_HEADER] = str(self._hidden_by_language)
+        return response
+
     def get_serializer_class(self):
         if self.action in ('create', 'update', 'partial_update'):
             return ServiceWriteSerializer
@@ -115,6 +123,8 @@ class ServiceViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_active=True)
 
         qs = apply_audience_filter(qs, self.request.query_params)
+        if self.action == 'list':
+            qs, self._hidden_by_language = apply_content_locale_filter(qs, self.request.query_params, 'language')
         branch_slug = self.request.query_params.get('branch')
         if branch_slug:
             qs = qs.filter(branches__slug=branch_slug)

@@ -956,6 +956,7 @@ export interface RawProfile {
 	week_starts_on?: string;
 	save_menu_layout?: string;
 	audience_filter?: string[];
+	content_locales?: string[];
 	is_verified_contributor: boolean;
 	is_minor?: boolean;
 	guardian_of?: { id: number; username: string; display_name: string }[];
@@ -1020,6 +1021,7 @@ export function mapUser(json: RawProfile): User {
 		weekStartsOn: json.week_starts_on === 'sunday' ? 'sunday' : 'monday',
 		saveMenuLayout: json.save_menu_layout === 'above' ? 'above' : 'beside',
 		audienceFilter: (json.audience_filter ?? []) as User['audienceFilter'],
+		contentLocales: json.content_locales ?? [],
 		notifyOnCourseActivity: json.notify_on_course_activity,
 		notifyOnBooking: json.notify_on_booking,
 		notifyOnEvent: json.notify_on_event,
@@ -1201,6 +1203,7 @@ export interface RawService {
 	is_active: boolean;
 	delivery_mode: string;
 	audience?: string;
+	language?: string;
 	location_label: string;
 	location_lat: string | null; // DRF DecimalField -> string, same as hourly_rate above
 	location_lon: string | null;
@@ -1226,6 +1229,7 @@ export function mapService(json: RawService): Service {
 		isActive: json.is_active,
 		deliveryMode: BACKEND_TO_FRONTEND_DELIVERY_MODE[json.delivery_mode] ?? 'online',
 		audience: (json.audience ?? 'university') as Service['audience'],
+		language: json.language ?? 'pl',
 		// Built only when BOTH coordinates are really present. A half-set location is not a location,
 		// and leaving it undefined lets every consumer use one plain `{#if service.location}` instead
 		// of separately null-checking two fields it would then have to keep in step.

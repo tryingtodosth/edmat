@@ -33,6 +33,7 @@ function draftToBody(draft: ServiceDraft): Record<string, unknown> {
 		title: draft.title,
 		description: draft.description,
 		audience: draft.audience,
+		language: draft.language,
 		branch_slugs: draft.branchIds,
 		hourly_rate: trimmedRate ? trimmedRate : null,
 		currency: draft.currency,

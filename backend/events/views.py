@@ -13,6 +13,7 @@ from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from accounts.minors import guardian_of, is_minor
 from config.audience import apply_audience_filter
+from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -53,6 +54,13 @@ from .contribution_views import ContributionMixin
 
 class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate]
+
+    _hidden_by_language = 0
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        response[HIDDEN_HEADER] = str(self._hidden_by_language)
+        return response
 
     def get_queryset(self):
         """Two layers, and keeping them apart is a real bug fix rather than tidiness.
@@ -137,6 +145,8 @@ class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, viewset
         qs = qs.exclude(status='cancelled')
 
         qs = apply_audience_filter(qs, self.request.query_params)
+        if self.action == 'list':
+            qs, self._hidden_by_language = apply_content_locale_filter(qs, self.request.query_params, 'language')
         subject = self.request.query_params.get('subject')
         if subject:
             qs = qs.filter(subjects__slug=subject)
