@@ -22,7 +22,8 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5178';
-const API = process.env.E2E_API ?? 'http://localhost:8014/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://localhost:8014').replace(/\/api\/?$/, '') + '/api';
 const PASSWORD = 'password123';
 const TITLE = 'Szukajka — kurs do testu wyszukiwania';
 

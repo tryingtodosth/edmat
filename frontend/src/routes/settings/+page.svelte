@@ -35,7 +35,9 @@
 	let saveMenuLayout = $state<'beside' | 'above'>('beside');
 	let audienceFilter = new SvelteSet<Audience>();
 	let contentExtras = new SvelteSet<string>();
-	let textSize = $state<'normal' | 'large' | 'larger'>('normal');
+	// A writable $derived: follows the header's "Aa" button (the same setting) until the select
+	// is edited, and is re-seeded from the profile on load like everything else here.
+	let textSize = $derived<'normal' | 'large' | 'larger'>(a11yPrefsStore.textSize);
 	let highContrast = $state(false);
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, branch-scoped services.Service listing (see accounts/models.py's
@@ -115,13 +117,6 @@
 		for (const type of authStore.user.mutedNotificationTypes ?? []) {
 			mutedTypes.add(type);
 		}
-	});
-
-	// The header's "Aa" button changes the same text size this section edits; the draft follows
-	// it so the select never disagrees with the page it is on. Reads only the store, so editing
-	// the select does not re-run it.
-	$effect(() => {
-		textSize = a11yPrefsStore.textSize;
 	});
 
 	async function handleSave(event: SubmitEvent) {

@@ -30,7 +30,8 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8000/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8000').replace(/\/api\/?$/, '') + '/api';
 const PASSWORD = process.env.E2E_DEMO_PASSWORD ?? 'password123';
 const TUTOR = 'michal@edmat.example';
 const STUDENT = 'ola@edmat.example';
@@ -586,7 +587,7 @@ const dates = tutorPage.locator('.field-group', { hasText: 'Dates and times' });
 check('Settings offers both as real choices', (await dates.locator('select').count()) === 2);
 await dates.locator('select').first().selectOption('12h');
 await dates.locator('select').nth(1).selectOption('sunday');
-await tutorPage.locator('form button[type="submit"]').first().click();
+await tutorPage.locator('form.edit-form button[type="submit"]').first().click(); // the settings form's own Save, not the guardian panel's
 await settle(tutorPage, 2200);
 
 tutorPage = await renew(tutorPage);

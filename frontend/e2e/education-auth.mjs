@@ -27,7 +27,8 @@ const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
 // The API origin, overridable like every other script here. It used to be written into the one call
 // below as a literal, which quietly made this the only script that could not be pointed at a backend
 // on a different port: it kept talking to 8011 however it was invoked.
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8011/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8011').replace(/\/api\/?$/, '') + '/api';
 let pass = 0;
 let fail = 0;
 const errors = [];
@@ -138,6 +139,7 @@ await goto('/register');
 await page.locator('form input[type="text"]').first().fill('E2E Student');
 await page.locator('form input[type="email"]').fill(email);
 await page.locator('form input[type="password"]').fill('Kw9-vortexline-42');
+await page.locator('form input[inputmode="numeric"]').fill('1990'); // birth year (§17AP)
 await page.locator('form button[type="submit"]').click();
 await settle(2200);
 await goto('/settings');
@@ -189,7 +191,7 @@ const userId = await fetch(`${API}/auth/me/`, {
 	.then((res) => res.json())
 	.then((body) => body.id);
 await goto(`/users/${userId}`);
-let profile = await page.locator('main').innerText();
+let profile = await readProfile();
 check(
 	'the profile shows no education section at all',
 	!/Education/i.test(profile),
@@ -199,11 +201,26 @@ check('and certainly no marks', !/Analiza/.test(profile));
 
 console.log('\n[10] Consent publishes it, one field at a time');
 await goto('/settings');
+// The public profile opens its education card in a dialog since the profile overhaul (a row
+// button under the identity card), so reading `main` alone would miss the diploma and the marks.
+async function readProfile() {
+	let text = await page.locator('main').innerText();
+	const row = page.locator('button.row', { hasText: /education|wykształcenie/i });
+	if (await row.count()) {
+		await row.first().click();
+		const dialog = page.locator('[role="dialog"]');
+		await dialog.waitFor({ timeout: 5000 });
+		text += '\n' + (await dialog.innerText());
+		await page.keyboard.press('Escape');
+		await settle(300);
+	}
+	return text;
+}
 const consents = page.locator('.education .check input');
 await consents.nth(0).check();
 await settle(1200);
 await goto(`/users/${userId}`);
-profile = await page.locator('main').innerText();
+profile = await readProfile();
 check(
 	'the institution is now public',
 	/Uniwersytet Warszawski/.test(profile),
@@ -218,7 +235,7 @@ await settle(1000);
 await page.locator('.education .check input').nth(2).check();
 await settle(1200);
 await goto(`/users/${userId}`);
-profile = await page.locator('main').innerText();
+profile = await readProfile();
 check('the diploma is public once allowed', /Licencjat/.test(profile), profile.slice(0, 600));
 check('the transcript is public once allowed', /Analiza/.test(profile));
 
@@ -234,7 +251,7 @@ await settle(1400);
 panel = await page.locator('.education').innerText();
 check('gone from settings', !/Course results:/i.test(panel));
 await goto(`/users/${userId}`);
-profile = await page.locator('main').innerText();
+profile = await readProfile();
 check('gone from the public profile', !/Analiza/.test(profile));
 
 console.log(`\n${pass} passed, ${fail} failed`);

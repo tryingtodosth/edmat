@@ -29,8 +29,10 @@
 
 <style lang="scss">
 	.text-size {
-		min-width: 44px;
-		min-height: 44px;
+		/* The bar's other icon buttons are 36px; matching them is what keeps the bar from growing. */
+		box-sizing: border-box;
+		min-width: 36px;
+		height: 36px;
 		padding: 0 0.5rem;
 		border: 1px solid var(--border);
 		border-radius: 8px;

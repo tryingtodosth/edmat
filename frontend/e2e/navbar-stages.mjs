@@ -22,7 +22,8 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8000/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8000').replace(/\/api\/?$/, '') + '/api';
 const PASSWORD = process.env.E2E_DEMO_PASSWORD ?? 'password123';
 const HOST = 'kasia@edmat.example';
 const RUN = Date.now();
@@ -241,17 +242,20 @@ check('the compass icon opens /disciplines', signed.url().includes('/disciplines
 // ---- the widened search --------------------------------------------------------------------------
 console.log('[15] Search now reaches courses, events, tutoring, and the taxonomy');
 const course = await api('POST', '/courses/', token, {
+	language: 'en', // listed in an English-interface context (§17AQ)
 	title: `${STAMP} course`,
 	summary: 'navbar stage check',
 	visibility: 'public',
 	status: 'open'
 });
 const service = await api('POST', '/services/', token, {
+	language: 'en', // listed in an English-interface context (§17AQ)
 	title: `${STAMP} tutoring`,
 	description: 'navbar stage check'
 });
 const starts = new Date(Date.now() + 3 * 864e5).toISOString();
 const event = await api('POST', '/events/', token, {
+	language: 'en', // listed in an English-interface context (§17AQ)
 	title: `${STAMP} event`,
 	description: 'navbar stage check',
 	status: 'published',

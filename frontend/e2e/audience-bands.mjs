@@ -67,6 +67,7 @@ const created = await (
 			description: 'scratch',
 			branch_slugs: [],
 			audience: 'primary',
+			language: 'en', // listed in an English-interface context (§17AQ)
 			is_active: true,
 			delivery_mode: 'online',
 			currency: 'PLN',
@@ -163,7 +164,7 @@ const seniorBox = page.locator('.checkbox-row', { hasText: 'Seniors' }).locator(
 check('Settings shows the same band ticked', await seniorBox.isChecked());
 await seniorBox.uncheck();
 await page.locator('.checkbox-row', { hasText: 'Adult learners' }).locator('input').check();
-await page.locator('form button[type="submit"]').first().click();
+await page.locator('form.edit-form button[type="submit"]').first().click(); // the settings form's own Save, not the guardian panel's
 await settle(2000);
 const me2 = await (
 	await fetch(`${API}/api/auth/me/`, { headers: { Authorization: `Token ${ola}` } })

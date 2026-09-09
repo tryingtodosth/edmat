@@ -9,7 +9,8 @@ try {
 	({ chromium } = await import('playwright-core'));
 }
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
-const API = process.env.E2E_API ?? 'http://localhost:8000/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://localhost:8000').replace(/\/api\/?$/, '') + '/api';
 let pass = 0,
 	fail = 0;
 const errors = [];
@@ -36,7 +37,7 @@ const settle = (page, ms = 800) => page.waitForTimeout(ms);
 async function signIn(page, email) {
 	await page.goto(`${BASE}/login`, { waitUntil: 'load' });
 	await settle(page, 1200);
-	await page.locator('form input[type="email"]').fill(email);
+	await page.locator('form input[autocomplete="username"]').fill(email);
 	await page.locator('form input[type="password"]').fill('password123');
 	await page.locator('form button[type="submit"]').click();
 	await page.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 10000 });

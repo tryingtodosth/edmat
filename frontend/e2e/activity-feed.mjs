@@ -93,12 +93,24 @@ const ola = await newSession();
 await login(ola, 'ola@edmat.example');
 await goto(ola, '/activity');
 await ola.locator('.composer').waitFor({ timeout: 20000 });
+// The reference picker is a browse list, so the content-language rule (§17AQ) narrows it to the
+// interface language — an English-interface context would never see the Polish corpus.
+await fetch(`${API}/api/auth/me/`, {
+	method: 'PATCH',
+	headers: {
+		'Content-Type': 'application/json',
+		Authorization: `Token ${await ola.evaluate(() => localStorage.getItem('edmat-auth-token'))}`
+	},
+	body: JSON.stringify({ content_locales: ['pl'] })
+});
+await ola.reload({ waitUntil: 'load' });
+await ola.locator('.composer').waitFor({ timeout: 20000 });
 await ola
 	.locator('.composer textarea')
 	.fill('Anyone else find substitution cleaner here? \\(u = x^2\\) does it.');
 await ola.locator('.composer .anchor-value').selectOption({ index: 1 }); // first real branch
 // Attach an exercise through the real search picker.
-await ola.locator('.composer .field select').nth(1).selectOption('exercise');
+await ola.locator('.composer .field select:has(option[value="exercise"])').selectOption('exercise');
 await ola.locator('.composer input[placeholder]').last().fill('Całka');
 await ola.getByRole('button', { name: 'Search' }).click();
 await settle(900);
@@ -108,6 +120,7 @@ check(
 	(await ola.locator('.ref-results button').count()) > 0
 );
 await firstResult.click();
+await ola.locator('.composer select:has(option[value="university"])').selectOption('university'); // audience band (§17AL)
 await ola.getByRole('button', { name: 'Publish' }).click();
 await settle(1200);
 check('publishing confirms', (await ola.getByText('Published.').count()) === 1);

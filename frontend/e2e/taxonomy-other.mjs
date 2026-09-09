@@ -10,7 +10,8 @@ try {
 	({ chromium } = await import('playwright-core'));
 }
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
-const API = process.env.E2E_API ?? 'http://localhost:8000/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://localhost:8000').replace(/\/api\/?$/, '') + '/api';
 const SHOTS = process.env.E2E_SHOTS ?? '/tmp';
 const STAMP = process.env.E2E_STAMP ?? 'e2e-other';
 let pass = 0,
@@ -74,6 +75,7 @@ await form.locator('input.other-name').nth(0).fill(disciplineName);
 await form.locator('input.other-name').nth(1).fill(branchName);
 await form.locator('input[type="text"]:not(.other-name)').first().fill(`${STAMP} exercise`);
 await form.locator('textarea').first().fill('Show that the test passes.');
+await form.locator('select:has(option[value="university"])').selectOption('university'); // audience band (§17AL)
 await page.screenshot({ path: `${SHOTS}/taxonomy-other-form.png`, fullPage: true });
 const submit = form.locator('button[type="submit"]');
 check('the form can be submitted once the names are typed', await submit.isEnabled());

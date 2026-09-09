@@ -15,7 +15,8 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5176';
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8003/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8003').replace(/\/api\/?$/, '') + '/api';
 const CHROME = process.env.CHROME;
 const TOKEN = process.env.E2E_TOKEN ?? '06076f72345ce89932d2119e5aad70a55ba41c79';
 

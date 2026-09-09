@@ -6666,7 +6666,7 @@ reload, the palette genuinely different, off again removing the attribute. `svel
 eslint clean.
 
 **Left open**: the three profile edit modals keep 32px chip-remove buttons (pre-existing, a
-denser design); the header's own icon buttons are 40px (outside `main`; the "Aa" is 44); no
+denser design); the header's icon buttons, the "Aa" included, are 36px (outside `main`, and the bar must not grow); no
 reduced-motion audit beyond what the drawer already honours; no dyslexia-friendly font option;
 the audit is still axe (about a third of WCAG by its own account) — no screen-reader pass.
 

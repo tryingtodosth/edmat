@@ -61,6 +61,7 @@ async function register(page, label) {
 	await page.locator('form input[type="text"]').first().fill(label);
 	await page.locator('form input[type="email"]').fill(email);
 	await page.locator('form input[type="password"]').fill('Kw9-vortexline-42');
+	await page.locator('form input[inputmode="numeric"]').fill('1990'); // birth year (§17AP)
 	await page.locator('form button[type="submit"]').click();
 	await settle(page, 2200);
 	return email;
@@ -79,9 +80,9 @@ check(
 	// plain `.count()` sees both. What this check has always meant is "a visitor is offered the link",
 	// which is a question about what is visible.
 	'the nav links to courses',
-	(await stranger.locator('nav a[href$="/classroom"]:visible').count()) === 1
+	(await stranger.locator('nav a[href$="/courses"]:visible').count()) === 1
 );
-await goto(stranger, '/classroom');
+await goto(stranger, '/courses');
 check('the browse page renders', (await stranger.locator('h1').innerText()).length > 0);
 
 console.log('\n[2] An instructor creates a course — and it starts as a draft');
@@ -89,17 +90,18 @@ console.log('\n[2] An instructor creates a course — and it starts as a draft')
 // behind, so a fixed title would make "is my draft hidden?" match somebody else's published course.
 const COURSE_TITLE = `Analiza od zera ${Date.now()}`;
 await register(teacher, 'teacher');
-await goto(teacher, '/classroom/new');
+await goto(teacher, '/courses/new');
 await teacher.locator('form input[type="text"]').first().fill(COURSE_TITLE);
 await teacher
 	.locator('form input[type="text"]')
 	.nth(1)
 	.fill('Od ciągów do całek, w dziesięć tygodni');
 await teacher.locator('form textarea').first().fill('Spotkania w czwartki.');
+await teacher.locator('form select:has(option[value="university"])').selectOption('university'); // audience band (§17AL)
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 2200);
 const courseUrl = teacher.url();
-check('landed on the new course', /\/classroom\/\d+$/.test(courseUrl), courseUrl);
+check('landed on the new course', /\/courses\/\d+$/.test(courseUrl), courseUrl);
 let teacherText = await teacher.locator('.page').innerText();
 check(
 	'the instructor is told it is theirs',
@@ -108,7 +110,7 @@ check(
 );
 
 const courseId = courseUrl.split('/').pop();
-await goto(stranger, '/classroom');
+await goto(stranger, '/courses');
 let strangerText = await stranger.locator('.page').innerText();
 check(
 	'a draft is invisible to everybody else',
@@ -117,17 +119,20 @@ check(
 );
 
 console.log('\n[3] Publishing it, with approval required');
-await goto(teacher, `/classroom/${courseId}/edit`);
-await teacher.locator('form select').first().selectOption('open');
-await teacher.locator('form select').nth(1).selectOption('approval');
+await goto(teacher, `/courses/${courseId}/edit`);
+// By option rather than position: the audience band select (§17AL) now comes first on the form.
+await teacher.locator('form select:has(option[value="running"])').selectOption('open');
+await teacher
+	.locator('form select:has(option[value="approval"]):not(:has(option[value="staff"]))')
+	.selectOption('approval');
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 2000);
-await goto(stranger, '/classroom');
+await goto(stranger, '/courses');
 strangerText = await stranger.locator('.page').innerText();
 check('now it is listed publicly', strangerText.includes(COURSE_TITLE), strangerText.slice(0, 300));
 
 console.log('\n[4] A lesson: public blurb, participant-only notes');
-await goto(teacher, `/classroom/${courseId}`);
+await goto(teacher, `/courses/${courseId}`);
 await teacher.locator('.add-lesson input[type="text"]').fill('Ciągi');
 await teacher.locator('.add-lesson textarea').fill('Link do spotkania: example.invalid/zoom');
 await teacher.locator('.add-lesson button[type="submit"]').click();
@@ -136,7 +141,7 @@ teacherText = await teacher.locator('.page').innerText();
 check('the instructor sees the lesson', /Ciągi/.test(teacherText));
 check('and its notes', /example\.invalid/.test(teacherText));
 
-await goto(stranger, `/classroom/${courseId}`);
+await goto(stranger, `/courses/${courseId}`);
 strangerText = await stranger.locator('.page').innerText();
 check('a stranger sees the lesson exists', /Ciągi/.test(strangerText));
 check('but not the notes', !/example\.invalid/.test(strangerText), strangerText.slice(0, 400));
@@ -148,7 +153,7 @@ check(
 
 console.log('\n[5] A student asks to join, and waits');
 await register(student, 'student');
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 await student.locator('.enrol textarea').fill('Jestem na drugim roku');
 await student.locator('.enrol button').click();
 await settle(student, 1800);
@@ -161,7 +166,7 @@ check(
 check('a pending request does not unlock the notes', !/example\.invalid/.test(studentText));
 
 console.log('\n[6] The instructor sees the request, with the note, and approves');
-await goto(teacher, `/classroom/${courseId}`);
+await goto(teacher, `/courses/${courseId}`);
 teacherText = await teacher.locator('.page').innerText();
 check('the request is listed', /Requests waiting: 1/i.test(teacherText), teacherText.slice(-600));
 check('with what the student wrote', /drugim roku/.test(teacherText));
@@ -171,7 +176,7 @@ teacherText = await teacher.locator('.page').innerText();
 check('they are now a participant', /Taking part: 1/i.test(teacherText), teacherText.slice(-600));
 
 console.log('\n[7] Being in the course is what unlocks it');
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 studentText = await student.locator('.page').innerText();
 check('the student is told they are in', /taking part in this course/i.test(studentText));
 check(
@@ -182,7 +187,7 @@ check(
 check('and can see who else is here', /Taking part: 1/i.test(studentText));
 
 console.log('\n[8] My courses splits teaching from taking part');
-await goto(teacher, '/classroom/mine');
+await goto(teacher, '/courses/mine');
 const teacherMine = await teacher.locator('.page').innerText();
 check('the instructor sees it under courses they run', /Courses you run/i.test(teacherMine));
 check(
@@ -191,13 +196,13 @@ check(
 	teacherMine.slice(-400)
 );
 
-await goto(student, '/classroom/mine');
+await goto(student, '/courses/mine');
 const studentMine = await student.locator('.page').innerText();
 check('the student sees it under courses they take', studentMine.includes(COURSE_TITLE));
 check('and runs nothing', /not running any courses/i.test(studentMine), studentMine.slice(0, 400));
 
 console.log('\n[9] Leaving gives the seat back');
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 await student.locator('.enrol button', { hasText: 'Leave' }).click();
 await settle(student, 1800);
 // Scoped to the enrolment section on purpose: the discussion notice for non-participants contains
@@ -210,7 +215,7 @@ check(
 );
 studentText = await student.locator('.page').innerText();
 check('and the notes are locked again', !/example\.invalid/.test(studentText));
-await goto(teacher, `/classroom/${courseId}`);
+await goto(teacher, `/courses/${courseId}`);
 teacherText = await teacher.locator('.page').innerText();
 check(
 	'the roster is empty again',
@@ -219,22 +224,24 @@ check(
 );
 
 console.log('\n[10] A full course refuses, in its own words');
-await goto(teacher, `/classroom/${courseId}/edit`);
-await teacher.locator('form select').nth(1).selectOption('open'); // anyone may join
+await goto(teacher, `/courses/${courseId}/edit`);
+await teacher
+	.locator('form select:has(option[value="approval"]):not(:has(option[value="staff"]))')
+	.selectOption('open'); // anyone may join
 await teacher.locator('form input[type="number"]').fill('0');
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 1800);
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 await student.locator('.enrol button', { hasText: 'Join' }).click();
 await settle(student, 1600);
-await goto(teacher, `/classroom/${courseId}/edit`);
+await goto(teacher, `/courses/${courseId}/edit`);
 await teacher.locator('form input[type="number"]').fill('1');
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 1800);
 
 const second = await person('second-student');
 await register(second, 'second');
-await goto(second, `/classroom/${courseId}`);
+await goto(second, `/courses/${courseId}`);
 const secondText = await second.locator('.page').innerText();
 check(
 	'a second person is told the course is full',
@@ -244,23 +251,23 @@ check(
 check('and is shown no join button', (await second.locator('.enrol button').count()) === 0);
 
 console.log('\n[11] The cap cannot be cut below the people already in');
-await goto(teacher, `/classroom/${courseId}/edit`);
+await goto(teacher, `/courses/${courseId}/edit`);
 await teacher.locator('form input[type="number"]').fill('0');
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 1500);
 // 0 means uncapped, which is allowed. Setting a real cap below the roster is what must fail.
-await goto(teacher, `/classroom/${courseId}`);
+await goto(teacher, `/courses/${courseId}`);
 teacherText = await teacher.locator('.page').innerText();
 check('uncapped is accepted', /Taking part: 1/i.test(teacherText), teacherText.slice(-400));
 
 console.log('\n[12] Discussion: participants only by default');
 // Back to an approval-free, uncapped course with the student in it, so the thread has two people.
-await goto(teacher, `/classroom/${courseId}/edit`);
+await goto(teacher, `/courses/${courseId}/edit`);
 await teacher.locator('form input[type="number"]').fill('0');
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 1600);
 
-await goto(stranger, `/classroom/${courseId}`);
+await goto(stranger, `/courses/${courseId}`);
 strangerText = await stranger.locator('.page').innerText();
 check(
 	'a stranger is told the discussion is for participants',
@@ -269,14 +276,14 @@ check(
 );
 check('and gets no composer', (await stranger.locator('.discussion textarea').count()) === 0);
 
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 await student.locator('.discussion textarea').first().fill('Czy będą zadania domowe?');
 await student.locator('.discussion button[type="submit"]').first().click();
 await settle(student, 1800);
 studentText = await student.locator('.page').innerText();
 check('a participant can post', /zadania domowe/.test(studentText), studentText.slice(-600));
 
-await goto(teacher, `/classroom/${courseId}`);
+await goto(teacher, `/courses/${courseId}`);
 teacherText = await teacher.locator('.page').innerText();
 check('and the instructor sees it', /zadania domowe/.test(teacherText));
 
@@ -285,17 +292,17 @@ await goto(teacher, '/notifications');
 const notifText = await teacher.locator('.page, main').first().innerText();
 check('a post notification arrived', /posted in/i.test(notifText), notifText.slice(0, 500));
 const notifHref = await teacher
-	.locator(`a[href$="/classroom/${courseId}"]`)
+	.locator(`a[href$="/courses/${courseId}"]`)
 	.first()
 	.getAttribute('href');
 check('and links to the course', Boolean(notifHref), String(notifHref));
 
 console.log('\n[14] A public thread is readable by anyone, writable only by participants');
-await goto(teacher, `/classroom/${courseId}/edit`);
+await goto(teacher, `/courses/${courseId}/edit`);
 await teacher.locator('fieldset select').first().selectOption('public');
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 1800);
-await goto(stranger, `/classroom/${courseId}`);
+await goto(stranger, `/courses/${courseId}`);
 strangerText = await stranger.locator('.page').innerText();
 check('a stranger can now read it', /zadania domowe/.test(strangerText), strangerText.slice(-600));
 check(
@@ -305,26 +312,26 @@ check(
 );
 
 console.log('\n[15] Turning the discussion off removes it entirely');
-await goto(teacher, `/classroom/${courseId}/edit`);
+await goto(teacher, `/courses/${courseId}/edit`);
 await teacher.locator('fieldset select').first().selectOption('off');
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 1800);
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 studentText = await student.locator('.page').innerText();
 check('a participant no longer sees the thread', !/zadania domowe/.test(studentText));
 check('nor a heading for it', !/Discussion/i.test(studentText), studentText.slice(-400));
 
 console.log('\n[16] Muting one course, without leaving it');
-await goto(teacher, `/classroom/${courseId}/edit`);
+await goto(teacher, `/courses/${courseId}/edit`);
 await teacher.locator('fieldset select').first().selectOption('participants');
 await teacher.locator('form button[type="submit"]').click();
 await settle(teacher, 1600);
 
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 check('the mute control is offered', (await student.locator('.mute input').count()) === 1);
 await student.locator('.mute input').uncheck();
 await settle(student, 1500);
-await goto(teacher, `/classroom/${courseId}`);
+await goto(teacher, `/courses/${courseId}`);
 await teacher.locator('.add-lesson input[type="text"]').fill('Całki');
 await teacher.locator('.add-lesson button[type="submit"]').click();
 await settle(teacher, 1800);
@@ -335,7 +342,7 @@ check(
 	!/Całki/.test(studentNotifs),
 	studentNotifs.slice(0, 400)
 );
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 check(
 	'and the person is still in the course',
 	/You are taking part/i.test(await student.locator('.enrol').innerText())

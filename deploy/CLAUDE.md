@@ -4,7 +4,9 @@
 `UPDATE-2026-08-10.md` (the breaking-upgrade runbook — taxonomy rename etc., applied
 2026-08-10), `UPDATE-2026-08-25.md` (the claims/first-paint release — the shape a routine,
 additive update should take), `UPDATE-2026-08-28.md` (the solution-pool + activity release —
-NOT purely additive: `exercises.0011` drops two columns; the step-0 backup is the rollback), `apache/edmat.conf` + `edmat-stage1-http-only.conf` (the real vhosts: TLS, and the
+NOT purely additive: `exercises.0011` drops two columns; the step-0 backup is the rollback),
+`UPDATE-2026-09-09.md` (the lifelong-learning first pass — 23 additive migrations, one data step,
+no env/package/vhost change), `apache/edmat.conf` + `edmat-stage1-http-only.conf` (the real vhosts: TLS, and the
 pre-certificate bootstrap).
 
 ## Production shape — facts that constrain code

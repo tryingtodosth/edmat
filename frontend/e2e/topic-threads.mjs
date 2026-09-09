@@ -118,11 +118,12 @@ check(
 );
 check(
 	'with a "change" escape back to the manual pickers',
-	(await page.getByRole('button', { name: 'change' }).count()) === 1
+	(await page.getByRole('button', { name: 'change', exact: true }).count()) === 1
 );
 
 // 3. Publish into the thread.
 await page.locator('.composer textarea').fill(`${MARKER}: my two cents on this topic.`);
+await page.locator('.composer select:has(option[value="university"])').selectOption('university'); // audience band (§17AL)
 await page.getByRole('button', { name: 'Publish' }).click();
 await settle(1400);
 const posted = page.locator('.post', { hasText: MARKER }).first();

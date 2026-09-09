@@ -271,11 +271,11 @@ check(
 await goto(anon, '/?tab=activity');
 check(
 	'the Activity tab renders newest actions',
-	(await anon.locator('.activity__row').count()) > 0
+	(await anon.locator('.activity .row').count()) > 0
 );
 check(
 	'including a new-solution row',
-	(await anon.locator('.activity__kind', { hasText: 'New solution' }).count()) > 0
+	(await anon.locator('.activity .row__kind', { hasText: /solution/i }).count()) > 0
 );
 
 // ---------------------------------------------------------------- cleanup (API, kasia's token)

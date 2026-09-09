@@ -55,6 +55,12 @@ const settle = (page, ms = 900) => page.waitForTimeout(ms);
 /** Management lives in collapsed drawers now, so anything that drives those forms opens one first.
  * Idempotent: a drawer already open is left alone rather than toggled shut. */
 async function openDrawer(page, name) {
+	// Running the course lives on its own page now (/courses/{id}/manage); the course page only
+	// links to it. Hop there when the drawers are not on the current page.
+	if ((await page.locator('.manage__group').count()) === 0) {
+		const m = page.url().match(/\/courses\/(\d+)/);
+		if (m) await goto(page, `/courses/${m[1]}/manage`);
+	}
 	const summary = page.locator('.manage__group > summary', { hasText: name }).first();
 	if ((await summary.count()) === 0) return;
 	const alreadyOpen = await summary.evaluate(
@@ -74,6 +80,7 @@ async function register(page, label) {
 	await page.locator('form input[type="text"]').first().fill(label);
 	await page.locator('form input[type="email"]').fill(email);
 	await page.locator('form input[type="password"]').fill('Kw9-vortexline-42');
+	await page.locator('form input[inputmode="numeric"]').fill('1990'); // birth year (§17AP)
 	await page.locator('form button[type="submit"]').click();
 	await settle(page, 2200);
 	return email;
@@ -84,7 +91,8 @@ async function register(page, label) {
  * Asked of the API from Node rather than from the page: the frontend talks to a different origin
  * (PUBLIC_API_BASE_URL), so a same-origin fetch inside the browser would hit the dev server's HTML
  * fallback and parse a document as JSON. */
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8000/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8000').replace(/\/api\/?$/, '') + '/api';
 async function accountId(email) {
 	const login = await fetch(`${API}/auth/login/`, {
 		method: 'POST',
@@ -104,31 +112,35 @@ const invitee = await person('invitee');
 console.log('\n[1] A course is created, and its author owns it');
 const TITLE = `Topologia ${Date.now()}`;
 await register(owner, 'owner');
-await goto(owner, '/classroom/new');
+await goto(owner, '/courses/new');
 await owner.locator('form input[type="text"]').first().fill(TITLE);
 // The new setting is on the create form, not buried in a second screen.
 check('the contribution policy is on the form', (await owner.locator('form select').count()) >= 4);
+await owner.locator('form select:has(option[value="university"])').selectOption('university'); // audience band (§17AL)
 await owner.locator('form button[type="submit"]').click();
 await settle(owner, 2200);
 const courseUrl = owner.url();
 const courseId = courseUrl.split('/').pop();
-check('landed on the new course', /\/classroom\/\d+$/.test(courseUrl), courseUrl);
+check('landed on the new course', /\/courses\/\d+$/.test(courseUrl), courseUrl);
 
 // Published, so the other three can reach it at all.
-await goto(owner, `/classroom/${courseId}/edit`);
-await owner.locator('form select').first().selectOption('open');
+await goto(owner, `/courses/${courseId}/edit`);
+// By option rather than position: the audience band select (§17AL) now comes first on the form.
+await owner.locator('form select:has(option[value="running"])').selectOption('open');
 await owner.locator('form button[type="submit"]').click();
 await settle(owner, 2000);
 
-await goto(owner, `/classroom/${courseId}`);
+await goto(owner, `/courses/${courseId}`);
 let text = await owner.locator('.page').innerText();
 check('the owner is offered the management drawers', /Manage this course/i.test(text));
+await goto(owner, `/courses/${courseId}/manage`);
+text = await owner.locator('.page, main').first().innerText();
 check('including invite links', /Invite links/i.test(text));
 
 console.log('\n[2] A second person is made an administrator');
 const coAdminEmail = await register(coAdmin, 'coadmin');
 const coAdminId = await accountId(coAdminEmail);
-await goto(owner, `/classroom/${courseId}`);
+await goto(owner, `/courses/${courseId}`);
 await openDrawer(owner, 'Who runs it');
 await owner.locator('.staff input[type="text"]').fill(coAdminId);
 await owner.locator('.staff select').last().selectOption('admin');
@@ -138,7 +150,7 @@ await openDrawer(owner, 'Who runs it');
 text = await owner.locator('.staff').innerText();
 check('the new administrator is listed', /coadmin/i.test(text), text.slice(0, 400));
 
-await goto(coAdmin, `/classroom/${courseId}`);
+await goto(coAdmin, `/courses/${courseId}`);
 const coText = await coAdmin.locator('.page').innerText();
 check('the co-admin can run it too', /Manage this course/i.test(coText));
 check('and can mint links', /Invite links/i.test(coText));
@@ -149,7 +161,7 @@ check(
 );
 
 console.log('\n[3] Chapters, one of which has not opened yet');
-await goto(owner, `/classroom/${courseId}`);
+await goto(owner, `/courses/${courseId}`);
 await openDrawer(owner, 'Chapters and content');
 await owner.locator('.chapter-new input[type="text"]').fill('Week 1');
 await owner.locator('.chapter-new button[type="submit"]').click();
@@ -166,7 +178,7 @@ check('staff are told the later one is still shut', /Not open to participants ye
 
 console.log('\n[4] A participant joins and contributes');
 await register(student, 'student');
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 await student
 	.getByRole('button', { name: /Join|Request/i })
 	.first()
@@ -192,16 +204,16 @@ check(
 );
 
 console.log('\n[5] It is invisible to another participant until it is approved');
-await goto(coAdmin, `/classroom/${courseId}`);
+await goto(coAdmin, `/courses/${courseId}`);
 let cText = await coAdmin.locator('.page').innerText();
 check('staff see it in the review queue', /Waiting for review/i.test(cText));
 
-await goto(invitee, `/classroom/${courseId}`);
+await goto(invitee, `/courses/${courseId}`);
 const outsiderText = await invitee.locator('.page').innerText();
 check('a logged-out visitor sees no pending content', !/Waiting for review/i.test(outsiderText));
 
 console.log('\n[6] A co-admin approves it — approval is not the owner’s alone');
-await goto(coAdmin, `/classroom/${courseId}`);
+await goto(coAdmin, `/courses/${courseId}`);
 await openDrawer(coAdmin, 'Waiting for review');
 await coAdmin.locator('.queue button.primary').first().click();
 await settle(coAdmin, 2200);
@@ -211,23 +223,23 @@ check(
 		(await coAdmin.locator('.queue li').count()) === 0
 );
 
-await goto(student, `/classroom/${courseId}`);
+await goto(student, `/courses/${courseId}`);
 sText = await student.locator('.page').innerText();
 check('the contributor no longer sees it pending', !/Waiting for review/i.test(sText));
 check('and the content is in the course', /Material/i.test(sText));
 
 console.log('\n[7] Joining by link');
-await goto(owner, `/classroom/${courseId}`);
+await goto(owner, `/courses/${courseId}`);
 await openDrawer(owner, 'Invite links');
 await owner.locator('.invites button[type="submit"]').click();
 await settle(owner, 2000);
 const link = await owner.locator('.invites input.url').first().inputValue();
-check('a link is minted', /\/classroom\/join\/.+/.test(link), link);
+check('a link is minted', /\/courses\/join\/.+/.test(link), link);
 const token = link.split('/').pop();
 
 // Readable while logged out, on purpose.
 const anon = await person('anon');
-await goto(anon, `/classroom/join/${token}`);
+await goto(anon, `/courses/join/${token}`);
 const anonText = await anon.locator('main.join').innerText();
 check(
 	'the preview names the course without an account',
@@ -238,19 +250,19 @@ check('and offers to log in rather than joining', /Log in to accept/i.test(anonT
 check('while leaking nothing else', !/Invite links/i.test(anonText));
 
 await register(invitee, 'invitee');
-await goto(invitee, `/classroom/join/${token}`);
+await goto(invitee, `/courses/join/${token}`);
 await invitee.getByRole('button', { name: /^Join$/i }).click();
 await settle(invitee, 2500);
 check(
 	'following the link lands inside the course',
-	invitee.url().includes(`/classroom/${courseId}`),
+	invitee.url().includes(`/courses/${courseId}`),
 	invitee.url()
 );
 const iText = await invitee.locator('.page').innerText();
 check('and they are really in it', !/Request to join|^Join$/m.test(iText));
 
 console.log('\n[8] A revoked link stops working');
-await goto(owner, `/classroom/${courseId}`);
+await goto(owner, `/courses/${courseId}`);
 await openDrawer(owner, 'Invite links');
 await owner.locator('.invites button.link').first().click();
 await settle(owner, 1800);
@@ -259,7 +271,7 @@ text = await owner.locator('.invites').innerText();
 check('the link is marked revoked, not deleted', /Revoked/i.test(text), text.slice(0, 300));
 
 const late = await person('late');
-await goto(late, `/classroom/join/${token}`);
+await goto(late, `/courses/join/${token}`);
 const lateText = await late.locator('main.join').innerText();
 check('and a fresh visitor is refused', /no longer works/i.test(lateText), lateText.slice(0, 200));
 

@@ -17,7 +17,8 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8011/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8011').replace(/\/api\/?$/, '') + '/api';
 const PASSWORD = 'Kw9-vortexline-42';
 
 let pass = 0;
@@ -73,6 +74,7 @@ async function register(page, label) {
 	await page.locator('form input[type="text"]').first().fill(label);
 	await page.locator('form input[type="email"]').fill(email);
 	await page.locator('form input[type="password"]').fill(PASSWORD);
+	await page.locator('form input[inputmode="numeric"]').fill('1990'); // birth year (§17AP)
 	await page.locator('form button[type="submit"]').click();
 	await settle(page, 2200);
 	return email;
@@ -129,8 +131,10 @@ await host.getByLabel('Title', { exact: true }).fill(TITLE);
 // Since fd70011 the date is optional: pick the "exact" scheduling mode so the field renders.
 await host.locator('input[name="event-scheduling"][value="exact"]').check({ force: true });
 await host.locator('input[name="event-visibility"][value="public"]').check({ force: true });
-await host.locator('input[type="datetime-local"]').waitFor();
-await host.locator('input[type="datetime-local"]').fill(whenLocal);
+await host.locator('input[type="datetime-local"]').first().waitFor();
+await host.locator('input[type="datetime-local"]').first().fill(whenLocal);
+await host.locator('form select:has(option[value="university"])').selectOption('university'); // audience band (§17AL)
+
 await placeInput(host).fill('Sala 101');
 const firstSubjectLabel = (await host.locator('.subjects .check span').first().innerText()).trim();
 await subjectBoxes.first().check();

@@ -744,6 +744,91 @@ Two of its checks exist because of bugs a screenshot found and no assertion woul
 first rendered with no card at all (its colour tokens were invented rather than the ones
 `_theme.scss` defines), and a chapter hit printed its own title again as its "where" line.
 
+### The 2026-09-09 full run — every script, against a fresh dev server (commit after `6ca6ce2`)
+
+Backend 8011 (`EDMAT_USOS_MOCK=true`), Vite 5183 (`--mode e2e`), `E2E_API=http://127.0.0.1:8011`
+(every script now accepts it with or without a trailing `/api`), `backend/cachedata/*` cleared before
+each script. The static-build pair ran against `vite preview` on 5174 of a fresh `npm run build`.
+
+| Script | Result | Notes |
+|---|---|---|
+| activity-feed | 20/20 | reference picker is language-narrowed (§17AQ): the script now gives ola Polish content |
+| audience-bands | 21/21 | listing created as `language: 'en'`; Settings Save targeted by `form.edit-form` |
+| booking | 51/51 | Settings Save targeted by `form.edit-form` (the guardian panel's form came first) |
+| classroom | ✗ | pre-overhaul course page script: lesson form (`.add-lesson`) rewritten since — see below |
+| classroom-overhaul | ✗ | same vintage: chapter form (`.chapter-new`) rewritten since — see below |
+| comment-attachments | 10/10 | |
+| course-claims | 13/13 | picks an unclaimed topic; tolerates the known attachments-404 console line |
+| course-content-links | 23/23 | |
+| course-lessons-linking | 29/29 | chapter dialog fields are textareas; filing goes through the title picker |
+| course-search | 24/24 | **a real backend fix** — see below |
+| education-auth | 42/42 | birth year on the register form; the education card is a dialog on the profile now |
+| event-contributions | 19/19 | |
+| event-programme | 23/23 | |
+| event-registration | 26/26 | |
+| events-and-nav | 92/92 | a full event waitlists instead of refusing (§17AN); event form needs a band; guest reads Polish |
+| exercise-claims | 12/12 | picks an unclaimed topic |
+| fcp | see log | static build, throttled — numbers in `scratchpad/e2e10/fcp.log` of the session |
+| guardian-accounts | 17/17 | |
+| issue-reports | 34/34 | login field locator; the "Aa" button matched to the bar's 36px icons |
+| known-issues | 23/23 | two `datetime-local` inputs now (`runs_until`); event form needs a band |
+| login-return | 5/5 | |
+| material-claims | 14/14 | |
+| material-claims-rework | 28/28 | picks an unclaimed topic; the anonymous "empty" check tolerates an earlier run's claim |
+| navbar-stages | 51/51 | stamped rows created as `language: 'en'` |
+| pdf-preview | 7/7 | |
+| phone-navbar | 12/12 | |
+| prerender-check | see log | static build on 5174 |
+| reading-comfort | 17/17 | new this release |
+| rich-editor | 11/11 | |
+| schedule-editing | 36/36 | |
+| solution-entries | 27/27 | the homepage Activity tab's row classes (§17AI rebuilt the feed) |
+| sorting-and-languages | 15/15 | |
+| taxonomy-other | 8/8 | `/submit` needs a band |
+| topic-threads | 14/14 | `change` matched by exact name (the "Aa" label also says "change") |
+| profile-overhaul, profile-exercise-counts, tutoring-* | not run | need their own seed / env (see their headers) |
+
+**The one real bug this run found — `courses/views.py`.** The site-wide `?q=` browse filter (§17AA)
+was applied to every action of the course viewset, and the per-course `search` action reads the
+same `q` for the term it looks for *inside* the course while resolving the course through
+`get_object()` on that queryset — so any term absent from the course's own title 404'd. This is what
+the "26 failing `CourseSearchTests`" pre-existing note in §17AC was; the filter is now list-only and
+the suite is 31/31 (courses app 350/350).
+
+**Drift classes this run repaired across the scripts, none an app bug** (all also in
+`e2e/CLAUDE.md`): the login field is `input[autocomplete="username"]`; the register form requires a
+birth year; every submit form requires an audience band (`form select:has(option[value="university"])`);
+lists are narrowed to the reader's languages, so a script that reads Polish rows in an English
+context must give the account `content_locales: ['pl']` or create its rows in English; the settings
+page has more than one form (target `form.edit-form`); positional `.field select` indices shifted
+when the composer gained language and band selects; the course page's management drawers moved to
+`/courses/{id}/manage`; `/classroom` is `/courses`.
+
+**Cleaning up after the claim scripts** (they cannot delete their claims — there is no delete
+endpoint — and a second run must not find them): from `backend/`,
+
+```sh
+../.venv/bin/python3 manage.py shell -c "
+from materials.models import MaterialCoverage, MaterialCoverageVote, MaterialCoverageImportanceVote
+from courses.models import CourseClaim
+from exercises.models import ExerciseClaim
+from django.contrib.auth import get_user_model
+ola = get_user_model().objects.get(username='u-ola')
+claims = MaterialCoverage.objects.filter(material_id=1)
+MaterialCoverageVote.objects.filter(coverage__in=claims, voter=ola).delete()
+MaterialCoverageImportanceVote.objects.filter(coverage__in=claims, voter=ola).delete()
+MaterialCoverage.objects.filter(material_id=1, kind='requires').delete()
+CourseClaim.objects.filter(course_id=6, proposed_by=ola).delete()
+ExerciseClaim.objects.filter(exercise_id=51, proposed_by=ola).delete()"
+```
+
+**`classroom.mjs` and `classroom-overhaul.mjs` are left red on purpose.** They predate every
+rewrite of the course page and each repair uncovered the next changed form (route, create form,
+policy selects, management drawers, then the lesson and chapter forms). The four newer course
+scripts — `course-search`, `course-content-links`, `course-lessons-linking`, `course-claims` — cover
+the same ground and are green; rewriting the two old ones against the current page is the honest
+next step, on the todo board, not a bug to fix.
+
 ### Two things worth knowing before you debug a failure
 
 - **They talk to a real, persistent database.** Both scripts create their own accounts and use a

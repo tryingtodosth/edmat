@@ -49,6 +49,25 @@ test-runner suite.
     script written before then times out at sign-in in a way that reads like a broken page. Use
     `form input[autocomplete="username"]` (the register form keeps a real email input).
 
+14. **Every submit form requires an audience band** (§17AL) — select it by option, never by
+    position: `form select:has(option[value="university"])`. The band select is often the FIRST
+    select on the form now, so `form select').first()` picks the wrong control.
+15. **The register form requires a birth year**: `form input[inputmode="numeric"]` (§17AP).
+16. **Lists are narrowed to the reader's languages** (§17AQ). The corpus is Polish and a fresh
+    context reads the English interface, so a browse list, a search picker or a reference picker
+    can honestly be EMPTY for the rows a script just created. Either create rows with
+    `language: 'en'`, give the account `content_locales: ['pl']` (`PATCH /api/auth/me/`), or set
+    `localStorage['edmat.contentLocales'] = '["pl"]'` in a signed-out context.
+17. **The settings page holds several forms** (the guardian panel has its own) — the Save you
+    mean is `form.edit-form button[type="submit"]`.
+18. **Running a course lives at `/courses/{id}/manage`** (the course page only links there); the
+    chapter/lesson dialogs edit titles in `textarea`s, and the "Add something" panel is a title
+    search picker, not an id box (§17AC).
+19. **The claim scripts leave their claims behind** (no delete endpoint) and claims are unique per
+    kind+topic — run the cleanup snippet in `test.md` before a re-run.
+20. **`getByRole('button', { name })` matches substrings** — the header's "Aa" button's label
+    says "Press to change", so `{ name: 'change' }` needs `exact: true`.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

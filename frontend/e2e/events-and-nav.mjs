@@ -26,7 +26,8 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8000/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8000').replace(/\/api\/?$/, '') + '/api';
 const PASSWORD = process.env.E2E_DEMO_PASSWORD ?? 'password123';
 const HOST = 'kasia@edmat.example';
 const GOER = 'michal@edmat.example';
@@ -363,6 +364,7 @@ await field(/^Starts/).evaluate((el) => {
 	el.dispatchEvent(new Event('input', { bubbles: true }));
 	el.dispatchEvent(new Event('change', { bubbles: true }));
 });
+await hostPage.locator('form select:has(option[value="university"])').selectOption('university'); // audience band (§17AL)
 await hostPage.locator('form button[type="submit"]').click();
 await hostPage.waitForURL(/\/events\/\d+/, { timeout: 10000 });
 await settle(hostPage, 1200);
@@ -421,13 +423,14 @@ await seat(otherPage, otherToken);
 await goto(otherPage, `/events/${eventId}`);
 let otherView = await otherPage.locator('.page').innerText();
 check(
-	'a third person is told it is full',
-	/This event is full/i.test(otherView),
+	'a third person is offered the waiting list instead of a refusal (§17AN)',
+	/waiting list/i.test(otherView),
 	otherView.slice(0, 700)
 );
 check(
 	'and is not left with an unexplained dead button',
-	/Going: 1 · Wolne|Going: 1 · 0 of 1|0 of 1 places left/.test(otherView) || /full/i.test(otherView)
+	/Going: 1 · Wolne|Going: 1 · 0 of 1|0 of 1 places left/.test(otherView) ||
+		/full|waiting list/i.test(otherView)
 );
 
 // The person holding the seat can still change their mind, and that frees it.
@@ -444,11 +447,18 @@ await settle(otherPage, 1200);
 otherView = await otherPage.locator('.page').innerText();
 check(
 	'and the freed seat is offered to the next person',
-	!/This event is full/i.test(otherView),
+	!/This event is full/i.test(otherView) && /Register|I am going|going/i.test(otherView),
 	otherView.slice(0, 500)
 );
 
 console.log('\n[9] It shows up on the events page, the homepage tab, and your own schedule');
+// The event was created through the form, which stores it as Polish (the site's content default),
+// and a signed-out English-interface reader would see it hidden behind the language notice
+// (§17AQ). Read Polish content in this context, as a Polish visitor would.
+await goto(guestPage, '/');
+await guestPage.evaluate(() =>
+	localStorage.setItem('edmat.contentLocales', JSON.stringify(['pl']))
+);
 await goto(guestPage, '/events');
 const browse = await guestPage.locator('.page').innerText();
 check('a signed-out visitor can browse events', browse.includes(TITLE), browse.slice(0, 400));

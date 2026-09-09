@@ -64,7 +64,14 @@ async function add(kind, level) {
 	await group(kind).locator('.add-trigger').click();
 	const dialog = page.locator('[role="dialog"]');
 	await dialog.waitFor();
-	await dialog.locator('select').selectOption({ index: kind === 'covers' ? 0 : 1 });
+	// Pick a topic this group does not already carry (claims are unique per kind+topic and the
+	// script leaves its own behind — no delete endpoint — so a fixed index collides on a re-run).
+	const opts = await dialog.locator('select option').allTextContents();
+	const already = (await group(kind).locator('button.coverage-badge').allTextContents()).join(' ');
+	let index = kind === 'covers' ? 0 : 1;
+	while (index < opts.length - 1 && opts[index].trim() && already.includes(opts[index].trim()))
+		index++;
+	await dialog.locator('select').selectOption({ index });
 	await dialog.locator('input.level-box').fill(String(level));
 	await dialog.getByRole('button', { name: /Propose/ }).click();
 	await settle(900);

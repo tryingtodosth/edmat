@@ -20,7 +20,8 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5175';
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8010/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8010').replace(/\/api\/?$/, '') + '/api';
 
 let pass = 0;
 let fail = 0;
@@ -111,6 +112,10 @@ const EVENT_ID = event.body?.id;
 
 const materials = await api('/materials/');
 const MATERIAL_ID = materials.body?.[0]?.id;
+const MATERIAL_TITLE = materials.body?.[0]?.title;
+// The picker is a browse list, narrowed to the reader's languages (§17AQ); the corpus is Polish and
+// this account reads the English interface, so let it see Polish content.
+await api('/auth/me/', { method: 'PATCH', token: TOKEN, body: { content_locales: ['pl'] } });
 
 console.log(
 	`fixtures: course ${COURSE_ID}, chapter ${CHAPTER_ID}, event ${EVENT_ID}, material ${MATERIAL_ID}`
@@ -186,14 +191,14 @@ check(
 );
 check(
 	'it is prefilled with the current title',
-	(await chapterDialog.locator('input[type="text"]').first().inputValue()) === 'Week 1'
+	(await chapterDialog.locator('textarea').first().inputValue()) === 'Week 1'
 );
 check(
 	'and with the current description — which the inline row could not edit at all',
-	(await chapterDialog.locator('textarea').first().inputValue()) === 'Original description.'
+	(await chapterDialog.locator('textarea').nth(1).inputValue()) === 'Original description.'
 );
-await chapterDialog.locator('input[type="text"]').first().fill('Week 1 — revised');
-await chapterDialog.locator('textarea').first().fill('Rewritten in the dialog.');
+await chapterDialog.locator('textarea').first().fill('Week 1 — revised');
+await chapterDialog.locator('textarea').nth(1).fill('Rewritten in the dialog.');
 await chapterDialog.locator('button[type="submit"]').click();
 await settle(2000);
 
@@ -209,7 +214,7 @@ console.log('\n[3] Escape closes the dialog without saving');
 await goto(`/courses/${COURSE_ID}`);
 await page.locator('.chapter header button', { hasText: 'Edit' }).first().click();
 await settle(400);
-await page.locator('[role="dialog"] input[type="text"]').first().fill('Should not be saved');
+await page.locator('[role="dialog"] textarea').first().fill('Should not be saved');
 await page.keyboard.press('Escape');
 await settle(600);
 check('Escape closes it', (await page.locator('[role="dialog"]').count()) === 0);
@@ -248,7 +253,10 @@ console.log('\n[5] Filing into a chapter actually files it there');
 // The regression: this picker existed before and did nothing, because `chapter` was not a writable
 // field. A 201 proved nothing — only where the row landed does.
 await page.locator('.contribute select').nth(1).selectOption(`chapter:${CHAPTER_ID}`);
-await page.locator('.contribute input[type="text"]').first().fill(String(MATERIAL_ID));
+// The panel is a title search picker now (§17AC), not an id box.
+await page.locator('.contribute input[placeholder]').fill(MATERIAL_TITLE);
+await page.locator('.contribute .results button').first().waitFor({ timeout: 15000 });
+await page.locator('.contribute .results button').first().click();
 await page.locator('.contribute button[type="submit"]').click();
 await settle(2200);
 

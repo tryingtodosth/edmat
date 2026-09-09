@@ -207,8 +207,12 @@ class CourseViewSet(viewsets.ModelViewSet):
         # collapse removes the Courses link at narrow widths on the grounds that search still
         # reaches it, so this filter is what makes that claim true). Plain icontains on the two
         # human-written fields, matching MaterialViewSet's own `?q=` convention.
+        # Browse-only: the per-course `search` action reads the SAME `q` for the term it looks for
+        # inside the course, and it resolves the course through get_object() on this queryset — so
+        # applying this here for every action turned any term absent from the course's own title
+        # into a 404 (the whole CourseSearchTests suite failed that way from §17AA until now).
         q = self.request.query_params.get('q')
-        if q:
+        if q and self.action == 'list':
             qs = qs.filter(
                 Q(title__icontains=q) | Q(description__icontains=q)
             )

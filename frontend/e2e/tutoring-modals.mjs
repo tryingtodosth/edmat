@@ -15,7 +15,8 @@
 // really does not delete, and — the interesting one — that a 409 refusal lands inside the dialog
 // that asked the question rather than at the foot of a list the reader has stopped looking at.
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5176';
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8003/api';
+// E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
+const API = (process.env.E2E_API ?? 'http://127.0.0.1:8003').replace(/\/api\/?$/, '') + '/api';
 
 // Playwright is deliberately not a dependency of this repo — `npx playwright install chromium`.
 // Accepts `playwright-core` plus CHROME=/path/to/chrome as well, for a machine that has the

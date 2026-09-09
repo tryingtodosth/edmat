@@ -50,10 +50,15 @@ const groups = page.locator('section.claim-group');
 check('two claim groups render', (await groups.count()) >= 2);
 const coversBadges = groups.nth(0).locator('button.coverage-badge');
 check('covers group lists claims', (await coversBadges.count()) > 3);
+// On a first run the group is empty and says so; a re-run finds the claim an earlier run left
+// behind (there is no delete endpoint — see the cleanup note at the bottom), which is not a defect.
+const requiresBefore = await groups.nth(1).locator('button.coverage-badge').count();
 check(
-	'requires group is empty and says so',
-	(await groups.nth(1).locator('button.coverage-badge').count()) === 0 &&
-		(await groups.nth(1).locator('p.status').count()) === 1
+	"requires group is empty and says so (or carries only an earlier run's claim)",
+	requiresBefore === 0
+		? (await groups.nth(1).locator('p.status').count()) === 1
+		: requiresBefore >= 1,
+	`existing=${requiresBefore}`
 );
 await coversBadges.first().click();
 let dialog = page.locator('[role="dialog"]');
@@ -113,7 +118,25 @@ check(
 	(await dialog.locator('.add-coverage__intro').textContent()).includes('should already know')
 );
 const topicSelect = dialog.locator('select');
-const lastTopic = await topicSelect.locator('option').last().getAttribute('value');
+// Claims are unique per kind+topic and this script's own requirement claim is left behind (the
+// cleanup note at the bottom), so pick the last topic the Requires group does not already carry —
+// the fixed "last option" collided with the previous run's claim.
+const alreadyRequired = (
+	await page
+		.locator('section.claim-group')
+		.nth(1)
+		.locator('button.coverage-badge')
+		.allTextContents()
+).join(' ');
+const topicOptions = await topicSelect.locator('option').all();
+let lastTopic = await topicOptions[topicOptions.length - 1].getAttribute('value');
+for (let i = topicOptions.length - 1; i >= 0; i--) {
+	const text = ((await topicOptions[i].textContent()) ?? '').trim();
+	if (text && !alreadyRequired.includes(text)) {
+		lastTopic = await topicOptions[i].getAttribute('value');
+		break;
+	}
+}
 await topicSelect.selectOption(lastTopic);
 await dialog.locator('input.level-box').fill('35');
 check(
