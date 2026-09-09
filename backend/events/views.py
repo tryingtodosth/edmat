@@ -42,7 +42,10 @@ from .services import (
 _EventsFeatureGate = feature_gate('events')
 
 
-class EventViewSet(viewsets.ModelViewSet):
+from .agenda_views import ProgrammeMixin
+
+
+class EventViewSet(ProgrammeMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate]
 
     def get_queryset(self):
@@ -95,7 +98,7 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         visible = qs.filter(status__in=PUBLIC_STATUSES, visibility__in=PUBLIC_VISIBILITY)
         if user.is_authenticated:
-            visible = visible | qs.filter(host=user)
+            visible = visible | qs.filter(host=user) | qs.filter(staff__user=user)
         return visible.distinct()
 
     def _filtered(self, qs, user):

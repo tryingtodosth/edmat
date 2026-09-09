@@ -86,7 +86,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 	if (res.status === 204) return undefined as T;
 
 	const contentType = res.headers.get('content-type') ?? '';
-	const body = contentType.includes('application/json') ? await res.json() : undefined;
+	const body = contentType.includes('application/json')
+		? await res.json()
+		: contentType.startsWith('text/')
+			? await res.text()
+			: undefined;
 
 	if (!res.ok) throw new ApiError(res.status, body);
 	return body as T;
@@ -99,6 +103,10 @@ function toBody(data: unknown): string | undefined {
 export const apiClient = {
 	get<T>(path: string): Promise<T> {
 		return request<T>(withAudience(path));
+	},
+	/** A text response (an `.ics` export) — same headers, no JSON parse. */
+	getText(path: string): Promise<string> {
+		return request<string>(path);
 	},
 	post<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'POST', body: toBody(data) });

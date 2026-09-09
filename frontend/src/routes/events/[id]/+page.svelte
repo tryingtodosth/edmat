@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ApiError } from '$lib/api/client';
 	// One event: what it is, when, where, and the one decision a reader came here to make.
 	//
 	// The answer buttons are always BOTH shown once somebody has answered, rather than one button that
@@ -16,9 +17,40 @@
 	import type { EdmatEvent, EventAttendee } from '$lib/types/event';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import EventUpdates from '$lib/components/event/EventUpdates.svelte';
+	import Programme from '$lib/components/event/Programme.svelte';
+	import EventStaffPanel from '$lib/components/event/EventStaffPanel.svelte';
+	import {
+		addEventStaff,
+		getEventStaff,
+		removeEventStaff,
+		setEventStaffRole
+	} from '$lib/services/events';
+	import type { EventStaffMember, EventStaffRole } from '$lib/types/event';
 
 	let event = $state<EdmatEvent | null>(null);
 	let attendees = $state<EventAttendee[]>([]);
+	let staff = $state<EventStaffMember[]>([]);
+	let staffError = $state('');
+	async function loadStaff(ev: EdmatEvent) {
+		if (!ev.canOrganise) return;
+		try {
+			staff = await getEventStaff(ev.id);
+		} catch {
+			staff = [];
+		}
+	}
+	async function staffAction(run: () => Promise<unknown>) {
+		staffError = '';
+		try {
+			await run();
+			if (event) staff = await getEventStaff(event.id);
+		} catch (e) {
+			staffError =
+				e instanceof ApiError
+					? String((e.body as { detail?: string } | undefined)?.detail ?? m.common_error())
+					: m.common_error();
+		}
+	}
 	let loading = $state(true);
 	let failed = $state(false);
 	let busy = $state(false);
@@ -42,6 +74,12 @@
 	/** The roster is private (host, plus the people going), so this is allowed to 403 and that is not
 	 * an error worth showing — it is the rule working. Swallowed rather than surfaced. */
 	async function loadAttendees(id: string) {
+		// The roster is private (a 403 to anybody not going and not staff) — do not even ask for
+		// it when the answer is known, or every stranger's visit logs a failed request.
+		if (!(event && (event.canOrganise || event.isHost || event.myAttendance === 'going'))) {
+			attendees = [];
+			return;
+		}
 		try {
 			attendees = await getEventAttendees(id);
 		} catch {
@@ -53,6 +91,7 @@
 		try {
 			event = await getEvent(page.params.id!);
 			await loadAttendees(event.id);
+			await loadStaff(event);
 			await checkClash(event);
 		} catch {
 			failed = true;
@@ -291,7 +330,7 @@
 			{/if}
 
 			<section class="respond">
-				{#if event.isHost}
+				{#if event.canOrganise}
 					<p class="mine">{m.events_youAreHosting()}</p>
 					<div class="host-actions">
 						{#if event.status !== 'cancelled'}
@@ -384,6 +423,18 @@
 			<!-- Above the roster, because "the room has moved" is what somebody opens this page for
 			     once they have already decided to come, and below the answer buttons, because
 			     deciding whether to come is what everybody else opens it for. -->
+			<Programme {event} />
+			{#if event.canOrganise}
+				<EventStaffPanel
+					{staff}
+					error={staffError}
+					onadd={(userId, role) => staffAction(() => addEventStaff(event!.id, userId, role))}
+					onrole={(staffId, role: EventStaffRole) =>
+						staffAction(() => setEventStaffRole(event!.id, staffId, role))}
+					onremove={(staffId) => staffAction(() => removeEventStaff(event!.id, staffId))}
+				/>
+			{/if}
+
 			<EventUpdates eventId={event.id} isHost={event.isHost} />
 
 			<section class="roster">

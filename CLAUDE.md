@@ -6245,6 +6245,60 @@ form sets it (a set inherits nothing yet); the activity feed's content events ar
 (only the post rows carry a band); and the anonymous-read cache (§17AB) can serve a 60 s-stale
 list for a `?audience=` URL, exactly as for any other list.
 
+## 17AM. Events, step 2: organisers, the programme, speakers, links, bookmarks, .ics (✅ built, full stack)
+
+`AUDIENCE-BRIEF.md` §3.1, §3.2, §3.5. An event could say when and where it was and nothing about
+what happened inside it. Now it has a programme.
+
+- **`EventStaff`** (organiser / reviewer / volunteer), the `CourseStaff` shape: the host's row is
+  created in `Event.save()` and seeded for existing rows by the migration, so `Event.role_of` is
+  one lookup with no "…or the host" branch; the host's row is immutable through the API (an event
+  a co-organiser could evict its host from can be taken hostage). `can_organise` is what the
+  event edit and every programme write check; a staff member also sees the event while it is a
+  draft. Reviewers and volunteers exist now for steps 3–4 to use.
+- **`Event.runs_until`** for a multi-day event; `ends_at` stays derived (`runs_until` or
+  start + duration), so nothing that predates the field changes meaning.
+- **`Track`, `Session`, `SessionSpeaker`, `SessionLink`, `SessionBookmark`.** A session has its
+  own time/place/capacity and must fit inside a scheduled event (an unscheduled one constrains
+  nothing). A speaker is a row that MAY point at a profile — most speakers at a school science
+  day have no account. A link points at exactly one of material / exercise / set / URL (a DB
+  CheckConstraint, the `Post` anchor shape) with a `role` (prepare / live / homework / slides /
+  recording / solutions), which is what groups them on the page and lets **an exercise or
+  material page list every session it appears in** (`GET /api/sessions/?material=|exercise=|
+  exercise_set=`, visibility-filtered). Speakers and links are replaced whole on every write —
+  one form submits one session. Deleting a track leaves its sessions unfiled (`SET_NULL`).
+- **Bookmarks** feed `/api/my-agenda/` (bookmarked sessions + events you are going to) and its
+  `.ics` twin; `/api/events/{id}/ics/` exports the programme (or the event itself when there is
+  none). `events/ics.py` is hand-rolled — two VEVENT shapes do not justify a dependency. The
+  frontend fetches the bytes through the client and saves them (`utils/download.ts`), so the
+  token never rides in a URL (the §17H tradeoff, avoided rather than repeated).
+- **Q&A per session**: the generic Comment (`'eventSession'` target, private like a course
+  thread) at `/api/sessions/{id}/comments/`, with the votes it already has.
+- **`session_changed`** notifies bookmarkers and everybody going when a session's time or place
+  moves — never on an abstract edit (the `event_updated` rule).
+- **Bookable hours**: a hosted event with a programme blocks its sessions' hours, not its whole
+  span — a two-day school with a talk at 10:00 and one at 15:00 does not take the host's 48 hours
+  (`booking/availability._event_intervals`).
+- **Frontend**: `Programme.svelte` (day-grouped list or `CalendarWeek`, speakers, links by role,
+  bookmark, "add these exercises to My Set", Q&A; organisers get tracks and `SessionEditor`
+  inline — links are pasted as addresses through the same `parseContentRef` the course dialogs
+  use), `EventStaffPanel`, `AppearsInSessions` on exercise and material pages, `/events/agenda`
+  (account menu), `runs_until` on the event form.
+
+**Verified**: `events/test_programme.py` 17 tests (refusals first: a volunteer cannot add a
+session, the host row cannot be removed, a session outside the event, two targets on one link,
+a draft's sessions absent from the reverse listing, a foreign Q&A parent) and the events /
+booking / notifications / community suites green; `e2e/event-programme.mjs` 23/23 twice, zero
+console errors, screenshot looked at (which found a global `.track` rule swallowing the track
+chip — renamed). One pre-existing console 403 fixed on the way: the event page fetched the private
+roster for every visitor; it now asks only when the answer can be yes.
+
+**Left open**: adding staff and speakers is by account id (no people search — the §17M gap);
+tracks have no colour picker (the field exists); no per-session capacity enforcement until step 3
+registers people for sessions; the week view shows the first session's week only; `.ics` is a
+download, not a subscribable URL (by decision); a session's Q&A is not reachable from the
+notification bell (a reply notification links to the event, not the thread).
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

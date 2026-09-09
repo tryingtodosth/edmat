@@ -186,6 +186,10 @@ class Event(models.Model):
     # same convention, and the same default, `Course.capacity` already uses.
     capacity = models.PositiveSmallIntegerField(default=0)
     language = models.CharField(max_length=8, default='pl')
+    # A multi-day event: the instant it runs until, when that is not simply `starts_at` plus the
+    # duration. Null for the ordinary one-evening event, whose end is derived exactly as before —
+    # so nothing that predates the field changes its meaning. See `ends_at`.
+    runs_until = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -208,6 +212,8 @@ class Event(models.Model):
         # who doesn't gets an honestly-blank field, not a validation error standing in the way.
         if self.duration_minutes is not None and self.duration_minutes < 5:
             raise ValidationError({'duration_minutes': 'An event lasts at least five minutes.'})
+        if self.runs_until is not None and self.starts_at is not None and self.runs_until <= self.starts_at:
+            raise ValidationError({'runs_until': 'An event has to end after it starts.'})
         if self.parent_id is not None:
             if self.pk is not None and self.parent_id == self.pk:
                 raise ValidationError({'parent': 'An event cannot be part of itself.'})
@@ -229,7 +235,37 @@ class Event(models.Model):
         style queries, which simply never match a NULL row), so this stays consistent with that."""
         if self.starts_at is None:
             return None
+        if self.runs_until is not None:
+            return self.runs_until
         return self.starts_at + timedelta(minutes=self.duration_minutes or 0)
+
+    def save(self, *args, **kwargs):
+        """Creating an event also seats its host as an organiser — the `Course.save()` lesson:
+        "every event has an organiser" is an invariant of the model, not of one view, since seed
+        commands, the admin and tests create events too."""
+        creating = self._state.adding
+        super().save(*args, **kwargs)
+        if creating and self.host_id:
+            EventStaff.objects.get_or_create(
+                event=self, user_id=self.host_id, defaults={'role': 'organiser'}
+            )
+
+    def role_of(self, user) -> str | None:
+        if not (user and getattr(user, 'is_authenticated', False)):
+            return None
+        if self.host_id == user.pk:
+            return 'organiser'
+        for row in self.staff.all():
+            if row.user_id == user.pk:
+                return row.role
+        return None
+
+    def can_organise(self, user) -> bool:
+        """Change the event, its programme and its staff."""
+        return self.role_of(user) in ORGANISING_ROLES
+
+    def is_staff_member(self, user) -> bool:
+        return self.role_of(user) is not None
 
     @property
     def is_past(self) -> bool:
@@ -420,3 +456,221 @@ class EventAttendance(models.Model):
 
     def __str__(self) -> str:
         return f'{self.attendee} → {self.event} ({self.status})'
+
+
+# ---- the programme: organisers, tracks, sessions, speakers, links, bookmarks -------------------
+# AUDIENCE-BRIEF.md §3.1, §3.2. Everything below hangs off Event and is deleted with it.
+
+STAFF_ROLE_CHOICES = [
+    ('organiser', 'Organiser'),  # edits the event and its programme, decides registrations
+    ('reviewer', 'Reviewer'),  # sees and decides contributions only (step 4)
+    ('volunteer', 'Volunteer'),  # checks people in on the day only (step 3)
+]
+ORGANISING_ROLES = frozenset({'organiser'})
+
+
+class EventStaff(models.Model):
+    """One person who helps run an event, and in what capacity — the `CourseStaff` shape.
+
+    The host is a real `organiser` row here (created in `Event.save()`), not an implied special
+    case, so `Event.role_of` is one lookup with no "…or the host field" branch at every call site.
+    `Event.host` stays as the denormalised owner every byline and `mine=hosting` filter reads.
+    The host's row is never removable through the API: an event whose host a co-organiser could
+    evict is an event that can be taken hostage.
+    """
+
+    event = models.ForeignKey(Event, related_name='staff', on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='event_staff_roles', on_delete=models.CASCADE
+    )
+    role = models.CharField(max_length=10, choices=STAFF_ROLE_CHOICES, default='organiser')
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='event_staff_added',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['added_at', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['event', 'user'], name='unique_staff_per_event'),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.user} — {self.role} of {self.event}'
+
+
+SESSION_KIND_CHOICES = [
+    ('talk', 'Talk'),
+    ('workshop', 'Workshop'),
+    ('poster', 'Poster session'),
+    ('break', 'Break'),
+    ('social', 'Social'),
+    ('other', 'Other'),
+]
+
+
+class Track(models.Model):
+    """A parallel strand of a programme ("Room A", "Beginners"). Optional: a single-track workshop
+    never creates one, and a session with no track sits in the programme's one implicit column."""
+
+    event = models.ForeignKey(Event, related_name='tracks', on_delete=models.CASCADE)
+    name = models.CharField(max_length=80)
+    colour = models.CharField(max_length=7, blank=True)  # '#rrggbb', or blank for the default
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['event', 'name'], name='unique_track_name_per_event'),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Session(models.Model):
+    """One block on the programme. Its own time and place, because a two-day event has many of
+    both; its own `capacity` (0 = the event's own) because "register for the 14:00 workshop" only
+    means something once a session can be full on its own (step 3)."""
+
+    event = models.ForeignKey(Event, related_name='sessions', on_delete=models.CASCADE)
+    track = models.ForeignKey(
+        Track, related_name='sessions', null=True, blank=True, on_delete=models.SET_NULL
+    )
+    kind = models.CharField(max_length=10, choices=SESSION_KIND_CHOICES, default='talk')
+    title = models.CharField(max_length=200)
+    abstract = models.TextField(blank=True)
+    starts_at = models.DateTimeField()
+    duration_minutes = models.PositiveSmallIntegerField(default=60)
+    location_text = models.CharField(max_length=300, blank=True)
+    online_url = models.URLField(max_length=500, blank=True)
+    capacity = models.PositiveSmallIntegerField(default=0)
+    order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['starts_at', 'order', 'id']
+
+    def __str__(self) -> str:
+        return self.title
+
+    @property
+    def ends_at(self):
+        return self.starts_at + timedelta(minutes=self.duration_minutes or 0)
+
+    def clean(self):
+        if self.duration_minutes is not None and self.duration_minutes < 5:
+            raise ValidationError({'duration_minutes': 'A session lasts at least five minutes.'})
+        event = self.event
+        # Within the event's own span, when the event has one. An unscheduled event ("not decided
+        # yet") constrains nothing — a programme is what fixes the dates in that case.
+        if event.starts_at is not None and self.starts_at is not None:
+            if self.starts_at < event.starts_at or self.ends_at > event.ends_at:
+                raise ValidationError(
+                    {'starts_at': 'A session has to fit inside the event it belongs to.'}
+                )
+        if self.track_id is not None and self.track.event_id != event.pk:
+            raise ValidationError({'track': 'That track belongs to a different event.'})
+
+
+class SessionSpeaker(models.Model):
+    """A speaker is a row that MAY point at a profile, not a profile. Most speakers at a school
+    science day have no EdMat account and never will; forcing one would produce fake accounts.
+    When `user` is set, the name is still stored — it is what the programme printed."""
+
+    session = models.ForeignKey(Session, related_name='speakers', on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='speaking_at',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    name = models.CharField(max_length=120)
+    affiliation = models.CharField(max_length=200, blank=True)
+    bio = models.TextField(blank=True)
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self) -> str:
+        return self.name
+
+
+LINK_ROLE_CHOICES = [
+    ('prepare', 'Read or try before'),
+    ('live', 'Worked through in the room'),
+    ('homework', 'Afterwards, on your own'),
+    ('slides', 'Slides'),
+    ('recording', 'Recording'),
+    ('solutions', 'Solutions'),
+    ('other', 'Related'),
+]
+
+
+class SessionLink(models.Model):
+    """A session points at the corpus — the thing a generic conference tool does not do. Exactly
+    one of material/exercise/exercise_set/url (a real CheckConstraint, the `Post` anchor shape),
+    plus the `role` that says what the reader is meant to do with it, which is what lets the
+    session page group them and an exercise page list every session it appears in."""
+
+    session = models.ForeignKey(Session, related_name='links', on_delete=models.CASCADE)
+    material = models.ForeignKey(
+        'materials.Material', null=True, blank=True, related_name='session_links', on_delete=models.CASCADE
+    )
+    exercise = models.ForeignKey(
+        'exercises.Exercise', null=True, blank=True, related_name='session_links', on_delete=models.CASCADE
+    )
+    exercise_set = models.ForeignKey(
+        'study.ExerciseSet', null=True, blank=True, related_name='session_links', on_delete=models.CASCADE
+    )
+    url = models.URLField(max_length=500, blank=True)
+    role = models.CharField(max_length=10, choices=LINK_ROLE_CHOICES, default='other')
+    label = models.CharField(max_length=200, blank=True)
+    note = models.CharField(max_length=300, blank=True)
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(material__isnull=False, exercise__isnull=True, exercise_set__isnull=True, url='')
+                    | models.Q(material__isnull=True, exercise__isnull=False, exercise_set__isnull=True, url='')
+                    | models.Q(material__isnull=True, exercise__isnull=True, exercise_set__isnull=False, url='')
+                    | (models.Q(material__isnull=True, exercise__isnull=True, exercise_set__isnull=True) & ~models.Q(url=''))
+                ),
+                name='session_link_exactly_one_target',
+            ),
+        ]
+
+    @property
+    def kind(self) -> str:
+        if self.material_id:
+            return 'material'
+        if self.exercise_id:
+            return 'exercise'
+        if self.exercise_set_id:
+            return 'set'
+        return 'url'
+
+
+class SessionBookmark(models.Model):
+    """"I want to be at this one" — what feeds a person's own agenda view and `.ics` export."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='session_bookmarks', on_delete=models.CASCADE
+    )
+    session = models.ForeignKey(Session, related_name='bookmarks', on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'session'], name='unique_bookmark_per_session'),
+        ]

@@ -353,6 +353,11 @@
 		<a role="menuitem" class={itemClass} href={resolve('/bookings')} {onclick}>
 			{m.nav_bookings()}
 		</a>
+		{#if can('events')}
+			<a role="menuitem" class={itemClass} href={resolve('/events/agenda')} {onclick}>
+				{m.events_myAgenda()}
+			</a>
+		{/if}
 	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
 	{#if canIssues}

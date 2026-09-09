@@ -15,6 +15,14 @@ import type {
 	EventSummary
 } from '$lib/types/event';
 import { apiClient } from '$lib/api/client';
+import type {
+	EventStaffMember,
+	EventStaffRole,
+	MyAgenda,
+	Session,
+	SessionDraft,
+	Track
+} from '$lib/types/event';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function mapPerson(raw: any): EventPerson {
@@ -56,6 +64,7 @@ export function mapEvent(raw: any): EdmatEvent {
 		capacity: raw.capacity ?? 0,
 		language: raw.language ?? 'pl',
 		audience: (raw.audience ?? 'university') as EdmatEvent['audience'],
+		runsUntil: raw.runs_until ?? null,
 		goingCount: raw.going_count ?? 0,
 		declinedCount: raw.declined_count ?? 0,
 		postCount: raw.post_count ?? 0,
@@ -66,6 +75,7 @@ export function mapEvent(raw: any): EdmatEvent {
 		isPast: raw.is_past ?? false,
 		myAttendance: raw.my_attendance ?? null,
 		isHost: raw.is_host ?? false,
+		canOrganise: raw.can_organise ?? raw.is_host ?? false,
 		canRespond: raw.can_respond ?? false,
 		responseBlockReason: raw.response_block_reason ?? null,
 		parent: raw.parent ? mapEventSummary(raw.parent) : null,
@@ -108,6 +118,7 @@ function toBody(draft: Partial<EventDraft>): Record<string, unknown> {
 	if (draft.capacity !== undefined) body.capacity = draft.capacity;
 	if (draft.language !== undefined) body.language = draft.language;
 	if (draft.audience !== undefined) body.audience = draft.audience;
+	if (draft.runsUntil !== undefined) body.runs_until = draft.runsUntil || null;
 	if (draft.parentId !== undefined) body.parent = draft.parentId || null;
 	return body;
 }
@@ -243,4 +254,182 @@ export async function updateEventPost(
 
 export async function deleteEventPost(eventId: string, postId: string): Promise<void> {
 	await apiClient.delete(`/events/${eventId}/posts/${postId}/`);
+}
+
+// ---- the programme (AUDIENCE-BRIEF.md §3.1, §3.2, §3.5) --------------------------------------------
+
+function mapStaff(raw: any): EventStaffMember {
+	return {
+		id: String(raw.id),
+		user: mapPerson(raw.user),
+		role: raw.role,
+		isHost: raw.is_host ?? false,
+		addedAt: raw.added_at
+	};
+}
+
+function mapTrack(raw: any): Track {
+	return { id: String(raw.id), name: raw.name, colour: raw.colour ?? '', order: raw.order ?? 0 };
+}
+
+export function mapSession(raw: any): Session {
+	return {
+		id: String(raw.id),
+		eventId: String(raw.event),
+		trackId: raw.track === null || raw.track === undefined ? null : String(raw.track),
+		kind: raw.kind ?? 'talk',
+		title: raw.title,
+		abstract: raw.abstract ?? '',
+		startsAt: raw.starts_at,
+		durationMinutes: raw.duration_minutes ?? 60,
+		endsAt: raw.ends_at,
+		locationText: raw.location_text ?? '',
+		onlineUrl: raw.online_url ?? '',
+		capacity: raw.capacity ?? 0,
+		speakers: (raw.speakers ?? []).map((s: any) => ({
+			id: String(s.id),
+			user: s.user ? mapPerson(s.user) : null,
+			name: s.name,
+			affiliation: s.affiliation ?? '',
+			bio: s.bio ?? ''
+		})),
+		links: (raw.links ?? []).map((l: any) => ({
+			id: String(l.id),
+			kind: l.kind,
+			title: l.title ?? '',
+			materialId: l.material === null || l.material === undefined ? null : String(l.material),
+			exerciseId: l.exercise === null || l.exercise === undefined ? null : String(l.exercise),
+			setSlug: l.exercise_set ?? null,
+			url: l.url ?? '',
+			role: l.role ?? 'other',
+			label: l.label ?? '',
+			note: l.note ?? ''
+		})),
+		bookmarkCount: raw.bookmark_count ?? 0,
+		isBookmarked: raw.is_bookmarked ?? false
+	};
+}
+
+function sessionBody(draft: Partial<SessionDraft>): Record<string, unknown> {
+	const body: Record<string, unknown> = {};
+	if (draft.trackId !== undefined) body.track = draft.trackId ? Number(draft.trackId) : null;
+	if (draft.kind !== undefined) body.kind = draft.kind;
+	if (draft.title !== undefined) body.title = draft.title;
+	if (draft.abstract !== undefined) body.abstract = draft.abstract;
+	if (draft.startsAt !== undefined) body.starts_at = draft.startsAt;
+	if (draft.durationMinutes !== undefined) body.duration_minutes = draft.durationMinutes;
+	if (draft.locationText !== undefined) body.location_text = draft.locationText;
+	if (draft.onlineUrl !== undefined) body.online_url = draft.onlineUrl;
+	if (draft.capacity !== undefined) body.capacity = draft.capacity;
+	if (draft.speakers !== undefined)
+		body.speakers = draft.speakers.map((s) => ({
+			user_id: s.userId ? Number(s.userId) : null,
+			name: s.name,
+			affiliation: s.affiliation ?? '',
+			bio: s.bio ?? ''
+		}));
+	if (draft.links !== undefined)
+		body.links = draft.links.map((l) => ({
+			material: l.materialId ? Number(l.materialId) : null,
+			exercise: l.exerciseId ? Number(l.exerciseId) : null,
+			exercise_set: l.setSlug ?? null,
+			url: l.url ?? '',
+			role: l.role,
+			label: l.label ?? '',
+			note: l.note ?? ''
+		}));
+	return body;
+}
+
+export async function getEventStaff(eventId: string): Promise<EventStaffMember[]> {
+	const raw = await apiClient.get<any[]>(`/events/${eventId}/staff/`);
+	return raw.map(mapStaff);
+}
+export async function addEventStaff(
+	eventId: string,
+	userId: string,
+	role: EventStaffRole
+): Promise<EventStaffMember> {
+	return mapStaff(
+		await apiClient.post<any>(`/events/${eventId}/staff/`, { user: Number(userId), role })
+	);
+}
+export async function setEventStaffRole(
+	eventId: string,
+	staffId: string,
+	role: EventStaffRole
+): Promise<EventStaffMember> {
+	return mapStaff(await apiClient.patch<any>(`/events/${eventId}/staff/${staffId}/`, { role }));
+}
+export async function removeEventStaff(eventId: string, staffId: string): Promise<void> {
+	await apiClient.delete(`/events/${eventId}/staff/${staffId}/`);
+}
+
+export async function getTracks(eventId: string): Promise<Track[]> {
+	return (await apiClient.get<any[]>(`/events/${eventId}/tracks/`)).map(mapTrack);
+}
+export async function createTrack(eventId: string, name: string, colour = ''): Promise<Track> {
+	return mapTrack(await apiClient.post<any>(`/events/${eventId}/tracks/`, { name, colour }));
+}
+export async function deleteTrack(eventId: string, trackId: string): Promise<void> {
+	await apiClient.delete(`/events/${eventId}/tracks/${trackId}/`);
+}
+
+export async function getSessions(eventId: string): Promise<Session[]> {
+	return (await apiClient.get<any[]>(`/events/${eventId}/sessions/`)).map(mapSession);
+}
+export async function createSession(eventId: string, draft: SessionDraft): Promise<Session> {
+	return mapSession(await apiClient.post<any>(`/events/${eventId}/sessions/`, sessionBody(draft)));
+}
+export async function updateSession(
+	eventId: string,
+	sessionId: string,
+	draft: Partial<SessionDraft>
+): Promise<Session> {
+	return mapSession(
+		await apiClient.patch<any>(`/events/${eventId}/sessions/${sessionId}/`, sessionBody(draft))
+	);
+}
+export async function deleteSession(eventId: string, sessionId: string): Promise<void> {
+	await apiClient.delete(`/events/${eventId}/sessions/${sessionId}/`);
+}
+export async function setSessionBookmark(
+	eventId: string,
+	sessionId: string,
+	on: boolean
+): Promise<Session> {
+	const path = `/events/${eventId}/sessions/${sessionId}/bookmark/`;
+	return mapSession(on ? await apiClient.post<any>(path) : await apiClient.delete<any>(path));
+}
+
+/** The reverse listing: every visible session that links this material / exercise / set. */
+export async function getSessionsLinking(ref: {
+	materialId?: string;
+	exerciseId?: string;
+	setSlug?: string;
+}): Promise<Session[]> {
+	const params = new URLSearchParams();
+	if (ref.materialId) params.set('material', ref.materialId);
+	if (ref.exerciseId) params.set('exercise', ref.exerciseId);
+	if (ref.setSlug) params.set('exercise_set', ref.setSlug);
+	const raw = await apiClient.get<any[]>(`/sessions/?${params.toString()}`);
+	return raw.map(mapSession);
+}
+
+export async function getMyAgenda(): Promise<MyAgenda> {
+	const raw = await apiClient.get<any>('/my-agenda/');
+	return {
+		sessions: (raw.sessions ?? []).map(mapSession),
+		events: (raw.events ?? []).map(mapEventSummary)
+	};
+}
+
+/** `.ics` bytes for one event's programme, or for the signed-in person's own agenda. Fetched
+ * through the client (so the token travels in a header, never in a URL) and handed to the caller
+ * to save — see `downloadText` in utils/download.ts. */
+export async function getEventIcs(eventId: string): Promise<string> {
+	return apiClient.getText(`/events/${eventId}/ics/`);
+}
+export async function getMyAgendaIcs(): Promise<string> {
+	return apiClient.getText('/my-agenda.ics');
 }

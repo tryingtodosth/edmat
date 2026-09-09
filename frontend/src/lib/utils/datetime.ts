@@ -59,3 +59,13 @@ export function weekdayNames(style: 'short' | 'long' = 'short'): string[] {
 		)
 	);
 }
+
+/** A date with no time — a programme's day heading. */
+export function formatDate(iso: string): string {
+	return new Intl.DateTimeFormat(getLocale(), {
+		weekday: 'long',
+		day: 'numeric',
+		month: 'long',
+		year: 'numeric'
+	}).format(new Date(iso));
+}

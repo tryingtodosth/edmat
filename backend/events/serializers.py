@@ -88,6 +88,7 @@ class EventSerializer(serializers.ModelSerializer):
     # `can_enrol`.
     my_attendance = serializers.SerializerMethodField()
     is_host = serializers.SerializerMethodField()
+    can_organise = serializers.SerializerMethodField()
     can_respond = serializers.SerializerMethodField()
     response_block_reason = serializers.SerializerMethodField()
     # Present for the host, absent (0) for everybody else — a decline is between the person who made
@@ -128,6 +129,7 @@ class EventSerializer(serializers.ModelSerializer):
             'capacity',
             'language',
             'audience',
+            'runs_until',
             'going_count',
             'declined_count',
             'post_count',
@@ -136,6 +138,7 @@ class EventSerializer(serializers.ModelSerializer):
             'is_past',
             'my_attendance',
             'is_host',
+            'can_organise',
             'can_respond',
             'response_block_reason',
             'parent',
@@ -184,6 +187,10 @@ class EventSerializer(serializers.ModelSerializer):
         if counted is not None:
             return len(counted)
         return event.posts.count()
+
+    def get_can_organise(self, event) -> bool:
+        request = self.context.get('request')
+        return event.can_organise(getattr(request, 'user', None))
 
     def get_is_host(self, event) -> bool:
         user = self._user()
@@ -245,6 +252,7 @@ class EventWriteSerializer(serializers.ModelSerializer):
             'capacity',
             'language',
             'audience',
+            'runs_until',
             'parent',
         ]
 
@@ -259,7 +267,7 @@ class EventWriteSerializer(serializers.ModelSerializer):
         """
         merged = {
             field: attrs.get(field, getattr(self.instance, field, None))
-            for field in ('location_kind', 'location_text', 'online_url', 'duration_minutes')
+            for field in ('location_kind', 'location_text', 'online_url', 'duration_minutes', 'starts_at', 'runs_until')
         }
         probe = Event(**{k: v for k, v in merged.items() if v is not None})
         # `full_clean` would also demand the fields this probe deliberately does not carry (title,

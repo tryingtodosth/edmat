@@ -54,6 +54,7 @@
 	// API speaks ISO with one. The two conversions are the whole reason this is not a plain bind —
 	// see `toLocalInput`/`toIso` below.
 	let startsAtLocal = $state(untrack(() => toLocalInput(initial?.startsAt ?? undefined)));
+	let runsUntilLocal = $state(untrack(() => toLocalInput(initial?.runsUntil ?? undefined)));
 	// A bare `HH:MM` for the time-only input — `<input type="time">` speaks exactly that, so unlike
 	// `startsAtLocal` there is no timezone conversion to do at all.
 	let eventTimeLocal = $state(untrack(() => (initial?.eventTime ?? '').slice(0, 5)));
@@ -161,6 +162,7 @@
 			// cleared, so switching from "just an hour" to "not decided yet" actually forgets the
 			// hour rather than leaving it sitting in the record with nothing showing it.
 			startsAt: schedulingMode === 'exact' ? toIso(startsAtLocal) : null,
+			runsUntil: schedulingMode === 'exact' && runsUntilLocal ? toIso(runsUntilLocal) : null,
 			eventTime: schedulingMode === 'timeOnly' ? eventTimeLocal || null : null,
 			durationMinutes: Number(durationMinutes) || 60,
 			locationKind,
@@ -248,6 +250,10 @@
 				<label class="field">
 					<span>{m.events_form_startsAt()}</span>
 					<input type="datetime-local" bind:value={startsAtLocal} required />
+				</label>
+				<label class="field">
+					<span>{m.events_form_runsUntil()} <em>({m.common_optional()})</em></span>
+					<input type="datetime-local" bind:value={runsUntilLocal} />
 				</label>
 				<label class="field">
 					<span>{m.events_form_duration()}</span>

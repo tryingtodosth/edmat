@@ -30,6 +30,9 @@ function targetPath(targetType: CommentTargetType, targetId: string): string {
 	if (targetType === 'materialReview') {
 		return `/material-reviews/${encodeURIComponent(targetId)}/comments/`;
 	}
+	if (targetType === 'eventSession') {
+		return `/sessions/${encodeURIComponent(targetId)}/comments/`;
+	}
 	if (targetType === 'serviceReview') {
 		return `/service-reviews/${encodeURIComponent(targetId)}/comments/`;
 	}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppearsInSessions from '$lib/components/event/AppearsInSessions.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import type { Comment, Branch, ResolvedExercise, Review, Topic, User } from '$lib/types';
@@ -346,6 +347,8 @@
 				onDeleted={entryDeleted}
 				onCreated={entryCreated}
 			/>
+
+			<AppearsInSessions exerciseId={exercise.id} />
 
 			<section class="content-section">
 				<h2>{m.exercise_source()}</h2>

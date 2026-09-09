@@ -915,6 +915,7 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	booking_cancelled: 'bookingCancelled',
 	event_attendance: 'eventAttendance',
 	event_updated: 'eventUpdated',
+	session_changed: 'sessionChanged',
 	event_cancelled: 'eventCancelled',
 	course_contribution_submitted: 'courseContributionSubmitted',
 	course_contribution_approved: 'courseContributionApproved',

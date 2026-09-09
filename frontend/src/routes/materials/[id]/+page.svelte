@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AppearsInSessions from '$lib/components/event/AppearsInSessions.svelte';
 	// The material detail page — the RICH view MaterialCard.svelte deliberately no longer is (that
 	// component was rewritten to a compact grid/list summary only, see its own doc comment for why:
 	// a material with dozens of coverage claims used to flood every card in a grid with inline
@@ -274,6 +275,8 @@
 				{/if}
 			</section>
 		{/if}
+
+		<AppearsInSessions materialId={material.id} />
 
 		<section class="claim-group">
 			<div class="claim-group__heading">

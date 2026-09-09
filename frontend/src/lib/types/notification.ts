@@ -46,6 +46,7 @@ export type NotificationType =
 	// time or the place moved and the reader must rearrange their evening; this one means the host
 	// wrote something and the reader should go and read it. `note` carries its opening words.
 	| 'eventPosted'
+	| 'sessionChanged'
 	// Emitted by courses/ and moderation/ and never listed here until now, which meant
 	// `mapNotification` fell back to `commentReply` and rendered every one of them as a reply to
 	// a comment that does not exist.

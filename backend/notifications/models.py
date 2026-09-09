@@ -85,6 +85,7 @@ NOTIFICATION_TYPES = [
     # something — the reader should go and read it. Collapsing them would make the urgent one
     # indistinguishable from "the slides are up", which is how people learn to ignore both.
     ('event_posted', 'A new update on an event you are going to'),
+    ('session_changed', 'A session on your agenda moved'),
     # Taxonomy proposals (taxonomy/). Four rather than one with the outcome in the text, because the
     # reader's next move differs: approved and rejected are finished, while merged and moved both
     # mean "whatever you filed under this is somewhere else now", and the note says where.

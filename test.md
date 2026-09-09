@@ -272,6 +272,7 @@ node e2e/activity-feed.mjs            # the activity feed + micro-posts; ola + m
 node e2e/pdf-preview.mjs              # E2E_MATERIAL=<hosted-PDF material id>, default 1; signs nobody in
 node e2e/topic-threads.mjs            # E2E_MATERIAL=<material with covers claims>, default 1; ola (UI) + kasia (API); cleans its marker posts
 node e2e/audience-bands.mjs           # audience chips/badges/forms (§17AL); kasia (API) + ola (UI); creates and deletes one listing, resets ola's filter
+node e2e/event-programme.mjs          # the programme (§17AM); kasia builds it on the page, ola bookmarks/asks/exports; deletes the scratch event
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -635,6 +636,16 @@ reload, a signed-in click lands on `/api/auth/me/`'s `audience_filter` and shows
 Settings saves a different list, and all four submit forms carry a required "Who is this for?"
 select with no default. Cleanup is verified through an AUTHENTICATED request — the anonymous
 `?audience=` list URL is served from the 60 s read cache and can still show the deleted row.
+
+**`e2e/event-programme.mjs` (23 checks)** — the programme (root CLAUDE.md §17AM): a multi-day event
+made through the API, then on the page: a track added inline, a session with a speaker and two
+links pasted as addresses (an unreadable one refused in words), rendered under its day heading with
+the pasted exercise resolved to its real title and links grouped by role, the week grid, a reviewer
+added through the staff panel (API agrees); Ola bookmarks (button flips), adds the session's
+exercises to My Set, asks a question, sees the session on /events/agenda, downloads the .ics (read
+back from disk: BEGIN:VEVENT + the title), sees "On a programme" on the exercise page; moving the
+session notifies her. Signed-out logins use `networkidle` (no SSE stream yet) — that is what waits
+out Vite's cold compile of new components; a fixed settle did not.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

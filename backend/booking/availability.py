@@ -318,9 +318,18 @@ def _event_intervals(tutor, start: datetime, end: datetime) -> list[Interval]:
     hosted = Event.objects.filter(host=tutor, status='published', starts_at__lt=end)
     # `ends_at` is derived from a duration rather than stored (events/models.py), so the lower bound
     # is applied in Python. The `starts_at__lt` bound above already cut this to a handful of rows.
-    return [
-        Interval(event.starts_at, event.ends_at) for event in hosted if event.ends_at > start
-    ]
+    intervals: list[Interval] = []
+    for event in hosted.prefetch_related('sessions'):
+        # A programme replaces the span: a two-day event with a talk at 10:00 and one at 15:00
+        # does not occupy the host's whole 48 hours, it occupies those two hours.
+        sessions = list(event.sessions.all())
+        if sessions:
+            intervals.extend(
+                Interval(s.starts_at, s.ends_at) for s in sessions if s.ends_at > start and s.starts_at < end
+            )
+        elif event.ends_at > start:
+            intervals.append(Interval(event.starts_at, event.ends_at))
+    return intervals
 
 
 def _slice(window: Interval, session: timedelta, not_before: datetime) -> list[Interval]:

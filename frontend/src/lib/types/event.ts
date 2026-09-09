@@ -70,6 +70,8 @@ export interface EdmatEvent {
 	capacity: number;
 	language: string;
 	audience: Audience;
+	/** A multi-day event runs until this instant; null means starts + duration (see the backend). */
+	runsUntil: string | null;
 	goingCount: number;
 	/** Always 0 for anybody but the host — a decline is between the person who made it and the
 	 * person running the event. */
@@ -83,6 +85,8 @@ export interface EdmatEvent {
 	isPast: boolean;
 	myAttendance: EventAttendanceStatus | null;
 	isHost: boolean;
+	/** Host or an `organiser` staff row — who may edit the event and its programme. */
+	canOrganise: boolean;
 	canRespond: boolean;
 	responseBlockReason: EventResponseBlockReason | null;
 	/** The bigger event this one belongs to, resolved server-side — `null` when there isn't one, or
@@ -130,6 +134,7 @@ export interface EventDraft {
 	capacity?: number;
 	language?: string;
 	audience?: Audience;
+	runsUntil?: string | null;
 	/** The bigger event this one is part of — only ever settable to an event the current user hosts
 	 * themselves, and only one that isn't itself a sub-event; see the backend's own `validate_parent`. */
 	parentId?: string | null;
@@ -177,4 +182,105 @@ export interface ScheduleEvent {
 	status: EventStatus;
 	locationKind: EventLocationKind;
 	isHost: boolean;
+}
+
+// ---- the programme (AUDIENCE-BRIEF.md §3.1, §3.2) -------------------------------------------------
+
+export type EventStaffRole = 'organiser' | 'reviewer' | 'volunteer';
+
+export interface EventStaffMember {
+	id: string;
+	user: EventPerson;
+	role: EventStaffRole;
+	isHost: boolean;
+	addedAt: string;
+}
+
+export interface Track {
+	id: string;
+	name: string;
+	colour: string;
+	order: number;
+}
+
+export type SessionKind = 'talk' | 'workshop' | 'poster' | 'break' | 'social' | 'other';
+export type SessionLinkRole =
+	'prepare' | 'live' | 'homework' | 'slides' | 'recording' | 'solutions' | 'other';
+export type SessionLinkKind = 'material' | 'exercise' | 'set' | 'url';
+
+export interface SessionSpeaker {
+	id: string;
+	user: EventPerson | null;
+	name: string;
+	affiliation: string;
+	bio: string;
+}
+
+export interface SessionLink {
+	id: string;
+	kind: SessionLinkKind;
+	/** Resolved server-side: the material/exercise title, the set's name, the label, or the URL. */
+	title: string;
+	materialId: string | null;
+	exerciseId: string | null;
+	setSlug: string | null;
+	url: string;
+	role: SessionLinkRole;
+	label: string;
+	note: string;
+}
+
+export interface Session {
+	id: string;
+	eventId: string;
+	trackId: string | null;
+	kind: SessionKind;
+	title: string;
+	abstract: string;
+	startsAt: string;
+	durationMinutes: number;
+	endsAt: string;
+	locationText: string;
+	onlineUrl: string;
+	capacity: number;
+	speakers: SessionSpeaker[];
+	links: SessionLink[];
+	bookmarkCount: number;
+	isBookmarked: boolean;
+}
+
+export interface SessionSpeakerDraft {
+	userId?: string | null;
+	name: string;
+	affiliation?: string;
+	bio?: string;
+}
+
+export interface SessionLinkDraft {
+	materialId?: string | null;
+	exerciseId?: string | null;
+	setSlug?: string | null;
+	url?: string;
+	role: SessionLinkRole;
+	label?: string;
+	note?: string;
+}
+
+export interface SessionDraft {
+	trackId: string | null;
+	kind: SessionKind;
+	title: string;
+	abstract: string;
+	startsAt: string; // ISO
+	durationMinutes: number;
+	locationText: string;
+	onlineUrl: string;
+	capacity: number;
+	speakers: SessionSpeakerDraft[];
+	links: SessionLinkDraft[];
+}
+
+export interface MyAgenda {
+	sessions: Session[];
+	events: EventSummary[];
 }

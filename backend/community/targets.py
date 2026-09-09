@@ -38,6 +38,7 @@ TARGET_TYPE_BY_MODEL = {
     ('community', 'review'): 'review',
     ('issues', 'issue'): 'issue',
     ('activity', 'post'): 'post',
+    ('events', 'session'): 'eventSession',
 }
 
 # The targets whose own threads are NOT public: a course's discussion, and a week's or a session's
@@ -49,7 +50,7 @@ TARGET_TYPE_BY_MODEL = {
 # needs it is the code that has just resolved one — see `CourseItemWriteSerializer`, which refuses to
 # link somebody else's private thread into a course for the same reason it refuses another course's
 # attachment.
-PRIVATE_TARGET_TYPES = {'taughtCourse', 'courseLesson', 'courseChapter'}
+PRIVATE_TARGET_TYPES = {'taughtCourse', 'courseLesson', 'courseChapter', 'eventSession'}
 
 
 def target_type_for(comment) -> str:

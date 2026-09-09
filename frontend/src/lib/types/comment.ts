@@ -24,6 +24,8 @@ export type CommentTargetType =
 	| 'exerciseClaim'
 	// One hint/solution in an exercise's pool — "different solutions may have their own comments".
 	| 'solutionEntry'
+	// A session on an event's programme — its Q&A (AUDIENCE-BRIEF.md §3.2).
+	| 'eventSession'
 	// A site issue report (issues/) — its discussion is the reason a published one has a page.
 	| 'issue'
 	// An anchored micro-post on the activity feed (activity.Post) — its own thread.

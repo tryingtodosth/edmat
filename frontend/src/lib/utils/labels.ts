@@ -5,6 +5,8 @@
 
 import type {
 	Audience,
+	SessionKind,
+	SessionLinkRole,
 	Difficulty,
 	DonationPlatform,
 	FeatureFlagKey,
@@ -217,6 +219,7 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		eventUpdated: 'notifyOnEvent',
 		eventCancelled: 'notifyOnEvent',
 		eventPosted: 'notifyOnEvent',
+		sessionChanged: 'notifyOnEvent',
 		// Under the existing moderation-decision category rather than a new switch: somebody proposed
 		// a word and a moderator decided on it, which is the same kind of event as a decision on a
 		// submitted exercise.
@@ -266,6 +269,7 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	eventUpdated: m.notifPref_eventUpdated,
 	eventCancelled: m.notifPref_eventCancelled,
 	eventPosted: m.notifPref_eventPosted,
+	sessionChanged: m.notifPref_sessionChanged,
 	courseContributionSubmitted: m.notifPref_courseContributionSubmitted,
 	courseContributionApproved: m.notifPref_courseContributionApproved,
 	courseContributionRejected: m.notifPref_courseContributionRejected,
@@ -293,4 +297,32 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	issues: m.featureFlags_label_issues,
 	posts: m.featureFlags_label_posts,
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
+};
+
+// Programme (AUDIENCE-BRIEF.md §3.2) — mirrors events/models.py's SESSION_KIND_CHOICES / LINK_ROLE_CHOICES.
+export const SESSION_KIND_LABELS: Record<SessionKind, () => string> = {
+	talk: m.events_sessionKind_talk, // "Talk"
+	workshop: m.events_sessionKind_workshop, // "Workshop"
+	poster: m.events_sessionKind_poster, // "Poster session"
+	break: m.events_sessionKind_break, // "Break"
+	social: m.events_sessionKind_social, // "Social"
+	other: m.events_sessionKind_other // "Other"
+};
+export const SESSION_LINK_ROLES: SessionLinkRole[] = [
+	'prepare',
+	'live',
+	'homework',
+	'slides',
+	'recording',
+	'solutions',
+	'other'
+];
+export const SESSION_LINK_ROLE_LABELS: Record<SessionLinkRole, () => string> = {
+	prepare: m.events_linkRole_prepare, // "Read or try before"
+	live: m.events_linkRole_live, // "Worked through in the room"
+	homework: m.events_linkRole_homework, // "Afterwards, on your own"
+	slides: m.events_linkRole_slides, // "Slides"
+	recording: m.events_linkRole_recording, // "Recording"
+	solutions: m.events_linkRole_solutions, // "Solutions"
+	other: m.events_linkRole_other // "Related"
 };
