@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import type { Branch, Difficulty, Discipline, SourceType, Topic } from '$lib/types';
@@ -39,6 +41,7 @@
 	let isCustomBranch = $derived(branchId === OTHER_VALUE);
 	let title = $state('');
 	let difficulty = $state<Difficulty>('medium');
+	let audience = $state<Audience | ''>('');
 	let selectedTopicIds = $state<string[]>([]);
 	let sourceType = $state<SourceType>('other');
 	let sourceName = $state('');
@@ -128,7 +131,7 @@
 	}
 
 	let canSubmit = $derived(
-		Boolean(branchId && title.trim() && statement.trim()) &&
+		Boolean(branchId && title.trim() && statement.trim() && audience) &&
 			(!isCustomDiscipline || Boolean(customDisciplineName.trim())) &&
 			(!isCustomBranch || Boolean(customBranchName.trim()))
 	);
@@ -159,6 +162,7 @@
 			title: title.trim(),
 			topicIds: selectedTopicIds,
 			difficulty,
+			audience: audience as Audience,
 			source: { type: sourceType, name: sourceName.trim() || undefined },
 			tags: tagsInput
 				.split(',')
@@ -279,6 +283,7 @@
 							{/each}
 						</select>
 					</label>
+					<AudienceSelect bind:value={audience} />
 					<label class="field">
 						<span>{m.submit_field_sourceType()}</span>
 						<select bind:value={sourceType}>

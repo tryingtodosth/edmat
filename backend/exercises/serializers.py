@@ -200,6 +200,7 @@ class ExerciseListSerializer(serializers.ModelSerializer):
             'number',
             'topics',
             'difficulty',
+            'audience',
             'tags',
             'published',
             'verified',

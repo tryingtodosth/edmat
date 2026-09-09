@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 import type { CoverageVoteSummary } from './material';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
@@ -25,6 +26,7 @@ export interface Exercise {
 	number: number;
 	topicIds: string[];
 	difficulty: Difficulty;
+	audience: Audience;
 	source: ExerciseSource;
 	tags: string[];
 	published: boolean;

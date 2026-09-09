@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AudienceBadge from '$lib/components/shared/AudienceBadge.svelte';
 	import { resolve } from '$app/paths';
 	import type { ResolvedExercise } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
@@ -31,6 +32,7 @@
 
 	<div class="exercise-card__badges">
 		<DifficultyBadge difficulty={exercise.difficulty} />
+		<AudienceBadge audience={exercise.audience} />
 		<SourceTypeBadge sourceType={exercise.source.type} />
 		<VerifiedBadge verified={exercise.verified} />
 	</div>

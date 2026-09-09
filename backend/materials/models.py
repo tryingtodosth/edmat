@@ -23,6 +23,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 
 from exercises.models import Tag
 from taxonomy.models import Branch, ProposableNode, Subtopic, Topic
@@ -124,6 +125,12 @@ class Material(models.Model):
     # without a code change. Validated on write by `validate_material_type` rather than by the field,
     # because `choices` cannot express "and anything somebody has since proposed".
     type = models.CharField(max_length=32)
+    # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
+    # field means; the submit forms require an explicit choice, this default exists for the
+    # migration and for code paths (the corpus importer, fixtures) that never asked.
+    audience = models.CharField(
+        max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
+    )
     # validators=[...] — same real content-type/size check materials.validators.
     # validate_material_submission_file already gives every user-submitted MaterialSubmission
     # (moderation/models.py), added here too for defense-in-depth consistency: a raw `.save()` call

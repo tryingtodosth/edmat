@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 
 from exercises.models import Exercise
 from materials.models import CURRENCY_CHOICES
@@ -125,6 +126,8 @@ class MaterialSubmission(models.Model):
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True)
     locale = models.CharField(max_length=8, default='pl')
+    # Who the material is for (AUDIENCE-BRIEF.md §1); carried onto the real Material on approval.
+    audience = models.CharField(max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE)
     # Optional, because a material can be a link rather than a file — see `Material.file`. The
     # serializer requires one or the other; neither is a submission with nothing in it.
     file = models.FileField(

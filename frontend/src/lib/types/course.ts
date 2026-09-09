@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 /** Courses run by users, and enrolment in them.
  *
  * Still `Course` rather than `Course`, mirroring the backend. The name existed because
@@ -321,6 +322,7 @@ export interface Course {
 	announceNewPosts: boolean;
 	progressVisibility: ProgressVisibility;
 	language: string;
+	audience: Audience;
 	startsOn: string | null;
 	endsOn: string | null;
 	price: string | null;
@@ -387,6 +389,7 @@ export interface TaughtCourseDraft {
 	progressVisibility: ProgressVisibility;
 	contributionPolicy: ContributionPolicy;
 	language: string;
+	audience: Audience;
 	startsOn: string | null;
 	endsOn: string | null;
 	price: string | null;

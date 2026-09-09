@@ -164,6 +164,7 @@
 			branchIds: service.branchIds,
 			hourlyRate: service.hourlyRate !== null ? String(service.hourlyRate) : '',
 			currency: service.currency,
+			audience: service.audience,
 			isActive: !service.isActive,
 			// Carried through explicitly. This helper rebuilds the ENTIRE draft from the existing
 			// listing just to flip one boolean, so anything omitted here is actively erased — for an

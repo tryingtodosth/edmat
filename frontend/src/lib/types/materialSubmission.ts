@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 import type { MaterialType } from './material';
 import type { ModerationStatus } from './submission';
 
@@ -25,6 +26,7 @@ export interface MaterialSubmissionDraft {
 	title: string;
 	description: string;
 	locale: string;
+	audience: Audience;
 	// Provenance the uploader declares. Optional, but this is the only moment either is
 	// recoverable — a moderator looking at a pending PDF cannot determine its author or origin from
 	// the bytes, so if the form never asks, the information is not merely missing, it is gone.
@@ -53,6 +55,7 @@ export interface MaterialSubmission {
 	title: string;
 	description: string;
 	locale: string;
+	audience: Audience;
 	fileName: string;
 	fileUrl: string;
 	author: string;

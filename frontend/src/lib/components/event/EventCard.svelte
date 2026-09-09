@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AudienceBadge from '$lib/components/shared/AudienceBadge.svelte';
 	// The browse/grid card, matching `CourseCard`'s own economy: one component, reused wherever a list
 	// of events renders (the events page, the homepage tab, somebody's own "my events").
 	//
@@ -45,6 +46,7 @@
 	<div class="head">
 		<h3>{event.title}</h3>
 		<div class="badges">
+			<AudienceBadge audience={event.audience} />
 			{#if event.visibility === 'private'}
 				<span class="status status--private">{m.events_form_visibility_private()}</span>
 			{/if}

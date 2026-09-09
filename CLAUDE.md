@@ -6202,6 +6202,49 @@ is the natural upgrade); subtopic-level threads (anchors are topic-level; a subt
 to its parent topic's thread); the `label` URL param is display-only and can go stale/spoofed —
 cosmetic by design, the id does the filtering.
 
+## 17AL. The audience band — step 1 of the lifelong-learning portal (✅ built, full stack)
+
+Piotr's decision of 2026-09-09: the audience widens to toddlers (via an adult), school pupils,
+seniors and career changers. `AUDIENCE-BRIEF.md` at the repo root is the design note for the whole
+programme (ten steps; events overhaul, guardian accounts, sorting, content-language rule, comment
+attachments, a rich editor, accessibility) and §11 there reconciles it with the Gemini research
+report that argued *against* the wider scope. This section is step 1 only: the axis everything
+else reads.
+
+- **`audience`** (`config/audience.py`: `early_years` / `primary` / `secondary` / `university` /
+  `adult` / `senior` / `all`) on Exercise, Material, taught Course, Event, Service, Post,
+  ExerciseSet and MaterialSubmission; an ExerciseSubmission carries it in its payload and
+  `_apply_submission` writes it (an unknown value falls back to `university`). **One value, not a
+  range** — content for "primary and secondary" is two pieces of content, and `all` is the escape
+  hatch a submitter picks on purpose. Every row that predates the field is `university`, which is
+  true of the whole corpus.
+- **`?audience=a,b` narrows every browse list** — exercises (and the random picker), materials,
+  events, listings, taught courses — through one `apply_audience_filter`; rows marked `all`
+  always pass, an unknown value or `all` in the request means no narrowing (a browse filter
+  degrades to "everything", the `?near=` posture). Detail endpoints are never filtered: a
+  preference must not make a shared link 404.
+- **`Profile.audience_filter`** (validated list, PATCH `/auth/me/`) is the saved choice;
+  `lib/state/audienceFilter.svelte.ts` is a dependency-free leaf (the `token.svelte.ts` shape)
+  holding it — localStorage for a guest, synced from the profile on login — and **`client.ts`
+  appends `?audience=` to every list-shaped GET itself**, so no service can forget it. The
+  homepage hero carries the chip row (`AudienceChips`; a signed-in click also saves to the
+  profile) and Settings has the same choice as checkboxes; the homepage refetches its open tab
+  when the bands change.
+- **Every submit form requires a band with no default** (`AudienceSelect`): `/submit`,
+  `/submit-material`, CourseForm, EventForm, ServiceForm, PostComposer. Every card shows an
+  `AudienceBadge` beside its other pills.
+
+**Verified**: 14 backend tests (`exercises/test_audience.py` — narrowing on all five lists, `all`
+passing, unknown ignored, the random picker, profile validation, both submission paths);
+`e2e/audience-bands.mjs` 21/21, zero console errors, screenshots looked at. Full backend suite
+re-run; `npm run check` 0/0, lint clean, +13 keys in both catalogues.
+
+**Left open** (the rest of the brief): steps 2–10 are on the shared todo board. Also: the
+homepage hero copy still says "university exercises"; `ExerciseSet.audience` is stored but no
+form sets it (a set inherits nothing yet); the activity feed's content events are not narrowed
+(only the post rows carry a band); and the anonymous-read cache (§17AB) can serve a 60 s-stale
+list for a `?audience=` URL, exactly as for any other list.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

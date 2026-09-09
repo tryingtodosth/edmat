@@ -252,6 +252,7 @@ export async function submitMaterial(
 	formData.append('title', draft.title);
 	formData.append('description', draft.description);
 	formData.append('locale', draft.locale);
+	formData.append('audience', draft.audience);
 	// Omitted entirely rather than appended empty: an empty multipart file part arrives as a blank
 	// upload rather than as "no file", and DRF would try to validate it as one.
 	if (file) formData.append('file', file);

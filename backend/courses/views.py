@@ -12,6 +12,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
+from config.audience import apply_audience_filter
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -183,6 +184,7 @@ class CourseViewSet(viewsets.ModelViewSet):
             )
         qs = visible.distinct()
 
+        qs = apply_audience_filter(qs, self.request.query_params)
         subject = self.request.query_params.get('subject')
         if subject:
             qs = qs.filter(subjects__slug=subject)

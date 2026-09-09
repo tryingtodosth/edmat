@@ -8,6 +8,7 @@ writeup of this feature for the full design reasoning.
 
 from django.conf import settings
 from django.db import models
+from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 
 # A small, fixed set rather than free text — this app is bilingual and university-based (University
 # of Warsaw), so PLN is the sensible default, but a rate should still be able to read correctly in
@@ -66,6 +67,12 @@ class Service(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     branches = models.ManyToManyField('taxonomy.Branch', related_name='tutoring_services', blank=True)
+    # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
+    # field means; the submit forms require an explicit choice, this default exists for the
+    # migration and for code paths (the corpus importer, fixtures) that never asked.
+    audience = models.CharField(
+        max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
+    )
 
     # Both optional and deliberately DISPLAY-only — this app has no real payment processing
     # anywhere (matching CLAUDE.md's own "no payment processor, contact via messaging" scope), a

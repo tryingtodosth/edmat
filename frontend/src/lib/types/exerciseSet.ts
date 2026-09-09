@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 /** Per-exercise "what to show beyond the statement" — the statement itself is always shown; this
  * is what a saved set's own `ExerciseSetItem` (study/models.py) persists per exercise, so a
  * reloaded or shared set renders the exact same content the creator chose, not just a session-local
@@ -17,6 +18,7 @@ export interface ExerciseSet {
 	// on a sequential integer.
 	id: string;
 	ownerId: string;
+	audience: Audience;
 	// The owner's own resolved display name (study/serializers.py's `get_owner_display_name`) —
 	// present on every response, but only actually USED by `/sets/[id]`'s own shared-view page
 	// ("Kasia's set: ..."), the one real place seeing whose set this is matters.

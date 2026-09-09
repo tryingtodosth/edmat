@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AudienceBadge from '$lib/components/shared/AudienceBadge.svelte';
 	// The public browse page's own listing card — read-only, matching MaterialCard's own economy
 	// (one component, reused wherever a listing renders). "My listings" management (edit/pause/
 	// delete) lives inline on routes/services/+page.svelte itself instead of being folded into this
@@ -53,6 +54,7 @@
 	     not an option, and finding that out only after opening the listing wastes the trip. The
 	     location line renders beneath it whenever there is one. -->
 	<p class="delivery">
+		<AudienceBadge audience={service.audience} />
 		<span class="mode-pill mode-pill--{service.deliveryMode}">
 			{service.deliveryMode === 'online'
 				? m.services_mode_online()

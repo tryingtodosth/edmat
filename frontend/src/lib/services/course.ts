@@ -229,6 +229,7 @@ function mapCourse(raw: any): Course {
 		announceNewLessons: raw.announce_new_lessons,
 		announceNewPosts: raw.announce_new_posts,
 		language: raw.language,
+		audience: (raw.audience ?? 'university') as Course['audience'],
 		startsOn: raw.starts_on,
 		endsOn: raw.ends_on,
 		price: raw.price,
@@ -291,6 +292,7 @@ function draftToBody(draft: TaughtCourseDraft): Record<string, unknown> {
 		announce_new_posts: draft.announceNewPosts,
 		contribution_policy: draft.contributionPolicy,
 		language: draft.language,
+		audience: draft.audience,
 		// Empty date inputs must go as null, not '' — a blank string is not a date and the API
 		// rightly refuses it.
 		starts_on: draft.startsOn || null,

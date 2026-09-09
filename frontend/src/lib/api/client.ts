@@ -5,6 +5,7 @@
 // directly against the backend.
 
 import { PUBLIC_API_BASE_URL } from '$env/static/public';
+import { audienceFilterStore } from '$lib/state/audienceFilter.svelte';
 import { tokenStore } from '$lib/state/token.svelte';
 
 /** A non-2xx response, carrying the parsed JSON error body (DRF's own {field: [messages]} shape,
@@ -30,6 +31,27 @@ export class ApiError extends Error {
 		}
 		return `Request failed with status ${status}`;
 	}
+}
+
+// The viewing preference (AUDIENCE-BRIEF.md §1) rides on every BROWSE request as `?audience=`, added
+// here rather than in each service so that no list can forget it. Only list-shaped paths — a detail
+// page still resolves whatever it was linked to, and a preference must never make a shared link 404.
+const AUDIENCE_LIST_PATHS = [
+	/^\/exercises\/(\?|$)/,
+	/^\/exercises\/random\//,
+	/^\/branches\/[^/]+\/(exercises|materials)\//,
+	/^\/materials\/(\?|$)/,
+	/^\/materials\/recommended\//,
+	/^\/events\/(\?|$)/,
+	/^\/services\/(\?|$)/,
+	/^\/courses\/(\?|$)/,
+	/^\/activity\/(\?|$)/
+];
+function withAudience(path: string): string {
+	const bands = audienceFilterStore.param;
+	if (!bands || !AUDIENCE_LIST_PATHS.some((re) => re.test(path))) return path;
+	if (/[?&]audience=/.test(path)) return path;
+	return `${path}${path.includes('?') ? '&' : '?'}audience=${encodeURIComponent(bands)}`;
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -76,7 +98,7 @@ function toBody(data: unknown): string | undefined {
 
 export const apiClient = {
 	get<T>(path: string): Promise<T> {
-		return request<T>(path);
+		return request<T>(withAudience(path));
 	},
 	post<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'POST', body: toBody(data) });

@@ -55,6 +55,7 @@ export function mapEvent(raw: any): EdmatEvent {
 		onlineUrl: raw.online_url ?? '',
 		capacity: raw.capacity ?? 0,
 		language: raw.language ?? 'pl',
+		audience: (raw.audience ?? 'university') as EdmatEvent['audience'],
 		goingCount: raw.going_count ?? 0,
 		declinedCount: raw.declined_count ?? 0,
 		postCount: raw.post_count ?? 0,
@@ -106,6 +107,7 @@ function toBody(draft: Partial<EventDraft>): Record<string, unknown> {
 	if (draft.onlineUrl !== undefined) body.online_url = draft.onlineUrl;
 	if (draft.capacity !== undefined) body.capacity = draft.capacity;
 	if (draft.language !== undefined) body.language = draft.language;
+	if (draft.audience !== undefined) body.audience = draft.audience;
 	if (draft.parentId !== undefined) body.parent = draft.parentId || null;
 	return body;
 }

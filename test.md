@@ -271,6 +271,7 @@ node e2e/solution-entries.mjs         # E2E_EXERCISE=<published exercise with pi
 node e2e/activity-feed.mjs            # the activity feed + micro-posts; ola + michal (UI) + kasia (API); toggles the `posts` flag and restores it; cleans its posts
 node e2e/pdf-preview.mjs              # E2E_MATERIAL=<hosted-PDF material id>, default 1; signs nobody in
 node e2e/topic-threads.mjs            # E2E_MATERIAL=<material with covers claims>, default 1; ola (UI) + kasia (API); cleans its marker posts
+node e2e/audience-bands.mjs           # audience chips/badges/forms (§17AL); kasia (API) + ola (UI); creates and deletes one listing, resets ola's filter
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -626,6 +627,14 @@ shared component); the exercise page's topic pills linking to their threads; no 
 row in a subtopic-less popover; the tag-chip menu's "Posts about this tag" (checked on an
 exercise page — material cards don't render TagChips). Tolerates exactly the course page's known
 pre-existing attachments-404 console error. Cleans up by marker text only, never wholesale.
+
+**`e2e/audience-bands.mjs` (21 checks)** — the audience band (root CLAUDE.md §17AL): a scratch
+tutoring listing marked "Primary school" created through the API; the homepage chip row narrows the
+Tutoring and Exercises tabs (exact counts), "Everything" restores them, a guest's choice survives a
+reload, a signed-in click lands on `/api/auth/me/`'s `audience_filter` and shows ticked in Settings,
+Settings saves a different list, and all four submit forms carry a required "Who is this for?"
+select with no default. Cleanup is verified through an AUTHENTICATED request — the anonymous
+`?audience=` list URL is served from the 60 s read cache and can still show the deleted row.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

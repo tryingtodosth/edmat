@@ -70,3 +70,4 @@ dist/
 
 # FUW deploy scripts — private, kept local-only (backed up under FUW/script-backups/)
 deploy/fuw/
+gemini.md

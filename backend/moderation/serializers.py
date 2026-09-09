@@ -203,6 +203,7 @@ class MaterialSubmissionSerializer(serializers.ModelSerializer):
             'title',
             'description',
             'locale',
+            'audience',
             'file',
             'url',
             'author',

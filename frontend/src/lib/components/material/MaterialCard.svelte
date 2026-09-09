@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AudienceBadge from '$lib/components/shared/AudienceBadge.svelte';
 	// The public browse/grid card — deliberately a compact SUMMARY only, matching ServiceCard's own
 	// "one card component, reused at a different weight/context" economy: every real interactive
 	// flow this card used to cram inline (proposing coverage, editing requirements, voting) now lives
@@ -102,6 +103,7 @@
 			>
 		{/if}
 		<span class="material-type">{materialTypesStore.nameFor(material.type)}</span>
+		<AudienceBadge audience={material.audience} />
 	</div>
 
 	{#if material.reviewCount > 0}

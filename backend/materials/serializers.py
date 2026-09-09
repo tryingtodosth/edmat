@@ -153,6 +153,7 @@ class MaterialSerializer(serializers.ModelSerializer):
             'branch_slug',
             'slug',
             'type',
+            'audience',
             'coverage',
             'requirements',
             'file',

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import type { Audience } from '$lib/types';
 	// Shared create/edit form for a Service listing — one component, both routes/services/new and
 	// the "My listings" inline editor on routes/services/+page.svelte, the same "off one `initial?`
 	// prop, two modes" shape this app's own submission forms already establish elsewhere.
@@ -49,6 +51,7 @@
 		)
 	);
 	let currency = $state<ServiceCurrency>(untrack(() => initial?.currency ?? 'PLN'));
+	let audience = $state<Audience | ''>(untrack(() => initial?.audience ?? ''));
 	let isActive = $state(untrack(() => initial?.isActive ?? true));
 	// "Do you teach online, in person, or either?" — see ServiceDeliveryMode (types/service.ts) for
 	// why this is one union rather than two booleans. Defaults to `online`, matching the backend
@@ -91,7 +94,9 @@
 		submitting = true;
 		errorMessage = '';
 		try {
+			if (!audience) return;
 			await onSubmit({
+				audience,
 				title: title.trim(),
 				description: description.trim(),
 				branchIds: Array.from(selectedCourseIds),
@@ -172,6 +177,7 @@
 			     without losing the string binding. -->
 			<input type="text" inputmode="decimal" pattern="[0-9]*\.?[0-9]*" bind:value={hourlyRate} />
 		</label>
+		<AudienceSelect bind:value={audience} />
 		<label class="field">
 			<span>{m.services_field_currency()}</span>
 			<select bind:value={currency}>

@@ -1803,5 +1803,18 @@
 	"coverage_topicThreadLink": "Posts about “{topic}” →",
 	"activity_topicFallback": "this topic",
 	"post_anchorChange": "change",
-	"tag_viewPosts": "Posts about this tag"
+	"tag_viewPosts": "Posts about this tag",
+	"audience_early_years": "Early years",
+	"audience_primary": "Primary school",
+	"audience_secondary": "Secondary school",
+	"audience_university": "University",
+	"audience_adult": "Adult learners",
+	"audience_senior": "Seniors",
+	"audience_all": "Everyone",
+	"audience_field_label": "Who is this for?",
+	"audience_choose": "Choose an audience…",
+	"audience_chips_label": "Show content for",
+	"audience_filter_all": "Everything",
+	"settings_audienceHeading": "Who the content is for",
+	"settings_audienceHint": "Tick the groups you want every list narrowed to. Nothing ticked means everything is shown. Content marked \"Everyone\" always shows."
 }

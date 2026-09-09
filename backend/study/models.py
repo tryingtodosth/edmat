@@ -6,6 +6,7 @@ import secrets
 
 from django.conf import settings
 from django.db import models
+from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 
 from exercises.models import Exercise
 
@@ -21,6 +22,12 @@ def _generate_set_slug() -> str:
 class ExerciseSet(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='exercise_sets', on_delete=models.CASCADE)
     name = models.CharField(max_length=100)
+    # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
+    # field means; the submit forms require an explicit choice, this default exists for the
+    # migration and for code paths (the corpus importer, fixtures) that never asked.
+    audience = models.CharField(
+        max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
+    )
     exercises = models.ManyToManyField(Exercise, through='ExerciseSetItem')
     # The external identifier this whole API resolves a set BY (ExerciseSetViewSet.lookup_field) —
     # matching the exact same "id IS the slug" convention Discipline/Branch already use, rather than a

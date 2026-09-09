@@ -20,6 +20,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
@@ -261,6 +262,12 @@ class Course(models.Model):
     upload_quota_bytes = models.PositiveBigIntegerField(default=0)
 
     language = models.CharField(max_length=8, default='pl')
+    # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
+    # field means; the submit forms require an explicit choice, this default exists for the
+    # migration and for code paths (the corpus importer, fixtures) that never asked.
+    audience = models.CharField(
+        max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
+    )
     starts_on = models.DateField(null=True, blank=True)
     ends_on = models.DateField(null=True, blank=True)
 

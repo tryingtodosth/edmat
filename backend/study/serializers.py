@@ -48,6 +48,7 @@ class ExerciseSetSerializer(serializers.ModelSerializer):
             'owner',
             'owner_display_name',
             'name',
+            'audience',
             'items',
             'exercise_ids',
             'item_options',

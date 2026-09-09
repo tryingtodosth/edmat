@@ -10,6 +10,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
+from config.audience import apply_audience_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -126,6 +127,7 @@ class EventViewSet(viewsets.ModelViewSet):
         # link in their cancellation notification still resolves.
         qs = qs.exclude(status='cancelled')
 
+        qs = apply_audience_filter(qs, self.request.query_params)
         subject = self.request.query_params.get('subject')
         if subject:
             qs = qs.filter(subjects__slug=subject)

@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 import type { Difficulty, ExerciseSource } from './exercise';
 
 export type ModerationStatus = 'pending' | 'approved' | 'rejected';
@@ -7,6 +8,7 @@ export interface ExerciseSubmissionDraft {
 	title: string;
 	topicIds: string[];
 	difficulty: Difficulty;
+	audience: Audience;
 	source: ExerciseSource;
 	tags: string[];
 	// Free-text prerequisite/"skill tag" labels — optional, applied into real ExerciseRequirement

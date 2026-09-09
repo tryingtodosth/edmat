@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
+from config.audience import AUDIENCE_VALUES
 
 from .models import DonationLink, Profile
 
@@ -69,6 +70,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'notify_on_booking',
             'notify_on_event',
             'muted_notification_types',
+            'audience_filter',
             'donation_links',
             'offers_tutoring',
             'tutoring_note',
@@ -88,6 +90,11 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
+    def validate_audience_filter(self, value):
+        if not isinstance(value, list) or any(v not in AUDIENCE_VALUES for v in value):
+            raise serializers.ValidationError('Unknown audience band.')
+        return sorted(set(value))
+
     """PATCH /api/auth/me/ — the deliberately narrow, write-side counterpart to `ProfileSerializer`
     above: only what an account holder is actually allowed to self-edit. `id`/`email`/`is_moderator`/
     `is_verified_contributor`/`joined_at` all stay whatever they already are, same as
@@ -111,6 +118,7 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             'notify_on_booking',
             'notify_on_event',
             'muted_notification_types',
+            'audience_filter',
             'offers_tutoring',
             'tutoring_note',
         ]

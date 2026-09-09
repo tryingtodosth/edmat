@@ -39,6 +39,10 @@ test-runner suite.
 11. `page.on('response')`-style listeners can miss the first navigation's subresources; the
     first page of a fresh context also pays a ~3–5s Vite cold-compile cost absent from
     production — don't chase it.
+12. **Anonymous list responses come from the 60 s read cache** (§17AB, TTL-only invalidation): an
+    unauthenticated `fetch` of a list URL the script already hit can return a row it just
+    deleted, so a "scratch data removed" check fails while the row is genuinely gone. Verify
+    cleanup (and any post-mutation count) through an AUTHENTICATED request, which bypasses it.
 
 ## Conventions
 

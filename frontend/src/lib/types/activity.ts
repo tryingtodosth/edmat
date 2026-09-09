@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 // The activity feed (backend activity/, root CLAUDE.md §17AI): a stored, public-by-construction
 // event log, and the anchored micro-posts that feed into it.
 
@@ -22,6 +23,7 @@ export interface Post {
 	authorId?: string;
 	authorDisplayName: string;
 	body: string; // Markdown + LaTeX, same pipeline as everything else
+	audience: Audience;
 	imageUrl?: string;
 	/** The anchor — exactly one of these four is set. Discipline/branch by slug, topic by pk
 	 * (topic slugs repeat across branches), tag by slug. */

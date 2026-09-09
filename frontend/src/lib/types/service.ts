@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 // Tutoring/services listings ("Korepetycje") — a user-created, branch-scoped offer. See
 // backend/services/models.py's own doc comment for the full reasoning, including why this is a
 // distinct, fuller thing from `User.offersTutoring` (a bare opt-in badge with no structure) — a
@@ -33,6 +34,7 @@ export interface Service {
 	providerDisplayName: string;
 	title: string;
 	description: string;
+	audience: Audience;
 	// Real Branch ids (== slugs, see taxonomy.ts's own note on Branch.id), not free text — the whole
 	// reason a listing is tied to the taxonomy at all is so a visitor browsing one specific branch
 	// can discover tutors for THAT branch.
@@ -89,6 +91,7 @@ export interface ServiceWatch {
 export interface ServiceDraft {
 	title: string;
 	description: string;
+	audience: Audience;
 	branchIds: string[];
 	hourlyRate: string;
 	currency: ServiceCurrency;

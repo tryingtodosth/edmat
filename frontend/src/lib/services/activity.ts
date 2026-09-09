@@ -1,3 +1,4 @@
+import type { Audience } from '$lib/types/audience';
 // The activity feed and its anchored micro-posts (backend activity/, root CLAUDE.md §17AI).
 // Replaced the §17AH placeholder wholesale: the feed is a stored, public-by-construction event log
 // now, with filters, a Followed view, and an id cursor for "load more".
@@ -9,6 +10,7 @@ interface RawPost {
 	author: number | null;
 	author_display_name: string;
 	body: string;
+	audience?: string;
 	image: string | null;
 	discipline: string | null;
 	branch: string | null;
@@ -56,6 +58,7 @@ export function mapPost(json: RawPost): Post {
 		authorId: idOr(json.author),
 		authorDisplayName: json.author_display_name,
 		body: json.body,
+		audience: (json.audience ?? 'university') as Post['audience'],
 		imageUrl: json.image ?? undefined,
 		disciplineId: json.discipline ?? undefined,
 		branchId: json.branch ?? undefined,
@@ -131,6 +134,7 @@ export async function getActivityFeed(filters: FeedFilters = {}): Promise<FeedIt
 
 export interface PostDraft {
 	body: string;
+	audience: Audience;
 	/** Exactly one of the four anchors. */
 	disciplineId?: string;
 	branchId?: string;
@@ -146,6 +150,7 @@ export interface PostDraft {
 function draftToForm(draft: PostDraft): FormData {
 	const form = new FormData();
 	form.set('body', draft.body);
+	form.set('audience', draft.audience);
 	if (draft.disciplineId) form.set('discipline', draft.disciplineId);
 	if (draft.branchId) form.set('branch', draft.branchId);
 	if (draft.tagSlug) form.set('tag', draft.tagSlug);

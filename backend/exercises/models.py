@@ -6,6 +6,7 @@ translations elsewhere."
 
 from django.conf import settings
 from django.db import models
+from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 
 from taxonomy.models import Branch, Topic
 
@@ -79,6 +80,12 @@ class Exercise(models.Model):
     number = models.PositiveIntegerField()
     topics = models.ManyToManyField(Topic, related_name='exercises', blank=True)
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
+    # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
+    # field means; the submit forms require an explicit choice, this default exists for the
+    # migration and for code paths (the corpus importer, fixtures) that never asked.
+    audience = models.CharField(
+        max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
+    )
     tags = models.ManyToManyField(Tag, related_name='exercises', blank=True)
     published = models.BooleanField(default=True)
     verified = models.BooleanField(default=False)

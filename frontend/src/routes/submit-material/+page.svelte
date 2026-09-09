@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import type { Branch, Discipline, MaterialCoverageDraft, MaterialType, Topic } from '$lib/types';
@@ -47,6 +49,7 @@
 	let author = $state('');
 	let sourceUrl = $state('');
 	let locale = $state('pl');
+	let audience = $state<Audience | ''>('');
 	let file = $state<File | null>(null);
 	let url = $state('');
 	// TaxonomyOptions is keyed by `id`; a material type is identified by its slug, which IS what
@@ -185,6 +188,7 @@
 	}
 
 	async function handleSubmit() {
+		if (!audience) return;
 		if (!authStore.user || !canSubmit) return;
 		errorMessage = '';
 		submitting = true;
@@ -197,6 +201,7 @@
 					title: title.trim(),
 					description: description.trim(),
 					locale,
+					audience: audience as Audience,
 					author: author.trim() || undefined,
 					sourceUrl: normalizeUrl(sourceUrl),
 					url: normalizeUrl(url),
@@ -330,6 +335,7 @@
 							<option value="en">EN</option>
 						</select>
 					</label>
+					<AudienceSelect bind:value={audience} />
 				</div>
 
 				<label class="field">

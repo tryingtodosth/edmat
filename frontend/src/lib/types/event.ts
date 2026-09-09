@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 /** One-off happenings somebody organises and other people turn up to — mirrors `backend/events/`.
  *
  * Deliberately its own vocabulary rather than a reuse of `Course`'s: an event has a host and
@@ -68,6 +69,7 @@ export interface EdmatEvent {
 	onlineUrl: string;
 	capacity: number;
 	language: string;
+	audience: Audience;
 	goingCount: number;
 	/** Always 0 for anybody but the host — a decline is between the person who made it and the
 	 * person running the event. */
@@ -127,6 +129,7 @@ export interface EventDraft {
 	onlineUrl?: string;
 	capacity?: number;
 	language?: string;
+	audience?: Audience;
 	/** The bigger event this one is part of — only ever settable to an event the current user hosts
 	 * themselves, and only one that isn't itself a sub-event; see the backend's own `validate_parent`. */
 	parentId?: string | null;

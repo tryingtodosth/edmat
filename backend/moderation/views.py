@@ -11,6 +11,7 @@ wins, so nothing about today's existing global-moderator behavior changes for an
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, OperationalError, transaction
+from config.audience import AUDIENCE_VALUES, DEFAULT_AUDIENCE
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -447,6 +448,7 @@ def _apply_submission(submission, reviewer):
                     branch=branch,
                     number=next_number,
                     difficulty=payload.get('difficulty', 'medium'),
+                    audience=payload.get('audience') if payload.get('audience') in AUDIENCE_VALUES else DEFAULT_AUDIENCE,
                     published=True,
                     verified=False,
                     original_locale=payload.get('locale', 'pl'),
@@ -590,6 +592,7 @@ def _apply_material_submission(submission, reviewer):
         branch=submission.branch,
         slug=slug,
         type=submission.type,
+        audience=submission.audience,
         file=submission.file,
         # A link-only material has no file and lives at its own URL — see Material.url for why this
         # is not `source_url`, which is next to it and answers a different question.

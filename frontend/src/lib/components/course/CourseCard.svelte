@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AudienceBadge from '$lib/components/shared/AudienceBadge.svelte';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import type { Course } from '$lib/types/course';
@@ -51,6 +52,7 @@
 	</p>
 	{#if course.language || course.price || course.fieldSlug || course.subjectSlugs.length > 0}
 		<div class="pills">
+			<AudienceBadge audience={course.audience} />
 			{#if course.language}
 				<span class="meta-pill">{course.language}</span>
 			{/if}

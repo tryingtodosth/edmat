@@ -1803,5 +1803,18 @@
 	"coverage_topicThreadLink": "Wpisy o „{topic}” →",
 	"activity_topicFallback": "ten temat",
 	"post_anchorChange": "zmień",
-	"tag_viewPosts": "Wpisy z tym tagiem"
+	"tag_viewPosts": "Wpisy z tym tagiem",
+	"audience_early_years": "Najmłodsi",
+	"audience_primary": "Szkoła podstawowa",
+	"audience_secondary": "Szkoła średnia",
+	"audience_university": "Studia",
+	"audience_adult": "Dorośli",
+	"audience_senior": "Seniorzy",
+	"audience_all": "Dla wszystkich",
+	"audience_field_label": "Dla kogo to jest?",
+	"audience_choose": "Wybierz odbiorców…",
+	"audience_chips_label": "Pokaż treści dla",
+	"audience_filter_all": "Wszystko",
+	"settings_audienceHeading": "Dla kogo treści",
+	"settings_audienceHint": "Zaznacz grupy, do których mają być zawężone listy. Nic nie zaznaczone znaczy: pokazuj wszystko. Treści oznaczone „Dla wszystkich” pokazują się zawsze."
 }

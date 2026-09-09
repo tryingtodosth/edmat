@@ -4,6 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 from rest_framework import mixins, permissions, status, viewsets
+from config.audience import apply_audience_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -111,6 +112,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
         else:
             qs = qs.filter(is_active=True)
 
+        qs = apply_audience_filter(qs, self.request.query_params)
         branch_slug = self.request.query_params.get('branch')
         if branch_slug:
             qs = qs.filter(branches__slug=branch_slug)

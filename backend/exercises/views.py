@@ -10,6 +10,7 @@ import random
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Avg, Count, Max, Q
+from config.audience import apply_audience_filter
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -177,6 +178,7 @@ def _filter_exercises(qs, params):
     difficulty = params.get('difficulty')
     if difficulty:
         qs = qs.filter(difficulty=difficulty)
+    qs = apply_audience_filter(qs, params)
     source_type = params.get('source_type')
     if source_type:
         qs = qs.filter(source__type=source_type)

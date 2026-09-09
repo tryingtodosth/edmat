@@ -24,6 +24,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 from django.utils import timezone
 
 from .postimage import validate_post_image
@@ -145,6 +146,12 @@ class Event(models.Model):
     )
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
+    # field means; the submit forms require an explicit choice, this default exists for the
+    # migration and for code paths (the corpus importer, fixtures) that never asked.
+    audience = models.CharField(
+        max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
+    )
     visibility = models.CharField(max_length=8, choices=VISIBILITY_CHOICES, default='private')
 
     # A single instant plus a length, rather than a start and an end. Two datetimes make an event

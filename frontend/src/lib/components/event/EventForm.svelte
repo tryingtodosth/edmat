@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import type { Audience } from '$lib/types';
 	// Shared by creating and editing, since they ask exactly the same questions — two copies would
 	// drift the moment one gained a field. Same shape `CourseForm` establishes.
 	import { onMount, untrack } from 'svelte';
@@ -62,6 +64,7 @@
 	let onlineUrl = $state(untrack(() => initial?.onlineUrl ?? ''));
 	let capacity = $state(untrack(() => initial?.capacity ?? 0));
 	let disciplineSlug = $state(untrack(() => initial?.disciplineSlug ?? ''));
+	let audience = $state<Audience | ''>(untrack(() => initial?.audience ?? ''));
 	// "Part of a bigger event" — only ever an event this same host runs, and only one that isn't
 	// itself a sub-event (the backend's own `validate_parent` enforces both, this is just what
 	// narrows the choices to ones that could possibly be accepted). Sourced from the host's own
@@ -147,7 +150,9 @@
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
+		if (!audience) return;
 		onsubmit({
+			audience,
 			title: title.trim(),
 			summary: summary.trim(),
 			description: description.trim(),
@@ -320,6 +325,8 @@
 			</select>
 		</div>
 	</div>
+
+	<AudienceSelect bind:value={audience} />
 
 	{#if hostableParents.length > 0}
 		<label class="field">

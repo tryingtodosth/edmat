@@ -157,6 +157,11 @@ class Profile(models.Model):
     # still appear in this list, as an account-wide "never notify me about new tagged content at
     # all" override that layers on top of, not instead of, the per-tag choice.
     muted_notification_types = models.JSONField(default=list, blank=True)
+    # Viewing preference (AUDIENCE-BRIEF.md §1): the audience bands this person wants lists
+    # narrowed to. Empty means "show everything". A parent pins the site to early_years+primary,
+    # a senior to senior+adult; content marked `all` passes any narrowing. Sent by the frontend as
+    # `?audience=` on every list request; guests keep the same list in localStorage.
+    audience_filter = models.JSONField(default=list, blank=True)
 
     # Tutoring ("Korepetycje") — a deliberately lightweight, opt-in signal, distinct from a real
     # services.Service listing (services/models.py): this is "I'm open to being asked," shown as a

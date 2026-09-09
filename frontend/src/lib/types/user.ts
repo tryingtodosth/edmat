@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 import type { DonationLink } from './donationLink';
 import type { NotificationType } from './notification';
 
@@ -65,4 +66,6 @@ export interface User {
 	// accounts/models.py's Profile.muted_notification_types for the full reasoning). Same
 	// undefined-for-a-stranger's-profile treatment as the three fields above.
 	mutedNotificationTypes?: NotificationType[];
+	/** Bands this person wants lists narrowed to; empty = everything (AUDIENCE-BRIEF.md §1). */
+	audienceFilter?: Audience[];
 }

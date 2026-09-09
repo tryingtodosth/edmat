@@ -186,6 +186,7 @@ export interface RawExerciseCommon {
 	number: number;
 	topics: number[];
 	difficulty: Exercise['difficulty'];
+	audience: Exercise['audience'];
 	tags: string[];
 	published: boolean;
 	verified: boolean;
@@ -287,6 +288,7 @@ function mapExerciseBase(json: RawExerciseCommon): Exercise {
 		number: json.number,
 		topicIds: json.topics.map(String),
 		difficulty: json.difficulty,
+		audience: json.audience ?? 'university',
 		source: mapSource(json.source),
 		tags: json.tags,
 		published: json.published,
@@ -497,6 +499,7 @@ export interface RawMaterial {
 	branch_slug: string;
 	slug: string;
 	type: string;
+	audience?: string;
 	coverage: RawMaterialCoverage[];
 	requirements: RawMaterialRequirement[];
 	file: string | null;
@@ -525,6 +528,7 @@ export function mapMaterial(json: RawMaterial): Material {
 		id: String(json.id),
 		branchId: json.branch_slug,
 		slug: json.slug,
+		audience: (json.audience ?? 'university') as Material['audience'],
 		// A proposed type has no camelCase alias, so it passes through as its own slug. This used
 		// to be `?? 'other'`, which was right while the set was closed and became a silent lie the
 		// moment it was not: a material filed under a brand-new kind would have displayed as Other.
@@ -684,6 +688,7 @@ export interface RawMaterialSubmission {
 	title: string;
 	description: string;
 	locale: string;
+	audience?: string;
 	file: string | null;
 	url?: string | null;
 	author: string;
@@ -714,6 +719,7 @@ export function mapMaterialSubmission(json: RawMaterialSubmission): MaterialSubm
 		title: json.title,
 		description: json.description,
 		locale: json.locale,
+		audience: (json.audience ?? 'university') as MaterialSubmission['audience'],
 		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
 		fileUrl,
 		author: json.author ?? '',
@@ -811,6 +817,7 @@ export interface RawExerciseSet {
 		include_solution: boolean;
 	}[];
 	is_public: boolean;
+	audience?: string;
 	created_at: string;
 }
 
@@ -832,6 +839,7 @@ export function mapExerciseSet(json: RawExerciseSet): ExerciseSet {
 		exerciseIds: sortedItems.map((i) => String(i.exercise)),
 		itemOptions,
 		isPublic: json.is_public,
+		audience: (json.audience ?? 'university') as ExerciseSet['audience'],
 		createdAt: json.created_at
 	};
 }
@@ -940,6 +948,7 @@ export interface RawProfile {
 	time_format?: string;
 	week_starts_on?: string;
 	save_menu_layout?: string;
+	audience_filter?: string[];
 	is_verified_contributor: boolean;
 	is_moderator: boolean;
 	is_node_governor: boolean;
@@ -990,6 +999,7 @@ export function mapUser(json: RawProfile): User {
 		timeFormat: json.time_format === '12h' ? '12h' : '24h',
 		weekStartsOn: json.week_starts_on === 'sunday' ? 'sunday' : 'monday',
 		saveMenuLayout: json.save_menu_layout === 'above' ? 'above' : 'beside',
+		audienceFilter: (json.audience_filter ?? []) as User['audienceFilter'],
 		notifyOnCourseActivity: json.notify_on_course_activity,
 		notifyOnBooking: json.notify_on_booking,
 		notifyOnEvent: json.notify_on_event,
@@ -1170,6 +1180,7 @@ export interface RawService {
 	currency: string;
 	is_active: boolean;
 	delivery_mode: string;
+	audience?: string;
 	location_label: string;
 	location_lat: string | null; // DRF DecimalField -> string, same as hourly_rate above
 	location_lon: string | null;
@@ -1194,6 +1205,7 @@ export function mapService(json: RawService): Service {
 		currency: (json.currency as Service['currency']) || 'PLN',
 		isActive: json.is_active,
 		deliveryMode: BACKEND_TO_FRONTEND_DELIVERY_MODE[json.delivery_mode] ?? 'online',
+		audience: (json.audience ?? 'university') as Service['audience'],
 		// Built only when BOTH coordinates are really present. A half-set location is not a location,
 		// and leaving it undefined lets every consumer use one plain `{#if service.location}` instead
 		// of separately null-checking two fields it would then have to keep in step.

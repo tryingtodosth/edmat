@@ -26,6 +26,7 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 
 from .postimage import validate_activity_post_image
 
@@ -151,6 +152,12 @@ class Post(models.Model):
         settings.AUTH_USER_MODEL, related_name='activity_posts', on_delete=models.CASCADE
     )
     body = models.TextField()
+    # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
+    # field means; the submit forms require an explicit choice, this default exists for the
+    # migration and for code paths (the corpus importer, fixtures) that never asked.
+    audience = models.CharField(
+        max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
+    )
     image = models.ImageField(
         upload_to=post_image_upload_path, blank=True, validators=[validate_activity_post_image]
     )

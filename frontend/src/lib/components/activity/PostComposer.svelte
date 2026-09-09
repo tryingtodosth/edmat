@@ -3,6 +3,8 @@
      reference and one image. Publishing is immediate; the server enforces everything this form
      merely encourages. -->
 <script lang="ts">
+	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import type { Audience } from '$lib/types';
 	import type { FixedAnchor, Material, ResolvedExercise, Post } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -32,6 +34,7 @@
 	let activeFixed = $derived(useFixed && fixedAnchor ? fixedAnchor : null);
 
 	let body = $state('');
+	let audience = $state<Audience | ''>('');
 	let showPreview = $state(false);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
@@ -99,12 +102,13 @@
 	}
 
 	async function submit() {
-		if (!body.trim() || busy) return;
+		if (!body.trim() || busy || !audience) return;
 		busy = true;
 		error = null;
 		try {
 			const post = await createPost({
 				body,
+				audience,
 				disciplineId: activeFixed
 					? activeFixed.kind === 'discipline'
 						? activeFixed.id
@@ -156,6 +160,7 @@
 
 <div class="composer">
 	<textarea rows="4" bind:value={body} placeholder={m.post_composerPlaceholder()}></textarea>
+	<AudienceSelect bind:value={audience} />
 
 	{#if activeFixed}
 		<div class="composer__row">

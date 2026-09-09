@@ -44,6 +44,7 @@ class PostSerializer(serializers.ModelSerializer):
             'author',
             'author_display_name',
             'body',
+            'audience',
             'image',
             'discipline',
             'branch',
@@ -147,7 +148,7 @@ class PostCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ['body', 'discipline', 'branch', 'tag', 'topic', 'ref_exercise', 'ref_material', 'ref_course', 'image']
+        fields = ['body', 'audience', 'discipline', 'branch', 'tag', 'topic', 'ref_exercise', 'ref_material', 'ref_course', 'image']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

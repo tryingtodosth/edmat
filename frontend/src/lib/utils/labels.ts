@@ -4,6 +4,7 @@
 // earns a shared utility.
 
 import type {
+	Audience,
 	Difficulty,
 	DonationPlatform,
 	FeatureFlagKey,
@@ -15,6 +16,26 @@ import type {
 import { m } from '$lib/paraglide/messages.js';
 
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
+
+// Mirrors backend config/audience.py — see types/audience.ts.
+export const AUDIENCES: Audience[] = [
+	'early_years',
+	'primary',
+	'secondary',
+	'university',
+	'adult',
+	'senior',
+	'all'
+];
+export const AUDIENCE_LABELS: Record<Audience, () => string> = {
+	early_years: m.audience_early_years, // "Early years"
+	primary: m.audience_primary, // "Primary school"
+	secondary: m.audience_secondary, // "Secondary school"
+	university: m.audience_university, // "University"
+	adult: m.audience_adult, // "Adult learners"
+	senior: m.audience_senior, // "Seniors"
+	all: m.audience_all // "Everyone"
+};
 
 export const DIFFICULTY_LABELS: Record<Difficulty, () => string> = {
 	easy: m.difficulty_easy,

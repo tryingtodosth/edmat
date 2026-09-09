@@ -127,6 +127,7 @@ class EventSerializer(serializers.ModelSerializer):
             'online_url',
             'capacity',
             'language',
+            'audience',
             'going_count',
             'declined_count',
             'post_count',
@@ -243,6 +244,7 @@ class EventWriteSerializer(serializers.ModelSerializer):
             'online_url',
             'capacity',
             'language',
+            'audience',
             'parent',
         ]
 

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AudienceChips from '$lib/components/shared/AudienceChips.svelte';
+	import { audienceFilterStore } from '$lib/state/audienceFilter.svelte';
 	// The homepage used to be exercises and nothing else — top-rated and recent, and no acknowledgement
 	// on the front page that this site also holds materials, branches somebody runs, people offering
 	// tutoring, or (now) events. Five tabs, one per kind of thing, each showing a real listing built
@@ -147,6 +149,19 @@
 	let activity = $state<FeedItem[]>([]);
 
 	let loaded = $state<Record<string, boolean>>({});
+	// The band chips narrow every list, and a tab fetched before the chips changed is stale. Reset
+	// the per-tab cache and refetch the open tab — `untrack` so the effect depends on the bands only.
+	let lastBands = audienceFilterStore.param;
+	$effect(() => {
+		const bands = audienceFilterStore.param;
+		if (bands === lastBands) return;
+		lastBands = bands;
+		untrack(() => {
+			loaded = {};
+			loading = {};
+			void loadTab(active);
+		});
+	});
 	let loading = $state<Record<string, boolean>>({ exercises: true });
 	let failed = $state<Record<string, boolean>>({});
 
@@ -226,6 +241,7 @@
 			/>
 		</div>
 		<a class="hero__browse" href={resolve('/disciplines')}>{m.home_hero_cta()}</a>
+		<div class="hero__audience"><AudienceChips /></div>
 	</section>
 
 	<!-- `tabindex="-1"` on the list itself, with the roving tabindex living on the tabs: the container
@@ -395,6 +411,9 @@
 		margin: 0 auto;
 	}
 
+	.hero__audience {
+		margin-top: 1rem;
+	}
 	.hero__browse {
 		font-size: var(--font-size-sm);
 	}

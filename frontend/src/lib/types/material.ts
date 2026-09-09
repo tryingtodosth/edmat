@@ -1,3 +1,4 @@
+import type { Audience } from './audience';
 // Phase 3 — widened from the Phase 1 guess ('script' | 'formulaSheet' | 'other') to match what the
 // real backend model actually settled on once grounded against the real corpus (CLAUDE.md's own
 // Phase 2 note: none of the real material.yaml `type:` values ever produce a formula sheet).
@@ -126,6 +127,7 @@ export interface Material {
 	branchId: string;
 	slug: string;
 	type: MaterialType;
+	audience: Audience;
 	title: string;
 	description: string;
 	coverage: MaterialCoverage[];

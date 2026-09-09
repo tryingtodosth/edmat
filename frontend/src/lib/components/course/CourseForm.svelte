@@ -1,4 +1,6 @@
 <script lang="ts">
+	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import type { Audience } from '$lib/types';
 	// Shared by creating and editing, since they ask exactly the same questions — two copies would
 	// drift the moment one gained a field.
 	import { untrack } from 'svelte';
@@ -35,6 +37,7 @@
 	);
 	let capacity = $state(untrack(() => initial?.capacity ?? 0));
 	let language = $state(untrack(() => initial?.language ?? 'pl'));
+	let audience = $state<Audience | ''>(untrack(() => initial?.audience ?? ''));
 	let startsOn = $state(untrack(() => initial?.startsOn ?? ''));
 	let endsOn = $state(untrack(() => initial?.endsOn ?? ''));
 	let price = $state(untrack(() => initial?.price ?? ''));
@@ -52,7 +55,9 @@
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
+		if (!audience) return;
 		onsubmit({
+			audience,
 			title: title.trim(),
 			summary: summary.trim(),
 			description: description.trim(),
@@ -131,6 +136,8 @@
 		     that hands you a link to send. -->
 		<p class="choice-set__note">{m.course_form_inviteNote()}</p>
 	</fieldset>
+
+	<AudienceSelect bind:value={audience} />
 
 	<label class="field">
 		<span>{m.course_form_status()}</span>

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { AUDIENCES, AUDIENCE_LABELS } from '$lib/utils/labels';
+	import type { Audience } from '$lib/types';
 	import { resolve } from '$app/paths';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { NotificationType } from '$lib/types';
@@ -28,6 +30,7 @@
 	let timeFormat = $state<'24h' | '12h'>('24h');
 	let weekStartsOn = $state<'monday' | 'sunday'>('monday');
 	let saveMenuLayout = $state<'beside' | 'above'>('beside');
+	let audienceFilter = new SvelteSet<Audience>();
 	// Tutoring opt-in badge (User.offersTutoring/tutoringNote) - a deliberately lightweight
 	// signal distinct from a real, branch-scoped services.Service listing (see accounts/models.py's
 	// own doc comment): "I'm open to being asked," shown on the public profile.
@@ -92,6 +95,8 @@
 		timeFormat = authStore.user.timeFormat ?? '24h';
 		weekStartsOn = authStore.user.weekStartsOn ?? 'monday';
 		saveMenuLayout = authStore.user.saveMenuLayout ?? 'beside';
+		audienceFilter.clear();
+		for (const b of authStore.user.audienceFilter ?? []) audienceFilter.add(b);
 		offersTutoring = authStore.user.offersTutoring;
 		tutoringNote = authStore.user.tutoringNote;
 		// Mutate the existing SvelteSet in place, not a reassignment — `mutedTypes` is a plain `let`
@@ -120,6 +125,7 @@
 			timeFormat,
 			weekStartsOn,
 			saveMenuLayout,
+			audienceFilter: Array.from(audienceFilter),
 			mutedNotificationTypes: Array.from(mutedTypes),
 			offersTutoring,
 			tutoringNote
@@ -299,6 +305,24 @@
 					</select>
 				</label>
 				<p class="field-hint">{m.settings_datesHint()}</p>
+			</section>
+
+			<!-- The audience bands lists are narrowed to (AUDIENCE-BRIEF.md §1). Same choice the
+			     homepage chip row offers; kept here too so it is findable without going home. -->
+			<section class="field-group">
+				<h2>{m.settings_audienceHeading()}</h2>
+				{#each AUDIENCES.filter((a) => a !== 'all') as band (band)}
+					<label class="checkbox-row">
+						<input
+							type="checkbox"
+							checked={audienceFilter.has(band)}
+							onchange={(e) =>
+								e.currentTarget.checked ? audienceFilter.add(band) : audienceFilter.delete(band)}
+						/>
+						<span>{AUDIENCE_LABELS[band]()}</span>
+					</label>
+				{/each}
+				<p class="field-hint">{m.settings_audienceHint()}</p>
 			</section>
 
 			<!-- Where the save menu puts the "add to a course" half. Its own small section rather than
