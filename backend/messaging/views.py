@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils.timezone import now
+from accounts.minors import is_minor
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -76,6 +77,9 @@ class MessageViewSet(viewsets.GenericViewSet):
             recipient = User.objects.get(pk=serializer.validated_data['recipient_id'])
         except User.DoesNotExist:
             return Response({'recipient_id': ['No such user.']}, status=status.HTTP_400_BAD_REQUEST)
+        if is_minor(request.user) or is_minor(recipient):
+            # accounts/minors.py: no messaging in either direction for a minor's account.
+            return Response({'detail': 'minor'}, status=status.HTTP_403_FORBIDDEN)
         if recipient == request.user:
             return Response(
                 {'recipient_id': ["You can't send a message to yourself."]},
@@ -92,6 +96,8 @@ class MessageViewSet(viewsets.GenericViewSet):
     @action(detail=True, methods=['post'])
     def reply(self, request, pk=None):
         parent = self.get_object()
+        if is_minor(request.user):
+            return Response({'detail': 'minor'}, status=status.HTTP_403_FORBIDDEN)
         serializer = ReplySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         message = reply_to_message(

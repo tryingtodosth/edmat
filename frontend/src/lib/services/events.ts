@@ -192,9 +192,15 @@ export async function respondToEvent(
 	id: string,
 	status: 'going' | 'not_going',
 	note = '',
-	answers?: RegistrationAnswers
+	answers?: RegistrationAnswers,
+	onBehalfOf?: string
 ): Promise<EdmatEvent> {
-	const body = await apiClient.post<any>(`/events/${id}/attend/`, { status, note, answers });
+	const body = await apiClient.post<any>(`/events/${id}/attend/`, {
+		status,
+		note,
+		answers,
+		on_behalf_of: onBehalfOf ? Number(onBehalfOf) : undefined
+	});
 	return mapEvent(body.event);
 }
 

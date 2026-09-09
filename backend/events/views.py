@@ -6,10 +6,12 @@ scoping happens in the queryset rather than in after-the-fact checks — so some
 person's draft gets a 404, which is also the honest answer, since for them it does not exist.
 """
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
+from accounts.minors import guardian_of, is_minor
 from config.audience import apply_audience_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -39,6 +41,7 @@ from .services import (
     notify_host_of_response,
 )
 
+User = get_user_model()
 _EventsFeatureGate = feature_gate('events')
 
 
@@ -182,6 +185,8 @@ class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, viewset
         able to navigate to it, and the write serializer carries neither — returning it would force
         an immediate second GET for something the server already has in hand.
         """
+        if is_minor(request.user):
+            return Response({'detail': 'minor'}, status=status.HTTP_403_FORBIDDEN)  # no hosting
         write = self.get_serializer(data=request.data)
         write.is_valid(raise_exception=True)
         event = write.save(host=request.user)
@@ -274,17 +279,26 @@ class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, viewset
         write = AttendanceWriteSerializer(data=request.data)
         write.is_valid(raise_exception=True)
         wanted = write.validated_data['status']
-        reason = event.response_block_reason(request.user)
+        # A guardian answering for a child (AUDIENCE-BRIEF.md §2): the row is the child's, marked
+        # `registered_by` the guardian — the only way a primary-school attendee reaches a roster.
+        subject = request.user
+        registered_by = None
+        if request.data.get('on_behalf_of'):
+            child = User.objects.filter(pk=request.data['on_behalf_of']).first()
+            if child is None or not guardian_of(request.user, child):
+                return Response({'detail': 'not_your_child'}, status=status.HTTP_403_FORBIDDEN)
+            subject, registered_by = child, request.user
+        reason = event.response_block_reason(subject)
         if reason is not None and wanted != 'not_going':
             return Response({'detail': reason}, status=status.HTTP_409_CONFLICT)
         if wanted == 'not_going':
-            attendance = withdraw(event, request.user, note=write.validated_data.get('note', ''), actor=request.user)
+            attendance = withdraw(event, subject, note=write.validated_data.get('note', ''), actor=request.user)
             newly_going = False
         else:
             answers = write.validated_data.get('answers')
             # The questions are answered when somebody first asks; claiming an offered seat, or
             # re-asking while still pending/waiting, must not demand them again.
-            mine = event.attendances.filter(attendee=request.user).first()
+            mine = event.attendances.filter(attendee=subject).first()
             fresh = mine is None or mine.status in ('not_going', 'expired')
             if event.registration_mode == 'form' and fresh:
                 problems = validate_answers(event, answers)
@@ -293,10 +307,10 @@ class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, viewset
             # The engine decides what "I am coming" becomes here — a seat, the waiting list, or a
             # request for the organiser — and re-checks capacity against the database itself.
             attendance, newly_going = register(
-                event, request.user, answers=answers, note=write.validated_data.get('note', ''), actor=request.user
+                event, subject, answers=answers, note=write.validated_data.get('note', ''), registered_by=registered_by, actor=request.user
             )
         if newly_going and attendance.status == 'going':
-            notify_host_of_response(event, request.user, 'going')
+            notify_host_of_response(event, subject, 'going')
         event = Event.objects.get(pk=event.pk)
         return Response(
             {

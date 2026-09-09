@@ -21,7 +21,8 @@
 	// nothing for a password to protect yet).
 	let password = $state('');
 	let preferredLocale = $state(getLocale());
-	let error = $state<'emailTaken' | 'generic' | null>(null);
+	let birthYear = $state('');
+	let error = $state<'emailTaken' | 'guardianRequired' | 'generic' | null>(null);
 	let errorMessage = $state('');
 	let submitting = $state(false);
 
@@ -32,7 +33,8 @@
 			displayName.trim(),
 			email.trim(),
 			password,
-			preferredLocale
+			preferredLocale,
+			birthYear.trim() ? parseInt(birthYear, 10) : undefined
 		);
 		submitting = false;
 		if (result.ok) {
@@ -62,6 +64,8 @@
 			// Back to wherever "Log in" was clicked, not the home page — see lib/utils/returnTo.ts.
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- an in-app path remembered at runtime (validated same-origin in returnTo.ts), not a literal route resolve() could name
 			goto(takeReturnTo(page.url));
+		} else if (result.error === 'guardianRequired') {
+			error = 'guardianRequired';
 		} else if (result.error === 'emailTaken') {
 			error = 'emailTaken';
 		} else {
@@ -86,6 +90,11 @@
 			<input type="email" bind:value={email} required />
 		</label>
 		<label class="field">
+			<span>{m.auth_register_birthYear()}</span>
+			<input type="text" inputmode="numeric" pattern={'[0-9]{4}'} bind:value={birthYear} required />
+			<span class="field-hint">{m.auth_register_birthYearHint()}</span>
+		</label>
+		<label class="field">
 			<span>{m.auth_register_password()}</span>
 			<input
 				type="password"
@@ -104,7 +113,9 @@
 			</select>
 		</label>
 
-		{#if error === 'emailTaken'}
+		{#if error === 'guardianRequired'}
+			<p class="error guardian" role="alert">{m.auth_register_guardianRequired()}</p>
+		{:else if error === 'emailTaken'}
 			<p class="error">{m.auth_register_error_emailTaken()}</p>
 		{:else if error === 'generic'}
 			<p class="error">{m.auth_register_error_generic({ message: errorMessage })}</p>

@@ -25,6 +25,8 @@ class DonationLinkSerializer(serializers.ModelSerializer):
 
 
 class ProfileSerializer(serializers.ModelSerializer):
+    guardian_of = serializers.SerializerMethodField()
+    guardians = serializers.SerializerMethodField()
     # A real, found-before-ever-being-called bug: `id` here must be the USER's own pk, not
     # Profile's own auto pk — every other reference to "a user" throughout this API (Review.author,
     # Comment.author, ExerciseSubmission.submitted_by, ExerciseTranslation.translated_by/reviewed_by)
@@ -71,6 +73,9 @@ class ProfileSerializer(serializers.ModelSerializer):
             'notify_on_event',
             'muted_notification_types',
             'audience_filter',
+            'is_minor',
+            'guardian_of',
+            'guardians',
             'donation_links',
             'offers_tutoring',
             'tutoring_note',
@@ -89,7 +94,33 @@ class ProfileSerializer(serializers.ModelSerializer):
         return NodeGovernor.objects.filter(user=obj.user).exists()
 
 
+    def get_guardian_of(self, profile):
+        from .models import Guardianship
+
+        return [
+            {'id': g.child_id, 'username': g.child.username,
+             'display_name': getattr(getattr(g.child, 'profile', None), 'display_name', '') or g.child.username}
+            for g in Guardianship.objects.filter(guardian=profile.user, revoked_at__isnull=True).select_related('child__profile')
+        ]
+
+    def get_guardians(self, profile):
+        from .models import Guardianship
+
+        return [
+            {'id': g.guardian_id, 'display_name': getattr(getattr(g.guardian, 'profile', None), 'display_name', '') or g.guardian.username}
+            for g in Guardianship.objects.filter(child=profile.user, revoked_at__isnull=True).select_related('guardian__profile')
+        ]
+
+
 class ProfileUpdateSerializer(serializers.ModelSerializer):
+    def validate(self, attrs):
+        # accounts/minors.py: a minor's profile stays private and never offers tutoring, whatever
+        # the form sent — enforced here, not merely hidden in the UI.
+        if self.instance is not None and self.instance.is_minor:
+            attrs['show_profile_publicly'] = False
+            attrs['offers_tutoring'] = False
+        return attrs
+
     def validate_audience_filter(self, value):
         if not isinstance(value, list) or any(v not in AUDIENCE_VALUES for v in value):
             raise serializers.ValidationError('Unknown audience band.')
@@ -195,7 +226,8 @@ class PublicProfileSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
-        if not instance.show_profile_publicly:
+        # A minor's profile is private whatever the flag says (accounts/minors.py).
+        if not instance.show_profile_publicly or instance.is_minor:
             rep['joined_at'] = None
             rep['is_verified_contributor'] = False
             rep['is_moderator'] = False
@@ -206,6 +238,9 @@ class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+    # Asked to BRANCH, never stored (data minimisation): under the consent age the answer is
+    # "ask your parent or guardian to create your account", and the year goes no further.
+    birth_year = serializers.IntegerField(required=False, min_value=1900, max_value=2100)
     display_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     preferred_locale = serializers.CharField(max_length=8, required=False, default='en')
 
@@ -222,11 +257,21 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError('That email is already registered.')
         return value
 
+    def validate_birth_year(self, value):
+        from django.utils import timezone
+
+        from .minors import CONSENT_AGE
+
+        if value is not None and timezone.now().year - value < CONSENT_AGE:
+            raise serializers.ValidationError('guardian_required', code='guardian_required')
+        return value
+
     def validate_password(self, value):
         validate_password(value)
         return value
 
     def create(self, validated_data):
+        validated_data.pop('birth_year', None)
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],

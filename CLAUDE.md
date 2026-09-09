@@ -6425,6 +6425,59 @@ purpose); the "When" line still shows the start + duration for a multi-day event
 the end; a decision cannot be reopened after rejection except through the report system's
 restore; no email.
 
+## 17AP. Guardian accounts and minor-safe defaults (✅ built, full stack)
+
+`AUDIENCE-BRIEF.md` §2 — the legal prerequisite for the wider audience. GDPR Article 8 as
+transposed in Poland sets the consent age at 16; below it an account is opened by a guardian, and
+what such an account may not do is decided in ONE module (`accounts/minors.py`) that every
+endpoint granting one of those abilities asks, rather than remembering the rule itself.
+
+- **Registration asks for a birth YEAR, to branch and never to store**: under 16 the answer is
+  "ask your parent or guardian", said on the form; the year goes no further, and only
+  `Profile.is_minor` is ever written (by the guardian flow, never by the person).
+- **`Guardianship`** (guardian → child, consent timestamp and method, `revoked_at` rather than a
+  delete). `POST /api/auth/children/` makes a child: username + password, **no email**, private
+  from the first second; the guardian's `/auth/me/` lists `guardian_of`, the child's lists its
+  `guardians`. `GET …/children/{id}/content/` is what the child wrote (held items marked),
+  `DELETE …/content/{kind}/{id}/` tombstones one item, `DELETE …/children/{id}/` deletes the
+  account. Deleting a guardian deletes their children unless another guardian remains (a
+  `pre_delete` signal, so the admin honours it too — there is no self-service account deletion).
+  A child signs in by username; the login form now says "Email or username".
+- **What a minor's account cannot do, enforced by the server**: message or be messaged (403 both
+  ways), have a public profile (`PublicProfileSerializer` treats it as private and
+  `ProfileUpdateSerializer` forces the flag off whatever the form sent), upload an avatar, share a
+  location (geocoding 403), list tutoring, host an event. **Comments and posts are allowed and
+  HELD**: a `post_save` hook on `Comment` and the post view call `hold_for_review`, which sets
+  `auto_hidden_at` and files a Report in the author's own name with a fixed reason — one more
+  row in the moderation queue a moderator already knows how to restore or remove, rather than a
+  second queue. A picture posted into a minor band by anybody is held the same way (§17AI's
+  deferred image review, now in scope).
+- **A guardian registers a child for an event**: `on_behalf_of` on `/attend/`, verified against
+  `Guardianship`; the row is the child's with `registered_by` the guardian, which the roster
+  shows. The event page offers a "Register a child" select to anybody who is a guardian.
+- **Frontend**: the register form's year and its refusal, username login, `GuardianPanel` in
+  Settings (add / read what they wrote / remove an item / delete), the privacy toggle locked with
+  a sentence for a minor, no avatar or tutoring sections, and no Messages / Host / Offer tutoring
+  entries in the header for a minor's account.
+
+**Verified**: `accounts/test_minors.py` 11 tests (the under-16 refusal and the year not stored;
+a child without email, private, listed under the guardian; username login; a minor cannot make
+children and a stranger cannot touch one; the guardian reads, removes and deletes; guardian
+deletion cascades unless a second guardian remains; the locked flags; no messaging either way; no
+listing / hosting / avatar / geocoding; a held comment and post with the moderator's restore
+publishing it; on-behalf registration refused for a non-guardian); accounts / messaging /
+services / activity / community suites 274 green; `e2e/guardian-accounts.mjs` 17/17, zero console
+errors (one deliberately tolerated: the refusal under test is a 400 the browser logs). Two real
+findings: Svelte read `{4}` in a `pattern` attribute as a template expression (`[0-9]4`), and
+clearing the throttle cache directory while the server is reading it produces a stale-file-handle
+500 — a script-hygiene rule, not an app bug.
+
+**Left open**: no guardian-side notification digest; a guardian cannot reset the child's
+password from the panel (the child has no email for the reset flow either); the hold reason
+appears in the moderation queue as a report by the author, which reads oddly until the queue
+learns a "held" label; no age band per child (a child is a minor, nothing finer); the
+`early_years` band still has no adult-mediated "play" surface of its own.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

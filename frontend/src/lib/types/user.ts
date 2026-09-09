@@ -10,6 +10,11 @@ export interface User {
 	avatarUrl?: string;
 	joinedAt: string | null; // null only ever appears on a PublicProfile view of a privacy-gated profile
 	isVerifiedContributor: boolean;
+	/** Under the consent age; accounts/minors.py says what such an account may not do. */
+	isMinor: boolean;
+	/** Children this account is guardian of (own profile only). */
+	guardianOf?: { id: string; username: string; displayName: string }[];
+	guardians?: { id: string; displayName: string }[];
 	isModerator: boolean;
 	// The "node governor" feature (nodeGovernor.ts) — a moderator scoped to one Discipline/Branch rather
 	// than the whole platform. Deliberately just a cheap flag here, not the actual list of governed

@@ -46,8 +46,8 @@
 
 	<form onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
 		<label class="field">
-			<span>{m.auth_login_email()}</span>
-			<input type="email" bind:value={email} required />
+			<span>{m.auth_login_emailOrUsername()}</span>
+			<input type="text" autocomplete="username" bind:value={email} required />
 		</label>
 		<label class="field">
 			<span>{m.auth_login_password()}</span>

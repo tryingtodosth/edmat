@@ -3,6 +3,8 @@ import math
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
+from accounts.minors import is_minor
+from rest_framework.exceptions import PermissionDenied
 from rest_framework import mixins, permissions, status, viewsets
 from config.audience import apply_audience_filter
 from rest_framework.decorators import action
@@ -201,6 +203,8 @@ class ServiceViewSet(viewsets.ModelViewSet):
         return qs.filter(pk__in=within)
 
     def perform_create(self, serializer):
+        if is_minor(self.request.user):
+            raise PermissionDenied('minor')  # accounts/minors.py: no tutoring listing
         serializer.save(provider=self.request.user)
 
     def _respond_full(self, instance, response_status):
@@ -373,6 +377,8 @@ class GeocodeView(APIView):
     throttle_scope = 'geocode'
 
     def get(self, request):
+        if is_minor(request.user):
+            return Response({'detail': 'minor'}, status=status.HTTP_403_FORBIDDEN)  # no location sharing
         query = (request.query_params.get('q') or '').strip()
         lat_raw = request.query_params.get('lat')
         lon_raw = request.query_params.get('lon')

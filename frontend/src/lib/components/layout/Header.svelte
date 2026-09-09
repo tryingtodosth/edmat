@@ -63,11 +63,14 @@
 	let canSubmitExercise = $derived(can('exercise_submissions'));
 	let canSubmitMaterial = $derived(can('material_submissions'));
 	let canClassroom = $derived(can('classroom'));
-	let canTutoring = $derived(can('tutoring'));
+	// A minor's account may not host, list tutoring, or message (accounts/minors.py); the links go
+	// with the abilities, the kill-switch rule.
+	let isMinor = $derived(authStore.user?.isMinor ?? false);
+	let canTutoring = $derived(can('tutoring') && !isMinor);
 	let canIssues = $derived(can('issues'));
 	let canEvents = $derived(can('events'));
 	let canPosts = $derived(can('posts'));
-	let canMessaging = $derived(can('messaging'));
+	let canMessaging = $derived(can('messaging') && !isMinor);
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -319,7 +322,7 @@
 			{m.nav_add_course()}
 		</a>
 	{/if}
-	{#if canEvents}
+	{#if canEvents && !isMinor}
 		<a role="menuitem" class={itemClass} href={resolve('/events/new')} {onclick}>
 			{m.nav_add_event()}
 		</a>

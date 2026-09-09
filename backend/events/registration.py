@@ -78,6 +78,8 @@ def register(event, user, *, answers=None, note='', registered_by=None, actor=No
         fresh = row is None or row.status in ('not_going', 'expired')
         if row is None:
             row = EventAttendance(event=event, attendee=user, registered_by=registered_by)
+        elif registered_by is not None:
+            row.registered_by = registered_by
         if answers is not None:
             row.answers = answers
         if note:

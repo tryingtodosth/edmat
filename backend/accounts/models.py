@@ -162,6 +162,10 @@ class Profile(models.Model):
     # a senior to senior+adult; content marked `all` passes any narrowing. Sent by the frontend as
     # `?audience=` on every list request; guests keep the same list in localStorage.
     audience_filter = models.JSONField(default=list, blank=True)
+    # Under the consent age (16 in Poland, GDPR Art. 8) — the account was made by a guardian
+    # (`Guardianship`) and every rule in accounts/minors.py applies. Only the flag is stored, never
+    # a birth date: the year is asked at registration purely to branch, then discarded.
+    is_minor = models.BooleanField(default=False)
 
     # Tutoring ("Korepetycje") — a deliberately lightweight, opt-in signal, distinct from a real
     # services.Service listing (services/models.py): this is "I'm open to being asked," shown as a
@@ -431,3 +435,28 @@ class Certificate(models.Model):
 
     def __str__(self) -> str:
         return f'{self.title} ({self.profile})'
+
+
+class Guardianship(models.Model):
+    """A guardian's consent for, and control over, a child's account (AUDIENCE-BRIEF.md §2).
+    `revoked_at` rather than a delete, so the record of who consented and when survives; a
+    guardian who is deleted takes their children with them unless a second guardian remains
+    (accounts/signals.py)."""
+
+    guardian = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='guardianships', on_delete=models.CASCADE
+    )
+    child = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='guardians', on_delete=models.CASCADE
+    )
+    consent_given_at = models.DateTimeField(auto_now_add=True)
+    consent_method = models.CharField(max_length=30, default='guardian_account')
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['guardian', 'child'], name='one_guardianship_per_pair'),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.guardian} → {self.child}'

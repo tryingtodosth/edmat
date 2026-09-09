@@ -1,4 +1,5 @@
 <script lang="ts">
+	import GuardianPanel from '$lib/components/settings/GuardianPanel.svelte';
 	import { AUDIENCES, AUDIENCE_LABELS } from '$lib/utils/labels';
 	import type { Audience } from '$lib/types';
 	import { resolve } from '$app/paths';
@@ -231,10 +232,15 @@
 		     multipart endpoint and saves immediately on its own action, so folding it into a form
 		     whose Save button posts a JSON PATCH would imply it's part of that same submit when it
 		     isn't. Same standalone-section shape DonationLinksEditor/TagFollowsEditor already use. -->
-		<section class="avatar">
-			<h2>{m.settings_avatarHeading()}</h2>
-			<AvatarEditor />
-		</section>
+		{#if !authStore.user?.isMinor}
+			<section class="avatar">
+				<h2>{m.settings_avatarHeading()}</h2>
+				<AvatarEditor />
+			</section>
+		{/if}
+		{#if authStore.user && !authStore.user.isMinor}
+			<GuardianPanel />
+		{/if}
 
 		<!-- Standalone for the same reason as the avatar above: it saves through its own endpoints
 		     as you go (each consent toggle is its own decision, and batching three of them behind a
@@ -263,26 +269,36 @@
 			<section class="field-group">
 				<h2>{m.settings_privacyHeading()}</h2>
 				<label class="checkbox">
-					<input type="checkbox" bind:checked={showProfilePublicly} />
+					<input
+						type="checkbox"
+						bind:checked={showProfilePublicly}
+						disabled={authStore.user?.isMinor}
+					/>
 					<span>{m.settings_showProfilePublicly()}</span>
 				</label>
-				<p class="field-hint">{m.settings_showProfilePubliclyHint()}</p>
+				<p class="field-hint">
+					{authStore.user?.isMinor
+						? m.settings_minorPrivacyLocked()
+						: m.settings_showProfilePubliclyHint()}
+				</p>
 			</section>
 
-			<section class="field-group">
-				<h2>{m.settings_tutoringHeading()}</h2>
-				<label class="checkbox">
-					<input type="checkbox" bind:checked={offersTutoring} />
-					<span>{m.settings_offersTutoring()}</span>
-				</label>
-				<p class="field-hint">{m.settings_offersTutoringHint()}</p>
-				{#if offersTutoring}
-					<label>
-						<span>{m.settings_tutoringNote()}</span>
-						<input type="text" bind:value={tutoringNote} maxlength="200" />
+			{#if !authStore.user?.isMinor}
+				<section class="field-group">
+					<h2>{m.settings_tutoringHeading()}</h2>
+					<label class="checkbox">
+						<input type="checkbox" bind:checked={offersTutoring} />
+						<span>{m.settings_offersTutoring()}</span>
 					</label>
-				{/if}
-			</section>
+					<p class="field-hint">{m.settings_offersTutoringHint()}</p>
+					{#if offersTutoring}
+						<label>
+							<span>{m.settings_tutoringNote()}</span>
+							<input type="text" bind:value={tutoringNote} maxlength="200" />
+						</label>
+					{/if}
+				</section>
+			{/if}
 
 			<!-- Its own section rather than folded in beside the interface language, because they are
 			     genuinely different questions: reading the English interface is not a statement about

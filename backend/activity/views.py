@@ -5,6 +5,7 @@ The feed endpoint replaced community/views.py's placeholder `SiteActivityView` (
 re-querying three source tables per page view. Bare array response, per this API's own convention.
 """
 
+from accounts.minors import hold_for_review, should_hold_post
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -95,8 +96,10 @@ class PostViewSet(viewsets.GenericViewSet):
         serializer = PostCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         post = serializer.save(author=request.user)
-        # The feed row — the whole reason a post exists. Tags: the anchor tag when that's the
-        # anchor, so tag-followers' Followed view picks the post up.
+        if should_hold_post(post):
+            # accounts/minors.py: held for a moderator's look; nothing announces it until then.
+            hold_for_review(post, request.user)
+            return Response(PostSerializer(post, context={'request': request}).data, status=status.HTTP_201_CREATED)
         record_activity(
             'post',
             actor=request.user,

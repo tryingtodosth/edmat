@@ -120,7 +120,8 @@ export const authStore = {
 		displayName: string,
 		email: string,
 		password: string,
-		preferredLocale: string
+		preferredLocale: string,
+		birthYear?: number
 	): Promise<{ ok: true } | { ok: false; error: string }> {
 		try {
 			const res = await apiClient.post<{ token: string; profile: RawProfile }>('/auth/register/', {
@@ -128,13 +129,18 @@ export const authStore = {
 				email,
 				password,
 				display_name: displayName,
-				preferred_locale: preferredLocale
+				preferred_locale: preferredLocale,
+				// Asked to branch on the consent age, never stored (AUDIENCE-BRIEF.md §2).
+				birth_year: birthYear
 			});
 			tokenStore.set(res.token);
 			user = mapUser(res.profile);
 			audienceFilterStore.syncFromProfile(user.audienceFilter);
 			return { ok: true };
 		} catch (e) {
+			if (e instanceof ApiError && e.body && typeof e.body === 'object' && 'birth_year' in e.body) {
+				return { ok: false, error: 'guardianRequired' };
+			}
 			if (e instanceof ApiError && e.body && typeof e.body === 'object' && 'email' in e.body) {
 				return { ok: false, error: 'emailTaken' };
 			}

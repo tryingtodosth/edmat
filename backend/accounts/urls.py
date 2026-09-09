@@ -9,6 +9,9 @@ from .profile_extras import (
     UserProfileExtrasView,
 )
 from .views import (
+    ChildContentView,
+    ChildDetailView,
+    ChildrenView,
     AvatarView,
     DonationLinkViewSet,
     LoginView,
@@ -33,6 +36,10 @@ urlpatterns = router.urls + [
     path('auth/logout/', LogoutView.as_view(), name='auth-logout'),
     path('auth/me/', MeView.as_view(), name='auth-me'),
     path('auth/me/avatar/', AvatarView.as_view(), name='auth-me-avatar'),
+    path('auth/children/', ChildrenView.as_view(), name='auth-children'),
+    path('auth/children/<int:pk>/', ChildDetailView.as_view(), name='auth-child'),
+    path('auth/children/<int:pk>/content/', ChildContentView.as_view(), name='auth-child-content'),
+    path('auth/children/<int:pk>/content/<str:kind>/<int:item_id>/', ChildContentView.as_view(), name='auth-child-content-item'),
     path('auth/password-reset/', PasswordResetView.as_view(), name='auth-password-reset'),
     path('users/<int:pk>/', UserPublicView.as_view(), name='user-public'),
     path('users/<int:pk>/extras/', UserProfileExtrasView.as_view(), name='user-extras'),

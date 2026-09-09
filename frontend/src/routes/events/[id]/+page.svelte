@@ -135,6 +135,21 @@
 		if (event.registrationMode === 'form' && event.myAttendance !== 'promoted') showForm = true;
 		else void respond('going');
 	}
+	let childId = $state('');
+	async function registerChild(status: 'going' | 'not_going') {
+		if (!event || !childId) return;
+		busy = true;
+		actionError = '';
+		try {
+			event = await respondToEvent(event.id, status, '', undefined, childId);
+			childDone = { ...childDone, [childId]: status };
+		} catch (e) {
+			actionError = e instanceof Error ? e.message : m.common_error_generic();
+		} finally {
+			busy = false;
+		}
+	}
+	let childDone = $state<Record<string, string>>({});
 	async function respond(status: 'going' | 'not_going', answers?: RegistrationAnswers) {
 		if (!event) return;
 		busy = true;
@@ -461,6 +476,30 @@
 								{m.events_notGoing()}
 							</button>
 						</div>
+						{#if authStore.user?.guardianOf?.length && event.registrationMode !== 'form' && !event.isPast}
+							<!-- A guardian answering for a child (AUDIENCE-BRIEF.md §2) — the only way a
+							     primary-school attendee ever reaches a roster. -->
+							<div class="on-behalf">
+								<label>
+									<span>{m.events_registerChild()}</span>
+									<select bind:value={childId}>
+										<option value="">—</option>
+										{#each authStore.user.guardianOf as c (c.id)}<option value={c.id}
+												>{c.displayName}</option
+											>{/each}
+									</select>
+								</label>
+								<button
+									type="button"
+									class="secondary"
+									disabled={busy || !childId}
+									onclick={() => registerChild('going')}>{m.events_registerChildGoing()}</button
+								>
+								{#if childId && childDone[childId] === 'going'}<span class="held"
+										>{m.events_childRegistered()}</span
+									>{/if}
+							</div>
+						{/if}
 						{#if showForm}
 							<RegistrationForm
 								{event}

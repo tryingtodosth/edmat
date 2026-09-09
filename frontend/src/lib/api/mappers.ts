@@ -957,6 +957,9 @@ export interface RawProfile {
 	save_menu_layout?: string;
 	audience_filter?: string[];
 	is_verified_contributor: boolean;
+	is_minor?: boolean;
+	guardian_of?: { id: number; username: string; display_name: string }[];
+	guardians?: { id: number; display_name: string }[];
 	is_moderator: boolean;
 	is_node_governor: boolean;
 	joined_at: string | null; // null only on a privacy-gated PublicProfile response
@@ -992,6 +995,16 @@ export function mapUser(json: RawProfile): User {
 		isNodeGovernor: json.is_node_governor,
 		preferredLocale: json.preferred_locale,
 		offersTutoring: json.offers_tutoring,
+		isMinor: json.is_minor ?? false,
+		guardianOf: (json.guardian_of ?? []).map((c) => ({
+			id: String(c.id),
+			username: c.username,
+			displayName: c.display_name
+		})),
+		guardians: (json.guardians ?? []).map((g) => ({
+			id: String(g.id),
+			displayName: g.display_name
+		})),
 		tutoringNote: json.tutoring_note,
 		exercisesPublishedCount: json.exercises_published_count ?? 0,
 		exercisesPrivateCount: json.exercises_private_count,

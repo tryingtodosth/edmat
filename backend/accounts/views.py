@@ -121,6 +121,8 @@ class AvatarView(APIView):
     throttle_scope = 'avatar'
 
     def post(self, request):
+        if is_minor(request.user):
+            return Response({'detail': 'minor'}, status=status.HTTP_403_FORBIDDEN)
         upload = request.FILES.get('avatar')
         if upload is None:
             return Response(
@@ -267,3 +269,108 @@ class PasswordResetView(APIView):
 
     def post(self, request):
         return Response({'detail': 'If that email is registered, a reset link would be sent.'})
+
+
+# ---- guardian accounts (AUDIENCE-BRIEF.md §2) ---------------------------------------------------
+
+from django.contrib.auth.password_validation import validate_password as _validate_password
+from django.core.exceptions import ValidationError as _DjangoValidationError
+from django.utils import timezone as _tz
+
+from .minors import guardian_of, is_minor
+from .models import Guardianship
+
+
+class ChildrenView(APIView):
+    """GET: the children this account is guardian of. POST: create one — a username and a
+    password and no email; the child's profile is a minor's from the first second."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response(ProfileSerializer(request.user.profile, context={'request': request}).data['guardian_of'])
+
+    def post(self, request):
+        if is_minor(request.user):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        username = (request.data.get('username') or '').strip()
+        password = request.data.get('password') or ''
+        display_name = (request.data.get('display_name') or '').strip()[:100]
+        if not username:
+            return Response({'username': ['A username is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username__iexact=username).exists():
+            return Response({'username': ['That username is already taken.']}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            _validate_password(password)
+        except _DjangoValidationError as e:
+            return Response({'password': e.messages}, status=status.HTTP_400_BAD_REQUEST)
+        child = User.objects.create_user(username=username, email='', password=password)
+        profile = child.profile
+        profile.is_minor = True
+        profile.display_name = display_name or username
+        profile.show_profile_publicly = False
+        profile.preferred_locale = request.user.profile.preferred_locale
+        profile.save()
+        Guardianship.objects.create(guardian=request.user, child=child)
+        return Response(
+            {'id': child.pk, 'username': child.username, 'display_name': profile.display_name},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ChildDetailView(APIView):
+    """DELETE: the guardian deletes the child's account — everything the child made goes with it
+    (comments and posts cascade on their author)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, pk):
+        child = User.objects.filter(pk=pk).first()
+        if child is None or not guardian_of(request.user, child):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        child.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChildContentView(APIView):
+    """What the child wrote — comments and posts, held or not — for the guardian to read and, per
+    item, remove (a tombstone, the same as the author's own delete)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _child(self, request, pk):
+        child = User.objects.filter(pk=pk).first()
+        if child is None or not guardian_of(request.user, child):
+            return None
+        return child
+
+    def get(self, request, pk):
+        from activity.models import Post
+        from community.models import Comment
+
+        child = self._child(request, pk)
+        if child is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        comments = Comment.objects.filter(author=child, is_removed=False).order_by('-created_at')[:100]
+        posts = Post.objects.filter(author=child, is_removed=False).order_by('-created_at')[:100]
+        return Response({
+            'comments': [{'id': c.pk, 'body': c.body[:300], 'created_at': c.created_at, 'held': c.auto_hidden_at is not None} for c in comments],
+            'posts': [{'id': p.pk, 'body': p.body[:300], 'created_at': p.created_at, 'held': p.auto_hidden_at is not None} for p in posts],
+        })
+
+    def delete(self, request, pk, kind, item_id):
+        from activity.models import Post
+        from community.models import Comment
+
+        child = self._child(request, pk)
+        if child is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        model = {'comment': Comment, 'post': Post}.get(kind)
+        if model is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        obj = model.objects.filter(pk=item_id, author=child).first()
+        if obj is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        obj.is_removed = True
+        obj.save(update_fields=['is_removed'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
