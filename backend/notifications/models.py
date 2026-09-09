@@ -90,6 +90,8 @@ NOTIFICATION_TYPES = [
     ('registration_waitlisted', 'You are on the waiting list'),
     ('registration_promoted', 'A seat is yours — confirm it'),
     ('registration_declined', 'Your registration was declined'),
+    ('contribution_submitted', 'Somebody proposed a contribution to your event'),
+    ('contribution_decided', 'Your proposal was decided'),
     # Taxonomy proposals (taxonomy/). Four rather than one with the outcome in the text, because the
     # reader's next move differs: approved and rejected are finished, while merged and moved both
     # mean "whatever you filed under this is somewhere else now", and the note says where.

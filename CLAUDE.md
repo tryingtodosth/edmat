@@ -6368,6 +6368,63 @@ first authenticated fetch.
 configurable; expiry is lazy (stated above); no reminder before the event; the public list has
 no opt-out per attendee.
 
+## 17AO. Events, step 4: the call for contributions — proposals, review, scheduling (✅ built, full stack)
+
+`AUDIENCE-BRIEF.md` §3.4. A programme could be written by organisers alone; now other people
+can propose what goes on it, and the organisers decide on one screen rather than through a
+referee matrix.
+
+```
+ draft ◄──► submitted ──► under_review ──► accepted ──► scheduled (a real Session)
+   ▲ (author pulls back      │        ▲        │                │ (session removed → accepted)
+   │  before review)         │        └── revisions requested   ▼
+   │                         └──► rejected (reason code + note)  withdrawn (slot vacated)
+```
+
+- **`Contribution`** (kind talk / workshop / poster / other, title, abstract, audience, at most
+  five co-authors, a note to the organisers) on an `Event` with `cfp_open` + `cfp_deadline`;
+  `call_is_open` is both. A closed call refuses new proposals; existing ones keep moving.
+- **Every transition is a function in `events/contributions.py`** with its own refusal, and the
+  one endpoint `POST …/contributions/{id}/{verb}/` routes by role: the author may submit /
+  unsubmit / withdraw; organisers and reviewers may review / request revisions (note required)
+  / accept / reject (**a reason code is required** — a rejection is never a bare "no"); only an
+  organiser may schedule / unschedule, because that writes the programme. A volunteer may do
+  none of it; the author may edit only while draft or (re)submitted — under review it is
+  read-only, the Indico rule.
+- **Single-blind, enforced in the serializer**: `decided_by` is stripped for everybody who is not
+  staff, so the submitter sees the decision, the reason and the note, never who. Visibility is
+  a filter, not a check: accepted and scheduled proposals are public; the rest are the
+  submitter's and the staff's (a stranger gets an empty list, not a 403).
+- **Scheduling makes a real `Session`** with the submitter as speaker (linked to their profile)
+  and the co-authors after them; the session's own "inside the event" rule still applies.
+  Unscheduling or withdrawing deletes that session — the slot is vacated, the proposal stays.
+- **Notifications** `contribution_submitted` (organisers + reviewers, except the actor) and
+  `contribution_decided` (the submitter, with the outcome in `note`), under the events category.
+- **Report kinds**: `event` and `contribution` join `REPORT_KIND_MODELS` (no viewer pool, the
+  Service posture). A moderator's remove hides an event (`visibility=private` — never a
+  cancellation, which would tell attendees something the moderator did not decide) or withdraws
+  a proposal; restore reverses both.
+- **Frontend**: `ContributionsPanel` on the event page — the call's state, "Propose a talk or
+  workshop" with the audience picker, "My proposals" with the decision shown in words and
+  edit / pull back / withdraw, the reviewer's queue with start-review / accept / decline-with-
+  reason / ask-for-revisions, the organiser's "Put it on the programme" mini-form, and the
+  public accepted list; the event form's call settings.
+
+**Verified**: `events/test_contributions.py` 14 tests (a closed call refuses; visibility until
+accepted; the author edits while undecided and not under review; co-authors bounded; volunteers
+and strangers cannot decide; a reason code is required and the author never sees the decider;
+revisions need a note and reopen editing; pull back / resubmit / withdraw; scheduling makes the
+session with the right speakers and refuses a time outside the event; unscheduling and
+withdrawing vacate the slot; the counts; both report kinds through remove and restore); events +
+moderation suites 295 green; `e2e/event-contributions.mjs` 19/19, zero console errors,
+screenshot looked at (which caught speaker names running together — Svelte trims the
+whitespace between blocks, so the separators are explicit strings now).
+
+**Left open**: no per-proposal discussion; no reviewer assignment or scores (one screen, on
+purpose); the "When" line still shows the start + duration for a multi-day event rather than
+the end; a decision cannot be reopened after rejection except through the report system's
+restore; no email.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

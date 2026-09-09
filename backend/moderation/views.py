@@ -10,6 +10,7 @@ wins, so nothing about today's existing global-moderator behavior changes for an
 """
 
 from django.contrib.contenttypes.models import ContentType
+from events.models import Contribution, Event
 from django.db import IntegrityError, OperationalError, transaction
 from config.audience import AUDIENCE_VALUES, DEFAULT_AUDIENCE
 from django.shortcuts import get_object_or_404
@@ -1055,6 +1056,12 @@ class ReportActionView(APIView):
             if isinstance(target, (Exercise, Material)):
                 target.published = True
                 update_fields.append('published')
+            if isinstance(target, Event):
+                target.visibility = 'public'
+                update_fields.append('visibility')
+            if isinstance(target, Contribution) and target.status == 'withdrawn':
+                target.status = 'submitted'
+                update_fields.append('status')
         else:  # remove
             if hasattr(target, 'is_removed'):
                 target.is_removed = True
@@ -1062,6 +1069,14 @@ class ReportActionView(APIView):
             if isinstance(target, (Exercise, Material)):
                 target.published = False
                 update_fields.append('published')
+            if isinstance(target, Event):
+                # Hidden, not cancelled: a moderator's remove is about who may see it, and a
+                # cancellation would tell every attendee something the moderator did not decide.
+                target.visibility = 'private'
+                update_fields.append('visibility')
+            if isinstance(target, Contribution):
+                target.status = 'withdrawn'
+                update_fields.append('status')
             if isinstance(target, Service):
                 # A real, found-before-shipping gap: Service has neither `is_removed` nor
                 # `published`, so without this branch a "remove" decision on a reported tutoring

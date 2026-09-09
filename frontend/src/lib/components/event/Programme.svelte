@@ -280,11 +280,11 @@
 								<h4>{s.title} <span class="kind">{SESSION_KIND_LABELS[s.kind]()}</span></h4>
 								{#if s.speakers.length > 0}
 									<p class="speakers">
-										{#each s.speakers as sp, i (sp.id)}{#if i > 0},
-											{/if}{#if sp.user}<a href={resolve('/users/[id]', { id: sp.user.id })}
-													>{sp.name}</a
-												>{:else}{sp.name}{/if}{#if sp.affiliation}
-												<span class="aff">({sp.affiliation})</span>{/if}{/each}
+										{#each s.speakers as sp, i (sp.id)}{i > 0 ? ', ' : ''}{#if sp.user}<a
+													href={resolve('/users/[id]', { id: sp.user.id })}>{sp.name}</a
+												>{:else}{sp.name}{/if}{#if sp.affiliation}{sp.affiliation ? ' ' : ''}<span
+													class="aff">({sp.affiliation})</span
+												>{/if}{/each}
 									</p>
 								{/if}
 								<!-- eslint-disable svelte/no-navigation-without-resolve -- external addresses, not app routes -->

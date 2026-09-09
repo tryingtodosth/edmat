@@ -122,6 +122,12 @@ export interface EdmatEvent {
 	pendingCount: number;
 	myRegistration: EventAttendee | null;
 	myWaitlistPosition: number | null;
+	cfpOpen: boolean;
+	cfpDeadline: string | null;
+	/** cfp_open AND the deadline (if any) has not passed. */
+	callIsOpen: boolean;
+	/** `pending` is present for staff only. */
+	contributionCounts: { accepted: number; pending?: number };
 	canRespond: boolean;
 	responseBlockReason: EventResponseBlockReason | null;
 	/** The bigger event this one belongs to, resolved server-side — `null` when there isn't one, or
@@ -172,6 +178,8 @@ export interface EventDraft {
 	runsUntil?: string | null;
 	registrationMode?: RegistrationMode;
 	showAttendeesPublicly?: boolean;
+	cfpOpen?: boolean;
+	cfpDeadline?: string | null;
 	/** The bigger event this one is part of — only ever settable to an event the current user hosts
 	 * themselves, and only one that isn't itself a sub-event; see the backend's own `validate_parent`. */
 	parentId?: string | null;
@@ -324,3 +332,56 @@ export interface MyAgenda {
 	sessions: Session[];
 	events: EventSummary[];
 }
+
+// ---- the call for contributions (AUDIENCE-BRIEF.md §3.4) --------------------------------------------
+
+export type ContributionKind = 'talk' | 'workshop' | 'poster' | 'other';
+export type ProposalStatus =
+	'draft' | 'submitted' | 'under_review' | 'accepted' | 'rejected' | 'scheduled' | 'withdrawn';
+export type ReasonCode = 'out_of_scope' | 'duplicate' | 'no_room' | 'needs_revision' | 'other';
+
+export interface CoAuthor {
+	name: string;
+	affiliation: string;
+}
+
+export interface Contribution {
+	id: string;
+	eventId: string;
+	submitter: EventPerson;
+	kind: ContributionKind;
+	title: string;
+	abstract: string;
+	audience: Audience;
+	coAuthors: CoAuthor[];
+	notesToOrganiser: string;
+	status: ProposalStatus;
+	sessionId: string | null;
+	reasonCode: ReasonCode | '';
+	reviewNote: string;
+	/** Staff only — single-blind: the submitter never learns who decided. */
+	decidedBy: EventPerson | null;
+	decidedAt: string | null;
+	submittedAt: string | null;
+	canEdit: boolean;
+}
+
+export interface ContributionDraft {
+	kind: ContributionKind;
+	title: string;
+	abstract: string;
+	audience: Audience;
+	coAuthors: CoAuthor[];
+	notesToOrganiser: string;
+}
+
+export type ContributionVerb =
+	| 'submit'
+	| 'unsubmit'
+	| 'withdraw'
+	| 'review'
+	| 'revisions'
+	| 'accept'
+	| 'reject'
+	| 'schedule'
+	| 'unschedule';

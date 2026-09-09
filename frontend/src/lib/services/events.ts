@@ -15,6 +15,9 @@ import type {
 } from '$lib/types/event';
 import { apiClient } from '$lib/api/client';
 import type {
+	Contribution,
+	ContributionDraft,
+	ContributionVerb,
 	RegistrationAnswers,
 	RegistrationField,
 	RegistrationFieldDraft,
@@ -86,6 +89,10 @@ export function mapEvent(raw: any): EdmatEvent {
 		pendingCount: raw.pending_count ?? 0,
 		myRegistration: raw.my_registration ? mapAttendee(raw.my_registration) : null,
 		myWaitlistPosition: raw.my_waitlist_position ?? null,
+		cfpOpen: raw.cfp_open ?? false,
+		cfpDeadline: raw.cfp_deadline ?? null,
+		callIsOpen: raw.call_is_open ?? false,
+		contributionCounts: raw.contribution_counts ?? { accepted: 0 },
 		canRespond: raw.can_respond ?? false,
 		responseBlockReason: raw.response_block_reason ?? null,
 		parent: raw.parent ? mapEventSummary(raw.parent) : null,
@@ -512,4 +519,75 @@ export async function getEventIcs(eventId: string): Promise<string> {
 }
 export async function getMyAgendaIcs(): Promise<string> {
 	return apiClient.getText('/my-agenda.ics');
+}
+
+// ---- the call for contributions (AUDIENCE-BRIEF.md §3.4) --------------------------------------------
+
+function mapContribution(raw: any): Contribution {
+	return {
+		id: String(raw.id),
+		eventId: String(raw.event),
+		submitter: mapPerson(raw.submitter),
+		kind: raw.kind ?? 'talk',
+		title: raw.title,
+		abstract: raw.abstract ?? '',
+		audience: raw.audience ?? 'university',
+		coAuthors: (raw.co_authors ?? []).map((c: any) => ({
+			name: c.name ?? '',
+			affiliation: c.affiliation ?? ''
+		})),
+		notesToOrganiser: raw.notes_to_organiser ?? '',
+		status: raw.status,
+		sessionId:
+			raw.session_id === null || raw.session_id === undefined ? null : String(raw.session_id),
+		reasonCode: raw.reason_code ?? '',
+		reviewNote: raw.review_note ?? '',
+		decidedBy: raw.decided_by ? mapPerson(raw.decided_by) : null,
+		decidedAt: raw.decided_at ?? null,
+		submittedAt: raw.submitted_at ?? null,
+		canEdit: raw.can_edit ?? false
+	};
+}
+function contributionBody(draft: Partial<ContributionDraft>): Record<string, unknown> {
+	const body: Record<string, unknown> = {};
+	if (draft.kind !== undefined) body.kind = draft.kind;
+	if (draft.title !== undefined) body.title = draft.title;
+	if (draft.abstract !== undefined) body.abstract = draft.abstract;
+	if (draft.audience !== undefined) body.audience = draft.audience;
+	if (draft.coAuthors !== undefined) body.co_authors = draft.coAuthors;
+	if (draft.notesToOrganiser !== undefined) body.notes_to_organiser = draft.notesToOrganiser;
+	return body;
+}
+export async function getContributions(eventId: string): Promise<Contribution[]> {
+	return (await apiClient.get<any[]>(`/events/${eventId}/contributions/`)).map(mapContribution);
+}
+export async function proposeContribution(
+	eventId: string,
+	draft: ContributionDraft
+): Promise<Contribution> {
+	return mapContribution(
+		await apiClient.post<any>(`/events/${eventId}/contributions/`, {
+			...contributionBody(draft),
+			submit: true
+		})
+	);
+}
+export async function updateContribution(
+	eventId: string,
+	id: string,
+	draft: Partial<ContributionDraft>
+): Promise<Contribution> {
+	return mapContribution(
+		await apiClient.patch<any>(`/events/${eventId}/contributions/${id}/`, contributionBody(draft))
+	);
+}
+export async function transitionContribution(
+	eventId: string,
+	id: string,
+	verb: ContributionVerb,
+	extra: Record<string, unknown> = {}
+): Promise<Contribution> {
+	return mapContribution(
+		await apiClient.post<any>(`/events/${eventId}/contributions/${id}/${verb}/`, extra)
+	);
 }

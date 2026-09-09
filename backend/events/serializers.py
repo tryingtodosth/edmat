@@ -9,6 +9,7 @@ from rest_framework.fields import empty
 from taxonomy.models import Branch, Discipline
 
 from .models import (
+    Contribution,
     RegistrationField,
     ATTENDING_STATUSES,
     MAX_POST_LINKS,
@@ -127,6 +128,8 @@ class EventSerializer(serializers.ModelSerializer):
     my_registration = serializers.SerializerMethodField()
     my_waitlist_position = serializers.SerializerMethodField()
     registration_fields = RegistrationFieldSerializer(many=True, read_only=True)
+    call_is_open = serializers.SerializerMethodField()
+    contribution_counts = serializers.SerializerMethodField()
     can_respond = serializers.SerializerMethodField()
     response_block_reason = serializers.SerializerMethodField()
     # Present for the host, absent (0) for everybody else — a decline is between the person who made
@@ -181,6 +184,10 @@ class EventSerializer(serializers.ModelSerializer):
             'registration_mode',
             'show_attendees_publicly',
             'registration_fields',
+            'cfp_open',
+            'cfp_deadline',
+            'call_is_open',
+            'contribution_counts',
             'waitlist_count',
             'pending_count',
             'my_registration',
@@ -233,6 +240,19 @@ class EventSerializer(serializers.ModelSerializer):
         if counted is not None:
             return len(counted)
         return event.posts.count()
+
+    def get_call_is_open(self, event) -> bool:
+        from .contributions import call_is_open
+        return call_is_open(event)
+
+    def get_contribution_counts(self, event) -> dict:
+        """Accepted for everybody; the pending count for staff, since it is theirs to act on."""
+        rows = list(event.contributions.all())
+        out = {'accepted': sum(1 for c in rows if c.status in ('accepted', 'scheduled'))}
+        request = self.context.get('request')
+        if event.is_staff_member(getattr(request, 'user', None)):
+            out['pending'] = sum(1 for c in rows if c.status in ('submitted', 'under_review'))
+        return out
 
     def get_can_check_in(self, event) -> bool:
         request = self.context.get('request')
@@ -335,6 +355,8 @@ class EventWriteSerializer(serializers.ModelSerializer):
             'runs_until',
             'registration_mode',
             'show_attendees_publicly',
+            'cfp_open',
+            'cfp_deadline',
             'parent',
         ]
 
@@ -601,3 +623,49 @@ __all__ = [
     'PersonSerializer',
     'PostLinksField',
 ]
+
+
+class ContributionSerializer(serializers.ModelSerializer):
+    """Single-blind: `decided_by` is on the row for staff and stripped for everybody else."""
+
+    submitter = PersonSerializer(read_only=True)
+    decided_by = PersonSerializer(read_only=True)
+    session_id = serializers.IntegerField(source='session.pk', read_only=True, default=None)
+    can_edit = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Contribution
+        fields = [
+            'id', 'event', 'submitter', 'kind', 'title', 'abstract', 'audience', 'co_authors',
+            'notes_to_organiser', 'status', 'session_id', 'reason_code', 'review_note',
+            'decided_by', 'decided_at', 'submitted_at', 'can_edit', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_can_edit(self, c) -> bool:
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        return bool(user and user.is_authenticated and c.submitter_id == user.pk and c.status in ('draft', 'submitted'))
+
+    def to_representation(self, c):
+        data = super().to_representation(c)
+        if not self.context.get('is_staff'):
+            data['decided_by'] = None
+            data.pop('notes_to_organiser', None) if data.get('submitter', {}).get('id') != getattr(getattr(self.context.get('request'), 'user', None), 'pk', None) else None
+        return data
+
+
+class ContributionWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Contribution
+        fields = ['kind', 'title', 'abstract', 'audience', 'co_authors', 'notes_to_organiser']
+
+    def validate_co_authors(self, value):
+        if not isinstance(value, list) or len(value) > 5:
+            raise serializers.ValidationError('At most five co-authors, as a list.')
+        cleaned = []
+        for row in value:
+            if not isinstance(row, dict) or not (row.get('name') or '').strip():
+                raise serializers.ValidationError('Each co-author needs a name.')
+            cleaned.append({'name': row['name'].strip()[:120], 'affiliation': (row.get('affiliation') or '').strip()[:200]})
+        return cleaned

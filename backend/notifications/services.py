@@ -70,6 +70,8 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'registration_waitlisted': 'notify_on_event',
     'registration_promoted': 'notify_on_event',
     'registration_declined': 'notify_on_event',
+    'contribution_submitted': 'notify_on_event',
+    'contribution_decided': 'notify_on_event',
     'issue_status_changed': 'notify_on_moderation_decision',
     # Taxonomy proposals (taxonomy/). Under the existing moderation-decision category rather than a
     # new one: somebody proposed a word, a moderator decided on it, and that is the same kind of

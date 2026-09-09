@@ -16,6 +16,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from activity.models import Post as ActivityPost
+from events.models import Contribution, Event
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, SolutionEntry, Tag
 from materials.models import Material, MaterialRequirement
@@ -46,6 +47,10 @@ REPORT_KIND_MODELS = {
     # An anchored micro-post (activity.Post) — its viewer pool is the referenced exercise's when
     # one is referenced, else honestly none (the Service posture).
     'post': ActivityPost,
+    # An event and a proposal to one (events/): public, user-generated, no viewer pool — the
+    # Service posture; a moderator's remove hides the event (visibility) / withdraws the proposal.
+    'event': Event,
+    'contribution': Contribution,
     'service': Service,
     'tag': Tag,
     'material': Material,
@@ -234,6 +239,8 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
         # branch), so `check_auto_hide` correctly never auto-hides a reported listing (no view-count
         # denominator to measure against); it still queues normally for a moderator's own decision.
         return target.title[:150], None, None
+    if kind in ('event', 'contribution'):
+        return target.title[:150], None, None
 
     if kind == 'tag':
         # Same "no viewer-pool concept" shape as Service — a Tag is global, shared across every
@@ -373,7 +380,7 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
             scope_exercise_by_key[key] = obj.ref_exercise
             if obj.ref_exercise_id:
                 needed_exercise_ids.add(obj.ref_exercise_id)
-        elif isinstance(obj, (Service, Tag, Material, MaterialRequirement, ServiceReview)):
+        elif isinstance(obj, (Service, Tag, Material, MaterialRequirement, ServiceReview, Event, Contribution)):
             # None of these five have a viewer-pool concept at all (not page-scoped to one Exercise
             # the way a Comment/Review borrows its parent's) — resolved directly to None, matching
             # resolve_view_scope_exercise's own behavior for each, rather than falling into the

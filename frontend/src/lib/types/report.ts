@@ -19,7 +19,11 @@ export type ReportKind =
 	| 'solution_entry'
 	// An anchored micro-post (activity.Post) — auto-hide borrows the referenced exercise's pool
 	// when one is referenced, else honestly no-ops (the Service posture).
-	| 'post';
+	| 'post'
+	// An event and a proposal to one (events/) — no viewer pool; a moderator's remove hides the
+	// event or withdraws the proposal.
+	| 'event'
+	| 'contribution';
 
 // One GROUP per reported target (moderation/services.py's build_report_queue) — not one row per
 // individual Report, since a moderator reviews and resolves every pending report against a target

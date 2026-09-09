@@ -274,6 +274,7 @@ node e2e/topic-threads.mjs            # E2E_MATERIAL=<material with covers claim
 node e2e/audience-bands.mjs           # audience chips/badges/forms (§17AL); kasia (API) + ola (UI); creates and deletes one listing, resets ola's filter
 node e2e/event-programme.mjs          # the programme (§17AM); kasia builds it on the page, ola bookmarks/asks/exports; deletes the scratch event
 node e2e/event-registration.mjs       # registration (§17AN); kasia/ola/michał; clears the login throttle cache first if re-running (backend/cachedata)
+node e2e/event-contributions.mjs      # the call for contributions (§17AO); kasia (host) / michał (reviewer) / ola (author); deletes the scratch event
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
@@ -660,6 +661,17 @@ join", the pending count, Accept seats her and tells her. Then a capped session:
 becomes "Seat taken · 1/1", and somebody not going is refused (`not_going`). Cleanup withdraws the
 scratch attendees before deleting (a delete with people going is refused by design) and cancels
 what still cannot go. Starts with one throwaway navigation to warm Vite's cold compile.
+
+**`e2e/event-contributions.mjs` (19 checks)** — the call for contributions (root CLAUDE.md §17AO):
+Ola proposes a talk with a co-author through the real form and sees it Submitted; a stranger's
+list is empty; Michał (reviewer) starts reviewing and asks for revisions with a note; Ola reads the
+reason and the note and never who decided, edits, and it stays Submitted; Michał accepts (staff see
+"decided by"; a reviewer has no schedule button); Kasia schedules it and a real session appears
+with Ola and the co-author as speakers; Ola was notified at each decision; a second proposal is
+declined with a reason the author sees without a decider; the public list carries the scheduled
+talk only (fetched with a cache-busting query — the anonymous read cache still holds the empty
+list from earlier in the run). Warms Vite once; fails loudly with the throttle hint if a login
+returns no token.
 
 **`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;

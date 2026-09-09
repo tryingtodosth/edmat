@@ -263,7 +263,9 @@
 		requirement: m.report_kind_requirement,
 		service_review: m.report_kind_service_review,
 		solution_entry: m.report_kind_solution_entry,
-		post: m.report_kind_post
+		post: m.report_kind_post,
+		event: m.report_kind_event,
+		contribution: m.report_kind_contribution
 	};
 
 	async function restoreReport(r: ReportGroup) {

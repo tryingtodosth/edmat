@@ -23,6 +23,7 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import EventUpdates from '$lib/components/event/EventUpdates.svelte';
 	import Programme from '$lib/components/event/Programme.svelte';
+	import ContributionsPanel from '$lib/components/event/ContributionsPanel.svelte';
 	import EventStaffPanel from '$lib/components/event/EventStaffPanel.svelte';
 	import {
 		addEventStaff,
@@ -503,6 +504,12 @@
 			     once they have already decided to come, and below the answer buttons, because
 			     deciding whether to come is what everybody else opens it for. -->
 			<Programme {event} />
+			<ContributionsPanel
+				{event}
+				onchanged={async () => {
+					if (event) event = await getEvent(event.id);
+				}}
+			/>
 			{#if event.canOrganise && event.registrationMode === 'form'}
 				<RegistrationFieldsEditor
 					initial={event.registrationFields}

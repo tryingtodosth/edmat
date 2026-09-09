@@ -224,6 +224,8 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		registrationWaitlisted: 'notifyOnEvent',
 		registrationPromoted: 'notifyOnEvent',
 		registrationDeclined: 'notifyOnEvent',
+		contributionSubmitted: 'notifyOnEvent',
+		contributionDecided: 'notifyOnEvent',
 		// Under the existing moderation-decision category rather than a new switch: somebody proposed
 		// a word and a moderator decided on it, which is the same kind of event as a decision on a
 		// submitted exercise.
@@ -278,6 +280,8 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	registrationWaitlisted: m.notifPref_registrationWaitlisted,
 	registrationPromoted: m.notifPref_registrationPromoted,
 	registrationDeclined: m.notifPref_registrationDeclined,
+	contributionSubmitted: m.notifPref_contributionSubmitted,
+	contributionDecided: m.notifPref_contributionDecided,
 	courseContributionSubmitted: m.notifPref_courseContributionSubmitted,
 	courseContributionApproved: m.notifPref_courseContributionApproved,
 	courseContributionRejected: m.notifPref_courseContributionRejected,

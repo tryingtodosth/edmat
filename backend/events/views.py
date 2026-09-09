@@ -45,9 +45,10 @@ _EventsFeatureGate = feature_gate('events')
 from .agenda_views import ProgrammeMixin
 from .registration import demote_over_capacity, expire_promotions, mask_name, register, validate_answers, withdraw
 from .registration_views import RegistrationMixin
+from .contribution_views import ContributionMixin
 
 
-class EventViewSet(ProgrammeMixin, RegistrationMixin, viewsets.ModelViewSet):
+class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate]
 
     def get_queryset(self):

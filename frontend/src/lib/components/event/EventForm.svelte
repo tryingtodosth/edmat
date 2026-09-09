@@ -60,6 +60,8 @@
 		untrack(() => initial?.registrationMode ?? 'rsvp')
 	);
 	let showAttendeesPublicly = $state(untrack(() => initial?.showAttendeesPublicly ?? false));
+	let cfpOpen = $state(untrack(() => initial?.cfpOpen ?? false));
+	let cfpDeadlineLocal = $state(untrack(() => toLocalInput(initial?.cfpDeadline ?? undefined)));
 	// A bare `HH:MM` for the time-only input — `<input type="time">` speaks exactly that, so unlike
 	// `startsAtLocal` there is no timezone conversion to do at all.
 	let eventTimeLocal = $state(untrack(() => (initial?.eventTime ?? '').slice(0, 5)));
@@ -170,6 +172,8 @@
 			runsUntil: schedulingMode === 'exact' && runsUntilLocal ? toIso(runsUntilLocal) : null,
 			registrationMode,
 			showAttendeesPublicly,
+			cfpOpen,
+			cfpDeadline: cfpOpen && cfpDeadlineLocal ? toIso(cfpDeadlineLocal) : null,
 			eventTime: schedulingMode === 'timeOnly' ? eventTimeLocal || null : null,
 			durationMinutes: Number(durationMinutes) || 60,
 			locationKind,
@@ -371,6 +375,21 @@
 			<input type="checkbox" bind:checked={showAttendeesPublicly} />
 			<span>{m.events_form_publicList()}</span>
 		</label>
+	</fieldset>
+
+	<!-- The call for contributions (AUDIENCE-BRIEF.md §3.4). -->
+	<fieldset class="segmented">
+		<legend>{m.events_form_cfp()}</legend>
+		<label class="checkbox-row">
+			<input type="checkbox" bind:checked={cfpOpen} />
+			<span>{m.events_form_cfpOpen()}</span>
+		</label>
+		{#if cfpOpen}
+			<label class="field">
+				<span>{m.events_form_cfpDeadline()} <em>({m.common_optional()})</em></span>
+				<input type="datetime-local" bind:value={cfpDeadlineLocal} />
+			</label>
+		{/if}
 	</fieldset>
 
 	{#if hostableParents.length > 0}

@@ -95,6 +95,13 @@
 			m.notification_registrationPromoted({ title: notification.targetLabel }),
 		registrationDeclined: () =>
 			m.notification_registrationDeclined({ title: notification.targetLabel }),
+		contributionSubmitted: () =>
+			m.notification_contributionSubmitted({ title: notification.targetLabel }),
+		contributionDecided: () =>
+			m.notification_contributionDecided({
+				title: notification.targetLabel,
+				outcome: notification.note ?? ''
+			}),
 		bookingCancelled: () =>
 			m.notification_bookingCancelled({
 				actor: notification.actorDisplayName || m.notification_someone(),

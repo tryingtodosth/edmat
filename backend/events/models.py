@@ -216,6 +216,10 @@ class Event(models.Model):
     # The organiser's choice to show a MASKED list (first name + last initial) of who is going to
     # anybody who can see the event. Off, the roster stays what it was: attendees and staff only.
     show_attendees_publicly = models.BooleanField(default=False)
+    # The call for contributions (AUDIENCE-BRIEF.md §3.4): open or not, and until when. A closed
+    # call refuses new proposals; existing ones keep moving through review.
+    cfp_open = models.BooleanField(default=False)
+    cfp_deadline = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -781,3 +785,81 @@ class SessionAttendance(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['session', 'attendance'], name='one_seat_per_session'),
         ]
+
+
+# ---- the call for contributions (AUDIENCE-BRIEF.md §3.4) ---------------------------------------
+
+CONTRIBUTION_KIND_CHOICES = [
+    ('talk', 'Talk'),
+    ('workshop', 'Workshop'),
+    ('poster', 'Poster'),
+    ('other', 'Other'),
+]
+CONTRIBUTION_STATUS_CHOICES = [
+    ('draft', 'Draft'),
+    ('submitted', 'Submitted'),
+    ('under_review', 'Under review'),
+    ('accepted', 'Accepted'),
+    ('rejected', 'Rejected'),
+    ('scheduled', 'Scheduled'),
+    ('withdrawn', 'Withdrawn'),
+]
+REASON_CODE_CHOICES = [
+    ('out_of_scope', 'Out of scope for this event'),
+    ('duplicate', 'Duplicates another proposal'),
+    ('no_room', 'No room in the programme'),
+    ('needs_revision', 'Needs revision'),
+    ('other', 'Other'),
+]
+CONTRIBUTION_PUBLIC_STATUSES = frozenset({'accepted', 'scheduled'})
+CONTRIBUTION_OPEN_STATUSES = frozenset({'draft', 'submitted', 'under_review', 'accepted', 'scheduled'})
+
+
+class Contribution(models.Model):
+    """A proposal for the programme — a talk, a workshop, a poster. Private to its submitter and
+    the event's staff until accepted; a single-screen triage rather than a referee matrix.
+
+        draft ◄──► submitted ──► under_review ──► accepted ──► scheduled (a Session)
+          ▲ (author pulls back      │        ▲        │                │ (session removed → accepted)
+          │  before review)         │        └── revisions requested   ▼
+          │                         └──► rejected (reason code + note)  withdrawn (slot vacated)
+
+    Review is single-blind: reviewers see the submitter, the submitter sees the decision, the reason
+    and the outgoing note — never who decided (`decided_by` is serialized for staff only).
+    """
+
+    event = models.ForeignKey(Event, related_name='contributions', on_delete=models.CASCADE)
+    submitter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='event_contributions', on_delete=models.CASCADE
+    )
+    kind = models.CharField(max_length=10, choices=CONTRIBUTION_KIND_CHOICES, default='talk')
+    title = models.CharField(max_length=200)
+    abstract = models.TextField(blank=True)
+    audience = models.CharField(
+        max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE
+    )
+    co_authors = models.JSONField(default=list, blank=True)  # [{name, affiliation}], at most 5
+    notes_to_organiser = models.CharField(max_length=500, blank=True)
+    status = models.CharField(max_length=12, choices=CONTRIBUTION_STATUS_CHOICES, default='draft')
+    session = models.ForeignKey(
+        Session, related_name='contributions', null=True, blank=True, on_delete=models.SET_NULL
+    )
+    reason_code = models.CharField(max_length=16, choices=REASON_CODE_CHOICES, blank=True)
+    review_note = models.TextField(blank=True)
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='contributions_decided',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-submitted_at', '-created_at']
+
+    def __str__(self) -> str:
+        return self.title
