@@ -5,6 +5,7 @@
 	// what public origin a browser reached it on (dev server, preview deploy, real domain), and a
 	// link that is right in production and wrong in every other environment is worse than one
 	// composed from the address the person is already looking at.
+	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import type { CourseInvite, InviteRole } from '$lib/types/course';
 
@@ -37,9 +38,13 @@
 		used_up: m.course_invite_state_used_up
 	};
 
+	// Built through resolve() so the path follows the route: it was `/classroom/join/…` here long
+	// after the app moved to `/courses`, and every link this panel minted was a 404 until the
+	// rewritten classroom-overhaul.mjs followed one (2026-09-10).
 	function linkFor(invite: CourseInvite): string {
-		if (typeof window === 'undefined') return `/classroom/join/${invite.token}`;
-		return `${window.location.origin}/classroom/join/${invite.token}`;
+		const path = resolve('/courses/join/[token]', { token: invite.token });
+		if (typeof window === 'undefined') return path;
+		return `${window.location.origin}${path}`;
 	}
 
 	async function copy(invite: CourseInvite) {

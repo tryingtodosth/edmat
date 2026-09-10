@@ -256,7 +256,7 @@ npx vite dev --mode e2e --port 5183 --strictPort
 ```sh
 # 3 — the scripts
 cd frontend
-node e2e/classroom.mjs
+node e2e/classroom.mjs               # the enrolment lifecycle; ola/bartek/julia by token; creates and deletes its own course
 node e2e/education-auth.mjs
 node e2e/material-claims.mjs
 node e2e/material-claims-rework.mjs   # E2E_BASE=http://localhost:5173; signs in as ola@edmat.example
@@ -281,7 +281,7 @@ node e2e/comment-attachments.mjs      # pictures/PDFs on comments (§17AR); ola 
 node e2e/rich-editor.mjs              # the Tiptap editor + maths palette (§17AS); ola on exercise 2; resets her editor_mode to source
 node e2e/reading-comfort.mjs          # text size / high contrast / 44px floor / hero copy (§17AT); a guest + ola; resets her text_size/high_contrast
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
-node e2e/classroom-overhaul.mjs
+node e2e/classroom-overhaul.mjs      # staff, contributions, locked chapters, invite links; ola/julia/bartek/michał by token
 node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
 node e2e/booking.mjs
 node e2e/schedule-editing.mjs
@@ -320,26 +320,23 @@ every assertion passed.
 
 ### What they cover
 
-**`e2e/classroom.mjs` (44 checks)** — three people in three separate browser contexts, because the
-entire feature is about who is looking:
-
-1. anyone can browse; the nav offers it
-2. creating a course leaves it a draft, invisible to everybody else
-3. publishing it, with approval required
-4. a lesson: public blurb, participant-only notes
-5. a student asks to join, and waits
-6. the instructor sees the request *with the note*, and approves
-7. being in the course is what unlocks the notes and the roster
-8. "My courses" splits teaching from taking part
-9. leaving gives the seat back and re-locks the notes
-10. a full course refuses in its own words, with no join button
-11. uncapping is accepted
-12. discussion is participants-only by default — a stranger gets no composer
-13. the post notification arrives and links back to the course
-14. a public thread is readable by anyone, writable only by participants
-15. turning discussion off removes it entirely
-16. muting one course stops its notifications without leaving it
-17. the account-wide notification category and its per-type rows exist
+**`e2e/classroom.mjs` (56 checks)** — the enrolment lifecycle of a course somebody runs, driven
+through the page as it is today (rewritten 2026-09-10; the original predated every rewrite of the
+course page). Ola runs it, bartek and julia take part, a signed-out stranger looks on — seeded
+accounts, tokens written straight into localStorage, a fresh course per run deleted at the end:
+the nav and the browse page; a course created through the real form starting as "only you" (a
+stranger gets "does not exist"); published through the edit form with approval required and then
+listed; a lesson whose blurb everybody sees and whose participant notes a stranger and a pending
+requester do not; the request with its note on the People tab, approved, "Taking part: 1"; the
+notes unlocked by membership; `/courses/mine` splitting run from taken; leaving giving the seat back
+and asking again allowed; a full course refusing the next person in words with no button; a cap
+below the people already in refused; somebody removed told why and given no way back; the
+Discussion tab withheld from a stranger entirely; a participant posting, the instructor seeing it
+and being notified with a link back; a public thread readable by an outsider who is told joining is
+what lets them post and gets **no composer**; the discussion turned off taking the tab with it; the
+per-course mute saved server-side; the account-wide setting row. Every context reads Polish content
+(the course is Polish), and the public-thread reader is the removed member rather than the stranger
+because the stranger's earlier anonymous reads are in the 60 s read cache.
 
 **`e2e/education-auth.mjs` (42 checks)** — the sign-in drafts and the USOS ground: all four providers
 offered and labelled drafts, each modal describing its own provider's real quirk and blockers, the
@@ -385,13 +382,21 @@ showing the same truncated text, and an orphan tile alone on a row.
 It restores the bio it overwrites, which it has to: the first version left its own short marker
 behind, and every run after it failed a clamp check for a reason that had nothing to do with the code.
 
-**`e2e/classroom-overhaul.mjs` (29 checks)** — several people running one course. An owner creates it,
-makes a second account an administrator, and that co-admin can edit and mint invite links but is
-offered no delete. Two chapters, one dated far in the future: staff are told it is still shut, a
-participant sees that it exists and when it opens but none of its contents. A participant contributes
-a material, is told it is waiting, and it stays invisible to everybody else until the **co-admin** —
-not the owner — approves it. Then an invite link: readable logged out without leaking anything else,
-joining straight past the approval queue, and refused once revoked.
+**`e2e/classroom-overhaul.mjs` (37 checks)** — running a course with more than one person, through
+the current management page (rewritten 2026-09-10). Ola creates a public, open course with the
+contribution policy set on the create form; the owner is listed and locked on `/courses/{id}/manage`;
+julia is made an administrator by account id, is offered the management page herself, and cannot
+touch the owner; two chapters through the manage page's form, one opening in 60 days, drawn locked
+with the staff wording and the participant wording; bartek joins, sees the locked chapter with its
+opening time and no management link, files a corpus material through the title picker with a note
+and sees it marked pending; a signed-out visitor sees none of it while staff see "1 waiting"; the
+**co-admin** accepts it from the queue (which names the contributor and the note), after which the
+contributor, the course and a visitor all see it; an invite link minted by the co-admin, read
+signed-out (whose course, "Log in to accept", nothing else leaked), accepted by michał who lands on
+the course as a participant, its use counted; revoked, it stays listed as Revoked and refuses a
+fresh visitor. The four signed-in accounts are given Polish content through the API for the run and
+put back afterwards — a signed-in profile's own `content_locales` overwrite the localStorage extras
+once it loads, which is how the picker first came back empty.
 
 **`e2e/booking.mjs` (51 checks)** — three people in three contexts, because the entire feature is
 about the same grid of buttons meaning two different things. A tutor publishes one 14:00–17:00 Tuesday
@@ -755,8 +760,8 @@ each script. The static-build pair ran against `vite preview` on 5174 of a fresh
 | activity-feed | 20/20 | reference picker is language-narrowed (§17AQ): the script now gives ola Polish content |
 | audience-bands | 21/21 | listing created as `language: 'en'`; Settings Save targeted by `form.edit-form` |
 | booking | 51/51 | Settings Save targeted by `form.edit-form` (the guardian panel's form came first) |
-| classroom | ✗ | pre-overhaul course page script: lesson form (`.add-lesson`) rewritten since — see below |
-| classroom-overhaul | ✗ | same vintage: chapter form (`.chapter-new`) rewritten since — see below |
+| classroom | 56/56 (2026-09-10) | rewritten against the current page — see its entry above |
+| classroom-overhaul | 37/37 (2026-09-10) | rewritten; **found the invite links minted at the dead `/classroom/join/…` path** — fixed |
 | comment-attachments | 10/10 | |
 | course-claims | 13/13 | picks an unclaimed topic; tolerates the known attachments-404 console line |
 | course-content-links | 23/23 | |
@@ -822,12 +827,12 @@ CourseClaim.objects.filter(course_id=6, proposed_by=ola).delete()
 ExerciseClaim.objects.filter(exercise_id=51, proposed_by=ola).delete()"
 ```
 
-**`classroom.mjs` and `classroom-overhaul.mjs` are left red on purpose.** They predate every
-rewrite of the course page and each repair uncovered the next changed form (route, create form,
-policy selects, management drawers, then the lesson and chapter forms). The four newer course
-scripts — `course-search`, `course-content-links`, `course-lessons-linking`, `course-claims` — cover
-the same ground and are green; rewriting the two old ones against the current page is the honest
-next step, on the todo board, not a bug to fix.
+**`classroom.mjs` and `classroom-overhaul.mjs` were rewritten the next day** (2026-09-10) against the
+current page — see their entries above. The rewrite found one real bug the four newer course scripts
+had never driven: `CourseInvites` built every link at `/classroom/join/…`, the route from before the
+app was renamed, so every invite link the panel minted was a 404 (now built through `resolve()`). It
+also found a signed-in non-member of a public course discussion being shown a composer whose submit
+did nothing (`DiscussionThread` gained `canPost`; the read-only branch passes `false`).
 
 ### Two things worth knowing before you debug a failure
 

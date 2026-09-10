@@ -13,12 +13,16 @@
 	let {
 		comments,
 		usersById,
-		onSubmit
+		onSubmit,
+		// A thread somebody may read but not post into (a public course discussion for a non-member)
+		// renders no composer rather than one whose submit silently does nothing.
+		canPost = true
 	}: {
 		comments: Comment[];
 		usersById: Record<string, User>;
 		/** Returning the created comment is what lets attachments be uploaded onto it. */
 		onSubmit: (body: string, parentId?: string) => void | Promise<Comment | void>;
+		canPost?: boolean;
 	} = $props();
 
 	// Attachments uploaded in this session, overlaid on the comments the parent owns — so none of
@@ -55,7 +59,7 @@
 
 <div class="discussion">
 	{#if fileError}<p class="file-error" role="alert">{fileError}</p>{/if}
-	{#if authStore.isAuthenticated}
+	{#if authStore.isAuthenticated && canPost}
 		<CommentForm
 			placeholder={m.discussion_composerPlaceholder()}
 			submitLabel={m.discussion_post()}

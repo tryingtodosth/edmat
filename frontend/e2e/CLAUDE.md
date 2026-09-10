@@ -57,7 +57,10 @@ test-runner suite.
     context reads the English interface, so a browse list, a search picker or a reference picker
     can honestly be EMPTY for the rows a script just created. Either create rows with
     `language: 'en'`, give the account `content_locales: ['pl']` (`PATCH /api/auth/me/`), or set
-    `localStorage['edmat.contentLocales'] = '["pl"]'` in a signed-out context.
+    `localStorage['edmat.contentLocales'] = '["pl"]'` in a signed-out context. **For a signed-in
+    context only the API route works**: the profile's own `content_locales` overwrite the
+    localStorage extras the moment it loads (that is how classroom-overhaul's picker first came
+    back empty). Put the account back afterwards.
 17. **The settings page holds several forms** (the guardian panel has its own) — the Save you
     mean is `form.edit-form button[type="submit"]`.
 18. **Running a course lives at `/courses/{id}/manage`** (the course page only links there); the

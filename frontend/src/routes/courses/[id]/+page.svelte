@@ -868,7 +868,7 @@
 						{:else}
 							<!-- A public thread: readable by anyone, writable only by the people in the course. -->
 							<p class="status">{m.course_discussionReadOnly()}</p>
-							<DiscussionThread {comments} {usersById} onSubmit={() => {}} />
+							<DiscussionThread {comments} {usersById} canPost={false} onSubmit={() => {}} />
 						{/if}
 					</section>
 				{:else if course.discussionMode !== 'off'}

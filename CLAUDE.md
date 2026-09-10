@@ -6670,6 +6670,30 @@ denser design); the header's icon buttons, the "Aa" included, are 36px (outside 
 reduced-motion audit beyond what the drawer already honours; no dyslexia-friendly font option;
 the audit is still axe (about a third of WCAG by its own account) — no screen-reader pass.
 
+## 17AU. The two oldest course scripts rewritten, and the two bugs that turned up (✅ done)
+
+`classroom.mjs` and `classroom-overhaul.mjs` predated every rewrite of the course page and were
+the two scripts the 2026-09-09 full run left red. Rewritten from scratch against the page as it is:
+seeded accounts with tokens written into localStorage (no registration, no login budget), a fresh
+course per run deleted at the end, the tabbed page, the People tab, `/courses/{id}/manage`, the
+title picker, the join page. 56 + 37 checks, zero console errors; what each covers is in `test.md`.
+
+Driving the current page found what the four newer course scripts had never exercised:
+
+- **Every invite link was a 404.** `CourseInvites.svelte` still built links at `/classroom/join/…`,
+  the route from before the app was renamed to `courses` — the panel copied a dead address to the
+  clipboard and nobody had followed one in a browser since. Now built through `resolve()`, so the
+  path follows the route.
+- **A public discussion showed a signed-in non-member a composer that did nothing.** The read-only
+  branch of the course page rendered `DiscussionThread` with a no-op submit, and the thread renders
+  its composer for anybody signed in. `DiscussionThread` gained a `canPost` prop (default `true`,
+  every other caller untouched); the read-only branch passes `false`.
+
+Two script-side facts worth keeping (both in `e2e/CLAUDE.md`): a signed-in profile's own
+`content_locales` overwrite the localStorage extras once it loads, so only the API route gives a
+signed-in context Polish content; and the stranger's anonymous reads of a course sit in the 60 s
+read cache, so a mode change is read by a signed-in outsider rather than the stranger.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this
