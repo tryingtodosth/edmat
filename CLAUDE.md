@@ -6529,10 +6529,26 @@ events / listings / courses, a pending translation not counting, a detail page n
 the profile field validated, `language` on a listing and a post); eight app suites green;
 `e2e/sorting-and-languages.mjs` 15/15, zero console errors, screenshot looked at.
 
-**Left open**: `title` order is bytewise after lower-casing, so Polish letters sort after `z`
+~~**Left open**: `title` order is bytewise after lower-casing, so Polish letters sort after `z`
 (SQLite has no locale collation; PostgreSQL would); the activity feed's content rows are not
-narrowed by language (only posts carry one); no sort control on materials beyond their own four
-keys, none on sets; the notice's "Show them" adds every language rather than the one hidden.
+narrowed by language (only posts carry one)~~ — **both ✅ resolved, a later pass.** `title` sort:
+`config/dblocale.py` registers a real SQLite collating sequence (`unicodedata.normalize('NFKD',
+…)`, combining marks stripped for the primary key so a diacritic sorts next to its base letter,
+kept for the secondary key so the plain letter still sorts before its own accented form — `ł`
+hand-folded to `l` first, since Unicode gives it no decomposition), applied via
+`django.db.models.functions.Collate` only on SQLite and only to the `title` key
+(`exercises/views.py`'s `sort_exercises`) — PostgreSQL's own default collation is already
+locale-aware in a real deployment, so nothing there needed touching. Activity feed narrowing:
+`activity/services.py`'s `_content_locale_feed_filter` applies the same content-language rule
+per `kind` — `post`/`course`/`happening`/`service` by their own `language` column, a
+`translation`/`solution_entry` row by its own `source` (`ExerciseTranslation`/`SolutionEntry`
+`.locale` — deliberately NOT the exercise it links to, which can be in a different language),
+every other exercise/material-linked kind by the linked content's own published-translation
+rule; `feed_events`/`FeedView` now accept `?content_locales=` and return the same
+`X-EdMat-Hidden-Languages` header every other list does. Both verified with real regression
+tests (`exercises/test_sorting_locale.py`, `activity/tests.py`'s new `FeedContentLocaleTests`).
+Still open: no sort control on materials beyond their own four keys, none on sets; the notice's
+"Show them" adds every language rather than the one hidden.
 
 ## 17AR. Pictures and small PDFs on comments (✅ built, full stack)
 
@@ -6615,11 +6631,27 @@ on write at all (only the frontend's DOMPurify pass stood between a `<script>` a
 reader) — `Comment.save()` now cleans the body like every translatable field, pinned by a test
 that posts `onclick` and `<script>` and gets `<strong>` back with the maths intact.
 
-**Left open**: no live maths rendering inside the editor (a real maths node would need
+~~**Left open**: no live maths rendering inside the editor (a real maths node would need
 `@tiptap/extension-mathematics` configured for this site's delimiters); no image button; no
-tables; the link button uses a `prompt()`; an edit of an existing comment keeps the mode but the
-document was written as Markdown+HTML and round-trips through Tiptap as HTML, which is what
-the sanitizer normalises anyway.
+tables~~ — **live maths and tables ✅ resolved, a later pass.** `lib/components/editor/mathNode.ts`
+is a hand-rolled Tiptap inline atom node (over the flagged `@tiptap/extension-mathematics` — that
+package is `$…$`/MathML-shaped and would need as much reconfiguration for this site's own
+`\( \)`/`\[ \]` convention as writing the node took) whose `renderHTML` persists the literal
+delimited text (storage still does not change) while its `addNodeView` renders real KaTeX
+(`katex.renderToString`, the same `{throwOnError:false, strict:'ignore'}` config
+`renderContent.ts` uses) live in the editor; click a rendered equation to edit its LaTeX via the
+same `prompt()` the link button already used, empty answer removes it. `convertMathText` runs
+once right after every `setContent`/mount so EXISTING `\( \)`/`\[ \]` text in a document
+typesets the instant rich mode opens, not only maths typed from then on (input rules only fire on
+a live keystroke); the palette's own math entries (`\(\frac{a}{b}\)` …) now insert a live node
+via `paletteMathAttrs`, not inert text. Tables: the official `@tiptap/extension-table` family
+(same major/minor pin as the already-installed `@tiptap/core`) — the storage/read pipeline
+already allowed `<table>`/`<tr>`/`<td>`/… (`config/sanitize.py`, `renderContent.ts`'s default
+DOMPurify config), so this was purely a missing insert/edit UI, now a toolbar group (insert, plus
+add-row/add-column/delete-table shown while the cursor sits inside one). Still open: no image
+button; the link button still uses a `prompt()`; an edit of an existing comment keeps the mode
+but the document was written as Markdown+HTML and round-trips through Tiptap as HTML, which is
+what the sanitizer normalises anyway.
 
 ## 17AT. Reading comfort: text size, high contrast, 44px targets, the audit widened (✅ built, full stack)
 

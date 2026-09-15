@@ -12,11 +12,20 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from community.models import Comment
-from exercises.models import SolutionEntry, Tag, TagFollow
+from config.content_locale import HIDDEN_HEADER
+from exercises.models import ExerciseTranslation, SolutionEntry, Tag, TagFollow
+from materials.models import MaterialTranslation
 from moderation.models import FeatureFlag
 from notifications.models import Notification
 from telemetry.routers import all_log_shards
-from testing.factories import make_branch, make_exercise, make_topic, make_user, make_viewer
+from testing.factories import (
+    make_branch,
+    make_exercise,
+    make_material,
+    make_topic,
+    make_user,
+    make_viewer,
+)
 
 from .models import ActivityEvent, Post
 from .services import record_activity, remove_activity_for
@@ -313,3 +322,71 @@ class FeedReadTests(ActivityTestCase):
         listed = self.client.get('/api/activity/?discipline=matematyka').data
         self.assertTrue(len(listed) >= 1)
         self.assertEqual(self.client.get('/api/activity/?discipline=nonexistent').data, [])
+
+
+class FeedContentLocaleTests(ActivityTestCase):
+    """AUDIENCE-BRIEF.md §5's own "Left open" note, closed: a feed row's language depends on its
+    `kind` (activity/services.py's own `_content_locale_feed_filter`), so this exercises each of
+    the three real shapes — a plain content link (exercise/material), a `post`'s own `language`
+    column, and a `translation`/`solution_entry` row whose language is its SOURCE, which can
+    genuinely differ from the exercise it links to."""
+
+    def setUp(self):
+        self.branch = make_branch(slug='feed-locale')
+        # original_locale='pl' — a translation/entry submitted in 'en' against it must be judged
+        # by ITS OWN locale, not the exercise's, or a reader asking for English would never see it.
+        self.exercise = make_exercise(self.branch, 1, locale='pl')
+        self.en_exercise = make_exercise(self.branch, 2, locale='en')
+        self.material = make_material(self.branch, slug='feed-locale-material', locale='pl')
+
+    def test_a_plain_exercise_or_material_row_is_narrowed_by_its_own_published_translations(self):
+        record_activity('exercise', exercise=self.exercise, target_label='pl exercise')
+        record_activity('exercise', exercise=self.en_exercise, target_label='en exercise')
+        record_activity('material', material=self.material, target_label='pl material')
+        pl_only = self.client.get('/api/activity/?content_locales=pl').data
+        self.assertEqual({row['target_label'] for row in pl_only}, {'pl exercise', 'pl material'})
+        en_only = self.client.get('/api/activity/?content_locales=en').data
+        self.assertEqual({row['target_label'] for row in en_only}, {'en exercise'})
+
+    def test_a_post_is_narrowed_by_its_own_language_not_its_anchor(self):
+        author = make_user('locale-poster')
+        post = Post.objects.create(author=author, body='po polsku', language='pl', branch=self.branch)
+        record_activity('post', actor=author, target_label=post.body, post=post, branch=self.branch)
+        self.assertEqual(self.client.get('/api/activity/?content_locales=en').data, [])
+        shown = self.client.get('/api/activity/?content_locales=pl').data
+        self.assertEqual({row['target_label'] for row in shown}, {'po polsku'})
+
+    def test_a_translation_row_is_judged_by_the_translation_it_announces_not_the_exercise(self):
+        # The exercise's own ORIGINAL is Polish; the newly-published translation this row
+        # announces is English — the row must be found under 'en', not under 'pl'.
+        translation = ExerciseTranslation.objects.create(
+            exercise=self.exercise, locale='en', status='published', title='t', statement='s'
+        )
+        record_activity(
+            'translation', exercise=self.exercise, target_label='the translation', source=translation
+        )
+        self.assertEqual(self.client.get('/api/activity/?content_locales=pl').data, [])
+        shown = self.client.get('/api/activity/?content_locales=en').data
+        self.assertEqual({row['target_label'] for row in shown}, {'the translation'})
+
+    def test_a_solution_entry_row_is_judged_by_the_entry_not_the_exercise(self):
+        entry = SolutionEntry.objects.create(
+            exercise=self.exercise, kind='hint', locale='en', body='x', status='published'
+        )
+        record_activity(
+            'solution_entry',
+            exercise=self.exercise,
+            target_label='the hint',
+            source=entry,
+            entry_kind='hint',
+        )
+        self.assertEqual(self.client.get('/api/activity/?content_locales=pl').data, [])
+        shown = self.client.get('/api/activity/?content_locales=en').data
+        self.assertEqual({row['target_label'] for row in shown}, {'the hint'})
+
+    def test_the_hidden_count_rides_the_same_header_every_other_list_uses(self):
+        record_activity('exercise', exercise=self.exercise, target_label='pl exercise')
+        record_activity('exercise', exercise=self.en_exercise, target_label='en exercise')
+        response = self.client.get('/api/activity/?content_locales=pl')
+        self.assertEqual(response[HIDDEN_HEADER], '1')
+        self.assertEqual(self.client.get('/api/activity/')[HIDDEN_HEADER], '0')

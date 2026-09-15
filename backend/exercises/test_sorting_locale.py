@@ -47,6 +47,23 @@ class SortTests(APITestCase):
         ExerciseTranslation.objects.create(exercise=self.a, locale='en', status='published', title='Aardvark', statement='s')
         self.assertEqual(ids(self.client.get(self.url, {'sort': 'title', 'lang': 'en'}))[0], self.a.pk)
 
+    def test_title_sort_puts_a_diacritic_next_to_its_base_letter_not_after_z(self):
+        # Section 17AQ's own "Left open" note, closed: a raw code-point ORDER BY puts every
+        # diacritic after every plain ASCII letter (U+0105 'ą' > U+007A 'z'), so "ząb" used to sort
+        # after "zebra" — wrong in any Polish dictionary, where a diacritic is a variant of its base
+        # letter, not a letter past the end of the alphabet. config/dblocale.py fixes it for SQLite.
+        branch = make_branch(slug='sort-branch-locale')
+        zab = make_exercise(branch, 1, title='ząb')
+        abak = make_exercise(branch, 2, title='abak')
+        czekan = make_exercise(branch, 3, title='czekan')
+        cwiczenie = make_exercise(branch, 4, title='ćwiczenie')
+        zebra = make_exercise(branch, 5, title='zebra')
+        url = reverse('branch-exercises', args=[branch.slug])
+        self.assertEqual(
+            ids(self.client.get(url, {'sort': 'title'})),
+            [abak.pk, cwiczenie.pk, czekan.pk, zab.pk, zebra.pk],
+        )
+
     def test_difficulty_rating_reviews_views_solutions(self):
         self.assertEqual(ids(self.client.get(self.url, {'sort': 'difficulty'})), [self.b.pk, self.c.pk, self.a.pk])
         self.assertEqual(ids(self.client.get(self.url, {'sort': 'rating'}))[0], self.b.pk)

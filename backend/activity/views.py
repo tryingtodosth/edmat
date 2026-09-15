@@ -18,6 +18,8 @@ from moderation.permissions import feature_gate
 from moderation.services import is_feature_enabled
 from notifications.services import notify_comment_reply
 
+from config.content_locale import HIDDEN_HEADER
+
 from .models import ACTIVITY_KIND_CHOICES, Post
 from .serializers import ActivityEventSerializer, PostCreateSerializer, PostSerializer
 from .services import feed_events, record_activity, remove_activity_for
@@ -49,7 +51,7 @@ class FeedView(APIView):
             topic_id = int(params.get('topic', '') or 0) or None
         except ValueError:
             topic_id = None
-        events = feed_events(
+        events, hidden = feed_events(
             kind=kind,
             include_posts=is_feature_enabled('posts') or request.user.is_staff,
             discipline_slug=params.get('discipline') or None,
@@ -57,12 +59,15 @@ class FeedView(APIView):
             tag_slug=params.get('tag') or None,
             topic_id=topic_id,
             followed_for=request.user if params.get('followed') in ('1', 'true') else None,
+            content_locales_params=params,
             before_id=before_id,
             limit=limit,
         )
-        return Response(
+        response = Response(
             ActivityEventSerializer(events, many=True, context={'request': request}).data
         )
+        response[HIDDEN_HEADER] = str(hidden)
+        return response
 
 
 class PostCreateThrottle(ScopedRateThrottle):

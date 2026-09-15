@@ -117,6 +117,80 @@ def remove_activity_for(obj) -> int:
     return deleted
 
 
+def _content_locale_feed_filter(wanted: list[str]):
+    """A `Q` object: true for a feed row whose underlying content has a version in one of
+    `wanted` — the content-language rule (AUDIENCE-BRIEF.md §5, config/content_locale.py) applied
+    to a table that spans several content kinds instead of one.
+
+    Not a new rule, one rule applied per kind, because the feed itself does not carry a language —
+    the thing it points at does, and different kinds carry it differently:
+
+    - `post`/`course`/`happening` (event)/`service` each have their own plain `language` column
+      (config/content_locale.py's own per-model list) — checked directly.
+    - `translation` and `solution_entry` rows also set `exercise` (so the reader lands somewhere
+      real), but the row's OWN language is its `source` — an `ExerciseTranslation` or
+      `SolutionEntry` — not necessarily the exercise's original language a translation/entry was
+      submitted against. Checked via the `source` each was created with (`record_activity`'s own
+      `source=obj` at both call sites), never the exercise's.
+    - Every other exercise/material-linked kind (`exercise`/`review`/`claim`/`comment`) falls back
+      to "the linked exercise/material has a version in one of these languages" — the exact rule
+      that content's own list endpoint already applies: `published_only=True` for an exercise
+      (`ExerciseTranslation.status` is a real pending/published axis), no such check for a
+      material (`MaterialTranslation` has no `status` column at all — there is no review step for
+      a material's own translation the way there is for an exercise's).
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from django.db.models import Exists, OuterRef, Q
+
+    from exercises.models import ExerciseTranslation, SolutionEntry
+
+    translation_locale = ExerciseTranslation.objects.filter(
+        pk=OuterRef('source_object_id'), locale__in=wanted
+    )
+    entry_locale = SolutionEntry.objects.filter(
+        pk=OuterRef('source_object_id'), locale__in=wanted
+    )
+    own_language = (
+        Q(post__language__in=wanted)
+        | Q(course__language__in=wanted)
+        | Q(happening__language__in=wanted)
+        | Q(service__language__in=wanted)
+        | Q(
+            kind='translation',
+            source_content_type=ContentType.objects.get_for_model(ExerciseTranslation),
+        )
+        & Exists(translation_locale)
+        | Q(kind='solution_entry', source_content_type=ContentType.objects.get_for_model(SolutionEntry))
+        & Exists(entry_locale)
+    )
+    # `MaterialTranslation` has no `status` at all (materials/models.py — there is no
+    # pending/published review step for a material's own translation the way there is for an
+    # exercise's), the same reason `materials/views.py`'s own list endpoint calls
+    # `apply_content_locale_filter` WITHOUT `published_only=True` — matched here rather than
+    # guessed, or the query 500s trying to filter a field that does not exist.
+    linked_content_fallback = ~Q(kind__in=('translation', 'solution_entry')) & (
+        Q(exercise__translations__locale__in=wanted, exercise__translations__status='published')
+        | Q(material__translations__locale__in=wanted)
+    )
+    return own_language | linked_content_fallback
+
+
+def apply_feed_content_locale_filter(qs, params):
+    """Narrows a feed queryset to `?content_locales=`, returning `(qs, hidden_count)` — same
+    contract as `config.content_locale.apply_content_locale_filter`, which this cannot reuse
+    directly (it takes one `lookup`; a feed row's language depends on its `kind`, see
+    `_content_locale_feed_filter`). Absent `content_locales` → no narrowing, matching every other
+    list in this app."""
+    from config.content_locale import parse_content_locales
+
+    wanted = parse_content_locales(params.get('content_locales'))
+    if wanted is None:
+        return qs, 0
+    before = qs.count()
+    narrowed = qs.filter(_content_locale_feed_filter(wanted)).distinct()
+    return narrowed, max(0, before - narrowed.count())
+
+
 def feed_events(
     *,
     kind: str | None = None,
@@ -126,13 +200,17 @@ def feed_events(
     tag_slug: str | None = None,
     topic_id: int | None = None,
     followed_for=None,
+    content_locales_params=None,
     before_id: int | None = None,
     limit: int = 20,
 ):
     """The read query. `followed_for` (a User) narrows to their followed tags plus courses they
     are actively in — the two real follow signals this app has today. `before_id` is the cursor
     (rows are immutable and id-ordered, so an id cursor never skips or repeats across pages the
-    way an offset would as new rows land)."""
+    way an offset would as new rows land). `content_locales_params` is the request's own
+    query-params mapping — passed through rather than a parsed list so the same
+    `?content_locales=` convention every other list uses stays in one place
+    (`config.content_locale.parse_content_locales`); returns `(events, hidden_count)`."""
     qs = ActivityEvent.objects.select_related(
         'actor__profile', 'branch', 'discipline', 'post'
     ).prefetch_related('tags')
@@ -174,6 +252,12 @@ def feed_events(
             ).values_list('course_id', flat=True)
         )
         qs = qs.filter(Q(tags__in=followed_tag_ids) | Q(course_id__in=my_course_ids)).distinct()
+    # Content-language narrowing, same place in the pipeline every other list applies it: after
+    # every other filter, before the cursor/limit — so `hidden_count` counts real rows the reader's
+    # languages left out, not just what happened to fit on this one page.
+    hidden_count = 0
+    if content_locales_params is not None:
+        qs, hidden_count = apply_feed_content_locale_filter(qs, content_locales_params)
     if before_id:
         qs = qs.filter(id__lt=before_id)
-    return list(qs[: max(1, min(limit, 50))])
+    return list(qs[: max(1, min(limit, 50))]), hidden_count

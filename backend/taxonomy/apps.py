@@ -17,3 +17,10 @@ class TaxonomyConfig(AppConfig):
         from config.dbsearch import register
 
         register()
+
+        # Same reasoning, same place: a locale-aware `ORDER BY` collation for SQLite (title sort,
+        # Section 17AQ's own "Left open" note) needs a Python callable registered on every
+        # connection just as early. See config/dblocale.py for what it fixes.
+        from config.dblocale import register as register_locale_collation
+
+        register_locale_collation()

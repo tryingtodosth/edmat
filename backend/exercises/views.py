@@ -177,9 +177,11 @@ def sort_exercises(qs, params):
     """`?sort=` (AUDIENCE-BRIEF.md §4) with `&dir=asc|desc`. Each key has its own natural
     direction; `dir` flips it. `top` stays as the old alias of `rating`. Unknown → the model's
     default order. `title` is locale-aware: the published title in `?lang=`, else the original."""
+    from django.db import connections
     from django.db.models import Case, Count, F, IntegerField, OuterRef, Q, Subquery, Value, When
-    from django.db.models.functions import Coalesce, Lower
+    from django.db.models.functions import Coalesce, Collate, Lower
 
+    from config.dblocale import COLLATION_NAME
     from config.i18n_utils import DEFAULT_FALLBACK_LOCALE
 
     sort = params.get('sort') or ''
@@ -206,7 +208,12 @@ def sort_exercises(qs, params):
     else:
         field, natural = {'number': ('number', 'asc'), 'rating': ('average_rating', 'desc'), 'reviews': ('review_count', 'desc'), 'recent': ('created_at', 'desc')}[sort]
     final = direction if direction in ('asc', 'desc') else natural
-    ordering = F(field).asc(nulls_last=True) if final == 'asc' else F(field).desc(nulls_last=True)
+    # `title` alone needs the diacritic-aware collation (config/dblocale.py) — the other keys are
+    # numbers/dates/an enum, where raw byte order is already correct. SQLite only: PostgreSQL's own
+    # default collation is already locale-aware in a real deployment (config/dblocale.py's own
+    # docstring), and this collation name is only ever registered on a SQLite connection.
+    order_expr = Collate(F(field), COLLATION_NAME) if sort == 'title' and qs.db and connections[qs.db].vendor == 'sqlite' else F(field)
+    ordering = order_expr.asc(nulls_last=True) if final == 'asc' else order_expr.desc(nulls_last=True)
     return qs.order_by(ordering, 'id')
 
 
