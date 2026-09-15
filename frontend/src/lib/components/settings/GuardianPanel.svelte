@@ -1,6 +1,7 @@
 <script lang="ts">
 	/** A guardian's children (AUDIENCE-BRIEF.md §2): make an account (username + password, no
-	 * email), read what the child wrote — held items marked — remove an item, delete the account. */
+	 * email), read what the child wrote — held items marked — remove an item, suspend/reactivate
+	 * the account (reversible — they just can't sign in while suspended), delete the account. */
 	import { m } from '$lib/paraglide/messages.js';
 	import { onMount } from 'svelte';
 	import type { Child, ChildContent } from '$lib/services/children';
@@ -9,7 +10,8 @@
 		deleteChild,
 		getChildContent,
 		getChildren,
-		removeChildItem
+		removeChildItem,
+		setChildActive
 	} from '$lib/services/children';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { ApiError } from '$lib/api/client';
@@ -54,6 +56,11 @@
 		children = children.filter((x) => x.id !== c.id);
 		await authStore.init();
 	}
+	async function setSuspended(c: Child, suspend: boolean) {
+		if (suspend && !confirm(m.guardian_suspendConfirm({ name: c.displayName }))) return;
+		await setChildActive(c.id, !suspend);
+		children = children.map((x) => (x.id === c.id ? { ...x, isActive: !suspend } : x));
+	}
 	async function toggle(c: Child) {
 		if (open === c.id) {
 			open = null;
@@ -77,9 +84,19 @@
 				<li>
 					<div class="row">
 						<strong>{c.displayName}</strong> <span class="user">@{c.username}</span>
+						{#if !c.isActive}<span class="suspended">{m.guardian_suspended()}</span>{/if}
 						<button type="button" onclick={() => toggle(c)} aria-expanded={open === c.id}
 							>{m.guardian_whatTheyWrote()}</button
 						>
+						{#if c.isActive}
+							<button type="button" onclick={() => setSuspended(c, true)}
+								>{m.guardian_suspendAccount()}</button
+							>
+						{:else}
+							<button type="button" onclick={() => setSuspended(c, false)}
+								>{m.guardian_reactivateAccount()}</button
+							>
+						{/if}
 						<button type="button" class="danger" onclick={() => remove(c)}
 							>{m.guardian_deleteAccount()}</button
 						>
@@ -205,6 +222,13 @@
 		border-radius: 999px;
 		background: var(--status-warning-bg);
 		color: var(--status-warning);
+	}
+	.suspended {
+		font-size: 0.75rem;
+		padding: 0.05rem 0.4rem;
+		border-radius: 999px;
+		background: var(--status-danger-bg);
+		color: var(--status-danger);
 	}
 	button {
 		min-height: 44px;

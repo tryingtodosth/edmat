@@ -103,7 +103,8 @@ class ProfileSerializer(serializers.ModelSerializer):
 
         return [
             {'id': g.child_id, 'username': g.child.username,
-             'display_name': getattr(getattr(g.child, 'profile', None), 'display_name', '') or g.child.username}
+             'display_name': getattr(getattr(g.child, 'profile', None), 'display_name', '') or g.child.username,
+             'is_active': g.child.is_active}
             for g in Guardianship.objects.filter(guardian=profile.user, revoked_at__isnull=True).select_related('child__profile')
         ]
 

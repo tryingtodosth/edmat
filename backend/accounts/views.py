@@ -313,16 +313,30 @@ class ChildrenView(APIView):
         profile.save()
         Guardianship.objects.create(guardian=request.user, child=child)
         return Response(
-            {'id': child.pk, 'username': child.username, 'display_name': profile.display_name},
+            {'id': child.pk, 'username': child.username, 'display_name': profile.display_name, 'is_active': True},
             status=status.HTTP_201_CREATED,
         )
 
 
 class ChildDetailView(APIView):
-    """DELETE: the guardian deletes the child's account — everything the child made goes with it
-    (comments and posts cascade on their author)."""
+    """PATCH `{is_active}`: suspend or reactivate the child's account — a reversible revoke short
+    of deletion. Nothing the child wrote is touched; it only stops them signing in (Django's own
+    `authenticate()` already refuses an inactive user, and DRF's TokenAuthentication refuses an
+    already-issued token the same way, so a suspend takes effect on the child's very next request,
+    not merely their next login). DELETE: the guardian deletes the child's account outright —
+    everything the child made goes with it (comments and posts cascade on their author)."""
 
     permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk):
+        child = User.objects.filter(pk=pk).first()
+        if child is None or not guardian_of(request.user, child):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if 'is_active' not in request.data:
+            return Response({'is_active': ['Required.']}, status=status.HTTP_400_BAD_REQUEST)
+        child.is_active = bool(request.data.get('is_active'))
+        child.save(update_fields=['is_active'])
+        return Response({'id': child.pk, 'is_active': child.is_active})
 
     def delete(self, request, pk):
         child = User.objects.filter(pk=pk).first()

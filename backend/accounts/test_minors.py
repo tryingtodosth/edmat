@@ -87,6 +87,50 @@ class GuardianTests(MinorCase):
         self.assertEqual(as_(self.guardian).delete(reverse('auth-child', args=[self.child.pk])).status_code, 204)
         self.assertFalse(User.objects.filter(pk=self.child.pk).exists())
 
+    def test_the_guardian_can_suspend_and_reactivate_the_account_without_deleting_it(self):
+        branch = make_branch(slug='m-branch-suspend')
+        ex = make_exercise(branch, 1)
+        r = as_(self.child).post(reverse('exercise-comments', args=[ex.pk]), {'body': 'before suspension'}, format='json')
+        cid = r.json()['id']
+
+        # A real, still-live token — `force_authenticate` bypasses the authentication classes
+        # entirely, so a suspend has to be checked against an actual token going through
+        # TokenAuthentication, not a forced one.
+        login = self.client.post(reverse('auth-login'), {'username': 'kid', 'password': 'a-strong-passw0rd!'}, format='json')
+        token = login.json()['token']
+        child_client = APIClient()
+        child_client.credentials(HTTP_AUTHORIZATION=f'Token {token}')
+        self.assertEqual(child_client.get(reverse('auth-me')).status_code, 200)
+
+        # A stranger cannot suspend someone else's child.
+        self.assertEqual(as_(self.other).patch(reverse('auth-child', args=[self.child.pk]), {'is_active': False}, format='json').status_code, 404)
+
+        r = as_(self.guardian).patch(reverse('auth-child', args=[self.child.pk]), {'is_active': False}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertFalse(r.json()['is_active'])
+        self.child.refresh_from_db()
+        self.assertFalse(self.child.is_active)
+
+        # Suspended: cannot log in, and the already-issued token stops authenticating requests.
+        login = self.client.post(reverse('auth-login'), {'username': 'kid', 'password': 'a-strong-passw0rd!'}, format='json')
+        self.assertEqual(login.status_code, 401)
+        self.assertEqual(child_client.get(reverse('auth-me')).status_code, 401)
+
+        # Nothing the child wrote was touched.
+        self.assertFalse(Comment.objects.get(pk=cid).is_removed)
+        content = as_(self.guardian).get(reverse('auth-child-content', args=[self.child.pk])).json()
+        self.assertEqual(len(content['comments']), 1)
+
+        # The guardian still sees the account, marked suspended, and can reactivate it.
+        me = as_(self.guardian).get(reverse('auth-me')).json()
+        self.assertFalse(me['guardian_of'][0]['is_active'])
+        r = as_(self.guardian).patch(reverse('auth-child', args=[self.child.pk]), {'is_active': True}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(r.json()['is_active'])
+        login = self.client.post(reverse('auth-login'), {'username': 'kid', 'password': 'a-strong-passw0rd!'}, format='json')
+        self.assertEqual(login.status_code, 200, login.content)
+        self.assertEqual(child_client.get(reverse('auth-me')).status_code, 200)
+
     def test_deleting_the_guardian_takes_the_child_unless_another_guardian_remains(self):
         self.guardian.delete()
         self.assertFalse(User.objects.filter(username='kid').exists())
