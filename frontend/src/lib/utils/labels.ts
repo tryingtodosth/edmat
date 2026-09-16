@@ -302,7 +302,7 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 // a labels endpoint for it" call this codebase already made for DONATION_PLATFORMS/SOURCE_TYPES.
 export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	tutoring: m.featureFlags_label_tutoring,
-	classroom: m.featureFlags_label_classroom,
+	courses: m.featureFlags_label_classroom,
 	messaging: m.featureFlags_label_messaging,
 	exercise_submissions: m.featureFlags_label_exerciseSubmissions,
 	material_submissions: m.featureFlags_label_materialSubmissions,

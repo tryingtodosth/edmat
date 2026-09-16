@@ -123,8 +123,11 @@ class Material(models.Model):
     slug = models.SlugField()
     # No `choices=` any more: the allowed set is MaterialType's own rows, which a moderator can grow
     # without a code change. Validated on write by `validate_material_type` rather than by the field,
-    # because `choices` cannot express "and anything somebody has since proposed".
-    type = models.CharField(max_length=32)
+    # because `choices` cannot express "and anything somebody has since proposed". max_length=50 to
+    # match `MaterialType.slug`'s own real width (a bare `SlugField()`, Django's default 50) — the
+    # same widening `moderation.MaterialSubmission.type`'s own doc comment explains in full; this
+    # field's old 32 was already narrower than that source of truth, just not yet caught live.
+    type = models.CharField(max_length=50)
     # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
     # field means; the submit forms require an explicit choice, this default exists for the
     # migration and for code paths (the corpus importer, fixtures) that never asked.

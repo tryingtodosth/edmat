@@ -21,6 +21,7 @@
 	import MeatballsMenu from '$lib/components/shared/MeatballsMenu.svelte';
 	import ReportModal from '$lib/components/shared/ReportModal.svelte';
 	import LinkCommentToCourseModal from './LinkCommentToCourseModal.svelte';
+	import CommentHistoryModal from './CommentHistoryModal.svelte';
 	import CommentForm from './CommentForm.svelte';
 	import CommentNode from './CommentNode.svelte';
 
@@ -43,6 +44,7 @@
 	let confirmingDelete = $state(false);
 	let reporting = $state(false);
 	let linkingToCourse = $state(false);
+	let showingHistory = $state(false);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 
@@ -241,8 +243,13 @@
 			{/if}
 			<span class="comment__date">{formatRelativeDate(comment.createdAt, getLocale())}</span>
 			{#if comment.isEdited && !hidden}
-				<!-- "(edited)" — a reply may have been written in answer to what this used to say. -->
-				<span class="comment__edited">{m.comment_editedMarker()}</span>
+				<!-- "(edited)" — a reply may have been written in answer to what this used to say. A
+				     real button, not a bare label: open to EVERY reader, signed in or not, since the
+				     whole point of a visible edit trail is that other people can check it, not just
+				     the author (unlike the "⋯" menu below, gated to signed-in readers). -->
+				<button type="button" class="comment__edited" onclick={() => (showingHistory = true)}
+					>{m.comment_editedMarker()}</button
+				>
 			{/if}
 			{#if menuItems.length > 0}
 				<span class="comment__menu">
@@ -346,6 +353,10 @@
 	<ReportModal kind="comment" objectId={comment.id} onClose={() => (reporting = false)} />
 {/if}
 
+{#if showingHistory}
+	<CommentHistoryModal commentId={comment.id} onClose={() => (showingHistory = false)} />
+{/if}
+
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
@@ -419,9 +430,19 @@
 		color: var(--text-secondary);
 	}
 	.comment__edited {
+		@include mix.focus-ring;
+		background: none;
+		border: none;
+		padding: 0;
+		font: inherit;
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
 		font-style: italic;
+		cursor: pointer;
+		text-decoration: underline dotted;
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.comment__menu {
 		margin-left: auto;

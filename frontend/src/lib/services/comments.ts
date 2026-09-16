@@ -1,7 +1,12 @@
-import type { CommentAttachment } from '$lib/types/comment';
+import type { CommentAttachment, CommentRevision } from '$lib/types/comment';
 import type { Comment, CommentTargetType } from '$lib/types';
 import { apiClient } from '$lib/api/client';
-import { mapComment, type RawComment } from '$lib/api/mappers';
+import {
+	mapComment,
+	mapCommentRevision,
+	type RawComment,
+	type RawCommentRevision
+} from '$lib/api/mappers';
 
 function targetPath(targetType: CommentTargetType, targetId: string): string {
 	if (targetType === 'exercise') return `/exercises/${encodeURIComponent(targetId)}/comments/`;
@@ -112,6 +117,43 @@ export async function retractCommentVote(
 		`/comments/${encodeURIComponent(commentId)}/vote/`
 	);
 	return mapComment(raw, targetType, targetId);
+}
+
+/* --- edit history ----------------------------------------------------------------------------- */
+
+/** Every past version of this comment's body, oldest first — open to anybody who can read the
+ * comment itself, not just the author (the whole point is that other readers can see it). */
+export async function getCommentRevisions(commentId: string): Promise<CommentRevision[]> {
+	const raw = await apiClient.get<RawCommentRevision[]>(
+		`/comments/${encodeURIComponent(commentId)}/revisions/`
+	);
+	return raw.map(mapCommentRevision);
+}
+
+/** Staff only — masks this one past version from ordinary readers (the server re-checks; this
+ * only fails loudly if called without the right role). */
+export async function hideCommentRevision(
+	revisionId: string,
+	note: string
+): Promise<CommentRevision> {
+	const raw = await apiClient.post<RawCommentRevision>(
+		`/comment-revisions/${encodeURIComponent(revisionId)}/hide/`,
+		{ note }
+	);
+	return mapCommentRevision(raw);
+}
+
+/** Superuser only — locks this one past version away from every reader, permanently. See
+ * CommentRevision's own doc comment for what "sealed" means. */
+export async function sealCommentRevision(
+	revisionId: string,
+	note: string
+): Promise<CommentRevision> {
+	const raw = await apiClient.post<RawCommentRevision>(
+		`/comment-revisions/${encodeURIComponent(revisionId)}/seal/`,
+		{ note }
+	);
+	return mapCommentRevision(raw);
 }
 
 /* --- kept for yourself ---------------------------------------------------------------------- */

@@ -291,7 +291,17 @@ class MaterialSubmissionViewSet(viewsets.ModelViewSet):
         this is surfaced, not silently discarded). `MATERIAL_SCAN_REQUIRED` (config/settings.py) —
         False in this project's own sandboxed dev environment, where no ClamAV daemon exists to
         reach at all — is what a real deployment that actually runs ClamAV would flip to True, which
-        turns "couldn't scan it" into a hard rejection instead of a recorded, honest skip."""
+        turns "couldn't scan it" into a hard rejection instead of a recorded, honest skip.
+
+        Then the same verified-contributor fast path `ExerciseSubmissionViewSet.perform_create`
+        already applies to a brand-new exercise (CLAUDE.md Section 18 item 4) — extended here to a
+        brand-new material, which never had it: every safety check above (content-type sniff, size
+        cap, storage allowance, the malware scan) still runs identically regardless of who is
+        uploading; only the "wait for a moderator" step is skipped, and only for a NEW upload — a
+        governor-only edit of an already-published Material's own requirements/price stays exactly
+        as gated as it already was. Reuses `_apply_material_submission` unchanged, the same function
+        a moderator's own approve action calls, so this path is covered by its existing slug-
+        collision retry rather than reimplementing it."""
         from django.conf import settings
         from rest_framework.exceptions import ValidationError
 
@@ -307,6 +317,13 @@ class MaterialSubmissionViewSet(viewsets.ModelViewSet):
         submission.scan_status = 'clean' if outcome.scanned else 'skipped'
         submission.scan_detail = outcome.detail
         submission.save(update_fields=['scan_status', 'scan_detail'])
+
+        profile = getattr(self.request.user, 'profile', None)
+        if profile and profile.is_verified_contributor:
+            _apply_material_submission(submission, self.request.user)
+            submission.status = 'approved'
+            submission.review_note = 'Auto-published — submitted by a verified contributor.'
+            submission.save(update_fields=['status', 'review_note', 'resulting_material'])
 
     def _check_storage_allowance(self, serializer):
         """`Profile.material_upload_quota_bytes` — the per-account total, enforced here because this

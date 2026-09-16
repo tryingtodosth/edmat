@@ -676,6 +676,100 @@ class MaterialUploadVerifiedContributorGateTests(_TempMediaRootMixin, APITestCas
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class MaterialSubmissionAutoPublishTests(_TempMediaRootMixin, APITestCase):
+    """The verified-contributor fast path (CLAUDE.md Section 18 item 4), extended to materials —
+    `ExerciseSubmissionViewSet.perform_create` already had this; `MaterialSubmissionViewSet` never
+    did, a real, reported gap closed by reusing `_apply_material_submission` unchanged, the same
+    function a moderator's own approve action already calls."""
+
+    def setUp(self):
+        cache.clear()
+        self.branch = make_course(slug='uw-matsub-autopublish-branch')
+        self.verified = make_user('matsub_autopub_vip', is_verified_contributor=True)
+        self.plain = make_user('matsub_autopub_plain', is_verified_contributor=False)
+
+    def _upload(self, client, **overrides):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        data = {
+            'branch': self.branch.slug,
+            'type': 'practice_test',
+            'title': 'Autopublish candidate',
+            'description': 'Real practice problems.',
+            'locale': 'en',
+            'file': SimpleUploadedFile('practice.pdf', b'%PDF-1.4 real content'),
+            **overrides,
+        }
+        return client.post('/api/material-submissions/', data, format='multipart')
+
+    def test_a_verified_contributors_upload_publishes_immediately(self):
+        from materials.models import Material
+
+        self.client.force_authenticate(self.verified)
+        response = self._upload(self.client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['status'], 'approved')
+        self.assertIsNotNone(response.data['resulting_material'])
+        self.assertIn('verified contributor', response.data['review_note'])
+        material = Material.objects.get(pk=response.data['resulting_material'])
+        self.assertTrue(material.published)
+        self.assertEqual(material.branch_id, self.branch.pk)
+
+    def test_reviewed_by_stays_unset_on_an_auto_published_upload(self):
+        """Nobody reviewed this — pretending the submitter reviewed their own work would be
+        dishonest exactly where a moderator might later want to tell the two apart, the same
+        reasoning the exercise fast path's own doc comment already states."""
+        self.client.force_authenticate(self.verified)
+        response = self._upload(self.client)
+
+        self.assertIsNone(response.data['reviewed_by'])
+
+    def test_a_non_verified_users_upload_still_queues(self):
+        self.client.force_authenticate(self.plain)
+        response = self._upload(self.client)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['status'], 'pending')
+        self.assertIsNone(response.data['resulting_material'])
+
+    def test_a_disguised_executable_is_still_refused_even_for_a_verified_contributor(self):
+        """The fast path skips the moderation QUEUE, never the safety checks that run before it —
+        every one of them (content-type sniff, size cap, storage allowance, the malware scan)
+        applies identically regardless of who is uploading."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from moderation.models import MaterialSubmission
+
+        self.client.force_authenticate(self.verified)
+        response = self._upload(
+            self.client,
+            file=SimpleUploadedFile(
+                'totally_a_pdf.pdf', b'MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00' + b'A' * 200
+            ),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(MaterialSubmission.objects.filter(title='Autopublish candidate').exists())
+
+    def test_a_proposed_material_type_longer_than_the_old_20_character_cap_is_accepted(self):
+        """A real, found-live regression: `MaterialSubmission.type`/`Material.type` used to cap out
+        at 20/32 characters — a leftover from when the vocabulary was a short, fixed `choices=`
+        enum. A freely-typed proposed type's slug routinely exceeds either, and used to 400 with
+        "no more than 20 characters" the first time a submission ever tried to use one (found by
+        actually driving the "Other…" proposal flow end to end, not by reading the code)."""
+        from materials.models import MaterialType
+
+        long_slug = 'a-genuinely-long-proposed-material-type-name'  # 45 chars, over the old 20/32 caps
+        self.assertGreater(len(long_slug), 32)
+        MaterialType.objects.create(slug=long_slug, status='pending', proposed_by=self.plain)
+
+        self.client.force_authenticate(self.verified)
+        response = self._upload(self.client, type=long_slug)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['type'], long_slug)
+
+
 class MaterialSubmissionApprovalTests(_TempMediaRootMixin, APITestCase):
     """Approve/reject via the shared ModerationActionView, the same real endpoint every other kind
     (submission/edit/translation) already goes through — `_apply_material_submission`'s own real

@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
-from .models import CommentAttachment, Comment, Review, SavedComment
+from .models import CommentAttachment, Comment, CommentRevision, Review, SavedComment
 from .targets import target_type_for
 
 
@@ -164,6 +164,67 @@ class CommentSerializer(serializers.ModelSerializer):
         if instance.is_removed or instance.auto_hidden_at is not None:
             rep['body'] = ''
         return rep
+
+
+def _user_display_name(user) -> str:
+    if user is None:
+        return ''
+    return getattr(user.profile, 'display_name', '') or user.username
+
+
+class CommentRevisionSerializer(serializers.ModelSerializer):
+    """One past version of a comment's body — the masking matrix lives entirely here, in ONE
+    place, rather than split between the view (which would have to decide per-row) and the
+    frontend (which must never be trusted to hide what the backend already sent). See
+    `CommentRevision`'s own docstring for what each tier means.
+
+    Needs `context={'request': request}` — with none, it behaves as the least-privileged reader
+    (an anonymous visitor), never as an accident of whichever caller forgot to pass one.
+    """
+
+    edited_by_display_name = serializers.SerializerMethodField()
+    is_hidden_by_moderator = serializers.SerializerMethodField()
+    is_sealed = serializers.SerializerMethodField()
+    body = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommentRevision
+        fields = [
+            'id',
+            'created_at',
+            'edited_by_display_name',
+            'body',
+            'is_hidden_by_moderator',
+            'is_sealed',
+        ]
+
+    def _viewer(self):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request is not None else None
+        return user if user is not None and user.is_authenticated else None
+
+    def get_edited_by_display_name(self, obj):
+        return _user_display_name(obj.edited_by)
+
+    def get_is_hidden_by_moderator(self, obj):
+        return obj.hidden_by_moderator_at is not None
+
+    def get_is_sealed(self, obj):
+        return obj.sealed_at is not None
+
+    def get_body(self, obj):
+        # Sealed: nobody, ever, through this serializer — not even a superuser. See
+        # CommentRevision's own docstring for where sealed content is actually read from.
+        if obj.sealed_at is not None:
+            return None
+        # Moderator-hidden: full body to staff (they made the call and may need to review it
+        # again), a placeholder to everyone else, including the comment's own author.
+        if obj.hidden_by_moderator_at is not None:
+            viewer = self._viewer()
+            if viewer is not None and viewer.is_staff:
+                return obj.body
+            return None
+        return obj.body
 
 
 class SavedCommentSerializer(serializers.ModelSerializer):

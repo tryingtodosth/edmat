@@ -63,7 +63,7 @@
 	// and never correct itself.
 	let canSubmitExercise = $derived(can('exercise_submissions'));
 	let canSubmitMaterial = $derived(can('material_submissions'));
-	let canClassroom = $derived(can('classroom'));
+	let canClassroom = $derived(can('courses'));
 	// A minor's account may not host, list tutoring, or message (accounts/minors.py); the links go
 	// with the abilities, the kill-switch rule.
 	let isMinor = $derived(authStore.user?.isMinor ?? false);

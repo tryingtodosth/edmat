@@ -75,3 +75,18 @@ export interface CommentAttachment {
 	originalName: string;
 	sizeBytes: number;
 }
+
+/** One past version of a comment's body, from `/api/comments/{id}/revisions/` — the anti-troll
+ * edit trail. `body` is `null` whenever the backend has masked it (hidden by a moderator, or
+ * sealed by a superuser — see backend `CommentRevision`'s own docstring for what each tier
+ * means); `isHiddenByModerator`/`isSealed` are what a reader uses to pick the right placeholder,
+ * since the backend deliberately never sends English placeholder text of its own (that stays a
+ * message key here, like every other user-facing string in this app). */
+export interface CommentRevision {
+	id: string;
+	createdAt: string;
+	editedByDisplayName: string;
+	body: string | null;
+	isHiddenByModerator: boolean;
+	isSealed: boolean;
+}

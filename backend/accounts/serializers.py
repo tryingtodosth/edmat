@@ -38,6 +38,13 @@ class ProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
     is_moderator = serializers.BooleanField(source='user.is_staff', read_only=True)
+    # Django's own built-in superuser flag, exposed here for the first time — the "seal a comment
+    # revision" break-glass tier (community.CommentRevision) is gated on `request.user.is_superuser`
+    # server-side regardless of what this says; the frontend only reads it to decide whether to
+    # offer that action at all. Deliberately NOT added to PublicProfileSerializer below: unlike
+    # `is_moderator` (a real public badge, /levels), whether an account holds superuser status is
+    # not information any stranger has a reason to see.
+    is_superuser = serializers.BooleanField(source='user.is_superuser', read_only=True)
     # The "node governor" feature's own scoped-moderator flag — deliberately just a cheap boolean
     # here (a plain `.exists()` check), not the full grant list: this response is fetched on every
     # authenticated page load (auth.svelte.ts's own init()), so keeping it light matters. A frontend
@@ -62,6 +69,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'save_menu_layout',
             'is_verified_contributor',
             'is_moderator',
+            'is_superuser',
             'is_node_governor',
             'joined_at',
             'show_profile_publicly',

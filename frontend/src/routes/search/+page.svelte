@@ -52,7 +52,7 @@
 	// feature must not resurface through search, and a moderator still sees it to manage it.
 	const can = (key: Parameters<typeof featureFlagsStore.isEnabled>[0]) =>
 		featureFlagsStore.isEnabled(key) || authStore.isModerator;
-	let canClassroom = $derived(can('classroom'));
+	let canClassroom = $derived(can('courses'));
 	let canTutoring = $derived(can('tutoring'));
 	let canEvents = $derived(can('events'));
 

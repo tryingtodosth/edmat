@@ -134,6 +134,65 @@ class CommentVote(models.Model):
         return f'{self.value:+d} by {self.voter} on comment {self.comment_id}'
 
 
+class CommentRevision(models.Model):
+    """What a comment's `body` said before its most recent edit — the anti-troll trail: an edit
+    that could otherwise rewrite a comment into something innocuous after the fact, or rewrite a
+    question after an answer already hangs off it (see `Comment.edited_at`'s own note), now leaves
+    the earlier wording behind rather than silently overwriting it.
+
+    Created once per edit, in `revisions.record_revision`, which is the only writer — never
+    constructed directly, the same discipline `notifications.services.notify()` already holds
+    itself to for `Notification`. A comment created and never edited has zero rows here, which is
+    exactly what "Previous version not available" for a pre-existing edited comment (one edited
+    before this feature shipped) should mean: it is not a fallback string, it is simply true — no
+    snapshot was ever taken for it.
+
+    Two independent, one-way hide tiers, gated by two different permission levels, for two
+    genuinely different problems:
+
+    - `hidden_by_moderator*` — a staff member's call that THIS one past version should not be
+      shown to an ordinary reader (e.g. it carried a slur the current version no longer does).
+      Staff can still read the raw body — they made the call and may need to review it again.
+    - `sealed_*` — a superuser's call that a revision must not be served by ANY API response, not
+      even to staff (a compromised account edited in with something illegal/dangerous). The body
+      is never deleted — a legal hold, not a redaction — but no endpoint in this app ever
+      serializes it again once sealed; the only reads are Django admin (already `is_superuser`-
+      gated by the framework) or `manage.py export_sealed_revision`. See
+      `CommentRevisionSerializer` for exactly what each tier renders to whom.
+
+    Neither tier has an "unhide"/"unseal" endpoint — reversing one is a fresh, explicit, noted
+    action, never a toggle, matching `Comment.is_removed`'s own tombstone-not-delete convention.
+    """
+
+    comment = models.ForeignKey(Comment, related_name='revisions', on_delete=models.CASCADE)
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+'
+    )
+
+    hidden_by_moderator = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+'
+    )
+    hidden_by_moderator_at = models.DateTimeField(null=True, blank=True)
+    moderator_hide_note = models.TextField(blank=True)
+
+    # A legal hold, not a redaction: the row (and `body`) is never deleted once sealed. See the
+    # class docstring for exactly how locked-down this tier is and why.
+    sealed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='+'
+    )
+    sealed_at = models.DateTimeField(null=True, blank=True)
+    seal_note = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [models.Index(fields=['comment', 'created_at'])]
+
+    def __str__(self) -> str:
+        return f'revision of comment {self.comment_id} from {self.created_at}'
+
+
 class CommentAttachment(models.Model):
     """A picture or a small PDF on a comment (AUDIENCE-BRIEF.md §6). See community/attachments.py
     for what the file is allowed to be and how it is made safe."""

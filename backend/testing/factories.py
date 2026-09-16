@@ -15,10 +15,19 @@ from taxonomy.models import Branch, BranchTranslation, Discipline, DisciplineTra
 User = get_user_model()
 
 
-def make_user(username, *, is_staff=False, is_verified_contributor=False, password='testpass123'):
+def make_user(
+    username,
+    *,
+    is_staff=False,
+    is_superuser=False,
+    is_verified_contributor=False,
+    password='testpass123',
+):
     """Every User gets a real Profile for free via accounts/signals.py's post_save receiver — no
     separate Profile creation needed here."""
-    user = User.objects.create_user(username=username, password=password, is_staff=is_staff)
+    user = User.objects.create_user(
+        username=username, password=password, is_staff=is_staff, is_superuser=is_superuser
+    )
     if is_verified_contributor:
         user.profile.is_verified_contributor = True
         user.profile.save(update_fields=['is_verified_contributor'])

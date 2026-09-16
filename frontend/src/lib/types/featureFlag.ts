@@ -10,7 +10,15 @@
 // otherwise identical for every key.
 export type FeatureFlagKey =
 	| 'tutoring'
-	| 'classroom'
+	// Was 'classroom' — the backend app (and this flag's own seeded key) was renamed to `courses`
+	// (backend/CLAUDE.md's own "vocabulary rename" table), but this frontend union, the
+	// FEATURE_FLAG_LABELS map, and every `can('classroom')` call site were never updated to match.
+	// A real, reproduced bug this caused: `featureFlagsStore.isEnabled()` fails OPEN for an unknown
+	// key (`flags[key]?.isEnabled ?? true`), so the courses nav link/homepage tab/search integration
+	// silently ignored the real kill switch entirely — and on the moderation page, rendering a row
+	// for the real `courses` flag through the stale `FEATURE_FLAG_LABELS['classroom']` lookup threw
+	// "is not a function" and crashed the whole Flags tab the instant it was opened.
+	| 'courses'
 	| 'messaging'
 	| 'exercise_submissions'
 	| 'material_submissions'

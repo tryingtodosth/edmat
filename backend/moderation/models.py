@@ -122,7 +122,16 @@ class MaterialSubmission(models.Model):
 
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
     submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    type = models.CharField(max_length=20)  # materials.models.MATERIAL_TYPE_CHOICES values
+    # Was max_length=20 — right for the original, fixed 13-value MATERIAL_TYPE_CHOICES enum this
+    # comment used to name, but a real, found-live 400 once the vocabulary became an open,
+    # user-proposable `MaterialType` table (`materials/validators.py`'s `validate_material_type`,
+    # which accepts any PENDING proposed slug, not just an approved built-in): a proposed type's
+    # slug is derived from whatever name somebody typed, routinely longer than 20 characters, and
+    # got refused with "no more than 20 characters" the first time a submission ever tried to file
+    # under one. Widened to match `MaterialType.slug`'s own real width (a bare `SlugField()`,
+    # Django's default max_length=50) — the field that is actually this one's source of truth —
+    # so nothing `MaterialType` can hold is ever too long to reference here.
+    type = models.CharField(max_length=50)
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True)
     locale = models.CharField(max_length=8, default='pl')

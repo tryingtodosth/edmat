@@ -15,6 +15,7 @@ import type {
 	AvailabilityRule,
 	Booking,
 	Comment,
+	CommentRevision,
 	CommentTargetType,
 	Branch,
 	EffectiveWeek,
@@ -416,6 +417,18 @@ export const FRONTEND_TO_BACKEND_MATERIAL_TYPE = Object.fromEntries(
 	])
 ) as Record<MaterialType, string>;
 
+/** A real, found-live bug this function closes: `submitMaterial` (materials.ts) used to index
+ * `FRONTEND_TO_BACKEND_MATERIAL_TYPE` directly with `?? 'other'` — so a freshly PROPOSED type
+ * (submit-material's own "Other…" flow resolves one to a real, brand-new slug before submitting)
+ * was never in that fixed 13-entry map, and every such submission silently filed as the generic
+ * `other` instead of the type the submitter actually named. A proposed type's slug IS ALREADY the
+ * backend's own value — it needs no translation at all, only a builtin frontend-side name (e.g.
+ * `'examCollection'`) does. Falling back to the value itself (not to `'other'`) is what makes that
+ * correct for both cases with one function. */
+export function toBackendMaterialType(type: MaterialType): string {
+	return FRONTEND_TO_BACKEND_MATERIAL_TYPE[type] ?? type;
+}
+
 export interface RawCoverageVoteSummary {
 	agree_count: number;
 	disagree_count: number;
@@ -663,6 +676,26 @@ export function mapComment(
 		downvotes: json.downvotes,
 		score: json.score,
 		currentUserVote: (json.current_user_vote ?? undefined) as Comment['currentUserVote']
+	};
+}
+
+export interface RawCommentRevision {
+	id: number;
+	created_at: string;
+	edited_by_display_name: string;
+	body: string | null;
+	is_hidden_by_moderator: boolean;
+	is_sealed: boolean;
+}
+
+export function mapCommentRevision(json: RawCommentRevision): CommentRevision {
+	return {
+		id: String(json.id),
+		createdAt: json.created_at,
+		editedByDisplayName: json.edited_by_display_name,
+		body: json.body,
+		isHiddenByModerator: json.is_hidden_by_moderator,
+		isSealed: json.is_sealed
 	};
 }
 
@@ -979,6 +1012,7 @@ export interface RawProfile {
 	guardian_of?: { id: number; username: string; display_name: string }[];
 	guardians?: { id: number; display_name: string }[];
 	is_moderator: boolean;
+	is_superuser?: boolean; // present on /auth/me/ only
 	is_node_governor: boolean;
 	joined_at: string | null; // null only on a privacy-gated PublicProfile response
 	is_profile_public?: boolean; // present on GET /users/{id}/ only, not on /auth/me/'s own shape
@@ -1010,6 +1044,7 @@ export function mapUser(json: RawProfile): User {
 		joinedAt: json.joined_at,
 		isVerifiedContributor: json.is_verified_contributor,
 		isModerator: json.is_moderator,
+		isSuperuser: json.is_superuser,
 		isNodeGovernor: json.is_node_governor,
 		preferredLocale: json.preferred_locale,
 		offersTutoring: json.offers_tutoring,

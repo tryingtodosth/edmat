@@ -15,12 +15,12 @@ import type {
 import { apiClient, ApiError } from '$lib/api/client';
 import { getLocale } from '$lib/paraglide/runtime';
 import {
-	FRONTEND_TO_BACKEND_MATERIAL_TYPE,
 	mapMaterial,
 	mapMaterialCoverage,
 	mapMaterialRequirement,
 	mapMaterialReview,
 	mapMaterialSubmission,
+	toBackendMaterialType,
 	type RawMaterial,
 	type RawMaterialCoverage,
 	type RawMaterialRequirement,
@@ -40,8 +40,7 @@ function materialQueryString(filters: MaterialBrowseFilters): string {
 	const search = new URLSearchParams();
 	if (filters.disciplineId) search.set('discipline', filters.disciplineId);
 	if (filters.branchId) search.set('branch', filters.branchId);
-	if (filters.type)
-		search.set('type', FRONTEND_TO_BACKEND_MATERIAL_TYPE[filters.type] ?? filters.type);
+	if (filters.type) search.set('type', toBackendMaterialType(filters.type));
 	if (filters.tag) search.set('tag', filters.tag);
 	if (filters.topicId) search.set('topic_id', filters.topicId);
 	if (filters.minLevel) search.set('min_level', String(filters.minLevel));
@@ -248,7 +247,7 @@ export async function submitMaterial(
 ): Promise<MaterialSubmission> {
 	const formData = new FormData();
 	formData.append('branch', draft.branchId);
-	formData.append('type', FRONTEND_TO_BACKEND_MATERIAL_TYPE[draft.type] ?? 'other');
+	formData.append('type', toBackendMaterialType(draft.type));
 	formData.append('title', draft.title);
 	formData.append('description', draft.description);
 	formData.append('locale', draft.locale);

@@ -82,14 +82,26 @@
 	// already establishes: picking a field resets the branch (and, transitively via the $effect
 	// below, the topics) to that field's own first branch, rather than a flat, cross-field branch
 	// list a submitter had to scroll through to find the right one.
+	//
+	// `branchRequestId` guards a real, found-live race (found and fixed first on
+	// submit-material/+page.svelte's own copy of this exact function, then reproduced here too):
+	// `init()` below fires this for the page's own default discipline, and picking a DIFFERENT one
+	// before that first fetch resolves used to let the stale response land afterward and silently
+	// overwrite the deliberate choice — dropping a freshly-picked "Other…" branch back to blank
+	// with no visible error. A call whose id no longer matches the latest one by the time its own
+	// fetch resolves was superseded and must not write anything.
+	let branchRequestId = 0;
 	async function onFieldChange(next: string) {
 		disciplineId = next;
+		const requestId = ++branchRequestId;
 		if (next === OTHER_VALUE) {
 			branches = [];
 			branchId = OTHER_VALUE;
 			return;
 		}
-		branches = disciplineId ? await getBranchesForDiscipline(disciplineId) : [];
+		const fetched = await getBranchesForDiscipline(next);
+		if (requestId !== branchRequestId) return; // superseded by a later call — discard
+		branches = fetched;
 		branchId = branches.length ? branches[0].id : '';
 	}
 

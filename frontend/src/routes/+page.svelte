@@ -60,11 +60,11 @@
 	const TABS: {
 		id: TabId;
 		label: () => string;
-		flag: 'classroom' | 'tutoring' | 'events' | null;
+		flag: 'courses' | 'tutoring' | 'events' | null;
 	}[] = [
 		{ id: 'exercises', label: () => m.home_tab_exercises(), flag: null },
 		{ id: 'materials', label: () => m.home_tab_materials(), flag: null },
-		{ id: 'branches', label: () => m.home_tab_courses(), flag: 'classroom' },
+		{ id: 'branches', label: () => m.home_tab_courses(), flag: 'courses' },
 		{ id: 'tutoring', label: () => m.home_tab_tutoring(), flag: 'tutoring' },
 		{ id: 'events', label: () => m.home_tab_events(), flag: 'events' },
 		// Deliberately last, deliberately near-placeholder (an owner decision alongside the

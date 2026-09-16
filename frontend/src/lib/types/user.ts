@@ -16,6 +16,12 @@ export interface User {
 	guardianOf?: { id: string; username: string; displayName: string }[];
 	guardians?: { id: string; displayName: string }[];
 	isModerator: boolean;
+	// Django's own built-in superuser flag, present only on the CURRENT user's own /auth/me/
+	// response (never on a stranger's — accounts/serializers.py deliberately never adds it to
+	// PublicProfileSerializer). Gates the one "seal a comment revision" action
+	// (comment.ts's CommentRevision) — the server re-checks this regardless, this is only what
+	// decides whether to show the button at all.
+	isSuperuser?: boolean;
 	// The "node governor" feature (nodeGovernor.ts) — a moderator scoped to one Discipline/Branch rather
 	// than the whole platform. Deliberately just a cheap flag here, not the actual list of governed
 	// nodes — see accounts/serializers.py's ProfileSerializer.get_is_node_governor for why (this

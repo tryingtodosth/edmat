@@ -2,6 +2,13 @@
 DEMO_PASSWORD, so a person poking at the real backend recognizes the same accounts they already saw
 in the mocked Phase 1 frontend. Kasia is the one moderator (is_staff=True), matching her
 `isModerator: true` there. Idempotent via update_or_create.
+
+A sixth account, `u-root`, was added alongside the comment-edit-history feature
+(community.CommentRevision) — it is the only seeded account with `is_superuser=True`, needed so
+the "seal a revision" break-glass action (superuser-only, deliberately stricter than plain
+moderation) has a real, loggable-in-as account for browser-driven verification at all. Not part of
+the original 5-identity mock parity set, so it is added separately below rather than folded into
+`DEMO_USERS` — nothing in this app's frontend mocks ever modeled a superuser.
 """
 
 from django.contrib.auth import get_user_model
@@ -57,7 +64,7 @@ DEMO_USERS = [
 
 
 class Command(BaseCommand):
-    help = 'Seeds the same 5 demo users the mocked frontend uses (Phase 1 parity).'
+    help = 'Seeds the same 5 demo users the mocked frontend uses (Phase 1 parity), plus u-root.'
 
     def handle(self, *args, **options):
         for spec in DEMO_USERS:
@@ -76,4 +83,19 @@ class Command(BaseCommand):
                     'is_verified_contributor': spec['is_verified_contributor'],
                 },
             )
-        self.stdout.write(self.style.SUCCESS(f'Seeded {len(DEMO_USERS)} demo users (password: {DEMO_PASSWORD}).'))
+
+        root, _ = User.objects.get_or_create(
+            username='u-root', defaults={'email': 'root@edmat.example'}
+        )
+        root.set_password(DEMO_PASSWORD)
+        root.email = 'root@edmat.example'
+        root.is_staff = True
+        root.is_superuser = True
+        root.save()
+        Profile.objects.update_or_create(
+            user=root, defaults={'display_name': 'Root', 'preferred_locale': 'en'}
+        )
+
+        self.stdout.write(
+            self.style.SUCCESS(f'Seeded {len(DEMO_USERS)} demo users + u-root (password: {DEMO_PASSWORD}).')
+        )

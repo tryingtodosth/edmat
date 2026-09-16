@@ -6,7 +6,7 @@
 	import type { Branch, Discipline, MaterialCoverageDraft, MaterialType, Topic } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
-		getAllBranches,
+		getBranchesForDiscipline,
 		getDisciplines,
 		getTopicsForBranch,
 		proposeTaxonomyNode
@@ -18,6 +18,7 @@
 	import { isComposingKey } from '$lib/utils/textInput';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import TaxonomyOptions, { OTHER_VALUE } from '$lib/components/shared/TaxonomyOptions.svelte';
 
@@ -28,17 +29,28 @@
 	// re-checks every upload's real bytes regardless of what this hints the OS file dialog toward.
 	const ACCEPTED_EXTENSIONS = '.pdf,.png,.jpg,.jpeg,.tex,.doc,.docx,.odt';
 
-	let branches = $state<Branch[]>([]);
-	let branchId = $state('');
-	// "Other…" in the branch picker: this form lists every branch flat with no discipline step, so
-	// naming a new branch also asks which discipline it belongs to (a branch cannot exist without
-	// one). Both are created when the form is submitted and the material is filed under the result.
-	let customBranchName = $state('');
-	let customBranchDisciplineId = $state('');
 	let disciplines = $state<Discipline[]>([]);
+	let branches = $state<Branch[]>([]);
+	let disciplineId = $state('');
+	let branchId = $state('');
+	// "Other…" at either level — the discipline → branch cascade below (mirroring /submit's own
+	// pattern exactly) is what makes proposing a brand-new DISCIPLINE reachable at all here: this
+	// form used to list every branch flat with no discipline step, so naming a new branch had
+	// nowhere to ask which (existing-only) discipline it belonged to, and naming a new discipline
+	// outright was simply not offered anywhere. Picking "Other…" for the discipline forces the
+	// branch to be new too, matching /submit's own reasoning: a discipline that does not exist yet
+	// cannot already have a branch in it.
+	let customDisciplineName = $state('');
+	let customBranchName = $state('');
+	let isCustomDiscipline = $derived(disciplineId === OTHER_VALUE);
 	let isCustomBranch = $derived(branchId === OTHER_VALUE);
 	let topics = $state<Topic[]>([]);
 	let type = $state<MaterialType>('examCollection');
+	// "Other…" for the type select too, the identical inline pattern rather than the separate
+	// "Suggest a kind" link this used to be the only field on this form to use — one mechanism per
+	// field, not two competing ones for the same action.
+	let customTypeName = $state('');
+	let isCustomType = $derived(type === OTHER_VALUE);
 	let title = $state('');
 	let description = $state('');
 	// Provenance. Both plain strings and both `type="text"` — deliberately NOT `type="url"` for
@@ -60,6 +72,11 @@
 	);
 	let submitting = $state(false);
 	let success = $state(false);
+	// ✅ Verified-contributor fast path, extended to materials (mirrors /submit's own
+	// publishedExerciseId): set only when the backend published this upload immediately
+	// (`status: 'approved'`, `resultingMaterialId` present) rather than queuing it, so the
+	// confirmation can say what actually happened instead of always implying a review queue.
+	let publishedMaterialId = $state<string | null>(null);
 	let errorMessage = $state('');
 
 	// All three genuinely optional, matching the real Material fields they'll eventually become
@@ -123,9 +140,36 @@
 		topics.filter((t) => !coverage.some((c) => c.topicId === t.id))
 	);
 
+	// Discipline → branch cascade, the same pattern /submit's own onFieldChange already
+	// establishes: picking a discipline narrows the branch list to that discipline's own branches
+	// (rather than a flat, cross-discipline list to scroll through), and resets the branch to the
+	// new discipline's own first one.
+	//
+	// `branchRequestId` guards against a real, found-live race: `init()` below fires this same
+	// function for the page's own default discipline, and if somebody (or, as this feature's own
+	// verification found, a script) picks a DIFFERENT discipline before that first fetch resolves,
+	// the stale response used to land afterward and silently overwrite the deliberate choice —
+	// dropping a freshly-picked "Other…" branch back to blank with no visible error. Each call
+	// stamps its own id; a call whose id no longer matches the latest one by the time its fetch
+	// resolves was superseded and must not write anything.
+	let branchRequestId = 0;
+	async function onDisciplineChange(next: string) {
+		disciplineId = next;
+		const requestId = ++branchRequestId;
+		if (next === OTHER_VALUE) {
+			branches = [];
+			branchId = OTHER_VALUE;
+			return;
+		}
+		const fetched = await getBranchesForDiscipline(next);
+		if (requestId !== branchRequestId) return; // superseded by a later call — discard
+		branches = fetched;
+		branchId = branches.length ? branches[0].id : '';
+	}
+
 	async function init() {
-		branches = await getAllBranches();
-		if (branches.length) branchId = branches[0].id;
+		disciplines = await getDisciplines();
+		if (disciplines.length) await onDisciplineChange(disciplines[0].id);
 	}
 	// In onMount, not at top level: this page is prerendered, and a top-level call runs at BUILD
 	// time too, where `fetch('/api/…')` has no origin to resolve against and the build dies
@@ -155,27 +199,35 @@
 	// button is honest rather than the refusal arriving after a submit.
 	let canSubmit = $derived(
 		Boolean(branchId && title.trim() && (file || url.trim())) &&
-			(!isCustomBranch || Boolean(customBranchName.trim() && customBranchDisciplineId))
+			(!isCustomDiscipline || Boolean(customDisciplineName.trim())) &&
+			(!isCustomBranch || Boolean(customBranchName.trim())) &&
+			(!isCustomType || Boolean(customTypeName.trim()))
 	);
 
-	$effect(() => {
-		if (isCustomBranch && disciplines.length === 0) {
-			getDisciplines().then((d) => {
-				disciplines = d;
-				if (!customBranchDisciplineId && d.length) customBranchDisciplineId = d[0].id;
-			});
-		}
-	});
-
+	/** Turns an "Other…" discipline/branch choice into a real node (mirrors /submit's own
+	 * resolveBranch exactly) and returns the branch slug to file the material under. */
 	async function resolveBranch(): Promise<string> {
+		let disciplineSlug = disciplineId;
+		if (isCustomDiscipline) {
+			disciplineSlug = (
+				await proposeTaxonomyNode({ kind: 'discipline', name: customDisciplineName.trim() })
+			).slug;
+		}
 		if (!isCustomBranch) return branchId;
 		return (
 			await proposeTaxonomyNode({
 				kind: 'branch',
 				name: customBranchName.trim(),
-				parent: customBranchDisciplineId
+				parent: disciplineSlug
 			})
 		).slug;
+	}
+
+	/** Turns an "Other…" material-type choice into a real, immediately-usable node — no parent, a
+	 * material type is not nested under anything. */
+	async function resolveMaterialType(): Promise<string> {
+		if (!isCustomType) return type;
+		return (await proposeTaxonomyNode({ kind: 'material_type', name: customTypeName.trim() })).slug;
 	}
 
 	/** The backend field is a real `URLField`, which rejects a bare `example.edu/x.pdf` outright.
@@ -194,10 +246,11 @@
 		submitting = true;
 		try {
 			const filedBranchId = await resolveBranch();
-			await submitMaterial(
+			const filedType = await resolveMaterialType();
+			const result = await submitMaterial(
 				{
 					branchId: filedBranchId,
-					type,
+					type: filedType,
 					title: title.trim(),
 					description: description.trim(),
 					locale,
@@ -214,6 +267,8 @@
 				file
 			);
 			success = true;
+			publishedMaterialId =
+				result.status === 'approved' ? (result.resultingMaterialId ?? null) : null;
 			title = description = '';
 			author = sourceUrl = '';
 			file = null;
@@ -223,6 +278,7 @@
 			coverage = [];
 			priceAmount = '';
 			estimatedMinutes = '';
+			customDisciplineName = customBranchName = customTypeName = '';
 			const input = document.getElementById('material-file-input') as HTMLInputElement | null;
 			if (input) input.value = '';
 		} catch (e) {
@@ -252,7 +308,14 @@
 <FeatureGate feature="material_submissions">
 	<div class="page">
 		<h1>{m.submitMaterial_heading()}</h1>
-		<p class="subtitle">{m.submitMaterial_subtitle()}</p>
+		<!-- Reads the same isVerifiedContributor flag /submit's own subtitle already reads — the
+		     material-upload pipeline now has the identical fast path (moderation/views.py's
+		     MaterialSubmissionViewSet.perform_create). -->
+		<p class="subtitle">
+			{authStore.user?.isVerifiedContributor
+				? m.submitMaterial_subtitleVerified()
+				: m.submitMaterial_subtitle()}
+		</p>
 
 		{#if authStore.restoring}
 			<p class="session-restoring">{m.common_loading()}</p>
@@ -261,23 +324,45 @@
 				<a href={resolve('/login')}>{m.submitMaterial_loginRequired()}</a>
 			</p>
 		{:else}
-			{#if success}
-				<p class="notice">{m.submitMaterial_success()}</p>
-			{/if}
 			{#if errorMessage}
 				<p class="error">{errorMessage}</p>
 			{/if}
 
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
-				<!-- The branch this material belongs to. Unlike /submit there is no discipline step
-				     here — the list is every branch, flat — which is exactly why suggesting a new one
-				     was unreachable from this page: a branch needs a discipline, and this form has
-				     none to hand. The dialog asks for it instead. -->
+				<!-- The field this material belongs to — a real discipline → branch cascade now,
+				     mirroring /submit exactly (CLAUDE.md's "Discipline & Branch Selection Flow" fix):
+				     picking a discipline narrows the branch list to it, and "Other…" at the discipline
+				     level is a real, reachable way to propose a brand-new discipline, not just a new
+				     branch under an existing one. -->
+				<div class="field">
+					<div class="field-heading">
+						<label for="submit-material-discipline">{m.submitMaterial_field_discipline()}</label>
+					</div>
+					<select
+						id="submit-material-discipline"
+						value={disciplineId}
+						onchange={(e) => onDisciplineChange(e.currentTarget.value)}
+					>
+						<TaxonomyOptions nodes={disciplines} allowOther />
+					</select>
+					{#if isCustomDiscipline}
+						<input
+							type="text"
+							class="other-name"
+							bind:value={customDisciplineName}
+							placeholder={m.taxonomy_otherDisciplineName()}
+							aria-label={m.taxonomy_otherDisciplineName()}
+							required
+						/>
+						<p class="other-hint">{m.taxonomy_otherPending()}</p>
+					{/if}
+				</div>
+
 				<div class="field">
 					<div class="field-heading">
 						<label for="submit-material-branch">{m.submitMaterial_field_course()}</label>
 					</div>
-					<select id="submit-material-branch" bind:value={branchId}>
+					<select id="submit-material-branch" bind:value={branchId} disabled={isCustomDiscipline}>
 						<TaxonomyOptions nodes={branches} allowOther />
 					</select>
 					{#if isCustomBranch}
@@ -289,44 +374,47 @@
 							aria-label={m.taxonomy_otherBranchName()}
 							required
 						/>
-						<label class="other-parent">
-							<span>{m.taxonomy_otherDisciplineFor()}</span>
-							<select bind:value={customBranchDisciplineId}>
-								<TaxonomyOptions nodes={disciplines} />
-							</select>
-						</label>
-						<p class="other-hint">{m.taxonomy_otherPending()}</p>
+						{#if !isCustomDiscipline}
+							<p class="other-hint">{m.taxonomy_otherPending()}</p>
+						{/if}
 					{/if}
 				</div>
 
 				<label class="field">
 					<span>{m.submitMaterial_field_title()}</span>
-					<input type="text" bind:value={title} required />
+					<input
+						type="text"
+						bind:value={title}
+						placeholder={m.submitMaterial_titlePlaceholder()}
+						required
+					/>
 				</label>
 
 				<div class="field-row">
-					<!-- The propose trigger sits on the label's own row rather than below the control, so it
-					     reads as a footnote about this one field instead of a second action belonging to
-					     the form. `.field-heading` wraps — and this field is a grid column barely half the
-					     form wide, so it genuinely does wrap here rather than only on a phone. -->
 					<div class="field">
 						<div class="field-heading">
 							<label for="submit-material-type">{m.submitMaterial_field_type()}</label>
-							<!-- The case this exists for: a document that is genuinely not one of the thirteen
-							     kinds somebody guessed at from a seven-material corpus. -->
-							<ProposeNodeButton
-								kind="material_type"
-								onproposed={async (slug) => {
-									await materialTypesStore.refresh();
-									type = slug;
-								}}
-							/>
 						</div>
 						<!-- The vocabulary, not a fixed list: anything somebody has proposed appears under
-						     "Others" via TaxonomyOptions, exactly as a proposed discipline does. -->
+						     "Others" via TaxonomyOptions, exactly as a proposed discipline does — and,
+						     since this fix, so does "Other…" itself: a document that is genuinely not one
+						     of the thirteen kinds somebody guessed at from a seven-material corpus gets the
+						     same inline text input the discipline/branch pickers already use, rather than
+						     the separate "Suggest a kind" link this used to be the only field to need. -->
 						<select id="submit-material-type" bind:value={type}>
-							<TaxonomyOptions nodes={typeOptions} />
+							<TaxonomyOptions nodes={typeOptions} allowOther />
 						</select>
+						{#if isCustomType}
+							<input
+								type="text"
+								class="other-name"
+								bind:value={customTypeName}
+								placeholder={m.taxonomy_otherMaterialTypeName()}
+								aria-label={m.taxonomy_otherMaterialTypeName()}
+								required
+							/>
+							<p class="other-hint">{m.taxonomy_otherPending()}</p>
+						{/if}
 					</div>
 					<label class="field">
 						<span>{m.submitMaterial_field_language()}</span>
@@ -536,6 +624,28 @@
 	</div>
 </FeatureGate>
 
+{#if success}
+	<!-- A centered modal, triggered the instant the submit resolves — not the old top-of-page
+	     banner, which a submitter who had just clicked "Submit" at the bottom of a long form never
+	     saw without scrolling back up. ModalShell is the same shell every other confirmation dialog
+	     in this app already uses. -->
+	<ModalShell title={m.submitMaterial_successTitle()} onClose={() => (success = false)}>
+		<p class="success-body">
+			{#if publishedMaterialId}
+				{m.submitMaterial_successPublished()}
+				<a href={resolve('/materials/[id]', { id: publishedMaterialId })}
+					>{m.submitMaterial_viewMaterial()}</a
+				>
+			{:else}
+				{m.submitMaterial_success()}
+			{/if}
+		</p>
+		<button type="button" class="success-close" onclick={() => (success = false)}>
+			{m.common_close()}
+		</button>
+	</ModalShell>
+{/if}
+
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
 
@@ -557,13 +667,22 @@
 		color: var(--accent);
 		font-weight: 600;
 	}
-	.notice {
-		@include mix.status-pill(var(--status-success), var(--status-success-bg));
-		align-self: flex-start;
-	}
 	.error {
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 		align-self: flex-start;
+	}
+	.success-body {
+		font-size: var(--font-size-sm);
+		a {
+			display: block;
+			margin-top: var(--space-2);
+			color: var(--accent);
+			font-weight: 600;
+		}
+	}
+	.success-close {
+		@include mix.button-primary;
+		margin-top: var(--space-3);
 	}
 	.submit-form {
 		display: flex;
@@ -674,13 +793,6 @@
 	.other-name {
 		margin-top: var(--space-2);
 		width: 100%;
-	}
-	.other-parent {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-		margin-top: var(--space-2);
-		font-size: var(--font-size-sm);
 	}
 	.other-hint {
 		margin-top: var(--space-1);

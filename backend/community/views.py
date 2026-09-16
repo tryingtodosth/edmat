@@ -8,7 +8,6 @@ rule and the whole frontend `DiscussionThread` come for free here.
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count
-from django.utils import timezone
 from django.core.exceptions import ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
 
@@ -16,7 +15,8 @@ from accounts.minors import hold_for_review, is_minor
 from config.audience import MINOR_AUDIENCES
 
 from .attachments import MAX_ATTACHMENTS_PER_COMMENT, attachment_upload_path, process_attachment
-from .serializers import CommentAttachmentSerializer
+from .revisions import apply_comment_edit, hide_revision, seal_revision
+from .serializers import CommentAttachmentSerializer, CommentRevisionSerializer
 from .models import CommentAttachment
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -25,7 +25,7 @@ from rest_framework.views import APIView
 
 from notifications.services import label_for_exercise, notify_comment_reply
 
-from .models import Comment, CommentVote, Review, SavedComment
+from .models import Comment, CommentRevision, CommentVote, Review, SavedComment
 from .serializers import CommentSerializer, SavedCommentSerializer
 
 
@@ -156,12 +156,26 @@ class CommentViewSet(viewsets.GenericViewSet):
             return Response(
                 {'body': ['This field may not be blank.']}, status=status.HTTP_400_BAD_REQUEST
             )
-        comment.body = body
-        # Stamped on every successful edit, and surfaced as `is_edited` — see the model field's own
-        # note on why an untraceable edit is the thing being avoided here.
-        comment.edited_at = timezone.now()
-        comment.save(update_fields=['body', 'edited_at'])
+        # Snapshots the PRE-edit body as a CommentRevision before overwriting — see revisions.py.
+        # Stamps `edited_at`, surfaced as `is_edited` — see the model field's own note on why an
+        # untraceable edit is the thing being avoided here.
+        apply_comment_edit(comment, body, edited_by=request.user)
         return Response(CommentSerializer(comment).data)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def revisions(self, request, pk=None):
+        """GET /api/comments/{id}/revisions/ — every past version of this comment's body, oldest
+        first, masked per `CommentRevisionSerializer`. Open to anybody who can read the comment
+        itself (history is a narrower question of past states than the tombstone question of
+        whether the CURRENT body shows — deleting a comment must not also erase the trail of what
+        it used to say, or the tombstone would undercut the very feature meant to catch that).
+        Overrides the viewset's own `IsAuthenticated` default, which exists for the author-only
+        edit/delete actions, not for reading history."""
+        comment = self.get_object()
+        qs = comment.revisions.select_related(
+            'edited_by__profile', 'hidden_by_moderator', 'sealed_by'
+        )
+        return Response(CommentRevisionSerializer(qs, many=True, context={'request': request}).data)
 
     def destroy(self, request, pk=None):
         comment = self.get_object()
@@ -306,6 +320,49 @@ class CommentViewSet(viewsets.GenericViewSet):
             SavedCommentSerializer(row, context={'request': request}).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
+
+
+class CommentRevisionViewSet(viewsets.GenericViewSet):
+    """The two moderation-adjacent actions on a single past version of a comment. No list/retrieve
+    of its own — a revision is always read as part of `CommentViewSet.revisions`, which is also
+    where its masking actually happens; this only ever WRITES the two hide flags.
+
+    `select_related` on every FK `CommentRevisionSerializer` touches, so listing/serializing a
+    revision after either action never pays a per-row N+1.
+    """
+
+    queryset = CommentRevision.objects.select_related(
+        'comment', 'edited_by__profile', 'hidden_by_moderator', 'sealed_by'
+    )
+    serializer_class = CommentRevisionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=['post'])
+    def hide(self, request, pk=None):
+        """Staff only. Hides this one past version from ordinary readers — the "a slur, but the
+        rest of the comment has positive impact" case. One-way; see revisions.py."""
+        if not request.user.is_staff:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        revision = self.get_object()
+        if revision.sealed_at is not None:
+            # Nothing to do — sealing is already the stricter tier, and a hide action here would
+            # read as though it were the one that locked this down.
+            return Response(status=status.HTTP_409_CONFLICT)
+        note = (request.data.get('note') or '').strip()
+        revision = hide_revision(revision, moderator=request.user, note=note)
+        return Response(CommentRevisionSerializer(revision, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'])
+    def seal(self, request, pk=None):
+        """Superuser only. Locks this one past version away from every API response, permanently
+        — the compromised-account/illegal-content case. The body is never deleted; see
+        CommentRevision's own docstring for the only two ways it can still be read afterward."""
+        if not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        revision = self.get_object()
+        note = (request.data.get('note') or '').strip()
+        revision = seal_revision(revision, sealed_by=request.user, note=note)
+        return Response(CommentRevisionSerializer(revision, context={'request': request}).data)
 
 
 class ReviewViewSet(viewsets.GenericViewSet):
