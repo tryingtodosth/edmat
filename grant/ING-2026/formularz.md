@@ -74,8 +74,8 @@ z mapą, wiadomości, wydarzenia — są zbudowane i zamrożone do czasu walidac
 ## Kto jest odbiorcą Twojego rozwiązania?
 Cztery grupy, w kolejności, w jakiej je obsługujemy — każda z konkretną osobą, którą znamy z UW.
 
-1. Dziś: studenci kierunków ścisłych przed kolokwium i egzaminem. W Polsce studiuje 1 280 tys. osób
-(GUS 2024/25); zaczynamy od Wydziału Fizyki UW i kierunków matematycznych, gdzie mamy kadrę i 745
+1. Dziś: studenci kierunków ścisłych przed kolokwium i egzaminem. W Polsce studiuje 1,32 mln osób
+(GUS 2025/26); zaczynamy od Wydziału Fizyki UW i kierunków matematycznych, gdzie mamy kadrę i 745
 zadań. Ola, II rok fizyki, pięć dni do kolokwium z Analizy II: filtruje dział „całki", próbuje sama,
 odsłania wskazówkę, potem rozwiązanie ze znakiem „zweryfikowane", pyta w dyskusji o krok, którego nie
 rozumie, drukuje zestaw 12 zadań. Wszystko to działa dziś na edmat.net.
@@ -102,6 +102,16 @@ trafiają do nas przez UTW, biblioteki i ludzi, którym ufają; czytają dużą 
 bez reklam i bez instalowania czegokolwiek. Cel pilotażu: 30 seniorów w trzech miastach, w tym co
 najmniej 10 recenzentów zadań; jeśli po 3 miesiącach jest ich mniej, role druga i trzecia niosą pilotaż
 dalej.
+
+Największe wyzwania po stronie odbiorców nazywamy wprost. Zajęty student nie szuka nowego portalu —
+docieramy przez prowadzących zajęcia (zestaw na kolokwium jest linkiem do EdMat), w sesji, kiedy potrzeba
+jest największa, i przez prof. Dragana; do czytania nie trzeba konta, a „Mój zestaw" daje arkusz do wydruku
+od razu. Trudniej przekonać go, żeby oddał portalowi to, co i tak robi z ChatGPT: dodajemy ścieżkę „wklej
+rozwiązanie z czatu" — prompt i odpowiedź trafiają do puli z oznaczeniem „z pomocą AI, czeka na recenzję";
+recenzent sprawdza, student dostaje reputację i znak przy nazwisku, prowadzący może przyznać punkty za
+zweryfikowany wkład. Student otrzymuje weryfikację, której AI mu nie daje, a my zamieniamy konkurenta
+w źródło treści. Mierniki: 300 aktywnych w sesji zimowej, 10% z nich z co najmniej jednym dodanym
+rozwiązaniem, czas do recenzji poniżej 7 dni.
 
 ## Jak Twoje rozwiązanie odpowiada na wyzwanie konkursowe?
 „Jak możemy zapewnić jakościową edukację niezależnie od wieku?" — odpowiadamy na obie części pytania.

@@ -363,7 +363,7 @@ text(p, M + 32, 786, W - 2 * M - 64, 150,
 p = slide("11 Odbiorcy")
 head(p, "Odbiorcy i skala", "Dla kogo — i jak wielu")
 stats = [
-    ("1 280 tys.", "studentów w Polsce (GUS, rok akademicki 2024/25) — pierwszy krąg: kierunki ścisłe UW"),
+    ("1,32 mln", "studentów w Polsce (GUS, rok akademicki 2025/26) — pierwszy krąg: kierunki ścisłe UW"),
     ("321 tys.", "zdających maturę w 2026 r. (CKE) — i tyle samo rodziców, którzy szukają czegoś lepszego niż Brainly"),
     ("10 mln", "osób w wieku 60+, 26,6% ludności (GUS 2024) — w tym emerytowani nauczyciele i wykładowcy"),
     ("125,9 tys.", "słuchaczy 747 uniwersytetów trzeciego wieku (GUS 2024/25) — nasze wejście do seniorów"),
@@ -374,7 +374,7 @@ for i, (n, c) in enumerate(stats):
 rings = [
     ("Pierwszy krąg — 2026/27", "Wydział Fizyki UW i kierunki matematyczne: kilka tysięcy studentów, do których docieramy przez prowadzących zajęcia, nie przez reklamę."),
     ("Drugi krąg — 2027", "Licea w Warszawie (matura rozszerzona z matematyki i fizyki), uniwersytety trzeciego wieku w trzech miastach, studenci z Ukrainy przez wersje językowe treści."),
-    ("Trzeci krąg — 2028", "Każda szkoła, w której nauczyciel generuje sprawdziany z bazy, i każda uczelnia, która uruchomi własną, bezpłatną kopię — to zasięg. Skąd pieniądze na utrzymanie: slajd 14."),
+    ("Trzeci krąg — 2028", "Każda szkoła, w której nauczyciel generuje sprawdziany z bazy, i każda uczelnia, która uruchomi własną, bezpłatną kopię — to zasięg. Skąd pieniądze na utrzymanie: slajd 15."),
 ]
 rw = (W - 2 * M - 2 * 28) // 3
 for i, (t, d) in enumerate(rings):
@@ -389,7 +389,7 @@ text(p, M, 830, W - 2 * M, 90, "Wiemy, kogo nie obsługujemy w 2027: dzieci poni
 p = slide("12 Kamienie milowe")
 head(p, "Kamienie milowe", "Krótkie horyzonty, sprawdzalne liczby")
 ms = [
-    ("Koniec 2026", ["300 aktywnych studentów UW w sesji zimowej", "pierwsze 30 wywiadów i testów z użytkownikami", "kurs „Finanse osobiste” v1",
+    ("Koniec 2026", ["300 aktywnych studentów UW w sesji zimowej; 30 z nich dodało rozwiązanie (także z pomocą AI)", "pierwsze 30 wywiadów i testów z użytkownikami", "kurs „Finanse osobiste” v1",
                      "zespół recenzentów: 6 doktorantów i asystentów, pierwsi emerytowani wykładowcy"]),
     ("Lato 2027", ["500 zadań maturalnych ze zweryfikowanymi rozwiązaniami", "pilotaż seniorów w pierwszym mieście: 10 osób w trzech rolach",
                    "podpowiedzi AI ugruntowane w puli — wersja testowa", "generator sprawdzianów w 2 liceach — wersja testowa"]),
@@ -408,8 +408,37 @@ card(p, M, 790, W - 2 * M, 140, TEAL_LIGHT)
 text(p, M + 32, 808, W - 2 * M - 64, 110, f"{b('Jak mierzymy:')} aktywni użytkownicy w sesji egzaminacyjnej · liczba zrecenzowanych rozwiązań i czas do recenzji · odsetek zadań ze znakiem ✓ · "
      "utrzymanie seniorów po 3 miesiącach · szkoły z generatorem sprawdzianów. Wyniki publikujemy co kwartał, publicznie.", 23, INK, factor=1.35)
 
+# 12b — risks, named by us (the two the founders name first: reaching a busy student, and getting the AI work out of the notebook)
+p = slide("13 Wyzwania")
+head(p, "Ryzyka, uczciwie", "Co może pójść nie tak — i co z tym robimy")
+risks = [
+    ("Dotarcie do zajętego studenta",
+     "Student przed sesją nie szuka nowego portalu — ma PDF-y, grupę na czacie i ChatGPT.",
+     "Wchodzimy przez prowadzących zajęcia (zestaw na kolokwium jest linkiem do EdMat), w sesji, kiedy potrzeba jest największa, i przez prof. Dragana. Do czytania nie trzeba konta ani instalacji; „Mój zestaw” daje arkusz do wydruku od razu.",
+     "300 aktywnych w sesji zimowej; odsetek, który wraca w sesji letniej."),
+    ("Przekonanie studenta, żeby oddał to, co robi z AI",
+     "Rozwiązanie z ChatGPT ląduje w zeszycie i ginie — razem z błędem, którego nikt nie wyłapał.",
+     "Ścieżka „wklej rozwiązanie z czatu”: prompt i odpowiedź trafiają do puli z oznaczeniem „z pomocą AI, czeka na recenzję”. Recenzent sprawdza, student dostaje reputację i znak przy nazwisku, prowadzący może przyznać punkty za zweryfikowany wkład. Student dostaje weryfikację, której AI mu nie daje — a my zamieniamy konkurenta w źródło treści.",
+     "10% aktywnych z co najmniej jednym dodanym rozwiązaniem (30 osób w sesji zimowej); czas do recenzji poniżej 7 dni."),
+    ("Recenzentów-seniorów za mało lub za wolno",
+     "Emerytowani matematycy to promil seniorów; recenzja może stanąć w kolejce.",
+     "Trzy role zamiast jednej, rekrutacja poza UTW (emerytowana kadra UW, sekcje emerytów ZNP), animator społeczności na pół etatu; doktoranci jako rezerwa recenzji; status „czeka na recenzję” widoczny, nie ukryty.",
+     "co najmniej 10 recenzentów zadań po 3 miesiącach; utrzymanie 60%; kolejka recenzji poniżej 7 dni."),
+    ("Jakość przy wzroście: śmieci i błędne rozwiązania",
+     "Więcej zgłoszeń to więcej błędów i spamu — w matematyce błąd w rozwiązaniu jest gorszy niż jego brak.",
+     "Auto-ukrycie po zgłoszeniach 20% czytających (min. 3), reputacja z zakresem działu, historia edycji, treści dzieci zawsze czekają na moderatora, AI sortuje kolejkę. Znak ✓ wyliczany z faktów, nie przyznawany ręcznie.",
+     "odsetek zadań ze znakiem ✓; zgłoszenia na 1 000 wyświetleń; czas od zgłoszenia do decyzji."),
+]
+rw = (W - 2 * M - 24) // 2
+for i, (t, what, how, metric) in enumerate(risks):
+    x = M + (i % 2) * (rw + 24); y = 250 + (i // 2) * 330
+    card(p, x, y, rw, 306)
+    text(p, x + 28, y + 22, rw - 56, 44, t, 23, INK, bold=True, factor=1.15)
+    text(p, x + 28, y + 68, rw - 56, 230, f"{warm(b('Ryzyko.'))} {what}<br>{teal(b('Co robimy.'))} {how}<br>{muted(b('Miernik.') + ' ' + metric)}", 18, BODY, factor=1.32)
+text(p, M, 916, W - 2 * M, 70, f"{b('Największe ryzyko nazwaliśmy sami:')} jeśli w sesji zimowej nie będzie 300 aktywnych i 30 osób, które dodały rozwiązanie, wiemy to w lutym 2027 — i piszemy o tym w pierwszym raporcie kwartalnym, publicznie.", 21, MUTED, factor=1.3)
+
 # 13 — budget
-p = slide("13 Budżet")
+p = slide("14 Budżet")
 head(p, "Na co przeznaczymy grant", "450 tys. zł na 15 miesięcy (grudzień 2026 – luty 2028)")
 lines = [
     ("Treści i ich weryfikacja — 1 500 nowych zadań (matura, I rok), recenzenci, kurs finansów", 35, "157 tys. zł"),
@@ -428,13 +457,13 @@ text(p, M + 32, 838, W - 2 * M - 64, 90, f"Przy nagrodzie 300 lub 200 tys. zł s
      "Treści, kursy otwarte i cała baza pozostają bezpłatne; grant nie kupuje reklam i nie buduje modułów spoza trzech priorytetów.", 23, BODY, factor=1.35)
 
 # 14 — ask, and the post-grant model (the review's second red flag: no school hosting, no tutoring commissions)
-p = slide("14 Czego potrzebujemy")
+p = slide("15 Czego potrzebujemy")
 head(p, "ING i EdMat", "Czego potrzebujemy — i co z tego ma ING")
 cw = (W - 2 * M - 28) // 2
 card(p, M, 250, cw, 500)
 text(p, M + 32, 276, cw - 64, 50, "Potrzebujemy", 28, TEAL, bold=True)
 text(p, M + 32, 334, cw - 64, 410, ul([
-    f"{b('Wsparcia finansowego')} — grant wg budżetu ze slajdu 13.",
+    f"{b('Wsparcia finansowego')} — grant wg budżetu ze slajdu 14.",
     f"{b('Wsparcia merytorycznego')} — warsztaty i mentoring: model organizacji (fundacja z działalnością gospodarczą), wycena abonamentu generatora sprawdzianów, umowy o treści.",
     f"{b('Kontaktów')} — szkoły i uczelnie, sekcje emerytów ZNP i UTW, firmy z portfolio ING, które szkolą pracowników z matematyki i statystyki.",
     f"{b('Promocji')} — finał, kanały ING; po naszej stronie: prof. Andrzej Dragan, Wydział Fizyki UW.",
@@ -454,7 +483,7 @@ text(p, M + 32, 792, W - 2 * M - 64, 150, f"{b('Utrzymanie po grancie, realistyc
      f"{b('(3)')} freemium: generator unikalnych sprawdzianów i kartkówek z bazy, z rozwiązaniami sprawdzonymi przez ludzi, za symboliczny abonament szkoły lub rady rodziców.", 22, INK, factor=1.36)
 
 # 15 — team (four founding members; Andrzej Dragan as supporter; Natalia Prus as collaborator)
-p = slide("15 Zespół")
+p = slide("16 Zespół")
 head(p, "Zespół", "Kto to robi — członkowie założyciele")
 people = [
     ("Piotr Putyło", "PP", "lider projektu; architektura i większość kodu; prowadzi projekt od lipca 2026", "student Wydziału Fizyki UW"),
