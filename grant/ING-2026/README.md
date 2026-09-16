@@ -15,6 +15,7 @@ What is in this folder:
 | `EdMat-ING-2026.drawio` | the deck, 20 pages — open in draw.io (the drawio-lasso build) to edit; see "Editing the deck yourself" |
 | `EdMat-ING-2026.pdf` | the same deck as a PDF, ready for the form's upload field (limit 15 MB, PDF/PPT/PPTX) |
 | `slides/` | one PNG per slide, rendered by draw.io itself, for a quick look |
+| `deck_to_md.py` → `EdMat-ING-2026-tekst.md` | every slide's text plus the form answers as one Markdown file — the thing to paste into another model for a review; regenerate with `python3 deck_to_md.py` after any edit, it reads the `.drawio`, so hand edits in draw.io are included |
 
 ## The rules, digested (Regulamin obowiązuje od 8 lipca 2026)
 
@@ -119,7 +120,7 @@ Linux fallback is likely to pick — before the Helvetica build is rendered.
 
 - [ ] Decide the team list (who is on the application) and the money agreement (see above).
 - [ ] The **Team** slide and the "kompetencje" answer name the four founding members (Piotr, Marysia
-      Nazarczuk, Marc Ploeg, prof. Katarzyna Grabowska), Andrzej Dragan as supporter and Natalia Prus
+      Nazarczuk, Marc van der Ploeg, prof. Katarzyna Grabowska), Andrzej Dragan as supporter and Natalia Prus
       as collaborator. **Confirm with each person that they agree to be named** — Marysia first, then
       Marc, then Kasia (the order they are likely to answer). Check Marysia's degrees wording
       ("matematyka: licencjat, II rok mgr; studia licencjackie z fizyki i informatyki") and add Natalia's

@@ -22,7 +22,7 @@ projekt od lipca 2026. Zgłasza rozwiązanie jako Młody Naukowiec, reprezentant
 Marysia Nazarczuk — matematyka: licencjat, obecnie II rok studiów magisterskich; ponadto studia
 licencjackie z fizyki i informatyki. Odpowiada za treści matematyczne: zgłoszenie, korekta i recenzja
 całej bazy 745 zadań oraz wersje językowe.
-Marc Ploeg — strategia, model organizacji i finansowania; wieloletnie doświadczenie w innowacjach
+Marc van der Ploeg — strategia, model organizacji i finansowania; wieloletnie doświadczenie w innowacjach
 w biznesie, zasiadał w jury konkursów dla start-upów, także dla ING. Głos rynku w zespole.
 prof. Katarzyna Grabowska — opieka naukowa i kierownictwo badawcze projektu; Katedra Metod
 Matematycznych Fizyki, Wydział Fizyki UW.

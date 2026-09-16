@@ -570,7 +570,7 @@ head(p, "Zespół", "Kto to robi — członkowie założyciele")
 people = [
     ("Piotr Putyło", "PP", "lider projektu; architektura i większość kodu; prowadzi projekt od lipca 2026", "student Wydziału Fizyki UW"),
     ("Marysia Nazarczuk", "MN", "treści matematyczne: zgłoszenie, korekta i recenzja całej bazy 745 zadań", "matematyka — licencjat, II rok studiów magisterskich; studia licencjackie z fizyki i informatyki"),
-    ("Marc Ploeg", "MP", "strategia, model organizacji i finansowania; głos rynku w zespole", "wieloletnie doświadczenie w innowacjach w biznesie; zasiadał w jury konkursów dla start-upów, także dla ING"),
+    ("Marc van der Ploeg", "MP", "strategia, model organizacji i finansowania; głos rynku w zespole", "wieloletnie doświadczenie w innowacjach w biznesie; zasiadał w jury konkursów dla start-upów, także dla ING"),
     ("prof. Katarzyna Grabowska", "KG", "opieka naukowa; kierownictwo badawcze projektu", "Katedra Metod Matematycznych Fizyki, Wydział Fizyki UW"),
 ]
 pw = (W - 2 * M - 3 * 24) // 4
@@ -632,7 +632,7 @@ text(p, M + 28, 636, lw - 56, 120, "Django + Django REST Framework, SvelteKit + 
 card(p, M, 788, lw, 160)
 text(p, M + 28, 808, lw - 56, 40, "3. Recenzje robocze", 22, INK, bold=True)
 text(p, M + 28, 850, lw - 56, 90, "Przegląd „w roli kapituły” wykonany z użyciem Gemini (Google), 16.09.2026 — na jego trzy uwagi odpowiadamy na slajdzie " + ref("risks") + "; "
-     "uwagi Marca Ploega z 11.09.2026.", 18, BODY, factor=1.35)
+     "uwagi Marca van der Ploega z 11.09.2026.", 18, BODY, factor=1.35)
 rx = M + lw + 28; rw = W - M - rx
 card(p, rx, 250, rw, 698)
 text(p, rx + 28, 270, rw - 56, 40, "Dane", 24, TEAL, bold=True)
