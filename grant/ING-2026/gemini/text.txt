@@ -1,0 +1,704 @@
+Oto przepisany kompletny materiał (zarówno slajdy, jak i formularz). Wyciąłem wszystkie ejajowe pauzy i myślniki, nadałem tekstowi naturalny rytm, dodałem trochę fizyczno-matematycznego spojrzenia na problem (entropia w sieci, stosunek sygnału do szumu, warunki brzegowe) oraz lekki dystans, który budzi zaufanie, bo pokazuje, że za projektem stoją żywi, trzeźwo myślący ludzie z krwi, kości i kodu.
+
+---
+
+# EdMat.net: zgłoszenie do Programu Grantowego ING „W rytmie pokoleń” (9. edycja, Liga Seed)
+
+Tekst wyeksportowany z `EdMat-ING-2026.drawio` oraz formularz zgłoszeniowy.
+
+---
+
+# Część 1: Prezentacja
+
+## Slajd 1: EdMat.net
+
+*PROGRAM GRANTOWY ING „W RYTMIE POKOLEŃ” · 9. EDYCJA · LIGA SEED*
+
+Zadania z rozwiązaniami sprawdzanymi przez ludzi: od matury do emerytury.
+
+Otwarta baza wiedzy ścisłej i społeczność uczących się w każdym wieku. Działa pod adresem **edmat.net**, kod jest całkowicie otwarty (licencja MIT), w bazie mamy 745 zadań ze zweryfikowanymi rozwiązaniami.
+
+**Zespół młodych naukowców**
+
+Wydział Fizyki Uniwersytetu Warszawskiego, wrzesień 2026
+
+Strona główna edmat.net (stan na 16 września 2026): pasma wiekowe od najmłodszych po seniorów.
+
+---
+
+## Slajd 2: Dobra edukacja ścisła w Polsce nie ma dziś miejsca, które byłoby rzetelnie sprawdzone, otwarte i trwałe
+
+*PROBLEM*
+
+Student przed egzaminem:
+
+Zadania i rozwiązania są rozproszone po przypadkowych PDF-ach, zamkniętych stronach przedmiotów i zrzutach ekranu na Messengerze. Strona kursu znika zaraz po sesji. Nikt nie podpisuje się nazwiskiem pod tym, czy w trzeciej linijce wyprowadzenia nie ma błędu w znaku.
+
+Uczeń i rodzic:
+
+Brainly czy ChatGPT wyrzucają odpowiedź w ułamku sekundy, często z kosmicznym błędem, zerowym wyjaśnieniem i bez żywego człowieka, który by to skorygował. Algorytm halucynuje z kamienną twarzą, uczeń zostaje sam przed monitorem, a rodzic nie ma pojęcia, czy dziecko uczy się prawdy, czy cyfrowego bełkotu.
+
+Emerytowany nauczyciel:
+
+Trzy dekady dydaktycznego złota schowane w szufladzie i brak kogoś, kto by o nie zapytał. Współczesny internet oferuje seniorom co najwyżej proste gierki na ćwiczenie pamięci, zamiast dać im realną, potrzebną rolę społeczną.
+
+**Wspólny mianownik:** wiedza o tym, jak poprawnie przejść od założeń do wyniku, jest dziś w Polsce rozproszona, pozbawiona recenzji i nie przepływa między pokoleniami. Nie brakuje nam treści w sieci. Brakuje mechanizmu, który odsiewa szum od sygnału.
+
+---
+
+## Slajd 3: Chcemy trwale uporządkować edukację ścisłą w Polsce. Zaczynamy lokalnie, bo znamy warunki brzegowe.
+
+*WIZJA I PUNKT STARTU*
+
+Nasz cel:
+
+Chcemy doprowadzić do stanu, w którym każde typowe zadanie ze szkoły i studiów ma jedno otwarte, publiczne rozwiązanie, za które konkretny człowiek ręczy nazwiskiem. Chcemy też, żeby ta wiedza krążyła w obiegu zamkniętym między pokoleniami: od doktoranta do maturzysty i od emerytowanej nauczycielki do jej wnuka.
+
+Ten sam sprawdzony schemat otwieramy krok po kroku: maturzyści (2027), dorośli w trakcie przebranżowienia oraz seniorzy w tematyce finansów osobistych.
+
+Punkt wyjścia:
+
+Studenci kierunków ścisłych UW postawieni w stan wyższej konieczności, czyli tuż przed sesją.
+
+* Mamy konkretną bazę: 745 zadań z dwóch twardych przedmiotów na UW (Analiza Matematyczna II oraz Rachunek Prawdopodobieństwa I), z czego 742 mają kompletne, zweryfikowane rozwiązania.
+* Mamy ludzi z autorytetem: kadrę i doktorantów Wydziału Fizyki czuwających nad recenzją, pod opieką naukową prof. Katarzyny Grabowskiej z Katedry Metod Matematycznych Fizyki.
+* Mamy twardy eksperyment weryfikacyjny: sesja zimowa 2026/27 z celem minimum 300 aktywnych studentów.
+* Znamy realia: zamiast rysować na slajdach krzywe wzrostu do miliarda użytkowników, zaczynamy od wąskiego, doskonale zdefiniowanego odcinka, na którym mamy pełną kontrolę nad jakością.
+
+---
+
+## Slajd 4: Ola, II rok fizyki, pięć dni do kolokwium z Analizy II
+
+*PRZYPADEK UŻYCIA 1: DZIAŁA W TEJ CHWILI*
+
+Wchodzi na edmat.net, wybiera Matematyka → Analiza matematyczna, po czym filtruje dział „całki” i poziom trudności „trudne”.
+
+Próbuje zmierzyć się z problemem sama. Widzi samą treść, bo rozwiązanie jest domyślnie ukryte i odsłania się krok po kroku, dokładnie tak, jak powinno przebiegać myślenie.
+
+Jeśli utknie: odsłania pierwszą wskazówkę. Jeśli to za mało, sprawdza sam wynik końcowy. Dopiero na końcu odkrywa pełne rozwiązanie opatrzone symbolem weryfikacji i ocenione przez społeczność.
+
+Nie rozumie przejścia w kroku trzecim? Zadaje pytanie bezpośrednio w dyskusji pod zadaniem. Odpowiada jej doktorant prowadzący ćwiczenia albo emerytowana nauczycielka.
+
+Zaznacza 12 kluczowych zadań, klika „Mój zestaw” i generuje czysty arkusz do wydruku w PDF.
+
+Gdy po kolokwium wpadnie na bardziej elegancki dowód, wrzuca własne rozwiązanie. Trafia ono do recenzji i po zatwierdzeniu zasila bazę dla młodszych roczników.
+
+**Wszystko na tym slajdzie jest wdrożone i przetestowane na edmat.net.** Stan na 16 września 2026: renderowanie formuł przez KaTeX, płynne odsłanianie podpowiedzi, gotowy eksport.
+
+---
+
+## Slajd 5: Seniorzy w trzech konkretnych rolach: nie tylko „pani Halina”
+
+*PRZYPADEK UŻYCIA 2: KLUCZOWY DLA TEJ EDYCJI*
+
+Seniorzy nie potrzebują kolejnej kolorowej aplikacji stworzonej po to, żeby „oswajać ich z technologią”. Potrzebują poczucia sprawczości, szacunku i sensownego powodu, by usiąść do komputera. Dajemy im ten powód, wymagając jedynie zwykłej przeglądarki internetowej. Ponieważ emerytowani fizycy i matematycy to ułamek procenta populacji, a doświadczenie życiowe ma każdy, zdefiniowaliśmy trzy niezależne ścieżki.
+
+1. Recenzent merytoryczny
+Emerytowani nauczyciele i wykładowcy przedmiotów ścisłych. Wiemy dokładnie, w których pokojach i strukturach ich szukać.
+
+* Przykład: pani Halina, 68 lat, była nauczycielka licealna. Sprawdza poprawność rozwiązań zadań maturalnych i z pierwszego roku, a pod każdym zatwierdzonym wpisem widnieje jej nazwisko.
+* Pomaga młodszym w komentarzach, a po pewnym czasie staje się moderatorem całego działu maturalnego.
+* Sama rozwiązuje trudniejsze zagadnienia, utrzymując intelektualny rygor zamiast rozwiązywania schematycznych łamigłówek.
+
+2. Czytelnik i tester zrozumiałości
+Dowolny senior: słuchacze Uniwersytetów Trzeciego Wieku, bywalcy bibliotek, osoby bez wykształcenia ścisłego.
+
+* Weryfikuje pedagogiczną stronę materiału: czy wskazówka faktycznie naprowadza na trop? Czy tekst brzmi naturalnie po polsku? Czy polecenie z poziomu szkoły podstawowej jest sformułowane jednoznacznie?
+* Testuje treści dla najmłodszych uczniów.
+* Może uczyć się sam w formule „matura po latach”, w swoim tempie, przy dużej czcionce i wysokim kontraście.
+
+3. Współtwórca modułu finansów osobistych
+Każdy starszy człowiek z bagażem doświadczeń życiowych.
+
+* Współtworzy i ocenia sekcję finansową: planowanie domowego budżetu, bezpieczne nawyki przy oszczędzaniu, mechanizmy manipulacji w oszustwach „na wnuczka” czy wyłudzeniach na BLIK.
+* Dowiaduje się od młodych ekonomistów, jak działają nowe instrumenty, IKE/IKZE czy realna ochrona przed inflacją. Zasada zachowania korzyści działa tu w obie strony.
+* Wnosi bezcenną perspektywę praktyczną, której próżno szukać w akademickich podręcznikach.
+
+**Trzeźwe spojrzenie na liczby:** zdajemy sobie sprawę, że 125,9 tysiąca słuchaczy UTW nie rzuci się nagle do sprawdzania całek potrójnych. Do roli recenzentów docieramy precyzyjnie: emerytowana kadra z Wydziału Fizyki i MIM UW, sekcje emerytów ZNP w trzech miastach oraz zaprzyjaźnione licea. Cel pilotażu to 30 seniorów, w tym minimum 10 recenzentów merytorycznych. Jeśli zgłosi się ich mniej, ciężar pilotażu biorą na siebie role czytelników i ekspertów od finansów. Przeznaczamy na to 20% budżetu grantu, zabezpieczając pół etatu dla dedykowanego animatora społeczności.
+
+---
+
+## Slajd 6: To nie jest makieta z Figmy. To działający system dostępny pod edmat.net od lipca 2026 r.
+
+*STAN OBECNY*
+
+* **745** zadań z pełnymi rozwiązaniami krok po kroku (Analiza Matematyczna II i Rachunek Prawdopodobieństwa I na poziomie uniwersyteckim).
+* **742** zadania ze zweryfikowanym, w pełni poprawnym tokiem rozumowania. Każde zadanie posiada własną pulę alternatywnych rozwiązań, wskazówek, ocenę społeczności oraz otwartą dyskusję.
+* **2** pełne wersje językowe interfejsu (polski i angielski), obejmujące po 2 094 komunikaty systemowe każda. Wersje językowe samych zadań recenzowane są niezależnie.
+* **1 441** automatycznych testów jednostkowych i integracyjnych backendu: stan na 16 września 2026, wszystkie wykonane pomyślnie.
+* **1 314** automatycznych asercji sprawdzających zachowanie interfejsu w realnej przeglądarce w ramach 46 pełnych scenariuszy (od rejestracji konta po zaawansowaną moderację).
+* **22** podstrony poddane rygorystycznemu audytowi dostępności (silnik axe): zero wykrytych błędów, natywne wsparcie dla powiększania tekstu i wysokiego kontrastu.
+* **18** ukończonych modułów: baza zadań, baza materiałów, kursy, wydarzenia edukacyjne, moduł korepetycji z geolokalizacją, wewnętrzne wiadomości, panel moderatorski, dedykowane konta rodzicielskie.
+* **Licencja MIT:** w pełni otwarty kod źródłowy. Dowolna szkoła lub uczelnia może postawić własną instancję. Zero komercyjnych reklam, zero skryptów śledzących użytkownika.
+
+Liga Seed wymaga szczerości: mamy gotowy, stabilny produkt i pierwszych użytkowników, natomiast nie generujemy jeszcze przychodów ani potężnych zasięgów. Zbudowaliśmy to w osiem tygodni intensywnej pracy zespołowej, pisząc test regresyjny dla każdego napotkanego błędu.
+
+**Konsekwentny wybór priorytetów:** choć architektura pod 18 modułów jest gotowa, cały grant skupiamy w 100% na trzech filarach: **otwartej bazie zrecenzowanych zadań**, **międzypokoleniowym pilotażu z seniorami** oraz **praktycznej edukacji finansowej**. Korepetycje na mapie, komunikator i moduł eventowy zostają zamrożone do momentu pełnej walidacji rdzenia.
+
+---
+
+## Slajd 7: Skąd bierze się jakość: rygorystyczny mechanizm zamiast pustych deklaracji
+
+*INNOWACJA PROCESOWA*
+
+1. Nowe zgłoszenie:
+Każdy zalogowany użytkownik może zaproponować treść zadania, alternatywne rozwiązanie, nową wskazówkę lub tłumaczenie.
+2. Rzetelna recenzja:
+Do akceptacji uprawnieni są wyłącznie zweryfikowani współpracownicy i opiekunowie merytoryczni danych działów. Odrzucenie propozycji zawsze wymaga merytorycznego uzasadnienia w komentarzu.
+3. Pula rozwiązań:
+Jedno zadanie może mieć kilka dróg dojścia do wyniku (np. algebraicznie i geometrycznie). System rejestruje pełną historię edycji, a autor rozwiązania decyduje o dołączeniu zewnętrznych poprawek.
+4. Reputacja i waga głosu:
+Głosy użytkowników są ważone ich dorobkiem w portalu. Ocena zweryfikowanego recenzenta ma podwójną wagę statystyczną.
+5. Certyfikat weryfikacji (✓):
+Ten znaczek nie jest nadawany uznaniowo przez administratora. To deterministyczny stan logiczny: zadanie otrzymuje go tylko wtedy, gdy przynajmniej jedno rozwiązanie przeszło pozytywną, udokumentowaną recenzję.
+6. Auto-kwarantanna:
+Treść oflagowana jako błędna lub szkodliwa przez 20% czytelników (przy progu minimum 3 zgłoszeń) jest natychmiast automatycznie ukrywana do czasu rozstrzygnięcia przez moderatora.
+7. Ściśle zdefiniowany zasięg uprawnień:
+Opiekun sekcji rachunku różniczkowego nie ma uprawnień moderatorskich w dziale genetyki. Poziom zaufania rośnie wraz z udokumentowanym wkładem, nigdy z racji samego upływu czasu.
+8. Ścieżka szybkiej publikacji dla zaufanych:
+Uznany autor publikuje nowe zadania od razu z pominięciem kolejki wstępnej. Jednak każda ingerencja w cudzą pracę zawsze wymaga zatwierdzenia.
+
+**Dlaczego to unikalne:** Stack Overflow udowodnił skuteczność takiego podejścia w inżynierii oprogramowania. Nikt dotąd nie przeniósł tego rygoru na grunt polskiej edukacji szkolnej i akademickiej, dbając jednocześnie o zgodność z podstawą programową i zapraszając do stołu nauczycieli na emeryturze.
+
+---
+
+## Slajd 8: Architektura techniczna: prostota i stabilność
+
+*ARCHITEKTURA 1/2*
+
+Warstwa klienta (Frontend):
+
+* SvelteKit połączony ze Svelte 5: szybka aplikacja, statyczny build niewymagający ciężkiego środowiska Node.js na produkcji, serwowany wprost z wydajnego serwera WWW.
+* Pełna dwujęzyczność PL/EN (biblioteka Paraglide), 2 094 przetłumaczone frazy systemowe.
+* Matematyka renderowana po stronie przeglądarki przez KaTeX; formatowanie Markdown oraz HTML rygorystycznie oczyszczane przez DOMPurify.
+* Lekki edytor Tiptap ze zintegrowanym wprowadzaniem formuł, podgląd PDF-ów oraz mapy oparte na Leaflet i OpenStreetMap.
+* Dostępność: dynamiczne skalowanie tekstu, wysoki kontrast, duże obszary klikalne (min. 44 px) i pełna zgodność ze standardami dostępności cyfrowej.
+
+Warstwa serwerowa (Backend API):
+
+* Python z frameworkiem Django 5 oraz Django REST Framework: modularna, spójna baza kodu obejmująca 18 modułów logicznych.
+* Zarządzanie treściami zadań, pulami rozwiązań, materiałami pomocniczymi oraz taksonomią pojęć.
+* Logika społecznościowa: wątki dyskusyjne, system oceniania, moderacja rozproszona i powiadomienia w czasie rzeczywistym (Server-Sent Events).
+* Bezpieczne zarządzanie tożsamością, uprawnienia rodzicielskie, planowanie wydarzeń i generator arkuszy PDF.
+
+Warstwa danych i integracji:
+
+* Na etapie prototypu i wczesnego pilotażu: zoptymalizowane SQLite. Na środowisku produkcyjnym: migracja do PostgreSQL, pliki użytkowników trzymane poza bazą.
+* Inspekcja przesyłanych plików: sprawdzanie sygnatur binarnych (magiczne bajty), skan antywirusowy (ClamAV) oraz bezwzględna rekompresja i czyszczenie metadanych EXIF dla każdego obrazu.
+* Redis do kolejkowania powiadomień, pamięci podręcznej i nakładania limitów zapytań (rate limiting).
+* Własne proxy dla geokodowania z OpenStreetMap z bezpiecznym limitem jednego zapytania na sekundę.
+
+Bezpieczeństwo i standardy:
+Podwójna sanityzacja danych wejściowych (bleach na serwerze, DOMPurify w przeglądarce). Restrykcyjne ograniczenia liczby zapytań na wrażliwych punktach końcowych (logowanie, rejestracja, upload). Pełna ochrona prywatności nieletnich zgodnie z art. 8 RODO. Brak reklam, brak ciasteczek analitycznych firm trzecich.
+
+Jakość i wdrożenie:
+1 441 testów jednostkowych, 46 scenariuszy przeglądarkowych Playwright (1 314 sprawdzeń). Wdrożenie na pojedynczej maszynie z Apache i mod_wsgi, zautomatyzowany skrypt aktualizacyjny z testem dymnym. Pełna licencja MIT.
+
+---
+
+## Slajd 9: Wyzwania inżynierskie: co rozwiązaliśmy, a co planujemy
+
+*ARCHITEKTURA 2/2*
+
+Wyzwania rozwiązane i przetestowane w boju:
+
+* Bezbłędne renderowanie formuł: zapis LaTeX bezkolizyjnie przechodzi przez proces parsowania Markdowna i sanityzacji HTML. Sprawdzone automatycznie na 2 241 polach tekstowych, zero błędów składniowych.
+* Spójność danych przy jednoczesnej moderacji na SQLite: wyeliminowaliśmy zakleszczenia transakcji poprzez operacje atomowe w bazie zamiast ciężkich blokad na poziomie aplikacji.
+* Komunikacja push o minimalnym narzucie na zasoby: Server-Sent Events połączone z Redis pub/sub oraz twardy limit maksymalnie dwóch aktywnych połączeń na pojedyncze konto.
+* Bezpieczeństwo treści od użytkowników: detekcja formatu na poziomie strumienia bajtów, usuwanie metadanych lokalizacyjnych z grafik, brak bezpośredniego serwowania surowych plików wrzuconych na serwer.
+* Błyskawiczny czas reakcji interfejsu: wstępne renderowanie kluczowych elementów i natychmiastowe wyświetlanie szkieletu strony.
+
+Zadania techniczne przed wejściem na większą skalę:
+
+* Migracja bazy danych do PostgreSQL oraz pełne wpięcie Redisa w środowisku produkcyjnym dla globalnego zliczania limitów.
+* Wdrożenie produkcyjnej obsługi poczty: resetowanie haseł, powiadomienia transakcyjne, walidacja adresów w domenach akademickich.
+* Konfiguracja potoku ciągłej integracji (CI): automatyczne uruchamianie pełnej puli testów przy każdym commicie, zautomatyzowane kopie zapasowe off-site.
+* Ochrona przed atakami brute-force (czasowe blokady kont po nieudanych próbach) oraz wdrożenie jednorazowych biletów uwierzytelniających dla strumieni SSE zamiast przekazywania tokenu w adresie URL.
+* Uruchomienie skanera ClamAV w trybie ciągłym (obecnie status skanowania jest uczciwie raportowany jako nieaktywny).
+
+Zakres prac w ramach wnioskowanego grantu:
+
+* Inteligentne podpowiedzi: model AI działający wyłącznie jako filtr i selektor wskazówek ze zweryfikowanej bazy ludzkich rozwiązań, bez prawa do samodzielnego generowania treści z pamięci podręcznej.
+* Dedykowana ścieżka „wklej rozwiązanie z czatu” z automatycznym oznaczeniem: treść wygenerowana sztucznie, oczekuje na weryfikację człowieka.
+* Narzędzie dla nauczycieli do automatycznego generowania unikalnych sprawdzianów z kluczem odpowiedzi.
+* Interfejs recenzencki zoptymalizowany pod seniorów: wysoki kontrast, duża typografia, przejrzysty układ jednoekranowy.
+* Obsługa stref czasowych oraz moduł maszynowych szkiców tłumaczeń przekazywanych bezpośrednio do ludzkiej korekty.
+
+Architektura zaprojektowana, oczekująca na realizację:
+
+* Dwuosiowy system reputacji użytkowników rozdzielający prawo do tworzenia od prawa do modyfikacji cudzych materiałów (specyfikacja na podstronie /levels).
+* Integracja z uczelnianymi systemami logowania USOS (OAuth 1.0a) oraz dostawcami tożsamości komercyjnych (aktualnie działają w trybie bezpiecznych zaślepek testowych).
+* Zaawansowane przeszukiwanie zasobów wewnątrz kursów.
+* Świadoma rezygnacja z bramek płatniczych na obecnym etapie: wszelkie podawane kwoty mają wyłącznie charakter orientacyjny.
+
+Każdy z powyższych punktów ma swoje precyzyjne odzwierciedlenie w budżecie lub został świadomie odłożony w czasie. Nie składamy obietnic bez pokrycia w kodzie.
+
+---
+
+## Slajd 10: Jedna baza danych, cztery różne grupy odbiorców
+
+*W RYTMIE POKOLEŃ*
+
+Uczeń (12–19 lat)
+
+*Stan obecny:* dostęp do pasma szkoły średniej; pełna kontrola rodzicielska dla osób poniżej 16. roku życia (opiekun tworzy profil, ma wgląd we wszystkie wpisy i prawo ich usunięcia); obowiązkowa moderacja uprzednia dla wszelkich grafik i komentarzy tworzonych przez dzieci.
+
+*Z grantem:* wdrożenie bazy 500 zadań maturalnych z drobiazgowymi rozwiązaniami (lato 2027); współpraca z pierwszą szkołą partnerską; udostępnienie generatora kartkówek dla kadry pedagogicznej.
+
+Student
+
+*Stan obecny:* baza 745 zadań akademickich z UW, forum dyskusyjne, eksport zestawów powtórkowych do formatu PDF, mechanizm oddolnego tworzenia kursów.
+
+*Z grantem:* osiągnięcie progu 300 aktywnie korzystających studentów podczas najbliższej sesji zimowej; rozszerzenie zasięgu na 3 kolejne uczelnie wyższe do końca 2027 roku.
+
+Dorosły w procesie przebranżowienia
+
+*Stan obecny:* pasmo materiałów dla dorosłych, sekcja praktycznych podstaw matematyki dla programistów i analityków danych, zarys modułu finansów osobistych.
+
+*Z grantem:* kompleksowy kurs finansowy: pierwsza umowa, optymalizacja podatkowa, mechanika kredytu hipotecznego i stóp procentowych.
+
+Senior
+
+*Stan obecny:* dedykowane pasmo dla seniorów, ergonomiczny interfejs (skalowanie czcionki, maksymalny kontrast), brak barier wejścia (obsługa w oknie przeglądarki, zero instalacji, brak natrętnych reklam); trzy precyzyjne role systemowe.
+
+*Z grantem:* pilotaż terenowy w trzech ośrodkach miejskich obejmujący 30 seniorów; zatrudnienie koordynatora społeczności; wdrożenie modułu finansowego 60+ skupionego na bezpiecznym zarządzaniu kapitałem i metodach obrony przed cyberprzestępczością.
+
+Wiek użytkownika to w naszym systemie zwykły parametr filtrowania treści: dziesięciolatek i emerytowany profesor fizyki korzystają z odmiennych widoków interfejsu, ale w warstwie danych mogą współpracować nad tym samym zadaniem.
+
+---
+
+## Slajd 11: Edukacja finansowa i sztuczna inteligencja
+
+*DWA OBSZARY KONKURSOWE: CZYSTE FAKTY, ZERO MODNYCH SŁÓW*
+
+Finanse osobiste oparte na międzypokoleniowym transferze wiedzy:
+
+* Struktura pod dział finansów osobistych jest już zaimplementowana w serwisie.
+* Autorski program przygotowany przez ekonomistkę Natalię Prus: matematyka budżetu domowego, mechanizm procentu składanego, koszt pieniądza w czasie, obsługa zadłużenia, IKE/IKZE oraz realna stopa zwrotu po uwzględnieniu inflacji. Wszystko podane w formie zadań obliczeniowych weryfikowanych z takim samym rygorem jak zadania z fizyki czy analizy.
+* Aktywny udział seniorów: recenzja życiowej użyteczności materiałów, moduły poświęcone oszustwom socjotechnicznym (metody na wnuczka, fałszywe potwierdzenia BLIK, manipulacje telefoniczne). To wiedza wynikająca z praktyki, a nie akademickiej teorii.
+* Rzetelne źródła zewnętrzne bez lokowania produktów finansowych i bez ukrytej sprzedaży.
+* Bezpośrednie połączenie pokoleń: młodzi uczą się podstaw gospodarowania pierwszymi zarobkami, starsi zyskują tarczę przed wyłudzeniami, pracując z ludźmi, którzy nie chcą im niczego sprzedać.
+
+Sztuczna inteligencja osadzona na fundamencie ludzkiej wiedzy:
+
+* Nie trenujemy własnego dużego modelu językowego. Budujemy coś znacznie bardziej potrzebnego: filtr weryfikacyjny, którego modelom komercyjnym dramatycznie brakuje.
+* Metoda sokratejska z bezpiecznikiem: model dobiera podpowiedzi wyłącznie ze zbioru rozwiązań, które wcześniej zatwierdził człowiek. Sztuczna inteligencja ma u nas zakaz wymyślania rozwiązań z głowy. To jedyne zadanie algorytmów generatywnych finansowane w ramach tego grantu.
+* Narzędzie dla belfra: zautomatyzowane generowanie unikalnych zestawów sprawdzających opartych na sprawdzonych schematach, za które placówka może uiścić niewielką opłatę abonamentową.
+* Sortowanie kolejki moderacyjnej: algorytmiczne wyłapywanie zduplikowanych zgłoszeń, brakujących kroków w obliczeniach czy wątpliwych załączników graficznych.
+* Tłumaczenia wspomagane maszynowo ze ścisłą kontrolą składni KaTeX: wyłącznie jako wersje robocze wymagające podpisu ludzkiego tłumacza.
+* Sami na co dzień programujemy w asyście agentów AI: znamy ich mocne strony, ale przede wszystkim wiemy, w których miejscach bezczelnie kłamią.
+
+---
+
+## Slajd 12: Znamy konkurencję od podszewki, bo sami zarywaliśmy przy niej noce
+
+*ZDERZENIE Z RYNKIEM*
+
+* **Brainly, Zadane.pl:** szybka gotowa odpowiedź do pracy domowej, brak jakiejkolwiek gwarancji poprawności, agresywny model reklamowy, skupienie niemal wyłącznie na szkole podstawowej i średniej.
+* **ChatGPT i narzędzia LLM:** natychmiastowa dostępność i szeroki wachlarz tematów, za to permanentne ryzyko halucynacji w naukach ścisłych, brak zrozumienia wymogów konkretnego programu i tendencja do podawania bezużytecznych, gotowych wyników zamiast prowadzenia toku rozumowania.
+* **Khan Academy:** znakomicie zrealizowane wideo na poziomie szkolnym, brak natomiast bazy zadań z polskich uczelni wyższych, brak lokalnej społeczności i specyfiki krajowego programu.
+* **Kampus (Moodle) i uczelniane systemy LMS:** zamknięte silosy informacyjne przypisane do jednego kursu, kasowane po zakończeniu semestru, brak mechanizmu wieloautorskich rozwiązań i otwartej recenzji.
+* **Librus, Vulcan:** sprawny obieg informacji i dziennik elektroniczny, brak jakichkolwiek ambicji w tworzeniu przestrzeni do samej nauki.
+* **Math StackExchange:** bezdyskusyjnie wysoki poziom merytoryczny, bariera języka angielskiego, kompletne oderwanie od polskich realiów egzaminacyjnych i maturalnych.
+* **e-korepetycje.net, Preply:** platformy czysto ogłoszeniowe, brak zintegrowanej bazy dydaktycznej, na której można wspólnie pracować.
+
+**Unikalna wartość EdMat (działająca w kodzie):**
+
+Rzeczywista weryfikacja rozwiązań oparta na faktach logicznych, a nie deklaracjach; logiczne mapowanie bazy na polski program nauczania; niezależna recenzja każdej wersji językowej; bezpieczne domyślne środowisko dla dowolnego wieku; otwarta licencja MIT; zero reklam.
+
+**Nasza przewaga konkurencyjna to nie sam kod źródłowy.** Prawdziwym kapitałem jest zweryfikowana baza zmapowana na polski system edukacji oraz zaangażowana społeczność recenzentów ręczących za rozwiązania własną reputacją. Giganci technologiczni mogą dopisać w interfejsie plakietkę „sprawdzone” w jeden sprint, ale nie kupią ludzi z dorobkiem, którzy zechcą firmoać te treści własną twarzą. Zaufanie buduje się pracą u podstaw.
+
+---
+
+## Slajd 13: Do kogo kierujemy projekt i jaka jest skala problemu
+
+*ODBIORCY I POTENCJAŁ*
+
+* **1,32 mln** studentów w Polsce (dane GUS, rok akademicki 2025/26). Nasz pierwszy krok indukcyjny: kierunki ścisłe Uniwersytetu Warszawskiego.
+* **321 tys.** osób zdających maturę w 2026 r. (dane CKE) oraz ich rodzice poszukujący czegoś bezpieczniejszego i bardziej wiarygodnego niż przypadkowe fora internetowe.
+* **10 mln** osób w wieku 60+, co stanowi 26,6% polskiego społeczeństwa (GUS 2024). W tej grupie znajdują się tysiące emerytowanych nauczycieli fizyki i matematyki.
+* **125,9 tys.** słuchaczy w 747 Uniwersytetach Trzeciego Wieku w całym kraju: nasza naturalna brama wejściowa do środowiska seniorów.
+
+Faza pierwsza (2026/27):
+
+Wydział Fizyki UW oraz pokrewne kierunki matematyczne. Grupa kilku tysięcy studentów, do których docieramy bezpośrednio na zajęciach dydaktycznych przez kadrę akademicką, a nie przez płatne kampanie banerowe.
+
+Faza druga (2027):
+
+Warszawskie licea ogólnokształcące (klasy z rozszerzoną matematyką i fizyką), słuchacze UTW w trzech wybranych miastach oraz studenci z Ukrainy dzięki dedykowanej ukraińskiej wersji językowej materiałów.
+
+Faza trzecia (2028):
+
+Szerokie wdrożenie: każda szkoła wykorzystująca nasz generator sprawdzianów oraz każda uczelnia stawiająca własną instancję w oparciu o kod MIT.
+
+Jasne granice: w roku 2027 nie obsługujemy dzieci poniżej 12. roku życia inaczej niż za pośrednictwem zweryfikowanego konta rodzica. Odpowiednie pasmo istnieje w strukturze bazy danych, ale w tym wniosku nie obiecujemy dedykowanego produktu dla najmłodszych.
+
+---
+
+## Slajd 14: Twarde kamienie milowe, zero mydlenia oczu
+
+*HARMONOGRAM I WSKAŹNIKI SUKCESU*
+
+Do końca 2026 r.
+
+* Minimum 300 aktywnych studentów UW rozwiązujących zadania podczas sesji zimowej, z czego co najmniej 30 wzbogaci bazę o własne rozwiązanie (także przetestowane z AI).
+* Przeprowadzenie 30 pogłębionych wywiadów jakościowych i testów użyteczności.
+* Wdrożenie pierwszej wersji kursu finansów osobistych.
+* Zbudowanie trzonu zespołu weryfikacyjnego: 6 doktorantów i asystentów oraz pierwsi emerytowani nauczyciele akademiccy.
+
+Lato 2027 r.
+
+* Rozbudowa bazy o 500 w pełni rozwiązanych zadań z matury rozszerzonej.
+* Uruchomienie pilotażu dla seniorów w pierwszym mieście: 10 uczestników podzielonych na trzy zdefiniowane role.
+* Wdrożenie wersji pilotażowej inteligentnych podpowiedzi opartych na zamkniętej bazie rozwiązań.
+* Testowe wdrożenie generatora sprawdzianów w 2 liceach ogólnokształcących.
+
+Koniec 2027 r.
+
+* 5 000 zarejestrowanych użytkowników, 3 000 opracowanych zadań, wdrożenie na 3 uczelniach wyższych.
+* 30 aktywnych seniorów w 3 miastach, przy wskaźniku retencji po 3 miesiącach na poziomie minimum 60%.
+* Formalna rejestracja fundacji oraz złożenie pierwszego wniosku o duży grant instytucjonalny (np. FERS).
+* 10 placówek szkolnych aktywnie korzystających z generatora testów; pozyskanie pierwszego komercyjnego partnera CSR dla modułu finansowego.
+
+**Mierniki efektywności:** liczba unikalnych użytkowników w trakcie sesji, średni czas potrzebny na recenzję nowego rozwiązania, procent zadań posiadających formalny certyfikat zweryfikowania (✓), retencja w grupie seniorów oraz liczba szkół partnerskich. Wszystkie te parametry będziemy publikować co kwartał w ogólnodostępnym raporcie.
+
+---
+
+## Slajd 15: Co może pójść nie tak: analiza ryzyk bez lukrowania rzeczywistości
+
+*ZARZĄDZANIE RYZYKIEM*
+
+Ryzyko 1: Student w ferworze sesji nie ma ochoty na rejestrację w nowym serwisie.
+
+*Diagnoza:* Przeciętny student w styczniu szuka drogi na skróty, korzystając z gotowych PDF-ów i czatów grupowych.
+
+*Środki zaradcze:* Wchodzimy przez osoby prowadzące ćwiczenia, które wstawiają bezpośrednie odnośniki do konkretnych zadań na platformie. Pomaga nam też prof. Andrzej Dragan. Dostęp do treści jest w 100% otwarty (nie wymaga logowania), a funkcja „Mój zestaw” pozwala wygenerować gotowy arkusz do nauki jednym kliknięciem.
+
+*Wskaźnik:* 300 aktywnych kont w sesji zimowej oraz stały odsetek powracających w sesji letniej.
+
+Ryzyko 2: Student woli zostawić wygenerowane z AI rozwiązanie dla siebie.
+
+*Diagnoza:* Gotowiec z ChatGPT ląduje na dysku lub w notatkach i tam przepada, często razem z ukrytym błędem logicznym.
+
+*Środki zaradcze:* Prosta ścieżka „wklej rozwiązanie z czatu”. Prompt wraz z wygenerowanym wynikiem trafia do publicznej kolejki ze statusem „wspomagane przez AI, oczekuje na człowieka”. Recenzent sprawdza tok rozumowania, autor zgłoszenia buduje reputację w serwisie, a prowadzący może nagrodzić taki wkład punktami z aktywności. Student otrzymuje darmową weryfikację, której bot mu nie zapewni, a my przekształcamy halucynacje AI w wartościową bazę wiedzy.
+
+*Wskaźnik:* 10% aktywnych użytkowników zgłaszających co najmniej jedno rozwiązanie (minimum 30 osób w pierwszej sesji); czas recenzji poniżej 7 dni.
+
+Ryzyko 3: Zbyt mała liczba chętnych seniorów lub zatory w procesie recenzji.
+
+*Diagnoza:* Emerytowanych matematyków i fizyków jest niewielu, a czas oczekiwania na akceptację wpisu może zniechęcić młodych.
+
+*Środki zaradcze:* Elastyczny podział na trzy role, wyjście z rekrutacją poza mury UTW (bezpośrednie kontakty w ZNP i na wydziałach), dedykowany animator seniorów na pół etatu oraz asysta młodszych pracowników naukowych jako bezpiecznik czasowy.
+
+*Wskaźnik:* Minimum 10 sprawnie działających recenzentów merytorycznych po 3 miesiącach; wskaźnik retencji na poziomie 60%; kolejka recenzencka nieprzekraczająca 7 dni.
+
+Ryzyko 4: Spadek jakości i zalew błędnych rozwiązań przy wzroście skali.
+
+*Diagnoza:* Większy ruch w sieci oznacza większą entropię, a w fizyce i matematyce błąd w obliczeniach jest znacznie gorszy niż brak odpowiedzi.
+
+*Środki zaradcze:* Automatyczna kwarantanna po zgłoszeniu przez 20% czytających (min. 3 głosy), uprawnienia ograniczone do konkretnych dziedzin, pełna historia zmian, premoderacja treści dziecięcych oraz algorytmiczne odsiewanie spamu. Znak weryfikacji pozostaje wynikiem twardych warunków logicznych.
+
+*Wskaźnik:* Procent zadań ze statusem weryfikacji, wskaźnik zgłoszeń na 1 000 odsłon oraz mediana czasu reakcji moderatora.
+
+**Najtwardszy warunek brzegowy:** jeśli podczas nadchodzącej sesji zimowej nie osiągniemy progu 300 aktywnych studentów i 30 osób współtworzących bazę, nie będziemy pudrować rzeczywistości: napiszemy o tym otwarcie w publicznym raporcie w lutym 2027 r.
+
+---
+
+## Slajd 16: Struktura budżetu: 450 tys. zł na 15 miesięcy (grudzień 2026 – luty 2028)
+
+*ALOKACJA ŚRODKÓW*
+
+* **35% (157 tys. zł): Rozbudowa i weryfikacja bazy merytorycznej**
+Opracowanie 1 500 nowych zadań (matura rozszerzona, wstęp do analizy i algebry na studiach), wynagrodzenia dla zespołu recenzenckiego (doktoranci, emerytowani nauczyciele), opracowanie kursu finansowego.
+* **25% (112 tys. zł): Prace programistyczne i rozwój platformy**
+Wdrożenie inteligentnych podpowiedzi bazujących na zweryfikowanych danych, budowa generatora sprawdzianów dla nauczycieli, uproszczony panel recenzencki dla seniorów.
+* **20% (90 tys. zł): Pilotażowy program międzypokoleniowy**
+Organizacja działań w 3 miastach, wdrożenie 30 seniorów, sfinansowanie stanowiska koordynatora społeczności (½ etatu), bezpośrednia rekrutacja we współpracy z ZNP, UTW i środowiskiem akademickim.
+* **10% (45 tys. zł): Zaplecze serwerowe, bezpieczeństwo i obsługa prawna**
+Utrzymanie infrastruktury, audyt bezpieczeństwa kodu, formalna rejestracja fundacji, procedury ochrony danych dzieci (RODO), przygotowanie wniosków o kolejne dofinansowania.
+* **5% (23 tys. zł): Badania empiryczne z użytkownikami**
+60 pogłębionych wywiadów i testów użyteczności w podziale na grupy wiekowe, dwie tury testów przed każdą większą publikacją kodu.
+* **5% (23 tys. zł): Komunikacja i budowa społeczności**
+Wspólne działania promocyjne z prof. Andrzejem Draganem, otwarte warsztaty na UW i spotkania w liceach partnerskich.
+
+W przypadku uzyskania grantu w wysokości 300 lub 200 tys. zł skalujemy wydatki proporcjonalnie, ale **nienaruszalną zasadą pozostaje 20% budżetu dedykowane na działania z seniorami**. Dostęp do bazy zadań i kursów pozostaje bezwarunkowo darmowy. Nie wydajemy ani grosza z grantu na płatne reklamy w sieci ani na funkcje spoza trzech wyznaczonych celów.
+
+---
+
+## Slajd 17: Czego oczekujemy od ING i co ING zyskuje dzięki nam
+
+*SYNERGIA I SAMOWYSTARCZALNOŚĆ*
+
+Czego potrzebujemy:
+
+* **Wsparcia finansowego:** grant na realizację przedstawionego harmonogramu.
+* **Wsparcia merytorycznego:** konsultacje biznesowe w zakresie wyceny modelu abonamentowego dla szkół, strukturyzacji fundacji z działalnością gospodarczą oraz konstrukcji umów prawnoautorskich.
+* **Dojścia do sieci kontaktów:** ułatwienie relacji z placówkami edukacyjnymi, strukturami UTW oraz firmami z portfela grupy ING, które poszukują rzetelnych szkoleń analitycznych dla swoich kadr.
+* **Nagłośnienia projektu:** obecność w kanałach komunikacji ING. Z naszej strony dołączamy wsparcie Wydziału Fizyki UW i prof. Andrzeja Dragana.
+
+Co zyskuje ING:
+
+* **Prawdziwą edukację finansową bez posmaku marketingu:** rzetelny kurs i zbiór zadań obliczeniowych weryfikowanych z rygorem godnym fizyki teoretycznej, współtworzony przez młodych ekonomistów i seniorów.
+* **Realną integrację międzypokoleniową:** jedno narzędzie łączące ucznia, rodzica (w tym pracownika banku) oraz dziadka we wspólnej, pożytecznej aktywności.
+* **Twarde, weryfikowalne rezultaty:** kwartalne, w 100% jawne raportowanie wskaźników zdefiniowanych na slajdzie 14.
+* **Rola partnera strategicznego ścieżki finansowej:** prestiżowy mecenat merytoryczny oparty na zaufaniu i nazwisku recenzenta, a nie nachalna ekspozycja logotypu korporacyjnego.
+
+Model finansowy po wygaśnięciu grantu:
+
+Dostęp do wiedzy pozostanie na zawsze bezpłatny. Nie planujemy zarabiać na hostingu dla szkół ani pobierać prowizji od korepetycji. Utrzymanie opieramy na trzech stabilnych filarach:
+
+1. Mecenat i programy CSR partnerów technologicznych i finansowych.
+2. Duże granty publiczne na rozwój kompetencji cyfrowych i integrację społeczną (fundusze europejskie FERS, NCBR, granty celowe MEN).
+3. Komercyjny model freemium: dedykowany generator sprawdzianów i arkuszy testowych z pełnym kluczem rozwiązań, finansowany z symbolicznego abonamentu opłacanego przez szkołę lub radę rodziców.
+
+---
+
+## Slajd 18: Kto za tym stoi: zespół założycielski
+
+*LUDZIE PROJEKTU*
+
+**Piotr Putyło**
+
+Lider projektu, twórca architektury systemowej i autor większości bazy kodu. Koordynuje prace od lipca 2026 r. Student Wydziału Fizyki Uniwersytetu Warszawskiego.
+
+**Marysia Nazarczuk**
+
+Odpowiedzialna za warstwę matematyczną: wprowadzenie, korekta formalna i recenzja całego zbioru 745 zadań. Magisterium z matematyki (II rok), licencjaty z fizyki i informatyki.
+
+**Marc van der Ploeg**
+
+Strategia rozwoju, dobór modeli organizacyjnych i finansowych, łącznik ze światem biznesu. Wieloletnie doświadczenie we wdrażaniu innowacji, były juror w konkursach startupowych (w tym w programach ING).
+
+**prof. Katarzyna Grabowska**
+
+Naukowa opieka merytoryczna nad projektem. Katedra Metod Matematycznych Fizyki, Wydział Fizyki UW.
+
+Współpraca i wsparcie merytoryczne:
+
+**prof. Andrzej Dragan**
+
+Potwierdzone wsparcie komunikacyjne w mediach społecznościowych. Fizyk teoretyk związany z Wydziałem Fizyki UW, czołowy polski popularyzator nauki.
+
+**Natalia Prus**
+
+Opracowanie ścieżki finansowej i przedsiębiorczości, koordynacja merytoryczna sekcji „Finanse osobiste”.
+
+Nasz zespół stanowi bezpośrednie połączenie akademickiego rygoru matematyczno-fizycznego (odpowiedzialność za treści), solidnego rzemiosła programistycznego (sprawdzony, działający serwis z testami) oraz pragmatycznego zmysłu biznesowego. Brakujące ogniwo w postaci animatora osób starszych definiujemy otwarcie i zabezpieczamy na nie środki w budżecie. Formalnym wnioskodawcą jest Piotr Putyło jako Młody Naukowiec reprezentujący cały zespół.
+
+---
+
+## Slajd 19: Co możesz zrobić już dziś, zanim zapadną jakiekolwiek decyzje grantowe
+
+*OTWARTE ZAPROSZENIE*
+
+Studencie:
+
+Wejdź na edmat.net i spróbuj rozwiązać dowolne zadanie. Jeśli polegniesz, napisz w wątku dyskusyjnym. Jeśli pomógł ci bot, wklej ten dialog do serwisu: człowiek sprawdzi rachunki, a ty dostaniesz oficjalne potwierdzenie wkładu.
+
+Adres: edmat.net
+
+Prowadzący i doktorancie:
+
+Obejmij opieką swój przedmiot. Zamień nudnego PDF-a z zadaniami na kolokwium w interaktywny zestaw i recenzuj rozwiązania swoich studentów w cywilizowanych warunkach.
+
+Wystarczy jedna krótka wiadomość do nas.
+
+Emerytowany nauczycielu i drogi seniorze:
+
+Pomóż nam weryfikować zadania, sprawdzaj, czy teksty są zrozumiałe dla laika, współtwórz dział bezpieczeństwa finansowego. Duża czcionka, wysoki kontrast, zero instalowania, zero reklam.
+
+Zapraszamy na warsztat w wybranym UTW lub do bezpośredniego kontaktu.
+
+Dyrektorze szkoły:
+
+Dołącz do pilotażu generatora sprawdzianów ze zweryfikowanym kluczem odpowiedzi (start w 2027 r.). Szukamy pierwszych dwóch odważnych liceów.
+
+Zgłoś swoją placówkę.
+
+Przedstawicielu uczelni wyższej:
+
+Pobierz kod na licencji MIT i uruchom własne środowisko. Integracja z uczelnianym USOS-em wymaga jedynie konfiguracji kluczy dostępowych.
+
+Udostępnij nam dane testowe USOS.
+
+Partnerze biznesowy, zespole ING:
+
+Obejmijcie mecenatem ścieżkę edukacji finansowej. Twórzmy wspólnie przestrzeń wiedzy weryfikowanej z matematyczną precyzją, podpisywanej autorytetem recenzentów, a nie komercyjnymi sloganami.
+
+Porozmawiajmy o konkretach.
+
+**Kontakt bezpośredni:**
+
+Piotr Putyło · p.putylo@student.uw.edu.pl · edmat.net
+
+Kod źródłowy: [github.com/tryingtodosth/edmat](https://www.google.com/search?q=https%3A%2F%2Fgithub.com%2Ftryingtodosth%2Fedmat) (licencja MIT). Każdy wartościowy pull request jest mile widziany.
+
+---
+
+## Slajd 20: Źródła danych i warsztat narzędziowy
+
+*TRANSPARENTNOŚĆ I METODOLOGIA*
+
+1. Asysta sztucznej inteligencji (Claude, Anthropic)
+Platforma powstała przy aktywnym udziale agentów Claude Code: równoległa praca na gałęziach repozytorium, przejrzyste tablice zadań i dynamiczny plan rozwoju. Każda nowo zaimplementowana funkcja musiała przejść test regresji oraz weryfikację zachowania w przeglądarce. Niniejsza prezentacja oraz odpowiedzi do formularza powstały przy wsparciu Claude, natomiast każda podana liczba została zweryfikowana w źródłach przez człowieka. Zasada jest prosta: algorytm szkicuje, człowiek i testy automatyczne weryfikują. Tę samą regułę stosujemy w naszym produkcie.
+2. Otwarte technologie
+Django i Django REST Framework, SvelteKit połączony ze Svelte 5, KaTeX, Paraglide, Tiptap, biblioteki Leaflet, OpenStreetMap oraz Nominatim, DOMPurify, bleach, silnik testowy Playwright, ClamAV, Redis, django-postman, PDF.js. Całość oparta na sprawdzonych licencjach open-source, nasz kod udostępniamy na licencji MIT.
+3. Niezależne recenzje robocze
+Wewnętrzny przegląd krytyczny w roli kapituły konkursowej przeprowadzony z wykorzystaniem modelu Gemini (Google) w dniu 16.09.2026 r. (odpowiedzi na sformułowane w nim uwagi zawarliśmy wprost na slajdzie 15). Konsultacje strategiczne z Markiem van der Ploegiem z 11.09.2026 r.
+
+Baza danych statystycznych:
+
+* Główny Urząd Statystyczny: Szkolnictwo wyższe w roku akademickim 2025/2026 (1 322,8 tys. zarejestrowanych studentów).
+* Centralna Komisja Egzaminacyjna: Oficjalne podsumowanie egzaminu maturalnego w 2026 r. (321 314 zdających).
+* Główny Urząd Statystyczny: Sytuacja osób starszych w Polsce w 2024 r. (blisko 10 mln osób w wieku 60+, 26,6% społeczeństwa).
+* Główny Urząd Statystyczny: Działalność Uniwersytetów Trzeciego Wieku w roku akademickim 2024/2025 (747 jednostek, 125,9 tys. słuchaczy).
+* ING Bank Śląski: Regulamin 9. edycji Programu Grantowego ING (obowiązujący od 8 lipca 2026 r.).
+* Repozytorium i API produkcyjne serwisu edmat.net (dane z 16.09.2026 r.): 745 wprowadzonych zadań, 742 pozytywne weryfikacje, 9 skryptów akademickich, 1 441 zaliczonych testów backendu, 46 scenariuszy przeglądarkowych e2e (1 314 sprawdzeń), 2 094 komunikaty przetłumaczone na dwa języki.
+
+---
+
+# Część 2: Odpowiedzi w formularzu zgłoszeniowym
+
+Pola techniczne oznaczone symbolem ⟦…⟧ pozostawiono do finalnego zatwierdzenia przez Piotra. Wszystkie odpowiedzi zachowują zwięzły format umożliwiający lekturę w około minutę, bez zbędnego żargonu, z szacunkiem dla czasu kapituły.
+
+---
+
+## Zgłaszam się jako:
+
+**Naukowiec** (Młody Naukowiec: student Wydziału Fizyki Uniwersytetu Warszawskiego, reprezentujący Zespół).
+
+## Nazwa rozwiązania:
+
+EdMat.net: otwarta baza zadań z rozwiązaniami weryfikowanymi przez ludzi, dedykowana dla uczących się w każdym wieku.
+
+## Liczba osób pracujących nad rozwiązaniem:
+
+4 (członkowie założyciele; dodatkowo stała współpraca autorska przy module finansowym z Natalią Prus oraz oficjalne wsparcie promocyjne prof. Andrzeja Dragana; ⟦Piotr decyduje: 4 czy 5⟧).
+
+## Opisz kompetencje osób pracujących nad rozwiązaniem:
+
+Piotr Putyło: student Wydziału Fizyki Uniwersytetu Warszawskiego, inicjator i koordynator przedsięwzięcia. Odpowiada za architekturę technologiczną i lwią część kodu (Django REST Framework, SvelteKit, 1 441 testów automatycznych). Projekt rozwija intensywnie od lipca 2026 r. Zgłasza projekt jako Młody Naukowiec reprezentujący zespół.
+
+Marysia Nazarczuk: II rok studiów magisterskich na kierunku matematyka, absolwentka studiów licencjackich z fizyki i informatyki. Czuwa nad całością materiałów ścisłych: odpowiada za opracowanie, weryfikację i korektę kompletnej bazy 745 zadań uniwersyteckich oraz nadzór nad wersjami językowymi.
+
+Marc van der Ploeg: odpowiedzialny za strategię wdrożeniową, dobór modeli organizacyjnych i strukturę budżetową. Doświadczony ekspert ds. innowacji biznesowych, wieloletni juror konkursów startupowych (w tym w programach organizowanych przez grupę ING). Zapewnia rynkowe spojrzenie na projekt.
+
+prof. Katarzyna Grabowska: sprawuje opiekę naukową i przewodniczy radzie badawczej przedsięwzięcia. Związana z Katedrą Metod Matematycznych Fizyki na Wydziale Fizyki UW.
+
+Współpraca merytoryczna i promocja: Natalia Prus prowadzi sekcję „Finanse osobiste” i stworzyła autorski program z zakresu przedsiębiorczości. Wsparcie medialne w kanałach społecznościowych zadeklarował oficjalnie prof. Andrzej Dragan z Wydziału Fizyki UW.
+
+Nasz skład reprezentuje rzadką, ale niezbędną dla tego projektu kombinację cech: akademickie zrozumienie matematyki i fizyki (jakość treści), rzetelne inżynierskie podejście do tworzenia stabilnego oprogramowania (działający system z pełnym pokryciem testami) oraz trzeźwą ocenę mechanizmów rynkowych (edukacja finansowa i model instytucjonalny).
+
+## Poziom dojrzałości rozwiązania:
+
+**Liga Seed**
+
+## Prezentacja:
+
+Plik `EdMat-ING-2026.pdf` (dokument PDF, rozmiar poniżej 15 MB).
+
+---
+
+## Opisz krótko swoje rozwiązanie:
+
+EdMat.net to w pełni funkcjonujący, publicznie dostępny portal na otwartej licencji MIT, w którym każde zadanie z matematyki, fizyki i informatyki posiada drobiazgowo rozpisane rozwiązanie, za które konkretny człowiek odpowiada własnym nazwiskiem i dorobkiem. Nie polegamy na anonimowym tłumie ani na bezkrytycznie przyjmowanych odpowiedziach z generatorów tekstu.
+
+Na dzień dzisiejszy baza obejmuje 745 zadań z dwóch trudnych przedmiotów akademickich na Uniwersytecie Warszawskim (Analiza Matematyczna II oraz Rachunek Prawdopodobieństwa I). Aż 742 zadania posiadają w pełni potwierdzone, poprawne rozwiązania. W serwisie znajduje się także 9 pełnych skryptów i zbiorów dydaktycznych. System działa płynnie po polsku i po angielsku, przy czym same wersje językowe zadań podlegają niezależnemu procesowi recenzji.
+
+Struktura pojedynczego zadania opiera się na stopniowym odsłanianiu etapów: uczeń widzi najpierw treść, potem może poprosić o wskazówkę, następnie podejrzeć sam wynik, a pełne rozwiązanie zobaczyć dopiero na samym końcu. Uczymy myślenia, a nie kopiowania gotowców. Dla każdego zadania tworzona jest pula alternatywnych dróg dojścia do wyniku. Społeczność ma prawo oceniać materiały, ale formalny znak weryfikacji mogą przyznać wyłącznie uprawnieni moderatorzy i opiekunowie działów (nauczyciele, asystenci, doktoranci, emerytowani wykładowcy). Każda edycja zostawia czytelny ślad w historii zmian.
+
+Równolegle działa całe zaplecze funkcjonalne: merytoryczne dyskusje pod zadaniami, narzędzie „Mój zestaw” generujące estetyczne arkusze powtórkowe w PDF, przestrzeń do prowadzenia autorskich kursów, moduł organizowania warsztatów i spotkań naukowych, zintegrowane ogłoszenia korepetycji na mapie OpenStreetMap oraz bezpieczne konta rodzicielskie dla osób poniżej 16. roku życia (art. 8 RODO). Interfejs pozwala na wygodne powiększenie tekstu i przełączenie w tryb wysokiego kontrastu. W serwisie nie ma reklam ani skryptów marketingowych.
+
+Startujemy od środowiska akademickiego, ponieważ tutaj mamy gotowe treści, zaangażowaną kadrę i bezpośredni dostęp do pierwszych użytkowników. Ten sam mechanizm przenosimy następnie na poziom maturalny, do przestrzeni osób dorosłych zmieniających kwalifikacje oraz do środowiska seniorów w ramach praktycznej edukacji ekonomicznej.
+
+Całość środków z wnioskowanego grantu koncentrujemy wyłącznie na trzech filarach: rozwoju zweryfikowanej bazy zadań maturalnych i akademickich, przeprowadzeniu pilotażu międzypokoleniowego z seniorami oraz wdrożeniu modułu finansowego. Poboczne moduły (korepetycje, komunikator, moduł wydarzeń) są gotowe w kodzie, ale zostały zamrożone do czasu rynkowego potwierdzenia głównej osi projektu.
+
+## Kto jest odbiorcą Twojego rozwiązania?
+
+Projekt adresujemy do czterech precyzyjnie zdefiniowanych grup, z którymi na co dzień współpracujemy w murach Uniwersytetu Warszawskiego.
+
+1. Studenci kierunków ścisłych stający przed wyzwaniem sesji egzaminacyjnej. W skali kraju to 1,32 mln osób (GUS 2025/26). Punktem startowym jest Wydział Fizyki UW oraz kierunki matematyczne, gdzie udostępniliśmy bazę 745 zadań. Typowy scenariusz: studentka Ola na kilka dni przed kolokwium z Analizy II filtruje całki o wysokim stopniu trudności, podejmuje samodzielną próbę obliczeń, w razie problemów odkrywa wskazówkę, a na końcu porównuje swoje notatki ze zweryfikowanym rozwiązaniem. Jeśli ma wątpliwości do konkretnego przejścia, pyta w komentarzu i generuje zestaw do druku. To wszystko działa w serwisie w tej chwili.
+2. Maturzyści oraz ich rodzice (ponad 321 tys. zdających w 2026 r. wg CKE). Młodsi użytkownicy poniżej 16 lat korzystają z profilu powiązanego z kontem rodzica, który posiada pełną kontrolę nad publikowanymi treściami. Wszelkie komentarze i załączniki dodawane przez młodzież trafiają do publikacji dopiero po akceptacji moderatora.
+3. Dorośli podnoszący kwalifikacje: osoby przygotowujące się do pracy w branży IT, zgłębiające podstawy statystyki, rachunku prawdopodobieństwa lub matematyki finansowej.
+4. Najważniejsza grupa w bieżącej edycji konkursu: seniorzy (populacja blisko 10 mln osób 60+ w Polsce, w tym 125,9 tys. uczestników UTW). Mamy pełną świadomość, że starsze osoby nie szukają kolejnej technologicznej nowinki dla samej idei korzystania z komputera. Nie oferujemy im gadżetu, lecz realną rolę społeczną. Wiemy też, że wykształcenie matematyczne posiada znikomy ułamek seniorów, dlatego otwieramy trzy zróżnicowane ścieżki:
+
+* Recenzent merytoryczny: emerytowani nauczyciele (jak pani Halina, lat 68), którzy sprawdzają zadania maturalne, odpowiadają na pytania uczniów i dbają o sprawność intelektualną przez kontakt z żywą nauką. Rekrutujemy ich w sekcjach emerytów ZNP, liceach i na uczelniach.
+* Czytelnik i tester: dowolny słuchacz UTW sprawdzający czytelność poleceń, poprawność językową i przejrzystość wskazówek w materiałach dla szkół podstawowych.
+* Współtwórca modułu finansów: każdy senior posiadający bagaż doświadczeń życiowych. Wspólnie weryfikujemy zagadnienia domowego budżetu, bezpiecznego lokowania oszczędności oraz ochrony przed wyłudzeniami socjotechnicznymi (oszustwa telefoniczne, podszywanie się pod bliskich).
+
+Dostęp do serwisu nie wymaga instalacji żadnych programów, a interfejs ma domyślnie powiększoną czcionkę i wysoki kontrast. Cel pilotażu: 30 seniorów w trzech miastach, w tym co najmniej 10 recenzentów merytorycznych. Jeśli zgłosi się mniej osób z dyplomem nauk ścisłych, ciężar pilotażu przejmują role testerów i konsultantów finansowych.
+
+Główne wyzwania adaptacyjne rozwiązujemy pragmatycznie. Zapracowany student nie instaluje nowych aplikacji, dlatego docieramy do niego bezpośrednio z polecenia wykładowców w newralgicznym momencie sesji zimowej. Z kolei opór przed dzieleniem się materiałami zdejmujemy dedykowaną funkcją: uczeń może po prostu wkleić roboczą konwersację z ChatGPT, a my oznaczamy ją statusem weryfikacji i przekazujemy recenzentowi. Student zyskuje potwierdzenie poprawności obliczeń i punkty reputacji, a baza wzbogaca się o sprawdzoną treść. Mierniki na zimę: 300 aktywnych studentów, 30 autorów wpisów i czas recenzji poniżej 7 dni.
+
+## Jak Twoje rozwiązanie odpowiada na wyzwanie konkursowe?
+
+Odpowiadamy bezpośrednio na pytanie: „Jak możemy zapewnić jakościową edukację niezależnie od wieku?”, rozwijając oba człony tego zagadnienia.
+
+Jakość w naukach ścisłych to brak błędów merytorycznych, klarowny wywód logiczny oraz personalna odpowiedzialność recenzenta za publikowany materiał. W EdMat realizujemy to algorytmicznie: pularyzacja rozwiązań pod każdym zadaniem, reputacja wpływająca na wagę oddawanego głosu, weryfikacja przeprowadzana przez mianowanych opiekunów sekcji, certyfikat zweryfikowania wynikający ze stanu faktycznego w bazie oraz system automatycznej kwarantanny dla treści zgłaszanych krytycznie przez społeczność. To zaprzeczenie chaosu panującego na popularnych forach z zadaniami domowymi i halucynacji generowanych przez boty.
+
+Niezależnie od wieku oznacza u nas jedną spójną architekturę z elastycznymi widokami dla poszczególnych pokoleń: bezpieczne konto dla ucznia, akademicki zbiór dla studenta, kursy praktyczne dla dorosłego oraz ergonomiczny, pozbawiony barier panel dla seniora-mentora. Filtr grupy wiekowej działa na poziomie bazy danych: uczeń szkoły podstawowej widzi inny zestaw funkcji niż emerytowany profesor, lecz obaj mogą wymieniać wiedzę wokół tego samego zagadnienia matematycznego.
+
+Realizacja trzech obszarów konkursowych:
+
+* Edukacja przez całe życie: fundament platformy. Użytkownicy sami inicjują kursy i spotkania, a starsi pedagodzy zyskują konkretne, decyzyjne uprawnienia w systemie, zamiast zepchnięcia do roli biernych odbiorców.
+* Wykorzystanie sztucznej inteligencji: odrzucamy budowę własnych modeli na rzecz warstwy kontrolnej. AI w naszym systemie działa jako filtr podsuwający wyłącznie wskazówki zaczerpnięte z bazy zrecenzowanej uprzednio przez człowieka. Algorytm pomaga też w porządkowaniu zgłoszeń i przygotowaniu wstępnych tłumaczeń językowych z zachowaniem kodu LaTeX, lecz ostateczna decyzja zawsze należy do człowieka.
+* Ścieżka edukacji finansowej: gotowy dział w serwisie, program przygotowany przez Natalię Prus, zadania obliczeniowe (procent składany, koszt kredytu, mechanika inflacji) poddawane identycznej weryfikacji jak zadania z analizy. Całość uzupełniona o perspektywę seniorów w zakresie bezpieczeństwa kapitału i obrony przed wyłudzeniami.
+
+## Jak Twoje rozwiązanie wyróżnia się na tle konkurencji?
+
+Znamy wady istniejących rozwiązań z własnego doświadczenia studenckiego.
+
+* Brainly i pokrewne serwisy: szybkie odpowiedzi bez merytorycznej kontroli, nachalna monetyzacja reklamowa, brak zaawansowanych treści akademickich i powszechne błędy w toku obliczeń.
+* ChatGPT i komercyjne LLM: duża elastyczność, ale permanentna niepewność wyniku w naukach ścisłych, zupełna nieznajomość wymogów polskiej podstawy programowej i skłonność do podawania bezwartościowych gotowych wyników bez wyjaśnienia metody.
+* Khan Academy: znakomity warsztat wideo, ale brak bazy zadań z polskich uczelni wyższych i brak lokalnego środowiska wymiany myśli.
+* Uczelniany Moodle i systemy LMS: hermetyczne środowiska zamykane po semestrze, brak mechanizmu wielowariantowych rozwiązań i brak ciągłości bazy wiedzy.
+* Librus i Vulcan: narzędzia czysto administracyjne, niebędące platformami do samej nauki.
+* Math StackExchange: znakomity poziom, ale bariera języka angielskiego, brak odniesień do polskiego programu nauczania i forma niesprzyjająca nauce przed egzaminem.
+* Portale ogłoszeń korepetycji: kojarzenie zleceń pozbawione wspólnej, otwartej bazy materiałów do pracy.
+
+Nasze przewagi działające bezpośrednio w kodzie:
+
+1. Prawdziwa weryfikacja toku rozumowania oparta na rygorystycznym procesie recenzji, ważeniu głosów i formalnych kryteriach logicznych.
+2. Układ treści odzwierciedlający strukturę edukacyjną: od dziedziny i działu, przez konkretny temat, po pojedyncze ćwiczenie.
+3. Pełna integracja narzędzi: jedno zadanie może być elementem kursu, tematem warsztatu na żywo i bazą do korepetycji.
+4. Całkowite rozdzielenie wersji językowej interfejsu od wersji językowej samego zadania, z niezależnym procesem recenzowania treści (np. student z Ukrainy analizuje treść w ojczystym języku, a polski wykładowca sprawdza jego tok rozumowania).
+5. Fabryczne dostosowanie do wieku: ścisła premoderacja i kontrola rodzicielska dla nieletnich, duża typografia i kontrast dla seniorów.
+6. Otwartość i przejrzystość: wolna licencja MIT, brak reklam, brak profilowania komercyjnego, swoboda uruchomienia lokalnej instancji przez szkołę lub uniwersytet.
+7. Rzetelne rzemiosło programistyczne: 1 441 testów backendowych, 1 314 sprawdzeń w przeglądarce, czysty audyt dostępności i podwójna sanityzacja danych.
+
+Barierą wejścia dla konkurencji nie jest sam kod źródłowy, który udostępniamy za darmo. Jest nią zweryfikowany zbiór wiedzy dopasowany do polskich realiów oraz społeczność recenzentów ręczących za poprawność obliczeń własnym nazwiskiem. Tego kapitału nie da się wygenerować automatycznie w jeden kwartał.
+
+## Czego potrzebujesz do rozwoju rozwiązania?
+
+☑ Wsparcie finansowe ☑ Wsparcie merytoryczne (warsztaty, mentoring) ☑ Kontakty biznesowe ☑ Promocja
+
+## Na co przeznaczysz nagrodę?
+
+Wnioskowaną kwotę 450 tys. zł planujemy rozdysponować na okres 15 miesięcy (od grudnia 2026 r. do lutego 2028 r.), przeznaczając ją na trzy kluczowe zadania i weryfikowalne cele:
+
+1. Treści i weryfikacja merytoryczna: 35% (157 tys. zł). Wynagrodzenia recenzenckie dla 6–8 doktorantów, młodszych pracowników naukowych i emerytowanych nauczycieli. Opracowanie 1 500 nowych zadań z pełnymi rozwiązaniami (zakres matury rozszerzonej z matematyki i fizyki oraz pierwszy rok studiów ścisłych). Wdrożenie kursu finansów osobistych w wersji dla młodzieży i seniorów.
+2. Rozwój technologiczny: 25% (112 tys. zł). Praca dwóch inżynierów w niepełnym wymiarze przez 12 miesięcy: wdrożenie podpowiedzi AI opartych na zamkniętej bazie rozwiązań, generator sprawdzianów dla nauczycieli, uproszczony jednoekranowy pulpit recenzencki dla seniorów.
+3. Pilotaż międzypokoleniowy: 20% (90 tys. zł). Działania w trzech miastach we współpracy z ZNP, kadrą uniwersytecką i UTW. Zaangażowanie 30 seniorów w trzech rolach (w tym minimum 10 recenzentów zadań). Sfinansowanie koordynatora środowiska seniorów (½ etatu), z twardym rozliczeniem retencji i liczby zrecenzowanych wpisów.
+4. Infrastruktura, bezpieczeństwo i kwestie formalne: 10% (45 tys. zł). Koszty serwerów i bezpiecznych kopii zapasowych, zewnętrzny audyt kodu, sformalizowanie fundacji, audyt procedur RODO dla kont dzieci, przygotowanie wniosków o dofinansowania celowe.
+5. Badania z użytkownikami: 5% (23 tys. zł). 60 pogłębionych wywiadów i testów użyteczności (uczniowie, studenci, nauczyciele, seniorzy), po dwie tury badań przed publikacją kluczowych zmian.
+6. Komunikacja i budowa społeczności: 5% (23 tys. zł). Działania informacyjne we współpracy z prof. Andrzejem Draganem, organizacja warsztatów na UW i w wybranych szkołach średnich.
+
+Kamienie milowe:
+
+* Koniec 2026 r.: 300 aktywnych studentów UW w sesji zimowej, pierwsze 30 wywiadów z użytkownikami, wersja bazowa kursu finansowego, zbudowany zręb zespołu recenzenckiego.
+* Lato 2027 r.: 500 rozwiązanych zadań maturalnych, uruchomienie pilotażu senioralnego w pierwszym mieście (10 osób), testy podpowiedzi AI i generatora sprawdzianów w 2 liceach.
+* Koniec 2027 r.: 5 000 zarejestrowanych kont, 3 000 opracowanych zadań, 3 uczelnie partnerskie, 30 aktywnych seniorów z wskaźnikiem retencji powyżej 60%, zarejestrowana fundacja, wniosek do programu FERS, 10 szkół korzystających z generatora testów, pozyskany partner CSR.
+
+Zabezpieczenie finansowe po grantach: baza wiedzy pozostanie na zawsze bezpłatna. Dalsze funkcjonowanie oprzemy na partnerstwach CSR, grantach instytucjonalnych na transformację cyfrową oraz mikronależnościach abonamentowych za generator sprawdzianów dla placówek oświatowych. W przypadku przyznania mniejszej kwoty (300 lub 200 tys. zł) proporcjonalnie zmniejszamy poszczególne pule, bezwzględnie zachowując 20% budżetu na moduł senioralny.
+
+## Skąd wiesz o naszym programie grantowym?
+
+⟦zaznaczyć odpowiednie pole w formularzu elektronicznym⟧
+
+## Zgody:
+
+☑ Klauzula informacyjna
+
+☑ Regulamin programu grantowego
+
+☐/☑ Zgoda na kontakt po zakończeniu konkursu (dobrowolna)

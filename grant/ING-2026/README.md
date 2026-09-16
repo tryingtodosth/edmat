@@ -12,7 +12,7 @@ What is in this folder:
 | `README.md` | this: rules digest, the form field by field, the checklist of things only Piotr can do, and the source of every number used |
 | `formularz.md` | the answers to paste into the form, in Polish, in the form's order |
 | `build_deck.py` | generates the presentation as a draw.io file (one page per slide) plus PNG previews and the PDF to upload |
-| `EdMat-ING-2026.drawio` | the deck, 20 pages — open in draw.io (the drawio-lasso build) to edit; see "Editing the deck yourself" |
+| `EdMat-ING-2026.drawio` | the deck, 21 pages — open in draw.io (the drawio-lasso build) to edit; see "Editing the deck yourself" |
 | `EdMat-ING-2026.pdf` | the same deck as a PDF, ready for the form's upload field (limit 15 MB, PDF/PPT/PPTX) |
 | `slides/` | one PNG per slide, rendered by draw.io itself, for a quick look |
 | `deck_to_md.py` → `EdMat-ING-2026-tekst.md` | every slide's text plus the form answers as one Markdown file — the thing to paste into another model for a review; regenerate with `python3 deck_to_md.py` after any edit, it reads the `.drawio`, so hand edits in draw.io are included |
@@ -116,11 +116,32 @@ and displayed with a wider one. Every text cell now uses `overflow=visible` (not
 and the layout is stress-tested with `python3 build_deck.py --font "DejaVu Sans"` — the widest font a
 Linux fallback is likely to pick — before the Helvetica build is rendered.
 
+## Third pass (16.09, late): the Gemini rewrite, three research reports, one new slide
+
+`gemini/` holds four files Piotr produced with Gemini on 16.09: `text.txt` (a full rewrite of the deck
+and form in a more natural Polish voice, no dashes as pauses), `granty.txt` (Polish education funding
+2026–2028: FERS, NCBR, MEN, corporate foundations, the turnover threshold a new foundation cannot
+meet, the UW-as-lead consortium route), `edtech.txt` (how Polish public schools actually buy software:
+§ 4300 vs § 4240, the 20 000 zł direct-purchase threshold, the parents' council rule, "Cyfrowy Uczeń
+2025–2029"), and `wolontariat.txt` (senior retention in digital volunteering: library as anchor,
+20-minute atomic tasks, multi-pass review, the warm-call rule, 3-month commitment cycles, the 60%
+one-year retention target). They are kept in the repo as sources.
+
+The deck and form now use the rewrite's text with these corrections: no claim of an existing reviewer
+team (the vice-deans' mailing is the channel), "Marc Ploeg" (the rewrite had invented "van der"),
+"dr hab. Katarzyna Grabowska", and colloquialisms toned down ("kosmiczny błąd", "belfer", "bezczelnie
+kłamią"). The research changed real content: a new slide 18 "Skąd pieniądze po grancie" with the
+funding ladder in the order a young foundation can reach it, corporate foundations with amounts, and a
+freemium price set under the school direct-purchase threshold; the foundation registration moved to
+Q1 2027 on the milestones (to close a first fiscal year before turnover-gated calls); the senior pilot
+mechanics (35 recruited for 30, library anchor, 20-minute tasks, 24-hour warm call after 5 quiet days,
+3-month cycles, 60% retention after a year) on slides 5, 9 and 15 and in the form.
+
 ## Only Piotr can do these — in this order
 
 - [ ] Decide the team list (who is on the application) and the money agreement (see above).
 - [ ] The **Team** slide and the "kompetencje" answer name the four founding members (Piotr, Marysia
-      Nazarczuk, Marc van der Ploeg, prof. Katarzyna Grabowska), Andrzej Dragan as supporter and Natalia Prus
+      Nazarczuk, Marc van der Ploeg, dr hab. Katarzyna Grabowska), Andrzej Dragan as supporter and Natalia Prus
       as collaborator. **Confirm with each person that they agree to be named** — Marysia first, then
       Marc, then Kasia (the order they are likely to answer). Check Marysia's degrees wording
       ("matematyka: licencjat, II rok mgr; studia licencjackie z fizyki i informatyki") and add Natalia's
