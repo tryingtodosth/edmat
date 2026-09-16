@@ -12,7 +12,7 @@ What is in this folder:
 | `README.md` | this: rules digest, the form field by field, the checklist of things only Piotr can do, and the source of every number used |
 | `formularz.md` | the answers to paste into the form, in Polish, in the form's order |
 | `build_deck.py` | generates the presentation as a draw.io file (one page per slide) plus PNG previews and the PDF to upload |
-| `EdMat-ING-2026.drawio` | the deck, 16 pages — open in draw.io (the drawio-lasso build) to edit; see "Editing the deck yourself" |
+| `EdMat-ING-2026.drawio` | the deck, 20 pages — open in draw.io (the drawio-lasso build) to edit; see "Editing the deck yourself" |
 | `EdMat-ING-2026.pdf` | the same deck as a PDF, ready for the form's upload field (limit 15 MB, PDF/PPT/PPTX) |
 | `slides/` | one PNG per slide, rendered by draw.io itself, for a quick look |
 
@@ -98,10 +98,17 @@ maths reviewers turn up; the **post-grant model** no longer relies on school hos
 commissions but on patronage/CSR, institutional grants (FERS, NCBR, MEN) and a freemium test
 generator for teachers; and slide 6 makes the **focus declaration** (three priorities in the grant,
 the other modules frozen), with the budget, milestones and the community-animator hire aligned to it.
-A 16th slide, "Ryzyka, uczciwie", names four risks with mitigations and metrics — reaching a busy
+Slide "Ryzyka, uczciwie" names four risks with mitigations and metrics — reaching a busy
 student, getting the solutions students already make with AI into the reviewed pool, the senior-reviewer
 supply, and quality under growth. The review's last point — this is a read-deck, and the 5-minute final needs a 5-slide pitch cut —
 is a task for after 14.10, not for the submission.
+
+Added on the evening of 16.09 at Piotr's request: two architecture slides (the stack as it runs, then
+technical challenges split into solved / before scale / in the grant / designed-not-built), a closing
+call-to-action slide (six audiences, contact line with Piotr's UW e-mail and the public GitHub repo),
+and a "Źródła i narzędzia" slide that credits Claude first and lists every data source. Slide numbers
+in cross-references are computed at build time (`ref("budget")` etc.), so inserting a slide can no
+longer break them. 20 slides.
 
 Text in the `.drawio` was clipping in draw.io Desktop because the layout was measured with one font
 and displayed with a wider one. Every text cell now uses `overflow=visible` (nothing can be hidden),
@@ -168,7 +175,7 @@ Two ways, and they do not mix:
 | 1 314 sprawdzeń w przeglądarce w 46 scenariuszach e2e | `test.md` summary lines, `frontend/e2e/*.mjs` count |
 | 2 094 komunikaty interfejsu w każdym z 2 języków | `frontend/messages/{en,pl}.json` |
 | audyt dostępności: 22 strony, 0 naruszeń | `npm run check:katex`/`check:a11y` results in root `CLAUDE.md` §17AT |
-| 19 modułów backendu, 161 migracji, ~111 tys. linii kodu | repo |
+| 18 modułów backendu (katalogi z `apps.py`), 161 migracji, ~111 tys. linii kodu | repo |
 | kod otwarty, licencja MIT; rozwijany od lipca 2026 (pierwszy commit 25.07.2026, 248 commitów) | `LICENSE`, `git log` |
 | 1,32 mln studentów (2025/26; 1 322,8 tys.) | GUS, "Szkolnictwo wyższe w roku akademickim 2025/2026" |
 | 321 314 zdających maturę w 2026 | CKE, wyniki matur 2026 |

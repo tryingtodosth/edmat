@@ -110,8 +110,12 @@ def bar(p, x, y, w_full, label, pct, amount, pct_max=35, fill=TEAL):
 
 # ----------------------------------------------------------------------------- slides
 pages = []
-def slide(name):
-    p = Page(name); pages.append(p); return p
+SLIDE_KEYS = {}
+def slide(name, key=None):
+    p = Page(name); pages.append(p)
+    if key: SLIDE_KEYS[key] = len(pages)
+    return p
+def ref(key): return f"@@{key}@@"
 
 # 1 — title
 p = slide("1 Tytuł")
@@ -225,7 +229,7 @@ tiles = [
     ("1 441", "testów automatycznych backendu — wszystkie zielone (uruchomione 16.09.2026)"),
     ("1 314", "sprawdzeń w prawdziwej przeglądarce, 46 scenariuszy od rejestracji po moderację"),
     ("22", "strony audytu dostępności (axe): 0 naruszeń; trzy rozmiary tekstu, wysoki kontrast"),
-    ("19", "modułów zbudowanych: zadania, materiały, kursy, wydarzenia, korepetycje z mapą, wiadomości, moderacja, konta opiekuna"),
+    ("18", "modułów zbudowanych: zadania, materiały, kursy, wydarzenia, korepetycje z mapą, wiadomości, moderacja, konta opiekuna"),
     ("MIT", "kod otwarty; szkoła lub uczelnia może uruchomić własną kopię; zero reklam, zero śledzenia"),
 ]
 tw = (W - 2 * M - 3 * 24) // 4
@@ -235,7 +239,7 @@ for i, (n, c) in enumerate(tiles):
 text(p, M, 740, W - 2 * M, 60, "Liga Seed, uczciwie: mamy działający produkt i pierwszych użytkowników, nie mamy jeszcze przychodów ani skali. "
      "Zbudowane w osiem tygodni przez zespół studencki, z testem regresji dla każdego znalezionego błędu.", 22, MUTED, factor=1.3)
 card(p, M, 814, W - 2 * M, 140, GREEN_LIGHT)
-text(p, M + 32, 834, W - 2 * M - 64, 110, f'<span style="color:{GREEN}">{b("Żelazne skupienie:")} fundamenty pod 19 modułów są zbudowane, ale w grancie 100% energii idzie w trzy rzeczy — '
+text(p, M + 32, 834, W - 2 * M - 64, 110, f'<span style="color:{GREEN}">{b("Żelazne skupienie:")} fundamenty pod 18 modułów są zbudowane, ale w grancie 100% energii idzie w trzy rzeczy — '
      f'{b("bazę recenzowanych zadań")}, {b("pilotaż międzypokoleniowy z seniorami")} i {b("moduł edukacji finansowej")}. '
      "Korepetycje z mapą, wiadomości i wydarzenia zostają zamrożone do czasu walidacji rdzenia.</span>", 24, factor=1.35)
 
@@ -272,6 +276,84 @@ for i, (t, d) in enumerate(notes):
 card(p, M, 796, W - 2 * M, 120, WARM_LIGHT)
 text(p, M + 32, 816, W - 2 * M - 64, 90, f"{b('Dlaczego to nowe:')} Stack Overflow zbudował taki mechanizm dla programistów. Nikt nie zbudował go dla zadań z matury i studiów, po polsku, "
      "z mapowaniem na program i z rolą dla nauczyciela, który już nie pracuje.", 25, INK, factor=1.35)
+
+# --- architecture 1/2: the stack, as it runs today
+p = slide("Architektura", key="arch")
+head(p, "Architektura 1/2", "Jak to jest zbudowane")
+stack = [
+    ("Przeglądarka", TEAL_LIGHT, TEAL, [
+        "SvelteKit + Svelte 5: aplikacja jednostronicowa, statyczny build — działa na zwykłym serwerze WWW",
+        "interfejs PL / EN (Paraglide), 2 094 komunikaty w każdym języku",
+        "matematyka: KaTeX; treść: Markdown + HTML czyszczone przez DOMPurify",
+        "edytor Tiptap z paletą wzorów; mapa Leaflet + OpenStreetMap; podgląd PDF w przeglądarce",
+        "dostępność: rozmiar tekstu, wysoki kontrast, cele 44 px, audyt axe"]),
+    ("API", CARD, INK, [
+        "Django 5 + Django REST Framework — 18 modułów w jednej bazie kodu",
+        "zadania i pula rozwiązań · materiały i pliki · taksonomia · społeczność: dyskusje, oceny, głosy",
+        "moderacja: opiekunowie działów, auto-ukrycie, historia edycji · powiadomienia na żywo (SSE)",
+        "konta, opiekunowie, tożsamość · kursy · wydarzenia · rezerwacje · korepetycje · wiadomości",
+        "aktywność · zgłoszenia błędów · telemetria · zestawy do druku"]),
+    ("Dane i usługi", WARM_LIGHT, WARM, [
+        "SQLite w pilotażu → PostgreSQL w produkcji; pliki poza bazą",
+        "pliki od użytkowników: typ sprawdzany po bajtach, skan ClamAV (gdy jest), obrazy zawsze re-enkodowane",
+        "Redis (opcjonalnie): cache odpowiedzi, limity zapytań, pub/sub dla powiadomień",
+        "Nominatim / OpenStreetMap przez własne proxy z limitem jednego zapytania na sekundę",
+        "e-mail: jeszcze nie — jedyna brakująca usługa"]),
+]
+bw, gap = 540, 50
+ids = []
+for i, (t, fill, col, items) in enumerate(stack):
+    x = M + i * (bw + gap)
+    ids.append(card(p, x, 250, bw, 420, fill))
+    text(p, x + 26, 272, bw - 52, 44, t, 26, col, bold=True)
+    text(p, x + 26, 322, bw - 52, 340, ul(items, 7), 18, BODY, factor=1.3)
+p.edge(ids[0], ids[1]); p.edge(ids[1], ids[2])
+cw = (W - 2 * M - 28) // 2
+card(p, M, 700, cw, 250)
+text(p, M + 28, 722, cw - 56, 40, "Zasady przekrojowe", 22, TEAL, bold=True)
+text(p, M + 28, 764, cw - 56, 180, "sanityzacja treści po obu stronach (bleach + DOMPurify) · limity zapytań na logowanie, rejestrację, uploady · wyłącznik każdej funkcji · "
+     "konta dzieci przez opiekuna i minimalizacja danych (RODO art. 8) · brak reklam i śledzenia · dwie osie języka: interfejs osobno, wersje treści osobno · każda zmiana ma autora i historię", 19, BODY, factor=1.35)
+x2 = M + cw + 28
+card(p, x2, 700, cw, 250)
+text(p, x2 + 28, 722, cw - 56, 40, "Jakość i wdrożenie", 22, TEAL, bold=True)
+text(p, x2 + 28, 764, cw - 56, 180, "1 441 testów backendu · 46 scenariuszy w prawdziwej przeglądarce (1 314 sprawdzeń, Playwright) · audyt dostępności axe, 22 strony · "
+     "wdrożenie: Apache + mod_wsgi na jednym serwerze, pakiet aktualizacji z runbookiem i testem dymnym · kod MIT — szkoła lub uczelnia uruchamia własną kopię", 19, BODY, factor=1.35)
+
+# --- architecture 2/2: solved, hardening, in the grant, designed-not-built
+p = slide("Wyzwania techniczne", key="arch2")
+head(p, "Architektura 2/2", "Wyzwania techniczne: rozwiązane, do zrobienia, zaprojektowane")
+cols = [
+    ("Rozwiązane i sprawdzone", GREEN_LIGHT, GREEN, [
+        "matematyka w treści: LaTeX przeżywa Markdown i sanityzację — sprawdzone mechanicznie na 2 241 polach, 0 błędów",
+        "równoczesna moderacja na SQLite: wyścigi rozwiązane atomowymi aktualizacjami, nie blokadami",
+        "powiadomienia na żywo bez zajmowania serwera: SSE + Redis pub/sub, limit dwóch połączeń na konto",
+        "pliki od obcych: typ po bajtach, skan, obrazy nigdy nie są bajtami z uploadu; EXIF usuwany",
+        "pierwsze malowanie strony bez czekania na aplikację: prerendering i szkielet ładowania"]),
+    ("Do zrobienia przed skalą", WARM_LIGHT, WARM, [
+        "PostgreSQL zamiast SQLite; Redis w produkcji, żeby limity liczyły się wspólnie",
+        "prawdziwy e-mail: reset hasła, powiadomienia, potwierdzenie adresu uczelnianego",
+        "CI: testy przy każdej zmianie; kopie zapasowe i monitoring",
+        "blokada po nieudanych logowaniach; bilet do strumienia powiadomień zamiast tokenu w adresie",
+        "ClamAV w produkcji — dziś skan jest uczciwie oznaczony jako „nie wykonano”"]),
+    ("W grancie", TEAL_LIGHT, TEAL, [
+        "podpowiedzi AI wybierane z rozwiązań zweryfikowanych przez ludzi",
+        "ścieżka „wklej z czatu” z oznaczeniem „z pomocą AI, czeka na recenzję”",
+        "generator sprawdzianów dla nauczycieli (freemium)",
+        "prosta kolejka recenzji dla seniorów: jeden ekran, duża czcionka",
+        "strefy czasowe w rezerwacjach; tłumaczenia maszynowe jako szkice do recenzji — faza 2"]),
+    ("Zaprojektowane, jeszcze nie zbudowane", CARD, INK, [
+        "system reputacji: dwie drabiny — co wolno robić i co wolno robić z cudzą pracą (opis publiczny na /levels)",
+        "logowanie uczelniane: USOS (OAuth 1.0a, dane dostępowe od każdej uczelni osobno), Google, Apple, GitHub — dziś uczciwe atrapy",
+        "wyszukiwarka ludzi i treści w kursach; edycja zaproszeń",
+        "płatności — świadomie nie: ceny są informacyjne"]),
+]
+cw4 = (W - 2 * M - 3 * 24) // 4
+for i, (t, fill, col, items) in enumerate(cols):
+    x = M + i * (cw4 + 24)
+    card(p, x, 250, cw4, 660, fill)
+    text(p, x + 24, 272, cw4 - 48, 70, t, 22, col, bold=True, factor=1.15)
+    text(p, x + 24, 344, cw4 - 48, 560, ul(items, 9), 18, BODY, factor=1.3)
+text(p, M, 926, W - 2 * M, 60, "Każdy punkt z kolumn 2–4 ma miejsce w budżecie (slajd " + ref("budget") + ") albo jest świadomie odłożony. Nie obiecujemy rzeczy, których nie ma w planie.", 20, MUTED, factor=1.3)
 
 # 8 — generations
 p = slide("8 W rytmie pokoleń")
@@ -374,7 +456,7 @@ for i, (n, c) in enumerate(stats):
 rings = [
     ("Pierwszy krąg — 2026/27", "Wydział Fizyki UW i kierunki matematyczne: kilka tysięcy studentów, do których docieramy przez prowadzących zajęcia, nie przez reklamę."),
     ("Drugi krąg — 2027", "Licea w Warszawie (matura rozszerzona z matematyki i fizyki), uniwersytety trzeciego wieku w trzech miastach, studenci z Ukrainy przez wersje językowe treści."),
-    ("Trzeci krąg — 2028", "Każda szkoła, w której nauczyciel generuje sprawdziany z bazy, i każda uczelnia, która uruchomi własną, bezpłatną kopię — to zasięg. Skąd pieniądze na utrzymanie: slajd 15."),
+    ("Trzeci krąg — 2028", "Każda szkoła, w której nauczyciel generuje sprawdziany z bazy, i każda uczelnia, która uruchomi własną, bezpłatną kopię — to zasięg. Skąd pieniądze na utrzymanie: slajd " + ref("ask") + "."),
 ]
 rw = (W - 2 * M - 2 * 28) // 3
 for i, (t, d) in enumerate(rings):
@@ -386,7 +468,7 @@ text(p, M, 830, W - 2 * M, 90, "Wiemy, kogo nie obsługujemy w 2027: dzieci poni
      "Pasmo „najmłodsi” istnieje w modelu, ale nie obiecujemy dla niego produktu w tym grancie.", 22, MUTED, factor=1.3)
 
 # 12 — milestones
-p = slide("12 Kamienie milowe")
+p = slide("Kamienie milowe", key="milestones")
 head(p, "Kamienie milowe", "Krótkie horyzonty, sprawdzalne liczby")
 ms = [
     ("Koniec 2026", ["300 aktywnych studentów UW w sesji zimowej; 30 z nich dodało rozwiązanie (także z pomocą AI)", "pierwsze 30 wywiadów i testów z użytkownikami", "kurs „Finanse osobiste” v1",
@@ -409,7 +491,7 @@ text(p, M + 32, 808, W - 2 * M - 64, 110, f"{b('Jak mierzymy:')} aktywni użytko
      "utrzymanie seniorów po 3 miesiącach · szkoły z generatorem sprawdzianów. Wyniki publikujemy co kwartał, publicznie.", 23, INK, factor=1.35)
 
 # 12b — risks, named by us (the two the founders name first: reaching a busy student, and getting the AI work out of the notebook)
-p = slide("13 Wyzwania")
+p = slide("Ryzyka", key="risks")
 head(p, "Ryzyka, uczciwie", "Co może pójść nie tak — i co z tym robimy")
 risks = [
     ("Dotarcie do zajętego studenta",
@@ -438,7 +520,7 @@ for i, (t, what, how, metric) in enumerate(risks):
 text(p, M, 916, W - 2 * M, 70, f"{b('Największe ryzyko nazwaliśmy sami:')} jeśli w sesji zimowej nie będzie 300 aktywnych i 30 osób, które dodały rozwiązanie, wiemy to w lutym 2027 — i piszemy o tym w pierwszym raporcie kwartalnym, publicznie.", 21, MUTED, factor=1.3)
 
 # 13 — budget
-p = slide("14 Budżet")
+p = slide("Budżet", key="budget")
 head(p, "Na co przeznaczymy grant", "450 tys. zł na 15 miesięcy (grudzień 2026 – luty 2028)")
 lines = [
     ("Treści i ich weryfikacja — 1 500 nowych zadań (matura, I rok), recenzenci, kurs finansów", 35, "157 tys. zł"),
@@ -457,13 +539,13 @@ text(p, M + 32, 838, W - 2 * M - 64, 90, f"Przy nagrodzie 300 lub 200 tys. zł s
      "Treści, kursy otwarte i cała baza pozostają bezpłatne; grant nie kupuje reklam i nie buduje modułów spoza trzech priorytetów.", 23, BODY, factor=1.35)
 
 # 14 — ask, and the post-grant model (the review's second red flag: no school hosting, no tutoring commissions)
-p = slide("15 Czego potrzebujemy")
+p = slide("Czego potrzebujemy", key="ask")
 head(p, "ING i EdMat", "Czego potrzebujemy — i co z tego ma ING")
 cw = (W - 2 * M - 28) // 2
 card(p, M, 250, cw, 500)
 text(p, M + 32, 276, cw - 64, 50, "Potrzebujemy", 28, TEAL, bold=True)
 text(p, M + 32, 334, cw - 64, 410, ul([
-    f"{b('Wsparcia finansowego')} — grant wg budżetu ze slajdu 14.",
+    f"{b('Wsparcia finansowego')} — grant wg budżetu ze slajdu " + ref("budget") + ".",
     f"{b('Wsparcia merytorycznego')} — warsztaty i mentoring: model organizacji (fundacja z działalnością gospodarczą), wycena abonamentu generatora sprawdzianów, umowy o treści.",
     f"{b('Kontaktów')} — szkoły i uczelnie, sekcje emerytów ZNP i UTW, firmy z portfolio ING, które szkolą pracowników z matematyki i statystyki.",
     f"{b('Promocji')} — finał, kanały ING; po naszej stronie: prof. Andrzej Dragan, Wydział Fizyki UW.",
@@ -474,7 +556,7 @@ text(p, x2 + 32, 276, cw - 64, 50, "Co z tego ma ING", 28, TEAL, bold=True)
 text(p, x2 + 32, 334, cw - 64, 410, ul([
     f"{b('Edukację finansową, która nie jest reklamą')} — zadania i kurs sprawdzane jak matematyka, przez młodych ekonomistów i seniorów-recenzentów.",
     f"{b('Zasięg międzypokoleniowy')} w jednym produkcie: uczeń, rodzic (także pracownik ING), dziadek.",
-    f"{b('Mierzalne, publiczne rezultaty')} — liczby ze slajdu 12 publikujemy co kwartał.",
+    f"{b('Mierzalne, publiczne rezultaty')} — liczby ze slajdu " + ref("milestones") + " publikujemy co kwartał.",
     f"{b('Rolę partnera strategicznego ścieżki finansowej')} — mecenat, nie reklama: z nazwiskiem recenzenta, nie z logo produktu.",
 ], 12), 22, BODY, factor=1.33)
 card(p, M, 776, W - 2 * M, 176, WARM_LIGHT)
@@ -514,6 +596,56 @@ text(p, M, 866, W - 2 * M, 110, "Zespół łączy matematykę i fizykę na pozio
      "oraz doświadczenie biznesowe i ekonomiczne (model organizacji, edukacja finansowa). Brakujące ogniwo nazywamy wprost i finansujemy z grantu: "
      "animator społeczności seniorów (½ etatu, pilotaż). Zgłoszenie składa Piotr Putyło jako Młody Naukowiec — reprezentant Zespołu.", 20, MUTED, factor=1.33)
 
+# --- call to action, and sources (Claude first, then every number's origin)
+p = slide("Zaproszenie", key="cta")
+head(p, "Zaproszenie", "Co możesz zrobić dziś — zanim ktokolwiek przyzna grant")
+ctas = [
+    ("Studencie", "Rozwiąż zadanie na edmat.net. Utknąłeś? Zapytaj w dyskusji. Rozwiązałeś z czatem? Wklej — recenzent sprawdzi, Ty dostaniesz znak przy nazwisku.", "edmat.net"),
+    ("Prowadzący, doktorancie", "Zostań opiekunem działu, który prowadzisz: zestaw na kolokwium jako link, recenzja rozwiązań Twoich studentów.", "jedna wiadomość do nas"),
+    ("Emerytowany nauczycielu, seniorze", "Recenzuj, testuj zrozumiałość, współtwórz dział finansów. Duża czcionka, zero reklam, nic do instalowania.", "warsztat w UTW albo kontakt"),
+    ("Szkoło", "Pilotaż generatora sprawdzianów z rozwiązaniami sprawdzonymi przez ludzi (2027) — szukamy pierwszych dwóch liceów.", "zgłoś szkołę"),
+    ("Uczelnio", "Własna kopia na licencji MIT; logowanie przez USOS potrzebuje tylko danych dostępowych od uczelni.", "dane dostępowe USOS"),
+    ("Partnerze, ING", "Mecenat ścieżki finansowej: zadania i kurs sprawdzane jak matematyka, z nazwiskiem recenzenta, nie z logo produktu.", "porozmawiajmy"),
+]
+cw3 = (W - 2 * M - 2 * 24) // 3
+for i, (who, what, act) in enumerate(ctas):
+    x = M + (i % 3) * (cw3 + 24); y = 250 + (i // 3) * 300
+    card(p, x, y, cw3, 276)
+    text(p, x + 28, y + 22, cw3 - 56, 44, who, 24, TEAL, bold=True)
+    text(p, x + 28, y + 70, cw3 - 56, 150, what, 20, BODY, factor=1.35)
+    text(p, x + 28, y + 224, cw3 - 56, 40, warm(b("→ " + act)), 20)
+card(p, M, 862, W - 2 * M, 96, TEAL_LIGHT)
+text(p, M + 32, 878, W - 2 * M - 64, 70, f"{b('Kontakt:')} Piotr Putyło · p.putylo@student.uw.edu.pl · edmat.net · kod: github.com/tryingtodosth/edmat (MIT) — programisto, pull request mile widziany.", 21, INK, factor=1.3)
+
+p = slide("Źródła i narzędzia", key="sources")
+head(p, "Źródła i narzędzia", "Skąd wzięły się liczby — i z czym to zbudowaliśmy")
+lw = 820
+card(p, M, 250, lw, 300, TEAL_LIGHT)
+text(p, M + 28, 270, lw - 56, 40, "1. Claude (Anthropic)", 24, TEAL, bold=True)
+text(p, M + 28, 314, lw - 56, 230, "Serwis zbudował zespół razem z agentami Claude Code: równoległe gałęzie, wspólne tablice zadań i „żywy plan” projektu; "
+     "każda funkcja przechodzi test regresji i przejście w prawdziwej przeglądarce. Ta prezentacja i odpowiedzi w formularzu powstały z pomocą Claude — "
+     "każdą liczbę sprawdził człowiek w źródłach obok. AI pisze, człowiek i testy weryfikują: ta sama zasada, co w produkcie.", 19, BODY, factor=1.35)
+card(p, M, 574, lw, 190)
+text(p, M + 28, 594, lw - 56, 40, "2. Otwarte oprogramowanie", 22, INK, bold=True)
+text(p, M + 28, 636, lw - 56, 120, "Django + Django REST Framework, SvelteKit + Svelte 5, KaTeX, Paraglide, Tiptap, Leaflet + OpenStreetMap / Nominatim, DOMPurify + bleach, "
+     "Playwright, ClamAV, Redis, django-postman, PDF.js — na licencjach otwartych; nasz kod: MIT.", 18, BODY, factor=1.35)
+card(p, M, 788, lw, 160)
+text(p, M + 28, 808, lw - 56, 40, "3. Recenzje robocze", 22, INK, bold=True)
+text(p, M + 28, 850, lw - 56, 90, "Przegląd „w roli kapituły” wykonany z użyciem Gemini (Google), 16.09.2026 — na jego trzy uwagi odpowiadamy na slajdzie " + ref("risks") + "; "
+     "uwagi Marca Ploega z 11.09.2026.", 18, BODY, factor=1.35)
+rx = M + lw + 28; rw = W - M - rx
+card(p, rx, 250, rw, 698)
+text(p, rx + 28, 270, rw - 56, 40, "Dane", 24, TEAL, bold=True)
+text(p, rx + 28, 318, rw - 56, 620, ul([
+    f"{b('GUS')}, Szkolnictwo wyższe w roku akademickim 2025/2026 — 1 322,8 tys. studentów (stat.gov.pl).",
+    f"{b('CKE')}, wyniki egzaminu maturalnego 2026 — 321 314 zdających.",
+    f"{b('GUS')}, Informacja o sytuacji osób starszych w Polsce za 2024 r. — blisko 10 mln osób 60+, 26,6% ludności.",
+    f"{b('GUS')}, Uniwersytety trzeciego wieku w roku akademickim 2024/2025 — 747 placówek, 125,9 tys. słuchaczy.",
+    f"{b('ING Bank Śląski')}, Regulamin konkursu w ramach Programu Grantowego ING, 9. edycja, obowiązuje od 8.07.2026 — kryteria oceny i harmonogram.",
+    f"{b('edmat.net')}, publiczne API i repozytorium, stan na 16.09.2026 — 745 zadań, 742 zweryfikowane, 9 materiałów; 1 441 testów backendu uruchomionych tego dnia, "
+    "46 scenariuszy e2e (1 314 sprawdzeń), 2 094 komunikaty w każdym z 2 języków.",
+], 12), 18, BODY, factor=1.35)
+
 # ----------------------------------------------------------------------------- write
 total = len(pages)
 for i, pg in enumerate(pages, 1):
@@ -526,6 +658,8 @@ for i, pg in enumerate(pages, 1):
 stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 out = (f'<mxfile host="drawio-lasso" modified="{stamp}" agent="build_deck.py" version="31.3.2" type="device" pages="{total}">'
        + "".join(pg.xml() for pg in pages) + "</mxfile>")
+for _k, _n in SLIDE_KEYS.items():
+    out = out.replace(f"@@{_k}@@", str(_n))
 dest = pathlib.Path(ARGS.out) if ARGS.out else HERE / "EdMat-ING-2026.drawio"
 dest.write_text(out, encoding="utf-8")
 print(f"wrote {dest}: {total} pages, {len(out)//1024} KB, font {FONT}")
