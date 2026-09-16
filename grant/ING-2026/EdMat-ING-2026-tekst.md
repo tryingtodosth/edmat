@@ -55,7 +55,7 @@ studentów kierunków ścisłych UW
 przed egzaminem
 
 - **Mamy treści:** 745 zadań z dwóch przedmiotów UW (Analiza Matematyczna II, Rachunek Prawdopodobieństwa I), 742 ze zweryfikowanym rozwiązaniem.
-- **Mamy ludzi:** kadrę i doktorantów Wydziału Fizyki, którzy recenzują — opieka naukowa prof. Katarzyny Grabowskiej (KMMF).
+- **Mamy kanał dotarcia:** prodziekani ds. studenckich MIM i FUW roześlą informację o EdMat mailem do pracowników i studentów obu wydziałów — stamtąd rekrutujemy pierwszych recenzentów; opieka naukowa prof. Katarzyny Grabowskiej (KMMF).
 - **Mamy pierwszy mierzalny test:** sesja zimowa 2026/27 — cel: 300 aktywnych studentów.
 - **Najwęższy klin z realnym dostępem** — a nie „miliard użytkowników”.
 
@@ -70,7 +70,7 @@ Próbuje sama. Treść jest widoczna, rozwiązanie nie — odsłania się stopni
 
 Utknęła: odsłania wskazówkę, potem odpowiedź, na końcu rozwiązanie ze znakiem ✓ zweryfikowane i głosami innych.
 
-Nie rozumie kroku 3 — pyta w dyskusji pod rozwiązaniem. Odpowiada doktorant albo emerytowana nauczycielka.
+Nie rozumie kroku 3 — pyta w dyskusji pod rozwiązaniem. Odpowiada ktoś, kto już to przeszedł: starszy rok, doktorant, emerytowana nauczycielka.
 
 Dodaje 12 zadań do „Mój zestaw” i drukuje arkusz do PDF.
 
@@ -387,7 +387,7 @@ słuchaczy 747 uniwersytetów trzeciego wieku (GUS 2024/25) — nasze wejście d
 
 Pierwszy krąg — 2026/27
 
-Wydział Fizyki UW i kierunki matematyczne: kilka tysięcy studentów, do których docieramy przez prowadzących zajęcia, nie przez reklamę.
+Wydział Fizyki i MIM UW: kilka tysięcy studentów i pracowników, do których docieramy mailingiem prodziekanów ds. studenckich obu wydziałów i przez prowadzących zajęcia — nie przez reklamę.
 
 Drugi krąg — 2027
 
@@ -409,7 +409,7 @@ Koniec 2026
 - 300 aktywnych studentów UW w sesji zimowej; 30 z nich dodało rozwiązanie (także z pomocą AI)
 - pierwsze 30 wywiadów i testów z użytkownikami
 - kurs „Finanse osobiste” v1
-- zespół recenzentów: 6 doktorantów i asystentów, pierwsi emerytowani wykładowcy
+- zrekrutowany zespół recenzentów: 6 doktorantów i asystentów, pierwsi emerytowani wykładowcy
 
 Lato 2027
 
@@ -435,7 +435,7 @@ Koniec 2027
 Dotarcie do zajętego studenta
 
 **Ryzyko.** Student przed sesją nie szuka nowego portalu — ma PDF-y, grupę na czacie i ChatGPT.
-**Co robimy.** Wchodzimy przez prowadzących zajęcia (zestaw na kolokwium jest linkiem do EdMat), w sesji, kiedy potrzeba jest największa, i przez prof. Dragana. Do czytania nie trzeba konta ani instalacji; „Mój zestaw” daje arkusz do wydruku od razu.
+**Co robimy.** Wchodzimy mailingiem prodziekanów ds. studenckich MIM i FUW do pracowników i studentów, przez prowadzących zajęcia (zestaw na kolokwium jako link do EdMat), w sesji, kiedy potrzeba jest największa, i przez prof. Dragana. Do czytania nie trzeba konta ani instalacji; „Mój zestaw” daje arkusz do wydruku od razu.
 **Miernik.** 300 aktywnych w sesji zimowej; odsetek, który wraca w sesji letniej.
 
 Przekonanie studenta, żeby oddał to, co robi z AI
@@ -447,7 +447,7 @@ Przekonanie studenta, żeby oddał to, co robi z AI
 Recenzentów-seniorów za mało lub za wolno
 
 **Ryzyko.** Emerytowani matematycy to promil seniorów; recenzja może stanąć w kolejce.
-**Co robimy.** Trzy role zamiast jednej, rekrutacja poza UTW (emerytowana kadra UW, sekcje emerytów ZNP), animator społeczności na pół etatu; doktoranci jako rezerwa recenzji; status „czeka na recenzję” widoczny, nie ukryty.
+**Co robimy.** Trzy role zamiast jednej, rekrutacja poza UTW (emerytowana kadra UW, sekcje emerytów ZNP), animator społeczności na pół etatu; doktoranci i starsze roczniki z mailingu dziekanów jako rezerwa recenzji; status „czeka na recenzję” widoczny, nie ukryty.
 **Miernik.** co najmniej 10 recenzentów zadań po 3 miesiącach; utrzymanie 60%; kolejka recenzji poniżej 7 dni.
 
 Jakość przy wzroście: śmieci i błędne rozwiązania
@@ -676,8 +676,8 @@ polsku i angielsku, a wersje językowe treści recenzowane niezależnie od języ
 
 Zadanie odsłania się stopniowo: treść → wskazówka → odpowiedź → rozwiązanie, bo celem jest
 samodzielna praca, nie ściąganie. Każde zadanie ma pulę rozwiązań i wskazówek: wiele osób może dodać
-swoje, społeczność głosuje, a zweryfikowani współtwórcy i opiekunowie działów (nauczyciele, doktoranci,
-emerytowani wykładowcy) recenzują i oznaczają rozwiązania jako sprawdzone. Każda zmiana ma historię
+swoje, społeczność głosuje, a zweryfikowani współtwórcy i opiekunowie działów (docelowo: nauczyciele, doktoranci,
+emerytowani wykładowcy — rekrutowani, nie zakładani) recenzują i oznaczają rozwiązania jako sprawdzone. Każda zmiana ma historię
 i autora.
 
 Wokół bazy działa już cała warstwa społeczna: dyskusje pod zadaniami, „Mój zestaw" z eksportem do
@@ -687,8 +687,8 @@ mapą OpenStreetMap, konta zakładane przez opiekuna dla osób poniżej 16 lat (
 wiekowe treści od szkoły podstawowej po seniorów, trzy rozmiary tekstu i tryb wysokiego kontrastu,
 zero reklam i zero śledzenia.
 
-Zaczynamy od studentów kierunków ścisłych przed egzaminem — bo tam mamy treści, kadrę i pierwszych
-użytkowników. Ten sam mechanizm (zadanie → rozwiązanie → recenzja → dyskusja) otwieramy kolejno dla
+Zaczynamy od studentów kierunków ścisłych przed egzaminem — bo tam mamy treści i kanał dotarcia:
+prodziekani ds. studenckich MIM i FUW roześlą informację o EdMat mailem do pracowników i studentów. Ten sam mechanizm (zadanie → rozwiązanie → recenzja → dyskusja) otwieramy kolejno dla
 maturzystów, dorosłych zmieniających zawód i seniorów, w tym w dziale finansów osobistych.
 
 W ramach grantu 100% energii idzie w trzy rzeczy: bazę recenzowanych zadań (matura i I rok studiów),
@@ -699,8 +699,9 @@ z mapą, wiadomości, wydarzenia — są zbudowane i zamrożone do czasu walidac
 Cztery grupy, w kolejności, w jakiej je obsługujemy — każda z konkretną osobą, którą znamy z UW.
 
 1. Dziś: studenci kierunków ścisłych przed kolokwium i egzaminem. W Polsce studiuje 1,32 mln osób
-(GUS 2025/26); zaczynamy od Wydziału Fizyki UW i kierunków matematycznych, gdzie mamy kadrę i 745
-zadań. Ola, II rok fizyki, pięć dni do kolokwium z Analizy II: filtruje dział „całki", próbuje sama,
+(GUS 2025/26); zaczynamy od Wydziału Fizyki i MIM UW, gdzie mamy 745 zadań i kanał dotarcia: prodziekani
+ds. studenckich obu wydziałów roześlą informację o EdMat do pracowników i studentów — stamtąd
+rekrutujemy pierwszych recenzentów. Ola, II rok fizyki, pięć dni do kolokwium z Analizy II: filtruje dział „całki", próbuje sama,
 odsłania wskazówkę, potem rozwiązanie ze znakiem „zweryfikowane", pyta w dyskusji o krok, którego nie
 rozumie, drukuje zestaw 12 zadań. Wszystko to działa dziś na edmat.net.
 
@@ -728,8 +729,8 @@ najmniej 10 recenzentów zadań; jeśli po 3 miesiącach jest ich mniej, role dr
 dalej.
 
 Największe wyzwania po stronie odbiorców nazywamy wprost. Zajęty student nie szuka nowego portalu —
-docieramy przez prowadzących zajęcia (zestaw na kolokwium jest linkiem do EdMat), w sesji, kiedy potrzeba
-jest największa, i przez prof. Dragana; do czytania nie trzeba konta, a „Mój zestaw" daje arkusz do wydruku
+docieramy mailingiem prodziekanów ds. studenckich MIM i FUW, przez prowadzących zajęcia (zestaw na
+kolokwium jest linkiem do EdMat), w sesji, kiedy potrzeba jest największa, i przez prof. Dragana; do czytania nie trzeba konta, a „Mój zestaw" daje arkusz do wydruku
 od razu. Trudniej przekonać go, żeby oddał portalowi to, co i tak robi z ChatGPT: dodajemy ścieżkę „wklej
 rozwiązanie z czatu" — prompt i odpowiedź trafiają do puli z oznaczeniem „z pomocą AI, czeka na recenzję";
 recenzent sprawdza, student dostaje reputację i znak przy nazwisku, prowadzący może przyznać punkty za

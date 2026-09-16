@@ -152,18 +152,18 @@ text(p, M + 32, 796, W - 2 * M - 64, 110, f"{b('Wspólny mianownik:')} wiedza o 
 # 3 — vision, start
 p = slide("3 Wizja i start")
 head(p, "Wizja — i gdzie zaczynamy", "Chcemy zmienić edukację ścisłą w Polsce.<br>Zaczynamy tu, i wiemy dlaczego.")
-card(p, M, 262, 800, 640, TEAL_LIGHT)
+card(p, M, 262, 800, 676, TEAL_LIGHT)
 text(p, M + 36, 296, 730, 60, "Chcemy", 22, TEAL, bold=True)
 text(p, M + 36, 346, 730, 300, "Żeby każde zadanie ze szkoły i studiów miało w jednym otwartym miejscu rozwiązanie, "
      "za które ktoś ręczy nazwiskiem — i żeby ta wiedza przechodziła między pokoleniami: od doktoranta do maturzysty, "
      "od emerytowanej nauczycielki do wnuka.", 30, INK, factor=1.38)
 text(p, M + 36, 700, 730, 170, muted("Ten sam mechanizm otwieramy kolejno: maturzyści (2027) → dorośli zmieniający zawód → seniorzy i finanse osobiste."), 24, factor=1.35)
-card(p, 940, 262, 880, 640)
+card(p, 940, 262, 880, 676)
 text(p, 976, 296, 800, 60, "Zaczynamy od", 22, WARM, bold=True)
 text(p, 976, 346, 800, 110, "studentów kierunków ścisłych UW<br>przed egzaminem", 32, INK, bold=True, factor=1.2)
-text(p, 976, 470, 800, 420, ul([
+text(p, 976, 470, 800, 456, ul([
     f"{b('Mamy treści:')} 745 zadań z dwóch przedmiotów UW (Analiza Matematyczna II, Rachunek Prawdopodobieństwa I), 742 ze zweryfikowanym rozwiązaniem.",
-    f"{b('Mamy ludzi:')} kadrę i doktorantów Wydziału Fizyki, którzy recenzują — opieka naukowa prof. Katarzyny Grabowskiej (KMMF).",
+    f"{b('Mamy kanał dotarcia:')} prodziekani ds. studenckich MIM i FUW roześlą informację o EdMat mailem do pracowników i studentów obu wydziałów — stamtąd rekrutujemy pierwszych recenzentów; opieka naukowa prof. Katarzyny Grabowskiej (KMMF).",
     f"{b('Mamy pierwszy mierzalny test:')} sesja zimowa 2026/27 — cel: 300 aktywnych studentów.",
     f"{b('Najwęższy klin z realnym dostępem')} — a nie „miliard użytkowników”.",
 ], 14), 25, BODY, factor=1.35)
@@ -175,7 +175,7 @@ steps = [
     "Wchodzi na edmat.net → Matematyka → Analiza matematyczna; filtruje dział „całki” i poziom „trudne”.",
     "Próbuje sama. Treść jest widoczna, rozwiązanie nie — odsłania się stopniowo.",
     "Utknęła: odsłania wskazówkę, potem odpowiedź, na końcu rozwiązanie ze znakiem ✓ zweryfikowane i głosami innych.",
-    "Nie rozumie kroku 3 — pyta w dyskusji pod rozwiązaniem. Odpowiada doktorant albo emerytowana nauczycielka.",
+    "Nie rozumie kroku 3 — pyta w dyskusji pod rozwiązaniem. Odpowiada ktoś, kto już to przeszedł: starszy rok, doktorant, emerytowana nauczycielka.",
     "Dodaje 12 zadań do „Mój zestaw” i drukuje arkusz do PDF.",
     "Po kolokwium dodaje własne, krótsze rozwiązanie — trafia do recenzji, po akceptacji do puli.",
 ]
@@ -454,7 +454,7 @@ sw = (W - 2 * M - 3 * 24) // 4
 for i, (n, c) in enumerate(stats):
     stat(p, M + i * (sw + 24), 250, sw, 260, n, c)
 rings = [
-    ("Pierwszy krąg — 2026/27", "Wydział Fizyki UW i kierunki matematyczne: kilka tysięcy studentów, do których docieramy przez prowadzących zajęcia, nie przez reklamę."),
+    ("Pierwszy krąg — 2026/27", "Wydział Fizyki i MIM UW: kilka tysięcy studentów i pracowników, do których docieramy mailingiem prodziekanów ds. studenckich obu wydziałów i przez prowadzących zajęcia — nie przez reklamę."),
     ("Drugi krąg — 2027", "Licea w Warszawie (matura rozszerzona z matematyki i fizyki), uniwersytety trzeciego wieku w trzech miastach, studenci z Ukrainy przez wersje językowe treści."),
     ("Trzeci krąg — 2028", "Każda szkoła, w której nauczyciel generuje sprawdziany z bazy, i każda uczelnia, która uruchomi własną, bezpłatną kopię — to zasięg. Skąd pieniądze na utrzymanie: slajd " + ref("ask") + "."),
 ]
@@ -472,7 +472,7 @@ p = slide("Kamienie milowe", key="milestones")
 head(p, "Kamienie milowe", "Krótkie horyzonty, sprawdzalne liczby")
 ms = [
     ("Koniec 2026", ["300 aktywnych studentów UW w sesji zimowej; 30 z nich dodało rozwiązanie (także z pomocą AI)", "pierwsze 30 wywiadów i testów z użytkownikami", "kurs „Finanse osobiste” v1",
-                     "zespół recenzentów: 6 doktorantów i asystentów, pierwsi emerytowani wykładowcy"]),
+                     "zrekrutowany zespół recenzentów: 6 doktorantów i asystentów, pierwsi emerytowani wykładowcy"]),
     ("Lato 2027", ["500 zadań maturalnych ze zweryfikowanymi rozwiązaniami", "pilotaż seniorów w pierwszym mieście: 10 osób w trzech rolach",
                    "podpowiedzi AI ugruntowane w puli — wersja testowa", "generator sprawdzianów w 2 liceach — wersja testowa"]),
     ("Koniec 2027", ["5 000 zarejestrowanych, 3 000 zadań, 3 uczelnie", "30 seniorów w 3 miastach; utrzymanie po 3 miesiącach co najmniej 60%",
@@ -496,7 +496,7 @@ head(p, "Ryzyka, uczciwie", "Co może pójść nie tak — i co z tym robimy")
 risks = [
     ("Dotarcie do zajętego studenta",
      "Student przed sesją nie szuka nowego portalu — ma PDF-y, grupę na czacie i ChatGPT.",
-     "Wchodzimy przez prowadzących zajęcia (zestaw na kolokwium jest linkiem do EdMat), w sesji, kiedy potrzeba jest największa, i przez prof. Dragana. Do czytania nie trzeba konta ani instalacji; „Mój zestaw” daje arkusz do wydruku od razu.",
+     "Wchodzimy mailingiem prodziekanów ds. studenckich MIM i FUW do pracowników i studentów, przez prowadzących zajęcia (zestaw na kolokwium jako link do EdMat), w sesji, kiedy potrzeba jest największa, i przez prof. Dragana. Do czytania nie trzeba konta ani instalacji; „Mój zestaw” daje arkusz do wydruku od razu.",
      "300 aktywnych w sesji zimowej; odsetek, który wraca w sesji letniej."),
     ("Przekonanie studenta, żeby oddał to, co robi z AI",
      "Rozwiązanie z ChatGPT ląduje w zeszycie i ginie — razem z błędem, którego nikt nie wyłapał.",
@@ -504,7 +504,7 @@ risks = [
      "10% aktywnych z co najmniej jednym dodanym rozwiązaniem (30 osób w sesji zimowej); czas do recenzji poniżej 7 dni."),
     ("Recenzentów-seniorów za mało lub za wolno",
      "Emerytowani matematycy to promil seniorów; recenzja może stanąć w kolejce.",
-     "Trzy role zamiast jednej, rekrutacja poza UTW (emerytowana kadra UW, sekcje emerytów ZNP), animator społeczności na pół etatu; doktoranci jako rezerwa recenzji; status „czeka na recenzję” widoczny, nie ukryty.",
+     "Trzy role zamiast jednej, rekrutacja poza UTW (emerytowana kadra UW, sekcje emerytów ZNP), animator społeczności na pół etatu; doktoranci i starsze roczniki z mailingu dziekanów jako rezerwa recenzji; status „czeka na recenzję” widoczny, nie ukryty.",
      "co najmniej 10 recenzentów zadań po 3 miesiącach; utrzymanie 60%; kolejka recenzji poniżej 7 dni."),
     ("Jakość przy wzroście: śmieci i błędne rozwiązania",
      "Więcej zgłoszeń to więcej błędów i spamu — w matematyce błąd w rozwiązaniu jest gorszy niż jego brak.",

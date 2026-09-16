@@ -139,6 +139,10 @@ Linux fallback is likely to pick — before the Helvetica build is rendered.
         empty-site impression Marc described;
       - the footer says "Prototyp — to prawdziwy serwer…" — fine for users, odd for a juror; consider
         "Wersja pilotażowa".
+- [ ] The deck and form now say the vice-deans for student affairs of MIM and FUW will mail the
+      platform to staff and students, and that reviewers are recruited from that mailing (no reviewer
+      team exists yet — the deck no longer claims one). Make sure that mailing is agreed before you
+      submit; if it is only planned, say "planujemy" instead of "roześlą".
 - [ ] Submit on 16.09 or early 17.09, not at the last hour.
 - [ ] After 14.10, if we are finalists: cut a 5-slide pitch version (problem, walkthrough, evidence,
       three priorities, ask) for the 5-minute final; the read-deck stays as the leave-behind.
