@@ -67,6 +67,10 @@ Zaczynamy od studentów kierunków ścisłych przed egzaminem — bo tam mamy tr
 użytkowników. Ten sam mechanizm (zadanie → rozwiązanie → recenzja → dyskusja) otwieramy kolejno dla
 maturzystów, dorosłych zmieniających zawód i seniorów, w tym w dziale finansów osobistych.
 
+W ramach grantu 100% energii idzie w trzy rzeczy: bazę recenzowanych zadań (matura i I rok studiów),
+pilotaż międzypokoleniowy z seniorami i moduł edukacji finansowej. Pozostałe moduły — korepetycje
+z mapą, wiadomości, wydarzenia — są zbudowane i zamrożone do czasu walidacji rdzenia.
+
 ## Kto jest odbiorcą Twojego rozwiązania?
 Cztery grupy, w kolejności, w jakiej je obsługujemy — każda z konkretną osobą, którą znamy z UW.
 
@@ -84,14 +88,20 @@ zawsze czekają na moderatora.
 które prowadzą u nas kursy i oferują korepetycje.
 
 4. Najważniejsza dla tej edycji: seniorzy — 10 mln osób w wieku 60+ (26,6% ludności, GUS 2024), w tym
-125,9 tys. słuchaczy 747 uniwersytetów trzeciego wieku (GUS 2024/25). Wiemy, że seniorzy nie chcą
-„korzystać z innowacji". Dlatego nie sprzedajemy im aplikacji, tylko rolę i powód. Pani Halina, 68
-lat, emerytowana nauczycielka matematyki, trafia do nas przez warsztat w UTW, nie przez sklep z
-aplikacjami; czyta dużą czcionką w wysokim kontraście; recenzuje rozwiązania, odpowiada uczniom w
-dyskusjach i sama rozwiązuje trudne zadania, bo to utrzymuje sprawność umysłu lepiej niż „gry na
-pamięć"; bez reklam, bez instalowania czegokolwiek. Jej wnuk korzysta z tej samej bazy. Tym samym
-wejściem docierają do niej treści o finansach osobistych — bezpieczne oszczędzanie, emerytura,
-rozpoznawanie oszustw — przez ludzi i miejsca, którym ufa.
+125,9 tys. słuchaczy 747 uniwersytetów trzeciego wieku (GUS 2024/25). Wiemy dwie rzeczy. Po pierwsze:
+seniorzy nie chcą „korzystać z innowacji", więc nie sprzedajemy im aplikacji, tylko rolę i powód.
+Po drugie: emerytowani nauczyciele matematyki to promil tej populacji, więc seniorzy mają u nas trzy
+role, nie jedną. Recenzent zadań — pani Halina, 68 lat, emerytowana nauczycielka matematyki, recenzuje
+rozwiązania z matury i I roku, odpowiada uczniom w dyskusjach, sama rozwiązuje trudne zadania dla
+sprawności umysłu; takich osób szukamy tam, gdzie są: wśród emerytowanej kadry Wydziału Fizyki i MIM
+UW, w sekcjach emerytów ZNP, w liceach partnerskich. Czytelnik-tester — każdy senior: czy wskazówka
+jest zrozumiała, czy tłumaczenie brzmi po polsku, czy zadanie z podstawówki ma sens. Współautor
+finansów osobistych — każdy senior z doświadczeniem życiowym: budżet domowy, bezpieczne oszczędzanie,
+oszustwa „na wnuczka" i na BLIK, a w drugą stronę emerytura i IKE/IKZE od młodych ekonomistów. Wszyscy
+trafiają do nas przez UTW, biblioteki i ludzi, którym ufają; czytają dużą czcionką w wysokim kontraście,
+bez reklam i bez instalowania czegokolwiek. Cel pilotażu: 30 seniorów w trzech miastach, w tym co
+najmniej 10 recenzentów zadań; jeśli po 3 miesiącach jest ich mniej, role druga i trzecia niosą pilotaż
+dalej.
 
 ## Jak Twoje rozwiązanie odpowiada na wyzwanie konkursowe?
 „Jak możemy zapewnić jakościową edukację niezależnie od wieku?" — odpowiadamy na obie części pytania.
@@ -152,36 +162,51 @@ pre-moderacja obrazków w pasmach dziecięcych, tekst i kontrast dla seniorów.
 7. Jakość inżynierska, rzadka w projekcie studenckim: 1 441 testów backendu i 1 314 sprawdzeń w
 przeglądarce, audyt dostępności bez naruszeń, sanityzacja treści po obu stronach, skanowanie plików.
 
+Fosa to nie kod (jest na licencji MIT). To zweryfikowana baza zmapowana na polski program, reputacja
+recenzentów i społeczność, która ją tworzy. Brainly czy OpenAI mogą dodać przycisk „zweryfikowane"
+w rok; nie mają ludzi, którzy ręczą za rozwiązanie nazwiskiem — a tych się nie kupuje, tych się buduje.
+
 ## Czego potrzebujesz do rozwoju rozwiązania?
 ☑ Wsparcie finansowe ☑ Wsparcie merytoryczne (warsztaty, mentoring) ☑ Kontakty biznesowe ☑ Promocja
 
 ## Na co przeznaczysz nagrodę?
-Grant 450 tys. zł rozłożymy na 15 miesięcy (grudzień 2026 – luty 2028), z kamieniami milowymi, które
-da się sprawdzić:
+Grant 450 tys. zł rozłożymy na 15 miesięcy (grudzień 2026 – luty 2028), wyłącznie na trzy priorytety,
+z kamieniami milowymi, które da się sprawdzić:
 
 1. Treści i ich weryfikacja — 35% (157 tys. zł): umowy dla 6–8 doktorantów i asystentów oraz
-emerytowanych nauczycieli jako recenzentów; 1 500 nowych zadań z pełnymi rozwiązaniami: matura
-rozszerzona z matematyki i fizyki oraz pierwszy rok studiów ścisłych; kurs „Finanse osobiste w rytmie
-pokoleń" (moduł dla maturzystów i moduł dla seniorów).
-2. Pilotaż międzypokoleniowy z uniwersytetami trzeciego wieku — 20% (90 tys. zł): warsztaty w trzech
-miastach z trzema UTW, przeszkolenie 30 seniorów-recenzentów, mierzone: liczba zrecenzowanych
-rozwiązań, liczba odpowiedzi udzielonych uczniom, utrzymanie aktywności po 3 miesiącach.
-3. Rozwój produktu — 25% (112 tys. zł): dwoje programistów w niepełnym wymiarze przez 12 miesięcy;
-podpowiedzi AI ugruntowane w zweryfikowanych rozwiązaniach; szkice tłumaczeń PL/EN/UK; własny
-hosting dla szkół.
-4. Badania z użytkownikami — 5% (23 tys. zł): 60 wywiadów i testów (studenci, maturzyści, rodzice,
+emerytowanych wykładowców i nauczycieli jako recenzentów; 1 500 nowych zadań z pełnymi
+rozwiązaniami: matura rozszerzona z matematyki i fizyki oraz pierwszy rok studiów ścisłych; kurs
+„Finanse osobiste w rytmie pokoleń" (moduł dla maturzystów i moduł dla seniorów).
+2. Rozwój produktu — 25% (112 tys. zł): dwoje programistów w niepełnym wymiarze przez 12 miesięcy;
+podpowiedzi AI ugruntowane w zweryfikowanych rozwiązaniach; generator unikalnych sprawdzianów
+i kartkówek z bazy dla nauczycieli; prosta kolejka recenzji dla seniorów (duża czcionka, jeden ekran).
+3. Pilotaż międzypokoleniowy — 20% (90 tys. zł): trzy miasta; rekrutacja przez emerytowaną kadrę UW,
+sekcje emerytów ZNP i uniwersytety trzeciego wieku; 30 seniorów w trzech rolach, w tym co najmniej
+10 recenzentów zadań; animator społeczności seniorów (pół etatu) — brakujące ogniwo, które nazywamy
+wprost; mierzone: liczba zrecenzowanych rozwiązań, odpowiedzi udzielonych uczniom, utrzymanie po
+3 miesiącach.
+4. Infrastruktura, bezpieczeństwo i prawo — 10% (45 tys. zł): serwery i kopie, audyt bezpieczeństwa,
+rejestracja fundacji, ocena skutków RODO dla kont dzieci, przygotowanie wniosków o granty
+instytucjonalne.
+5. Badania z użytkownikami — 5% (23 tys. zł): 60 wywiadów i testów (studenci, maturzyści, rodzice,
 seniorzy), dwie rundy przed każdym większym wdrożeniem.
-5. Infrastruktura, bezpieczeństwo i prawo — 10% (45 tys. zł): serwery i kopie, audyt bezpieczeństwa,
-skanowanie plików, rejestracja fundacji, ocena skutków RODO dla kont dzieci.
 6. Promocja i społeczność — 5% (23 tys. zł): kampania z prof. Andrzejem Draganem, wydarzenia
 stacjonarne na UW i w szkołach partnerskich.
 
 Kamienie milowe: do końca 2026 — 300 aktywnych studentów UW w sesji zimowej, pierwsze 30 wywiadów,
-kurs finansów osobistych v1; lato 2027 — 500 zadań maturalnych ze zweryfikowanymi rozwiązaniami,
-pierwsza szkoła i pierwsze UTW w pilotażu, podpowiedzi AI w wersji testowej; koniec 2027 — 5 000
-zarejestrowanych użytkowników, 3 000 zadań, 3 uczelnie, fundacja zarejestrowana, pierwszy płatny
-pilotaż hostingu dla szkoły. Przy nagrodzie 300 lub 200 tys. zł skalujemy proporcjonalnie, zachowując
-20% na pilotaż z UTW.
+kurs finansów osobistych v1, pierwsi emerytowani wykładowcy w zespole recenzentów; lato 2027 —
+500 zadań maturalnych ze zweryfikowanymi rozwiązaniami, pilotaż seniorów w pierwszym mieście
+(10 osób w trzech rolach), podpowiedzi AI i generator sprawdzianów w wersji testowej w 2 liceach;
+koniec 2027 — 5 000 zarejestrowanych, 3 000 zadań, 3 uczelnie, 30 seniorów w 3 miastach
+z utrzymaniem po 3 miesiącach co najmniej 60%, fundacja zarejestrowana, pierwszy wniosek o grant
+instytucjonalny (FERS) złożony, 10 szkół z generatorem sprawdzianów, pierwszy partner CSR ścieżki
+finansowej.
+
+Utrzymanie po grancie, realistycznie: treści zawsze bezpłatne; nie liczymy na hosting dla szkół ani
+na prowizje od korepetycji. Trzy źródła: mecenat i CSR partnerów ścieżki finansowej i technologicznej;
+granty instytucjonalne na edukację cyfrową i integrację międzypokoleniową (FERS, NCBR, programy MEN);
+freemium — generator sprawdzianów za symboliczny abonament szkoły lub rady rodziców. Przy nagrodzie
+300 lub 200 tys. zł skalujemy proporcjonalnie, zachowując 20% na pilotaż z seniorami.
 
 ## Skąd wiesz o naszym programie grantowym?
 ⟦zaznaczyć⟧

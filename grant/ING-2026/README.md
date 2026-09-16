@@ -88,6 +88,24 @@ three extra fields. Order:
 16. Wyślij zgłoszenie — you get an on-screen confirmation **and** an automatic e-mail; if no e-mail
     arrives, write to programgrantowy@ing.pl
 
+## Second pass (16.09, evening): the jury-style review, and fonts
+
+A Gemini review written as an ING jury member scored the deck highly on innovation and named three
+red flags. All three are now in the deck and the form: seniors have **three roles** (reviewer of tasks,
+reader-tester, co-author of the personal-finance module) with a recruitment path beyond UTW (retired
+UW staff, ZNP retired-teacher sections, partner schools) and an explicit fallback if fewer than ten
+maths reviewers turn up; the **post-grant model** no longer relies on school hosting or tutoring
+commissions but on patronage/CSR, institutional grants (FERS, NCBR, MEN) and a freemium test
+generator for teachers; and slide 6 makes the **focus declaration** (three priorities in the grant,
+the other modules frozen), with the budget, milestones and the community-animator hire aligned to it.
+The review's last point — this is a read-deck, and the 5-minute final needs a 5-slide pitch cut —
+is a task for after 14.10, not for the submission.
+
+Text in the `.drawio` was clipping in draw.io Desktop because the layout was measured with one font
+and displayed with a wider one. Every text cell now uses `overflow=visible` (nothing can be hidden),
+and the layout is stress-tested with `python3 build_deck.py --font "DejaVu Sans"` — the widest font a
+Linux fallback is likely to pick — before the Helvetica build is rendered.
+
 ## Only Piotr can do these — in this order
 
 - [ ] Decide the team list (who is on the application) and the money agreement (see above).
@@ -112,6 +130,8 @@ three extra fields. Order:
       - the footer says "Prototyp — to prawdziwy serwer…" — fine for users, odd for a juror; consider
         "Wersja pilotażowa".
 - [ ] Submit on 16.09 or early 17.09, not at the last hour.
+- [ ] After 14.10, if we are finalists: cut a 5-slide pitch version (problem, walkthrough, evidence,
+      three priorities, ask) for the 5-minute final; the read-deck stays as the leave-behind.
 
 ## Where every number comes from (verified 16.09.2026)
 
