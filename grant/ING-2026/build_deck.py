@@ -477,14 +477,15 @@ text(p, M, 840, W - 2 * M, 90, "Jasne granice: w 2027 nie obsługujemy dzieci po
 p = slide("14 Kamienie milowe", key="milestones")
 head(p, "Harmonogram i wskaźniki sukcesu", "Twarde kamienie milowe, zero mydlenia oczu")
 ms = [
-    ("Koniec 2026", ["minimum 300 aktywnych studentów UW w sesji zimowej, z czego co najmniej 30 wzbogaci bazę o własne rozwiązanie (także wypracowane z AI)",
+    ("Koniec 2026", ["300 aktywnych studentów UW w sesji zimowej, w tym 30 z własnym rozwiązaniem w bazie (także wypracowanym z AI)",
                      "30 pogłębionych wywiadów i testów użyteczności", "pierwsza wersja kursu finansów osobistych",
-                     "zrekrutowany trzon zespołu weryfikacyjnego: 6 doktorantów i asystentów oraz pierwsi emerytowani wykładowcy"]),
+                     "zrekrutowany trzon zespołu recenzentów: 6 doktorantów i asystentów, pierwsi emerytowani wykładowcy",
+                     "fundacja wpisana do KRS (akt notarialny we wrześniu, wniosek w październiku 2026); pierwszy rok obrotowy zamknięty 31.12.2026"]),
     ("Lato 2027", ["500 w pełni rozwiązanych zadań z matury rozszerzonej", "pilotaż seniorów w pierwszym mieście: 10 uczestników w trzech rolach",
-                   "fundacja zarejestrowana (I kwartał 2027), żeby zamknąć pierwszy rok obrotowy przed naborami z progiem obrotu",
+                   "sprawozdanie fundacji za 2026 zatwierdzone; pierwsze wnioski o mikrogranty (FERS 05.01, Fundacja PFR) złożone",
                    "wersja testowa podpowiedzi AI i generatora sprawdzianów w 2 liceach"]),
     ("Koniec 2027", ["5 000 zarejestrowanych kont, 3 000 opracowanych zadań, 3 uczelnie", "30 aktywnych seniorów w 3 miastach, retencja po 3 miesiącach co najmniej 60%",
-                     "pierwszy wniosek złożony: mikrogrant inkubatora innowacji społecznych FERS 05.01; pierwszy partner CSR modułu finansowego",
+                     "pierwszy mikrogrant w realizacji; pierwszy partner CSR modułu finansowego",
                      "10 szkół aktywnie korzystających z generatora sprawdzianów"]),
 ]
 mw = (W - 2 * M - 2 * 40) // 3
@@ -493,10 +494,10 @@ for i, (t, items) in enumerate(ms):
     x = M + i * (mw + 40)
     p.cell(x + 30 - 14, 290, 28, 28, "ellipse;whiteSpace=wrap;html=1;fillColor=" + TEAL + ";strokeColor=#ffffff;strokeWidth=3;")
     text(p, x + 60, 274, mw - 60, 60, t, 30, INK, bold=True)
-    card(p, x, 350, mw, 430)
-    text(p, x + 28, 376, mw - 56, 390, ul(items, 10), 21, BODY, factor=1.33)
-card(p, M, 804, W - 2 * M, 130, TEAL_LIGHT)
-text(p, M + 32, 820, W - 2 * M - 64, 100, b("Mierniki efektywności:") + " liczba unikalnych użytkowników w sesji, średni czas recenzji nowego rozwiązania, odsetek zadań z certyfikatem weryfikacji (✓), "
+    card(p, x, 350, mw, 456)
+    text(p, x + 28, 374, mw - 56, 420, ul(items, 9), 20, BODY, factor=1.32)
+card(p, M, 826, W - 2 * M, 124, TEAL_LIGHT)
+text(p, M + 32, 842, W - 2 * M - 64, 100, b("Mierniki efektywności:") + " liczba unikalnych użytkowników w sesji, średni czas recenzji nowego rozwiązania, odsetek zadań z certyfikatem weryfikacji (✓), "
      "retencja w grupie seniorów oraz liczba szkół partnerskich. Wszystkie parametry publikujemy co kwartał w ogólnodostępnym raporcie.", 22, INK, factor=1.35)
 
 # 15 — risks
@@ -540,7 +541,7 @@ lines = [
     ("Rozbudowa i weryfikacja bazy merytorycznej: 1 500 nowych zadań (matura, I rok), wynagrodzenia recenzentów, kurs finansowy", 35, "157 tys. zł"),
     ("Prace programistyczne: podpowiedzi AI na zweryfikowanych danych, generator sprawdzianów, panel recenzencki dla seniorów", 25, "112 tys. zł"),
     ("Pilotaż międzypokoleniowy: 3 miasta, 30 seniorów, koordynator społeczności (½ etatu), rekrutacja z ZNP, UTW i uczelnią", 20, "90 tys. zł"),
-    ("Zaplecze serwerowe, bezpieczeństwo i obsługa prawna: audyt kodu, rejestracja fundacji, procedury RODO dla dzieci, wnioski grantowe", 10, "45 tys. zł"),
+    ("Zaplecze serwerowe, bezpieczeństwo i obsługa prawna: audyt kodu, księgowość i obsługa prawna fundacji, procedury RODO dla dzieci, wnioski grantowe", 10, "45 tys. zł"),
     ("Badania z użytkownikami: 60 wywiadów i testów w podziale na grupy wiekowe, dwie tury przed każdą większą publikacją", 5, "23 tys. zł"),
     ("Komunikacja i społeczność: wspólne działania z prof. Andrzejem Draganem, warsztaty na UW i w liceach partnerskich", 5, "23 tys. zł"),
 ]
@@ -587,7 +588,8 @@ money = [
         "programy MEN (np. „Odkrywcy”): 50 tys.–1 mln zł, 100% finansowania, nabory wiosną",
         "NIW: NOWEFIO do 200 tys. zł; Erasmus+ KA210: 30 lub 60 tys. EUR bez wymogu stażu",
         "duże nabory FERS 01.04/01.08 i NCBR (1,5–6 mln zł): tylko w konsorcjum z UW jako liderem (art. 39 ustawy wdrożeniowej), bo młoda fundacja nie wykaże obrotu"]),
-    ("Mecenat i fundacje korporacyjne", WARM_LIGHT, WARM, [
+    ("Darowizny, mecenat, fundacje korporacyjne", WARM_LIGHT, WARM, [
+        "darowizny od osób i firm od dnia wpisu fundacji do KRS: darczyńca odlicza je od dochodu (do 6% w PIT, do 10% w CIT); status OPP nie jest do tego potrzebny",
         "Fundacja PFR: 15–50 tys. zł na edukację ekonomiczną i włączenie cyfrowe, bez wkładu własnego",
         "Fundacja Empiria i Wiedza (BGK): 20–100 tys. zł na STEAM i narzędzia dydaktyczne",
         "Fundacja Orange: mikrogranty na higienę cyfrową i AI w szkole; mPotęga Fundacji mBanku: narzędzia do nauki matematyki",
@@ -604,8 +606,9 @@ for i, (t, fill, col, items) in enumerate(money):
     card(p, x, 250, cw3, 580, fill)
     text(p, x + 26, 272, cw3 - 52, 70, t, 22, col, bold=True, factor=1.15)
     text(p, x + 26, 344, cw3 - 52, 480, ul(items, 8), 17, BODY, factor=1.3)
-text(p, M, 848, W - 2 * M, 130, b("Warunki brzegowe:") + " fundacja zarejestrowana w I kwartale 2027, pierwszy rok obrotowy zamknięty wiosną 2028; do tego czasu mikrogranty, fundacje korporacyjne i konsorcja z UW. "
-     "Materiały metodyczne na licencji CC BY-SA, kod na MIT, WCAG 2.1 AA: to kryteria punktowane w FERS, które już spełniamy albo spełnimy w grancie.", 20, MUTED, factor=1.3)
+text(p, M, 848, W - 2 * M, 130, b("Warunki brzegowe:") + " fundację zakładamy od razu, nie po grancie: akt notarialny we wrześniu 2026, wniosek do KRS w październiku, pierwszy rok obrotowy zamknięty 31.12.2026. "
+     "Od dnia wpisu przyjmuje darowizny i składa wnioski o mikrogranty; dwuletni staż potrzebny do statusu OPP (1,5% podatku) i do koordynacji Erasmus+ KA220 biegnie od wpisu, więc liczy się każdy miesiąc. "
+     "Materiały metodyczne na CC BY-SA, kod na MIT, WCAG 2.1 AA: kryteria punktowane w FERS, które spełniamy albo spełnimy w grancie.", 19, MUTED, factor=1.3)
 
 # 19 — team
 p = slide("19 Zespół")

@@ -406,23 +406,24 @@ Jasne granice: w 2027 nie obsługujemy dzieci poniżej 12. roku życia inaczej n
 
 Koniec 2026
 
-- minimum 300 aktywnych studentów UW w sesji zimowej, z czego co najmniej 30 wzbogaci bazę o własne rozwiązanie (także wypracowane z AI)
+- 300 aktywnych studentów UW w sesji zimowej, w tym 30 z własnym rozwiązaniem w bazie (także wypracowanym z AI)
 - 30 pogłębionych wywiadów i testów użyteczności
 - pierwsza wersja kursu finansów osobistych
-- zrekrutowany trzon zespołu weryfikacyjnego: 6 doktorantów i asystentów oraz pierwsi emerytowani wykładowcy
+- zrekrutowany trzon zespołu recenzentów: 6 doktorantów i asystentów, pierwsi emerytowani wykładowcy
+- fundacja wpisana do KRS (akt notarialny we wrześniu, wniosek w październiku 2026); pierwszy rok obrotowy zamknięty 31.12.2026
 
 Lato 2027
 
 - 500 w pełni rozwiązanych zadań z matury rozszerzonej
 - pilotaż seniorów w pierwszym mieście: 10 uczestników w trzech rolach
-- fundacja zarejestrowana (I kwartał 2027), żeby zamknąć pierwszy rok obrotowy przed naborami z progiem obrotu
+- sprawozdanie fundacji za 2026 zatwierdzone; pierwsze wnioski o mikrogranty (FERS 05.01, Fundacja PFR) złożone
 - wersja testowa podpowiedzi AI i generatora sprawdzianów w 2 liceach
 
 Koniec 2027
 
 - 5 000 zarejestrowanych kont, 3 000 opracowanych zadań, 3 uczelnie
 - 30 aktywnych seniorów w 3 miastach, retencja po 3 miesiącach co najmniej 60%
-- pierwszy wniosek złożony: mikrogrant inkubatora innowacji społecznych FERS 05.01; pierwszy partner CSR modułu finansowego
+- pierwszy mikrogrant w realizacji; pierwszy partner CSR modułu finansowego
 - 10 szkół aktywnie korzystających z generatora sprawdzianów
 
 **Mierniki efektywności:** liczba unikalnych użytkowników w sesji, średni czas recenzji nowego rozwiązania, odsetek zadań z certyfikatem weryfikacji (✓), retencja w grupie seniorów oraz liczba szkół partnerskich. Wszystkie parametry publikujemy co kwartał w ogólnodostępnym raporcie.
@@ -475,7 +476,7 @@ Pilotaż międzypokoleniowy: 3 miasta, 30 seniorów, koordynator społeczności 
 
 **20%** 90 tys. zł
 
-Zaplecze serwerowe, bezpieczeństwo i obsługa prawna: audyt kodu, rejestracja fundacji, procedury RODO dla dzieci, wnioski grantowe
+Zaplecze serwerowe, bezpieczeństwo i obsługa prawna: audyt kodu, księgowość i obsługa prawna fundacji, procedury RODO dla dzieci, wnioski grantowe
 
 **10%** 45 tys. zł
 
@@ -522,8 +523,9 @@ Granty publiczne, w kolejności dostępności
 - NIW: NOWEFIO do 200 tys. zł; Erasmus+ KA210: 30 lub 60 tys. EUR bez wymogu stażu
 - duże nabory FERS 01.04/01.08 i NCBR (1,5–6 mln zł): tylko w konsorcjum z UW jako liderem (art. 39 ustawy wdrożeniowej), bo młoda fundacja nie wykaże obrotu
 
-Mecenat i fundacje korporacyjne
+Darowizny, mecenat, fundacje korporacyjne
 
+- darowizny od osób i firm od dnia wpisu fundacji do KRS: darczyńca odlicza je od dochodu (do 6% w PIT, do 10% w CIT); status OPP nie jest do tego potrzebny
 - Fundacja PFR: 15–50 tys. zł na edukację ekonomiczną i włączenie cyfrowe, bez wkładu własnego
 - Fundacja Empiria i Wiedza (BGK): 20–100 tys. zł na STEAM i narzędzia dydaktyczne
 - Fundacja Orange: mikrogranty na higienę cyfrową i AI w szkole; mPotęga Fundacji mBanku: narzędzia do nauki matematyki
@@ -536,7 +538,7 @@ Freemium dla szkół, wyceniony pod realia zakupów
 - rada rodziców nie podpisuje umów: może sfinansować licencję darowizną celową na rachunek szkoły; umowę i powierzenie danych (RODO) podpisuje dyrektor
 - „Cyfrowy Uczeń 2025–2029”: moduł narzędziowy finansuje licencje w 80% z budżetu państwa; warunki: zgodność z ZPE i gotowa umowa powierzenia danych
 
-**Warunki brzegowe:** fundacja zarejestrowana w I kwartale 2027, pierwszy rok obrotowy zamknięty wiosną 2028; do tego czasu mikrogranty, fundacje korporacyjne i konsorcja z UW. Materiały metodyczne na licencji CC BY-SA, kod na MIT, WCAG 2.1 AA: to kryteria punktowane w FERS, które już spełniamy albo spełnimy w grancie.
+**Warunki brzegowe:** fundację zakładamy od razu, nie po grancie: akt notarialny we wrześniu 2026, wniosek do KRS w październiku, pierwszy rok obrotowy zamknięty 31.12.2026. Od dnia wpisu przyjmuje darowizny i składa wnioski o mikrogranty; dwuletni staż potrzebny do statusu OPP (1,5% podatku) i do koordynacji Erasmus+ KA220 biegnie od wpisu, więc liczy się każdy miesiąc. Materiały metodyczne na CC BY-SA, kod na MIT, WCAG 2.1 AA: kryteria punktowane w FERS, które spełniamy albo spełnimy w grancie.
 
 ---
 
@@ -862,7 +864,9 @@ emerytowaną kadrą UW i UTW; 30 seniorów w trzech rolach (rekrutujemy 35), w t
 po 5 dniach ciszy, 3-miesięczne cykle zobowiązania; animator społeczności seniorów na pół etatu,
 rozliczany z retencji i liczby zrecenzowanych wpisów.
 4. Infrastruktura, bezpieczeństwo i kwestie formalne: 10% (45 tys. zł). Serwery i kopie zapasowe,
-zewnętrzny audyt kodu, rejestracja fundacji w I kwartale 2027, audyt procedur RODO dla kont dzieci,
+zewnętrzny audyt kodu, księgowość i obsługa prawna fundacji (zakładanej od razu: akt notarialny we wrześniu,
+wniosek do KRS w październiku 2026, przed rozstrzygnięciem konkursu), audyt procedur RODO dla kont
+dzieci,
 przygotowanie wniosków o granty instytucjonalne.
 5. Badania z użytkownikami: 5% (23 tys. zł). 60 pogłębionych wywiadów i testów użyteczności (uczniowie,
 studenci, nauczyciele, seniorzy), po dwie tury przed publikacją kluczowych zmian.
@@ -872,18 +876,19 @@ i w szkołach średnich.
 Kamienie milowe:
 - Koniec 2026 r.: 300 aktywnych studentów UW w sesji zimowej, z czego 30 dodało własne rozwiązanie
 (także wypracowane z AI); pierwsze 30 wywiadów; wersja bazowa kursu finansowego; zrekrutowany zrąb
-zespołu recenzenckiego.
+zespołu recenzenckiego; fundacja wpisana do KRS (akt notarialny we wrześniu, wniosek w październiku
+2026), pierwszy rok obrotowy zamknięty 31.12.2026.
 - Lato 2027 r.: 500 rozwiązanych zadań maturalnych; pilotaż seniorów w pierwszym mieście (10 osób
-w trzech rolach); fundacja zarejestrowana (I kwartał 2027), żeby zamknąć pierwszy rok obrotowy przed
-naborami z progiem obrotu; testy podpowiedzi AI i generatora sprawdzianów w 2 liceach.
+w trzech rolach); sprawozdanie fundacji za 2026 zatwierdzone; pierwsze wnioski o mikrogranty
+(FERS 05.01, Fundacja PFR) złożone; testy podpowiedzi AI i generatora sprawdzianów w 2 liceach.
 - Koniec 2027 r.: 5 000 kont, 3 000 zadań, 3 uczelnie; 30 aktywnych seniorów z retencją po
-3 miesiącach co najmniej 60%; pierwszy wniosek do inkubatora innowacji społecznych FERS 05.01
-(mikrogranty 50–120 tys. zł, 100% finansowania, bez wymogu historii obrotów); 10 szkół z generatorem
+3 miesiącach co najmniej 60%; pierwszy mikrogrant w realizacji; 10 szkół z generatorem
 sprawdzianów; pierwszy partner CSR modułu finansowego.
 
 Utrzymanie po grancie, realistycznie: baza wiedzy pozostanie bezpłatna. Nie liczymy na hosting dla
-szkół ani prowizje od korepetycji. Trzy filary: (1) mecenat i CSR partnerów finansowych
-i technologicznych (Fundacja PFR 15–50 tys. zł na edukację ekonomiczną, Fundacja Empiria i Wiedza
+szkół ani prowizje od korepetycji. Trzy filary: (1) darowizny i mecenat: od dnia wpisu fundacji do KRS darczyńca,
+osoba lub firma, odlicza darowiznę od dochodu (do 6% w PIT, do 10% w CIT; status OPP nie jest do tego
+potrzebny), a do tego CSR partnerów finansowych i technologicznych (Fundacja PFR 15–50 tys. zł na edukację ekonomiczną, Fundacja Empiria i Wiedza
 20–100 tys. zł na STEAM, Fundacja Orange, mPotęga Fundacji mBanku); (2) granty publiczne w kolejności
 dostępności dla młodej fundacji: inkubatory FERS 05.01, programy MEN (50 tys.–1 mln zł), NOWEFIO
 i Erasmus+ KA210, a duże nabory FERS 01.04/01.08 i NCBR wyłącznie w konsorcjum z UW jako liderem;

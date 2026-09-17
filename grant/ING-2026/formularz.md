@@ -209,7 +209,9 @@ emerytowaną kadrą UW i UTW; 30 seniorów w trzech rolach (rekrutujemy 35), w t
 po 5 dniach ciszy, 3-miesięczne cykle zobowiązania; animator społeczności seniorów na pół etatu,
 rozliczany z retencji i liczby zrecenzowanych wpisów.
 4. Infrastruktura, bezpieczeństwo i kwestie formalne: 10% (45 tys. zł). Serwery i kopie zapasowe,
-zewnętrzny audyt kodu, rejestracja fundacji w I kwartale 2027, audyt procedur RODO dla kont dzieci,
+zewnętrzny audyt kodu, księgowość i obsługa prawna fundacji (zakładanej od razu: akt notarialny we wrześniu,
+wniosek do KRS w październiku 2026, przed rozstrzygnięciem konkursu), audyt procedur RODO dla kont
+dzieci,
 przygotowanie wniosków o granty instytucjonalne.
 5. Badania z użytkownikami: 5% (23 tys. zł). 60 pogłębionych wywiadów i testów użyteczności (uczniowie,
 studenci, nauczyciele, seniorzy), po dwie tury przed publikacją kluczowych zmian.
@@ -219,18 +221,19 @@ i w szkołach średnich.
 Kamienie milowe:
 - Koniec 2026 r.: 300 aktywnych studentów UW w sesji zimowej, z czego 30 dodało własne rozwiązanie
 (także wypracowane z AI); pierwsze 30 wywiadów; wersja bazowa kursu finansowego; zrekrutowany zrąb
-zespołu recenzenckiego.
+zespołu recenzenckiego; fundacja wpisana do KRS (akt notarialny we wrześniu, wniosek w październiku
+2026), pierwszy rok obrotowy zamknięty 31.12.2026.
 - Lato 2027 r.: 500 rozwiązanych zadań maturalnych; pilotaż seniorów w pierwszym mieście (10 osób
-w trzech rolach); fundacja zarejestrowana (I kwartał 2027), żeby zamknąć pierwszy rok obrotowy przed
-naborami z progiem obrotu; testy podpowiedzi AI i generatora sprawdzianów w 2 liceach.
+w trzech rolach); sprawozdanie fundacji za 2026 zatwierdzone; pierwsze wnioski o mikrogranty
+(FERS 05.01, Fundacja PFR) złożone; testy podpowiedzi AI i generatora sprawdzianów w 2 liceach.
 - Koniec 2027 r.: 5 000 kont, 3 000 zadań, 3 uczelnie; 30 aktywnych seniorów z retencją po
-3 miesiącach co najmniej 60%; pierwszy wniosek do inkubatora innowacji społecznych FERS 05.01
-(mikrogranty 50–120 tys. zł, 100% finansowania, bez wymogu historii obrotów); 10 szkół z generatorem
+3 miesiącach co najmniej 60%; pierwszy mikrogrant w realizacji; 10 szkół z generatorem
 sprawdzianów; pierwszy partner CSR modułu finansowego.
 
 Utrzymanie po grancie, realistycznie: baza wiedzy pozostanie bezpłatna. Nie liczymy na hosting dla
-szkół ani prowizje od korepetycji. Trzy filary: (1) mecenat i CSR partnerów finansowych
-i technologicznych (Fundacja PFR 15–50 tys. zł na edukację ekonomiczną, Fundacja Empiria i Wiedza
+szkół ani prowizje od korepetycji. Trzy filary: (1) darowizny i mecenat: od dnia wpisu fundacji do KRS darczyńca,
+osoba lub firma, odlicza darowiznę od dochodu (do 6% w PIT, do 10% w CIT; status OPP nie jest do tego
+potrzebny), a do tego CSR partnerów finansowych i technologicznych (Fundacja PFR 15–50 tys. zł na edukację ekonomiczną, Fundacja Empiria i Wiedza
 20–100 tys. zł na STEAM, Fundacja Orange, mPotęga Fundacji mBanku); (2) granty publiczne w kolejności
 dostępności dla młodej fundacji: inkubatory FERS 05.01, programy MEN (50 tys.–1 mln zł), NOWEFIO
 i Erasmus+ KA210, a duże nabory FERS 01.04/01.08 i NCBR wyłącznie w konsorcjum z UW jako liderem;

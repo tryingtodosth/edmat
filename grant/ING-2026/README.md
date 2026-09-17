@@ -15,6 +15,7 @@ What is in this folder:
 | `EdMat-ING-2026.drawio` | the deck, 21 pages — open in draw.io (the drawio-lasso build) to edit; see "Editing the deck yourself" |
 | `EdMat-ING-2026.pdf` | the same deck as a PDF, ready for the form's upload field (limit 15 MB, PDF/PPT/PPTX) |
 | `slides/` | one PNG per slide, rendered by draw.io itself, for a quick look |
+| `fundacja.md` | the foundation: why it is founded now rather than after the grant, what the ING rules say about who gets paid, the decisions before the notary, steps, costs and dates |
 | `deck_to_md.py` → `EdMat-ING-2026-tekst.md` | every slide's text plus the form answers as one Markdown file — the thing to paste into another model for a review; regenerate with `python3 deck_to_md.py` after any edit, it reads the `.drawio`, so hand edits in draw.io are included |
 
 ## The rules, digested (Regulamin obowiązuje od 8 lipca 2026)
@@ -137,6 +138,19 @@ Q1 2027 on the milestones (to close a first fiscal year before turnover-gated ca
 mechanics (35 recruited for 30, library anchor, 20-minute tasks, 24-hour warm call after 5 quiet days,
 3-month cycles, 60% retention after a year) on slides 5, 9 and 15 and in the form.
 
+## 17.09 — the foundation is founded now (Piotr's decision)
+
+Piotr: "foundation should be set asap for the project to collect money more easily." The research in
+`gemini/granty.txt` agrees: donations with a donor deduction, corporate foundations, the FERS 05.01
+incubators, MEN competitions and the two-year clocks for OPP status and Erasmus+ KA220 all start at the
+KRS entry, and a first fiscal year closed on 31.12.2026 gives the 2027 calls a closed year. The deck
+(slides 14, 16, 18) and the form now say: notarial act in September, KRS filing in October, entry by
+the end of 2026, first fiscal year closed 31.12.2026, first microgrant applications in summer 2027.
+`fundacja.md` holds the founding checklist. What does not change: the ING rules admit only a company
+on their list or a young scientist as applicant, so the application stays as filed, and a team's prize
+is paid to the members personally; moving it into the foundation is a donation by each member, and the
+personal-tax side of that needs an accountant before 25.11.
+
 ## 17.09 — submission day, in order
 
 1. **Upload `EdMat-ING-2026.pdf`** (21 pages, 0.5 MB, fonts embedded). `EdMat-ING-2026-2.pdf` in this
@@ -153,7 +167,8 @@ gitignored and harmless.
 
 ## Only Piotr can do these — in this order
 
-- [ ] Decide the team list (who is on the application) and the money agreement (see above).
+- [ ] Decide the team list (who is on the application) and the money agreement (see above): the prize
+      reaches the foundation only as donations from the members, so agree that in writing too.
 - [ ] The **Team** slide and the "kompetencje" answer name the four founding members (Piotr, Marysia
       Nazarczuk, Marc van der Ploeg, dr hab. Katarzyna Grabowska), Andrzej Dragan as supporter and Natalia Prus
       as collaborator. **Confirm with each person that they agree to be named** — Marysia first, then
