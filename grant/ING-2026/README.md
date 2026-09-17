@@ -137,6 +137,20 @@ Q1 2027 on the milestones (to close a first fiscal year before turnover-gated ca
 mechanics (35 recruited for 30, library anchor, 20-minute tasks, 24-hour warm call after 5 quiet days,
 3-month cycles, 60% retention after a year) on slides 5, 9 and 15 and in the form.
 
+## 17.09 — submission day, in order
+
+1. **Upload `EdMat-ING-2026.pdf`** (21 pages, 0.5 MB, fonts embedded). `EdMat-ING-2026-2.pdf` in this
+   folder is your own draw.io export from 22:36 on 16.09 — it predates the rewrite and is not the file
+   to upload; it is untracked now, delete it when you like.
+2. **Paste `formularz.md`** answer by answer; fill the ⟦…⟧ fields (team-size number, "skąd wiesz").
+3. Tick the two required consents; the third is optional.
+4. Send, and confirm the automatic e-mail arrives; if not, write to programgrantowy@ing.pl.
+
+If you change wording in draw.io before uploading: save there, then export the PDF from draw.io
+(File → Export as → PDF, all pages) and do **not** run `build_deck.py` afterwards — it would overwrite
+your edits. The `.$EdMat-ING-2026.drawio.dtmp` file is draw.io's autosave of your open session; it is
+gitignored and harmless.
+
 ## Only Piotr can do these — in this order
 
 - [ ] Decide the team list (who is on the application) and the money agreement (see above).

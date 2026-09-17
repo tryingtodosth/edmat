@@ -1,2 +1,5 @@
 slides/*.svg
 slides/deck.html
+.$*.dtmp
+.$*.bkp
+EdMat-ING-2026-2.pdf
