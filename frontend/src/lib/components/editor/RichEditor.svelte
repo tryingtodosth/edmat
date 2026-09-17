@@ -32,13 +32,17 @@
 		placeholder = '',
 		rows = 4,
 		required = false,
-		id = undefined
+		id = undefined,
+		// A click on a chemistry drawing inside the rich document (chemImage.ts) — the caller
+		// (the insert strip) reopens it in the tool that made it.
+		onChemEdit = undefined
 	}: {
 		value: string;
 		placeholder?: string;
 		rows?: number;
 		required?: boolean;
 		id?: string;
+		onChemEdit?: (chemId: string) => void;
 	} = $props();
 
 	let mode = $state<EditorMode>(untrack(() => editorPrefsStore.mode));
@@ -75,7 +79,8 @@
 				{ default: TableRow },
 				{ default: TableHeader },
 				{ default: TableCell },
-				mathModule
+				mathModule,
+				{ ChemImage }
 			] = await Promise.all([
 				import('@tiptap/core'),
 				import('@tiptap/starter-kit'),
@@ -84,7 +89,8 @@
 				import('@tiptap/extension-table-row'),
 				import('@tiptap/extension-table-header'),
 				import('@tiptap/extension-table-cell'),
-				import('./mathNode')
+				import('./mathNode'),
+				import('./chemImage')
 			]);
 			mathNodeModule = mathModule;
 			editor = new Editor({
@@ -96,8 +102,20 @@
 					TableRow,
 					TableHeader,
 					TableCell,
-					mathModule.MathNode
+					mathModule.MathNode,
+					ChemImage
 				],
+				editorProps: {
+					// A chemistry drawing is edited by clicking it — the same click-to-edit the maths
+					// node already offers, routed to whoever mounted this editor.
+					handleClickOn: (_view, _pos, node) => {
+						if (node.type.name === 'image' && node.attrs.chem && onChemEdit) {
+							onChemEdit(String(node.attrs.chem));
+							return true;
+						}
+						return false;
+					}
+				},
 				content: value,
 				onUpdate: ({ editor: e }) => {
 					value = e.isEmpty ? '' : e.getHTML();
@@ -167,6 +185,64 @@
 				el.focus();
 				el.setSelectionRange(start + text.length, start + text.length);
 			});
+		}
+	}
+	/** Insert raw text at the cursor — a Markdown fragment in either mode. */
+	export function insertText(text: string) {
+		insert(text);
+	}
+	/** Insert an HTML fragment (e.g. a chemistry drawing's `<img data-chem>`): parsed into the
+	 * document in rich mode, appended verbatim to the source in source mode — both are exactly
+	 * what the storage format already accepts. */
+	export function insertHtml(html: string) {
+		if (mode === 'rich' && editor) {
+			editor.chain().focus().insertContent(html).run();
+		} else {
+			insert(html);
+		}
+	}
+	/** A displayed equation (`\[ … \]`): a live maths node in rich mode, the delimited text in
+	 * source mode. */
+	export function insertMath(latex: string, display = true) {
+		if (mode === 'rich' && editor) {
+			editor.chain().focus().insertContent({ type: 'math', attrs: { latex, display } }).run();
+		} else {
+			insert(display ? `\n\\[${latex}\\]\n` : `\\(${latex}\\)`);
+		}
+	}
+	/** A fenced code block — what a pasted JSON document becomes. */
+	export function insertCodeBlock(code: string, language = '') {
+		if (mode === 'rich' && editor) {
+			editor
+				.chain()
+				.focus()
+				.insertContent({
+					type: 'codeBlock',
+					attrs: { language: language || null },
+					content: code ? [{ type: 'text', text: code }] : []
+				})
+				.run();
+		} else {
+			insert(`\n\`\`\`${language}\n${code}\n\`\`\`\n`);
+		}
+	}
+	/** After an existing drawing was replaced (a new picture under a new name), point every
+	 * picture carrying that `data-chem` at the new file. Source mode has no node tree to walk, so
+	 * there it is a plain text replacement on the `src` attribute. */
+	export function replaceChemImage(chemId: string, src: string, alt: string) {
+		if (mode === 'rich' && editor) {
+			const { tr } = editor.state;
+			let changed = false;
+			editor.state.doc.descendants((node, pos) => {
+				if (node.type.name === 'image' && String(node.attrs.chem) === chemId) {
+					tr.setNodeMarkup(pos, undefined, { ...node.attrs, src, alt });
+					changed = true;
+				}
+			});
+			if (changed) editor.view.dispatch(tr);
+		} else {
+			const re = new RegExp(`(<img\\b[^>]*?)src="[^"]*"([^>]*data-chem="${chemId}")`, 'g');
+			value = value.replace(re, `$1src="${src}"$2`);
 		}
 	}
 	function insertTable() {
@@ -393,6 +469,24 @@
 	// An empty/unrenderable equation (e.g. mid-edit, or a malformed paste) shows its own delimited
 	// source rather than nothing — the same honesty `plainText()` (mathRender.ts) already applies
 	// to a MathContent/MathTitle waiting for the typesetter.
+	// A picture in the document — a chemistry drawing is clickable (it reopens in its editor), and
+	// sits on white so black bond lines read in the dark theme too.
+	.rich-editor__host :global(.ProseMirror img) {
+		max-width: 100%;
+		height: auto;
+	}
+	.rich-editor__host :global(.ProseMirror img.chem-drawing) {
+		background: #fff;
+		border-radius: 6px;
+		padding: 4px;
+		max-height: 320px;
+		cursor: pointer;
+		vertical-align: middle;
+	}
+	.rich-editor__host :global(.ProseMirror img.ProseMirror-selectednode) {
+		outline: 2px solid var(--accent);
+		outline-offset: 1px;
+	}
 	.rich-editor__host :global(.rich-editor-math--broken) {
 		font-family: monospace;
 		color: var(--text-secondary);

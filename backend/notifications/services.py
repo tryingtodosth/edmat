@@ -85,6 +85,9 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'taxonomy_merged': 'notify_on_moderation_decision',
     'taxonomy_moved': 'notify_on_moderation_decision',
     'taxonomy_rejected': 'notify_on_moderation_decision',
+    # DSA legal notices (legal/) — the same coarse category as every other "somebody decided on
+    # something I filed" event, per `issue_status_changed`'s own precedent above.
+    'legal_notice_decided': 'notify_on_moderation_decision',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile

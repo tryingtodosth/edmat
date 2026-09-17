@@ -71,6 +71,16 @@ test-runner suite.
 20. **`getByRole('button', { name })` matches substrings** — the header's "Aa" button's label
     says "Press to change", so `{ name: 'change' }` needs `exact: true`.
 
+21. **bleach never falls through to `'*'` for a tag with its own attribute callable** — an
+    `<img class="…">` lost its class on write while the read-side probe kept it, so a selector
+    like `img.chem-drawing` found 0 in the posted comment and only a screenshot + an API probe
+    told the two layers apart (§17AV). When a rendered check fails, probe `renderContent` in
+    Node AND post through the API before blaming either side.
+22. **Vite's dependency optimizer reloads the page mid-script the first time a new dependency
+    is imported** ("optimized dependencies changed. reloading") — a modal opened before that
+    reload simply vanishes. Warm the optimizer with one throwaway open before believing a
+    timeout; `vite.config.ts` changes restart the server and can leave the old port bound.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

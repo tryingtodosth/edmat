@@ -101,6 +101,11 @@ NOTIFICATION_TYPES = [
     ('taxonomy_rejected', 'Your suggestion was not added'),
     # Site issue reports (issues/): staff moved a report the recipient filed under their name.
     ('issue_status_changed', 'Your issue report changed status'),
+    # DSA Art. 16 legal notices (legal/): staff decided a notice the recipient filed. Kept separate
+    # from `issue_status_changed` even though the shape is identical — the two are legally distinct
+    # obligations (Art. 16(6) vs. this app's own bug-report courtesy), and `legal.LegalNotice` is
+    # deliberately not `issues.Issue` at all (see legal/models.py).
+    ('legal_notice_decided', 'A legal notice you filed was decided'),
 ]
 
 

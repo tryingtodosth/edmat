@@ -62,6 +62,7 @@ import type {
 	User
 } from '$lib/types';
 import type { Issue } from '$lib/types/issue';
+import type { LegalNotice, LegalNoticeContentPreview } from '$lib/types/legalNotice';
 
 function undefinedIfEmpty(value: string | null | undefined): string | undefined {
 	return value ? value : undefined;
@@ -981,7 +982,8 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	taxonomy_merged: 'taxonomyMerged',
 	taxonomy_moved: 'taxonomyMoved',
 	taxonomy_rejected: 'taxonomyRejected',
-	issue_status_changed: 'issueStatusChanged'
+	issue_status_changed: 'issueStatusChanged',
+	legal_notice_decided: 'legalNoticeDecided'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -1127,6 +1129,58 @@ export function mapIssue(json: RawIssue): Issue {
 		commentCount: json.comment_count ?? 0,
 		createdAt: json.created_at,
 		updatedAt: json.updated_at
+	};
+}
+
+// ---- legal notices (DSA Art. 16) -----------------------------------------------------------------
+
+export interface RawLegalNotice {
+	id: number;
+	content_url: string;
+	explanation: string;
+	good_faith_confirmed: boolean;
+	notifier_name: string;
+	contact_email: string;
+	reporter: number | null;
+	status: LegalNotice['status'];
+	content_kind: string;
+	content_object_id: number | null;
+	resolve_note: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export function mapLegalNotice(json: RawLegalNotice): LegalNotice {
+	return {
+		id: String(json.id),
+		contentUrl: json.content_url,
+		explanation: json.explanation,
+		goodFaithConfirmed: json.good_faith_confirmed,
+		notifierName: json.notifier_name,
+		contactEmail: json.contact_email,
+		reporterId: json.reporter !== null ? String(json.reporter) : undefined,
+		status: json.status,
+		contentKind: json.content_kind,
+		contentObjectId: json.content_object_id ?? undefined,
+		resolveNote: json.resolve_note,
+		createdAt: json.created_at,
+		updatedAt: json.updated_at
+	};
+}
+
+export interface RawLegalNoticeContentPreview {
+	preview: string;
+	author_id: number | null;
+	author_display_name: string;
+}
+
+export function mapLegalNoticeContentPreview(
+	json: RawLegalNoticeContentPreview
+): LegalNoticeContentPreview {
+	return {
+		preview: json.preview,
+		authorId: json.author_id !== null ? String(json.author_id) : undefined,
+		authorDisplayName: json.author_display_name
 	};
 }
 

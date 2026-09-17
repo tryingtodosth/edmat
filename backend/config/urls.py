@@ -23,6 +23,8 @@ urlpatterns = [
     path('api/', include('booking.urls')),
     path('api/', include('events.urls')),
     path('api/', include('issues.urls')),
+    path('api/', include('legal.urls')),
+    path('api/', include('chem.urls')),
 ]
 
 if settings.DEBUG:

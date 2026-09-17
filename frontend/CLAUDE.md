@@ -87,6 +87,21 @@ integration point, not three call sites remembering) and `clear()` must close it
 clock-drawing components, while pure geometry (`components/booking/calendar.ts`) takes
 `weekStartsOn` as a parameter and imports nothing from the domain.
 
+## Ketcher (the chemistry editor, `components/chem/`) — a React island with Node shims
+
+`ketcher-react` + `ketcher-standalone` (Apache 2.0; Indigo as WASM, a 21 MB chunk) are mounted
+through React inside `KetcherHost.svelte`, every import lazy inside `onMount`. Three things it
+needed that nothing else here does, each found by a browser run and invisible to the build:
+`globalThis.process`/`global` shims set right before the imports (the host does this), and `events`
+
+- `assert` aliased to real browser modules in `vite.config.ts` (Vite externalizes Node built-ins
+  silently and the editor died at first open with `EventEmitter is not a constructor`). `ketcher-react`
+  depends on `ketcher-core` as `*` — pin all three to the same version or the bundler reports missing
+  exports. Its engines field wants Node ≥ 24.14 and `.npmrc` is `engine-strict`, so the build machine
+  runs Node 24 (setup.sh installs it). A drawing is saved through `/api/chem-drawings/` and embedded
+  as `<img data-chem=…>`; `editor/chemImage.ts` reopens it on click. ChemDoodle was the second
+  editor for one afternoon and was dropped as GPLv3 in an MIT repo — don't re-add it.
+
 ## Hand-maintained mirrors of backend enums
 
 `lib/utils/labels.ts` (notification types/categories, currencies, donation platforms, …) —

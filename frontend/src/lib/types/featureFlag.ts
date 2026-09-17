@@ -27,6 +27,9 @@ export type FeatureFlagKey =
 	// Anchored micro-posts on the activity feed (backend activity/). Off: the composer, every
 	// post row in the feed, and the post pages all go.
 	| 'posts'
+	// Chemistry drawings (backend chem/, Ketcher). Off: the editor button leaves every composer and
+	// the drawing API closes; pictures already in content keep rendering.
+	| 'chemistry'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

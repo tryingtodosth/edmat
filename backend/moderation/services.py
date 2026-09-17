@@ -289,6 +289,88 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
     return '', exercise_id, exercise_title
 
 
+def resolve_report_decision(model, pk, decision: str, *, resolved_by, note: str = ''):
+    """Applies a restore/remove decision to one target row of `model` (any value from
+    REPORT_KIND_MODELS), resolves every pending `Report` against it, and notifies the content's own
+    owner with the `content_restored`/`content_removed` type — carrying `note` as that notification's
+    own Art. 17-shaped "statement of reasons".
+
+    This is `ReportActionView.post`'s own content-mutation logic, pulled out here so a caller with no
+    `Report` row of its own to act through can reuse the exact same branches instead of a second,
+    independently-drifting copy — specifically `legal.views` (a DSA Art. 16 legal-notice decision;
+    see that app's own module docstring for why it has no Report to route through). `ReportActionView`
+    itself now just calls this and builds its own Response.
+
+    `decision` is 'restore' or 'remove' — the same two values `ReportActionView` accepts. Returns the
+    target row, since a caller may want to render it back (e.g. a legal notice recording which row it
+    ended up acting on).
+    """
+    from django.shortcuts import get_object_or_404
+
+    from .models import Report
+
+    target = get_object_or_404(model, pk=pk)
+
+    # Same defensive `hasattr` shape as the original inline version — not every reportable model has
+    # `auto_hidden_at`/`is_removed` (Service has neither; see ReportActionView's own comment on this).
+    update_fields = []
+    if hasattr(target, 'auto_hidden_at'):
+        target.auto_hidden_at = None
+        update_fields.append('auto_hidden_at')
+    if decision == 'restore':
+        if isinstance(target, (Exercise, Material)):
+            target.published = True
+            update_fields.append('published')
+        if isinstance(target, Event):
+            target.visibility = 'public'
+            update_fields.append('visibility')
+        if isinstance(target, Contribution) and target.status == 'withdrawn':
+            target.status = 'submitted'
+            update_fields.append('status')
+    else:  # remove
+        if hasattr(target, 'is_removed'):
+            target.is_removed = True
+            update_fields.append('is_removed')
+        if isinstance(target, (Exercise, Material)):
+            target.published = False
+            update_fields.append('published')
+        if isinstance(target, Event):
+            # Hidden, not cancelled — see ReportActionView's own comment on this distinction.
+            target.visibility = 'private'
+            update_fields.append('visibility')
+        if isinstance(target, Contribution):
+            target.status = 'withdrawn'
+            update_fields.append('status')
+        if isinstance(target, Service):
+            target.is_active = False
+            update_fields.append('is_active')
+    target.save(update_fields=update_fields)
+    if decision == 'remove':
+        from activity.services import remove_activity_for
+
+        remove_activity_for(target)
+
+    content_type = ContentType.objects.get_for_model(model)
+    Report.objects.filter(content_type=content_type, object_id=pk, status='pending').update(
+        status='resolved', resolved_by=resolved_by, resolved_note=note
+    )
+
+    kind = _REVERSE_KIND_MODELS.get(model)
+    preview, _exercise_id, _exercise_title = _describe(target, kind) if kind else ('', None, None)
+    exercise = target if isinstance(target, Exercise) else resolve_view_scope_exercise(target)
+    from notifications.services import notify
+
+    notify(
+        _content_owner(target),
+        'content_restored' if decision == 'restore' else 'content_removed',
+        actor=resolved_by,
+        target_label=preview,
+        exercise=exercise,
+        note=note,
+    )
+    return target
+
+
 def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
     """Every target with at least one PENDING report, grouped and sorted by priority — this is the
     literal "gets a priority in the moderation queue" requirement: already auto-hidden items float

@@ -341,6 +341,10 @@ FEATURE_FLAG_CHOICES = [
     # Anchored micro-posts (activity/). Off: no posting, no post pages, the composer and every
     # post row leave the feed surface; the feed's system events stay.
     ('posts', 'Activity micro-posts'),
+    # Chemical structure drawings (chem/, Ketcher). Off: no saving or editing a drawing, and the
+    # editor button leaves every composer; pictures already embedded in content keep rendering,
+    # since they are ordinary media files.
+    ('chemistry', 'Chemistry drawings (Ketcher)'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

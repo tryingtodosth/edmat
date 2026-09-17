@@ -44,6 +44,20 @@
 		:global(p) {
 			margin: 0 0 var(--space-3) 0;
 		}
+		// A picture inside content never overflows its column; a chemistry drawing (backend
+		// chem/, an `<img data-chem>`) sits on white so its black bond lines read in the dark
+		// theme too, at a height that keeps a structure inline with the sentence around it.
+		:global(img) {
+			max-width: 100%;
+			height: auto;
+		}
+		:global(img.chem-drawing) {
+			background: #fff;
+			border-radius: 6px;
+			padding: 4px;
+			max-height: 360px;
+			vertical-align: middle;
+		}
 		:global(p:last-child) {
 			margin-bottom: 0;
 		}

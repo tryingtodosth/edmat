@@ -2318,6 +2318,7 @@ class FeatureFlagTests(APITestCase):
                 'events',
                 'issues',
                 'posts',
+                'chemistry',
                 'material_uploads_verified_only',
             },
         )

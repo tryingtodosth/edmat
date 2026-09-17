@@ -92,7 +92,13 @@ def _img_src_allowed(tag, name, value) -> bool:
     a picture that came through the upload pipeline is neither. Anything else loses its `src`,
     which leaves an inert `<img>` bleach then drops as empty."""
     if name != 'src':
-        return name in ('alt', 'title', 'width', 'height')
+        # `data-chem` is the one data attribute allowed on a picture: the id of the chem drawing
+        # behind it (chem/models.py), which is how the rich editor reopens a structure for editing.
+        # `class` is listed here as well as under `'*'` below because bleach never falls through:
+        # a tag with its own callable gets ONLY what the callable allows, so before this an
+        # `<img class="chem-drawing">` lost its class on write (found by a browser run — the
+        # comment showed the picture unstyled and the check selecting `img.chem-drawing` found 0).
+        return name in ('alt', 'title', 'width', 'height', 'data-chem', 'class')
     from urllib.parse import urlparse
 
     from django.conf import settings

@@ -83,7 +83,9 @@ await form.locator('.rich-editor__modes button', { hasText: 'Editor' }).click();
 await form.locator('.rich-editor__host .ProseMirror').waitFor({ timeout: 60000 });
 check(
 	'Editor mode mounts Tiptap and shows the formatting toolbar',
-	(await form.locator('.rich-editor__fmt').count()) === 1
+	// Two groups since the table extension landed (formatting + table), so "at least the
+	// formatting group" rather than an exact count that drifts with every toolbar addition.
+	(await form.locator('.rich-editor__fmt').count()) >= 1
 );
 check(
 	'…and only now was Tiptap fetched',
@@ -100,8 +102,10 @@ await form.locator('.rich-editor__math button', { hasText: 'a/b' }).click();
 await settle(300);
 check(
 	'the document carries the bold word and the fraction source',
+	// The palette fraction is a LIVE KaTeX node now (mathNode.ts), so the raw `\frac` source is
+	// no longer in the editor's innerText — the rendered node is what to look for.
 	/<strong>half<\/strong>/.test(await pm.innerHTML()) &&
-		/\\frac\{a\}\{b\}/.test(await pm.innerText())
+		(await pm.locator('.rich-editor-math .katex').count()) === 1
 );
 await form.locator('button[type="submit"]').click();
 const posted = p.locator('.discussion .comment', { hasText: MARKER }).first();
