@@ -20,6 +20,10 @@
 			<!-- Beside the privacy link rather than in the navbar: both are standing explanations of how
 			     the site treats you, wanted occasionally and never mid-task. -->
 			<a href={resolve('/levels')}>{m.footer_levels()}</a>
+			<!-- Never gated by `canIssues`/any FeatureFlag, deliberately — see backend/legal/models.py's
+			     own doc comment: this is a standing DSA notice-and-action channel, not a product feature
+			     somebody might turn off to quiet down bug reports. -->
+			<a href={resolve('/legal')}>{m.footer_legal()}</a>
 			{#if canIssues}
 				<a href={resolve('/issues')}>{m.footer_issues()}</a>
 				<!-- "Reported issues" -->

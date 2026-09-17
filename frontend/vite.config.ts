@@ -1,5 +1,6 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 
 // KaTeX ships its @font-face rules with `font-display: block`, so a title containing math shows
@@ -16,7 +17,25 @@ const katexFontDisplaySwap: Plugin = {
 	}
 };
 
+// Ketcher (ketcher-react / ketcher-standalone, the chemistry editor behind
+// components/chem/KetcherHost.svelte) imports two Node built-ins — `events` for its
+// EventEmitter and `assert` as a plain function. Vite externalizes built-ins for the browser,
+// which surfaced at runtime as `EventEmitter is not a constructor` the first time the editor
+// was opened (the build itself passes silently). Both are aliased to real browser modules; the
+// aliases are exact-name matches, so nothing else in the app can pick them up by accident.
+const nodeBuiltinShims = [
+	{
+		find: /^events$/,
+		replacement: fileURLToPath(new URL('./node_modules/events/events.js', import.meta.url))
+	},
+	{
+		find: /^assert$/,
+		replacement: fileURLToPath(new URL('./src/lib/shims/assert.ts', import.meta.url))
+	}
+];
+
 export default defineConfig({
+	resolve: { alias: nodeBuiltinShims },
 	plugins: [
 		katexFontDisplaySwap,
 		sveltekit(),

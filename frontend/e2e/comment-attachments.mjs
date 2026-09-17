@@ -121,9 +121,15 @@ await discussion.waitFor({ timeout: 90000 });
 const form = discussion.locator('form.comment-form').first();
 check(
 	'the composer offers a picture/PDF picker',
-	(await form.locator('.attach input[type="file"]').count()) === 1
+	// The picker lives on the insert strip since the input-kinds work (§17AV): one input for
+	// pictures and one for PDFs, each with its own accept list.
+	(await form.locator('.insert-strip input[type="file"][accept^="image/"]').count()) === 1 &&
+		(await form.locator('.insert-strip input[type="file"][accept="application/pdf"]').count()) === 1
 );
-await form.locator('.attach input[type="file"]').setInputFiles([PNG, PDF]);
+await form.locator('.insert-strip input[type="file"][accept^="image/"]').setInputFiles([PNG]);
+await form
+	.locator('.insert-strip input[type="file"][accept="application/pdf"]')
+	.setInputFiles([PDF]);
 await settle(300);
 check('two chips queue before posting', (await form.locator('.file-chip').count()) === 2);
 await form.locator('textarea').fill(`${MARKER} my sketch and notes`);
@@ -164,7 +170,7 @@ check(
 
 // A disguised executable is refused in words.
 const form2 = discussion.locator('form.comment-form').first();
-await form2.locator('.attach input[type="file"]').setInputFiles([EXE]);
+await form2.locator('.insert-strip input[type="file"][accept^="image/"]').setInputFiles([EXE]);
 await form2.locator('textarea').fill(`${MARKER} with a bad file`);
 await form2.locator('button[type="submit"]').click();
 await discussion.locator('.file-error').waitFor({ timeout: 20000 });
@@ -180,7 +186,7 @@ await mine.locator('.meatballs__trigger').first().click();
 await mine.locator('[role="menuitem"]', { hasText: 'Reply' }).first().click();
 const replyForm = mine.locator('form.comment-form').first();
 await replyForm.waitFor();
-await replyForm.locator('.attach input[type="file"]').setInputFiles([PNG]);
+await replyForm.locator('.insert-strip input[type="file"][accept^="image/"]').setInputFiles([PNG]);
 await replyForm.locator('textarea').fill(`${MARKER} reply with a picture`);
 await replyForm.locator('button[type="submit"]').click();
 const reply = discussion.locator('.comment', { hasText: 'reply with a picture' }).first();

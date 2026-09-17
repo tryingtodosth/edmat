@@ -9,8 +9,6 @@ platform. `is_staff` stays the coarser, global concept everywhere; it's checked 
 wins, so nothing about today's existing global-moderator behavior changes for an `is_staff` user.
 """
 
-from django.contrib.contenttypes.models import ContentType
-from events.models import Contribution, Event
 from django.db import IntegrityError, OperationalError, transaction
 from config.audience import AUDIENCE_VALUES, DEFAULT_AUDIENCE
 from django.shortcuts import get_object_or_404
@@ -32,9 +30,8 @@ from notifications.services import (
     notify,
     notify_tag_followers,
 )
-from services.models import Service
 
-from .models import EditSuggestion, ExerciseSubmission, FeatureFlag, MaterialSubmission, NodeGovernor, Report
+from .models import EditSuggestion, ExerciseSubmission, FeatureFlag, MaterialSubmission, NodeGovernor
 from .permissions import RequireVerifiedContributorForMaterialUploads, feature_gate
 from .serializers import (
     EditSuggestionSerializer,
@@ -46,14 +43,13 @@ from .serializers import (
 )
 from .services import (
     REPORT_KIND_MODELS,
-    _content_owner,
-    _describe,
     build_moderation_queue_payload,
     count_pending_moderation,
     build_report_queue,
     check_auto_hide,
     governed_branch_ids,
     is_governor_of_course,
+    resolve_report_decision,
     resolve_view_scope_exercise,
 )
 
@@ -1059,73 +1055,13 @@ class ReportActionView(APIView):
             return Response(status=status.HTTP_403_FORBIDDEN)
         note = request.data.get('resolved_note', '')
 
-        # A real, found-by-a-failing-test gap: Service has no `auto_hidden_at` field at all (it can
-        # never actually auto-hide in the first place — check_auto_hide always no-ops for it, no
-        # viewer-pool to measure against), so unconditionally including this in `update_fields` blew
-        # up with a real `ValueError` from `.save()` the first time this action ran against a
-        # reported Service. Same defensive `hasattr` shape `is_removed` below already uses, applied
-        # here too rather than assuming every reportable model has this field.
-        update_fields = []
-        if hasattr(target, 'auto_hidden_at'):
-            target.auto_hidden_at = None
-            update_fields.append('auto_hidden_at')
-        if decision == 'restore':
-            if isinstance(target, (Exercise, Material)):
-                target.published = True
-                update_fields.append('published')
-            if isinstance(target, Event):
-                target.visibility = 'public'
-                update_fields.append('visibility')
-            if isinstance(target, Contribution) and target.status == 'withdrawn':
-                target.status = 'submitted'
-                update_fields.append('status')
-        else:  # remove
-            if hasattr(target, 'is_removed'):
-                target.is_removed = True
-                update_fields.append('is_removed')
-            if isinstance(target, (Exercise, Material)):
-                target.published = False
-                update_fields.append('published')
-            if isinstance(target, Event):
-                # Hidden, not cancelled: a moderator's remove is about who may see it, and a
-                # cancellation would tell every attendee something the moderator did not decide.
-                target.visibility = 'private'
-                update_fields.append('visibility')
-            if isinstance(target, Contribution):
-                target.status = 'withdrawn'
-                update_fields.append('status')
-            if isinstance(target, Service):
-                # A real, found-before-shipping gap: Service has neither `is_removed` nor
-                # `published`, so without this branch a "remove" decision on a reported tutoring
-                # listing resolved the report rows but left the listing itself fully live and
-                # discoverable — the moderator action would have had no actual effect. Reuses the
-                # SAME `is_active` field a provider's own pause/reactivate toggle already writes to
-                # (services/models.py's own "tombstone, don't hard-delete" field), rather than
-                # inventing a second, parallel "hidden" concept for this one content type.
-                target.is_active = False
-                update_fields.append('is_active')
-        target.save(update_fields=update_fields)
-        if decision == 'remove':
-            # The feed forgets what stops being public — models/activity's own contract.
-            from activity.services import remove_activity_for
-
-            remove_activity_for(target)
-
-        content_type = ContentType.objects.get_for_model(model)
-        Report.objects.filter(content_type=content_type, object_id=pk, status='pending').update(
-            status='resolved', resolved_by=request.user, resolved_note=note
-        )
-
-        preview, _exercise_id, _exercise_title = _describe(target, kind)
-        exercise = target if isinstance(target, Exercise) else resolve_view_scope_exercise(target)
-        notify(
-            _content_owner(target),
-            'content_restored' if decision == 'restore' else 'content_removed',
-            actor=request.user,
-            target_label=preview,
-            exercise=exercise,
-            note=note,
-        )
+        # The actual content-mutation logic (the `update_fields` branching per model, the
+        # `is_removed`/Service-has-neither-field defensiveness, resolving pending `Report` rows, and
+        # the `content_restored`/`content_removed` notification) lives in
+        # `moderation.services.resolve_report_decision` now — shared with `legal.views`, which has no
+        # `Report` row of its own to act through when a DSA legal notice resolves onto one of these
+        # same content kinds. See that function's own docstring for the full reasoning.
+        resolve_report_decision(model, pk, decision, resolved_by=request.user, note=note)
         # Scoped the same way ModerationQueueView's own read already is — an unscoped call here
         # would otherwise hand a node governor back every OTHER pending report on the platform too,
         # not just their own, the moment they restore/remove one real item of their own.

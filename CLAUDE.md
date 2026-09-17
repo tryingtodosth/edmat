@@ -6726,6 +6726,200 @@ Two script-side facts worth keeping (both in `e2e/CLAUDE.md`): a signed-in profi
 signed-in context Polish content; and the stranger's anonymous reads of a course sit in the 60 s
 read cache, so a mode change is read by a signed-in outsider rather than the stranger.
 
+## 17AV. Six ways into a comment, and a chemistry editor (Ketcher) behind one of them (✅ built, full stack)
+
+Asked for in three steps on 2026-09-16: "add ketcher and ChemDoodle", then "make different
+abilities to input a comment: .md, .json, latex, ketcher, chemdoodle, PDF, image", then "make sure
+reactions are also supported to be easily added" — and then reversed on one point, **"drop the GPL
+chemdoodle. we are mit"**. So ChemDoodle Web Components was vendored, wired through an iframe,
+verified in a browser, and removed the same afternoon; nothing of it remains but this sentence and
+the reasons in `chem/models.py`. Ketcher (Apache 2.0, EPAM) is the one chemistry editor.
+
+### The strip: one body, six ways in
+
+`InsertStrip.svelte` under every comment form (`CommentForm.svelte`; the reply and edit forms
+included). Every kind is an INSERT into the one Markdown+LaTeX body the `RichEditor` already owns,
+or a file beside it — never a second storage shape:
+
+- **Markdown file** — read into the body as text (the body IS Markdown).
+- **LaTeX** — a panel with a live KaTeX preview; inserted as a displayed equation, through the
+  editor's own maths node in rich mode and as `\[ … \]` in source mode.
+- **JSON** — pasted or picked from a `.json` file, validated (`JSON.parse`, refused in words),
+  pretty-printed, inserted as a fenced ```json block (a `codeBlock` node in rich mode).
+- **Ketcher** — see below.
+- **PDF / Picture** — the existing §17AR attachment picker, now reachable by kind.
+
+`RichEditor` grew an exported insert API (`insertText` / `insertHtml` / `insertMath` /
+`insertCodeBlock` / `replaceChemImage`) so the strip drives it without knowing which mode is on;
+`ModalShell` gained a `wide` size for a dialog that is an editor rather than a form.
+
+### The drawing: source kept, picture embedded
+
+`chem.ChemDrawing` (backend `chem/`, a new app): `source_format` (`ket` — Ketcher's own JSON —
+or `mol`, which also admits an RXN file), the `source` text, a `label` (Ketcher's SMILES, or a
+reaction SMILES like `CCO>>C=C`, unless the person writes a caption — it is the picture's `alt`),
+and the picture: an SVG from Ketcher's in-browser Indigo render, kept as vector **after
+`chem/svg.py` has rebuilt it from an allowlist** (script, handlers, `foreignObject`, `image`,
+external `href`, dangerous CSS all gone; a DOCTYPE/entity refused outright), or a PNG data URL
+re-encoded to WebP through the shared `imaging` bounds. The server parses no chemistry — it
+checks the *shape* (JSON with `root`, a Molfile counts line or `$RXN`) and the picture.
+
+Content embeds it as an ordinary `<img src="…/media/chem/…" alt data-chem="ID" class="chem-drawing">`
+— the site-media-only `<img>` the sanitizer already allowed, plus `data-chem` (the one data
+attribute allowed on a picture) so `editor/chemImage.ts` can reopen the drawing on click. The
+`src` is absolute, built from the request like an attachment's: a relative `/media/…` resolves
+against the page's origin, which in development is Vite, not the API (every drawing 404'd in the
+first browser run). `/api/chem-drawings/`: POST (own throttle scope, 60/hour), GET by id public,
+PUT by the author (a fresh file, the old one deleted), no DELETE (a published comment must keep
+resolving). `chemistry` kill switch, seeded on: off, the button leaves the strip and the API
+refuses; pictures already in content keep rendering. A drawing inside a comment on a minor-band
+thread is held for a moderator exactly like an attached picture (`community/signals.py`).
+
+**Reactions are drawings too.** Ketcher's own arrow/plus/mapping tools are there; the dialog adds
+"Add reaction arrow" (a real KET `arrow` node appended to the right of what is drawn, at its
+vertical centre — placed at y=0 it once stretched the exported SVG into a mostly blank picture,
+seen in a screenshot); reaction SMILES go straight into `setMolecule`; RXN is accepted under the
+Molfile format; the caption carries `>>`.
+
+### Getting Ketcher to run inside a Svelte app
+
+`ketcher-react` is a React component, so React exists in this app inside one host
+(`KetcherHost.svelte`), every import lazy in `onMount` — a reader never downloads any of it (the
+Indigo WASM is a 21 MB chunk; the build's entry preloads none of it). Four things the build never
+reported and a browser did: `ketcher-react` depends on `ketcher-core` as `*` and npm resolved an
+older one (missing exports at bundle time — pin all three); its bundles read `process.env` and
+`global` at module-evaluation time (shimmed in the host); it imports Node's `events` and `assert`,
+which Vite externalizes silently (`EventEmitter is not a constructor` at first open — aliased to
+the `events` package and a four-line `assert` in `vite.config.ts`). And its engines field wants
+Node ≥ 24.14 under the project's `engine-strict` npm setting, so `setup.sh` now installs Node 24.
+
+### A sanitizer bug this surfaced
+
+bleach never falls through to the `'*'` rule for a tag that has its own attribute callable — every
+`<img class="…">` had been losing its `class` on write. The posted comment showed the picture
+unstyled and the check selecting `img.chem-drawing` found 0, while a Node probe of `renderContent`
+kept it; posting a probe body through the API told the two layers apart. `config/sanitize.py`'s
+callable now allows `class` too, pinned by a test.
+
+### Verified
+
+**Backend**: `chem/tests.py` (16 tests — the SVG allowlist keeping geometry and dropping scripts,
+links, images, `foreignObject` and `url()` CSS; a DOCTYPE refused; a PNG re-encoded and bounded;
+KET, Molfile and RXN accepted and reactions round-tripping; the wrong shape refused; anonymous
+create refused and reads public; the author's own list; replace by author only with the old file
+gone; no DELETE; the kill switch; `data-chem` and `class` surviving the sanitizer; a drawing on a
+minor-band thread held), plus the seeded-flags test; the full suite re-run (see the done board
+for the count). **Browser**: `e2e/comment-input-kinds.mjs`, 23 checks, zero console/page
+errors, twice, with the posted comment screenshotted and looked at — which is what found the
+blank-canvas arrow placement. `rich-editor.mjs` (11) and `comment-attachments.mjs` (10) re-run
+green after repairing their drifted selectors (the picker moved onto the strip; two assertions in
+`rich-editor.mjs` predated the table group and the live maths node). `npm run check` 0/0, lint
+clean, production build clean under Node 24 with a strict-engines `npm ci`.
+
+### Left open, not built
+
+- **Only comments have the strip.** `PostComposer`, `/submit` and the solution-pool composer
+  still mount a bare `RichEditor`; the strip takes the editor instance and would drop in.
+- **Drawings have no delete and no "my drawings" page** — the list endpoint exists, unused.
+- **No PNG export path in the UI** (the API accepts one) and no ChemDoodle — by decision.
+- **Ketcher's own toolbar is the only place for mapping, R-groups and templates**; the dialog
+  adds one shortcut (the arrow) and nothing else.
+- **The dev checkout's Node**: the system Node is 18; the cached 22/24 builds under
+  `~/.cache/edmat-tools/` are what this session used, and `engine-strict` means a stale Node
+  fails `npm ci` loudly rather than warning.
+
+## 17AW. DSA Article 16 notice-and-action: a legal notice channel, separate from everything else (✅ built)
+
+A Gemini deep-research pass on §18 item 2 (the corpus copyright question) also flagged a genuinely
+separate gap while it was at it: this app had no DSA (Regulation (EU) 2022/2065) notice-and-action
+mechanism at all — no dedicated way for anyone, account or not, to report a *specific* published
+piece of content as illegal, no guaranteed stated reason when staff act on one, and no point of
+contact page. Built as Phase 1 of that report's own recommended roadmap — deliberately scoped to
+this piece alone, not the corpus question itself, which stays open.
+
+**A new `legal` app, deliberately NOT `issues.Issue` with a fourth `kind`.** Two reasons, both real:
+`IssueViewSet`'s whole surface sits behind `feature_gate('issues')`, and a DSA notice channel must
+never go dark just because someone turned that switch off to quiet down bug reports — `legal` carries
+no `FeatureFlag` of its own and is never gated by one. And the shape genuinely differs: `contact_email`
+is required here even for a fully anonymous filer (an Issue drops it for one), and `content_url`/
+`good_faith_confirmed` have no Issue equivalent at all. `LegalNotice`: `content_url`, `explanation`,
+`good_faith_confirmed` (must be `True`, not merely present), optional `notifier_name`, required
+`contact_email`, nullable `reporter`, `status` (`open`/`acted`/`rejected`), staff-set `content_kind`/
+`content_object_id`, and `resolve_note` — the Art. 17 "statement of reasons," made **mandatory in the
+serializer** the moment `status` leaves `open`, whichever way the decision goes.
+
+**Acting on a notice reuses the exact same content-mutation logic a routine community report already
+uses**, rather than a second copy: `ReportActionView.post`'s own `update_fields` branching (per model,
+including the Service-has-neither-`auto_hidden_at`-nor-`is_removed` defensiveness), resolving pending
+`Report` rows, and the `content_restored`/`content_removed` notification were extracted into
+`moderation.services.resolve_report_decision(model, pk, decision, resolved_by, note)` — `ReportActionView`
+now just calls it; `legal.views.LegalNoticeViewSet.resolve` calls the identical function when staff
+resolve `content_kind`/`content_object_id` (validated against `moderation.services.REPORT_KIND_MODELS`,
+the same catalog `Report` uses) against a decision of `acted`. This is what fires the Art. 17
+notification to the **content's own author** — a different person from the notice's filer, and a
+different DSA obligation (Art. 17 vs. Art. 16(6)) — `legal_notice_decided` is the filer's own,
+separate notification, always sent, under the existing `notify_on_moderation_decision` category.
+
+**A staff-only queue page, `/legal/queue`**, not a new tab on the already-large `/moderation` page —
+a real, if small, review UI (not just Django admin) rather than a dead-ended endpoint nobody could
+act on. A guest-reachable filing form at `/legal/notice`, and a point-of-contact page at `/legal`
+(reusing the real operator identity `privacy.ts` already established — Ośrodek Komputerowy Wydziału
+Fizyki UW, Dziekanat Studencki as the student contact channel — rather than inventing one), both
+linked from a footer link that, like the channel itself, is never gated by any FeatureFlag.
+
+**Verified**: 20 new backend tests (`legal/tests.py`) — anonymous filing keeping the contact email,
+good-faith/URL validation, staff-only visibility (a guest or a different user gets nothing, never a
+403 that would confirm a notice exists), a reason required to decide, resolving a linked comment
+actually removing it and notifying its real author (distinct from the filer's own notification), and
+the Art. 20-shaped comment thread (staff + the notice's own filer only, 404 to anyone else, a reply
+cannot be smuggled in from another notice's thread) — plus the full `moderation`/`notifications`/
+`issues` suites re-run clean (188 tests) confirming the `ReportActionView` refactor changed no
+behavior. Also verified live against a real running dev server (not just the test DB): a real POST,
+staff list, resolve, and comment-thread round trip, each confirmed with real HTTP responses, then
+cleaned up. `npm run check` (0/0), `eslint` (0 errors — one `svelte/no-navigation-without-resolve`
+disabled inline for the notifier-supplied external URL, matching the `events/[id]` precedent), and
+`npm run build` all clean; `manage.py check`/`makemigrations --check --dry-run` clean.
+
+**A real, one-time gotcha worth recording**: `legal/tests.py`'s own `'legal_notice'` throttle scope
+(10/hour) counts through Django's process-wide test cache, which several test classes' own `setUp()`
+collectively exceeded across the whole module — silent 429s, not the app misbehaving. Fixed with
+`cache.clear()` in `setUp()`, the identical trap `accounts/test_throttling.py` hit first.
+
+**A real gap found live, same day, by a direct question ("does the report even mention who posted
+the reported content?"): it didn't.** `resolve_report_decision`/`_content_owner` already resolved
+the content's own author internally — purely to route the Art. 17 notification silently — but never
+surfaced that identity to the staff member making the decision. Closed with a new, staff-only
+`GET .../content-preview/?content_kind=&content_object_id=` action (`legal/views.py`) reusing the
+exact same `_content_owner`/`_describe` helpers `resolve` already imports, returning
+`{preview, author_id, author_display_name}` — the last two genuinely absent, not an error, for
+content with no real owner (742 of the migrated corpus exercises have no `submitted_by` at all).
+`/legal/queue` gained a "Look up" button next to the content-kind/id fields (an explicit action, not
+an auto-fetch on every keystroke — this is a staff tool) showing "Posted by: {name}" or an honest
+"No author on record" before the Decide button is ever pressed. 5 more backend tests (a real author
+resolved correctly, the honest no-author case, an unknown kind refused, a nonexistent id 404s,
+non-staff refused) — full suite now 193, `npm run check`/`build` clean, and verified live against a
+real running dev server: a real Comment's real author came back correctly, a legacy Exercise with no
+submitter came back with both fields honestly empty (not an error), and a bad id 404'd — all cleaned
+up afterward. No migration needed (read-only).
+
+### Left open, not built
+
+- **The content author's own side of Art. 20** isn't reachable from this mechanism at all — this
+  action never learns who wrote the reported content unless staff resolve `content_kind`/
+  `content_object_id`, and even then their appeal path is the pre-existing one `content_removed`'s
+  own notification already gives them (their own content's comment thread), not a new one built here.
+- **An anonymous filer has no way to revisit their own notice or contest a decision** — the comment
+  thread only works for an authenticated filer. Their only channel is the contact email, and this app
+  has no real email backend (§18 item 9's own still-open gap) — a `legal_notice_decided` notification
+  for a `reporter=None` row silently no-ops, honestly, via `notify()`'s own existing guard.
+- **`content_kind`/`content_object_id` are still a free staff choice, not derived** — nothing
+  suggests or auto-resolves which row a `content_url` maps onto; a moderator pastes the id in by hand
+  after finding it themselves. The new preview lookup confirms whether that guess was right (a real
+  author/preview, or an honest 404), but doesn't make the guess for them.
+- **The corpus copyright question (§18 item 2) that prompted this research pass is untouched** — this
+  section covers only the DSA host-liability half of that report; the licensing/CLA/legacy-corpus
+  remediation half is a separate, much larger decision, not attempted here.
+
 ## 18. Open questions
 
 1. ✅ **Auth mechanism — resolved (Phase 2).** DRF `TokenAuthentication` (the "simple" option this

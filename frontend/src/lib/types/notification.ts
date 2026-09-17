@@ -71,7 +71,11 @@ export type NotificationType =
 	| 'taxonomyMoved'
 	| 'taxonomyRejected'
 	// Staff moved a site issue report the recipient filed under their name (issues/).
-	| 'issueStatusChanged';
+	| 'issueStatusChanged'
+	// Staff decided a DSA Art. 16 legal notice the recipient filed (legal/). Deliberately unlinked
+	// — a legal notice has no page of its own for anybody but staff/its own notifier, so `note`
+	// (the stated reason) is the whole of what this card says, same as a rejected submission.
+	| 'legalNoticeDecided';
 
 export interface Notification {
 	id: string;

@@ -241,7 +241,10 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		taxonomyMerged: 'notifyOnModerationDecision',
 		taxonomyMoved: 'notifyOnModerationDecision',
 		taxonomyRejected: 'notifyOnModerationDecision',
-		issueStatusChanged: 'notifyOnModerationDecision'
+		issueStatusChanged: 'notifyOnModerationDecision',
+		// Same category as `issueStatusChanged`, on its own precedent above — this is the same kind
+		// of "somebody decided on something I filed" event, just for a DSA legal notice.
+		legalNoticeDecided: 'notifyOnModerationDecision'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -294,7 +297,8 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	taxonomyMerged: m.notifPref_taxonomyMerged,
 	taxonomyMoved: m.notifPref_taxonomyMoved,
 	taxonomyRejected: m.notifPref_taxonomyRejected,
-	issueStatusChanged: m.notifPref_issueStatusChanged
+	issueStatusChanged: m.notifPref_issueStatusChanged,
+	legalNoticeDecided: m.notifPref_legalNoticeDecided
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
@@ -309,6 +313,7 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	events: m.featureFlags_label_events,
 	issues: m.featureFlags_label_issues,
 	posts: m.featureFlags_label_posts,
+	chemistry: m.featureFlags_label_chemistry,
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 

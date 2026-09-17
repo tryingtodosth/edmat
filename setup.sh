@@ -60,13 +60,16 @@ else
 fi
 
 NODE_MAJOR="$(node -v 2>/dev/null | sed 's/^v\([0-9]*\).*/\1/')"
-if [ -z "${NODE_MAJOR}" ] || [ "${NODE_MAJOR}" -lt 20 ]; then
-  warn "Node $(node -v 2>/dev/null || echo 'not found') is too old — this project needs 20 or newer."
+# 24, not 20: the chemistry editor (`ketcher-react`, root CLAUDE.md §17AV) declares Node >= 24.14
+# in its engines field and frontend/.npmrc keeps `engine-strict=true`, so `npm ci` on an older
+# Node refuses outright rather than warning.
+if [ -z "${NODE_MAJOR}" ] || [ "${NODE_MAJOR}" -lt 24 ]; then
+  warn "Node $(node -v 2>/dev/null || echo 'not found') is too old — this project needs 24 or newer."
   echo "Installing a current Node from NodeSource…"
-  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
   sudo apt-get install -y nodejs
   NODE_MAJOR="$(node -v | sed 's/^v\([0-9]*\).*/\1/')"
-  [ "${NODE_MAJOR}" -ge 20 ] || die "Node is still too old (v${NODE_MAJOR}). Install Node 20+ and re-run."
+  [ "${NODE_MAJOR}" -ge 24 ] || die "Node is still too old (v${NODE_MAJOR}). Install Node 24+ and re-run."
 fi
 green "Python $(python3 --version 2>&1 | cut -d' ' -f2), Node $(node -v)"
 

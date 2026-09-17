@@ -12,11 +12,15 @@
 	let {
 		title,
 		onClose,
-		children
+		children,
+		// `wide` for a dialog that IS an editor (a chemistry sketcher wants a real canvas, not a
+		// 560px column); the default stays the form-sized panel every other caller was built for.
+		size = 'default'
 	}: {
 		title: string;
 		onClose: () => void;
 		children: import('svelte').Snippet;
+		size?: 'default' | 'wide';
 	} = $props();
 
 	let panel: HTMLElement | undefined = $state();
@@ -90,6 +94,7 @@
 	<!-- `tabindex="-1"` so the panel can hold focus on open without joining the tab order itself. -->
 	<div
 		class="modal-panel"
+		class:modal-panel--wide={size === 'wide'}
 		role="dialog"
 		aria-modal="true"
 		aria-label={title}
@@ -126,6 +131,9 @@
 		z-index: var(--z-modal);
 		box-shadow: var(--shadow-modal);
 		width: min(560px, 100%);
+		&--wide {
+			width: min(1100px, 100%);
+		}
 		max-height: calc(100vh - var(--space-6) * 2);
 		display: flex;
 		flex-direction: column;

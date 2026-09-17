@@ -147,7 +147,9 @@
 		taxonomyMerged: () => m.notification_taxonomyMerged({ title: notification.targetLabel }),
 		taxonomyMoved: () => m.notification_taxonomyMoved({ title: notification.targetLabel }),
 		taxonomyRejected: () => m.notification_taxonomyRejected({ title: notification.targetLabel }),
-		issueStatusChanged: () => m.notification_issueStatusChanged({ title: notification.targetLabel })
+		issueStatusChanged: () =>
+			m.notification_issueStatusChanged({ title: notification.targetLabel }),
+		legalNoticeDecided: () => m.notification_legalNoticeDecided()
 	};
 
 	// A booking has no page of its own, and deliberately so: both parties' destination is the same

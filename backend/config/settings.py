@@ -134,6 +134,11 @@ INSTALLED_APPS = [
     'services',
     'messaging',
     'issues',
+    # DSA Art. 16 notice-and-action (a legal notice that a specific piece of content is illegal) —
+    # deliberately separate from `issues` and its `FeatureFlag`; see legal/models.py.
+    'legal',
+    # Chemical structure drawings (Ketcher) embedded in content — root CLAUDE.md §17AV.
+    'chem',
     'telemetry',
     'identity',
     'courses',
@@ -535,6 +540,9 @@ REST_FRAMEWORK = {
         # Filing a site issue is open to guests, so it needs its own bound: enough for a person who
         # hits three things in a row, far too few for a script filling the queue.
         'issue_report': '10/hour',
+        # Filing a DSA legal notice (legal/) is open to guests too, for the same reason and with the
+        # same rough headroom — enough for a real complainant, far too few for a script.
+        'legal_notice': '10/hour',
         # Per-account, IP-independent — the credential-stuffing case a per-IP limit cannot see. Much
         # looser than the per-IP rate on purpose: this key is one an attacker who knows a victim's
         # email can deliberately exhaust to lock the real owner out, so it's sized to stop a
@@ -544,6 +552,9 @@ REST_FRAMEWORK = {
         # Publishing a micro-post is immediate (no review queue), so the flood-bound lives here:
         # plenty for a person with thoughts, far too few for a spam script.
         'post_create': '12/hour',
+        # Saving a chemistry drawing decodes and re-encodes a picture (chem/serializers.py) — plenty
+        # for somebody drawing a mechanism step by step, far too few for a CPU-exhaustion loop.
+        'chem_drawing': '60/hour',
         # `PasswordResetView` is still the honest always-200 stub Phase 2 shipped (no email backend
         # exists yet, Section 18 item 9), so there is nothing here to brute-force TODAY. Throttled
         # anyway, because the moment a real email backend lands this becomes an unauthenticated

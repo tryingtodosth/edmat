@@ -22,7 +22,7 @@ Two parts, run separately:
 ## Prerequisites
 
 - **Python 3.12** (the backend was built and tested against `3.12.3`)
-- **Node.js 20+** (built and tested against `24.18.0`) and npm
+- **Node.js 24+** (built and tested against `24.21.0`; the chemistry editor's `ketcher-react` refuses older under the project's `engine-strict` npm setting) and npm
 - No system-level packages need installing beyond these two — SQLite ships with Python, no database
   server to stand up separately.
 

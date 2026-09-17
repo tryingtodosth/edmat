@@ -66,6 +66,13 @@ still exist on disk — the live app is `courses/`; never resurrect `classroom`.
   shared bounds in `backend/imaging.py` (byte cap → magic sniff → declared-dimensions pixel cap
   BEFORE decode → decode/EXIF-transpose/re-encode WebP). The pixel cap is the decompression-bomb
   defense; EXIF stripping is a privacy fix (GPS in phone photos).
+- SVG (a Ketcher chemistry drawing, `chem/`): **rebuilt from an allowlist, never stored as sent**
+  (`chem/svg.py` — geometry/text/gradients kept; `script`, handlers, `foreignObject`, `image`,
+  external `href`, `url()` CSS, DOCTYPE/entities dropped or refused). It is served from
+  `/media/` on the app's own origin, so the Apache attachment header alone is not the defense.
+  Content embeds it as `<img data-chem=… class="chem-drawing">`; bleach's `img` callable in
+  `config/sanitize.py` must list every attribute itself — a tag with a callable never falls
+  through to `'*'` (that is how `class` was silently lost on every picture until §17AV).
 
 ## The activity feed (activity/)
 
