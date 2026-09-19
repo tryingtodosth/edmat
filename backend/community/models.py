@@ -11,6 +11,8 @@ from django.db import models
 
 from exercises.models import Exercise
 
+from .inline_images import MAX_ALT_LENGTH, inline_image_upload_path
+
 
 class Review(models.Model):
     exercise = models.ForeignKey(Exercise, related_name='reviews', on_delete=models.CASCADE)
@@ -209,3 +211,52 @@ class CommentAttachment(models.Model):
 
     class Meta:
         ordering = ['order', 'id']
+
+
+class InlineImage(models.Model):
+    """A picture embedded in the body of a comment, a post or a solution — see
+    community/inline_images.py for why it is not an attachment and how the file is made safe.
+
+    The row exists so a picture has an author. The `<img>` in the content carries no id (it needs
+    none: nothing reopens an ordinary picture the way the rich editor reopens a chemistry
+    drawing), so this table is what answers "who uploaded that?" — matched by the media filename,
+    which is random and unique.
+
+    No DELETE endpoint, for the reason a chem drawing has none: a picture inside a published
+    comment must keep resolving, and an author who wants it gone edits the comment (house rule 12).
+    """
+
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='inline_images', on_delete=models.CASCADE
+    )
+    image = models.FileField(upload_to=inline_image_upload_path)
+    alt = models.CharField(max_length=MAX_ALT_LENGTH, blank=True)
+    # The re-encoded picture's size, not the upload's — these are written into the tag so the
+    # layout does not jump while it loads.
+    width = models.PositiveIntegerField(default=0)
+    height = models.PositiveIntegerField(default=0)
+    original_name = models.CharField(max_length=120, blank=True)
+    size_bytes = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'inline image #{self.pk} by {self.author}'
+
+    def embed_html(self, src: str | None = None) -> str:
+        """The exact `<img>` a client puts into content, built here so the tag is spelled in one
+        place — the same reason `ChemDrawing.embed_html` exists.
+
+        `src` is the URL as the CLIENT will resolve it: the serializer passes an absolute one built
+        from the request, because a relative `/media/…` resolves against whatever origin the page
+        is on, and in development that is the Vite server rather than the API. `width`/`height` and
+        `loading="lazy"` are what keep the page from jumping as pictures and KaTeX settle; every
+        attribute here survives the content sanitizer (config/sanitize.py)."""
+        alt = (self.alt or self.original_name or 'picture').replace('"', '&quot;')
+        size = f' width="{self.width}" height="{self.height}"' if self.width and self.height else ''
+        return (
+            f'<img src="{src or self.image.url}" alt="{alt}"{size} '
+            f'loading="lazy" class="inline-image">'
+        )

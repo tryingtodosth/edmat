@@ -483,6 +483,13 @@
 		cursor: pointer;
 		vertical-align: middle;
 	}
+	// An uploaded picture (community/inline_images.py) is bounded in the COMPOSER only: a portrait
+	// photograph at full column width pushes the text being written off the screen. The read view
+	// puts no such cap on it — there, the picture is the point.
+	.rich-editor__host :global(.ProseMirror img.inline-image) {
+		max-height: 22rem;
+		width: auto;
+	}
 	.rich-editor__host :global(.ProseMirror img.ProseMirror-selectednode) {
 		outline: 2px solid var(--accent);
 		outline-offset: 1px;

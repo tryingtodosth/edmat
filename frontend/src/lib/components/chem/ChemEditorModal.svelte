@@ -30,7 +30,9 @@
 	let ready = $state(false);
 	let ketcher = $state<KetcherHost | null>(null);
 
-	const title = m.chem_title_ketcher(); // "Draw a structure — Ketcher"
+	// The tool's name lives in the licence line below, which is where the Apache 2.0 attribution
+	// has to be anyway; the title says what you are about to do.
+	const title = m.chem_title(); // "Draw a chemical structure"
 
 	async function save() {
 		error = '';

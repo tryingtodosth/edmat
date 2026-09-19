@@ -59,3 +59,20 @@ def process_attachment(upload):
         content = ContentFile(upload.read())
         return 'pdf', content, name, content.size
     raise ValidationError({'file': [f'Only a picture (PNG, JPEG, WebP) or a PDF; this is {sniffed}.']})
+
+
+def used_upload_bytes(user) -> int:
+    """Everything this person has uploaded that counts against their allowance: material
+    submissions, comment attachments, and pictures embedded in content.
+
+    One function because more than one endpoint asks the question (house rule: a rule two
+    endpoints need lives in one module). When pictures moved out of the attachment row and into
+    the body, an endpoint that still counted only attachments would have handed out storage the
+    other one thought it was still guarding."""
+    from .models import CommentAttachment, InlineImage
+
+    attachments = sum(
+        CommentAttachment.objects.filter(comment__author=user).values_list('size_bytes', flat=True)
+    )
+    inline = sum(InlineImage.objects.filter(author=user).values_list('size_bytes', flat=True))
+    return user.profile.material_upload_bytes + attachments + inline

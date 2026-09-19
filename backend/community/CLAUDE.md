@@ -58,7 +58,38 @@ reader by the server. Hand-written, not the model name lowercased — `courses.C
 `taughtCourse`. The frontend's `CommentTargetType` union is the other half; neither derives from
 the other, so both are flagged in each other's comments.
 
+## `InlineImage` — a picture that goes IN the sentence, not under it
+
+`/api/inline-images/` (`inline_images.py` + the viewset in `views.py`). POST a picture while the
+comment is still being typed, get back `embed_html`, and the editor drops that `<img>` into the
+body. Shaped after `/api/chem-drawings/`, which made the same argument first: an attachment sits
+under a comment, a picture you are writing *about* sits in it.
+
+- **Re-encoded, never stored as sent** — the same `imaging` pipeline `attachments.py` uses. No PDF
+  branch: a PDF cannot be re-encoded, and it is not something you put mid-sentence.
+- **`embed_html` is the only place the tag is spelled**, and it carries `width`/`height` plus
+  `loading="lazy"` so a reader's layout does not jump. `config/sanitize.py` allows exactly those on
+  a `/media/` `<img>` — widen one without the other and the picture silently loses the attribute,
+  or the whole tag.
+- **No PUT, no DELETE.** A picture inside a published comment must keep resolving (house rule 12).
+- **The upload happens before the comment exists**, so an inserted-then-abandoned picture leaves a
+  row nothing references — as an abandoned chem drawing already does. The storage allowance is what
+  bounds it; a sweep for unreferenced rows is not written.
+- **`attachments.used_upload_bytes(user)` is the allowance rule for both**, because two endpoints
+  now ask it. An endpoint counting only attachments would hand out storage the other was guarding.
+
+**`signals.py` looks for `<img` in the body, not `data-chem=`.** A picture on a minor-band thread
+is held for a moderator; when pictures moved into the body, the old narrow check would have let
+every ordinary one straight through — the exact hole it was written to close.
+
+`CommentAttachment` is therefore documents-only in practice now. The image branch of
+`process_attachment` still exists and is still tested: the endpoint is public API, and nothing
+stops an older client from posting a picture to it.
+
 ## Verify
 
 `manage.py test community` — tombstone blanking, resubmit-updates, threading, anonymous
 rejection, and the saved-comment privacy/idempotency rules are all pinned there.
+`test_inline_images.py` covers the re-encode, the sanitizer round-trip on `embed_html` (the check
+that actually matters — a tag bleach strips is a picture that vanishes on save), the refusals, the
+shared allowance and the minor-band hold. The browser half is `e2e/comment-input-kinds.mjs`.

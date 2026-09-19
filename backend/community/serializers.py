@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
-from .models import CommentAttachment, Comment, CommentRevision, Review, SavedComment
+from .models import CommentAttachment, Comment, CommentRevision, InlineImage, Review, SavedComment
 from .targets import target_type_for
 
 
@@ -249,3 +249,26 @@ class SavedCommentSerializer(serializers.ModelSerializer):
 
     def get_target_id(self, row) -> str:
         return str(row.comment.object_id)
+
+
+class InlineImageSerializer(serializers.ModelSerializer):
+    """What the editor needs back from an upload: the picture's URL, and the exact tag to put into
+    the body. `embed_html` is built on the model so there is one spelling of that tag."""
+
+    author = serializers.IntegerField(source='author_id', read_only=True)
+    url = serializers.SerializerMethodField()
+    embed_html = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InlineImage
+        fields = ['id', 'author', 'url', 'alt', 'width', 'height', 'original_name', 'size_bytes', 'embed_html', 'created_at']
+        read_only_fields = fields
+
+    def get_url(self, obj) -> str:
+        if not obj.image:
+            return ''
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+
+    def get_embed_html(self, obj) -> str:
+        return obj.embed_html(self.get_url(obj))

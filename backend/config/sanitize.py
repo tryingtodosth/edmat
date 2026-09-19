@@ -47,7 +47,7 @@ ALLOWED_TAGS = _TEXT_TAGS + _SVG_TAGS + ['a', 'img', 'figure', 'figcaption']
 
 ALLOWED_ATTRIBUTES = {
     'a': ['href', 'title'],
-    'img': ['alt', 'title', 'width', 'height'],  # `src` is decided by `_img_src_allowed` below
+    'img': ['alt', 'title', 'width', 'height', 'loading'],  # every img attribute is really decided by `_img_src_allowed` below
     'svg': ['width', 'height', 'viewbox', 'viewBox', 'role', 'aria-label', 'xmlns'],
     'circle': ['cx', 'cy', 'r', 'fill', 'stroke', 'stroke-width'],
     'line': ['x1', 'y1', 'x2', 'y2', 'stroke', 'stroke-width', 'stroke-dasharray'],
@@ -98,6 +98,16 @@ def _img_src_allowed(tag, name, value) -> bool:
         # a tag with its own callable gets ONLY what the callable allows, so before this an
         # `<img class="chem-drawing">` lost its class on write (found by a browser run — the
         # comment showed the picture unstyled and the check selecting `img.chem-drawing` found 0).
+        # The frontend's `editor/chemImage.ts` is the other half of this list: a ProseMirror node
+        # drops every attribute it has not declared, so an attribute allowed here and missing there
+        # is lost the moment somebody edits the text in the rich composer. Both files say so.
+        #
+        # `loading` is how an embedded picture declares itself lazy (community/inline_images.py
+        # writes `loading="lazy"` beside the intrinsic width and height, so a reader's layout does
+        # not jump while pictures and KaTeX settle). Its value is checked rather than waved
+        # through: these are the only two the attribute has, and an unknown one is a typo at best.
+        if name == 'loading':
+            return value in ('lazy', 'eager')
         return name in ('alt', 'title', 'width', 'height', 'data-chem', 'class')
     from urllib.parse import urlparse
 

@@ -8,8 +8,9 @@
 		submitLabel,
 		onSubmit,
 		onCancel,
-		// Offer the picture/PDF picker (AUDIENCE-BRIEF.md §6). Off for edits, where there is no new
-		// comment to attach to.
+		// Offer the PDF picker (AUDIENCE-BRIEF.md §6). Off for edits, where there is no new comment
+		// to attach to. Pictures are NOT behind this any more: they are uploaded by the insert
+		// strip and go into the body itself, so they work in an edit box too.
 		allowFiles = false,
 		// Prefilled when this form is editing something that already exists rather than composing
 		// something new — an edit box that starts empty is one that quietly invites you to retype
@@ -28,8 +29,10 @@
 	let fileError = $state('');
 	const MAX_FILES = 3;
 	const MAX_BYTES = 5 * 1024 * 1024;
-	// The picker itself lives on the insert strip (PDF and Picture are two of its seven kinds);
-	// the list, the size cap and the limit of three stay here, where the upload happens.
+	// The picker itself lives on the insert strip; the list, the size cap and the limit of three
+	// stay here, where the upload happens. Documents only now — a picture goes into the body
+	// through `/inline-images/` instead of into this row, so the two things a reader sees are the
+	// text (with its pictures in it) and a short list of papers hanging off the bottom.
 	function addFiles(chosen: File[]) {
 		fileError = '';
 		if (chosen.some((f) => f.size > MAX_BYTES)) fileError = m.comment_fileTooBig();

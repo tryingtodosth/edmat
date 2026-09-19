@@ -6825,6 +6825,126 @@ change if review votes are ever added.
 
 ---
 
+## 17BA. Pictures in the sentence, and a button that says what it makes (✅ built, full stack)
+
+Two asks in one pass, from Piotr: the insert strip's chemistry button should say **Chemistry**
+rather than **Ketcher**, and adding a picture should *show it in the box you are typing in*, so
+text and pictures can be mixed and described — "create a small articles".
+
+### The button
+
+`Ketcher` was the name of the library, not of the thing the button makes. A reader who has never
+heard of EPAM's editor cannot tell that button from `LaTeX` and `JSON`, which name formats. So the
+button says `Chemistry` / `Chemia`, and the dialog it opens is titled by what you are about to do
+("Draw a chemical structure") rather than by what draws it. **Ketcher is still named**, in the
+dialog's own licence line — which is where the Apache 2.0 attribution has to live anyway, and the
+browser script now asserts both halves: the title does *not* say Ketcher, and the licence line
+does. Dropping the name from a title is a rename; dropping it from the notice would be a licence
+breach.
+
+### Why a picture was in the wrong place, and where it went
+
+`Picture` and `PDF` were two faces of one thing: the file went up to `CommentForm`, waited in a
+chip list, and became a `CommentAttachment` once the comment existed — a thumbnail in a row
+*underneath* the text. That is right for a document and wrong for a picture somebody is writing
+about. "The apparatus looks like this ⟨picture⟩, and the tap on the left is what leaks" cannot be
+said with a thumbnail in a footer.
+
+The shape to copy was already in the repository, with the argument already made. `chem/models.py`
+says it outright: *"Deliberately not an attachment: an attachment sits under a comment; a drawing
+sits IN the sentence that refers to it, which is the whole point of drawing it instead of uploading
+a photo."* Every word of that is true of a photograph too. So a picture now goes the way a
+chemistry drawing already went:
+
+- **`community.InlineImage` + `/api/inline-images/`** — POST a picture while the comment is still
+  being typed, get back the exact `<img>` to insert. `community/inline_images.py` runs the same
+  `imaging` pipeline `attachments.py` does (byte cap → sniff → decoded-pixel budget against the
+  header → decode → bound the longest edge → re-encode WebP), so what is stored is never what was
+  uploaded and the EXIF goes with the re-encode. There is no PDF branch: a PDF cannot be
+  re-encoded, and it is not something you put mid-sentence.
+- **`embed_html` on the model is the only place the tag is spelled**, as on `ChemDrawing`. It
+  carries `width`, `height` and `loading="lazy"` — Piotr's own addition to the plan, and the right
+  one: the row already stores the re-encoded dimensions, so writing them into the tag costs nothing
+  and stops the page jumping while pictures and KaTeX settle.
+- **`config/sanitize.py` learned `loading`**, with its *value* checked (`lazy` or `eager`) rather
+  than waved through. bleach never falls through to `'*'` for a tag with its own callable, which is
+  how `class` was silently lost on every picture back in §17AV — so an attribute added to the tag
+  and not to the callable is an attribute that vanishes on write, and a tag that loses its `src`
+  vanishes entirely. That is the single assertion the backend suite leans hardest on: `embed_html`
+  is round-tripped through `sanitize_content` and every attribute checked out the other side. The
+  client half (DOMPurify, `USE_PROFILES: {html:true}`) was checked the same way, by running it.
+- **No PUT and no DELETE**, for the reason a chem drawing has neither: a picture inside a published
+  comment must keep resolving.
+
+**Attachments are documents now, and only documents** — Piotr's call, and it makes both surfaces
+legible: the text (with its pictures in it) and a short list of papers hanging off the bottom. The
+image branch of `process_attachment` stays and stays tested; the endpoint is public API and an
+older client may still post to it.
+
+### Two rules that would have quietly broken, and did not
+
+1. **The minor-band image hold.** A picture on a thread for a minor band, or on a minor's own
+   comment, is held for a moderator before anybody sees it (§2 pre-publication image review) — and
+   that check lived in the *attachment* endpoint. Moving pictures into the body would have walked
+   straight around it. `community/signals.py` already had the mirror-image guard for chemistry
+   drawings, looking for `data-chem=` in the body; it now looks for `<img`, which covers the
+   drawing, the uploaded picture and anything typed by hand. Broader than before, on purpose: the
+   narrow version was about to become the hole it was written to close.
+2. **The upload allowance.** The attachment endpoint summed a person's material uploads and their
+   comment attachments. An inline picture is storage too, so `attachments.used_upload_bytes(user)`
+   is now the one function both endpoints ask. Two endpoints with two different ideas of what
+   somebody has used is one endpoint handing out storage the other thinks it is guarding.
+
+### The bug the browser found, which nothing else would have
+
+`npm run check`, `eslint`, the Django suite and a production build were all clean, and the picture
+appeared in the composer, and the whole thing was still wrong in rich mode.
+
+A ProseMirror node drops every attribute it has not declared, and Tiptap's Image node declares
+`src`, `alt` and `title`. `chemImage.ts` had added `chem` on top of those — enough for a chemistry
+drawing, which needs `data-chem` and a class and nothing more. An uploaded picture needs `width`,
+`height` and `loading` as well, and in the rich composer all three were being eaten on parse: the
+picture still rendered, so nothing looked broken, but `getHTML()` handed back a tag that had lost
+exactly the layout-stability attributes the feature was asked to carry. The source composer kept
+them, because it is a textarea holding text — so the two editors disagreed about what the same
+insertion meant, and only one of them was right.
+
+Found by a browser check asserting `img.inline-image` inside the ProseMirror document and finding
+none. The check now reads the `width`/`height`/`loading` attributes off that node rather than
+merely asserting the picture is there, because "the picture is there" was true the whole time.
+
+`chemImage.ts` now declares the class and those three attributes, and its header and
+`config/sanitize.py` name each other: the two allowlists have to be read together, since an
+attribute allowed by bleach and undeclared by the node is lost the moment somebody edits the text.
+
+### Verified
+
+`manage.py test community` (including the 17 new `test_inline_images.py` checks), `manage.py check`,
+`makemigrations --check`. Frontend: `npm run check` (0 errors, 0 warnings), `npm run lint`,
+`npm run build`. Both message catalogues verified key-for-key identical programmatically.
+`e2e/comment-input-kinds.mjs` extended: the picture is picked, described, uploaded, and asserted to
+land *in the body* with its size and `loading="lazy"` intact, to survive the server sanitizer, to
+render and genuinely load in the posted comment, to add nothing to the attachment row — and, in
+rich mode, to be inert when clicked, where a chemistry drawing reopens.
+
+### Left open, not built
+
+- **`<figure>` + `<figcaption>`.** The sanitizer allows both tags already, but Tiptap needs a
+  custom node to keep a picture and its caption together, so the description is alt text and any
+  visible caption is a sentence the person writes underneath. This is the nearest real gap to the
+  "describe them" half of the ask.
+- **Orphan uploads.** A picture inserted into a comment that is never posted leaves a row nothing
+  references — exactly as an abandoned chemistry drawing already does. The storage allowance bounds
+  it; a sweep for unreferenced rows is not written.
+- **Editing a picture after insertion.** Clicking a chemistry drawing reopens it; clicking an
+  ordinary picture deliberately does nothing. Changing its description means deleting it and
+  inserting it again.
+- **Reporting one picture.** The `<img>` carries no id (it needs none), so a moderator looking at
+  an inline picture matches it to its row by the media filename, which is random and unique. A
+  `data-image` attribute plus a sanitizer entry would make it one click instead.
+
+---
+
 # Appendix — the original blueprint's technical sections
 
 Written in Phase 0 and kept because the *reasoning* in them is still the reasoning the code
