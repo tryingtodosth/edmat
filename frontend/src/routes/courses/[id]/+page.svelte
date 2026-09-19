@@ -55,6 +55,7 @@
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 
 	import CourseClaims from '$lib/components/course/CourseClaims.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 	let course = $state<Course | null>(null);
 	let participants = $state<Enrollment[]>([]);
 	let loading = $state(true);
@@ -428,7 +429,7 @@
 </script>
 
 <svelte:head>
-	<title>{course?.title ?? m.course_browseHeading()} — {m.common_appName()}</title>
+	<title>{pageTitle(course?.title ?? m.course_browseHeading())}</title>
 </svelte:head>
 
 <div class="page">

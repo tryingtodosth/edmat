@@ -20,6 +20,7 @@
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let set = $state<ExerciseSet | undefined>(undefined);
 	let exercises = $state<ResolvedExercise[]>([]);
@@ -87,9 +88,7 @@
 </script>
 
 <svelte:head>
-	<title
-		>{set ? m.sharedSet_heading({ name: set.name }) : m.myset_heading()} — {m.common_appName()}</title
-	>
+	<title>{pageTitle(set ? m.sharedSet_heading({ name: set.name }) : m.myset_heading())}</title>
 </svelte:head>
 
 <div class="page">

@@ -7,11 +7,13 @@ from exercises.models import SolutionEntry
 from materials.services import clean_requirement_labels, find_duplicate_requirement_label
 from taxonomy.models import Branch
 
+from .applications import kind_of, node_label, resolve_node
 from .models import (
     GOVERNABLE_NODE_MODELS,
     EditSuggestion,
     ExerciseSubmission,
     FeatureFlag,
+    GovernorApplication,
     MaterialSubmission,
     NodeGovernor,
     Report,
@@ -383,7 +385,12 @@ class NodeGovernorSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
     user_display_name = serializers.SerializerMethodField()
     kind = serializers.ChoiceField(choices=list(GOVERNABLE_NODE_MODELS), write_only=True)
-    node_slug = serializers.CharField(write_only=True)
+    # A Discipline/Branch is addressed by slug everywhere in this API; a Material is not, because
+    # its slug is only unique WITHIN a branch (`unique_together [('branch','slug')]`) and a lookup
+    # by slug alone would silently pick whichever one the database returned first. So a material
+    # grant carries `node_pk` instead, and exactly one of the two is required.
+    node_slug = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    node_pk = serializers.IntegerField(write_only=True, required=False)
     node_type = serializers.SerializerMethodField()
     node_id = serializers.SerializerMethodField()
     node_label = serializers.SerializerMethodField()
@@ -396,6 +403,7 @@ class NodeGovernorSerializer(serializers.ModelSerializer):
             'user_display_name',
             'kind',
             'node_slug',
+            'node_pk',
             'node_type',
             'node_id',
             'node_label',
@@ -406,9 +414,20 @@ class NodeGovernorSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         model = GOVERNABLE_NODE_MODELS[attrs['kind']]
-        node = model.objects.filter(slug=attrs['node_slug']).first()
-        if node is None:
-            raise serializers.ValidationError({'node_slug': ['No matching node found.']})
+        node_pk = attrs.get('node_pk')
+        node_slug = (attrs.get('node_slug') or '').strip()
+        if node_pk is not None:
+            node = model.objects.filter(pk=node_pk).first()
+            if node is None:
+                raise serializers.ValidationError({'node_pk': ['No matching node found.']})
+        elif node_slug:
+            node = model.objects.filter(slug=node_slug).first()
+            if node is None:
+                raise serializers.ValidationError({'node_slug': ['No matching node found.']})
+        else:
+            raise serializers.ValidationError(
+                {'node_slug': ['Give either node_slug (a discipline or branch) or node_pk.']}
+            )
         content_type = ContentType.objects.get_for_model(model)
         # Pre-validated here (same style ReportCreateSerializer's own `already_reported` check
         # already uses) rather than relying on the model's own unique_together to raise
@@ -424,7 +443,8 @@ class NodeGovernorSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('kind')
-        validated_data.pop('node_slug')
+        validated_data.pop('node_slug', None)
+        validated_data.pop('node_pk', None)
         node = validated_data.pop('_node')
         content_type = validated_data.pop('_content_type')
         return NodeGovernor.objects.create(content_type=content_type, object_id=node.pk, **validated_data)
@@ -433,7 +453,14 @@ class NodeGovernorSerializer(serializers.ModelSerializer):
         return _REVERSE_GOVERNABLE_NODE_MODELS.get(obj.content_type.model_class())
 
     def get_node_id(self, obj):
+        """The slug for a taxonomy node, the pk for a material — the same value the client has to
+        send back to grant or revoke the same thing, so a round trip through this field works for
+        all three kinds."""
         node = obj.node
+        if node is None:
+            return None
+        if _REVERSE_GOVERNABLE_NODE_MODELS.get(type(node)) == 'material':
+            return node.pk
         return getattr(node, 'slug', None)
 
     def get_node_label(self, obj):
@@ -441,7 +468,10 @@ class NodeGovernorSerializer(serializers.ModelSerializer):
         if node is None:
             return ''
         t = resolve_translation(node.translations, request_locale(self.context))
-        return t.name if t else node.slug
+        if t is None:
+            return getattr(node, 'slug', '') or str(node.pk)
+        # A Discipline/Branch translation carries `name`; a MaterialTranslation carries `title`.
+        return getattr(t, 'name', None) or getattr(t, 'title', '') or ''
 
     def get_user_display_name(self, obj):
         return getattr(obj.user.profile, 'display_name', '') or obj.user.username
@@ -466,3 +496,103 @@ class FeatureFlagSerializer(serializers.ModelSerializer):
         if obj.updated_by is None:
             return None
         return getattr(obj.updated_by.profile, 'display_name', '') or obj.updated_by.username
+
+
+class GovernorApplicationSerializer(serializers.ModelSerializer):
+    """Reading an application. `queue_position` is the honest half of "transparent queue tracking":
+    it says how many people are ahead, and there is nothing anybody can do to change it — which is
+    the point (see GovernorApplication's own docstring on the fee that was proposed and dropped)."""
+
+    applicant_display_name = serializers.SerializerMethodField()
+    kind = serializers.SerializerMethodField()
+    node_label = serializers.SerializerMethodField()
+    node_ref = serializers.SerializerMethodField()
+    queue_position = serializers.IntegerField(read_only=True)
+    decided_by_display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GovernorApplication
+        fields = [
+            'id',
+            'applicant',
+            'applicant_display_name',
+            'kind',
+            'node_label',
+            'node_ref',
+            'statement',
+            'status',
+            'queue_position',
+            'decision_note',
+            'decided_by_display_name',
+            'decided_at',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+    def _name(self, user) -> str:
+        if user is None:
+            return ''
+        profile = getattr(user, 'profile', None)
+        return (profile.display_name if profile and profile.display_name else user.username) or ''
+
+    def get_applicant_display_name(self, obj) -> str:
+        return self._name(obj.applicant)
+
+    def get_decided_by_display_name(self, obj) -> str:
+        return self._name(obj.decided_by)
+
+    def get_kind(self, obj) -> str:
+        return kind_of(obj.node)
+
+    def get_node_label(self, obj) -> str:
+        return node_label(obj.node)
+
+    def get_node_ref(self, obj):
+        """What a client sends back to talk about the same node — a slug for a taxonomy node, a pk
+        for a material, matching `NodeGovernorSerializer.node_id`."""
+        node = obj.node
+        if node is None:
+            return None
+        return node.pk if kind_of(node) == 'material' else getattr(node, 'slug', None)
+
+
+class GovernorApplicationCreateSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(choices=list(GOVERNABLE_NODE_MODELS))
+    node_ref = serializers.CharField()
+    statement = serializers.CharField(max_length=4000)
+
+    def validate_statement(self, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) < 20:
+            # Not a style rule: an application with nothing in it gives the reader nothing to weigh,
+            # and "no" is then the only answer that can be justified — which wastes the applicant's
+            # time more than asking for a sentence does.
+            raise serializers.ValidationError(
+                'Say a little about why you want to look after this — at least a sentence.'
+            )
+        return cleaned
+
+    def validate(self, attrs):
+        content_type, node = resolve_node(attrs['kind'], attrs['node_ref'])
+        if node is None:
+            raise serializers.ValidationError({'node_ref': ['No matching discipline, branch or material.']})
+        user = self.context['request'].user
+        if NodeGovernor.objects.filter(
+            user=user, content_type=content_type, object_id=node.pk
+        ).exists():
+            raise serializers.ValidationError({'detail': ['You already look after this.']})
+        if GovernorApplication.objects.filter(
+            applicant=user, content_type=content_type, object_id=node.pk, status='pending'
+        ).exists():
+            raise serializers.ValidationError({'detail': ['You have already applied for this.']})
+        attrs['_content_type'] = content_type
+        attrs['_node'] = node
+        return attrs
+
+    def create(self, validated_data):
+        return GovernorApplication.objects.create(
+            applicant=self.context['request'].user,
+            content_type=validated_data['_content_type'],
+            object_id=validated_data['_node'].pk,
+            statement=validated_data['statement'],
+        )

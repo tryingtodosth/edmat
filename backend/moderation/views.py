@@ -10,6 +10,7 @@ wins, so nothing about today's existing global-moderator behavior changes for an
 """
 
 from django.db import IntegrityError, OperationalError, transaction
+from django.utils import timezone
 from config.audience import AUDIENCE_VALUES, DEFAULT_AUDIENCE
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, permissions, status, viewsets
@@ -31,12 +32,22 @@ from notifications.services import (
     notify_tag_followers,
 )
 
-from .models import EditSuggestion, ExerciseSubmission, FeatureFlag, MaterialSubmission, NodeGovernor
+from .applications import finish_decision, notify_staff_of_application
+from .models import (
+    EditSuggestion,
+    ExerciseSubmission,
+    FeatureFlag,
+    GovernorApplication,
+    MaterialSubmission,
+    NodeGovernor,
+)
 from .permissions import RequireVerifiedContributorForMaterialUploads, feature_gate
 from .serializers import (
     EditSuggestionSerializer,
     ExerciseSubmissionSerializer,
     FeatureFlagSerializer,
+    GovernorApplicationCreateSerializer,
+    GovernorApplicationSerializer,
     MaterialSubmissionSerializer,
     NodeGovernorSerializer,
     ReportCreateSerializer,
@@ -1346,3 +1357,122 @@ class TaxonomyProposalActionView(APIView):
             node.material_coverage.update(topic=target)
         else:
             node.branches.update(discipline=target)
+
+
+class GovernorApplicationViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    """`/api/governor-applications/` — asking to look after a discipline, a branch or one material.
+
+    Reading is scoped rather than permission-checked: an applicant sees their own applications and
+    nothing else, so there is no id to guess at. Staff add `?queue=1` to see everybody's, oldest
+    first, which is the queue itself.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = GovernorApplicationSerializer
+
+    def get_queryset(self):
+        queryset = GovernorApplication.objects.select_related(
+            'applicant__profile', 'decided_by__profile', 'content_type'
+        )
+        if self.request.user.is_staff and self.request.query_params.get('queue') in ('1', 'true'):
+            status_filter = self.request.query_params.get('status')
+            if status_filter:
+                queryset = queryset.filter(status=status_filter)
+            return queryset
+        return queryset.filter(applicant=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        serializer = GovernorApplicationCreateSerializer(
+            data=request.data, context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        application = serializer.save()
+        notify_staff_of_application(application)
+        return Response(
+            GovernorApplicationSerializer(application, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'])
+    def decide(self, request, pk=None):
+        """Staff only, and once.
+
+        Deliberately not open to a governor of the node above — see `GovernorApplication`'s own
+        docstring. The claim is a WHERE-anchored `update()` for the same reason every other decision
+        endpoint here uses one: two moderators clicking at the same moment must produce one decision
+        and one clean 409, not two grants and a race.
+        """
+        if not request.user.is_staff:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        decision = (request.data.get('decision') or '').strip()
+        if decision not in ('approve', 'decline'):
+            return Response(
+                {'decision': ['Must be "approve" or "decline".']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        note = (request.data.get('note') or '').strip()
+        if decision == 'decline' and not note:
+            # The same rule the contribution review already applies: a refusal without a reason
+            # tells somebody who wanted to help nothing they can act on.
+            return Response(
+                {'note': ['Say why, so the applicant knows what would change your mind.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target_status = 'approved' if decision == 'approve' else 'declined'
+        claimed = GovernorApplication.objects.filter(pk=pk, status='pending').update(
+            status=target_status,
+            decided_by=request.user,
+            decided_at=timezone.now(),
+            decision_note=note,
+        )
+        if not claimed:
+            return Response(
+                {'detail': 'This application has already been decided.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        application = GovernorApplication.objects.get(pk=pk)
+        try:
+            finish_decision(application, decided_by=request.user, note=note)
+        except Exception:
+            # The claim writes the FINAL status before the work that justifies it has run, so a
+            # failure has to put it back — the same revert §17I's submission approval already does,
+            # and for the same reason: an item stuck "approved" with no grant behind it is worse
+            # than one a moderator has to click again.
+            GovernorApplication.objects.filter(pk=pk, status=target_status).update(
+                status='pending', decided_by=None, decided_at=None, decision_note=''
+            )
+            raise
+        return Response(
+            GovernorApplicationSerializer(application, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def withdraw(self, request, pk=None):
+        """The applicant changing their mind. A withdrawn application keeps its row — the fact that
+        somebody asked and then did not is part of the record, and deleting it would also free the
+        unique constraint in a way that turns "apply, withdraw, apply" into a way to jump the
+        queue by resetting `created_at`... which it does anyway, honestly, since the new row is new.
+        Nothing is gained by hiding that, and the position is visible to everybody involved."""
+        application = self.get_queryset().filter(pk=pk).first()
+        if application is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if application.applicant_id != request.user.pk:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        updated = GovernorApplication.objects.filter(pk=pk, status='pending').update(
+            status='withdrawn'
+        )
+        if not updated:
+            return Response(
+                {'detail': 'This application has already been decided.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        application.refresh_from_db()
+        return Response(
+            GovernorApplicationSerializer(application, context={'request': request}).data
+        )

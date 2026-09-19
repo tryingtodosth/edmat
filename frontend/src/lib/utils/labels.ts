@@ -304,6 +304,10 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
 // — mirrored by hand here, same "small, rarely-changing enum, flag the drift risk rather than fetch
 // a labels endpoint for it" call this codebase already made for DONATION_PLATFORMS/SOURCE_TYPES.
+// The drift risk is not hypothetical: this map and `FeatureFlagKey` (types/featureFlag.ts, which
+// says the same thing from its side) have both been left behind by a backend-only flag twice —
+// `classroom` after the rename, and `galleries` after migration 0032 seeded it. Add a key in both
+// files, in the same change as the backend one.
 export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	tutoring: m.featureFlags_label_tutoring,
 	courses: m.featureFlags_label_classroom,
@@ -314,8 +318,21 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	issues: m.featureFlags_label_issues,
 	posts: m.featureFlags_label_posts,
 	chemistry: m.featureFlags_label_chemistry,
+	galleries: m.featureFlags_label_galleries, // "Picture galleries on content"
+	age_verification: m.featureFlags_label_ageVerification, // "Age gate on self-registration"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
+
+/** The label for a flag the API actually returned, which is not necessarily one this build knows
+ * about — a backend seeded ahead of the frontend (or simply an older bundle in someone's tab) sends
+ * keys that are missing from the map above. Reading it directly is what crashed the whole Flags tab
+ * when `galleries` was added backend-side: `FEATURE_FLAG_LABELS[key]()` on a missing key is
+ * `undefined()`. Falling back to the raw key keeps every OTHER flag togglable and makes the gap
+ * visible as an untranslated row, which is the honest failure — a moderator can still turn the
+ * thing off, and the missing label is obvious to whoever sees it. */
+export function featureFlagLabel(key: FeatureFlagKey): string {
+	return FEATURE_FLAG_LABELS[key]?.() ?? key;
+}
 
 // Programme (AUDIENCE-BRIEF.md §3.2) — mirrors events/models.py's SESSION_KIND_CHOICES / LINK_ROLE_CHOICES.
 export const SESSION_KIND_LABELS: Record<SessionKind, () => string> = {

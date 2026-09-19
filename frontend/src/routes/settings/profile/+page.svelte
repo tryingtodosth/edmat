@@ -25,6 +25,7 @@
 	import ExperienceModal from '$lib/components/profile/edit/ExperienceModal.svelte';
 	import SkillsModal from '$lib/components/profile/edit/SkillsModal.svelte';
 	import type { Certificate, ExperienceEntry, SkillEntry } from '$lib/types/profileExtras';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let experience = $state<ExperienceEntry[]>([]);
 	let skills = $state<SkillEntry[]>([]);
@@ -61,7 +62,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.profile_edit_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.profile_edit_heading())}</title>
 </svelte:head>
 
 <div class="page">

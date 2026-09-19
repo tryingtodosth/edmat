@@ -21,13 +21,14 @@
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import TaxonomyOptions, { OTHER_VALUE } from '$lib/components/shared/TaxonomyOptions.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	// "exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word document should be accepted
 	// too, scanned and kept safe" — the actual real content-type sniffing + optional malware scan
 	// both run server-side (materials/validators.py); this `accept` attribute is a real, matching
 	// convenience for the file PICKER, not the security boundary itself — the backend still
 	// re-checks every upload's real bytes regardless of what this hints the OS file dialog toward.
-	const ACCEPTED_EXTENSIONS = '.pdf,.png,.jpg,.jpeg,.tex,.doc,.docx,.odt';
+	const ACCEPTED_EXTENSIONS = '.pdf,.png,.jpg,.jpeg,.webp,.tex,.doc,.docx,.odt';
 
 	let disciplines = $state<Discipline[]>([]);
 	let branches = $state<Branch[]>([]);
@@ -302,7 +303,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.submitMaterial_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.submitMaterial_heading())}</title>
 </svelte:head>
 
 <FeatureGate feature="material_submissions">

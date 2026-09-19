@@ -13,6 +13,10 @@ export interface Message {
 	recipientDisplayName: string;
 	subject: string;
 	body: string;
+	/** The body is stored encrypted (backend/messaging/crypto.py). True when the server holds
+	 *  ciphertext it cannot read back — a rotated key, a damaged row — in which case `body` is
+	 *  empty and saying so is the only honest thing to render. */
+	bodyUnavailable: boolean;
 	sentAt: string;
 	readAt: string | null;
 	isRead: boolean;

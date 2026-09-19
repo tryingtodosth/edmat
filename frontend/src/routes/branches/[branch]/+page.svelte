@@ -25,6 +25,7 @@
 	import MaterialFilterBar from '$lib/components/material/MaterialFilterBar.svelte';
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
 	import { isPending } from '$lib/utils/taxonomy';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let branch = $state<Branch | undefined>(undefined);
 	let field = $state<Discipline | undefined>(undefined);
@@ -177,7 +178,7 @@
 </script>
 
 <svelte:head>
-	<title>{branch?.name ?? m.common_appName()} — {m.common_appName()}</title>
+	<title>{pageTitle(branch?.name)}</title>
 </svelte:head>
 
 <div class="page">

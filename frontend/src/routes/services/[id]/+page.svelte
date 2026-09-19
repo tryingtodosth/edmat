@@ -29,6 +29,7 @@
 	import ReviewForm from '$lib/components/review/ReviewForm.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import BookingPanel from '$lib/components/booking/BookingPanel.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let service = $state<Service | undefined>(undefined);
 	let branchNames = $state<string[]>([]);
@@ -150,7 +151,7 @@
 </script>
 
 <svelte:head>
-	<title>{service ? service.title : m.services_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(service ? service.title : m.services_heading())}</title>
 </svelte:head>
 
 <div class="page">

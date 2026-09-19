@@ -13,6 +13,7 @@
 	import type { EdmatEvent, EventDraft } from '$lib/types/event';
 	import EventForm from '$lib/components/event/EventForm.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let event = $state<EdmatEvent | null>(null);
 	let loading = $state(true);
@@ -47,7 +48,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.events_edit()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.events_edit())}</title>
 </svelte:head>
 
 <FeatureGate feature="events">

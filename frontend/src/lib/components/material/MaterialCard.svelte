@@ -117,6 +117,41 @@
 
 	<p class="description">{material.description}</p>
 
+	<!-- Getting the thing itself sits HERE — directly under the title and the summary, on the left —
+	     rather than at the bottom-right of the footer where it used to live. Somebody who has read
+	     what a material is has exactly one next question, and the answer to it should not be below
+	     the claim chips, the tags, the price and the attribution line. Left-aligned and on its own
+	     row for the same reason: in a right-aligned footer it read as one more piece of metadata
+	     about the card instead of the card's own primary action. -->
+	{#if material.fileUrl || material.url}
+		<div class="material-card__get">
+			<!-- A material is a hosted file or a link, never neither. The two get the same weight — both
+		     are "the thing itself" — but not the same word or the same attributes: `download` on a
+		     link somebody else hosts would be a lie about what clicking it does, and `nofollow`
+		     belongs on a user-submitted URL rather than on our own media server. -->
+			{#if material.fileUrl}
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- external URLs (our own media
+		     server, or a user-submitted link), neither of which `resolve()` can express. A block
+		     pair rather than a next-line directive: the rule reports on the `href` line, and
+		     Prettier moves attributes across lines, so a single-line disable stops covering it. -->
+				<a
+					class="download"
+					href={material.fileUrl}
+					target="_blank"
+					rel="noopener noreferrer"
+					download
+				>
+					{m.material_download()}
+				</a>
+			{:else if material.url}
+				<a class="download" href={material.url} target="_blank" rel="noopener noreferrer nofollow">
+					{m.material_open()}
+				</a>
+			{/if}
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+		</div>
+	{/if}
+
 	{#if topCoverage.length > 0}
 		<div class="claim-line">
 			<span class="claim-line__label">{m.material_coversLabel()}</span>
@@ -248,30 +283,6 @@
 			</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		{/if}
-		<!-- A material is a hosted file or a link, never neither. The two get the same weight — both
-		     are "the thing itself" — but not the same word or the same attributes: `download` on a
-		     link somebody else hosts would be a lie about what clicking it does, and `nofollow`
-		     belongs on a user-submitted URL rather than on our own media server. -->
-		{#if material.fileUrl}
-			<!-- eslint-disable svelte/no-navigation-without-resolve -- external URLs (our own media
-			     server, or a user-submitted link), neither of which `resolve()` can express. A block
-			     pair rather than a next-line directive: the rule reports on the `href` line, and
-			     Prettier moves attributes across lines, so a single-line disable stops covering it. -->
-			<a
-				class="download"
-				href={material.fileUrl}
-				target="_blank"
-				rel="noopener noreferrer"
-				download
-			>
-				{m.material_download()}
-			</a>
-		{:else if material.url}
-			<a class="download" href={material.url} target="_blank" rel="noopener noreferrer nofollow">
-				{m.material_open()}
-			</a>
-		{/if}
-		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	</div>
 </article>
 
@@ -446,8 +457,13 @@
 	.material-card__footer {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		flex-wrap: wrap;
 		gap: var(--space-2);
+	}
+	// Its own row, left-aligned: `.download` is an inline-level link, so without a flex row around
+	// it the button would stretch to the card's full width under `.material-card`'s own column flex.
+	.material-card__get {
+		display: flex;
 	}
 	.muted {
 		font-size: var(--font-size-xs);

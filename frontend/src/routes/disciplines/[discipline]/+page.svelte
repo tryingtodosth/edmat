@@ -10,6 +10,7 @@
 	import { isPending, splitByStatus } from '$lib/utils/taxonomy';
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
 	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let field = $state<Discipline | undefined>(undefined);
 	let branches = $state<Branch[]>([]);
@@ -64,7 +65,7 @@
 </script>
 
 <svelte:head>
-	<title>{field?.name ?? m.common_appName()} — {m.common_appName()}</title>
+	<title>{pageTitle(field?.name)}</title>
 </svelte:head>
 
 <div class="page">

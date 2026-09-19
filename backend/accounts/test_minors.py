@@ -9,11 +9,12 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
+from accounts.minors import is_minor
 from accounts.models import Guardianship
 from activity.models import Post
 from community.models import Comment
 from events.models import Event
-from moderation.models import Report
+from moderation.models import FeatureFlag, Report
 from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_exercise, make_user
 
@@ -51,6 +52,84 @@ class RegistrationRuleTests(APITestCase):
         r = self.client.post(reverse('auth-register'), body, format='json')
         self.assertEqual(r.status_code, 201, r.content)
         self.assertFalse(User.objects.get(username='grown').profile.is_minor)
+
+
+class RegistrationAgeGateFlagTests(APITestCase):
+    """The `age_verification` FeatureFlag (moderation/models.py) — a moderator turning the age gate
+    on self-registration off, and what that must NOT take with it.
+
+    The scope is deliberately narrow and these tests are what pins it: off removes one refusal at
+    /register. The minors regime stays whole — a guardian still makes a child account, that child is
+    still a minor, and every rule in accounts/minors.py still applies to them."""
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        FeatureFlag.objects.update_or_create(key='age_verification', defaults={'is_enabled': False})
+
+    def test_an_under_sixteen_can_self_register_while_the_gate_is_off(self):
+        year = timezone.now().year
+        body = {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12}
+
+        r = self.client.post(reverse('auth-register'), body, format='json')
+
+        self.assertEqual(r.status_code, 201, r.content)
+        # Still nothing stored, and still not a minor: the flag removes the QUESTION, it does not
+        # start recording the answer, and self-registration never set `is_minor` in the first place.
+        self.assertFalse(User.objects.get(username='young').profile.is_minor)
+
+    def test_the_year_may_also_be_omitted_entirely_while_the_gate_is_off(self):
+        # What the frontend actually sends once the field has left the form.
+        body = {'username': 'nobirthyear', 'email': 'nb@example.org', 'password': 'a-strong-passw0rd!'}
+
+        r = self.client.post(reverse('auth-register'), body, format='json')
+
+        self.assertEqual(r.status_code, 201, r.content)
+
+    def test_turning_the_gate_back_on_restores_the_refusal(self):
+        FeatureFlag.objects.filter(key='age_verification').update(is_enabled=True)
+        year = timezone.now().year
+
+        r = self.client.post(
+            reverse('auth-register'),
+            {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12},
+            format='json',
+        )
+
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('guardian_required', str(r.json()))
+
+    def test_the_gate_stays_up_when_its_own_flag_row_is_missing(self):
+        # `is_feature_enabled` fails OPEN, which for this one flag means "keep asking" — the safer
+        # direction for a GDPR Article 8 question than silently dropping it.
+        FeatureFlag.objects.filter(key='age_verification').delete()
+        year = timezone.now().year
+
+        r = self.client.post(
+            reverse('auth-register'),
+            {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12},
+            format='json',
+        )
+
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('guardian_required', str(r.json()))
+
+    def test_guardians_children_and_the_minors_regime_are_untouched_by_the_flag(self):
+        guardian = make_user('gate-off-guardian')
+
+        r = as_(guardian).post(
+            reverse('auth-children'),
+            {'username': 'gate-off-kid', 'password': 'a-strong-passw0rd!', 'display_name': 'Zosia'},
+            format='json',
+        )
+
+        self.assertEqual(r.status_code, 201, r.content)
+        child = User.objects.get(username='gate-off-kid')
+        self.assertTrue(child.profile.is_minor)
+        self.assertFalse(child.profile.show_profile_publicly)
+        self.assertTrue(Guardianship.objects.filter(guardian=guardian, child=child).exists())
+        # And the ability a minor does not have is still not theirs, gate or no gate.
+        self.assertTrue(is_minor(child))
 
 
 class GuardianTests(MinorCase):

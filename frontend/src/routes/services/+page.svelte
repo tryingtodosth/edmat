@@ -36,6 +36,7 @@
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
 	import TaxonomyOptions from '$lib/components/shared/TaxonomyOptions.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let branches = $state<Branch[]>([]);
 	let courseFilter = $state('');
@@ -237,7 +238,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.services_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.services_heading())}</title>
 </svelte:head>
 
 <FeatureGate feature="tutoring">

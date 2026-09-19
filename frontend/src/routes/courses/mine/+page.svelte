@@ -8,6 +8,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import type { Course } from '$lib/types/course';
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let teaching = $state<Course[]>([]);
 	let participating = $state<Course[]>([]);
@@ -29,7 +30,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.course_myCourses()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.course_myCourses())}</title>
 </svelte:head>
 
 <div class="page">

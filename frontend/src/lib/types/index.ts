@@ -22,3 +22,5 @@ export * from './identity';
 export * from './course';
 export * from './event';
 export * from './profileExtras';
+export * from './gallery';
+export * from './governorApplication';

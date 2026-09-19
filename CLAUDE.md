@@ -131,10 +131,14 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Ten exist today — `exercise_submissions` `material_submissions`
-  `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry` — and the
-  `legal` notice channel is the one deliberate exception (`LEGAL.md` §4). House rule 3 is what
-  "kill switch" has to mean.
+  with an `is_staff` bypass. Eleven exist today — `exercise_submissions` `material_submissions`
+  `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
+  `age_verification` — and the `legal` notice channel is the one deliberate exception
+  (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
+  change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
+  has been forgotten twice, each time taking the whole Flags tab down. `age_verification` is also
+  the one flag read with a plain `is_feature_enabled()` rather than `feature_gate`, because it
+  removes a *rule* from an anonymous endpoint everybody must still reach, not a whole surface.
 
 ---
 

@@ -28,7 +28,7 @@
 
 	// Matches `/submit-material`'s own accept list — a UX hint only, the backend re-validates by
 	// sniffed content regardless (`courses/attachmentfile.py`).
-	const ACCEPTED_EXTENSIONS = '.pdf,.png,.jpg,.jpeg,.tex,.doc,.docx,.odt';
+	const ACCEPTED_EXTENSIONS = '.pdf,.png,.jpg,.jpeg,.webp,.tex,.doc,.docx,.odt';
 
 	let {
 		course,

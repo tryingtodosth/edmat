@@ -2319,10 +2319,12 @@ class FeatureFlagTests(APITestCase):
                 'issues',
                 'posts',
                 'chemistry',
+                'galleries',
+                'age_verification',
                 'material_uploads_verified_only',
             },
         )
-        # The 6 plain kill switches are seeded on; `material_uploads_verified_only` is the one,
+        # The plain kill switches are seeded on; `material_uploads_verified_only` is the one,
         # deliberately-inverted-semantics exception (0011's own seed migration) — its own
         # dedicated MaterialUploadVerifiedContributorGateTests covers its actual on/off behavior.
         by_key = {row['key']: row['is_enabled'] for row in response.data}
@@ -2337,6 +2339,10 @@ class FeatureFlagTests(APITestCase):
                     'material_submissions',
                     'events',
                     'issues',
+                    # Seeded ON like the rest: provisioning the age gate's kill switch must not be
+                    # what turns the gate off. RegistrationAgeGateFlagTests (accounts/test_minors.py)
+                    # covers what flipping it actually does.
+                    'age_verification',
                 )
             )
         )

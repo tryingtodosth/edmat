@@ -6,6 +6,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import type { TaughtCourseDraft } from '$lib/types/course';
 	import CourseForm from '$lib/components/course/CourseForm.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let submitting = $state(false);
 	let error = $state('');
@@ -26,7 +27,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.course_runACourse()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.course_runACourse())}</title>
 </svelte:head>
 
 <div class="page">

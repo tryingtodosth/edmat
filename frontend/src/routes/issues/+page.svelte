@@ -10,6 +10,7 @@
 	import type { Issue, IssueStatus } from '$lib/types/issue';
 	import { ISSUE_KIND_LABELS, ISSUE_STATUSES, ISSUE_STATUS_LABELS } from '$lib/utils/issueLabels';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let issues = $state<Issue[]>([]);
 	let loading = $state(true);
@@ -40,7 +41,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.issues_heading()} · {m.common_appName()}</title>
+	<title>{pageTitle(m.issues_heading())}</title>
 </svelte:head>
 
 <FeatureGate feature="issues">

@@ -17,7 +17,9 @@
 	import EducationPanel from '$lib/components/settings/EducationPanel.svelte';
 	import DonationLinksEditor from '$lib/components/settings/DonationLinksEditor.svelte';
 	import TagFollowsEditor from '$lib/components/settings/TagFollowsEditor.svelte';
+	import MyGovernorApplications from '$lib/components/settings/MyGovernorApplications.svelte';
 	import SavedCommentsList from '$lib/components/settings/SavedCommentsList.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let displayName = $state('');
 	let preferredLocale = $state('en');
@@ -158,7 +160,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.settings_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.settings_heading())}</title>
 </svelte:head>
 
 <div class="page">
@@ -550,6 +552,11 @@
 			<h2>{m.settings_donationsHeading()}</h2>
 			<p class="field-hint">{m.settings_donationsHint()}</p>
 			<DonationLinksEditor />
+		</section>
+
+		<section class="tags">
+			<h2>{m.govapp_mine()}</h2>
+			<MyGovernorApplications />
 		</section>
 
 		<section class="tags">

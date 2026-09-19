@@ -32,9 +32,11 @@
 	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import ClaimGroups from '$lib/components/material/ClaimGroups.svelte';
 	import SolutionEntrySection from '$lib/components/exercise/SolutionEntrySection.svelte';
+	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import StarRating from '$lib/components/shared/StarRating.svelte';
 	import type { SolutionEntry } from '$lib/types';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
 	let branch = $state<Branch | undefined>(undefined);
@@ -247,7 +249,7 @@
 </script>
 
 <svelte:head>
-	<title>{exercise?.title ?? m.common_appName()} — {m.common_appName()}</title>
+	<title>{pageTitle(exercise?.title)}</title>
 </svelte:head>
 
 <div class="page">
@@ -475,6 +477,8 @@
 				{/if}
 				<ReportButton kind="exercise" objectId={exercise.id} />
 			</section>
+
+			<GallerySection targetType="exercise" targetId={exercise.id} />
 
 			{#if submissionNotice === 'edit'}
 				<p class="notice">{m.editSuggestion_success()}</p>

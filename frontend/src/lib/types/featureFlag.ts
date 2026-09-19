@@ -1,6 +1,14 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 7 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 12 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
+//
+// THIS UNION AND `FEATURE_FLAG_LABELS` (utils/labels.ts) BOTH MIRROR THE BACKEND'S OWN
+// `FEATURE_FLAG_CHOICES`. Adding a key there means adding it in both places here, in the same
+// change — the drift has already cost this project twice (see `classroom` below, and `galleries`,
+// which was seeded by migration 0032 and left out of both, so the moderation page's Flags tab
+// called `undefined()` and threw the moment it was opened). The label lookup now falls back to the
+// raw key, so the next omission degrades to an ugly row rather than a white screen — that is a
+// safety net, not permission to skip this file.
 //
 // `material_uploads_verified_only` is the one DIFFERENTLY-SHAPED exception in this set — every
 // other key is a plain kill switch (isEnabled=true means "the feature is up"); this one instead
@@ -30,6 +38,14 @@ export type FeatureFlagKey =
 	// Chemistry drawings (backend chem/, Ketcher). Off: the editor button leaves every composer and
 	// the drawing API closes; pictures already in content keep rendering.
 	| 'chemistry'
+	// Picture galleries on a piece of content (backend galleries/). Off: no gallery, no adding a
+	// picture, and the gallery strip leaves every content page.
+	| 'galleries'
+	// The age gate on self-registration (backend accounts/serializers.py's RegisterSerializer).
+	// Off: /register stops asking for a year of birth and stops refusing an under-16. Deliberately
+	// NOTHING else — the minors regime (accounts/minors.py) and Settings -> Children keep working
+	// exactly as before, since neither has ever depended on this question.
+	| 'age_verification'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

@@ -5,6 +5,7 @@ from .views import (
     EditSuggestionViewSet,
     ExerciseSubmissionViewSet,
     FeatureFlagViewSet,
+    GovernorApplicationViewSet,
     MaterialSubmissionViewSet,
     ModerationActionView,
     ModerationQueueCountView,
@@ -26,6 +27,9 @@ router.register('feature-flags', FeatureFlagViewSet, basename='feature-flag')
 # "node governor" feature's own administration surface (list/grant/revoke who governs which
 # Discipline/Branch), distinct from ModerationActionView/ReportActionView (which ACT on pending items).
 router.register('moderation/governors', NodeGovernorViewSet, basename='node-governor')
+router.register(
+    'governor-applications', GovernorApplicationViewSet, basename='governor-application'
+)
 
 urlpatterns = router.urls + [
     path('moderation/queue/', ModerationQueueView.as_view(), name='moderation-queue'),

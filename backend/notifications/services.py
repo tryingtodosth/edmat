@@ -30,6 +30,11 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     # the same "somebody decided on my contribution" event as every other pair in this category.
     'solution_entry_approved': 'notify_on_moderation_decision',
     'solution_entry_rejected': 'notify_on_moderation_decision',
+    # Both sides of a governor application. Under the moderation-decision category on purpose: it
+    # is the switch somebody who wants fewer "we decided on your thing" alerts would reach for, and
+    # for staff it is the one that turns off the queue's own nudge.
+    'governor_application_submitted': 'notify_on_moderation_decision',
+    'governor_application_decided': 'notify_on_moderation_decision',
     'content_auto_hidden': 'notify_on_content_action',
     'content_restored': 'notify_on_content_action',
     'content_removed': 'notify_on_content_action',

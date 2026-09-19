@@ -12,6 +12,7 @@
 	import { getMyUnpublishedExercises } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
 	import ExerciseCard from '$lib/components/exercise/ExerciseCard.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let exercises = $state<ResolvedExercise[]>([]);
 	let loading = $state(true);
@@ -37,7 +38,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.profile_unpublished_heading()} · {m.common_appName()}</title>
+	<title>{pageTitle(m.profile_unpublished_heading())}</title>
 </svelte:head>
 
 <div class="page">

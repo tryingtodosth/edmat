@@ -278,6 +278,30 @@ class AnonymousReadCacheTests(TestCase):
         self.assertEqual(third['X-EdMat-Cache'], 'hit')
         self.assertEqual(third.content, first.content)
 
+    def test_the_feature_flag_list_is_never_cached(self):
+        """The kill switches are the control plane, not content: a 60s stale read there means a
+        moderator turns a feature off and every logged-out visitor keeps being shown it, links and
+        all, which is exactly what house rule 3 forbids. Found in a browser — the `age_verification`
+        gate was switched off and /register went on asking for a year of birth.
+
+        Pinned here because the failure is silent: putting the prefix back on cachemw's allowlist
+        breaks no other test, and the symptom (a lag, not an error) reads as flaky rather than
+        wrong."""
+        from django.core.cache import cache
+
+        from config.cachemw import cache_key
+        from moderation.models import FeatureFlag
+
+        for _ in range(4):
+            response = self.client.get('/api/feature-flags/')
+            self.assertNotIn('X-EdMat-Cache', response)
+        self.assertIsNone(cache.get(cache_key('/api/feature-flags/')))
+
+        # And the read genuinely follows the database rather than a replayed body.
+        FeatureFlag.objects.update_or_create(key='tutoring', defaults={'is_enabled': False})
+        rows = {row['key']: row['is_enabled'] for row in self.client.get('/api/feature-flags/').json()}
+        self.assertFalse(rows['tutoring'])
+
     def test_an_authorization_header_disqualifies_the_request_entirely(self):
         """The security gate: any credential means no shared cache, in either direction — the
         response is neither served from it nor stored into it, no matter how often it repeats."""

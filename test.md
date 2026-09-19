@@ -79,6 +79,9 @@ inherit from it rather than repeating the line.
 | `accounts` profile extras (21) | Experience, skills, the derived activity feed, the demo-content seed, and the clock/week-start display preferences |
 | `config` (16) | The Unicode-aware `ucontains` lookup and the Polish-diacritics bug it fixes, driven through the two browse `?q=` paths as well as the queryset — see `config/test_dbsearch.py` |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
+| `galleries` (28) | Pictures on a piece of content (root `HISTORY.md` §17AY) — weighted at refusals: an **unpublished exercise's gallery is not readable by a stranger** (the leak the visibility module exists to prevent), an unknown target type is 404, a disguised executable is refused, the stored picture is a bounded WebP with the camera tag gone and a small one not blown up, the per-gallery ceiling and the shared byte allowance both refuse, somebody who merely uploaded a picture **cannot reorder** while a material- or branch-level governor can, a partial order is refused rather than guessed at, a child's picture waits for a moderator, the kill switch closes the surface while staff get through, and a picture is reportable |
+| `moderation` governor applications (25) | `moderation/test_governor_applications.py` — applying to look after a discipline, branch or material: an empty application refused, applying twice refused, the queue is oldest-first and the position honest, an applicant sees only their own, a **governor of the branch above cannot decide** (delegated granting is deliberately not built), declining needs a reason, deciding twice is a clean 409, and — the interlock — approving is what makes `is_governor_of_material` start answering yes |
+| `messaging` encryption (20) | `messaging/test_encryption.py` — bodies encrypted at rest (root `HISTORY.md` §17AX). Every check that matters reads the **database row**, because an unencrypted body round-trips through the API perfectly: the column does not contain the words; both people read them back; a reply too; the subject deliberately in clear; a list decrypting every row and not just the first (one shared child serializer); a legacy plaintext row still readable and the `encrypt_messages` command converting it idempotently; a row sealed under another key surfacing as `body_unavailable` with a 200 rather than a 500; tampering detected; a wrong-length key refused |
 | `exercises`, `materials`, `community`, `study`, `services`, `messaging`, `notifications`, `telemetry`, `accounts` | Their own domains |
 
 #### `classroom` in more detail (the newest, and the most rule-heavy)
@@ -722,6 +725,118 @@ opening the in-page viewer, the API holding a `.webp` smaller than the upload, a
 executable refused in words while the comment itself still posts, a reply (through the "⋯" menu)
 carrying a picture. Generates its files in a temp dir; deletes its marker comments.
 
+**`e2e/age-gate-flag.mjs` (19 checks)** — the `age_verification` kill switch: a moderator turning
+off the age gate on self-registration. Shaped as much around what must NOT change as what does. With
+the gate on, `/register` asks for a year of birth, says why, and an under-16 is refused **with the
+reason** (ask a guardian, Settings → Children) and no account is made. A moderator then signs in,
+opens `/moderation` → Flags — checked for the drift that has crashed that tab twice, so every row
+must carry a real label rather than a raw key, `galleries` and the new age gate among them — and
+flips it off. In a **fresh anonymous context** the field and its hint are gone and the same under-16
+registers fine. Then the part that matters: Settings → Children is still there, because the flag was
+never allowed to touch the minors regime. Finally it is flipped back and the question returns.
+
+Needs no fixtures — it signs in as the seeded staff account (`kasia@edmat.example` / `password123`)
+and registers two throwaway accounts, so it spends **two of the ~10/hour/IP register throttle**
+(§trap 1); restart the backend if a later script starts failing oddly.
+
+```sh
+CHROME=$(find ~/.cache/ms-playwright -name chrome -path '*chrome-linux*' -type f | head -1) \
+  E2E_BASE=http://localhost:5173 E2E_SHOTS=/tmp node e2e/age-gate-flag.mjs
+```
+
+It also found the bug it now guards: `/api/feature-flags/` was on the anonymous response cache's
+allowlist (`config/cachemw.py`, TTL 60s, no write invalidation), so with the flag off the form went
+on asking. Every kill switch was affected, not just this one.
+
+**`e2e/galleries-and-applications.mjs` (26 checks)** — pictures on content and applying to look
+after them (root `HISTORY.md` §17AY). Shaped around the interlock rather than around the two features
+separately: a reader adds two real PNGs through the actual form, the thumbnails **genuinely load**
+(`naturalWidth > 0`), the stored files come back as bounded WebP, she can caption her own picture and
+has **no reorder control at all**, she applies through the real dialog, staff find it in the queue
+with her words and her name, declining with no reason is refused in words, approving clears it, and
+back on the material she is told she looks after it, the reorder buttons are now there, the order
+really changes and survives a reload. Then the lightbox, then a signed-out reader seeing the pictures
+but no upload control. Needs two scratch accounts and a published material:
+
+```sh
+cd backend && ../.venv/bin/python manage.py shell -c "
+from django.contrib.auth import get_user_model
+from materials.models import Material
+U = get_user_model()
+for n, staff in (('gal-anna', False), ('gal-boss', True)):
+    u, _ = U.objects.get_or_create(username=n, defaults={'email': n + '@edmat.example'})
+    u.email, u.is_staff = n + '@edmat.example', staff
+    u.set_password('scratchpass123'); u.save(); print(n, u.pk)
+print('E2E_MATERIAL', Material.objects.filter(published=True).first().pk)"
+```
+
+Afterwards, remove the accounts, the pictures it added and the grant it earned:
+
+```sh
+cd backend && ../.venv/bin/python manage.py shell -c "
+from django.contrib.auth import get_user_model
+from galleries.models import Gallery, GalleryImage
+for i in GalleryImage.objects.all(): i.image.delete(save=False)
+GalleryImage.objects.all().delete(); Gallery.objects.all().delete()
+get_user_model().objects.filter(username__startswith='gal-').delete()"
+```
+
+**`e2e/material-open-and-titles.mjs` (33 checks)** — the 2026-09-18 asks (root `HISTORY.md` §17AX):
+the get-the-material button under the title and summary, at the summary's own left edge, in the
+card's left half, above the claim groups, still a 44px target; a picture material previewed inline
+and **genuinely loaded** (`naturalWidth > 0` — a broken `src` passes a selector check and fails a
+reader); a PDF still getting its collapsed toggle and no picture block; six pages named `EdMat: …`
+with **exactly one `<title>` element** each (two is silent, and the first wins); a detail page named
+after its own record; and a message sent through the real compose form and read back word for word
+by its recipient. Needs a picture material and two accounts — it makes neither, so set
+`E2E_PICTURE_MATERIAL` and `E2E_SCRATCH_RECIPIENT` to what this makes:
+
+```sh
+cd backend && ../.venv/bin/python manage.py shell -c "
+import io
+from PIL import Image, ImageDraw
+from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
+from materials.models import Material, MaterialTranslation
+from taxonomy.models import Branch
+img = Image.new('RGB', (900, 600), (250, 250, 252))
+ImageDraw.Draw(img).rectangle([40, 40, 860, 560], outline=(20, 110, 90), width=8)
+buf = io.BytesIO(); img.save(buf, format='WEBP')
+m, _ = Material.objects.update_or_create(
+    branch=Branch.objects.filter(published=True).first(), slug='scratch-picture-preview',
+    defaults=dict(type='other', published=True, author='Scratch fixture', audience='university'))
+m.file.save('scratch-picture-preview.webp', ContentFile(buf.getvalue()), save=True)
+for loc, t in (('en', 'Scratch picture material'), ('pl', 'Zdjeciowy material testowy')):
+    MaterialTranslation.objects.update_or_create(material=m, locale=loc,
+        defaults=dict(title=t, description='A picture, to check the inline preview.'))
+U = get_user_model()
+for n in ('scratch-anna', 'scratch-piotr'):
+    u, _ = U.objects.get_or_create(username=n, defaults={'email': n + '@edmat.example'})
+    u.set_password('scratchpass123'); u.save(); print(n, u.pk)
+print('E2E_PICTURE_MATERIAL', m.pk)"
+```
+
+Remove all of it afterwards — deleting the two accounts takes their messages with them:
+
+```sh
+cd backend && ../.venv/bin/python manage.py shell -c "
+from django.contrib.auth import get_user_model
+from materials.models import Material
+get_user_model().objects.filter(username__startswith='scratch-').delete()
+Material.objects.filter(slug='scratch-picture-preview').delete()"
+```
+
+**The half a browser cannot see** — that the stored column holds `edmat1:…` and not those words — is a
+column, not a pixel:
+
+```sh
+cd backend && ../.venv/bin/python manage.py shell -c "
+from postman.models import Message
+from messaging.crypto import decrypt_text
+m = Message.objects.order_by('-pk').first()
+print('stored  :', m.body[:60]); print('decrypts:', decrypt_text(m.body)[:60])"
+```
+
 **`e2e/comment-input-kinds.mjs` (31 checks)** — the six ways into a comment (root CLAUDE.md
 §17AV, extended by §17BA): the strip under the composer offers Markdown file / LaTeX / JSON /
 Chemistry / Picture / PDF and no chemistry library is downloaded until asked; a LaTeX panel
@@ -816,6 +931,8 @@ each script. The static-build pair ran against `vite preview` on 5174 of a fresh
 | known-issues | 23/23 | two `datetime-local` inputs now (`runs_until`); event form needs a band |
 | login-return | 5/5 | |
 | material-claims | 14/14 | |
+| galleries-and-applications | 26/26 | needs two scratch accounts + a published material; see its entry |
+| material-open-and-titles | 33/33 | needs a picture material + two scratch accounts; see its entry |
 | material-claims-rework | 28/28 | picks an unclaimed topic; the anonymous "empty" check tolerates an earlier run's claim |
 | navbar-stages | 51/51 | stamped rows created as `language: 'en'` |
 | pdf-preview | 7/7 | |
@@ -882,6 +999,20 @@ did nothing (`DiscussionThread` gained `canPost`; the read-only branch passes `f
   cache, so **restarting the backend clears it**. A run that fails with "the panel did not render"
   right after several earlier runs is almost always this, not a regression. `e2e/booking.mjs` sidesteps
   it entirely by signing in as the seeded demo users instead; the older scripts still register.
+- **`/api/auth/login/` takes `username`, not `email`** — the field holds either (it resolves an
+  address to its account), so a hand-written probe that posts `{"email": …}` gets
+  `401 Invalid credentials` for a perfectly good password, and reads as "the seeded passwords are
+  wrong". They are `password123`; the payload key is what was wrong. Cost a real detour on
+  2026-09-18.
+- **Clicking Log in before the page has hydrated submits the form natively.** The handler that
+  calls `preventDefault` is not attached yet, so the browser does a GET to `/login?`, sends
+  nothing, and the script times out waiting for a navigation that looks exactly like a rejected
+  password — with no `POST /api/auth/login/` in the server log, which is how to tell the two apart.
+  Wait for a request the page only makes once hydrated (`/api/auth/providers/` on `/login`) before
+  filling anything.
+- **A navigation made straight after signing in can race `authStore.init()`** and render the
+  signed-out branch of the page. `e2e/material-open-and-titles.mjs`'s `openAndWait()` is the shape
+  that survives it: wait for the selector, reload once, look again.
 - **Most scripts default `E2E_API` to `:8000` while this document specifies `:8011`,** so running them
   on the documented ports needs `E2E_API=http://127.0.0.1:8011/api` in the environment. Without it they
   fail immediately with `connect ECONNREFUSED 127.0.0.1:8000`, which is a wrong port rather than a

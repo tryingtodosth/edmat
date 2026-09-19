@@ -32,6 +32,21 @@ GPS. Endpoint `POST/DELETE /api/auth/me/avatar/` translates Django `ValidationEr
 400 explicitly (uncaught it's a 500) and deletes the previous file (FileField doesn't).
 `accounts/migrations/0006` imports `validate_avatar_file` by path — don't move/rename it.
 
+## The age gate, and what its kill switch may not touch
+
+`RegisterSerializer.birth_year` is asked to BRANCH and never stored — under 16 the answer is "ask a
+guardian", and the year goes no further. The `age_verification` FeatureFlag turns that question off;
+`validate_birth_year` reads it with a plain `is_feature_enabled()`, deliberately not `feature_gate`
+(registration is anonymous — a permission gate would 403 the people it serves; see
+`moderation/CLAUDE.md`).
+
+**Off means the site stops asking, never that it stops protecting.** `minors.py` still governs every
+`is_minor` account and Settings → Children still works. That separation is safe only because
+self-registration never sets `is_minor` at all — `create()` pops the year, and `ChildrenView.post` is
+the one code path that marks an account a minor's. If that ever stops being true, this flag becomes a
+GDPR Article 8 decision and needs re-thinking, not a wider `if`.
+`RegistrationAgeGateFlagTests` (`test_minors.py`) pins the scope; `e2e/age-gate-flag.mjs` drives it.
+
 ## Throttles (`throttles.py`)
 
 Login is throttled **twice** — per-IP AND per-submitted-identifier (normalized, SHA-256'd so the

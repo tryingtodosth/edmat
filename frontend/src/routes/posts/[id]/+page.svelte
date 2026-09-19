@@ -8,6 +8,8 @@
 	import { getPostById } from '$lib/services/activity';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import PostCard from '$lib/components/activity/PostCard.svelte';
+	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let post = $state<Post | undefined>(undefined);
 	let loading = $state(true);
@@ -36,7 +38,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.post_pageTitle()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.post_pageTitle())}</title>
 </svelte:head>
 
 <FeatureGate feature="posts">
@@ -51,6 +53,7 @@
 			<p class="status">{m.post_notFound()}</p>
 		{:else}
 			<PostCard {post} linkTitle={false} expandThread={true} />
+			<GallerySection targetType="post" targetId={post.id} />
 		{/if}
 	</div>
 </FeatureGate>

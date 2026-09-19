@@ -6,6 +6,7 @@
 	import { getCourse, updateCourse } from '$lib/services/course';
 	import type { Course, TaughtCourseDraft } from '$lib/types/course';
 	import CourseForm from '$lib/components/course/CourseForm.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let course = $state<Course | null>(null);
 	let loading = $state(true);
@@ -40,7 +41,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.course_edit()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.course_edit())}</title>
 </svelte:head>
 
 <div class="page">

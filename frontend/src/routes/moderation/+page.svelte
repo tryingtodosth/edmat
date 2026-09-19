@@ -15,6 +15,8 @@
 	} from '$lib/types';
 	import type { TaxonomyProposal } from '$lib/services/moderation';
 	import { m } from '$lib/paraglide/messages.js';
+	import { decideApplication, getApplicationQueue } from '$lib/services/governorApplications';
+	import type { GovernorApplication, GovernorNodeKind } from '$lib/types/governorApplication';
 	import {
 		decideTaxonomyProposal,
 		getModerationQueue,
@@ -32,11 +34,12 @@
 	import { getExercisesByIds, reviewSolutionEntry } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
-	import { FEATURE_FLAG_LABELS } from '$lib/utils/labels';
+	import { featureFlagLabel } from '$lib/utils/labels';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import { resolve } from '$app/paths';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	// "reports" first — this is the literal "gets a priority in the moderation queue" requirement:
 	// reported content (some of it possibly already auto-hidden, waiting on a decision) is the
@@ -52,6 +55,7 @@
 		| 'translations'
 		| 'entries'
 		| 'governors'
+		| 'applications'
 		| 'flags'
 	>('reports');
 	let flagTogglePending = $state<Record<string, boolean>>({});
@@ -104,6 +108,10 @@
 	// the grant form's own node picker, only ever fetched for a real global moderator.
 	let myGovernedNodes = $state<NodeGovernorGrant[]>([]);
 	let allGovernors = $state<NodeGovernorGrant[]>([]);
+	let pendingApplications = $state<GovernorApplication[]>([]);
+	let applicationNotes = $state<Record<string, string>>({});
+	let applicationError = $state('');
+	let applicationBusy = $state<Record<string, boolean>>({});
 	let disciplines = $state<Discipline[]>([]);
 	let allBranches = $state<Branch[]>([]);
 	let grantUserId = $state('');
@@ -174,6 +182,7 @@
 			// governor above — a scoped governor never sees this tab at all (the tab button's own
 			// {#if authStore.isModerator} guard below), so no point fetching it for them.
 			await featureFlagsStore.refresh();
+			pendingApplications = await getApplicationQueue('pending');
 		}
 
 		loading = false;
@@ -308,10 +317,35 @@
 		await revokeNodeGovernor(grant.id);
 		allGovernors = allGovernors.filter((g) => g.id !== grant.id);
 	}
+	function kindLabel(kind: GovernorNodeKind): string {
+		if (kind === 'discipline') return m.govapp_kind_discipline();
+		if (kind === 'branch') return m.govapp_kind_branch();
+		return m.govapp_kind_material();
+	}
+
+	async function decide(application: GovernorApplication, decision: 'approve' | 'decline') {
+		const note = (applicationNotes[application.id] ?? '').trim();
+		if (decision === 'decline' && !note) {
+			// The API refuses this too; saying so here saves a round trip and points at the field.
+			applicationError = m.govapp_declineNeedsNote();
+			return;
+		}
+		applicationBusy = { ...applicationBusy, [application.id]: true };
+		applicationError = '';
+		try {
+			await decideApplication(application.id, decision, note);
+			pendingApplications = pendingApplications.filter((row) => row.id !== application.id);
+			if (decision === 'approve') allGovernors = await listNodeGovernors();
+		} catch {
+			applicationError = m.govapp_error_generic();
+		} finally {
+			applicationBusy = { ...applicationBusy, [application.id]: false };
+		}
+	}
 </script>
 
 <svelte:head>
-	<title>{m.moderation_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.moderation_heading())}</title>
 </svelte:head>
 
 <div class="page">
@@ -505,6 +539,20 @@
 				>
 					{m.moderation_tab_governors({ count: allGovernors.length })}
 				</button>
+				<!-- Applications to look after content. Staff-only for the same reason the Governors tab
+				     is: deciding one grants authority, and delegated granting is deliberately not
+				     built (CLAUDE.md §17M's own scope decision, unchanged by this queue existing). -->
+				<button
+					type="button"
+					role="tab"
+					id="mod-tab-applications"
+					aria-selected={tab === 'applications'}
+					aria-controls="mod-tabpanel"
+					class:active={tab === 'applications'}
+					onclick={() => (tab = 'applications')}
+				>
+					{m.govapp_queueTab({ count: pendingApplications.length })}
+				</button>
 				<!-- Kill switches are the same platform-wide, staff-only scope as node-governor
 				     grant/revoke — not offered to a scoped governor either, same reasoning as above. -->
 				<button
@@ -552,6 +600,7 @@
 					})}
 				{:else if tab === 'entries'}{m.moderation_tab_entries({ count: solutionEntries.length })}
 				{:else if tab === 'governors'}{m.moderation_tab_governors({ count: allGovernors.length })}
+				{:else if tab === 'applications'}{m.govapp_queueTab({ count: pendingApplications.length })}
 				{:else}{m.moderation_tab_flags()}
 				{/if}
 			</h2>
@@ -912,6 +961,65 @@
 						</ul>
 					{/if}
 				</div>
+			{:else if tab === 'applications'}
+				<div class="applications-panel">
+					<p class="flags-intro">{m.govapp_noPriority()}</p>
+					{#if applicationError}
+						<p class="error">{applicationError}</p>
+					{/if}
+					{#if pendingApplications.length === 0}
+						<p class="empty">{m.govapp_queueEmpty()}</p>
+					{:else}
+						<ol class="applications-list">
+							{#each pendingApplications as application (application.id)}
+								<li class="application-row">
+									<h3>
+										{m.govapp_appliedFor({
+											kind: kindLabel(application.kind),
+											name: application.nodeLabel
+										})}
+									</h3>
+									<p class="application-row__who">
+										{application.applicantDisplayName}
+										{#if application.queuePosition !== null}
+											· #{application.queuePosition}
+										{/if}
+									</p>
+									<p class="application-row__statement">{application.statement}</p>
+									<label class="application-row__note">
+										<span>{m.govapp_noteLabel()}</span>
+										<input
+											type="text"
+											maxlength="2000"
+											value={applicationNotes[application.id] ?? ''}
+											oninput={(e) =>
+												(applicationNotes = {
+													...applicationNotes,
+													[application.id]: e.currentTarget.value
+												})}
+										/>
+									</label>
+									<div class="application-row__actions">
+										<button
+											type="button"
+											disabled={applicationBusy[application.id]}
+											onclick={() => decide(application, 'approve')}
+										>
+											{m.govapp_approve()}
+										</button>
+										<button
+											type="button"
+											disabled={applicationBusy[application.id]}
+											onclick={() => decide(application, 'decline')}
+										>
+											{m.govapp_decline()}
+										</button>
+									</div>
+								</li>
+							{/each}
+						</ol>
+					{/if}
+				</div>
 			{:else}
 				<!-- tab === 'flags' — same "only ever reachable via a staff-only tab button" reasoning
 				     as the governors branch right above. -->
@@ -924,7 +1032,7 @@
 						{#each featureFlagsStore.all as flag (flag.key)}
 							<li class="flag-row">
 								<div class="flag-info">
-									<span class="flag-name">{FEATURE_FLAG_LABELS[flag.key]()}</span>
+									<span class="flag-name">{featureFlagLabel(flag.key)}</span>
 									<span class="flag-status" class:flag-status--off={!flag.isEnabled}>
 										{flag.isEnabled ? m.moderation_flags_on() : m.moderation_flags_off()}
 									</span>
@@ -1201,6 +1309,63 @@
 		flex: 1;
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
+	}
+	.applications-panel {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.applications-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.application-row {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--space-3);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+
+		h3 {
+			margin: 0;
+			font-size: var(--font-size-md);
+		}
+		input {
+			min-height: 44px;
+			width: 100%;
+		}
+	}
+	.application-row__who,
+	.application-row__statement {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	.application-row__note {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.application-row__actions {
+		display: flex;
+		gap: var(--space-2);
+
+		button {
+			min-height: 44px;
+			padding: 0 var(--space-3);
+			border: 1px solid var(--border-color);
+			border-radius: var(--radius-sm);
+			background: var(--bg-surface);
+			color: var(--text-primary);
+			cursor: pointer;
+		}
 	}
 	.flags-panel {
 		display: flex;

@@ -38,6 +38,22 @@ from django.http import HttpResponse
 # Public, anonymous-safe read surfaces. NOT here, deliberately: `/api/auth/` (never), messaging/
 # bookings/moderation/notifications (private by nature), `/api/geocode/` (authenticated, spends a
 # shared third-party budget), and anything under DEBUG media.
+#
+# `/api/feature-flags/` WAS on this list and has been taken off — it is this module's own
+# "the one place that trade was wrong" (see the TTL paragraph in the docstring above), found by a
+# browser run on 2026-09-19. Everything else here is CONTENT, where a sub-minute lag is invisible;
+# the flags list is the CONTROL PLANE, and it is the one anonymous read whose entire purpose is to
+# be current. Serving it stale for up to 60s breaks house rule 3 ("a kill switch removes the
+# links"): a moderator kills a feature — possibly to stop abuse or answer a takedown — and every
+# logged-out visitor keeps being shown it, with working links, for another minute. The concrete
+# symptom that surfaced it: the `age_verification` gate was turned off in /moderation and
+# /register went on asking for a year of birth in a fresh anonymous session.
+#
+# Removed from the allowlist rather than invalidated on write, because there is nothing to
+# invalidate ACCURATELY: `lib/api/client.ts` appends `?content_locales=`/`?audience=` to
+# list-shaped GETs, so one logical list is many cached URLs and a targeted delete would miss the
+# ones that mattered. The cost of dropping it is one small indexed query per anonymous app boot —
+# far less than any other entry here was buying.
 PUBLIC_PREFIXES = (
     '/api/disciplines/',
     '/api/branches/',
@@ -46,7 +62,6 @@ PUBLIC_PREFIXES = (
     '/api/courses/',
     '/api/events/',
     '/api/services/',
-    '/api/feature-flags/',
     '/api/users/',
 )
 

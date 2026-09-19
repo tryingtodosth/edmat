@@ -10,6 +10,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import type { Attachment, AttachmentReview } from '$lib/types/course';
+	import { pageTitle } from '$lib/utils/pageTitle';
 	import {
 		getAttachment,
 		getAttachmentComments,
@@ -103,7 +104,7 @@
 </script>
 
 <svelte:head>
-	<title>{attachment?.title ?? m.common_appName()} — {m.common_appName()}</title>
+	<title>{pageTitle(attachment?.title)}</title>
 </svelte:head>
 
 <div class="page">

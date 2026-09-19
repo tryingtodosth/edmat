@@ -32,6 +32,7 @@
 		setEventStaffRole
 	} from '$lib/services/events';
 	import type { EventStaffMember, EventStaffRole } from '$lib/types/event';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let event = $state<EdmatEvent | null>(null);
 	let attendees = $state<EventAttendee[]>([]);
@@ -269,7 +270,7 @@
 </script>
 
 <svelte:head>
-	<title>{event ? event.title : m.events_browseHeading()} — {m.common_appName()}</title>
+	<title>{pageTitle(event ? event.title : m.events_browseHeading())}</title>
 </svelte:head>
 
 <FeatureGate feature="events">

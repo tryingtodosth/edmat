@@ -81,6 +81,11 @@ test-runner suite.
     reload simply vanishes. Warm the optimizer with one throwaway open before believing a
     timeout; `vite.config.ts` changes restart the server and can leave the old port bound.
 
+23. **A backend model added this session needs `manage.py migrate` before the browser run**, not
+    just `makemigrations`. A missing table surfaces as a 500 on one endpoint while every other page
+    works, so the symptom reads as "that one feature is broken" rather than "the migration never
+    ran" — check the server log for `no such table` before believing the feature.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

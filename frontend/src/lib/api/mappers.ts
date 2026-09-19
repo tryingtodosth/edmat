@@ -61,6 +61,12 @@ import type {
 	Topic,
 	User
 } from '$lib/types';
+import type { Gallery, GalleryImage, GalleryTargetType } from '$lib/types/gallery';
+import type {
+	GovernorApplication,
+	GovernorApplicationStatus,
+	GovernorNodeKind
+} from '$lib/types/governorApplication';
 import type { Issue } from '$lib/types/issue';
 import type { LegalNotice, LegalNoticeContentPreview } from '$lib/types/legalNotice';
 
@@ -1619,6 +1625,7 @@ export interface RawMessage {
 	recipient_display_name: string;
 	subject: string;
 	body: string;
+	body_unavailable: boolean;
 	sent_at: string;
 	read_at: string | null;
 	is_read: boolean;
@@ -1638,11 +1645,100 @@ export function mapMessage(json: RawMessage): Message {
 		recipientDisplayName: json.recipient_display_name,
 		subject: json.subject,
 		body: json.body,
+		bodyUnavailable: Boolean(json.body_unavailable),
 		sentAt: json.sent_at,
 		readAt: json.read_at,
 		isRead: json.is_read,
 		parentId: idOrUndefined(json.parent_id) ?? null,
 		threadId: idOrUndefined(json.thread_id) ?? null,
 		repliesCount: json.replies_count
+	};
+}
+
+// ---- galleries (backend/galleries/) -------------------------------------------------------------
+
+export interface RawGalleryImage {
+	id: number;
+	url: string;
+	caption: string;
+	order: number;
+	width: number;
+	height: number;
+	size_bytes: number;
+	original_name: string;
+	uploaded_by: number | null;
+	uploaded_by_display_name: string;
+	can_edit: boolean;
+}
+
+export interface RawGallery {
+	id: number | null;
+	target_type: string;
+	target_id: number;
+	images: RawGalleryImage[];
+	can_curate: boolean;
+	can_add: boolean;
+}
+
+export function mapGalleryImage(json: RawGalleryImage): GalleryImage {
+	return {
+		id: String(json.id),
+		url: json.url,
+		caption: json.caption ?? '',
+		order: json.order ?? 0,
+		width: json.width ?? 0,
+		height: json.height ?? 0,
+		sizeBytes: json.size_bytes ?? 0,
+		originalName: json.original_name ?? '',
+		uploadedByUserId: idOrUndefined(json.uploaded_by) ?? null,
+		uploadedByDisplayName: json.uploaded_by_display_name ?? '',
+		canEdit: Boolean(json.can_edit)
+	};
+}
+
+export function mapGallery(json: RawGallery): Gallery {
+	return {
+		id: json.id === null ? null : String(json.id),
+		targetType: json.target_type as GalleryTargetType,
+		targetId: String(json.target_id),
+		images: (json.images ?? []).map(mapGalleryImage),
+		canCurate: Boolean(json.can_curate),
+		canAdd: Boolean(json.can_add)
+	};
+}
+
+// ---- governor applications (backend/moderation/applications.py) ---------------------------------
+
+export interface RawGovernorApplication {
+	id: number;
+	applicant: number;
+	applicant_display_name: string;
+	kind: string;
+	node_label: string;
+	node_ref: string | number | null;
+	statement: string;
+	status: string;
+	queue_position: number | null;
+	decision_note: string;
+	decided_by_display_name: string;
+	decided_at: string | null;
+	created_at: string;
+}
+
+export function mapGovernorApplication(json: RawGovernorApplication): GovernorApplication {
+	return {
+		id: String(json.id),
+		applicantUserId: String(json.applicant),
+		applicantDisplayName: json.applicant_display_name ?? '',
+		kind: json.kind as GovernorNodeKind,
+		nodeLabel: json.node_label ?? '',
+		nodeRef: json.node_ref === null || json.node_ref === undefined ? '' : String(json.node_ref),
+		statement: json.statement ?? '',
+		status: json.status as GovernorApplicationStatus,
+		queuePosition: json.queue_position ?? null,
+		decisionNote: json.decision_note ?? '',
+		decidedByDisplayName: json.decided_by_display_name ?? '',
+		decidedAt: json.decided_at ?? null,
+		createdAt: json.created_at
 	};
 }

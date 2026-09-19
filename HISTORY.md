@@ -6740,88 +6740,98 @@ because each records a decision and its reasoning, not just an outcome.
 
 ---
 
-## 17BB. The exercise page re-stacked: one claim row, a rating in the hero, reviews with the discussion (✅ built, frontend only)
+## 17AZ. A kill switch for the age gate, and the cache that was hiding every other one (✅ built, full stack)
 
-Four asks in one pass, from Piotr, all about where things sit on `/exercises/[id]`.
+Piotr asked for one thing: a `/moderation` flag that turns off the age input on registration. The
+flag is small. Getting it to actually work in a browser turned up a bug that had been quietly
+weakening **every** kill switch on the site.
 
-### Covers and requires on one line, with the hint on hover
+### The flag
 
-`ClaimGroups` rendered two full-width cards, each with its heading and a sentence of hint under it
-("What you should already know to attempt it. Click a claim to vote, rank or discuss it."). On an
-exercise with no claims yet that is two thirds of a screen spent saying nothing. They are now one
-`grid` row — `repeat(auto-fit, minmax(16rem, 1fr))`, so a phone gets the old stack back — and the
-hint moved onto the heading's `title`.
+`age_verification`, the twelfth `FeatureFlag` key, seeded on, plain semantics (on = the question is
+asked) rather than `material_uploads_verified_only`'s inverted ones. Off, `/register` stops asking
+for a year of birth and `RegisterSerializer.validate_birth_year` stops raising `guardian_required`.
 
-A `title` alone would have *removed* the sentence for anybody not using a mouse, so the paragraph
-stays in the DOM under `visually-hidden` with the section pointing at it through `aria-describedby`.
-Hover for a sighted reader, read aloud for a screen reader, no printed line for either.
+**The scope was the design decision, and it was made narrow on purpose.** Off means the site stops
+*asking*; it does not mean the site stops *protecting*. Every rule in `accounts/minors.py` keeps
+applying to every account that has `is_minor`, and a guardian can still create a child account under
+Settings → Children. That is defensible because of a property the code already had: self-registration
+never set `is_minor` in the first place — `create()` pops `birth_year` and stores nothing, and
+`ChildrenView.post` is the only code path that ever marks an account a minor's. So turning the gate
+off removes a refusal and changes no stored data at all. A flag that *did* dissolve the minors regime
+would be a GDPR Article 8 decision wearing a kill switch's clothes.
 
-This is the **shared** component, so the course page (`CourseClaims`) got the same row. Checked in
-a browser: it reads better there too, which is why it was not made an exercise-only prop.
+**It is read with `is_feature_enabled()`, not `feature_gate`.** Every other flag is a permission
+class on a viewset, and reaching for that here would have been the natural mistake: registration is
+an anonymous endpoint, so a permission gate would 403 exactly the people the feature exists to serve,
+and `feature_gate`'s `is_staff` bypass means nothing to a caller who does not have an account yet.
+The distinction is now written down in `moderation/CLAUDE.md`, because it will come up again: a flag
+that removes a whole surface wants the gate; a flag that removes one *rule* from a surface everybody
+must still reach wants the plain read.
 
-### topics → claims → tags, and two divs that looked identical
+Both directions fail towards asking. `is_feature_enabled` fails open for a missing row, and the
+frontend store fails open before its first fetch resolves — so a database that never ran the seed
+migration, and a page that renders before the flags land, both still show the gate. For most flags
+fail-open means "the feature stays up"; for this one it means "the question keeps being asked," which
+is the right direction for a consent-age check.
 
-The claim groups sat below the Source section, and the tags row sat just above them — so the page
-said "here is where it lives", then the whole exercise, then "here is what it teaches". All three
-metadata rows are now together above the statement, in the order a reader asks for them.
+### The cache that was hiding every kill switch
 
-Both chip rows were `<div class="topics">`, which is why the ask named the same
-`svelte-1xfr0p8` twice. The second is now `.tags`, sharing the rule via a grouped selector so the
-two names cannot drift apart visually while saying what they are in devtools.
+The first browser run failed exactly where it mattered: the flag was flipped off in `/moderation`,
+the database agreed, and a fresh anonymous session went on asking for a year of birth.
 
-### The rating is in the hero; the reviews are at the foot
+`/api/feature-flags/` was on `config/cachemw.py`'s anonymous-read allowlist — 60s TTL, and
+**writes deliberately never invalidate**. That module's own docstring says the trade would be wrong
+somewhere and that "nothing found so far" was that place. This is that place. Everything else on the
+allowlist is content, where a sub-minute lag is invisible; the flags list is the **control plane**,
+the one anonymous read whose entire purpose is to be current. Serving it stale means a moderator
+kills a feature — possibly to stop abuse in progress, or to answer a takedown — and every logged-out
+visitor keeps being shown it, with working links, for another minute. That is precisely what house
+rule 3 exists to prevent, lost to a cache rather than to a missing link.
 
-The "Ratings & reviews" card sat in the middle of the exercise, between the submission forms and
-the discussion, and was usually the empty "No reviews yet — be the first." Now:
+Taken off the allowlist rather than invalidated on write, because there is nothing to invalidate
+accurately: `client.ts` appends `?content_locales=`/`?audience=` to list-shaped GETs, so one logical
+list is many cached URLs and a targeted delete would miss the ones that mattered. The cost is one
+small indexed query per anonymous app boot. This was **not** in the approved scope and is reported as
+such — but the approved feature does not work without it, and neither did any of the other eleven
+switches.
 
-- **The hero carries the rating**, next to Easy / Exercise sheet / Verified — `★★★☆☆ 3.6 (5)`, or
-  "Rate it" when nobody has. It is the same kind of fact as the other badges and it is what a
-  reader weighs before starting.
-- **Clicking it opens a dialog** with the reviews and the form for writing one (or the login
-  prompt). The empty state lives here now, where the form it invites you to use actually is.
-- **The reviews themselves are at the foot, with the discussion** — every review already carries
-  its own reply thread, so they belong in the conversation rather than in a panel of their own.
-  Only when there are any; a second "be the first" block competing with the dialog's would be two
-  empty states for one thing.
-- **Over ten, the dialog shows ten.** The full list is at the foot, and the dialog says so.
+### The Flags tab was already broken
 
-### "Best votes" — an honest substitute, named
+`galleries` was seeded by migration 0032 and never added to `FeatureFlagKey` or
+`FEATURE_FLAG_LABELS`, so `FEATURE_FLAG_LABELS[flag.key]()` was `undefined()` and the tab threw the
+moment it was opened. Identical to the `classroom` drift the type file already documents having
+caused — the second time, so the third was worth designing against: `featureFlagLabel()` falls back
+to the raw key, which keeps every other flag togglable and makes the gap visible as an untranslated
+row instead of a white screen. The fallback is a safety net, not permission to skip the file; both
+mirror files now say so, and so does `moderation/CLAUDE.md`.
 
-The ask was the ten "with best votes". **A review has no votes.** `community.CommentVote` votes on
-a *comment*; `community.Review` has a rating, a body and `replyCount` and nothing else. Rather than
-build a review-voting system nobody asked for, or silently rank by recency and call it "best", the
-comparator ranks by how much conversation a review drew, then its rating, then recency — the
-strongest signal this data actually has — and says so in a comment at the one place that would
-change if review votes are ever added.
+### Verified
 
-### Left open, not built
+**Backend: 6 new tests, full suite 1557, OK.** An under-16 registers fine with the gate off; the year
+may be omitted entirely (what the form actually sends once the field is gone); turning it back on
+restores the refusal; a *missing* flag row keeps the gate up; and — the one that pins the scope — a
+guardian still creates a child, that child is still a minor, still private, still governed by
+`accounts/minors.py`. Plus `test_the_feature_flag_list_is_never_cached`, which exists because putting
+the prefix back breaks no other test and the symptom reads as flakiness rather than a bug.
 
-- **Review votes.** The paragraph above. A `ReviewVote` mirroring `CommentVote` plus a serializer
-  field would make `topReviews`'s comparator a one-line change; everything else here is ready for
-  it.
-- **The dialog's ten are not a "top ten" anybody can see the rule for.** A reader is told the
-  dialog shows the ten most discussed, and the foot shows all — but there is no sort control, and
-  no way to page through the rest inside the dialog.
-- **No deep link to a single review.** The foot list has no anchors, so "all 14 are listed with the
-  discussion below" is a direction, not a link.
+**Browser: `e2e/age-gate-flag.mjs`, 19 checks, all passing.** It is what found the cache bug, and it
+found it the way `CLAUDE.md` house rule 2 says these things get found — `svelte-check`, `eslint`,
+`manage.py test` and a production build were all clean while the feature did not work. The run
+drives the refusal with its reason, the moderator's flip, a stranger in a fresh context, and Settings
+→ Children still standing with the gate off.
 
-### Verified — what was actually run
+### Left open
 
-- `npm run check` **0 errors, 0 warnings** (1851 files); `npm run build` clean; eslint clean on
-  both changed files; prettier clean on them (`npm run lint` as a whole still fails on the same
-  **6 pre-existing** files in other agents' uncommitted work).
-- `npm run check:a11y` against the dev server: 22 pages, **0 critical/serious**, 2 moderate
-  `heading-order` nodes on `/events` and `/services` — both pre-existing and untouched here.
-- A real browser, both viewports, against both live servers: 16 checks (order of the three rows,
-  the two groups on one line and stacked at 420px, the hint present as `title` and *not* printed,
-  the hero rating above the statement, no reviews card in the middle, the dialog opening, capping
-  at ten and closing on Escape, the foot section being the discussion) — all passing, and the
-  screenshots looked at, which is how the phone wrap and the course page were confirmed.
-- Signed in as a seeded user: submitting from inside the dialog works end to end — the thanks
-  notice, the new review in the dialog, the hero recounting 5.0 (1) → 5.0 (2), and the same review
-  at the foot. The >10 path was driven by creating nine scratch reviews and deleting them again;
-  the database is back to its 35.
-- **Not** run: `manage.py test` — nothing backend changed.
+- **The other eleven flags were never re-verified against the un-cached endpoint.** The staleness
+  applied to all of them, so any past "the kill switch does not seem to take effect" observation may
+  have been this and not the flag. Nothing was re-run.
+- **No prerender check.** `/register` is not one of the thirteen prerendered pages, so the gate's
+  first paint always comes from a live flags fetch. If `/register` is ever added to that list, the
+  field would be baked into the HTML and the flag would need a second look.
+- **The flag does not backfill.** Accounts created while the gate was off are ordinary adult accounts;
+  turning it back on does not go looking for them. That is the honest behaviour for a question that
+  was never stored, but it does mean "off for a week" leaves no trace in the data.
 
 ---
 
@@ -6942,6 +6952,91 @@ rich mode, to be inert when clicked, where a chemistry drawing reopens.
 - **Reporting one picture.** The `<img>` carries no id (it needs none), so a moderator looking at
   an inline picture matches it to its row by the media filename, which is random and unique. A
   `data-image` attribute plus a sanitizer entry would make it one click instead.
+
+---
+
+## 17BB. The exercise page re-stacked: one claim row, a rating in the hero, reviews with the discussion (✅ built, frontend only)
+
+Four asks in one pass, from Piotr, all about where things sit on `/exercises/[id]`.
+
+### Covers and requires on one line, with the hint on hover
+
+`ClaimGroups` rendered two full-width cards, each with its heading and a sentence of hint under it
+("What you should already know to attempt it. Click a claim to vote, rank or discuss it."). On an
+exercise with no claims yet that is two thirds of a screen spent saying nothing. They are now one
+`grid` row — `repeat(auto-fit, minmax(16rem, 1fr))`, so a phone gets the old stack back — and the
+hint moved onto the heading's `title`.
+
+A `title` alone would have *removed* the sentence for anybody not using a mouse, so the paragraph
+stays in the DOM under `visually-hidden` with the section pointing at it through `aria-describedby`.
+Hover for a sighted reader, read aloud for a screen reader, no printed line for either.
+
+This is the **shared** component, so the course page (`CourseClaims`) got the same row. Checked in
+a browser: it reads better there too, which is why it was not made an exercise-only prop.
+
+### topics → claims → tags, and two divs that looked identical
+
+The claim groups sat below the Source section, and the tags row sat just above them — so the page
+said "here is where it lives", then the whole exercise, then "here is what it teaches". All three
+metadata rows are now together above the statement, in the order a reader asks for them.
+
+Both chip rows were `<div class="topics">`, which is why the ask named the same
+`svelte-1xfr0p8` twice. The second is now `.tags`, sharing the rule via a grouped selector so the
+two names cannot drift apart visually while saying what they are in devtools.
+
+### The rating is in the hero; the reviews are at the foot
+
+The "Ratings & reviews" card sat in the middle of the exercise, between the submission forms and
+the discussion, and was usually the empty "No reviews yet — be the first." Now:
+
+- **The hero carries the rating**, next to Easy / Exercise sheet / Verified — `★★★☆☆ 3.6 (5)`, or
+  "Rate it" when nobody has. It is the same kind of fact as the other badges and it is what a
+  reader weighs before starting.
+- **Clicking it opens a dialog** with the reviews and the form for writing one (or the login
+  prompt). The empty state lives here now, where the form it invites you to use actually is.
+- **The reviews themselves are at the foot, with the discussion** — every review already carries
+  its own reply thread, so they belong in the conversation rather than in a panel of their own.
+  Only when there are any; a second "be the first" block competing with the dialog's would be two
+  empty states for one thing.
+- **Over ten, the dialog shows ten.** The full list is at the foot, and the dialog says so.
+
+### "Best votes" — an honest substitute, named
+
+The ask was the ten "with best votes". **A review has no votes.** `community.CommentVote` votes on
+a *comment*; `community.Review` has a rating, a body and `replyCount` and nothing else. Rather than
+build a review-voting system nobody asked for, or silently rank by recency and call it "best", the
+comparator ranks by how much conversation a review drew, then its rating, then recency — the
+strongest signal this data actually has — and says so in a comment at the one place that would
+change if review votes are ever added.
+
+### Left open, not built
+
+- **Review votes.** The paragraph above. A `ReviewVote` mirroring `CommentVote` plus a serializer
+  field would make `topReviews`'s comparator a one-line change; everything else here is ready for
+  it.
+- **The dialog's ten are not a "top ten" anybody can see the rule for.** A reader is told the
+  dialog shows the ten most discussed, and the foot shows all — but there is no sort control, and
+  no way to page through the rest inside the dialog.
+- **No deep link to a single review.** The foot list has no anchors, so "all 14 are listed with the
+  discussion below" is a direction, not a link.
+
+### Verified — what was actually run
+
+- `npm run check` **0 errors, 0 warnings** (1851 files); `npm run build` clean; eslint clean on
+  both changed files; prettier clean on them (`npm run lint` as a whole still fails on the same
+  **6 pre-existing** files in other agents' uncommitted work).
+- `npm run check:a11y` against the dev server: 22 pages, **0 critical/serious**, 2 moderate
+  `heading-order` nodes on `/events` and `/services` — both pre-existing and untouched here.
+- A real browser, both viewports, against both live servers: 16 checks (order of the three rows,
+  the two groups on one line and stacked at 420px, the hint present as `title` and *not* printed,
+  the hero rating above the statement, no reviews card in the middle, the dialog opening, capping
+  at ten and closing on Escape, the foot section being the discussion) — all passing, and the
+  screenshots looked at, which is how the phone wrap and the course page were confirmed.
+- Signed in as a seeded user: submitting from inside the dialog works end to end — the thanks
+  notice, the new review in the dialog, the hero recounting 5.0 (1) → 5.0 (2), and the same review
+  at the foot. The >10 path was driven by creating nine scratch reviews and deleting them again;
+  the database is back to its 35.
+- **Not** run: `manage.py test` — nothing backend changed.
 
 ---
 

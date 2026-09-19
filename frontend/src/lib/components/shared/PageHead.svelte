@@ -15,15 +15,18 @@
 	 * renders where the page renders, which is the only ordering that survives being rendered once,
 	 * at build time, with no hydration to correct it afterwards.
 	 *
-	 * `title` is the page's own name; the " — EdMat" suffix is added here so no call site has to
-	 * remember it, and so the app name cannot end up doubled the way four routes previously managed
-	 * ("EdMat — EdMat", where the fallback title and the suffix were both the app name).
+	 * `title` is the page's own name; the app name is put in FRONT of it here (via `pageTitle`,
+	 * shared with the routes that still write a bare `<title>` by hand, so the two cannot drift) so
+	 * that no call site has to remember it, and so the app name cannot end up doubled the way four
+	 * routes previously managed ("EdMat — EdMat", where the fallback title and the suffix were both
+	 * the app name).
 	 */
 	import { page } from '$app/state';
-	import { m } from '$lib/paraglide/messages.js';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	interface Props {
-		/** The page's own name. Omit on the homepage, where the app name alone IS the title. */
+		/** The page's own name. Omitting it gives the bare app name — which is what a page still
+		 *  loading its own record wants, rather than a stray colon with nothing after it. */
 		title?: string;
 		/** One or two sentences describing this page. Shown in search results and link previews. */
 		description: string;
@@ -40,7 +43,7 @@
 	/** The canonical public origin. `www.` and the university hostname both resolve here. */
 	const SITE_ORIGIN = 'https://edmat.net';
 
-	let fullTitle = $derived(title ? `${title} — ${SITE_NAME}` : m.common_appName());
+	let fullTitle = $derived(pageTitle(title));
 
 	/**
 	 * Canonical is the path WITHOUT its query string, deliberately. `?tab=events` on the homepage
