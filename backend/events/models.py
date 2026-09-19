@@ -304,11 +304,28 @@ class Event(models.Model):
 
     def going_count(self) -> int:
         """People who said they are coming. The host is NOT counted — they are running it, not
-        attending it, and counting them would make an empty event report one attendee."""
-        return self.attendances.filter(status__in=ATTENDING_STATUSES).count()
+        attending it, and counting them would make an empty event report one attendee.
+
+        Counted in Python over `.all()` rather than with `.filter(...).count()`, for the reason
+        `EventSerializer.post_count` already spells out: a `.filter()` issues its own query and so
+        walks straight past `EventViewSet.get_queryset`'s `prefetch_related('attendances')`, which
+        made a fifty-event listing fifty COUNTs. `.all()` reads that prefetch when there is one,
+        and falls back to loading the rows when there is not — acceptable here because the set is
+        bounded by how many people can plausibly answer one event.
+
+        Deliberately NOT done to `seat_holder_count`, `waitlist_count` or `pending_count` below,
+        even though the same win is on the table: those three decide CAPACITY, and the whole point
+        of events/registration.py is that a seat is re-checked against the database on every call
+        so two people answering at the same moment cannot both be seated. A count read from rows
+        fetched earlier in the request is exactly the staleness that guarantee exists to refuse.
+        This one is display only.
+        """
+        return sum(1 for a in self.attendances.all() if a.status in ATTENDING_STATUSES)
 
     def declined_count(self) -> int:
-        return self.attendances.filter(status='not_going').count()
+        # Display only, like going_count above — see its note for why the capacity counts below
+        # stay as database aggregates.
+        return sum(1 for a in self.attendances.all() if a.status == 'not_going')
 
     def seat_holder_count(self) -> int:
         return self.attendances.filter(status__in=SEAT_HOLDING_STATUSES).count()

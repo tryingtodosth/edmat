@@ -170,6 +170,30 @@ def _annotated_exercises(published=True):
     )
 
 
+def _browse_exercises(published=True):
+    """`_annotated_exercises()` plus everything `ExerciseListSerializer` then walks per row.
+
+    Exactly the set `ExerciseViewSet.bulk` already worked out and measured, minus the relations
+    only the Detail serializer reads: `branch` for `branch_slug` and `source` (a reverse OneToOne)
+    both join; `translations` is what `_published_translations` reads via `.all()` specifically so
+    a prefetch can serve it; `topics`/`tags` are resolved per object by DRF's own related fields;
+    `source__translations` is one level further down again, for `ExerciseSourceSerializer.get_name`.
+    Entries, claims and requirements are deliberately NOT here — a list row does not render them,
+    and prefetching them would buy nothing for real memory.
+
+    Deliberately its own function rather than folding this into `_annotated_exercises()`, which
+    would look tidier and would be a real regression: `random()` materialises the ENTIRE filtered
+    pool with `list(...)` to weight it, so prefetching translations there would pull a translation
+    row for all ~750 published exercises on every roll, to serialize exactly one of them. `random()`
+    calls `_annotated_exercises()` directly for that reason — keep it that way.
+    """
+    return (
+        _annotated_exercises(published=published)
+        .select_related('branch', 'source')
+        .prefetch_related('translations', 'topics', 'tags', 'source__translations')
+    )
+
+
 EXERCISE_SORT_KEYS = ('number', 'title', 'difficulty', 'rating', 'reviews', 'solutions', 'views', 'recent', 'top')
 
 
@@ -281,9 +305,9 @@ class ExerciseViewSet(viewsets.ModelViewSet):
             target = params.get('submitted_by') or str(user.pk)
             if target != str(user.pk) and not user.is_staff:
                 return Exercise.objects.none()
-            qs = _annotated_exercises(published=False).filter(submitted_by_id=target)
+            qs = _browse_exercises(published=False).filter(submitted_by_id=target)
             return _filter_exercises(qs, params).order_by('-id')
-        qs = _annotated_exercises()
+        qs = _browse_exercises()
         return _filter_exercises(qs, params)
 
     def get_serializer_class(self):
