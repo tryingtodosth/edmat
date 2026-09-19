@@ -32,6 +32,8 @@
 	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import ClaimGroups from '$lib/components/material/ClaimGroups.svelte';
 	import SolutionEntrySection from '$lib/components/exercise/SolutionEntrySection.svelte';
+	import ModalShell from '$lib/components/shared/ModalShell.svelte';
+	import StarRating from '$lib/components/shared/StarRating.svelte';
 	import type { SolutionEntry } from '$lib/types';
 
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
@@ -46,9 +48,33 @@
 	let loadFailed = $state(false);
 
 	let showAnswer = $state(false);
+	let showReviews = $state(false);
 	let showEditForm = $state(false);
 	let showTranslateForm = $state(false);
 	let submissionNotice = $state<'review' | 'comment' | 'edit' | 'translation' | null>(null);
+
+	let averageRating = $derived(
+		reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0
+	);
+
+	// What the hero's rating opens: the reviews worth reading first, not all of them — the full list
+	// stays at the bottom with the discussion.
+	//
+	// "Best" is ranked by the strongest signal this data actually has. A `community.Review` carries
+	// no votes of its own (only a `Comment` does, `community.CommentVote`), so how much conversation
+	// a review drew stands in for them, then the rating, then recency. If review votes are ever
+	// added, this comparator is the one place that changes.
+	const TOP_REVIEWS = 10;
+	let topReviews = $derived(
+		[...reviews]
+			.sort(
+				(a, b) =>
+					(b.replyCount ?? 0) - (a.replyCount ?? 0) ||
+					b.rating - a.rating ||
+					b.createdAt.localeCompare(a.createdAt)
+			)
+			.slice(0, TOP_REVIEWS)
+	);
 
 	async function resolveUsers(ids: string[]) {
 		const unique = [...new Set(ids)].filter((id) => !usersById[id]);
@@ -63,7 +89,7 @@
 		loading = true;
 		notFound = false;
 		loadFailed = false;
-		showAnswer = showEditForm = showTranslateForm = false;
+		showAnswer = showReviews = showEditForm = showTranslateForm = false;
 		submissionNotice = null;
 		contentLocale = getLocale();
 
@@ -263,6 +289,29 @@
 							? usersById[exercise.translatedByUserId]?.displayName
 							: undefined}
 					/>
+					<!-- The rating belongs beside the other badges — it is the same kind of fact about the
+					     exercise, and it is what a reader looks for before deciding to attempt it. The
+					     reviews themselves are long-form and stay at the bottom with the discussion; this
+					     opens the ten worth reading first, and the form for writing one. -->
+					<button
+						type="button"
+						class="rating-trigger"
+						onclick={() => (showReviews = true)}
+						aria-haspopup="dialog"
+						title={reviews.length === 0 ? m.review_noReviews() : m.review_heading()}
+					>
+						<StarRating value={averageRating} />
+						<span class="rating-trigger__label">
+							{#if reviews.length > 0}
+								{m.review_ratingSummary({
+									average: averageRating.toFixed(1),
+									count: reviews.length
+								})}
+							{:else}
+								{m.review_rate()}
+							{/if}
+						</span>
+					</button>
 				</div>
 				<!-- Everybody with a real account who worked on this, each linked to their profile.
 				     Replaces a submitter-only line: an exercise genuinely has several contributors — whoever
@@ -330,6 +379,35 @@
 				</div>
 			{/if}
 
+			<!-- What this exercise practises and what it expects you to know — the same claim groups a
+			     material and a course carry, from the shared component. Replaces the free-text
+			     requirement list (no exercise ever had one). -->
+			<ClaimGroups
+				ownerKind="exercise"
+				ownerId={exercise.id}
+				{topics}
+				coversHint={m.exercise_coversHint()}
+				requiresHint={m.exercise_requiresHint()}
+			/>
+
+			{#if exercise.tags.length}
+				<div class="tags">
+					<span class="label">{m.exercise_tags()}:</span>
+					{#each exercise.tags as tag (tag)}
+						<TagChip
+							{tag}
+							appliedTo={{
+								kind: 'exercise',
+								objectId: exercise.id,
+								onRemoved: () => {
+									if (exercise) exercise.tags = exercise.tags.filter((t) => t !== tag);
+								}
+							}}
+						/>
+					{/each}
+				</div>
+			{/if}
+
 			<section class="content-section">
 				<h2>{m.exercise_statement()}</h2>
 				<MathContent source={exercise.statement} />
@@ -382,35 +460,6 @@
 				</p>
 			</section>
 
-			{#if exercise.tags.length}
-				<div class="topics">
-					<span class="label">{m.exercise_tags()}:</span>
-					{#each exercise.tags as tag (tag)}
-						<TagChip
-							{tag}
-							appliedTo={{
-								kind: 'exercise',
-								objectId: exercise.id,
-								onRemoved: () => {
-									if (exercise) exercise.tags = exercise.tags.filter((t) => t !== tag);
-								}
-							}}
-						/>
-					{/each}
-				</div>
-			{/if}
-
-			<!-- What this exercise practises and what it expects you to know — the same claim groups a
-			     material and a course carry, from the shared component. Replaces the free-text
-			     requirement list (no exercise ever had one). -->
-			<ClaimGroups
-				ownerKind="exercise"
-				ownerId={exercise.id}
-				{topics}
-				coversHint={m.exercise_coversHint()}
-				requiresHint={m.exercise_requiresHint()}
-			/>
-
 			<section class="actions no-print">
 				{#if authStore.isAuthenticated}
 					<button type="button" class="link-button" onclick={() => (showEditForm = !showEditForm)}>
@@ -458,18 +507,44 @@
 				/>
 			{/if}
 
+			<!-- Reviews read as part of the conversation at the foot of the page, not as a separate
+			     panel in the middle of the exercise: every one of them already carries its own reply
+			     thread. Only when there are any — an empty "be the first" block here would be a second
+			     empty state competing with the one in the rating dialog, which is where writing a
+			     review actually happens. -->
 			<section class="content-section">
-				<h2>{m.review_heading()}</h2>
+				<h2>{m.discussion_heading()}</h2>
 				{#if reviews.length > 0}
+					<h3 class="subheading">{m.review_heading()}</h3>
 					<p class="review-summary">
 						{m.review_average({
-							average:
-								Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 10) / 10,
+							average: Math.round(averageRating * 10) / 10,
 							count: reviews.length
 						})}
 					</p>
+					<ReviewList {reviews} {usersById} commentTarget="review" />
+					<h3 class="subheading">{m.discussion_comments()}</h3>
 				{/if}
-				<ReviewList {reviews} {usersById} commentTarget="review" />
+				<DiscussionThread {comments} {usersById} onSubmit={handleCommentSubmit} />
+			</section>
+		</article>
+
+		{#if showReviews}
+			<ModalShell title={m.review_heading()} onClose={() => (showReviews = false)}>
+				{#if reviews.length > 0}
+					<p class="review-summary">
+						{m.review_average({
+							average: Math.round(averageRating * 10) / 10,
+							count: reviews.length
+						})}
+					</p>
+					<ReviewList reviews={topReviews} {usersById} commentTarget="review" />
+					{#if reviews.length > topReviews.length}
+						<p class="review-summary">{m.review_topOnly({ count: reviews.length })}</p>
+					{/if}
+				{:else}
+					<p class="review-summary">{m.review_noReviews()}</p>
+				{/if}
 				{#if authStore.isAuthenticated}
 					{#if submissionNotice === 'review'}
 						<p class="notice">{m.review_thanks()}</p>
@@ -478,13 +553,8 @@
 				{:else}
 					<p class="login-prompt"><a href={resolve('/login')}>{m.review_loginToReview()}</a></p>
 				{/if}
-			</section>
-
-			<section class="content-section">
-				<h2>{m.discussion_heading()}</h2>
-				<DiscussionThread {comments} {usersById} onSubmit={handleCommentSubmit} />
-			</section>
-		</article>
+			</ModalShell>
+		{/if}
 	{/if}
 </div>
 
@@ -553,7 +623,12 @@
 		align-items: center;
 		gap: var(--space-2);
 	}
-	.topics {
+	/* Two chip rows that look alike and are not the same thing: `.topics` is the taxonomy this
+	   exercise sits under, `.tags` is free-form labelling anybody can add. They shared one class
+	   until the claim groups moved up between them, which made "which of these two divs is this?"
+	   a question the class name has to answer. */
+	.topics,
+	.tags {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-1);
@@ -579,6 +654,30 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+	}
+	.rating-trigger {
+		@include mix.focus-ring;
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
+		background: none;
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: 2px var(--space-2);
+		cursor: pointer;
+		&:hover {
+			border-color: var(--accent);
+		}
+	}
+	.rating-trigger__label {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.subheading {
+		font-size: var(--font-size-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-secondary);
 	}
 	.content-section h2 {
 		font-size: var(--font-size-sm);

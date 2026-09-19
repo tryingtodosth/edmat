@@ -84,9 +84,15 @@
 </script>
 
 {#snippet group(kind: ClaimKind, rows: MaterialCoverage[])}
-	<section class="claim-group" data-kind={kind}>
+	<!-- The hint is a hover tooltip rather than a printed line: the two groups sit side by side, and
+	     a sentence under each heading was most of their height. `title` reads on hover, the
+	     visually-hidden copy keeps it for a screen reader (a `title` alone is neither keyboard- nor
+	     reliably AT-reachable). -->
+	<section class="claim-group" data-kind={kind} aria-describedby="claim-hint-{kind}">
 		<div class="claim-group__heading">
-			<h2>{kind === 'covers' ? m.material_coversHeading() : m.material_requiresHeading()}</h2>
+			<h2 title={kind === 'covers' ? coversHint : requiresHint}>
+				{kind === 'covers' ? m.material_coversHeading() : m.material_requiresHeading()}
+			</h2>
 			{#if authStore.isAuthenticated && topics.length > 0}
 				<button
 					type="button"
@@ -97,7 +103,9 @@
 				</button>
 			{/if}
 		</div>
-		<p class="group-hint">{kind === 'covers' ? coversHint : requiresHint}</p>
+		<p class="group-hint" id="claim-hint-{kind}">
+			{kind === 'covers' ? coversHint : requiresHint}
+		</p>
 		{#if !loaded}
 			<p class="status">{m.common_loading()}</p>
 		{:else if rows.length === 0}
@@ -114,8 +122,10 @@
 	</section>
 {/snippet}
 
-{@render group('covers', covers)}
-{@render group('requires', requires)}
+<div class="claim-groups">
+	{@render group('covers', covers)}
+	{@render group('requires', requires)}
+</div>
 
 {#if open}
 	<CoveragePopover coverage={open} onClose={() => (openId = null)} onVoteChange={applyUpdate} />
@@ -141,6 +151,14 @@
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	/* Covers and requires read as one row — they are two halves of the same answer ("what this
+	   teaches" / "what it assumes"). auto-fit collapses them back to a stack below ~34rem. */
+	.claim-groups {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+		gap: var(--space-4);
+		align-items: start;
+	}
 	.claim-group {
 		@include mix.card-surface;
 		padding: var(--space-4);
@@ -166,9 +184,7 @@
 		gap: var(--space-1);
 	}
 	.group-hint {
-		font-size: var(--font-size-xs);
-		color: var(--text-secondary);
-		margin-top: calc(-1 * var(--space-1));
+		@include mix.visually-hidden;
 	}
 	.status {
 		font-size: var(--font-size-sm);

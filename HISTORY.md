@@ -6740,6 +6740,91 @@ because each records a decision and its reasoning, not just an outcome.
 
 ---
 
+## 17BB. The exercise page re-stacked: one claim row, a rating in the hero, reviews with the discussion (✅ built, frontend only)
+
+Four asks in one pass, from Piotr, all about where things sit on `/exercises/[id]`.
+
+### Covers and requires on one line, with the hint on hover
+
+`ClaimGroups` rendered two full-width cards, each with its heading and a sentence of hint under it
+("What you should already know to attempt it. Click a claim to vote, rank or discuss it."). On an
+exercise with no claims yet that is two thirds of a screen spent saying nothing. They are now one
+`grid` row — `repeat(auto-fit, minmax(16rem, 1fr))`, so a phone gets the old stack back — and the
+hint moved onto the heading's `title`.
+
+A `title` alone would have *removed* the sentence for anybody not using a mouse, so the paragraph
+stays in the DOM under `visually-hidden` with the section pointing at it through `aria-describedby`.
+Hover for a sighted reader, read aloud for a screen reader, no printed line for either.
+
+This is the **shared** component, so the course page (`CourseClaims`) got the same row. Checked in
+a browser: it reads better there too, which is why it was not made an exercise-only prop.
+
+### topics → claims → tags, and two divs that looked identical
+
+The claim groups sat below the Source section, and the tags row sat just above them — so the page
+said "here is where it lives", then the whole exercise, then "here is what it teaches". All three
+metadata rows are now together above the statement, in the order a reader asks for them.
+
+Both chip rows were `<div class="topics">`, which is why the ask named the same
+`svelte-1xfr0p8` twice. The second is now `.tags`, sharing the rule via a grouped selector so the
+two names cannot drift apart visually while saying what they are in devtools.
+
+### The rating is in the hero; the reviews are at the foot
+
+The "Ratings & reviews" card sat in the middle of the exercise, between the submission forms and
+the discussion, and was usually the empty "No reviews yet — be the first." Now:
+
+- **The hero carries the rating**, next to Easy / Exercise sheet / Verified — `★★★☆☆ 3.6 (5)`, or
+  "Rate it" when nobody has. It is the same kind of fact as the other badges and it is what a
+  reader weighs before starting.
+- **Clicking it opens a dialog** with the reviews and the form for writing one (or the login
+  prompt). The empty state lives here now, where the form it invites you to use actually is.
+- **The reviews themselves are at the foot, with the discussion** — every review already carries
+  its own reply thread, so they belong in the conversation rather than in a panel of their own.
+  Only when there are any; a second "be the first" block competing with the dialog's would be two
+  empty states for one thing.
+- **Over ten, the dialog shows ten.** The full list is at the foot, and the dialog says so.
+
+### "Best votes" — an honest substitute, named
+
+The ask was the ten "with best votes". **A review has no votes.** `community.CommentVote` votes on
+a *comment*; `community.Review` has a rating, a body and `replyCount` and nothing else. Rather than
+build a review-voting system nobody asked for, or silently rank by recency and call it "best", the
+comparator ranks by how much conversation a review drew, then its rating, then recency — the
+strongest signal this data actually has — and says so in a comment at the one place that would
+change if review votes are ever added.
+
+### Left open, not built
+
+- **Review votes.** The paragraph above. A `ReviewVote` mirroring `CommentVote` plus a serializer
+  field would make `topReviews`'s comparator a one-line change; everything else here is ready for
+  it.
+- **The dialog's ten are not a "top ten" anybody can see the rule for.** A reader is told the
+  dialog shows the ten most discussed, and the foot shows all — but there is no sort control, and
+  no way to page through the rest inside the dialog.
+- **No deep link to a single review.** The foot list has no anchors, so "all 14 are listed with the
+  discussion below" is a direction, not a link.
+
+### Verified — what was actually run
+
+- `npm run check` **0 errors, 0 warnings** (1851 files); `npm run build` clean; eslint clean on
+  both changed files; prettier clean on them (`npm run lint` as a whole still fails on the same
+  **6 pre-existing** files in other agents' uncommitted work).
+- `npm run check:a11y` against the dev server: 22 pages, **0 critical/serious**, 2 moderate
+  `heading-order` nodes on `/events` and `/services` — both pre-existing and untouched here.
+- A real browser, both viewports, against both live servers: 16 checks (order of the three rows,
+  the two groups on one line and stacked at 420px, the hint present as `title` and *not* printed,
+  the hero rating above the statement, no reviews card in the middle, the dialog opening, capping
+  at ten and closing on Escape, the foot section being the discussion) — all passing, and the
+  screenshots looked at, which is how the phone wrap and the course page were confirmed.
+- Signed in as a seeded user: submitting from inside the dialog works end to end — the thanks
+  notice, the new review in the dialog, the hero recounting 5.0 (1) → 5.0 (2), and the same review
+  at the foot. The >10 path was driven by creating nine scratch reviews and deleting them again;
+  the database is back to its 35.
+- **Not** run: `manage.py test` — nothing backend changed.
+
+---
+
 # Appendix — the original blueprint's technical sections
 
 Written in Phase 0 and kept because the *reasoning* in them is still the reasoning the code
