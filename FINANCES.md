@@ -98,8 +98,11 @@ cannot be the applicant under the programme's own rules.
   `grant/` was untracked from the EdMat repository, which now ignores the directory outright, and
   re-initialised as **its own git repo** (`grant/.git`) carrying the same nine commits, re-rooted at
   the kit. It keeps real version control while being structurally unable to reach EdMat's public
-  remote. Give it a **private** remote and push there:
-  `git -C grant remote add origin <private-url> && git -C grant push -u origin main`.
+  remote. Its own remote is the **private** repo
+  [`tryingtodosth/prezentacje`](https://github.com/tryingtodosth/prezentacje) — verified private
+  before the first push (unauthenticated reads are refused), which is the property the whole
+  arrangement rests on. **If that repo is ever made public, the budget figures go with it.**
+  Work on the kit with `git -C grant …` from the EdMat checkout, or from `grant/` directly.
 - **Never force-push EdMat's `main`.** The nine ING commits are still in its local history even
   though the tip no longer tracks them, so the branch as a whole can never go to a public remote;
   publishing from it is a replay of selected commits. The pre-split state is also kept on the local

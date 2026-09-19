@@ -325,8 +325,9 @@ one, so its URLs should not encode one language as more native than the other.
 - Changing a port by hand (rather than through `run.sh`) silently breaks CORS.
 - `db.sqlite3.bak-*` snapshots beside the database are deliberate; do not clean them up.
 - **`grant/` is a separate repository and is gitignored here.** The ING kit carries budget and
-  salary figures; it lives in its own private repo at `grant/.git` (`FINANCES.md` §2) and this one
-  cannot see it. Do not `git add -f` it back.
+  salary figures; it is its own repo at `grant/.git`, pushing to the private
+  `tryingtodosth/prezentacje` (`FINANCES.md` §2), and this repository cannot see it. Do not
+  `git add -f` it back, and run its git commands as `git -C grant …`.
 - **`main` still diverges from `origin/main` permanently, and must never be force-pushed.** Even
   though the tip no longer tracks `grant/`, the nine ING commits remain in local `main`'s *history*,
   so pushing the branch as-is would publish the kit anyway. `deploy/` changes are also held back by
