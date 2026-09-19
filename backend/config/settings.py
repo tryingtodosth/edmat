@@ -176,6 +176,22 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # This close to the top so it wraps everything beneath it — a JSON list of 383 exercises or a
+    # whole moderation queue is highly repetitive text, and the bytes saved are the largest single
+    # win available on a link where the API and the SPA share one origin. Above the response cache
+    # at the bottom of this list on purpose: what gets stored there is then the UNCOMPRESSED body,
+    # so one cached entry serves both a client that accepts gzip and one that does not, and nothing
+    # is ever compressed twice.
+    #
+    # Apache's own mod_deflate is configured separately at the vhost; the two overlap harmlessly,
+    # because mod_deflate does not re-compress a response that already carries Content-Encoding.
+    #
+    # The BREACH caveat Django's own docs raise does not bite the surface that matters here: it
+    # needs a secret and attacker-controlled text in the SAME compressed response, and this API's
+    # one real secret (the DRF token) travels in a request header and is never echoed into a JSON
+    # body. The one place a secret IS rendered into a body is the browsable API's own CSRF form
+    # field, which is a staff/dev surface, not something a visitor is ever pointed at.
+    'django.middleware.gzip.GZipMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
