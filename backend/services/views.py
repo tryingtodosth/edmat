@@ -105,7 +105,35 @@ class ServiceViewSet(viewsets.ModelViewSet):
             # ExerciseSetViewSet/NodeGovernorViewSet already establish throughout this app.
             return Service.objects.filter(provider=self.request.user)
 
-        qs = Service.objects.all()
+        # Everything ServiceSerializer walks for a single row, loaded once for the whole page
+        # instead of once per listing: `provider__profile` because every card is bylined with a
+        # display name (a reverse OneToOne, so it rides the same join), `branches` because the slug
+        # list is rendered on each card, and the two review aggregates as real annotations rather
+        # than the pair of per-row queries `get_average_rating`/`get_review_count` used to fire.
+        #
+        # The aggregates are conditional (`filter=`), not a `.filter()` on the queryset — filtering
+        # here would DROP any listing with no visible review from the browse page entirely, which is
+        # most of them. Same reasoning `exercises.views._annotated_exercises` already spells out.
+        # `distinct=True` on the Count because `?branch=` joins the branches M2M, which multiplies
+        # the review rows; the Avg is unaffected by that fan-out (it averages the same value more
+        # times) but the Count would otherwise be a multiple of the truth.
+        visible_reviews = models.Q(reviews__is_removed=False)
+        qs = (
+            Service.objects.select_related('provider__profile')
+            .prefetch_related('branches')
+            .annotate(
+                annotated_average_rating=models.Avg('reviews__rating', filter=visible_reviews),
+                annotated_review_count=models.Count(
+                    'reviews', filter=visible_reviews, distinct=True
+                ),
+            )
+            # Explicit, and NOT redundant with `Service.Meta.ordering`: an `annotate()` carrying an
+            # aggregate CLEARS the model's default ordering (Django does this so a default ordering
+            # cannot silently join the GROUP BY and change the grouping). Without this line the two
+            # annotations above quietly reverse the browse page from newest-first to oldest-first —
+            # measured, not guessed: the listing came back 1,2,3… where it had been 18,17,15….
+            .order_by('-created_at')
+        )
         mine = self.request.query_params.get('mine')
         if mine and self.request.user.is_authenticated:
             qs = qs.filter(provider=self.request.user)
