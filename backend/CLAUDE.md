@@ -1,8 +1,8 @@
-# backend/ — Django 5.2 + DRF, 16 apps + `config/` + `testing/` + `imaging.py`, SQLite
+# backend/ — Django 5.2 + DRF, 20 apps + `config/` + `testing/` + `imaging.py`, SQLite
 
-Scoped context for backend work. Per-app specifics live in each app's own `CLAUDE.md`; full
-chronological history and design reasoning live in the root `CLAUDE.md` (authoritative when they
-disagree — but note it predates the taxonomy rename below, so its model names are stale).
+Scoped context for backend work. Per-app specifics live in each app's own `CLAUDE.md`; the
+cross-cutting rules live in the root `CLAUDE.md`; full chronological history and design reasoning
+live in `HISTORY.md` (which predates the taxonomy rename below, so its model names are stale).
 
 ## The vocabulary rename (the root CLAUDE.md does NOT know about this)
 
@@ -19,7 +19,7 @@ still exist on disk — the live app is `courses/`; never resurrect `classroom`.
 ## Run / test
 
 - One shared venv at repo root: `.venv/` (Python 3.12). From `backend/`:
-  `../.venv/bin/python3 manage.py test` (~1145 tests), `manage.py check`,
+  `../.venv/bin/python3 manage.py test` (`test.md` has the current count and what each suite covers), `manage.py check`,
   `manage.py makemigrations --check --dry-run`. No CI runs any of this — run it yourself.
 - Dev server: `./run.sh` from repo root (starts both halves; keeps CORS origin + `frontend/.env`
   in step with the chosen ports — changing a port by hand silently breaks CORS).

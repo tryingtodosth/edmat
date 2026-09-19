@@ -5,7 +5,7 @@ built. It was dictated by the project owner in several messages; everything belo
 came from them directly, and everything marked *judgement* is a gap I filled that they should be free
 to overrule.
 
-Read `CLAUDE.md` §17V.4 first — the navbar was rebuilt once already (three groups: browse, one
+Read `HISTORY.md` §17V.4 first — the navbar was rebuilt once already (three groups: browse, one
 "Add…" menu, one account menu; plus a phone drawer), and this builds on that rather than replacing
 it.
 
@@ -160,7 +160,7 @@ Two traps this project has already paid for, both recorded in `test.md`:
 ## 7. Where things stand
 
 The branch `worktree-booking-week-schedules` carries an unrelated, finished feature (the booking
-schedule editor, `CLAUDE.md` §17Z). This brief is committed alongside it only so it is not lost; the
+schedule editor, `HISTORY.md` §17Z). This brief is committed alongside it only so it is not lost; the
 navbar work should start from a fresh branch off `main`.
 
 Files this will touch, most likely: `frontend/src/lib/components/layout/Header.svelte` (the navbar),

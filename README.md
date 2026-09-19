@@ -3,8 +3,9 @@
 A community-driven database of university exercises (math/CS/physics) — full statement, hint,
 answer, and solution per exercise, LaTeX-rendered, filterable by topic/difficulty/source, with
 community reviews, threaded discussion, moderated submissions, and translation of both the
-interface and individual exercises. See [`CLAUDE.md`](./CLAUDE.md) for the full project blueprint
-(requirements, data model, build history).
+interface and individual exercises. [`CLAUDE.md`](./CLAUDE.md) is the engineering contract,
+[`PRODUCT.md`](./PRODUCT.md) the requirements, and [`HISTORY.md`](./HISTORY.md) the full build
+history; [`LEGAL.md`](./LEGAL.md) and [`FINANCES.md`](./FINANCES.md) cover the rest.
 
 Two parts, run separately:
 
@@ -91,7 +92,7 @@ manage.py check                    # sanity check
 manage.py import_legacy_corpus     # (re-)import the real corpus, idempotent
 manage.py import_legacy_corpus --dry-run   # same, but rolls back — nothing written
 manage.py seed_demo_users          # (re-)seed the 5 demo accounts
-manage.py test                     # the real automated suite — see CLAUDE.md Section 17L
+manage.py test                     # the real automated suite — see test.md
 
 # Frontend — from edmat/frontend/
 npm run check     # svelte-check
@@ -103,7 +104,8 @@ npm run build       # production build (adapter-static, output in build/)
 
 ```
 edmat/
-├── CLAUDE.md               # the full project blueprint — read this for the "why"
+├── CLAUDE.md               # the engineering contract — read this first
+├── HISTORY.md PRODUCT.md LEGAL.md FINANCES.md   # the "why", the spec, and the non-code commitments
 ├── requirements.txt         # one-line include of backend/requirements.txt, which is the real list
 ├── .venv/                   # backend virtualenv (created by you in step 1)
 ├── backend/                  # Django + DRF project
@@ -146,7 +148,7 @@ only its content data is vendored here, not its static-site-generator tooling (`
 
 > ⚠️ The corpus is transcribed from real university course material (exam/midterm/exercise-sheet
 > problems). Whether redistributing it publicly needs instructor permission is an open question —
-> see `CLAUDE.md` Section 18, item 2 — worth a real answer before this goes beyond a
+> see `LEGAL.md` §3 — worth a real answer before this goes beyond a
 > personal/prototype deployment.
 
 `backend/db.sqlite3` and `backend/media/` are **not** committed (see `.gitignore`) — both are fully
