@@ -117,6 +117,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Only for /sitemap.xml (config/sitemaps.py). It contributes no models and no migration — the
+    # framework is a template renderer over the Sitemap classes we hand it, which is why it can be
+    # added without touching the database.
+    'django.contrib.sitemaps',
     # third-party
     'rest_framework',
     'rest_framework.authtoken',
@@ -164,6 +168,16 @@ INSTALLED_APPS = [
 ]
 
 SITE_ID = 1
+
+# The public hostname /sitemap.xml builds its absolute URLs from — deliberately NOT the Site row
+# SITE_ID points at above. That row exists only because django-postman requires the sites framework
+# to be installed; nothing in this project ever set its domain, so it is whatever Django's own
+# initial migration left there ('example.com' on a fresh database). A sitemap quietly full of
+# example.com URLs is worse than no sitemap, so config/sitemaps.py reads this instead, and the Site
+# row stays out of it. `EDMAT_PUBLIC_HOST` in the environment (see deploy/DEPLOYMENT.md) overrides
+# it; the default is the real production domain, so a deployment that forgets to set it still emits
+# correct URLs rather than broken ones.
+EDMAT_PUBLIC_HOST = os.environ.get('EDMAT_PUBLIC_HOST', 'edmat.net')
 
 # django-postman's own notify_users() would otherwise try to email a real EMAIL_BACKEND (Django's
 # global default, unset here, is the SMTP backend, which would try to connect to localhost:25 and
