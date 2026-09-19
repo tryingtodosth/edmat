@@ -70,4 +70,11 @@ dist/
 
 # FUW deploy scripts — private, kept local-only (backed up under FUW/script-backups/)
 deploy/fuw/
+
+# The ING grant kit — deck, form answers, budget figures, the foundation paperwork. It is its own
+# git repository (`grant/.git`) with its own private remote, so it has real version control while
+# being structurally incapable of reaching this public repo. Untracked here on 2026-09-19; the
+# history it had in THIS repo is preserved on the local branches `grant-kit-local` and
+# `grant-history`. Never `git add -f` it back.
+grant/
 gemini.md
