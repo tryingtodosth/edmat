@@ -92,12 +92,18 @@ cannot be the applicant under the programme's own rules.
   autosave syncs into the folder. Never re-run `build_deck.py` against a deck he has touched — check
   `git status` and modification times first. `finish_deck.py` only renumbers by default; its
   `--regen-core` / `--rebuild-team` flags overwrite hand edits on the pages they touch.
-- **The kit is never published.** `origin/main` carries no `grant/` directory: the repository is
-  public and the deck's money slides are inside. Since 2026-09-19 the arrangement is explicit rather
-  than a matter of remembering — the ordinary code and docs commits are replayed onto `origin/main`
-  without the `grant/` (and `deploy/`) paths, the commits that add the kit stay on the local branch
-  `grant-kit-local`, and local `main` is expected to diverge from `origin/main` permanently.
-  **Never force-push `main`**, and ask before any push.
+- **The kit is its own repository, and that is the mechanism.** Until 2026-09-19 the only thing
+  keeping budget figures out of a public repo was remembering not to push — which had already cost
+  something real, stranding two ordinary code commits behind nine unpushed ING ones for weeks. So
+  `grant/` was untracked from the EdMat repository, which now ignores the directory outright, and
+  re-initialised as **its own git repo** (`grant/.git`) carrying the same nine commits, re-rooted at
+  the kit. It keeps real version control while being structurally unable to reach EdMat's public
+  remote. Give it a **private** remote and push there:
+  `git -C grant remote add origin <private-url> && git -C grant push -u origin main`.
+- **Never force-push EdMat's `main`.** The nine ING commits are still in its local history even
+  though the tip no longer tracks them, so the branch as a whole can never go to a public remote;
+  publishing from it is a replay of selected commits. The pre-split state is also kept on the local
+  branches `grant-kit-local` and `grant-history`.
 
 ### The foundation
 
