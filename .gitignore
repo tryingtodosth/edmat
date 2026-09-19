@@ -78,3 +78,7 @@ deploy/fuw/
 # `grant-history`. Never `git add -f` it back.
 grant/
 gemini.md
+
+# Browser-check screenshots — looked at during a run, never part of the record.
+# 48 of them had been sitting untracked for weeks; this stops the next commit sweeping them in.
+frontend/e2e/screenshots/

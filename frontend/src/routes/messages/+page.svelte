@@ -11,6 +11,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { getMessages } from '$lib/services/messaging';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let folder = $state<MessageFolder>('inbox');
 	let messages = $state<Message[]>([]);
@@ -62,7 +63,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.messages_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.messages_heading())}</title>
 </svelte:head>
 
 <FeatureGate feature="messaging">

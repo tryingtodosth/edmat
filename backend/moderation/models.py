@@ -13,7 +13,7 @@ from django.db import models
 from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 
 from exercises.models import Exercise
-from materials.models import CURRENCY_CHOICES
+from materials.models import CURRENCY_CHOICES, Material
 from materials.validators import validate_material_submission_file
 from taxonomy.models import Branch, Discipline
 
@@ -316,7 +316,102 @@ class NodeGovernor(models.Model):
 # The one place `kind` <-> model is defined for node governance — moderation/serializers.py's
 # NodeGovernorSerializer (validating a grant/list request) imports this rather than keeping its own
 # copy, the same discipline REPORT_KIND_MODELS already establishes for the reporting system.
-GOVERNABLE_NODE_MODELS = {'discipline': Discipline, 'branch': Branch}
+#
+# A Material joined the two taxonomy nodes when galleries arrived: somebody who photographed all
+# twelve pages of a handout, captioned them and put them in order is looking after THAT material,
+# and making them a governor of the whole branch to let them do it would hand them moderation
+# authority over everything else in it. The three levels nest — a grant on a material, on its
+# branch, or on that branch's discipline all answer yes for the material — which is what
+# `is_governor_of_material` resolves.
+GOVERNABLE_NODE_MODELS = {'discipline': Discipline, 'branch': Branch, 'material': Material}
+
+
+
+GOVERNOR_APPLICATION_STATUS_CHOICES = [
+    ('pending', 'Waiting to be read'),
+    ('approved', 'Approved'),
+    ('declined', 'Declined'),
+    ('withdrawn', 'Withdrawn by the applicant'),
+]
+
+
+class GovernorApplication(models.Model):
+    """Somebody asking to look after a discipline, a branch, or one material.
+
+    **Why there is a queue at all.** Until galleries, the only way to become a governor was for a
+    staff member to already know who you were and grant it (§17M, which also recorded having no user
+    search — so in practice it needed your numeric account id). That is workable when the role is
+    rare and platform-wide. It stops being workable the moment there is a per-material job worth
+    doing — putting a scanned handout's twelve photographed pages in the right order — because the
+    person who wants to do it is exactly the person staff have never heard of.
+
+    **It is first come, first served, and there is deliberately no way to change that.** There is no
+    priority column, no fee and no hook for one. That is a decision (Piotr, 2026-09-18) rather than
+    an omission, and it is worth writing down because the alternative was specifically proposed and
+    specifically dropped: letting somebody pay to be read sooner would be selling queue position for
+    authority over content other people wrote, and it would give the queue an incentive to stay
+    slow. What an applicant gets instead is the truth about where they are — see
+    `queue_position` — which is the part of "transparent queue tracking" that was actually worth
+    having.
+
+    **Deciding stays with staff**, unchanged from §17M. A governor of a branch cannot approve an
+    application for a material inside it, even though that is the obvious next step and the role
+    hierarchy now runs three deep. Delegated granting is a real feature with real failure modes
+    (somebody granting their way into a ring of mutual approvals) and it is not this pass's to
+    invent.
+    """
+
+    applicant = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='governor_applications', on_delete=models.CASCADE
+    )
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    node = GenericForeignKey('content_type', 'object_id')
+    # Why they want it, in their own words. Required: an application with nothing in it gives a
+    # reader nothing to decide on, and "no" would then be the only safe answer.
+    statement = models.TextField()
+    status = models.CharField(
+        max_length=12, choices=GOVERNOR_APPLICATION_STATUS_CHOICES, default='pending'
+    )
+    decided_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True)
+    # What approving produced, kept so the record still reads correctly after the grant is revoked —
+    # SET_NULL rather than CASCADE, because losing the application would lose the reason the person
+    # was trusted in the first place.
+    resulting_grant = models.ForeignKey(
+        'NodeGovernor', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # Oldest first — the queue IS this ordering, and putting it on the model means no listing
+        # can accidentally present a different one.
+        ordering = ['created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['applicant', 'content_type', 'object_id'],
+                condition=models.Q(status='pending'),
+                name='one_pending_application_per_node',
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f'application #{self.pk} by {self.applicant} ({self.status})'
+
+    @property
+    def queue_position(self) -> int | None:
+        """How many people are ahead of this one, plus itself. `None` once it has been decided —
+        a position is a fact about waiting, and reporting one for a finished application would be
+        answering a question nobody asked."""
+        if self.status != 'pending':
+            return None
+        return (
+            GovernorApplication.objects.filter(status='pending', created_at__lt=self.created_at).count()
+            + 1
+        )
 
 
 # A fixed, curated set — not user-creatable, matching this codebase's own "curated choices=, not
@@ -353,6 +448,23 @@ FEATURE_FLAG_CHOICES = [
     # choices/model/admin-UI list as the other 4 (the tutoring-listings feature request's own
     # explicit "it should be with other kill switches" instruction), not a separate mechanism.
     ('material_uploads_verified_only', 'Material uploads: verified contributors only'),
+    ('galleries', 'Picture galleries on content'),
+    # The age gate on self-registration (accounts/serializers.py's RegisterSerializer). A plain
+    # kill switch like the others, NOT an inverted one: is_enabled=True means "the age question is
+    # asked," which is this row's seeded default, so provisioning it changes nothing.
+    #
+    # Off means exactly one thing — /register stops asking for a year of birth and stops refusing
+    # an under-16 with `guardian_required`. It does NOT touch the minors regime: every rule in
+    # accounts/minors.py still applies to every `is_minor` account, and a guardian can still create
+    # a child under Settings -> Children (accounts/views.py's ChildrenView, the only code path that
+    # ever sets `is_minor` — self-registration pops `birth_year` and stores nothing, so turning
+    # this off removes a refusal and changes no stored data whatsoever).
+    #
+    # Read with a plain `is_feature_enabled()` call, deliberately NOT through `feature_gate` as a
+    # permission class: registration is an anonymous endpoint, so a gate there would 403 the whole
+    # thing for exactly the people it exists to serve, and `feature_gate`'s is_staff bypass means
+    # nothing to a caller who has no account yet.
+    ('age_verification', 'Age gate on self-registration'),
 ]
 
 

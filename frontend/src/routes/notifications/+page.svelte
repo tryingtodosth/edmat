@@ -10,6 +10,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import NotificationCard from '$lib/components/notification/NotificationCard.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	onMount(() => {
 		if (authStore.isAuthenticated) notificationStore.refresh();
@@ -17,7 +18,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.notification_inboxHeading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.notification_inboxHeading())}</title>
 </svelte:head>
 
 <div class="page">

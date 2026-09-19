@@ -49,6 +49,7 @@
 	import ExperienceList from '$lib/components/profile/ExperienceList.svelte';
 	import SkillsList from '$lib/components/profile/SkillsList.svelte';
 	import TranscriptView from '$lib/components/profile/TranscriptView.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let user = $state<User | undefined>(undefined);
 	let loading = $state(true);
@@ -249,7 +250,7 @@
 </script>
 
 <svelte:head>
-	<title>{user?.displayName ?? m.profile_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(user?.displayName ?? m.profile_heading())}</title>
 </svelte:head>
 
 <div class="page">

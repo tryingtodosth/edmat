@@ -28,7 +28,13 @@ translated serializer; define fallback ONCE, here), `dbsearch.py` (+ its own tes
 Admission is the owner's policy verbatim: an anonymous GET on a positive-list prefix is only
 STORED after its exact URL missed twice; the bar rises to 7 when the minute's anonymous traffic
 passes 120 rpm. TTL 60s; **writes never invalidate** (stated trade — sub-minute staleness beats
-an invalidation protocol). Gates are about WHO asks: any `Authorization` header or session
+an invalidation protocol). That trade holds for CONTENT and broke exactly once, on the CONTROL
+PLANE: `/api/feature-flags/` was on the allowlist, so a moderator could kill a feature and every
+logged-out visitor kept being shown it, links and all, for up to 60s — house rule 3's whole
+point, lost to a cache. It is off the allowlist now (2026-09-19); pinned by
+`AnonymousReadCacheTests.test_the_feature_flag_list_is_never_cached`, because putting it back
+breaks no other test and the symptom reads as flakiness rather than a bug. Nothing else here is
+a control plane; if something becomes one, it does not belong on this list either. Gates are about WHO asks: any `Authorization` header or session
 cookie disqualifies in both directions; a `Set-Cookie` response is never stored; **exercise
 detail is carved out** because `retrieve()` records the `ContentView` rows auto-hide divides by
 — a cache hit would silently stop counting anonymous readers. `X-EdMat-Cache: miss/stored/hit/

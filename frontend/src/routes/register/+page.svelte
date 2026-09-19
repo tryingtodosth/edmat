@@ -7,6 +7,7 @@
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { localeStore } from '$lib/state/locale.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
@@ -22,6 +23,18 @@
 	let password = $state('');
 	let preferredLocale = $state(getLocale());
 	let birthYear = $state('');
+	// The `age_verification` kill switch (backend moderation/models.py). Off, a moderator has
+	// decided this site does not ask a visitor their age: the field and its hint go, and the
+	// backend stops refusing an under-16 (accounts/serializers.py's validate_birth_year) — so
+	// hiding the input here is the whole of the frontend's half, not a cosmetic hide over a rule
+	// that still fires.
+	//
+	// `isEnabled` fails OPEN before the first flags fetch resolves, which for this one flag means
+	// the gate shows while the app is still booting. That is the right direction to fail: asking a
+	// question that turns out to be unnecessary is recoverable, silently dropping a GDPR Article 8
+	// check is not. Nothing here needs `isLoaded` — an over-eager ASK is safe, unlike an
+	// over-eager request the API would refuse.
+	let asksAge = $derived(featureFlagsStore.isEnabled('age_verification'));
 	let error = $state<'emailTaken' | 'guardianRequired' | 'generic' | null>(null);
 	let errorMessage = $state('');
 	let submitting = $state(false);
@@ -34,7 +47,7 @@
 			email.trim(),
 			password,
 			preferredLocale,
-			birthYear.trim() ? parseInt(birthYear, 10) : undefined
+			asksAge && birthYear.trim() ? parseInt(birthYear, 10) : undefined
 		);
 		submitting = false;
 		if (result.ok) {
@@ -89,11 +102,19 @@
 			<span>{m.auth_register_email()}</span>
 			<input type="email" bind:value={email} required />
 		</label>
-		<label class="field">
-			<span>{m.auth_register_birthYear()}</span>
-			<input type="text" inputmode="numeric" pattern={'[0-9]{4}'} bind:value={birthYear} required />
-			<span class="field-hint">{m.auth_register_birthYearHint()}</span>
-		</label>
+		{#if asksAge}
+			<label class="field">
+				<span>{m.auth_register_birthYear()}</span>
+				<input
+					type="text"
+					inputmode="numeric"
+					pattern={'[0-9]{4}'}
+					bind:value={birthYear}
+					required
+				/>
+				<span class="field-hint">{m.auth_register_birthYearHint()}</span>
+			</label>
+		{/if}
 		<label class="field">
 			<span>{m.auth_register_password()}</span>
 			<input

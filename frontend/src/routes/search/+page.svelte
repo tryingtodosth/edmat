@@ -37,6 +37,7 @@
 	import type { Course } from '$lib/types/course';
 	import type { EdmatEvent } from '$lib/types/event';
 	import { SEARCH_MIN_QUERY_LENGTH } from '$lib/utils/textInput';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let exercises = $state<ResolvedExercise[]>([]);
 	let materials = $state<Material[]>([]);
@@ -149,7 +150,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.search_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.search_heading())}</title>
 </svelte:head>
 
 <section class="search-page">

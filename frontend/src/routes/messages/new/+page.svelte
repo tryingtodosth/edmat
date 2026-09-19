@@ -14,6 +14,7 @@
 	import { sendMessage } from '$lib/services/messaging';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let recipient = $state<User | undefined>(undefined);
 	let recipientNotFound = $state(false);
@@ -55,7 +56,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.messages_compose()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.messages_compose())}</title>
 </svelte:head>
 
 <FeatureGate feature="messaging">
@@ -82,7 +83,10 @@
 			<form class="compose-form" onsubmit={handleSubmit}>
 				<label class="field">
 					<span>{m.messages_field_subject()}</span>
-					<input type="text" bind:value={subject} required maxlength="255" />
+					<!-- 120, matching the column the API writes into (postman.Message.subject) — at 255 the form
+					     let somebody type a subject the server then refused with a 400 they could not
+					     have predicted. -->
+					<input type="text" bind:value={subject} required maxlength="120" />
 				</label>
 				<label class="field">
 					<span>{m.messages_field_body()}</span>

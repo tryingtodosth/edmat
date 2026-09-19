@@ -143,6 +143,7 @@ INSTALLED_APPS = [
     'legal',
     # Chemical structure drawings (Ketcher) embedded in content — root CLAUDE.md §17AV.
     'chem',
+    'galleries',
     'telemetry',
     'identity',
     'courses',
@@ -589,6 +590,10 @@ REST_FRAMEWORK = {
         # decode-and-re-encode cost as a gallery picture, and the same reason for a rate: somebody
         # illustrating a long answer uploads several, a loop uploads thousands.
         'inline_image': '120/hour',
+        # Adding a picture to a gallery — a real decode and re-encode per call, so an unbounded
+        # rate is a CPU lever. Looser than a drawing's because photographing a twelve-page handout
+        # is one upload per page and a person doing that legitimately should not be stopped.
+        'gallery_image': '120/hour',
         # `PasswordResetView` is still the honest always-200 stub Phase 2 shipped (no email backend
         # exists yet, Section 18 item 9), so there is nothing here to brute-force TODAY. Throttled
         # anyway, because the moment a real email backend lands this becomes an unauthenticated
@@ -696,3 +701,18 @@ EDMAT_USOS_MOCK = os.environ.get('EDMAT_USOS_MOCK', 'false').lower() == 'true'
 EDMAT_REPOSITORY_URL = os.environ.get(
     'EDMAT_REPOSITORY_URL', 'https://github.com/tryingtodosth/edmat'
 )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Private messages are encrypted at rest (messaging/crypto.py, which records the threat model this
+# does and does not cover, and why the body is encrypted while the subject is not).
+#
+# Base64url of exactly 32 bytes — generate one with:
+#     python -c "import base64,os;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+#
+# Left unset, the key is derived from SECRET_KEY instead, so a fresh clone works with no setup step.
+# That fallback is genuinely weaker in one specific way worth knowing before relying on it: rotating
+# DJANGO_SECRET_KEY then makes every existing message unreadable, because the key rotated with it.
+# A real deployment should set this and back it up separately from the database — a backup of both,
+# in the same place, protects against rather less than it appears to.
+EDMAT_MESSAGE_KEY = os.environ.get('EDMAT_MESSAGE_KEY', '')

@@ -15,6 +15,7 @@
 	import { ISSUE_KIND_LABELS, ISSUE_STATUSES, ISSUE_STATUS_LABELS } from '$lib/utils/issueLabels';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let issue = $state<Issue | undefined>(undefined);
 	let comments = $state<Comment[]>([]);
@@ -93,7 +94,7 @@
 </script>
 
 <svelte:head>
-	<title>{issue ? issue.title : m.issues_heading()} · {m.common_appName()}</title>
+	<title>{pageTitle(issue ? issue.title : m.issues_heading())}</title>
 </svelte:head>
 
 <FeatureGate feature="issues">

@@ -262,6 +262,8 @@ class RegisterSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
     # Asked to BRANCH, never stored (data minimisation): under the consent age the answer is
     # "ask your parent or guardian to create your account", and the year goes no further.
+    # `required=False` already, and the `age_verification` FeatureFlag can take the question away
+    # entirely — see validate_birth_year.
     birth_year = serializers.IntegerField(required=False, min_value=1900, max_value=2100)
     display_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     preferred_locale = serializers.CharField(max_length=8, required=False, default='en')
@@ -280,10 +282,27 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate_birth_year(self, value):
+        """The age gate, and the one thing the `age_verification` FeatureFlag turns off.
+
+        Read through a plain `is_feature_enabled()` rather than `feature_gate` as a permission
+        class, deliberately: registration is an ANONYMOUS endpoint, so a permission gate would 403
+        the whole thing for precisely the people it exists to serve, and `feature_gate`'s is_staff
+        bypass is meaningless to a caller who does not have an account yet. The flag has to take
+        away one validation branch, not the endpoint.
+
+        Off removes a refusal and nothing else. `create()` pops `birth_year` either way, so no
+        stored data differs; `is_minor` is only ever set by ChildrenView.post (a guardian adding a
+        child), and every rule in accounts/minors.py keeps applying to every account that has it.
+        Fails OPEN towards asking — a missing flag row means the gate stays up (moderation/
+        services.py), which is the safer direction for a GDPR Article 8 question."""
         from django.utils import timezone
+
+        from moderation.services import is_feature_enabled
 
         from .minors import CONSENT_AGE
 
+        if not is_feature_enabled('age_verification'):
+            return None
         if value is not None and timezone.now().year - value < CONSENT_AGE:
             raise serializers.ValidationError('guardian_required', code='guardian_required')
         return value

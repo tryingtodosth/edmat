@@ -13,6 +13,7 @@
 	import { acceptInvite, previewInvite } from '$lib/services/course';
 	import type { InvitePreview } from '$lib/types/course';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let token = $derived(page.params.token ?? '');
 	let preview = $state<InvitePreview | null>(null);
@@ -71,7 +72,7 @@
 </script>
 
 <svelte:head>
-	<title>{preview ? preview.courseTitle : m.course_join_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(preview ? preview.courseTitle : m.course_join_heading())}</title>
 	<!-- An invite is a private link; it has no business in a search index. -->
 	<meta name="robots" content="noindex" />
 </svelte:head>

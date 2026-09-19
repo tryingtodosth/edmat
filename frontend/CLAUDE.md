@@ -83,6 +83,14 @@ After adding keys, paraglide must recompile (stale generated messages throw
 **No URL locale strategy** — `/pl/...` is not a route; language is chosen via the picker.
 Interface language and content language are independent axes (a `?lang=` picker per exercise).
 
+## Page titles
+
+Every tab is `EdMat: <page>`, shaped in ONE place (`lib/utils/pageTitle.ts`). Two callers:
+`PageHead.svelte` (which also owns description/canonical/OG and is the right thing to reach for on
+a new route) and the 41 routes that still write a bare `<title>` by hand. **Never both on one
+page** — a second `<title>` is not an error anybody is told about; the first silently wins and the
+page is stuck on one name. `e2e/material-open-and-titles.mjs` asserts `head title` count is 1.
+
 ## State (`lib/state/*.svelte.ts`, 18 modules)
 
 `token.svelte.ts` is a dependency-free leaf (client reads it, auth writes it — the split

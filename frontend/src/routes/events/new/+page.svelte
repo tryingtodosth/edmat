@@ -7,6 +7,7 @@
 	import type { EventDraft } from '$lib/types/event';
 	import EventForm from '$lib/components/event/EventForm.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let submitting = $state(false);
 	let error = $state('');
@@ -26,7 +27,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.events_hostAnEvent()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.events_hostAnEvent())}</title>
 </svelte:head>
 
 <FeatureGate feature="events">

@@ -7,6 +7,7 @@
 	import { formatDate } from '$lib/utils/format';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 	import {
 		getLegalNotices,
 		previewLegalNoticeContent,
@@ -112,7 +113,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.legalQueue_metaTitle()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.legalQueue_metaTitle())}</title>
 </svelte:head>
 
 <div class="page">

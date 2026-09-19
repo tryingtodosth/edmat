@@ -31,6 +31,7 @@
 	import CourseInvites from '$lib/components/course/CourseInvites.svelte';
 	import CourseReviewQueue from '$lib/components/course/CourseReviewQueue.svelte';
 	import CourseStaffPanel from '$lib/components/course/CourseStaffPanel.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let course = $state<Course | undefined>(undefined);
 	let staff = $state<CourseStaffMember[]>([]);
@@ -109,7 +110,11 @@
 </script>
 
 <svelte:head>
-	<title>{course?.title ?? m.common_appName()} — {m.course_manageHeading()}</title>
+	<title
+		>{pageTitle(
+			course?.title ? `${course.title} — ${m.course_manageHeading()}` : m.course_manageHeading()
+		)}</title
+	>
 </svelte:head>
 
 <div class="page">

@@ -8,6 +8,7 @@
 	import { createService } from '$lib/services/tutoring';
 	import ServiceForm from '$lib/components/service/ServiceForm.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let branches = $state<Branch[]>([]);
 
@@ -23,7 +24,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.services_newListing()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.services_newListing())}</title>
 </svelte:head>
 
 <FeatureGate feature="tutoring">

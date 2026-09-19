@@ -54,6 +54,7 @@
 	import CalendarMonth from '$lib/components/booking/CalendarMonth.svelte';
 	import CalendarWeek from '$lib/components/booking/CalendarWeek.svelte';
 	import ViewSwitcher from '$lib/components/booking/ViewSwitcher.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 	import {
 		type CalendarEntry,
 		type CalendarMonthDay,
@@ -698,7 +699,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.booking_pageTitle()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.booking_pageTitle())}</title>
 </svelte:head>
 
 <div class="page">

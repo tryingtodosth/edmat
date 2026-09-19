@@ -14,6 +14,7 @@
 	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
 	import StaleRow from '$lib/components/shared/StaleRow.svelte';
 	import { cachedList, type TrackedRow } from '$lib/state/cachedList.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	type Scope = 'upcoming' | 'past' | 'hosting' | 'attending';
 
@@ -73,7 +74,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.events_browseHeading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.events_browseHeading())}</title>
 </svelte:head>
 
 <FeatureGate feature="events">

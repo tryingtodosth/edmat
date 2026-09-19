@@ -17,10 +17,21 @@ REST endpoints (a real inbox/unread-count UI), not email.
 from postman.api import pm_write
 from postman.models import STATUS_ACCEPTED, Message
 
+from .crypto import decrypt_text, encrypt_text
+
 
 def send_message(sender, recipient, subject: str, body: str = '') -> Message:
-    """A brand-new, top-level message — thin pass-through to django-postman's own documented API."""
-    return pm_write(sender=sender, recipient=recipient, subject=subject, body=body, skip_notification=True)
+    """A brand-new, top-level message — thin pass-through to django-postman's own documented API,
+    with the body encrypted on the way in (messaging/crypto.py, which also records why the subject
+    is not). This function and `reply_to_message` below are the only two write paths this app has,
+    which is what makes encrypting here enough."""
+    return pm_write(
+        sender=sender,
+        recipient=recipient,
+        subject=subject,
+        body=encrypt_text(body),
+        skip_notification=True,
+    )
 
 
 def reply_to_message(sender, parent: Message, body: str, subject: str | None = None) -> Message:
@@ -42,11 +53,15 @@ def reply_to_message(sender, parent: Message, body: str, subject: str | None = N
 
     recipient = parent.recipient if parent.sender_id == sender.id else parent.sender
 
+    # `parent.subject` is stored in clear (see crypto.py), so the `Re:` default needs no unwrapping.
+    # It goes through `decrypt_text` regardless because that function returns a plaintext value
+    # unchanged — which keeps this line correct if the subject is ever encrypted too, rather than
+    # silently building a reply subject out of base64.
     message = Message(
         sender=sender,
         recipient=recipient,
-        subject=subject or f'Re: {parent.subject}',
-        body=body,
+        subject=subject or f'Re: {decrypt_text(parent.subject)}',
+        body=encrypt_text(body),
         parent=parent,
         thread_id=parent.thread_id,
     )

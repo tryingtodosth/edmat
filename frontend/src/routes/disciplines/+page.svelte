@@ -6,6 +6,7 @@
 	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
 	import { taxonomyStore } from '$lib/state/taxonomy.svelte';
 	import { splitByStatus } from '$lib/utils/taxonomy';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	// Read from the preloaded tree rather than fetching here. The root layout has usually already
 	// warmed it, so this page paints on the first frame; `preload` is still called because a direct
@@ -36,7 +37,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.nav_browse()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.nav_browse())}</title>
 </svelte:head>
 
 <div class="page">

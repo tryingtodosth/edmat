@@ -49,6 +49,9 @@
 	import ReviewForm from '$lib/components/review/ReviewForm.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
+	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
+	import ApplyToGovern from '$lib/components/governance/ApplyToGovern.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let material = $state<Material | undefined>(undefined);
 	let branch = $state<Branch | undefined>(undefined);
@@ -62,6 +65,24 @@
 	// PdfViewer only mounts on the click, which is also when its ~1.5 MB pdf.js chunk loads.
 	let showPreview = $state(false);
 	let isPdf = $derived(Boolean(material?.fileUrl && /\.pdf($|\?)/i.test(material.fileUrl)));
+
+	// A picture, on the other hand, is shown straight away and never behind a toggle. The two are
+	// not the same decision: the PDF viewer costs a ~1.5 MB script chunk before it can draw
+	// anything, while an <img> costs one request for a file the browser was built to render, and a
+	// material that IS a photographed exam sheet is unusable until you can see it. `loading="lazy"`
+	// keeps even that request off the critical path.
+	//
+	// `.webp` is in this list because it is what every uploaded picture is STORED as — the submission
+	// pipeline re-encodes images (materials/materialfile.py), so matching only the extensions a
+	// person can upload would have missed every picture actually on disk.
+	let isPicture = $derived(
+		Boolean(material?.fileUrl && /\.(png|jpe?g|webp|gif)($|\?)/i.test(material.fileUrl))
+	);
+
+	// Whether the viewer already looks after this material. The gallery answers the same question
+	// for itself, but the apply button renders even when there are no pictures yet, so it cannot
+	// borrow that answer.
+	let curatesThisMaterial = $state(false);
 
 	let comments = $state<Comment[]>([]);
 	let reviews = $state<MaterialReview[]>([]);
@@ -234,7 +255,7 @@
 </script>
 
 <svelte:head>
-	<title>{material ? material.title : m.material_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(material ? material.title : m.material_heading())}</title>
 </svelte:head>
 
 <div class="page">
@@ -276,6 +297,43 @@
 				{/if}
 			</section>
 		{/if}
+
+		{#if isPicture && material.fileUrl}
+			<!-- Directly under the card — so under the title, the summary and the button that gets you
+			     the file — because for a picture material this IS the material, not an extra. The link
+			     around it is the way to the full-size original: the img below is bounded by the page's
+			     own width, and a scanned sheet is routinely wider than that. -->
+			<section class="content-section picture-preview">
+				<h2>{m.picturePreview_heading()}</h2>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- our own media server, not an app route -->
+				<a href={material.fileUrl} target="_blank" rel="noopener noreferrer">
+					<img
+						src={material.fileUrl}
+						alt={material.title}
+						title={m.picturePreview_openFull()}
+						loading="lazy"
+					/>
+				</a>
+			</section>
+		{/if}
+
+		<GallerySection
+			targetType="material"
+			targetId={material.id}
+			onLoaded={(g) => (curatesThisMaterial = g.canCurate)}
+		/>
+
+		<!-- Under the pictures on purpose: the job being applied for is looking after THEM, and the
+		     offer makes no sense to somebody who has not seen what there is to look after. -->
+		<section class="govern">
+			<h2>{m.govapp_heading()}</h2>
+			<ApplyToGovern
+				kind="material"
+				nodeRef={material.id}
+				nodeLabel={material.title}
+				alreadyCurates={curatesThisMaterial}
+			/>
+		</section>
 
 		<AppearsInSessions materialId={material.id} />
 
@@ -521,6 +579,36 @@
 	.requirement-row__label {
 		font-weight: 600;
 		font-size: var(--font-size-sm);
+	}
+	.govern {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+
+		h2 {
+			margin: 0;
+			font-size: var(--font-size-sm);
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			color: var(--text-secondary);
+		}
+	}
+	.picture-preview img {
+		display: block;
+		max-width: 100%;
+		// Bounded in BOTH directions: a tall, narrow scan would otherwise push every claim group,
+		// the reviews and the discussion off the bottom of a phone screen. The link around it is
+		// what reaches the unbounded original.
+		max-height: 80vh;
+		width: auto;
+		height: auto;
+		margin-top: var(--space-2);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		// A picture with transparency (a re-encoded WebP keeps its alpha) would otherwise be read
+		// against whichever theme is on, which for a diagram scanned as white-on-transparent means
+		// an invisible diagram in dark mode.
+		background: #ffffff;
 	}
 	.pdf-preview__head {
 		display: flex;

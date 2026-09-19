@@ -60,7 +60,10 @@ class Command(BaseCommand):
                 candidates.append(f'/api/branches/{slug}/exercises/?lang={lang}')
                 candidates.append(f'/api/branches/{slug}/materials/?lang={lang}')
         candidates.append('/api/disciplines/')
-        candidates.append('/api/feature-flags/')
+        # No `/api/feature-flags/`: it came off cachemw's allowlist on 2026-09-19 (it is the control
+        # plane — a stale kill switch keeps a killed feature visible to logged-out visitors). Warming
+        # it would be a no-op anyway, since `cacheable_request` below refuses it, but a dead
+        # candidate here is how somebody talks themselves into putting the prefix back.
         # Top-level public listings on cachemw's allowlist. Nothing here carries attachments
         # (media files live under /media/, never warmed) or personal data (auth/messaging/
         # bookings are off-list by construction; /api/users/ is deliberately not enumerated).

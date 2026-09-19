@@ -55,6 +55,25 @@ gating READS as well as writes via `feature_gate()`, `is_staff` bypassed. A kill
 also lose every frontend link (nav, tabs, menus) — pinned by e2e. Adding a flag changes the
 seeded-flag-set test's expected list; that test being stale is the intended effect.
 
+**Adding a key is a THREE-file change, and the third is the one that gets forgotten**: the
+backend choices + migrations, *and* `frontend/src/lib/types/featureFlag.ts` *and*
+`frontend/src/lib/utils/labels.ts`. A key missing from the label map used to render
+`undefined()` and take the whole Flags tab down with it — that happened twice (`classroom` after
+the rename, `galleries` after migration 0032). `featureFlagLabel()` now falls back to the raw
+key, so the tab survives; it still looks broken, so add the label.
+
+**Not every flag wants `feature_gate`.** It is a permission class, so it answers "may this caller
+touch this endpoint at all" — right for a whole feature surface, wrong where the flag should
+remove one *rule* from an endpoint everybody must still reach. `age_verification` is the second
+shape: `RegisterSerializer.validate_birth_year` reads `is_feature_enabled()` directly, because
+gating anonymous registration would 403 exactly the people it serves, and the `is_staff` bypass
+means nothing to a caller with no account. Pick by what the flag removes, not by habit.
+
+`age_verification` off means the age question leaves `/register` and the under-16 refusal stops
+firing — **and nothing else**. The minors regime (`accounts/minors.py`) and Settings → Children
+are deliberately outside its reach; `accounts/test_minors.py`'s `RegistrationAgeGateFlagTests`
+is what pins that, and `e2e/age-gate-flag.mjs` drives it in a browser.
+
 ## Verified-contributor fast path
 
 A brand-new `ExerciseSubmission` from `is_verified_contributor` auto-publishes in
@@ -64,3 +83,22 @@ Edit suggestions and translations from the same person still queue — deliberat
 ## Verify
 
 `manage.py test moderation` (largest suite — races, scoping, auto-hide, provenance all pinned).
+
+## GovernorApplication — asking to look after a node
+
+- A **Material** is a governable node now, beside Discipline and Branch (`GOVERNABLE_NODE_MODELS`),
+  resolved by `services.is_governor_of_material` (material grant → branch → discipline). It is
+  addressed by `node_pk`, never `node_slug`: `Material.slug` is unique only within a branch.
+- **First come, first served, with no way to change that** — no priority column, no fee, no hook
+  for one. A paid fast-track was proposed and dropped (Piotr, 2026-09-18); the model's docstring
+  carries why, so a future reader finds it where the hook would have gone. `queue_position` is the
+  honest half of "queue tracking" and is shown to the applicant.
+- **Deciding stays staff-only** (§17M, unchanged) even though the hierarchy is now three deep;
+  delegated granting is a real feature with real failure modes and is not built.
+- Approving creates the `NodeGovernor` row in ONE place (`applications.finish_decision`), reusing an
+  existing grant rather than duplicating it. Declining requires a reason. The claim is a
+  WHERE-anchored `update()` with a revert on failure — §17I's shape.
+- Two notification types: the applicant is told the decision; EVERY staff account is told a new one
+  arrived (a queue that notifies one person stalls).
+
+Verify: `manage.py test moderation.test_governor_applications` (25).

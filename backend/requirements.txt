@@ -30,6 +30,11 @@ django-postman>=4.6,<5.0
 # DOMPurify pass (renderContent.ts) was, until this fix, the ONLY sanitization layer for content
 # that publishes with no moderator review at all (a verified contributor's new exercises).
 bleach>=6.1,<7.0
+# messaging/crypto.py — AES-256-GCM for private message bodies at rest, so the database file alone
+# is not enough to read somebody's conversations. The reference Python crypto library; nothing in
+# the standard library offers an authenticated cipher, and hand-rolling one is the classic way to
+# end up with something that looks encrypted and is not.
+cryptography>=42.0,<52.0
 
 # Optional (activates with EDMAT_REDIS_URL): shared cache/throttle counters, anonymous-read
 # response caching, and pub/sub notification push. Without the env var nothing imports it at

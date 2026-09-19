@@ -10,6 +10,7 @@
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	type IncludeField = 'hint' | 'answer' | 'solution';
 	type IncludeFlags = Record<IncludeField, boolean>;
@@ -165,7 +166,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.myset_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.myset_heading())}</title>
 </svelte:head>
 
 <div class="page">

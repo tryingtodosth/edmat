@@ -25,6 +25,7 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import TaxonomyOptions, { OTHER_VALUE } from '$lib/components/shared/TaxonomyOptions.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let fields = $state<Discipline[]>([]);
 	let branches = $state<Branch[]>([]);
@@ -199,7 +200,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.submit_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.submit_heading())}</title>
 </svelte:head>
 
 <FeatureGate feature="exercise_submissions">

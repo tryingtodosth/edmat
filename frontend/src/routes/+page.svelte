@@ -222,8 +222,9 @@
 	});
 </script>
 
-<!-- No `title` prop: on the homepage the app name alone is the title, with nothing to prefix it. -->
-<PageHead description={m.seo_home_description()} />
+<!-- Named like every other page, so the tab reads "EdMat: Home" rather than a bare "EdMat" that a
+     row of open tabs cannot be told apart by. -->
+<PageHead title={m.common_home()} description={m.seo_home_description()} />
 
 <div class="page">
 	<section class="hero">

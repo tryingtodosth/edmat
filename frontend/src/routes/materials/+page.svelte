@@ -18,6 +18,7 @@
 	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
 	import StaleRow from '$lib/components/shared/StaleRow.svelte';
 	import { cachedList, type TrackedRow } from '$lib/state/cachedList.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let fields = $state<Discipline[]>([]);
 	let materials = $state<TrackedRow<Material>[]>([]);
@@ -106,7 +107,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.materialsHub_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.materialsHub_heading())}</title>
 </svelte:head>
 
 <div class="page">

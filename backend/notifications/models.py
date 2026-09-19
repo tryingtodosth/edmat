@@ -106,6 +106,13 @@ NOTIFICATION_TYPES = [
     # obligations (Art. 16(6) vs. this app's own bug-report courtesy), and `legal.LegalNotice` is
     # deliberately not `issues.Issue` at all (see legal/models.py).
     ('legal_notice_decided', 'A legal notice you filed was decided'),
+    # Applying to look after a discipline, a branch or one material (moderation.GovernorApplication).
+    # Two types rather than one, because the recipients are different people with different next
+    # moves: the applicant is told what was decided, and staff are told there is something waiting —
+    # a queue nobody is told about is a queue that stalls, which is the same reasoning the course
+    # contribution queue already records for notifying every member of staff rather than one.
+    ('governor_application_submitted', 'Somebody applied to look after content'),
+    ('governor_application_decided', 'Your application to look after content was decided'),
 ]
 
 

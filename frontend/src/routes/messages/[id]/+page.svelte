@@ -16,6 +16,7 @@
 	import { getMessage, getThread, replyToMessage } from '$lib/services/messaging';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let thread = $state<Message[]>([]);
 	let loading = $state(true);
@@ -91,7 +92,7 @@
 </script>
 
 <svelte:head>
-	<title>{thread[0]?.subject ?? m.messages_heading()} — {m.common_appName()}</title>
+	<title>{pageTitle(thread[0]?.subject ?? m.messages_heading())}</title>
 </svelte:head>
 
 <FeatureGate feature="messaging">
@@ -113,7 +114,14 @@
 							<span class="author">{message.senderDisplayName}</span>
 							<span class="date">{formatDate(message.sentAt, getLocale())}</span>
 						</div>
-						<p class="body">{message.body}</p>
+						{#if message.bodyUnavailable}
+							<!-- The body is encrypted at rest (backend/messaging/crypto.py) and this one
+							     cannot be read back. Saying so beats rendering an empty bubble, which
+							     would read as a message somebody actually sent with nothing in it. -->
+							<p class="body body--unavailable">{m.messages_bodyUnavailable()}</p>
+						{:else}
+							<p class="body">{message.body}</p>
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -180,6 +188,10 @@
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
 		margin-bottom: var(--space-1);
+	}
+	.body--unavailable {
+		font-style: italic;
+		color: var(--text-secondary);
 	}
 	.body {
 		font-size: var(--font-size-sm);

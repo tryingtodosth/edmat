@@ -13,6 +13,7 @@
 	import { cachedList, opacityFor, type TrackedRow } from '$lib/state/cachedList.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	// A watchlist is the list this pattern fits best on this whole surface: it is deliberately
 	// re-visited (that is what "compare these" means), it is small, and the rows are almost always
@@ -67,7 +68,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.services_watchlistHeading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.services_watchlistHeading())}</title>
 </svelte:head>
 
 <div class="page">

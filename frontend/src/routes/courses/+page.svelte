@@ -12,6 +12,7 @@
 	import SavedCopyNotice from '$lib/components/shared/SavedCopyNotice.svelte';
 	import StaleRow from '$lib/components/shared/StaleRow.svelte';
 	import { cachedList, type TrackedRow } from '$lib/state/cachedList.svelte';
+	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let courses = $state<TrackedRow<Course>[]>([]);
 	let loading = $state(true);
@@ -65,7 +66,7 @@
 </script>
 
 <svelte:head>
-	<title>{m.course_browseHeading()} — {m.common_appName()}</title>
+	<title>{pageTitle(m.course_browseHeading())}</title>
 </svelte:head>
 
 <div class="page">

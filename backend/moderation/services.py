@@ -20,6 +20,7 @@ from events.models import Contribution, Event
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, SolutionEntry, Tag
 from materials.models import Material, MaterialRequirement
+from galleries.models import GalleryImage
 from services.models import Service, ServiceReview
 from taxonomy.models import Branch, Discipline
 
@@ -56,6 +57,11 @@ REPORT_KIND_MODELS = {
     'material': Material,
     'requirement': MaterialRequirement,
     'service_review': ServiceReview,
+    # A picture somebody added to a piece of content's gallery. No viewer pool of its own — the
+    # Service posture: reports gather for a human rather than tripping the auto-hide arithmetic,
+    # which has nothing to divide by here. Restore/remove work unchanged, because the model carries
+    # the `auto_hidden_at`/`is_removed` pair `resolve_report_decision` looks for.
+    'gallery_image': GalleryImage,
 }
 _REVERSE_KIND_MODELS = {model: kind for kind, model in REPORT_KIND_MODELS.items()}
 
@@ -87,6 +93,34 @@ def is_governor_of_course(user, branch) -> bool:
     return NodeGovernor.objects.filter(user=user).filter(
         Q(content_type=branch_ct, object_id=branch.pk) | Q(content_type=discipline_ct, object_id=branch.discipline_id)
     ).exists()
+
+
+def is_governor_of_material(user, material) -> bool:
+    """Authority over ONE material: staff, a grant on the material itself, or a grant on the branch
+    or discipline above it.
+
+    Three levels rather than two, and the widening is deliberate. Before galleries there was nothing
+    a person could usefully be trusted with at the level of a single material, so the smallest unit
+    of authority was a whole branch; a gallery gives one — putting a scanned handout's pages in
+    order — and asking somebody to take on a branch to do it would be granting far more than the job
+    needs. The cascade is the same shape `is_governor_of_course` already uses, one level deeper.
+    """
+    if user is None or not user.is_authenticated:
+        return False
+    if user.is_staff:
+        return True
+    if material is None:
+        return False
+    from materials.models import Material
+    from .models import NodeGovernor
+
+    material_ct = ContentType.objects.get_for_model(Material)
+    if NodeGovernor.objects.filter(
+        user=user, content_type=material_ct, object_id=material.pk
+    ).exists():
+        return True
+    # Falls through to the branch/discipline cascade, which is the same question one level up.
+    return is_governor_of_course(user, material.branch)
 
 
 def governed_branch_ids(user) -> set[int] | None:
