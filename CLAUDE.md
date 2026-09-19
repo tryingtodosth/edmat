@@ -324,13 +324,15 @@ one, so its URLs should not encode one language as more native than the other.
 - **No CI runs any of this.** Run it yourself, and say in the board entry what you actually ran.
 - Changing a port by hand (rather than through `run.sh`) silently breaks CORS.
 - `db.sqlite3.bak-*` snapshots beside the database are deliberate; do not clean them up.
-- **`grant/` is never pushed.** `origin/main` has no `grant/` directory at all — the ING kit
-  (deck, form answers, budget figures) is local-only. Local `main` therefore **diverges** from
-  `origin/main`: a plain `git push` is rejected, and you must **never force-push `main`**, which
-  would publish the kit. Publishing is done by replaying the non-`grant`, non-`deploy` commits onto
-  `origin/main` from a scratch worktree, as on 2026-09-19. The commits that add `grant/` are kept on
-  the local branch `grant-kit-local`. `deploy/` changes are held back the same way. Ask before any
-  push.
+- **`grant/` is a separate repository and is gitignored here.** The ING kit carries budget and
+  salary figures; it lives in its own private repo at `grant/.git` (`FINANCES.md` §2) and this one
+  cannot see it. Do not `git add -f` it back.
+- **`main` still diverges from `origin/main` permanently, and must never be force-pushed.** Even
+  though the tip no longer tracks `grant/`, the nine ING commits remain in local `main`'s *history*,
+  so pushing the branch as-is would publish the kit anyway. `deploy/` changes are also held back by
+  choice. **Publishing is a replay, not a push**: branch a scratch worktree from `origin/main`,
+  cherry-pick the commits you mean to publish minus the `grant/` and `deploy/` paths, and push that
+  — as on 2026-09-19. Ask before any push.
 
 ---
 
