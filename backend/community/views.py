@@ -14,11 +14,13 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from accounts.minors import hold_for_review, is_minor
 from config.audience import MINOR_AUDIENCES
 
-from .attachments import MAX_ATTACHMENTS_PER_COMMENT, attachment_upload_path, process_attachment
+from .attachments import MAX_ATTACHMENTS_PER_COMMENT, attachment_upload_path, process_attachment, used_upload_bytes
 from .revisions import apply_comment_edit, hide_revision, seal_revision
-from .serializers import CommentAttachmentSerializer, CommentRevisionSerializer
-from .models import CommentAttachment
+from .serializers import CommentAttachmentSerializer, CommentRevisionSerializer, InlineImageSerializer
+from .models import CommentAttachment, InlineImage
+from .inline_images import process_inline_image, inline_image_upload_path, MAX_ALT_LENGTH
 from rest_framework import permissions, status, viewsets
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -254,11 +256,8 @@ class CommentViewSet(viewsets.GenericViewSet):
             kind, content, name, size = process_attachment(upload)
         except ValidationError as e:
             return Response(e.message_dict if hasattr(e, 'message_dict') else {'file': e.messages}, status=status.HTTP_400_BAD_REQUEST)
-        profile = request.user.profile
-        quota = profile.material_upload_quota_bytes
-        used = profile.material_upload_bytes + sum(
-            CommentAttachment.objects.filter(comment__author=request.user).values_list('size_bytes', flat=True)
-        )
+        quota = request.user.profile.material_upload_quota_bytes
+        used = used_upload_bytes(request.user)
         if quota and used + size > quota:
             return Response({'detail': 'quota'}, status=status.HTTP_409_CONFLICT)
         row = CommentAttachment(comment=comment, kind=kind, original_name=name, size_bytes=size, order=comment.attachments.count())
@@ -473,3 +472,72 @@ class SiteActivityView(APIView):
             )
         items.sort(key=lambda i: i['created_at'], reverse=True)
         return Response(items[:20])
+
+
+class InlineImageViewSet(viewsets.GenericViewSet):
+    """`/api/inline-images/` — a picture that goes INTO the body somebody is writing, rather than
+    into a row beneath it (community/inline_images.py says why).
+
+    Shaped like `/api/chem-drawings/`, which solved the same problem first:
+
+    - POST, signed in, throttled, multipart. The response carries the `<img>` to insert.
+      Throttled on its own scope because a re-encode is real CPU, and this endpoint accepts bytes
+      from anybody with an account.
+    - GET by id is public: the picture ends up inside public content, so the row behind it is not
+      a secret. (The *list* of what somebody has uploaded is not offered — how much a person has
+      drafted is not a public fact, and nothing needs it.)
+    - No PUT and no DELETE. A picture inside a published comment must keep resolving; a person who
+      wants a different picture inserts a different picture, and one who wants it gone edits the
+      comment. The row stays either way, because who uploaded what is part of the trust model
+      (house rule 12).
+
+    The upload happens while the comment is still being written, so a picture that is inserted and
+    then never posted leaves a row nothing references — exactly as an abandoned chemistry drawing
+    already does. It counts against the uploader's storage allowance, which is what stops that
+    being a lever; a sweep for unreferenced rows is left open rather than guessed at.
+    """
+
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'inline_image'
+    serializer_class = InlineImageSerializer
+    queryset = InlineImage.objects.select_related('author')
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_throttles(self):
+        return super().get_throttles() if self.action == 'create' else []
+
+    def get_permissions(self):
+        return [permissions.IsAuthenticated()] if self.action == 'create' else [permissions.AllowAny()]
+
+    def retrieve(self, request, pk=None):
+        row = self.get_object()
+        return Response(InlineImageSerializer(row, context={'request': request}).data)
+
+    def create(self, request):
+        upload = request.FILES.get('file')
+        if upload is None:
+            return Response({'file': ['A file is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            content, width, height, name, size = process_inline_image(upload)
+        except ValidationError as e:
+            return Response(
+                e.message_dict if hasattr(e, 'message_dict') else {'file': e.messages},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        quota = request.user.profile.material_upload_quota_bytes
+        if quota and used_upload_bytes(request.user) + size > quota:
+            return Response({'detail': 'quota'}, status=status.HTTP_409_CONFLICT)
+        row = InlineImage(
+            author=request.user,
+            alt=(request.data.get('alt') or '')[:MAX_ALT_LENGTH],
+            width=width,
+            height=height,
+            original_name=name,
+            size_bytes=size,
+        )
+        row.image.save(inline_image_upload_path(row, name), content, save=True)
+        return Response(
+            InlineImageSerializer(row, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )

@@ -16,11 +16,16 @@ def hold_minor_comment(sender, instance, created, **kwargs):
     if is_minor(instance.author):
         hold_for_review(instance, instance.author)
         return
-    # A chemistry drawing (chem/) embedded inline is a picture the author supplied — the API
-    # accepts a raster as readily as Ketcher's SVG — so on a minor-band thread it gets the same
-    # pre-publication review an attached picture gets (views.py's `attachments`), rather than
-    # slipping past that rule by arriving inside the body instead of beside it.
-    if 'data-chem=' in (instance.body or ''):
+    # Any picture in the body gets, on a minor-band thread, the same pre-publication review an
+    # attached picture gets (views.py's `attachments`) — rather than slipping past that rule by
+    # arriving inside the body instead of beside it.
+    #
+    # This used to look for `data-chem=` alone, when a chemistry drawing was the only thing that
+    # could be embedded. Pictures now go in the body too (community/inline_images.py) and the
+    # attachment row is PDFs only, so the narrow check would have quietly become the hole it was
+    # written to close: every ordinary picture on a minor's thread would have gone straight to
+    # publication. `<img` covers the drawing, the uploaded picture and anything typed by hand.
+    if '<img' in (instance.body or ''):
         from config.audience import MINOR_AUDIENCES
 
         if getattr(instance.target, 'audience', None) in MINOR_AUDIENCES:

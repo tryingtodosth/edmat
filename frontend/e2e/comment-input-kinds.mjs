@@ -1,10 +1,12 @@
-// The six ways into a comment (root CLAUDE.md §17AV): Markdown file / LaTeX / JSON / Ketcher /
-// PDF / Picture on one strip under the comment box. Ola, signed in by token, inserts a LaTeX
-// block, a JSON block and a Markdown file into the source box; draws a REACTION in a REAL Ketcher
-// (Indigo WASM in the browser), saved through /api/chem-drawings/ and embedded as <img data-chem>;
-// posts the comment and the SVG genuinely loads; clicking the drawing in rich mode reopens it for
-// editing; the `chemistry` kill switch removes the button and closes the API for a non-staff
-// account. Cleans its comments up.
+// The six ways into a comment (root CLAUDE.md §17AV): Markdown file / LaTeX / JSON / Chemistry /
+// Picture / PDF on one strip under the comment box. Ola, signed in by token, inserts a LaTeX
+// block, a JSON block and a Markdown file into the source box; uploads a PICTURE, which goes into
+// the body itself rather than into the attachment row, carrying the width/height/loading="lazy"
+// that stop the page jumping; draws a REACTION in a REAL Ketcher (Indigo WASM in the browser),
+// saved through /api/chem-drawings/ and embedded as <img data-chem>; posts the comment and both
+// pictures genuinely load; clicking the drawing in rich mode reopens it for editing while an
+// ordinary picture is inert; the `chemistry` kill switch removes the button and closes the API for
+// a non-staff account. Cleans its comments up.
 //   E2E_BASE=http://localhost:5183 E2E_API=http://127.0.0.1:8011 node e2e/comment-input-kinds.mjs
 let chromium;
 try {
@@ -90,7 +92,9 @@ const stripRow = strip.locator('.insert-strip__row');
 const labels = (await stripRow.locator('button, label').allInnerTexts()).map((s) => s.trim());
 check(
 	'the strip offers all six kinds',
-	['Markdown file', 'LaTeX', 'JSON', 'Ketcher', 'PDF', 'Picture'].every((k) => labels.includes(k)),
+	['Markdown file', 'LaTeX', 'JSON', 'Chemistry', 'Picture', 'PDF'].every((k) =>
+		labels.includes(k)
+	),
 	labels.join('|')
 );
 check(
@@ -148,11 +152,69 @@ await stripRow
 await settle(400);
 check('a Markdown file is read into the body', (await ta.inputValue()).includes('**from a file**'));
 
+// ---- Picture: uploaded on the spot and inserted INTO the body, not stapled under it
+const PNG = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAWgAAADwCAIAAACixWkYAAAFY0lEQVR4nO3azXETaRiFUc0UYcyKEAhkImLJktgIgVhm8bkYY1RS31Z//+ckIEGVH/d73X/98+/3G0Di795fAJiPcAAx4QBiwgHEhAOICQcQEw4gJhxATDiAmHAAMeEAYsIBxIQDiAkHEBMOICYcQEw4gJhwADHhAGLCAcSEA4gJBxATDiAmHEBMOICYcAAx4QBiwgHEhAOICQcQEw4gJhxATDiAmHAAMeEAYsIBxIQDiPUMx89vPzp+OnBa5yeOn99+yAdM51OvD37fC+2A0z5//dL+Q20cQKxPODxiwNQ8cQCxPuHocpUBV/HEAcSEA4gJBxDr9h7HafYR9jTU3yKHe+L4/PXL4zR42RS6Gy4cxdPHCvmAjgYNx+3Ao8dNPqCTccNRHMxHmy8DFKOHozB8wFDmCEfhcoFBzBSOm+EDxjBZOArDB/Q1ZTgKwwf0MnE4CpcLtDd9OG6GD2huhXAUhg9oZp1wFIYPaGC1cBQuF6hqzXDcDB9Q07LhKAwfUMPi4SgMH3CtLcJRuFzgKhuF42b4gIvsFY7C8AEv2jEcheEDTts3HIXLBU7YPRw3wwfkhOON4QOOE47fGD7gCOG4w+UCjwnHfYYPeEA4HjF8wF3C8ZzhAz4QjqNcLvCLcAQMH1AIR8zwAcJxkuGDnQnHS1wu7Ek4XmX4YEPCcQ3DB1sRjisZPtiEcFzP5cLyhKMKwwdrE46KDB+sSjiqM3ywHuFoxOXCSoSjHcMHyxCO1gwfLEA4+jB8MDXh6MnlwqSEozPDBzMSjiEYPpiLcAzE8MEshGM4LhfGJxwjMnwwOOEYl+GDYQnH6AwfDEg45uByYSjCMQ3DB+MQjskYPhiBcEzJ8EFfwjExlwu9CMfcDB90IRwrMHzQmHCsw/BBM8KxGpcLDQjHggwf1CYcyzJ8UI9wLM7wQQ3CsQWXC9cSjl0YPriQcOzF8MElhGNHhg9eJBz7crlwmnBszfDBOcKB4YOYcPDG8MFxwsFvXC4cIRx8ZPjgKeHgPsMHDwgHjxg+uEs4eM7lwgfCwSGGD94TDgKGDwrhIGb4QDg4yeWyM+HgPMPHtoSDVxk+NiQcXMPwsRXh4Eoul00IBxczfOxAOKjC8LE24aAiw8eqhIPqXC7rEQ5aMHwsRjhox/CxDOGgNcPHAoSDPlwuUxMOujF8zEs46MzwMSPhYAiGj7kIBwNxucxCOBiL4WMKwsGIDB+DEw7GZfgYlnAwOpfLgISDCRg+RiMcTMPwMQ7hYDKGjxEIB1NyufQlHMzK8NGRcDA3w0cXwsEKDB+NCQfrcLk0IxwsxfDRhnCwIMNHbcLBsgwf9QgHi3O51CAcrM/wcTnhYBeGjwsJB3sxfFxCONiRy+VFwsGmDB+vEA62Zvg4RzjA8BETDnjjcjlOOOB/ho+DhAM+Mnw8JRxwn+HjAeGAR1wudwkHPGH4+JNwwCGGj/eEAwKGj0I4IOZyEQ44Y/PhQzjgvG2HD+GAV204fAgHXGOry0U44DL7DB/CARfbYfgQDqhi7eFDOKCiVS8X4YC6lhw+hANaWGz4EA5oZ5nhQzigtQUuF+GADmYfPoQDupl3+PjU+wt8NOZ/E3Q04A+FJw4gJhxATDiAmHAAMeGAuXWZToUDiAkHzO3pmyA1dHuPo8u/FhYwwmsdnjhgMu9/6fb6BSwcMJ8j76pXJRwwq47tEA4gJhxATDiAmHAAMeEAYsIBxIQDiAkHEBMOICYcQEw4gJhwADHhAGLCAcSEA4gJBxATDiAmHEBMOICYcAAx4QBiwgHEhAOICQcQEw4gJhxATDiAmHAAMeEAYsIBxIQDiAkHEBMOICYcQEw4gNh/GE4XO7Gh9CIAAAAASUVORK5CYII=',
+	'base64'
+);
+await stripRow
+	.locator('label', { hasText: 'Picture' })
+	.locator('input[type=file]')
+	.setInputFiles({ name: 'apparatus.png', mimeType: 'image/png', buffer: PNG });
+await strip.locator('.insert-strip__thumb').waitFor({ timeout: 15000 });
+const altField = strip.locator('.insert-strip__field input');
+check(
+	'picking a picture shows it and offers a description, prefilled rather than left empty',
+	(await altField.inputValue()) === 'apparatus.png'
+);
+await altField.fill('The apparatus, with the tap on the left');
+// Taken BEFORE Insert: the point of this picture is the panel with the preview and the
+// description field in it, and after Insert the panel is gone and it shows an empty strip.
+await strip.screenshot({ path: 'e2e/screenshots/comment-input-kinds-picture.png' });
+const beforePicture = await ta.inputValue();
+await strip.locator('.insert-strip__actions .primary').click();
+await p.waitForFunction(
+	(before) => {
+		const el = document.querySelector('.discussion form.comment-form .rich-editor textarea');
+		return el && el.value.length > before.length && el.value.includes('inline-images');
+	},
+	beforePicture,
+	{ timeout: 30000 }
+);
+const afterPicture = await ta.inputValue();
+const pictureTag = /<img[^>]*inline-images[^>]*>/.exec(afterPicture)?.[0] ?? '';
+check(
+	'Insert uploads it and puts an <img> pointing at site media into the body itself',
+	/src="[^"]*\/media\/inline-images\/[a-f0-9]+\.webp"/.test(pictureTag),
+	pictureTag
+);
+check(
+	'…carrying the description, the intrinsic size and lazy loading (so the layout cannot jump)',
+	pictureTag.includes('alt="The apparatus, with the tap on the left"') &&
+		/width="\d+"/.test(pictureTag) &&
+		/height="\d+"/.test(pictureTag) &&
+		pictureTag.includes('loading="lazy"'),
+	pictureTag
+);
+check(
+	'…and nothing was added to the attachment row: an attachment is a document now',
+	(await form.locator('.comment-form__files .file-chip').count()) === 0
+);
+
 // ---- Ketcher
-await stripRow.locator('button', { hasText: /^Ketcher$/ }).click();
+await stripRow.locator('button', { hasText: /^Chemistry$/ }).click();
 const modal = p.locator('.modal-panel');
 await modal.waitFor({ timeout: 20000 });
-check('the Ketcher dialog opens', (await modal.locator('h2').innerText()).includes('Ketcher'));
+const chemTitle = await modal.locator('h2').innerText();
+check(
+	'the chemistry dialog opens, titled by what it makes rather than by the tool',
+	chemTitle.includes('chemical structure') && !chemTitle.includes('Ketcher'),
+	chemTitle
+);
+check(
+	'…and Ketcher is still credited where the Apache 2.0 notice lives',
+	(await modal.locator('.chem-editor__licence').innerText()).includes('Ketcher')
+);
 await p.waitForFunction(() => !!window.ketcher, null, { timeout: 180000 });
 await p.waitForFunction(
 	() => !!document.querySelector('.modal-panel button.submit:not([disabled])'),
@@ -229,6 +291,23 @@ check(
 	(await posted.locator('.comment__body .katex').count()) > 0 &&
 		(await posted.locator('.comment__body pre code').count()) > 0
 );
+const inlinePics = posted.locator('.comment__body img.inline-image');
+check(
+	'the posted comment shows the uploaded picture in the text, not under it',
+	(await inlinePics.count()) === 1 && (await posted.locator('.comment__attachments').count()) === 0,
+	`pics=${await inlinePics.count()}`
+);
+const inlineLoaded = await inlinePics.evaluateAll((els) =>
+	els.map((e) => [e.complete && e.naturalWidth > 0, e.getAttribute('loading'), e.alt])
+);
+check(
+	'…it genuinely loads, still lazy and still described',
+	inlineLoaded.length === 1 &&
+		inlineLoaded[0][0] === true &&
+		inlineLoaded[0][1] === 'lazy' &&
+		inlineLoaded[0][2].startsWith('The apparatus'),
+	JSON.stringify(inlineLoaded)
+);
 const stored = (
 	await (
 		await fetch(`${API}/api/exercises/2/comments/?fresh=${Date.now()}`, { headers: auth(ola) })
@@ -238,6 +317,15 @@ check(
 	'the stored body kept data-chem through the server sanitizer',
 	!!stored && stored.body.includes(`data-chem="${ketcherId}"`)
 );
+check(
+	'…and kept the uploaded picture whole: src, alt, size and loading all survived bleach',
+	!!stored &&
+		/\/media\/inline-images\//.test(stored.body) &&
+		stored.body.includes('loading="lazy"') &&
+		stored.body.includes('The apparatus, with the tap on the left') &&
+		/<img[^>]*inline-images[^>]*width="\d+"/.test(stored.body),
+	(stored?.body ?? '').slice(-300)
+);
 await posted.screenshot({ path: 'e2e/screenshots/comment-input-kinds-posted.png' });
 
 // ---- rich mode: clicking a drawing reopens it
@@ -245,7 +333,7 @@ await form.locator('.rich-editor__modes button', { hasText: 'Editor' }).click();
 await form.locator('.rich-editor__host .ProseMirror').waitFor({ timeout: 60000 });
 await form.locator('.ProseMirror').click();
 await p.keyboard.type(`${MARKER} edit: `);
-await stripRow.locator('button', { hasText: /^Ketcher$/ }).click();
+await stripRow.locator('button', { hasText: /^Chemistry$/ }).click();
 await modal.waitFor({ timeout: 20000 });
 await p.waitForFunction(
 	() => !!document.querySelector('.modal-panel button.submit:not([disabled])'),
@@ -267,6 +355,36 @@ check(
 await modal.locator('button.cancel').click();
 await modal.waitFor({ state: 'detached', timeout: 10000 });
 
+// An ordinary picture is NOT a chemistry drawing: clicking it must do nothing at all, quietly.
+await stripRow
+	.locator('label', { hasText: 'Picture' })
+	.locator('input[type=file]')
+	.setInputFiles({ name: 'inert.png', mimeType: 'image/png', buffer: PNG });
+await strip.locator('.insert-strip__thumb').waitFor({ timeout: 15000 });
+await strip.locator('.insert-strip__actions .primary').click();
+const richPic = form.locator('.ProseMirror img.inline-image');
+await richPic.waitFor({ timeout: 30000 });
+// A ProseMirror node drops every attribute it has not declared, and the picture still LOOKS right
+// when it does — so this asserts the tag arrives whole, not merely that it arrives.
+const richAttrs = await richPic.evaluate((e) => ({
+	w: e.getAttribute('width'),
+	h: e.getAttribute('height'),
+	loading: e.getAttribute('loading')
+}));
+check(
+	'the rich editor keeps the picture whole: class, intrinsic size and lazy loading all survive',
+	!!richAttrs.w && !!richAttrs.h && richAttrs.loading === 'lazy',
+	JSON.stringify(richAttrs)
+);
+const errorsBeforeClick = errors.length;
+await richPic.click();
+await settle(1200);
+check(
+	'clicking an ordinary picture in rich mode opens nothing and throws nothing',
+	(await p.locator('.modal-panel').count()) === 0 && errors.length === errorsBeforeClick,
+	`modals=${await p.locator('.modal-panel').count()} newErrors=${errors.length - errorsBeforeClick}`
+);
+
 // ---- kill switch
 await setFlag(false);
 await p.reload({ waitUntil: 'load' });
@@ -277,8 +395,8 @@ const labelsOff = (
 	await form2.locator('.insert-strip__row button, .insert-strip__row label').allInnerTexts()
 ).map((s) => s.trim());
 check(
-	'with `chemistry` off, Ketcher leaves the strip while the other five stay',
-	!labelsOff.includes('Ketcher') &&
+	'with `chemistry` off, Chemistry leaves the strip while the other five stay',
+	!labelsOff.includes('Chemistry') &&
 		['LaTeX', 'JSON', 'PDF', 'Picture'].every((k) => labelsOff.includes(k)),
 	labelsOff.join('|')
 );

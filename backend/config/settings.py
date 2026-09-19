@@ -555,6 +555,10 @@ REST_FRAMEWORK = {
         # Saving a chemistry drawing decodes and re-encodes a picture (chem/serializers.py) — plenty
         # for somebody drawing a mechanism step by step, far too few for a CPU-exhaustion loop.
         'chem_drawing': '60/hour',
+        # A picture embedded in the body being written (community/inline_images.py). The same
+        # decode-and-re-encode cost as a gallery picture, and the same reason for a rate: somebody
+        # illustrating a long answer uploads several, a loop uploads thousands.
+        'inline_image': '120/hour',
         # `PasswordResetView` is still the honest always-200 stub Phase 2 shipped (no email backend
         # exists yet, Section 18 item 9), so there is nothing here to brute-force TODAY. Throttled
         # anyway, because the moment a real email backend lands this becomes an unauthenticated

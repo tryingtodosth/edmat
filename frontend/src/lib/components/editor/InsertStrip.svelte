@@ -8,10 +8,16 @@
 	 * - Markdown file — read into the body as text (the body IS Markdown).
 	 * - LaTeX — a displayed equation, previewed live, inserted through the editor's maths node.
 	 * - JSON — pasted or picked, validated and pretty-printed, inserted as a fenced code block.
-	 * - Ketcher — a structure or reaction drawn in a modal, saved through `/chem-drawings/`, and
-	 *   inserted as the `<img data-chem>` the server hands back; clicking it later reopens it.
+	 * - Chemistry — a structure or reaction drawn in a modal, saved through `/chem-drawings/` and
+	 *   inserted as the `<img data-chem>` the server hands back; clicking it later reopens it. The
+	 *   button says what it makes, not which editor makes it; Ketcher is named in the modal's own
+	 *   licence line, which is where the Apache 2.0 attribution has to be anyway.
 	 *   (ChemDoodle was the second editor here for one afternoon; dropped as GPLv3 in an MIT repo.)
-	 * - PDF / Picture — the existing attachment picker (§17AR), now reachable by kind.
+	 * - Picture — uploaded on the spot through `/inline-images/` and inserted INTO the body, so a
+	 *   comment can mix words and pictures and be a small illustrated article. It used to hand the
+	 *   file to the caller instead, to be uploaded as an attachment once the comment existed —
+	 *   which put the picture in a row underneath the sentence that was about it.
+	 * - PDF — the attachment picker (§17AR). An attachment is a document now, and only a document.
 	 *
 	 * The strip never touches storage directly: everything goes through the editor instance the
 	 * caller binds in (`editor`), or back to the caller as files (`onFiles`).
@@ -23,9 +29,14 @@
 	import type RichEditor from './RichEditor.svelte';
 	import type { ChemDrawing } from '$lib/types/chem';
 	import { getChemDrawing } from '$lib/services/chem';
+	import { uploadInlineImage } from '$lib/services/inlineImages';
+	import { ApiError } from '$lib/api/client';
 
 	let {
 		editor,
+		// Offers the PDF attachment picker. Pictures deliberately do NOT sit behind this: they go
+		// into the body, so they make sense wherever this strip does — including an edit box, which
+		// has no new comment for an attachment to hang off.
 		allowFiles = false,
 		onFiles
 	}: {
@@ -36,12 +47,21 @@
 
 	const chemistryOn = $derived(featureFlagsStore.isEnabled('chemistry') || authStore.isModerator);
 
-	type Panel = 'latex' | 'json' | null;
+	type Panel = 'latex' | 'json' | 'image' | null;
 	let panel = $state<Panel>(null);
 	let latex = $state('');
 	let json = $state('');
 	let jsonError = $state('');
 	let fileError = $state('');
+
+	// A picture is uploaded when Insert is pressed, not when it is picked: the description is part
+	// of the upload, and picking a file by mistake should cost nothing.
+	const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+	let imageFile = $state<File | null>(null);
+	let imagePreview = $state('');
+	let imageAlt = $state('');
+	let imageBusy = $state(false);
+	let imageError = $state('');
 
 	// The chemistry modal is fetched on first use — it drags the whole editor stack behind it.
 	let chemOpen = $state(false);
@@ -73,6 +93,60 @@
 		editor?.insertCodeBlock(pretty, 'json');
 		json = '';
 		panel = null;
+	}
+
+	/** The preview is an object URL, which is a live handle on a blob: it has to be released by
+	 * hand or every picture the person looks at and changes their mind about stays in memory for
+	 * the life of the page. */
+	function clearImage() {
+		if (imagePreview) URL.revokeObjectURL(imagePreview);
+		imagePreview = '';
+		imageFile = null;
+		imageAlt = '';
+		imageError = '';
+	}
+
+	function pickImage(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const chosen = input.files?.[0];
+		input.value = '';
+		if (!chosen) return;
+		clearImage();
+		if (chosen.size > MAX_IMAGE_BYTES) {
+			imageError = m.insert_imageTooBig(); // "A picture can be up to 5 MB."
+			panel = 'image';
+			return;
+		}
+		imageFile = chosen;
+		imagePreview = URL.createObjectURL(chosen);
+		// A filename is a poor description, but it is an honest one and it is never empty — which
+		// is what an empty `alt` would be. The person is looking straight at the field.
+		imageAlt = chosen.name;
+		panel = 'image';
+	}
+
+	async function insertImage() {
+		if (!imageFile || imageBusy) return;
+		imageBusy = true;
+		imageError = '';
+		try {
+			const uploaded = await uploadInlineImage(imageFile, imageAlt.trim());
+			// The server's own tag, never one built here: it is the one the sanitizer will accept,
+			// and it carries the intrinsic width and height that stop the page jumping.
+			editor?.insertHtml(uploaded.embedHtml);
+			clearImage();
+			panel = null;
+		} catch (e) {
+			const detail =
+				e instanceof ApiError && e.message === 'quota'
+					? m.comment_fileTooBig() // "That file is too big."
+					: e instanceof Error
+						? e.message
+						: String(e);
+			imageError = m.insert_imageFailed({ error: detail }); // "Could not add the picture: {error}"
+		} finally {
+			imageBusy = false;
+		}
 	}
 
 	async function readInto(e: Event, into: 'markdown' | 'json') {
@@ -152,17 +226,19 @@
 		>
 		{#if chemistryOn && authStore.isAuthenticated}
 			<button type="button" title={m.insert_chemHint()} onclick={openChem}
-				>{m.insert_ketcher()}</button
+				>{m.insert_chemistry()}</button
 			>
+		{/if}
+		{#if authStore.isAuthenticated}
+			<label class="insert-strip__file" class:on={panel === 'image'}>
+				<input type="file" accept="image/png,image/jpeg,image/webp" onchange={pickImage} />
+				<span title={m.insert_imageHint()}>{m.insert_image()}</span>
+			</label>
 		{/if}
 		{#if allowFiles}
 			<label class="insert-strip__file">
 				<input type="file" accept="application/pdf" multiple onchange={pickFiles} />
 				<span>{m.insert_pdf()}</span>
-			</label>
-			<label class="insert-strip__file">
-				<input type="file" accept="image/png,image/jpeg,image/webp" multiple onchange={pickFiles} />
-				<span>{m.insert_image()}</span>
 			</label>
 		{/if}
 	</div>
@@ -184,6 +260,36 @@
 					>{m.insert_insert()}</button
 				>
 				<button type="button" onclick={() => (panel = null)}>{m.common_cancel()}</button>
+			</div>
+		</div>
+	{:else if panel === 'image'}
+		<div class="insert-strip__panel">
+			<p class="insert-strip__hint">{m.insert_imageHint()}</p>
+			{#if imagePreview}
+				<img class="insert-strip__thumb" src={imagePreview} alt={imageAlt} />
+			{/if}
+			{#if imageFile}
+				<label class="insert-strip__field">
+					<span>{m.insert_imageAlt()}</span>
+					<input type="text" bind:value={imageAlt} maxlength="300" />
+				</label>
+				<p class="insert-strip__hint">{m.insert_imageAltHint()}</p>
+			{/if}
+			{#if imageError}<p class="insert-strip__error" role="alert">{imageError}</p>{/if}
+			<div class="insert-strip__actions">
+				<button
+					type="button"
+					class="primary"
+					disabled={!imageFile || imageBusy}
+					onclick={insertImage}>{imageBusy ? m.insert_imageAdding() : m.insert_insert()}</button
+				>
+				<button
+					type="button"
+					onclick={() => {
+						clearImage();
+						panel = null;
+					}}>{m.common_cancel()}</button
+				>
 			</div>
 		</div>
 	{:else if panel === 'json'}
@@ -286,6 +392,37 @@
 	.insert-strip__error {
 		margin: 0;
 		color: var(--status-danger);
+	}
+	.insert-strip__file.on {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--text-on-accent, #fff);
+	}
+	.insert-strip__thumb {
+		max-width: 100%;
+		max-height: 12rem;
+		width: auto;
+		height: auto;
+		border-radius: 6px;
+		align-self: start;
+	}
+	.insert-strip__field {
+		display: grid;
+		gap: 0.2rem;
+		span {
+			color: var(--text-secondary);
+		}
+		input {
+			font: inherit;
+			font-size: 0.85rem;
+			padding: 0.4rem 0.6rem;
+			border: 1px solid var(--border);
+			border-radius: 6px;
+			background: var(--bg-surface);
+			color: var(--text-primary);
+			box-sizing: border-box;
+			width: 100%;
+		}
 	}
 	.insert-strip__preview {
 		display: grid;

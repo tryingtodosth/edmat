@@ -280,7 +280,7 @@ node e2e/guardian-accounts.mjs        # guardian accounts + minor defaults (§17
 node e2e/sorting-and-languages.mjs    # sort keys in the URL + the content-language rule (§17AQ); English-interface contexts; resets ola's content_locales
 node e2e/comment-attachments.mjs      # pictures/PDFs on comments (§17AR); ola on exercise 1 with generated files; deletes its marker comments
 node e2e/rich-editor.mjs              # the Tiptap editor + maths palette (§17AS); ola on exercise 2; resets her editor_mode to source
-node e2e/comment-input-kinds.mjs      # the six input kinds + Ketcher (§17AV); ola on exercise 2; kasia toggles the `chemistry` flag; ~3 min (Indigo WASM)
+node e2e/comment-input-kinds.mjs      # the six input kinds + inline pictures + chemistry (§17AV, §17BA); ola on exercise 2; kasia toggles the `chemistry` flag; ~3 min (Indigo WASM)
 node e2e/reading-comfort.mjs          # text size / high contrast / 44px floor / hero copy (§17AT); a guest + ola; resets her text_size/high_contrast
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs      # staff, contributions, locked chapters, invite links; ola/julia/bartek/michał by token
@@ -722,18 +722,29 @@ opening the in-page viewer, the API holding a `.webp` smaller than the upload, a
 executable refused in words while the comment itself still posts, a reply (through the "⋯" menu)
 carrying a picture. Generates its files in a temp dir; deletes its marker comments.
 
-**`e2e/comment-input-kinds.mjs` (23 checks)** — the six ways into a comment (root CLAUDE.md
-§17AV): the strip under the composer offers Markdown file / LaTeX / JSON / Ketcher / PDF /
-Picture and no chemistry library is downloaded until asked; a LaTeX panel previews with KaTeX
-and inserts a displayed equation; invalid JSON is refused in words and valid JSON lands as a
-pretty-printed fenced block; a Markdown file is read into the body; the Ketcher dialog opens
-(only then is Ketcher fetched), reads reaction SMILES, "Add reaction arrow" appends a real KET
-arrow node; the drawing is saved as KET + sanitized SVG with a reaction-SMILES caption and
-inserted as `<img data-chem>`; the posted comment shows it genuinely loading beside the equation
-and the code block; in rich mode the drawing is a live node and clicking it reopens the editor;
-the `chemistry` kill switch removes the button and the API refuses a non-staff drawing. Deletes
-its marker comments (drawings have no delete endpoint and are left behind). Screenshot of the
-posted comment in `e2e/screenshots/`.
+**`e2e/comment-input-kinds.mjs` (31 checks)** — the six ways into a comment (root CLAUDE.md
+§17AV, extended by §17BA): the strip under the composer offers Markdown file / LaTeX / JSON /
+Chemistry / Picture / PDF and no chemistry library is downloaded until asked; a LaTeX panel
+previews with KaTeX and inserts a displayed equation; invalid JSON is refused in words and valid
+JSON lands as a pretty-printed fenced block; a Markdown file is read into the body.
+
+**Picture** — picking one shows it and offers a description prefilled with the filename rather
+than left empty; Insert uploads it through `/api/inline-images/` and puts an `<img>` pointing at
+site media *into the body itself*, carrying the description, the intrinsic width/height and
+`loading="lazy"`; nothing lands in the attachment row (an attachment is a document now); the
+posted comment shows the picture in the text and it genuinely loads, still lazy and still
+described; the stored body kept every attribute through bleach.
+
+**Chemistry** — the dialog opens titled by what it makes and *not* by the tool, while Ketcher is
+still credited in the licence line where the Apache 2.0 notice lives (only then is Ketcher
+fetched); it reads reaction SMILES, "Add reaction arrow" appends a real KET arrow node; the
+drawing is saved as KET + sanitized SVG with a reaction-SMILES caption and inserted as
+`<img data-chem>`; the posted comment shows it genuinely loading beside the equation and the code
+block; in rich mode the drawing is a live node and clicking it reopens the editor, while clicking
+an ordinary inline picture opens nothing and throws nothing; the `chemistry` kill switch removes
+the button and the API refuses a non-staff drawing. Deletes its marker comments (drawings and
+inline pictures have no delete endpoint and are left behind). Screenshots of the posted comment
+and the picture panel in `e2e/screenshots/`.
 
 **`e2e/reading-comfort.mjs` (17 checks)** — reading comfort (root `HISTORY.md` §17AT): the hero
 copy speaks to every age; a guest's "Aa" press sets `data-text-size` and really grows the root

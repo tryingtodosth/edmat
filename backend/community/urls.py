@@ -1,7 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import CommentRevisionViewSet, CommentViewSet, ReviewViewSet
+from .views import CommentRevisionViewSet, CommentViewSet, InlineImageViewSet, ReviewViewSet
 
 router = DefaultRouter()
 # `/api/reviews/{id}/comments/` — the thread under one exercise review. Addressed by the review's
@@ -15,5 +15,8 @@ router.register('comments', CommentViewSet, basename='comment')
 # of a comment. No list/retrieve of its own; a revision is always read via
 # `/api/comments/{id}/revisions/`.
 router.register('comment-revisions', CommentRevisionViewSet, basename='comment-revision')
+# `/api/inline-images/` — POST a picture, get back the `<img>` to put in the body. A picture that
+# belongs in the middle of a sentence, not in the attachment row beneath it (inline_images.py).
+router.register('inline-images', InlineImageViewSet, basename='inline-image')
 
 urlpatterns = [path('', include(router.urls))]
