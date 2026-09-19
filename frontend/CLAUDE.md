@@ -1,7 +1,8 @@
 # frontend/ — SvelteKit 2 + Svelte 5 runes + TS, adapter-static SPA, Paraglide i18n
 
-Scoped context for frontend work. Root `CLAUDE.md` holds full history (its taxonomy names are
-stale — Discipline was "Field", Branch was "Course"; user-run courses are the `courses` app).
+Scoped context for frontend work. Root `CLAUDE.md` holds the cross-cutting rules; `HISTORY.md`
+holds the full build history (its taxonomy names are stale — Discipline was "Field", Branch was
+"Course"; user-run courses are the `courses` app).
 
 ## The layer boundary — the single most load-bearing rule
 

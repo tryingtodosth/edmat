@@ -524,7 +524,7 @@ asserts it is actually signed in before going further. And it counts, then ignor
 `/@fs/…` paths: Vite refuses to serve outside the project root, so a checkout whose `node_modules` is
 a symlink (a git worktree) 403s on KaTeX's fonts — an artifact of where the checkout is, not of the app.
 
-**`e2e/known-issues.mjs` (23 checks)** — the six entries from CLAUDE.md §17V.7 that were real defects
+**`e2e/known-issues.mjs` (23 checks)** — the six entries from HISTORY.md §17V.7 that were real defects
 rather than deliberate scope cuts (see §17W). The event form offering subjects at all, and the one
 ticked at creation still ticked when the edit form reloads; the edit page itself, refusing a non-host
 in words with no form rendered; the host warned that the hours are still published as bookable, styled
@@ -604,7 +604,7 @@ anonymous public report (no reporter stored, checked via the API); a signed-in p
 a note and the reporter's notification linking to the report; the phone drawer; and the kill switch
 removing every link, the page and the API. Deletes nothing — remove `e2e-issue-*` rows afterwards.
 
-**`e2e/solution-entries.mjs` (27 checks)** — the solution/hint pool (root CLAUDE.md §17AH): the
+**`e2e/solution-entries.mjs` (27 checks)** — the solution/hint pool (root `HISTORY.md` §17AH): the
 anonymous reveal with counts and the pinned corpus originals; a plain user's (ola) entry queueing
 with the composer's live KaTeX preview, visible to its author and to a verified contributor
 (michal) but not to a stranger; one inline accept publishing it; a weighted (2×) vote; a verified
@@ -617,7 +617,7 @@ to its author alone, so kasia's view cannot find ola's rejects. Each account sig
 (the login throttle). Two of the queue's pending entries are the migration's own (a pending
 translation's hint/solution), so the tab count is asserted as a live number, not an exact one.
 
-**`e2e/activity-feed.mjs` (20 checks)** — the real activity feed (root CLAUDE.md §17AI): the
+**`e2e/activity-feed.mjs` (20 checks)** — the real activity feed (root `HISTORY.md` §17AI): the
 public feed page; publishing a post through the actual composer (branch anchor + an exercise
 attached via the search picker); the anchor chip opening the feed filtered to that anchor; the
 kind filter; the post's own page with its thread and the author's `comment_reply` notification
@@ -625,13 +625,13 @@ carrying `post_id`; Followed's honest empty state; the home-tab slice; delete-as
 the feed forgetting the row; and the `posts` kill switch removing the composer, the filter option
 and every post row from the feed API. Resets by tombstoning any earlier run's posts as staff.
 
-**`e2e/pdf-preview.mjs` (7 checks)** — the in-browser PDF preview (root CLAUDE.md §17AJ): the
+**`e2e/pdf-preview.mjs` (7 checks)** — the in-browser PDF preview (root `HISTORY.md` §17AJ): the
 collapsed Preview section, nothing mounted before asking, a real page count, the canvas holding
 genuinely painted OPAQUE pixels (the probe must require alpha — a transparent unpainted canvas
 reads as "dark" under a red-channel-only check and passed vacuously once), paging, zoom growing
 the rendered width, hide unmounting. Stateless; signs nobody in.
 
-**`e2e/topic-threads.mjs` (14 checks)** — topic threads (root CLAUDE.md §17AK): a covers claim
+**`e2e/topic-threads.mjs` (14 checks)** — topic threads (root `HISTORY.md` §17AK): a covers claim
 chip's popover linking "Posts about {topic}"; the topic-filtered feed rendering SCOPED (rows or
 the honest empty state — an arbitrary topic can have zero retained rows, so asserting rows fails
 on honest data); the composer pre-anchored with its "change" escape; publishing into the thread;
@@ -642,7 +642,7 @@ row in a subtopic-less popover; the tag-chip menu's "Posts about this tag" (chec
 exercise page — material cards don't render TagChips). Tolerates exactly the course page's known
 pre-existing attachments-404 console error. Cleans up by marker text only, never wholesale.
 
-**`e2e/audience-bands.mjs` (21 checks)** — the audience band (root CLAUDE.md §17AL): a scratch
+**`e2e/audience-bands.mjs` (21 checks)** — the audience band (root `HISTORY.md` §17AL): a scratch
 tutoring listing marked "Primary school" created through the API; the homepage chip row narrows the
 Tutoring and Exercises tabs (exact counts), "Everything" restores them, a guest's choice survives a
 reload, a signed-in click lands on `/api/auth/me/`'s `audience_filter` and shows ticked in Settings,
@@ -650,7 +650,7 @@ Settings saves a different list, and all four submit forms carry a required "Who
 select with no default. Cleanup is verified through an AUTHENTICATED request — the anonymous
 `?audience=` list URL is served from the 60 s read cache and can still show the deleted row.
 
-**`e2e/event-programme.mjs` (23 checks)** — the programme (root CLAUDE.md §17AM): a multi-day event
+**`e2e/event-programme.mjs` (23 checks)** — the programme (root `HISTORY.md` §17AM): a multi-day event
 made through the API, then on the page: a track added inline, a session with a speaker and two
 links pasted as addresses (an unreadable one refused in words), rendered under its day heading with
 the pasted exercise resolved to its real title and links grouped by role, the week grid, a reviewer
@@ -660,7 +660,7 @@ back from disk: BEGIN:VEVENT + the title), sees "On a programme" on the exercise
 session notifies her. Signed-out logins use `networkidle` (no SSE stream yet) — that is what waits
 out Vite's cold compile of new components; a fixed settle did not.
 
-**`e2e/event-registration.mjs` (26 checks)** — registration (root CLAUDE.md §17AN): a form event
+**`e2e/event-registration.mjs` (26 checks)** — registration (root `HISTORY.md` §17AN): a form event
 with capacity 1 and the public list on; Kasia adds a required question and a two-option choice
 through the editor (API agrees); Ola sees "Register", the hybrid attendance question, a required
 answer flagged before sending, then is going with her answers (baseline keys included); Michał sees
@@ -673,7 +673,7 @@ becomes "Seat taken · 1/1", and somebody not going is refused (`not_going`). Cl
 scratch attendees before deleting (a delete with people going is refused by design) and cancels
 what still cannot go. Starts with one throwaway navigation to warm Vite's cold compile.
 
-**`e2e/event-contributions.mjs` (19 checks)** — the call for contributions (root CLAUDE.md §17AO):
+**`e2e/event-contributions.mjs` (19 checks)** — the call for contributions (root `HISTORY.md` §17AO):
 Ola proposes a talk with a co-author through the real form and sees it Submitted; a stranger's
 list is empty; Michał (reviewer) starts reviewing and asks for revisions with a note; Ola reads the
 reason and the note and never who decided, edits, and it stays Submitted; Michał accepts (staff see
@@ -684,7 +684,7 @@ talk only (fetched with a cache-busting query — the anonymous read cache still
 list from earlier in the run). Warms Vite once; fails loudly with the throttle hint if a login
 returns no token.
 
-**`e2e/guardian-accounts.mjs` (17 checks)** — guardian accounts (root CLAUDE.md §17AP): the register
+**`e2e/guardian-accounts.mjs` (17 checks)** — guardian accounts (root `HISTORY.md` §17AP): the register
 form refuses an under-16 in words and makes nothing; Kasia creates a child in Settings (API agrees);
 the child signs in by username and has no Messages icon, no avatar or tutoring section, a locked
 privacy toggle with its sentence, and an Add menu without hosting or tutoring; the child's comment
@@ -695,7 +695,7 @@ console line: the refusal under test is a 400. Clear `backend/cachedata` before 
 a delete under the server's feet is a stale-file-handle 500 that looks like an app bug.
 
 **`e2e/sorting-and-languages.mjs` (15 checks)** — sorting and the content-language rule (root
-CLAUDE.md §17AQ): the API hides the Polish corpus from an English-only reader and the header says
+HISTORY.md §17AQ): the API hides the Polish corpus from an English-only reader and the header says
 how many; `sort=title` orders A→Z and `dir=desc` flips it; a fresh English-interface visitor sees
 the hidden-count notice on the homepage, "Show them" reveals more and the choice survives a reload;
 the branch page's sort goes into the URL, the first card matches the API's first, the flip adds
@@ -705,7 +705,7 @@ on her profile (press the Save in THAT section's form — the settings page has 
 form asks for a language defaulting to the interface's.
 
 **`e2e/comment-attachments.mjs` (10 checks)** — pictures and small PDFs on comments (root
-CLAUDE.md §17AR): the composer's picker, two chips queued, a comment posted with a generated
+HISTORY.md §17AR): the composer's picker, two chips queued, a comment posted with a generated
 2000×1000 PNG and a minimal PDF, the thumbnail genuinely loading (`naturalWidth > 0`), the PDF chip
 opening the in-page viewer, the API holding a `.webp` smaller than the upload, a disguised
 executable refused in words while the comment itself still posts, a reply (through the "⋯" menu)
@@ -724,7 +724,7 @@ the `chemistry` kill switch removes the button and the API refuses a non-staff d
 its marker comments (drawings have no delete endpoint and are left behind). Screenshot of the
 posted comment in `e2e/screenshots/`.
 
-**`e2e/reading-comfort.mjs` (17 checks)** — reading comfort (root CLAUDE.md §17AT): the hero
+**`e2e/reading-comfort.mjs` (17 checks)** — reading comfort (root `HISTORY.md` §17AT): the hero
 copy speaks to every age; a guest's "Aa" press sets `data-text-size` and really grows the root
 font, twice, survives a reload (localStorage + the app.html restore) and wraps back; every visible
 button inside `main` is at least 44px (the check prints the offenders — this is how the notice's
@@ -735,7 +735,7 @@ Waits for `networkidle` on the guest pages (the first page after a Vite restart 
 and a press before hydration has no handler) and signs Ola in through the real login form. Resets
 her `text_size`/`high_contrast` at the start and the end.
 
-**`e2e/rich-editor.mjs` (11 checks)** — the rich editor (root CLAUDE.md §17AS): Source by default
+**`e2e/rich-editor.mjs` (11 checks)** — the rich editor (root `HISTORY.md` §17AS): Source by default
 for an account that never chose; no tiptap/prosemirror request until Editor is clicked, then the
 toolbar; typing, bolding a word, inserting a fraction from the palette; the posted comment's stored
 body is HTML with `<strong>` and `\(\frac{a}{b}\)` intact; `editor_mode` on the profile; Editor

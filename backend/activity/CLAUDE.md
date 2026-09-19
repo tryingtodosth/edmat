@@ -1,4 +1,4 @@
-# activity — the public feed's stored event log + anchored micro-posts (root CLAUDE.md §17AI)
+# activity — the public feed's stored event log + anchored micro-posts (root `HISTORY.md` §17AI)
 
 ## The one rule
 

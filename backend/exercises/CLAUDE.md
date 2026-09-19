@@ -8,7 +8,7 @@
 columns dropped). Also: `ExerciseSource` (+ translation), `Tag` + `TagFollow` (per-tag `notify`
 is separate from following), `ExerciseRequirement` (+ vote).
 
-## The solution/hint pool (`SolutionEntry`, root CLAUDE.md §17AH)
+## The solution/hint pool (`SolutionEntry`, root `HISTORY.md` §17AH)
 
 Peer hints/solutions per exercise: one language each, ▲/▼ votes (verified-contributor weight 2×),
 `pinned` corpus originals first then net score, per-entry Comment thread + reports/auto-hide.

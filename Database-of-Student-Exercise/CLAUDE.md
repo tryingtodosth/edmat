@@ -1,7 +1,7 @@
 # Database-of-Student-Exercise/ — RETIRED. Read-only migration provenance.
 
 The original static-site generator plus the vendored ~740-exercise corpus EdMat was seeded from.
-**Retired by decision (root CLAUDE.md §12): EdMat is the sole source of truth.** Its README and
+**Retired by decision (root `HISTORY.md`, the one-time corpus migration): EdMat is the sole source of truth.** Its README and
 every generated page carry a retirement banner pointing at EdMat.
 
 ## Rules

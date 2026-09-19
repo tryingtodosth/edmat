@@ -8,9 +8,12 @@ real booking and availability, one-off events, user-to-user messaging, and a sco
 Seeded from a real 740-exercise legacy corpus (`Database-of-Student-Exercise/`, a static-site generator now retired — kept in-tree
 only as migration provenance). A SvelteKit SPA against a Django REST Framework API.
 
-**This file is an orientation map — read this first.** The full chronological build history — every
-feature, every design decision with its reasoning, every bug found and how — lives in **`CLAUDE.md`
-(~435 KB)**, which remains the source of truth. When the two disagree, `CLAUDE.md` wins.
+**This file is an orientation map — read this first.** `CLAUDE.md` (22 KB) is the engineering
+contract: the rules, conventions and traps you need in order to write code here. The full
+chronological build history — every feature, every design decision with its reasoning, every bug
+found and how — lives in **`HISTORY.md`** (the old 554 KB blueprint, split out on 2026-09-19), with
+`PRODUCT.md`, `LEGAL.md` and `FINANCES.md` beside it. When this map and one of those disagree about
+the present, the other file wins.
 
 ---
 
@@ -26,7 +29,7 @@ edmat/
 ├── FUW/               UNTRACKED. Server-rescue snapshots — CONTAINS LIVE SECRETS.
 ├── .claude/           settings.local.json + settings.json (bgIsolation: none — work in this checkout directly).
 ├── setup.sh run.sh    One-command install; separate one-command run.
-├── CLAUDE.md          The 435 KB living blueprint / build log (§17A–§17AB, §18 open questions, §19 glossary).
+├── CLAUDE.md          The engineering contract (22 KB). HISTORY.md PRODUCT.md LEGAL.md FINANCES.md beside it.
 ├── LAUNCHCHECKLIST.md QA.md test.md README.md
 ├── NAVBAR-BRIEF.md PORTS-BRIEF.md ENERGY-BRIEF.md   Owner-facing design briefs.
 └── requirements.txt   One-line include of backend/requirements.txt.
@@ -521,10 +524,14 @@ reads them and re-exposes everything as CSS custom properties, swapped by a `dat
 ## Docs and briefs
 | File | What it is |
 |---|---|
-| **`CLAUDE.md`** (435 KB) | The living blueprint: vision, corpus inventory, data model, phases, then the chronological build log §17A–§17AB, §18 open questions, §19 Polish↔English glossary. Authoritative. |
+| **`CLAUDE.md`** (22 KB) | The engineering contract: the boards rule, the vocabulary rename, the two architectural boundaries, the repeating model shapes, 14 house rules, the content pipeline, API and routing conventions, how to run and verify, known gaps, and the Polish↔English glossary. Authoritative for the present. |
+| **`HISTORY.md`** (533 KB) | The chronological build log §17A–§17AY, the phase plan, and the resolved open questions. Authoritative for *why*. |
+| **`PRODUCT.md`** (19 KB) | Vision, corpus inventory, scope, roles, user stories, functional requirements. |
+| **`LEGAL.md`** (13 KB) | Operator identity, licences, the corpus copyright question, DSA, GDPR, minors. |
+| **`FINANCES.md`** (7 KB) | Why nothing takes money; the ING grant and the foundation. |
 | **`README.md`** (8 KB) | Public description + the two setup commands. |
 | **`LAUNCHCHECKLIST.md`** (47 KB) | Pre-launch blockers and risks, grounded against the real codebase. Also holds the **REP / SKILL / ENERGY** trust-system design that `/levels` explains to readers and `identity/standing.py` implements one term of. |
-| **`QA.md`** (28 KB) | An independent QA pass re-verifying `CLAUDE.md`'s claims against the live repo, plus open findings (a clean-clone install check tops the "what I'd do next" list). |
+| **`QA.md`** (28 KB) | An independent QA pass re-verifying the documentation's claims against the live repo, plus open findings (a clean-clone install check tops the "what I'd do next" list). |
 | **`test.md`** (39 KB) | How to run both suites, what each covers, and the traps. |
 | **`NAVBAR-BRIEF.md`** (10 KB) | Owner-dictated spec for the staged navbar collapse. The stage order **is** the specification. |
 | **`PORTS-BRIEF.md`** (12 KB) | Design-only analysis of porting backend hot paths to Rust/Go/C. Superseded by the Redis work; archived on branch `outdated/port-rust`. |
@@ -584,7 +591,7 @@ payload), `rescue.zip` / `rescue-unpacked/`, `webek03.zip`, `logs.txt`, `todonet
   was built with `python3 -m venv --without-pip` plus a manual `get-pip.py` bootstrap.
 - **`backend/db.sqlite3.bak-*`** — dated pre-migration/pre-merge snapshots. `backend/{cachedata,logdata,media}/` are runtime data.
 
-# 5. History highlights (`CLAUDE.md` §16–§17AB, compressed)
+# 5. History highlights (`HISTORY.md` §16–§17AB, compressed)
 Phases: **0** plan → **1** fully-mocked SvelteKit frontend (38 real stratified fixtures, not synthetic filler) → **2** Django/DRF
 backend + the corpus import (3 disciplines, 4 branches, 50 topics, 42 chapters, **742 exercises**, 7 materials) → **3** integration
 (every service's internals swapped to real `fetch()`, all mocks deleted, ~zero component changes) → **4** hardening.

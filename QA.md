@@ -38,7 +38,7 @@ these without an answer first.
    Almost everything in `LAUNCHCHECKLIST.md`'s 🔴/🟠/🟡 sections only matters if the answer is "public
    launch" — worth a real answer since it reprioritizes everything below (e.g., password reset/email
    verification/rate limiting are all moot for a single-user prototype, urgent for a public site).
-5. **Corpus copyright/provenance** (`CLAUDE.md` §18 item 2, `LAUNCHCHECKLIST.md` 🟢) — still
+5. **Corpus copyright/provenance** (`LEGAL.md` §3, `LAUNCHCHECKLIST.md` 🟢) — still
    genuinely unresolved: do the 742 exercises, transcribed from real UW course material, need
    instructor/institution permission before public redistribution? No decision has been made; this
    blocks "public" regardless of every technical fix below.
@@ -49,7 +49,7 @@ these without an answer first.
    and live: a verified contributor's brand-new exercise goes out with **zero review**, to students
    actively studying from it. Worth reconfirming deliberately given how little friction that path has
    — see the business-logic risk in §5 below.
-8. **Deployment target** (`CLAUDE.md` §18 item 6) — Postgres vs. staying on SQLite, real hosting,
+8. **Deployment target** (`CLAUDE.md`, known engineering gaps) — Postgres vs. staying on SQLite, real hosting,
    TLS — undecided. Blocks a large fraction of `LAUNCHCHECKLIST.md`'s 🔴/🟡 items from even being
    actionable.
 9. **Should EdMat's tutoring/donation-link features actually facilitate real money changing hands
@@ -108,7 +108,7 @@ these without an answer first.
    registration bug. Grepped `client.ts` directly this session — no `credentials` option is set
    anywhere in the file at all, meaning `fetch()`'s default (`same-origin`) is still active and the
    whole bug class is still live. **Confirmed still open.**
-5. **`notifications/tests.py` is a 3-line empty stub.** `CLAUDE.md` §17L's own "Left open" note says
+5. **`notifications/tests.py` is a 3-line empty stub.** `HISTORY.md` §17L's own "Left open" note says
    this plainly, but it's easy to miss buried in a huge document: the SSE stream (§17H) and all ten
    notification-trigger event types (§17B) have **zero automated test coverage**, despite being one
    of the more architecturally delicate features in the app (polling loop, token-in-query-param auth,

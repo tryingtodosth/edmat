@@ -275,13 +275,13 @@ access to the server rather than to this repository.
 
 ## 🟢 Content, legal, and policy — CLAUDE.md's own still-open questions
 
-These were flagged as genuinely unresolved throughout the build (see CLAUDE.md Section 18) —
+These were flagged as genuinely unresolved throughout the build (see `HISTORY.md`'s resolved open questions, and `CLAUDE.md`'s known gaps) —
 carried forward here since "launch" is exactly the point they stop being deferrable:
 
 - [ ] **Corpus copyright/provenance.** The 742 exercises are transcribed from real university course
   material (exam/midterm/exercise-sheet problems). Whether redistributing them publicly — even
   reworded, even with original solutions — needs instructor/institution permission is genuinely
-  unresolved (CLAUDE.md Section 18, item 2). Worth real legal review before this goes beyond a
+  unresolved (`LEGAL.md` §3). Worth real legal review before this goes beyond a
   personal/prototype deployment, not assumed clear.
 - [ ] **Terms of service and a real privacy policy.** Nothing exists. A public site that collects
   emails, passwords, and lets people publish content under their own name needs both, especially
@@ -293,10 +293,10 @@ carried forward here since "launch" is exactly the point they stop being deferra
 - [ ] **A moderation policy / code of conduct**, published somewhere a submitter can actually read
   before they post — right now moderation exists as a mechanism (`u-kasia`'s queue) with no stated
   rules behind it.
-- [ ] **Decide the verified-contributor fast path** (CLAUDE.md Section 18, item 4) — right now
+- [ ] **Decide the verified-contributor fast path** (resolved — `HISTORY.md`, open question 4) — right now
   literally everything queues for moderation regardless of who submitted it; decide if that's the
   permanent policy or if trusted contributors should ever skip the queue.
-- [ ] **Decide `Database-of-Student-Exercise`'s fate** (CLAUDE.md Section 18, item 3) — does the
+- [ ] **Decide `Database-of-Student-Exercise`'s fate** (resolved — `HISTORY.md`, open question 3) — does the
   original static site stay up as a mirror/fallback, or get retired once EdMat is the real thing?
 
 ## 🔵 Quality passes that were explicitly deferred to "Phase 4," never started
@@ -325,7 +325,7 @@ carried forward here since "launch" is exactly the point they stop being deferra
   their own avatar — `/api/auth/me/` is GET-only, there's no PATCH.
 - [ ] **No "delete my account" flow** (ties into the GDPR item above) — an account, once created,
   can't currently be removed by its own owner through the app.
-- [ ] **Locale-prefixed URLs were never built.** CLAUDE.md Section 15 originally sketched
+- [ ] **Locale-prefixed URLs were never built.** The old blueprint's §15 originally sketched
   `/{locale}/...` routing; the real routes (`/fields`, `/courses/...`, etc.) aren't locale-prefixed.
   Not broken — Paraglide's own cookie-based locale detection still works — just a divergence from
   the original plan worth knowing about if URL-based locale switching ever becomes a real
@@ -490,7 +490,7 @@ enrolled person, which of them they are, and what they study. It is a far strong
     say exactly that, since "an optional scope the user asks for" is a very different thing to ask a
     university for than "a scope we always take".
 
-> **Status: the ground is built, the connection is not — see CLAUDE.md Section 17S.**
+> **Status: the ground is built, the connection is not — see HISTORY.md Section 17S.**
 > `backend/identity/` has the models, the consent model, the per-institution seam
 > (`active_connector()` is the one line a real client replaces), the standing calculation, and 36
 > tests exercising all of it through a stand-in connector. What remains is genuinely the two items

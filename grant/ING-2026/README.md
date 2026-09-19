@@ -229,7 +229,7 @@ Two ways, and they do not mix:
 | 1 441 testów backendu, wszystkie zielone | `manage.py test --parallel 4` run 16.09, `Ran 1441 tests in 301.888s — OK` |
 | 1 314 sprawdzeń w przeglądarce w 46 scenariuszach e2e | `test.md` summary lines, `frontend/e2e/*.mjs` count |
 | 2 094 komunikaty interfejsu w każdym z 2 języków | `frontend/messages/{en,pl}.json` |
-| audyt dostępności: 22 strony, 0 naruszeń | `npm run check:katex`/`check:a11y` results in root `CLAUDE.md` §17AT |
+| audyt dostępności: 22 strony, 0 naruszeń | `npm run check:katex`/`check:a11y` results in root `HISTORY.md` §17AT |
 | 18 modułów backendu (katalogi z `apps.py`), 161 migracji, ~111 tys. linii kodu | repo |
 | kod otwarty, licencja MIT; rozwijany od lipca 2026 (pierwszy commit 25.07.2026, 248 commitów) | `LICENSE`, `git log` |
 | 1,32 mln studentów (2025/26; 1 322,8 tys.) | GUS, "Szkolnictwo wyższe w roku akademickim 2025/2026" |
