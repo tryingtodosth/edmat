@@ -266,6 +266,7 @@ E2E_USER=<id> E2E_PUBLISHED=55 E2E_PRIVATE=2 node e2e/profile-exercise-counts.mj
 node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs in as ola + kasia, toggles the `issues` flag and restores it
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
+node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRANCH=<slug>, default analiza-matematyczna; signs nobody in, saves to the guest working set only
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
 node e2e/solution-entries.mjs         # E2E_EXERCISE=<published exercise with pinned corpus entries>, default 1; ola + michal + kasia, resets its own scratch first
 node e2e/activity-feed.mjs            # the activity feed + micro-posts; ola + michal (UI) + kasia (API); toggles the `posts` flag and restores it; cleans its posts
@@ -586,6 +587,16 @@ shell is gone once it has, and with JS disabled a fallback route still shows the
 static server for `build/` that falls back to `200.html` (`python3 -m http.server` does not); the
 throttled numbers are the ones that mean anything.
 
+**`e2e/exercise-card-click.mjs` (11 checks)** — the whole exercise card opens the exercise, and
+everything inside it that owns its own click keeps it: a click on the badges row and one on the
+card's empty padding both navigate; the title link navigates and pushes exactly ONE history entry
+(two would mean the card handler fired underneath it); the save trigger, the open panel's padding
+and a real row in that panel all leave the page where it was; a ctrl-click does not navigate this
+tab (the real link handles "open elsewhere"); and a drag that selects text is not a click. Signs
+nobody in — the one save it performs goes to the anonymous working set in localStorage, so it
+leaves no server state behind. Reads the target exercise off the first card rather than hardcoding
+an id.
+
 **`e2e/login-return.mjs` (5 checks)** — signing in returns to the page "Log in" was clicked on: from
 the header on a deep page, from a login link inside a modal, across the login → register → login hop
 (query string kept), a cold `/login` still landing on home, and a cross-origin `?next=` refused.
@@ -787,6 +798,7 @@ each script. The static-build pair ran against `vite preview` on 5174 of a fresh
 | event-registration | 26/26 | |
 | events-and-nav | 92/92 | a full event waitlists instead of refusing (§17AN); event form needs a band; guest reads Polish |
 | exercise-claims | 12/12 | picks an unclaimed topic |
+| exercise-card-click | 11/11 | new; needs `edmat.contentLocales` = pl, which it sets itself |
 | fcp | see log | static build, throttled — numbers in `scratchpad/e2e10/fcp.log` of the session |
 | guardian-accounts | 17/17 | |
 | issue-reports | 34/34 | login field locator; the "Aa" button matched to the bar's 36px icons |

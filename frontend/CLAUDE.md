@@ -45,6 +45,12 @@ Discipline/Branch ids are the backend slug; everything else `String(pk)`, opaque
 8. Popover close-on-outside-click: use `event.composedPath()`, never `container.contains(target)`
    — a click that synchronously un-renders its own button detaches the target before the window
    listener runs.
+9. **`<!-- svelte-ignore a b -->` silences only `a`.** Two codes in one comment looks like it works
+   — the build passes, the first warning is gone — and the second rule still fires, so a file that
+   is meant to be at the 0-warning bar quietly is not. One comment per code. (`ExerciseCard`'s
+   card-wide click needs `a11y_click_events_have_key_events` AND
+   `a11y_no_noninteractive_element_interactions`; `<article>` is a non-interactive ELEMENT, so the
+   static-element rule is not the one that fires.)
 
 ## Rendering math (`lib/utils/renderContent.ts`) — the pipeline ORDER is the point
 
