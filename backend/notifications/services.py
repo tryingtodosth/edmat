@@ -93,6 +93,30 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     # DSA legal notices (legal/) — the same coarse category as every other "somebody decided on
     # something I filed" event, per `issue_status_changed`'s own precedent above.
     'legal_notice_decided': 'notify_on_moderation_decision',
+    # Co-authoring a material (coauthoring/, COAUTHORING-BRIEF.md §4). Deliberately split across
+    # the two categories that already exist rather than earning an eighth Profile boolean:
+    #
+    # - the two "somebody decided on what I sent" events — a proposal accepted or rejected, a
+    #   request to join answered — read as moderation decisions to the person receiving them, even
+    #   when the decider is a co-author rather than staff. Who holds the power to decide is not
+    #   what that setting is about; being told the answer is.
+    # - the other five are things happening to content the recipient is already part of: a proposal
+    #   arriving, a new published version, somebody joining or using an invite. That is
+    #   `notify_on_content_action`, alongside `content_auto_hidden`/`_restored`/`_removed`.
+    #
+    # **The second half widens what that category covers, and its UI label has to widen with it.**
+    # `settings_notifyOnContentAction` currently reads "Notify me when my content is auto-hidden,
+    # restored, or removed" — an exhaustive list of the three types that were under it, which these
+    # five are not in. A setting whose label does not name what it governs is the exact defect this
+    # file's own history records for the five course types that were gated by a switch labelled
+    # "courses" while `notify()` ignored it. The fix is in both message catalogues, not here.
+    'material_version_proposed': 'notify_on_content_action',
+    'material_version_decided': 'notify_on_moderation_decision',
+    'material_version_published': 'notify_on_content_action',
+    'project_invite_used': 'notify_on_content_action',
+    'project_member_added': 'notify_on_content_action',
+    'project_join_requested': 'notify_on_content_action',
+    'project_join_decided': 'notify_on_moderation_decision',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile
@@ -134,6 +158,7 @@ def notify(
     event=None,
     post=None,
     issue=None,
+    material_project=None,
     note: str = '',
 ):
     """Creates one Notification, or silently no-ops when there's genuinely nothing to notify:
@@ -183,6 +208,7 @@ def notify(
         event=event,
         post=post,
         issue=issue,
+        material_project=material_project,
         note=(note or '')[:500],
     )
 

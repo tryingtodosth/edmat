@@ -97,12 +97,16 @@ MAX_MATERIAL_SUBMISSION_SIZE_BYTES = 25 * 1024 * 1024
 
 def validate_material_submission_file(file_obj) -> None:
     """A real Django validator (usable directly in a FileField's own `validators=[...]`) — checked
-    by every DRF ModelSerializer write path (MaterialSubmissionSerializer's own `file` field), and
-    left on `Material.file` itself too (materials/models.py) for the same defense-in-depth reasoning
-    CLAUDE.md Section 11 already applies to submitted exercise content: a raw `.save()` call (the
-    corpus importer, or `_apply_material_submission` copying an already-validated submission's file
-    across) bypasses this entirely, by design — it only runs where something is actually being
-    VALIDATED, not on every write.
+    by every DRF ModelSerializer write path (`coauthoring.MaterialVersion.file`'s own field, which
+    `MaterialVersionWriteSerializer` inherits it from), and left on `Material.file` itself too
+    (materials/models.py) for the same defense-in-depth reasoning CLAUDE.md Section 11 already
+    applies to submitted exercise content: a raw `.save()` call (the corpus importer, or
+    `coauthoring.services.sync_material` copying an already-validated version's file across)
+    bypasses this entirely, by design — it only runs where something is actually being VALIDATED,
+    not on every write.
+
+    The NAME is a fossil of the retired `moderation.MaterialSubmission` and is kept because two
+    historical migrations import it by dotted path; what it validates is any material file.
     """
     if file_obj.size > MAX_MATERIAL_SUBMISSION_SIZE_BYTES:
         max_mb = MAX_MATERIAL_SUBMISSION_SIZE_BYTES // (1024 * 1024)

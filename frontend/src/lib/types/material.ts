@@ -134,9 +134,14 @@ export interface Material {
 	requirements: MaterialRequirement[];
 	fileName: string;
 	fileUrl: string; // Phase 3: a real, working URL served by the Django dev server's MEDIA_ROOT
-	/** Set when the material IS a link rather than a hosted file. Exactly one of `fileUrl` and
-	 * `url` is meaningful for a given material; the backend refuses a row with neither. */
+	/** Set when the material IS a link rather than a hosted file. Exactly one of `fileUrl`,
+	 * `url` and `body` is meaningful for a given material; the backend refuses a row with none. */
 	url?: string;
+	/** The material written here rather than uploaded or linked — Markdown + raw HTML + literal
+	 * LaTeX, the same storage format every other content field in this app uses, rendered through
+	 * `MathContent`. The third kind a `MaterialVersion` can carry (COAUTHORING-BRIEF.md §1), and
+	 * the reason `Material.clean()` is now file-or-url-or-body. */
+	body?: string;
 	// Free text, NOT a real account — the real corpus's own material.yaml `author:` values are
 	// plain human names (a branch TA/professor), almost never a registered platform user, so this
 	// is deliberately never rendered as a clickable link. `submittedByUserId` below is the
@@ -169,6 +174,21 @@ export interface Material {
 	priceAmount?: number;
 	priceCurrency: string;
 	estimatedMinutes?: number;
+	/** The co-authoring project this material is the published projection of
+	 * (COAUTHORING-BRIEF.md §2). Every material has one after the backfill; it stays optional
+	 * because a backend older than that migration — or the `coauthoring` switch being off — must
+	 * leave every existing read site working exactly as before. `ProjectPanel` renders nothing
+	 * without it.
+	 *
+	 * Deliberately NOT what a reader follows to get the material: the material IS the current
+	 * version. This only says where its bytes came from and who may improve them. */
+	projectId?: string;
+	/** True when the translation the reader is being shown was written before the version that is
+	 * currently published — the material moved on and this rendering of it did not. Says so rather
+	 * than hiding the text or falling back to another language: a slightly old description is
+	 * worth more than no description, as long as the reader is told (COAUTHORING-BRIEF.md §9 —
+	 * translations of a material are not themselves versioned). */
+	translationStale?: boolean;
 }
 
 // The materials search/filter/sort overhaul's own structured query surface — mirrors the backend's

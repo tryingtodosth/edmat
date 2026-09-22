@@ -132,12 +132,16 @@ def _content_locale_feed_filter(wanted: list[str]):
       `SolutionEntry` — not necessarily the exercise's original language a translation/entry was
       submitted against. Checked via the `source` each was created with (`record_activity`'s own
       `source=obj` at both call sites), never the exercise's.
-    - Every other exercise/material-linked kind (`exercise`/`review`/`claim`/`comment`) falls back
-      to "the linked exercise/material has a version in one of these languages" — the exact rule
-      that content's own list endpoint already applies: `published_only=True` for an exercise
-      (`ExerciseTranslation.status` is a real pending/published axis), no such check for a
-      material (`MaterialTranslation` has no `status` column at all — there is no review step for
-      a material's own translation the way there is for an exercise's).
+    - Every other exercise/material-linked kind (`exercise`/`material`/`material_version`/
+      `review`/`claim`/`comment`) falls back to "the linked exercise/material has a version in one
+      of these languages" — the exact rule that content's own list endpoint already applies:
+      `published_only=True` for an exercise (`ExerciseTranslation.status` is a real
+      pending/published axis), no such check for a material (`MaterialTranslation` has no `status`
+      column at all — there is no review step for a material's own translation the way there is
+      for an exercise's). `material_version` belongs in that group rather than with `translation`
+      and `solution_entry` above: publishing a version WRITES the material's own translation row
+      for the project's locale (`coauthoring.services.sync_material`), so the material's languages
+      already are the version's, and reading the source row would answer the same question twice.
     """
     from django.contrib.contenttypes.models import ContentType
     from django.db.models import Exists, OuterRef, Q

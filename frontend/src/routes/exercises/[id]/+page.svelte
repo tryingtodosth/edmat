@@ -15,6 +15,7 @@
 	import { submitTranslation, type TranslationDraft } from '$lib/services/translations';
 	import { authStore } from '$lib/state/auth.svelte';
 	import SaveToSetButton from '$lib/components/exercise/SaveToSetButton.svelte';
+	import ExerciseMaterials from '$lib/components/exercise/ExerciseMaterials.svelte';
 	import { browsingHistoryStore } from '$lib/state/browsingHistory.svelte';
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
 	import SourceTypeBadge from '$lib/components/shared/SourceTypeBadge.svelte';
@@ -461,6 +462,11 @@
 					{/if}
 				</p>
 			</section>
+
+			<!-- Directly under the Source block, because it answers the same question one step
+			     further: the source line says what this came from as free text, this says which
+			     material in the database it came from, and where in it. -->
+			<ExerciseMaterials exerciseId={exercise.id} />
 
 			<section class="actions no-print">
 				{#if authStore.isAuthenticated}

@@ -72,6 +72,24 @@ export type NotificationType =
 	| 'taxonomyRejected'
 	// Staff moved a site issue report the recipient filed under their name (issues/).
 	| 'issueStatusChanged'
+	// Somebody applied to look after content, and the answer to such an application (moderation/).
+	// Both have existed backend-side since the governor-application queue landed and were missing
+	// from this union, the type map, the labels and the card — so every one of them arrived, fell
+	// through `mapNotification`'s `?? 'commentReply'` fallback, and rendered as a reply to a comment
+	// that does not exist. The same drift the course/material block above already records.
+	| 'governorApplicationSubmitted'
+	| 'governorApplicationDecided'
+	// Co-authoring a material (coauthoring/). Seven, split by recipient and by what the reader's
+	// next move is: the team is told a proposal arrived, the proposer is told what was decided,
+	// everybody is told when a version goes live, and the invite/member/join trio each has a side
+	// that acts and a side that waits.
+	| 'materialVersionProposed'
+	| 'materialVersionDecided'
+	| 'materialVersionPublished'
+	| 'projectInviteUsed'
+	| 'projectMemberAdded'
+	| 'projectJoinRequested'
+	| 'projectJoinDecided'
 	// Staff decided a DSA Art. 16 legal notice the recipient filed (legal/). Deliberately unlinked
 	// — a legal notice has no page of its own for anybody but staff/its own notifier, so `note`
 	// (the stated reason) is the whole of what this card says, same as a rejected submission.
@@ -89,6 +107,11 @@ export interface Notification {
 	eventId?: string; // set for the event types, which have none of the three above
 	postId?: string; // a reply on an activity micro-post — the post's page is where to read it
 	issueId?: string; // set for issueStatusChanged — the report itself is the page to open
+	/** The co-authoring project a notification is about. Carried as well as `materialId`, not
+	 * instead of it: a project that has never published anything has no material to point at, and
+	 * one that has should send the reader to the material rather than to its history. The card
+	 * prefers `materialId` and falls back to this. */
+	materialProjectId?: string;
 	note: string;
 	isRead: boolean;
 	createdAt: string;

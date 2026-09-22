@@ -559,6 +559,25 @@
 			<MyGovernorApplications />
 		</section>
 
+		<!-- Beside the governor applications, because both answer "what am I responsible for": one
+		     is the content this person looks after, the other the materials they co-author. A link
+		     rather than an embedded list — the project page is a real place with its own tabs, and
+		     duplicating it here would mean two lists to keep in step. Ungated on purpose: this is
+		     one line of text, and `/material-projects` is itself inside a FeatureGate that says the
+		     honest thing when the switch is off. -->
+		<section class="tags">
+			<h2>{m.coauth_heading()}</h2>
+			<!-- "Co-authoring" -->
+			<p class="field-hint">
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- built on resolve('/material-projects'), query parameter only -->
+				<a href={`${resolve('/material-projects')}?tab=mine`}>
+					{m.settings_coauthoringLink()}
+					<!-- "The materials you co-author" -->
+				</a>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			</p>
+		</section>
+
 		<section class="tags">
 			<h2>{m.settings_tagsHeading()}</h2>
 			<p class="field-hint">{m.settings_tagsHint()}</p>

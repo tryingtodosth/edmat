@@ -44,6 +44,19 @@
 
 	const PREVIEW_COUNT = 3;
 
+	// A material written here rather than uploaded or linked (coauthoring's `body` kind) has nothing
+	// to download and nowhere external to open — the whole of it is on its own detail page, so the
+	// row that normally says "Download"/"Open" says "Read" and links there instead.
+	//
+	// `linkTitle` is what decides it does NOT appear on that page: the card IS the page header
+	// there, the body is rendered a few lines below it, and a button back to where you already are
+	// is the same pointless self-link the title already avoids. Reusing that prop rather than
+	// adding a third is deliberate — it answers exactly the question being asked here ("is this the
+	// page I am already on?"), which `headingLevel` beside it explicitly does not.
+	let showRead = $derived(
+		Boolean(material.body) && !material.fileUrl && !material.url && linkTitle
+	);
+
 	// A real, found gap: the compact coverage chips this rewrite introduced were plain, non-
 	// interactive `<span>`s — a reader could no longer open a claim's own discussion/vote popover
 	// from the list view at all, only from the detail page. Fixed by reusing CoveragePopover
@@ -123,12 +136,13 @@
 	     the claim chips, the tags, the price and the attribution line. Left-aligned and on its own
 	     row for the same reason: in a right-aligned footer it read as one more piece of metadata
 	     about the card instead of the card's own primary action. -->
-	{#if material.fileUrl || material.url}
+	{#if material.fileUrl || material.url || showRead}
 		<div class="material-card__get">
-			<!-- A material is a hosted file or a link, never neither. The two get the same weight — both
-		     are "the thing itself" — but not the same word or the same attributes: `download` on a
-		     link somebody else hosts would be a lie about what clicking it does, and `nofollow`
-		     belongs on a user-submitted URL rather than on our own media server. -->
+			<!-- A material is a hosted file, a link, or prose written here — never none of the three.
+		     They get the same weight — each one is "the thing itself" — but not the same word or
+		     the same attributes: `download` on a link somebody else hosts would be a lie about what
+		     clicking it does, `nofollow` belongs on a user-submitted URL rather than on our own
+		     media server, and a body has nothing to fetch at all, only a page to open. -->
 			{#if material.fileUrl}
 				<!-- eslint-disable svelte/no-navigation-without-resolve -- external URLs (our own media
 		     server, or a user-submitted link), neither of which `resolve()` can express. A block
@@ -149,6 +163,12 @@
 				</a>
 			{/if}
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			{#if showRead}
+				<a class="download" href={resolve('/materials/[id]', { id: material.id })}>
+					{m.material_read()}
+					<!-- "Read" -->
+				</a>
+			{/if}
 		</div>
 	{/if}
 

@@ -61,7 +61,9 @@ try {
 	await page.goto(`${WEB}/submit-material`, { waitUntil: 'networkidle' });
 	await page.waitForTimeout(1500);
 
-	const typeSelect = page.locator('form.submit-form select').nth(1);
+	// By id, never by position (trap 6): the form grew a discipline -> branch cascade, so the type
+	// picker is no longer the second select on it, and `.nth(1)` quietly checked the branch list.
+	const typeSelect = page.locator('form.submit-form select#submit-material-type');
 	check('the type picker is on the page', (await typeSelect.count()) > 0);
 
 	const options = await typeSelect.locator('option').allInnerTexts();
@@ -95,19 +97,22 @@ try {
 		options.slice(0, 4).join(' | ')
 	);
 
-	// The button that makes the whole thing reachable. Its trigger is the shared
-	// "Not in the list? Suggest one" wording; the kind-specific label is inside the form it opens.
-	const proposeButton = page
-		.locator('form.submit-form button', { hasText: /Suggest one/i })
-		.first();
-	check('the form offers a way to suggest a kind', (await proposeButton.count()) > 0);
-	await proposeButton.click();
-	await page.waitForTimeout(400);
-	const formText = await page.locator('form.submit-form').innerText();
+	// Naming a kind this database has never heard of. It used to be a separate "Not in the list?
+	// Suggest one" button opening its own little form; the type picker now offers "Other…" inline,
+	// the same mechanism the discipline and branch pickers on this form use — one way per field
+	// rather than two competing ones. (The script asked for the old button long after it was gone.)
+	const otherOption = typeSelect.locator('option[value="__other__"]');
 	check(
-		'and the form it opens is worded for a material kind',
-		/suggest a kind/i.test(formText),
-		formText.slice(0, 160)
+		'the picker offers "Other…" for a kind it does not know',
+		(await otherOption.count()) === 1
+	);
+	await typeSelect.selectOption('__other__');
+	await page.waitForTimeout(400);
+	const customName = page.locator('form.submit-form input.other-name');
+	check(
+		'and choosing it asks for the new kind by name',
+		(await customName.count()) === 1,
+		(await page.locator('form.submit-form').innerText()).slice(0, 160)
 	);
 
 	// A card badge must name a proposed type rather than throwing or saying "Other".

@@ -3,15 +3,27 @@
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import type { Branch, Difficulty, Discipline, SourceType, Topic } from '$lib/types';
+	import type {
+		Branch,
+		Difficulty,
+		Discipline,
+		ExerciseLinkRole,
+		Material,
+		SourceType,
+		Topic
+	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
+		getBranchById,
 		getBranchesForDiscipline,
 		getDisciplines,
 		getTopicsForBranch,
 		proposeTaxonomyNode
 	} from '$lib/services/taxonomy';
+	import { getMaterialById } from '$lib/services/materials';
+	import { EXERCISE_LINK_ROLES, EXERCISE_LINK_ROLE_LABELS } from '$lib/utils/labels';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import { submitExercise } from '$lib/services/submissions';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -68,15 +80,51 @@
 	// what actually happened.
 	let publishedExerciseId = $state<string | null>(null);
 
+	// `/submit?material=<id>` — "Add an exercise to this material" on a material page lands here.
+	// The chip is dismissible on purpose: arriving from a material is a strong hint, not a
+	// commitment, and somebody who changes their mind should not have to go back and start again.
+	// `materialMissing` is the honest outcome when the id names nothing published — the form still
+	// works, it just says that nothing will be linked, rather than silently dropping the link.
+	let forMaterial = $state<Material | undefined>(undefined);
+	let materialMissing = $state(false);
+	let materialRole = $state<ExerciseLinkRole>('source');
+	let materialLocator = $state('');
+
 	async function init() {
 		fields = await getDisciplines();
 		if (fields.length) await onFieldChange(fields[0].id);
 	}
+
+	/** Pre-selects the material's own discipline and branch, both still editable — the exercise is
+	 * filed in the taxonomy exactly like any other, and a material whose branch is wrong for this
+	 * particular exercise is a real case, not an error to defend against. */
+	async function initFromMaterial(materialId: string) {
+		const material = await getMaterialById(materialId);
+		if (!material) {
+			materialMissing = true;
+			return;
+		}
+		forMaterial = material;
+		const branch = await getBranchById(material.branchId);
+		if (!branch) return;
+		// Through `onFieldChange`, not by assigning `disciplineId` directly: that function owns the
+		// branch fetch AND the `branchRequestId` guard that discards a superseded response, and
+		// bypassing it is how the pre-selected branch would get overwritten by `init`'s own
+		// still-in-flight default (a race this page already had once and fixed there).
+		await onFieldChange(branch.disciplineId);
+		if (branches.some((b) => b.id === material.branchId)) branchId = material.branchId;
+	}
+
 	// In onMount, not at top level: this page is prerendered, and a top-level call runs at BUILD
 	// time too, where `fetch('/api/…')` has no origin to resolve against and the build dies
 	// (found by pack.sh's production build, not by the dev one, whose .env named a real host).
-	onMount(() => {
-		init();
+	// `page.url.searchParams` is read here for the same reason and a second one: a prerendered
+	// page's URL proxy THROWS on `searchParams`, so reading it at component top level would break
+	// the build outright rather than just fetching too early.
+	onMount(async () => {
+		const materialParam = page.url.searchParams.get('material');
+		await init();
+		if (materialParam) await initFromMaterial(materialParam);
 	});
 
 	// Discipline → Branch cascade — same pattern RandomExerciseButton.svelte's own filter popover
@@ -183,6 +231,15 @@
 				.map((t) => t.trim())
 				.filter(Boolean),
 			requirements: requirements.length > 0 ? requirements : undefined,
+			// Only when a material is actually attached — the keys are absent, not null, for an
+			// ordinary submission, so nothing about the existing payload shape changes for one.
+			...(forMaterial
+				? {
+						material_id: Number(forMaterial.id),
+						material_role: materialRole,
+						material_locator: materialLocator.trim() || undefined
+					}
+				: {}),
 			statement,
 			hint,
 			answer,
@@ -233,6 +290,53 @@
 			{/if}
 
 			<form class="submit-form" onsubmit={(e) => (e.preventDefault(), handleSubmit())}>
+				<!-- At the very top of the form, because it changes what the whole form is FOR — the
+				     discipline and branch below it have already been filled in from the material, and
+				     somebody who does not read this first would not know why. -->
+				{#if forMaterial}
+					<div class="for-material">
+						<div class="for-material__chip">
+							<span>{m.exLink_submitForMaterial({ title: forMaterial.title })}</span>
+							<!-- "Original text": For material: {title} -->
+							<button
+								type="button"
+								title={m.exLink_submitDismiss()}
+								aria-label={m.exLink_submitDismiss()}
+								onclick={() => ((forMaterial = undefined), (materialLocator = ''))}
+							>
+								&times;
+							</button>
+							<!-- "Original text": Don't link it to a material -->
+						</div>
+						<p class="other-hint">{m.exLink_submitForMaterialHint()}</p>
+						<!-- "Original text": Once published, this exercise will be listed on that material. -->
+						<div class="field-row">
+							<label class="field">
+								<span>{m.exLink_roleLabel()}</span>
+								<!-- "Original text": Kind of link -->
+								<select bind:value={materialRole}>
+									{#each EXERCISE_LINK_ROLES as r (r)}
+										<option value={r}>{EXERCISE_LINK_ROLE_LABELS[r]()}</option>
+									{/each}
+								</select>
+							</label>
+							<label class="field">
+								<span>{m.exLink_locatorLabel()} <em>({m.common_optional()})</em></span>
+								<!-- "Original text": Where in the material / optional -->
+								<input
+									type="text"
+									bind:value={materialLocator}
+									maxlength="120"
+									placeholder={m.exLink_locatorPlaceholder()}
+								/>
+							</label>
+						</div>
+					</div>
+				{:else if materialMissing}
+					<p class="other-hint">{m.exLink_submitMaterialMissing()}</p>
+					<!-- "Original text": That material could not be found, so nothing will be linked. -->
+				{/if}
+
 				<!-- The propose trigger sits on the label's own row rather than below the control. Under
 				     it, it read as a second action belonging to the form; beside the label it reads as a
 				     footnote about that one field, which is what it is. `.field-heading` wraps, so on a
@@ -596,5 +700,28 @@
 		margin-top: var(--space-1);
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
+	}
+	.for-material {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 6px);
+	}
+	.for-material__chip {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-weight: 600;
+		button {
+			background: none;
+			border: none;
+			cursor: pointer;
+			color: var(--text-secondary);
+			font-size: 1rem;
+			line-height: 1;
+			padding: 0 0.2rem;
+		}
 	}
 </style>

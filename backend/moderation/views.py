@@ -15,18 +15,15 @@ from config.audience import AUDIENCE_VALUES, DEFAULT_AUDIENCE
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.views import APIView
 
+from exercises.links import submission_link_fields
 from exercises.models import Exercise, ExerciseTranslation
 from exercises.serializers import ExerciseTranslationSerializer
-from materials.models import Material
-from materials.validators import scan_for_malware
 from notifications.services import (
     label_for_exercise,
-    label_for_material,
     label_for_taxonomy_node,
     notify,
     notify_tag_followers,
@@ -38,17 +35,15 @@ from .models import (
     ExerciseSubmission,
     FeatureFlag,
     GovernorApplication,
-    MaterialSubmission,
     NodeGovernor,
 )
-from .permissions import RequireVerifiedContributorForMaterialUploads, feature_gate
+from .permissions import feature_gate
 from .serializers import (
     EditSuggestionSerializer,
     ExerciseSubmissionSerializer,
     FeatureFlagSerializer,
     GovernorApplicationCreateSerializer,
     GovernorApplicationSerializer,
-    MaterialSubmissionSerializer,
     NodeGovernorSerializer,
     ReportCreateSerializer,
 )
@@ -241,155 +236,6 @@ class EditSuggestionViewSet(viewsets.ModelViewSet):
         return Response(EditSuggestionSerializer(suggestion).data)
 
 
-class MaterialSubmissionViewSet(viewsets.ModelViewSet):
-    """POST /api/material-submissions/ (multipart/form-data — auth required) → moderation queue.
-    "exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word document should be accepted too,
-    scanned and kept safe" — the real content-type/size validation (materials/validators.py's
-    `validate_material_submission_file`, wired onto the model field itself) runs on every write via
-    this ViewSet's own DRF serializer validation; the malware scan below is a SECOND, separate check
-    this view runs explicitly, since "scan it" isn't something a plain field validator can express
-    (it needs network I/O to a scanner, not just a look at the bytes already in hand).
-
-    `parser_classes` declared explicitly rather than left to DRF's own default (which already
-    includes MultiPartParser) — a reader shouldn't have to already know that default to see this
-    endpoint accepts a real file upload, not a JSON body."""
-
-    serializer_class = MaterialSubmissionSerializer
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
-
-    def get_permissions(self):
-        # The verified-contributor restriction is deliberately scoped to `create` alone — an
-        # ordinary (non-verified) user who already has past submissions should still see them here
-        # (list/retrieve), and the platform-wide `material_submissions` kill switch above still
-        # gates every action for everyone regardless, unchanged.
-        perms = [permissions.IsAuthenticated(), feature_gate('material_submissions')()]
-        if self.action == 'create':
-            perms.append(RequireVerifiedContributorForMaterialUploads())
-        return perms
-
-    def get_throttles(self):
-        """Scopes the tighter `material_submission` budget (config/settings.py's own
-        DEFAULT_THROTTLE_RATES) to `create` alone.
-
-        Set here rather than as a plain class attribute — the shape `AvatarView.throttle_scope`
-        uses, which is a single-purpose APIView and so has nothing to distinguish — because a
-        ViewSet's actions are not all the same request: reading back one's own past submissions is
-        an ordinary cheap GET that should keep the loose global `user` budget, while `create` writes
-        up to 25MB to disk and runs a malware scan over it. `ScopedRateThrottle` reads
-        `throttle_scope` off the view at request time and treats a falsy one as "not scoped at all",
-        and `self.action` is already resolved by the time DRF asks for throttles (`initialize_request`
-        sets it before `initial()` runs), so this is the honest place to make that distinction.
-        """
-        self.throttle_scope = 'material_submission' if self.action == 'create' else None
-        return super().get_throttles()
-
-    def get_queryset(self):
-        qs = MaterialSubmission.objects.all()
-        if not self.request.user.is_staff:
-            qs = qs.filter(submitted_by=self.request.user)
-        branch = self.request.query_params.get('branch')
-        if branch:
-            qs = qs.filter(branch__slug=branch)
-        return qs
-
-    def perform_create(self, serializer):
-        """Scans the upload BEFORE it's ever visible to a moderator, recording an honest
-        `scan_status`/`scan_detail` either way (see `MaterialSubmission`'s own doc comment for why
-        this is surfaced, not silently discarded). `MATERIAL_SCAN_REQUIRED` (config/settings.py) —
-        False in this project's own sandboxed dev environment, where no ClamAV daemon exists to
-        reach at all — is what a real deployment that actually runs ClamAV would flip to True, which
-        turns "couldn't scan it" into a hard rejection instead of a recorded, honest skip.
-
-        Then the same verified-contributor fast path `ExerciseSubmissionViewSet.perform_create`
-        already applies to a brand-new exercise (CLAUDE.md Section 18 item 4) — extended here to a
-        brand-new material, which never had it: every safety check above (content-type sniff, size
-        cap, storage allowance, the malware scan) still runs identically regardless of who is
-        uploading; only the "wait for a moderator" step is skipped, and only for a NEW upload — a
-        governor-only edit of an already-published Material's own requirements/price stays exactly
-        as gated as it already was. Reuses `_apply_material_submission` unchanged, the same function
-        a moderator's own approve action calls, so this path is covered by its existing slug-
-        collision retry rather than reimplementing it."""
-        from django.conf import settings
-        from rest_framework.exceptions import ValidationError
-
-        self._check_storage_allowance(serializer)
-        submission = serializer.save(submitted_by=self.request.user)
-        outcome = scan_for_malware(submission.file)
-        if not outcome.scanned and getattr(settings, 'MATERIAL_SCAN_REQUIRED', False):
-            submission.delete()
-            raise ValidationError({'file': [f'Could not scan this file for safety: {outcome.detail}']})
-        if outcome.scanned and not outcome.clean:
-            submission.delete()
-            raise ValidationError({'file': [outcome.detail]})
-        submission.scan_status = 'clean' if outcome.scanned else 'skipped'
-        submission.scan_detail = outcome.detail
-        submission.save(update_fields=['scan_status', 'scan_detail'])
-
-        profile = getattr(self.request.user, 'profile', None)
-        if profile and profile.is_verified_contributor:
-            _apply_material_submission(submission, self.request.user)
-            submission.status = 'approved'
-            submission.review_note = 'Auto-published — submitted by a verified contributor.'
-            submission.save(update_fields=['status', 'review_note', 'resulting_material'])
-
-    def _check_storage_allowance(self, serializer):
-        """`Profile.material_upload_quota_bytes` — the per-account total, enforced here because this
-        is the only place a new submission's bytes are ever admitted.
-
-        Sits alongside the per-FILE cap rather than instead of it: `MAX_MATERIAL_SUBMISSION_SIZE_BYTES`
-        (materials/validators.py, a real field validator that has already run by the time this is
-        reached) bounds ONE upload at 25MB, which says nothing about how many an account may make.
-        This is the aggregate half, and it is the half the material-submission path never had —
-        `TaughtCourse.upload_quota_bytes` bounds a course's stored bytes on the course-content path,
-        and nothing bounded a person's.
-
-        **The incoming file is weighed too**, so an account sitting just under its allowance refuses
-        what would take it over rather than accepting it and going over silently — the same rule the
-        course-side check (classroom/views.py) already states, kept identical on purpose, because
-        two quota checks that round differently is a bug nobody would ever look for.
-
-        **Checked before `serializer.save()`, which is what actually writes the file to storage.**
-        The course-side check has the same ordering for a different reason (its file already exists,
-        being an already-stored Material); here it genuinely matters — refusing after the save would
-        mean writing bytes only to unlink them, which is exactly the disk pressure the quota exists
-        to prevent, and would leave a real orphan behind if the unlink ever failed.
-
-        The refusal names the three numbers a person needs to act on it (used, allowance, and the
-        size of the file being refused). A bare "quota exceeded" leaves somebody guessing whether to
-        compress the file, split it, or ask for more room.
-        """
-        profile = getattr(self.request.user, 'profile', None)
-        quota = getattr(profile, 'material_upload_quota_bytes', 0) or 0
-        if not quota:
-            return
-
-        incoming = serializer.validated_data.get('file')
-        try:
-            incoming_size = incoming.size if incoming else 0
-        except (OSError, ValueError):
-            incoming_size = 0
-
-        used = profile.material_upload_bytes
-        if used + incoming_size <= quota:
-            return
-
-        from rest_framework.exceptions import ValidationError
-
-        def _mb(value):
-            return f'{value / (1024 * 1024):.1f}MB'
-
-        raise ValidationError(
-            {
-                'file': [
-                    f'This upload would take you past your storage allowance — you are using '
-                    f'{_mb(used)} of {_mb(quota)}, and this file is {_mb(incoming_size)}. '
-                    f'A moderator can raise the allowance, and rejected uploads give their space '
-                    f'back.'
-                ]
-            }
-        )
-
-
 class ReportViewSet(viewsets.ModelViewSet):
     """POST /api/reports/ (auth required) — the user-facing side of the reporting system (see
     moderation/services.py's own module doc comment for the full feature). Create-only from this
@@ -498,7 +344,7 @@ def _apply_submission(submission, reviewer):
     # `requirements` — a plain list[str] of skill-tag labels, already cleaned/deduped by
     # ExerciseSubmissionSerializer.validate_payload at submission time — turned into real,
     # ordered ExerciseRequirement rows the instant a real Exercise first exists to attach them to,
-    # mirroring `_apply_material_submission`'s own identical handling for MaterialRequirement.
+    # mirroring `materials.publish.create_material`'s own identical handling for MaterialRequirement.
     requirement_labels = payload.get('requirements', [])
     if requirement_labels:
         from exercises.models import ExerciseRequirement
@@ -507,6 +353,33 @@ def _apply_submission(submission, reviewer):
             ExerciseRequirement(exercise=exercise, label=label, order=i)
             for i, label in enumerate(requirement_labels)
         )
+    # `material_id`/`material_role`/`material_locator` — an exercise written FROM a material's page
+    # ("Add an exercise to this material") carries which one in its draft, and this is where that
+    # becomes the real `ExerciseMaterialLink`. Both approval paths run through here, so the
+    # moderator's approve and the verified-contributor fast path produce the identical row.
+    #
+    # `get_or_create` rather than `create`, and a `published=True` re-check rather than trusting
+    # the draft: the submission serializer validated the material at SUBMISSION time, and a
+    # material can be unpublished in the weeks a queue row waits. A material that has gone means
+    # the exercise still publishes without the link — the exercise is the contribution, the link is
+    # metadata about it, and losing one is not a reason to lose the other. Same idempotent posture
+    # as the steps above it, so a retried apply adds nothing twice.
+    link_material_id, link_role, link_locator = submission_link_fields(payload)
+    if link_material_id is not None:
+        from exercises.models import ExerciseMaterialLink
+        from materials.models import Material
+
+        link_material = Material.objects.filter(pk=link_material_id, published=True).first()
+        if link_material is not None:
+            ExerciseMaterialLink.objects.get_or_create(
+                exercise=exercise,
+                material=link_material,
+                defaults={
+                    'role': link_role,
+                    'locator': link_locator,
+                    'added_by': submission.submitted_by,
+                },
+            )
     source = payload.get('source') or {}
     if source:
         from exercises.models import ExerciseSource, ExerciseSourceTranslation
@@ -589,168 +462,6 @@ def _apply_edit_suggestion(suggestion):
         translation.save(update_fields=[suggestion.field])
 
 
-def _apply_material_submission(submission, reviewer):
-    """Builds a real, published Material + MaterialTranslation from an approved MaterialSubmission
-    — the file-centric counterpart to `_apply_submission` above. `Material.file` is assigned the
-    SAME already-uploaded, already-validated, already-scanned file the submission itself holds
-    (Django's own FileField assignment just copies the reference to the already-stored path, no
-    re-upload/re-validation needed) rather than re-saving the bytes a second time under a new path.
-
-    `slug` has no equivalent in the submission's own payload (unlike Exercise's `number`, which
-    `_apply_submission` computes from the course's own existing rows) — generated here from the
-    submitted title via `slugify`, with a numeric suffix appended only if it collides with an
-    existing Material in the same course (`unique_together = [('course', 'slug')]`,
-    materials/models.py), mirroring the exact "retry until it doesn't collide" shape
-    `_apply_submission`'s own number-allocation loop already established for a different field."""
-    from django.utils.text import slugify
-
-    from materials.models import Material, MaterialCoverage, MaterialRequirement, MaterialTranslation
-
-    base_slug = slugify(submission.title) or 'material'
-    slug = base_slug
-    suffix = 1
-    while Material.objects.filter(branch=submission.branch, slug=slug).exists():
-        suffix += 1
-        slug = f'{base_slug}-{suffix}'
-
-    material = Material.objects.create(
-        branch=submission.branch,
-        slug=slug,
-        type=submission.type,
-        audience=submission.audience,
-        file=submission.file,
-        # A link-only material has no file and lives at its own URL — see Material.url for why this
-        # is not `source_url`, which is next to it and answers a different question.
-        url=submission.url,
-        published=True,
-        submitted_by=submission.submitted_by,
-        # Provenance declared at submission time, carried onto the real row. `author` is the free-text
-        # human name the uploader gave (a TA/professor, almost never a platform account — that's what
-        # `submitted_by` above is), `source_url` is where the file came from.
-        author=submission.author,
-        source_url=submission.source_url,
-        price_amount=submission.price_amount,
-        price_currency=submission.price_currency or 'PLN',
-        estimated_minutes=submission.estimated_minutes,
-    )
-    MaterialTranslation.objects.create(
-        material=material,
-        locale=submission.locale,
-        title=submission.title,
-        description=submission.description,
-    )
-    # The submission's own `requirements` (a plain list[str] draft, moderation/models.py's own doc
-    # comment) becomes real, ordered MaterialRequirement rows only now — there was no real Material
-    # row for them to be a FK to before this point.
-    MaterialRequirement.objects.bulk_create(
-        MaterialRequirement(material=material, label=label, order=i)
-        for i, label in enumerate(submission.requirements or [])
-    )
-    # Same "no real row to attach to before now" reasoning as `requirements` just above, for the
-    # submission's own initial "Covers" claims (`MaterialSubmissionSerializer.validate_coverage`
-    # already confirmed each `topic_id` really belongs to this submission's own course) — created
-    # with `proposed_by=submission.submitted_by`, the same attribution a post-publish
-    # `MaterialViewSet.coverage` proposal already gets, not left null.
-    MaterialCoverage.objects.bulk_create(
-        MaterialCoverage(
-            material=material,
-            topic_id=entry['topic_id'],
-            level=entry['level'],
-            kind=entry.get('kind', 'covers'),
-            proposed_by=submission.submitted_by,
-        )
-        for entry in (submission.coverage or [])
-    )
-    submission.resulting_material = material
-    from activity.services import record_activity
-
-    record_activity(
-        'material',
-        actor=submission.submitted_by,
-        target_label=submission.title,
-        material=material,
-    )
-    return material
-
-
-def _reclaim_rejected_material_file(submission) -> None:
-    """Drops the stored blob of a just-rejected MaterialSubmission, keeping the row and everything
-    else on it.
-
-    **This is a deliberate resolution of a real tension, not an oversight in either direction.**
-    CLAUDE.md's own non-functional requirements say, in as many words: "No silent data loss on
-    moderation — rejecting a submission should keep a record of what was rejected and why, not just
-    delete it." Against that sits the fact that nothing in this codebase has ever deleted a
-    `MaterialSubmission.file`, so a rejected 25MB upload occupied disk on a shared university box
-    permanently, for a file no reader would ever be shown. Both concerns are real. What resolves
-    them is noticing that they are about different things: the requirement is about the RECORD —
-    who submitted what, when, and was it accepted, which is part of the trust model — and the disk
-    is about the BYTES, which the record does not consist of.
-
-    So: the row survives untouched, with its title, description, declared author and `source_url`,
-    its requirements, its recorded scan outcome, the moderator who decided and the note saying why.
-    Everything a moderator or a submitter could later need to know WHAT was rejected and on what
-    grounds is still there and still queryable. Only the blob goes, and `file_reclaimed_at`/
-    `reclaimed_file_bytes` record that it went and how big it was, so the row never reads as though
-    it never had a file. That is the opposite of silent.
-
-    **Three alternatives, and why each was rejected:**
-
-    - *Keep the bytes.* The status quo, and the actual hole: nothing in this app can ever serve them
-      again. A rejected submission can never be re-approved — `ModerationActionView`'s claim step
-      requires `status='pending'`, so rejection is already terminal and already irreversible today —
-      and `_apply_material_submission` is the only thing that ever hands the file to a published
-      `Material`. The file was therefore already unreachable through every path except its raw
-      `MEDIA_ROOT` URL, which is worse than useless: a refused upload staying quietly downloadable
-      at a guessable-to-its-uploader path is a small leak on top of the disk cost.
-    - *A grace period.* Attractive, and undeliverable here: expiring anything needs scheduled work
-      (cron or a task queue), which this project has nowhere to run — the same constraint already
-      recorded for event reminders (CLAUDE.md 17V.7). A grace period nothing sweeps is just the
-      status quo with a comment claiming otherwise, which is the failure mode this codebase is
-      least willing to ship.
-    - *Only on a separate, explicit "reject and delete" action.* It splits one decision into two
-      and makes the safe-for-disk path the one a busy moderator has to remember, so the default
-      would stay "keep 25MB forever" for exactly the rejections nobody thought hard about — which is
-      most of them. Rejection already means "this is not going to be published here"; reclaiming the
-      bytes is that decision's honest consequence rather than a second, optional one.
-
-    **If an appeal path is ever built it must be a re-upload, not an un-reject** — the metadata
-    survives to make that conversation possible ("you rejected this, here it is again"), and the
-    bytes are the submitter's own to send again. That is stated here rather than left implied,
-    because it is the one thing this function makes impossible.
-
-    Defensive on both counts a mistake would be expensive: a row that already has a
-    `resulting_material` is left completely alone (a published `Material` holds the SAME stored
-    path, so deleting here would take a live material's file with it — unreachable today, since the
-    claim step guarantees this row was `pending`, and cheap to guarantee anyway), and a storage
-    backend that has already lost the file still gets the row marked, since the outcome it records
-    is true either way.
-    """
-    from django.utils import timezone
-
-    if submission.file_reclaimed_at is not None or submission.resulting_material_id:
-        return
-    stored = submission.file
-    if not stored:
-        return
-
-    try:
-        size = stored.size
-    except (OSError, ValueError):
-        size = 0
-    try:
-        stored.delete(save=False)
-    except (OSError, ValueError):
-        pass
-    # `FieldFile.delete` sets the field to None on the instance, and this column is NOT NULL — an
-    # empty string is what "no file" is stored as everywhere else in Django, so normalize rather
-    # than saving a None the database would refuse.
-    submission.file = ''
-    submission.file_reclaimed_at = timezone.now()
-    submission.reclaimed_file_bytes = size
-    submission.save(update_fields=['file', 'file_reclaimed_at', 'reclaimed_file_bytes'])
-
-
 def _publish_translation(translation):
     """Promotes a pending translation to published, superseding whatever was previously published
     for the same (exercise, locale) — `ExerciseTranslation`'s own partial unique constraint
@@ -789,20 +500,25 @@ def _publish_translation(translation):
     return bool(won)
 
 
+#: The three kinds this shared approve/reject action decides. A new material is NOT one of them and
+#: deliberately never was a fourth: a project's first `coauthoring.MaterialVersion` is decided
+#: through `POST /api/material-versions/{id}/decide/`, the same one endpoint its own team uses, for
+#: the reason moderation/CLAUDE.md records about solution entries — one claim, one deciding circle,
+#: one notification sequence to keep correct rather than two that drift. `'material'` lived here
+#: until `MaterialSubmission` was folded into that app and deleted.
 _KIND_MODELS = {
     'submission': (ExerciseSubmission, ExerciseSubmissionSerializer),
     'edit': (EditSuggestion, EditSuggestionSerializer),
     'translation': (ExerciseTranslation, ExerciseTranslationSerializer),
-    'material': (MaterialSubmission, MaterialSubmissionSerializer),
 }
 
 
 def _course_for_moderation_target(kind, obj):
     """Which Branch a pending moderation-queue item belongs to — the scope
-    `is_governor_of_course` checks a node governor's own authority against. A submission (exercise
-    OR material) carries its own `course` FK directly; an edit suggestion/translation are both
-    scoped through the Exercise they target."""
-    if kind in ('submission', 'material'):
+    `is_governor_of_course` checks a node governor's own authority against. An exercise submission
+    carries its own `branch` FK directly; an edit suggestion/translation are both scoped through the
+    Exercise they target."""
+    if kind == 'submission':
         return obj.branch
     return obj.exercise.branch
 
@@ -899,9 +615,6 @@ class ModerationActionView(APIView):
                 if kind == 'submission':
                     _apply_submission(obj, request.user)
                     obj.save(update_fields=['resulting_exercise'])
-                elif kind == 'material':
-                    _apply_material_submission(obj, request.user)
-                    obj.save(update_fields=['resulting_material'])
                 elif kind == 'edit':
                     _apply_edit_suggestion(obj)
                 elif kind == 'translation':
@@ -930,15 +643,6 @@ class ModerationActionView(APIView):
             except Exception:
                 model.objects.filter(pk=pk).update(status='pending', reviewed_by=None, review_note='')
                 raise
-        elif decision == 'reject' and kind == 'material':
-            # A rejected upload's bytes are reclaimed, its row and every other field kept — see
-            # `_reclaim_rejected_material_file` for the full reasoning, including why this is not
-            # the "silent data loss on moderation" CLAUDE.md's own non-functional requirements
-            # forbid. Deliberately outside the try/except above: that block exists to un-claim a row
-            # whose apply logic failed, and there is nothing to un-claim here — a rejection is
-            # complete the moment the claim lands, and a failure to unlink a file must not hand the
-            # row back to the queue as though the moderator had never decided.
-            _reclaim_rejected_material_file(obj)
 
         outcome = 'rejected' if decision == 'reject' else 'approved'
         self._notify_decision(kind, obj, request.user, outcome, review_note)
@@ -946,24 +650,22 @@ class ModerationActionView(APIView):
 
     @staticmethod
     def _notify_decision(kind, obj, moderator, outcome, note):
-        """One place for the 4-kind x 2-outcome notification matrix — both the approve and reject
+        """One place for the 3-kind x 2-outcome notification matrix — both the approve and reject
         branches above call this rather than each repeating the same recipient/label lookup times
-        over. `obj.resulting_exercise`/`obj.resulting_material` are only ever set on a `submission`/
-        `material` that was just approved (still None on a rejected one, since it never became a
-        real Exercise/Material) — `label_for_exercise(None)`/`label_for_material(None)` and
-        `notify(..., exercise=None)`/`notify(..., material=None)` all already handle that honestly
-        rather than needing a special case here."""
+        over. `obj.resulting_exercise` is only ever set on a `submission` that was just approved
+        (still None on a rejected one, since it never became a real Exercise) —
+        `label_for_exercise(None)` and `notify(..., exercise=None)` already handle that honestly
+        rather than needing a special case here.
+
+        A decided material version notifies from `coauthoring.services.decide_version` instead, with
+        its own `material_version_decided` type; the `material_submission_approved`/`_rejected`
+        types this used to send are kept in `notifications` because existing rows carry them."""
         notify_kwargs = {}
         if kind == 'submission':
             recipient = obj.submitted_by
             exercise = obj.resulting_exercise
             label = label_for_exercise(exercise) if exercise else obj.payload.get('title', '')
             notify_kwargs['exercise'] = exercise
-        elif kind == 'material':
-            recipient = obj.submitted_by
-            material = obj.resulting_material
-            label = label_for_material(material) if material else obj.title
-            notify_kwargs['material'] = material
         elif kind == 'edit':
             recipient = obj.submitted_by
             exercise = obj.exercise
@@ -977,7 +679,6 @@ class ModerationActionView(APIView):
 
         kind_prefix = {
             'submission': 'submission',
-            'material': 'material_submission',
             'edit': 'edit_suggestion',
             'translation': 'translation',
         }[kind]
@@ -1320,9 +1021,16 @@ class TaxonomyProposalActionView(APIView):
             from materials.models import Material
 
             Material.objects.filter(type=node.slug).update(type=target.slug)
-            from moderation.models import MaterialSubmission
+            # …and every project still DRAFTING under the old slug, which is where an unpublished
+            # material's type lives until its first publication writes it onto the real row
+            # (`coauthoring.MaterialProject`'s own docstring). Missing these would leave a queued
+            # first publication naming a type nobody can look up — exactly what this re-point is for,
+            # and what it did for a pending `MaterialSubmission` before that model was folded in.
+            from coauthoring.models import MaterialProject
 
-            MaterialSubmission.objects.filter(type=node.slug).update(type=target.slug)
+            MaterialProject.objects.filter(material__isnull=True, type=node.slug).update(
+                type=target.slug
+            )
         elif kind == 'branch':
             for topic in node.topics.all():
                 twin = target.topics.filter(slug=topic.slug).first()

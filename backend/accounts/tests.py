@@ -145,15 +145,22 @@ class UserReviewsViewTests(APITestCase):
 class ProfileMaterialUploadQuotaTests(APITestCase):
     """`Profile.material_upload_quota_bytes` and the two properties that make it mean anything —
     the accounting itself, at the model layer. What the upload endpoint DOES with these numbers is
-    pinned separately (moderation/tests.py's `MaterialSubmissionStorageQuotaTests`); these are the
+    pinned separately (`coauthoring/test_submit_path.py`'s `StorageQuotaTests`); these are the
     arithmetic, kept here because a wrong sum would fail both places and only one of them would say
     why.
 
+    **Counted rows are `coauthoring.MaterialVersion` now.** They used to be that plus
+    `moderation.MaterialSubmission`, which was the single-shot submit form's own row until that form
+    became a project with a team of one (`coauthoring/0003_fold_material_submissions`); folding it
+    away also removed a real double count, since an approved submission and the backfilled version
+    describing it named the same stored path. Every assertion below is the same fact about the same
+    bytes — only the model holding them changed.
+
     `MEDIA_ROOT` is redirected at a temporary directory for the whole class, and that is not
     incidental tidiness: these tests store real bytes, and without it they would leave scratch PDFs
-    in `backend/media/material_submissions/` alongside genuine uploads — the same mistake
-    `accounts/test_throttling.py` records having actually made once with avatars, found by listing
-    the directory rather than assumed absent.
+    in `backend/media/` alongside genuine uploads — the same mistake `accounts/test_throttling.py`
+    records having actually made once with avatars, found by listing the directory rather than
+    assumed absent.
     """
 
     @classmethod
@@ -174,13 +181,20 @@ class ProfileMaterialUploadQuotaTests(APITestCase):
         self.branch = make_course(slug='uw-quota-accounting-branch')
 
     def _store(self, size, *, user=None, title='Stored upload'):
-        from moderation.models import MaterialSubmission
+        """One project with one file version, the shape every real upload takes now."""
+        from coauthoring.models import MaterialProject, MaterialVersion
 
-        return MaterialSubmission.objects.create(
-            branch=self.branch,
-            submitted_by=user or self.user,
-            type='exam_collection',
+        owner = user or self.user
+        project = MaterialProject.objects.create(
+            branch=self.branch, created_by=owner, type='exam_collection'
+        )
+        return MaterialVersion.objects.create(
+            project=project,
+            number=1,
+            status='draft',
+            kind='file',
             title=title,
+            created_by=owner,
             file=SimpleUploadedFile('exam.pdf', pdf_bytes(size)),
         )
 
@@ -197,7 +211,7 @@ class ProfileMaterialUploadQuotaTests(APITestCase):
 
         self.assertIsNone(self.user.profile.material_upload_bytes_left)
 
-    def test_stored_submissions_are_summed_from_real_bytes(self):
+    def test_stored_versions_are_summed_from_real_bytes(self):
         self._store(1000)
         self._store(2500)
 
@@ -213,20 +227,16 @@ class ProfileMaterialUploadQuotaTests(APITestCase):
         self.assertEqual(self.user.profile.material_upload_bytes, 1200)
         self.assertEqual(other.profile.material_upload_bytes, 5000)
 
-    def test_a_submission_whose_blob_was_reclaimed_counts_for_nothing(self):
-        """The reject path clears `file` and stamps `file_reclaimed_at` (moderation/views.py's
-        `_reclaim_rejected_material_file`), which is why this sum needs no status filter of its own:
-        a row with no bytes occupies no disk, whatever its status says."""
-        from django.utils import timezone
+    def test_a_version_whose_blob_was_reclaimed_counts_for_nothing(self):
+        """The reject path clears `file` and stamps `file_reclaimed_at`
+        (`coauthoring.services.reclaim_version_file`), which is why this sum needs no status filter
+        of its own: a row with no bytes occupies no disk, whatever its status says."""
+        from coauthoring import services
 
-        submission = self._store(3000)
+        version = self._store(3000)
         kept = self._store(700, title='Still here')
 
-        submission.file.delete(save=False)
-        submission.file = ''
-        submission.file_reclaimed_at = timezone.now()
-        submission.reclaimed_file_bytes = 3000
-        submission.save(update_fields=['file', 'file_reclaimed_at', 'reclaimed_file_bytes'])
+        services.reclaim_version_file(version)
 
         self.assertEqual(self.user.profile.material_upload_bytes, 700)
         self.assertTrue(kept.file)
@@ -236,8 +246,8 @@ class ProfileMaterialUploadQuotaTests(APITestCase):
         property — down with it; it occupies nothing, which is the honest reading of "not there"."""
         import os
 
-        submission = self._store(2000)
-        os.remove(submission.file.path)
+        version = self._store(2000)
+        os.remove(version.file.path)
 
         self.assertEqual(self.user.profile.material_upload_bytes, 0)
 

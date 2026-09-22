@@ -143,6 +143,72 @@ class ExerciseSourceTranslation(models.Model):
         return f'{self.source} ({self.locale})'
 
 
+# Which question a link answers. `source` — this exercise IS in that material (transcribed from
+# it, so the material is where it came from); `practice` — the exercise is not in the material at
+# all, it practises what the material teaches. Two rows, two different claims: a script somebody
+# wrote and an exercise sheet somebody solved against it are not the same relationship, and
+# collapsing them into "related" would make the page unable to say which it is.
+EXERCISE_LINK_ROLE_CHOICES = [
+    ('source', 'In this material'),
+    ('practice', 'Practises this material'),
+]
+
+
+class ExerciseMaterialLink(models.Model):
+    """One exercise attached to one material — a PDF script this site hosts, or a proprietary
+    textbook it only links to (`Material.url`). Both halves of the feature land here: an exercise
+    submitted through the normal moderated flow "for material X" gets this row the instant the
+    exercise exists (`moderation.views._apply_submission`), and an exercise already in the database
+    gets one through `POST /api/materials/{id}/exercises/`.
+
+    **Deliberately not moderation-gated**, the same call `MaterialCoverage` and `TagViewSet.apply`
+    already made for the identical shape of thing: a link is additive, reversible, low-stakes
+    organisational metadata — wrong ones are corrected by whoever notices, not queued for a
+    moderator. The EXERCISE itself still goes through review; saying which material it belongs to
+    is not the part that needs a gate.
+
+    **Why this is not a field on `ExerciseSource`.** `ExerciseSource` is the free-text provenance
+    block the legacy corpus already carried ("Analiza II — Normy w R^n, Zadanie 1", a collection
+    name, a page range) — one row per exercise, no referential meaning, and no way to ask "what
+    else came from this?" A link is the opposite: a real foreign key, many per exercise, and
+    readable from BOTH ends. They overlap for `role='source'` and are still different objects —
+    `locator` here says *where in that material*, which is exactly what `ExerciseSource.pages`
+    says for a source nobody has a row for. Left side by side on purpose rather than merged; see
+    the report/HISTORY note for the migration that would be needed to unify them.
+
+    The FK to `materials.Material` is a STRING reference, not an import: `materials.models` imports
+    `exercises.Tag` at module scope, so naming the class here would close the cycle.
+    """
+
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='material_links')
+    material = models.ForeignKey(
+        'materials.Material', on_delete=models.CASCADE, related_name='exercise_links'
+    )
+    role = models.CharField(max_length=10, choices=EXERCISE_LINK_ROLE_CHOICES, default='source')
+    # "p. 34, ex. 3.2" — deliberately free text, not a page number plus an index: a material can be
+    # a scanned handout, a slide deck, a recording or a web page, and every one of those numbers
+    # its own parts differently. The same reasoning `MaterialRequirement.label` already records for
+    # not making a loose human string into a structured vocabulary.
+    locator = models.CharField(max_length=120, blank=True)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # One row per pair — a second link between the same two things is never a new claim, only
+        # a duplicate. Changing your mind about the role is a PATCH, not a second row.
+        unique_together = [('exercise', 'material')]
+        ordering = ['material', 'created_at']
+
+    def __str__(self) -> str:
+        return f'{self.exercise} {self.role} {self.material_id}'
+
+
 class ExerciseTranslation(models.Model):
     """THE translation table — the one place title/statement/answer live, for every locale
     including the original. `status` makes a submitted-but-unreviewed translation a real,

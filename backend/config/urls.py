@@ -36,6 +36,7 @@ urlpatterns = [
     path('api/', include('legal.urls')),
     path('api/', include('chem.urls')),
     path('api/', include('galleries.urls')),
+    path('api/', include('coauthoring.urls')),
 ]
 
 if settings.DEBUG:

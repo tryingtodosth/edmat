@@ -86,15 +86,15 @@ taxonomy. An untracked `backend/classroom/` directory may still exist on disk �
 frontend/  SvelteKit 2 + Svelte 5 runes + TS, adapter-static (SPA fallback), Paraglide i18n
              routes/ + components  →  lib/services/*.ts  →  lib/api/client.ts  →  HTTP
                    (never fetch)         (the only seam)      (the only fetch())
-backend/   Django 5.2 + DRF, SQLite, 20 local apps + config/ + testing/ + imaging.py
+backend/   Django 5.2 + DRF, SQLite, 21 local apps + config/ + testing/ + imaging.py
              views  →  <app>/services.py or a rule module  →  models
 deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 20 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 21 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
-`courses` `booking` `activity` `events`. Each has its own `CLAUDE.md`.
+`courses` `booking` `activity` `events` `coauthoring`. Each has its own `CLAUDE.md`.
 
 **Two boundaries are load-bearing and everything else follows from them:**
 
@@ -131,9 +131,9 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Eleven exist today — `exercise_submissions` `material_submissions`
+  with an `is_staff` bypass. Twelve exist today — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
-  `age_verification` — and the `legal` notice channel is the one deliberate exception
+  `age_verification` `coauthoring` — and the `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
   has been forgotten twice, each time taking the whole Flags tab down. `age_verification` is also
@@ -272,6 +272,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/exercises/{id}/{translations,reviews,comments,claims}/          nested community surfaces
 /api/exercise-submissions/ /api/edit-suggestions/ /api/moderation/…  the queues
 /api/courses/ /api/events/ /api/services/ /api/bookings/             user-run surfaces
+/api/material-projects/ /api/material-versions/ /api/project-invites/ co-authoring (COAUTHORING-BRIEF.md)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
 ```
 
@@ -295,6 +296,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /disciplines /disciplines/[discipline] /branches/[branch]     taxonomy browse
 /exercises/[id] /materials/[id]                               content detail
 /courses … /events … /services … /bookings                    user-run surfaces
+/material-projects … /project-invites/[token]                 co-authoring a material
 /messages … /notifications /activity /posts/[id]              inbox + feed
 /my-set /sets/[id] /submit /submit-material /search           study + contribute
 /settings /settings/profile /users/[id] /login /register      account

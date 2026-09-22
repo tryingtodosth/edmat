@@ -37,7 +37,6 @@ import type {
 	MaterialCoverage,
 	MaterialRequirement,
 	MaterialReview,
-	MaterialSubmission,
 	MaterialType,
 	Message,
 	ModerationStatus,
@@ -424,7 +423,7 @@ export const FRONTEND_TO_BACKEND_MATERIAL_TYPE = Object.fromEntries(
 	])
 ) as Record<MaterialType, string>;
 
-/** A real, found-live bug this function closes: `submitMaterial` (materials.ts) used to index
+/** A real, found-live bug this function closes: the since-retired `submitMaterial` used to index
  * `FRONTEND_TO_BACKEND_MATERIAL_TYPE` directly with `?? 'other'` — so a freshly PROPOSED type
  * (submit-material's own "Other…" flow resolves one to a real, brand-new slug before submitting)
  * was never in that fixed 13-entry map, and every such submission silently filed as the generic
@@ -524,6 +523,13 @@ export interface RawMaterial {
 	requirements: RawMaterialRequirement[];
 	file: string | null;
 	url?: string | null;
+	// The third payload kind (coauthoring/), plus where the bytes came from and whether the
+	// translation being read has fallen behind the published version. All three optional: a backend
+	// older than COAUTHORING-BRIEF.md's own migrations sends none of them, and every read site here
+	// must keep working when it does.
+	body?: string | null;
+	project_id?: number | string | null;
+	translation_stale?: boolean;
 	author: string;
 	source_url: string;
 	submitted_by: number | null;
@@ -562,6 +568,16 @@ export function mapMaterial(json: RawMaterial): Material {
 		// Where a link-only material lives. Distinct from `sourceUrl` below, which is provenance:
 		// a hosted file can have a source, and a link has no file to have come from anywhere.
 		url: json.url || undefined,
+		// The third kind: the material written here rather than uploaded or linked. `|| undefined`
+		// for the same reason `url` uses it — an empty string is what the backend stores for "this
+		// material is not that kind", and a blank `body` that is nonetheless present would put an
+		// empty prose block on the detail page.
+		body: json.body || undefined,
+		// Spelled out rather than `idOrUndefined`, which is typed for the ids that only ever arrive
+		// as numbers; this one is null until the project's first publication materialises a
+		// `Material`, and `!= null` catches undefined from an older backend in the same test.
+		projectId: json.project_id != null ? String(json.project_id) : undefined,
+		translationStale: json.translation_stale || undefined,
 		author: json.author,
 		sourceUrl: json.source_url || undefined,
 		submittedByUserId: idOrUndefined(json.submitted_by),
@@ -731,64 +747,6 @@ export function mapExerciseSubmission(json: RawExerciseSubmission): ExerciseSubm
 		reviewNote: undefinedIfEmpty(json.review_note),
 		createdAt: json.created_at,
 		resultingExerciseId: idOrUndefined(json.resulting_exercise)
-	};
-}
-
-export interface RawMaterialSubmission {
-	id: number;
-	branch: string; // slug (SlugRelatedField), same convention as RawExerciseSubmission.branch
-	submitted_by: number;
-	type: string;
-	title: string;
-	description: string;
-	locale: string;
-	audience?: string;
-	file: string | null;
-	url?: string | null;
-	author: string;
-	source_url: string;
-	requirements: string[];
-	price_amount: string | null;
-	price_currency: string;
-	estimated_minutes: number | null;
-	scan_status: MaterialSubmission['scanStatus'];
-	scan_detail: string;
-	status: ModerationStatus;
-	reviewed_by: number | null;
-	review_note: string;
-	resulting_material: number | null;
-	created_at: string;
-}
-
-export function mapMaterialSubmission(json: RawMaterialSubmission): MaterialSubmission {
-	const fileUrl = json.file ?? '';
-	return {
-		id: String(json.id),
-		branchId: json.branch,
-		submittedByUserId: String(json.submitted_by),
-		// A proposed type has no camelCase alias, so it passes through as its own slug. This used
-		// to be `?? 'other'`, which was right while the set was closed and became a silent lie the
-		// moment it was not: a material filed under a brand-new kind would have displayed as Other.
-		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? json.type,
-		title: json.title,
-		description: json.description,
-		locale: json.locale,
-		audience: (json.audience ?? 'university') as MaterialSubmission['audience'],
-		fileName: fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '',
-		fileUrl,
-		author: json.author ?? '',
-		sourceUrl: json.source_url || undefined,
-		requirements: json.requirements ?? [],
-		priceAmount: json.price_amount != null ? Number(json.price_amount) : undefined,
-		priceCurrency: json.price_currency,
-		estimatedMinutes: json.estimated_minutes ?? undefined,
-		scanStatus: json.scan_status,
-		scanDetail: json.scan_detail,
-		status: json.status,
-		reviewedByUserId: idOrUndefined(json.reviewed_by),
-		reviewNote: undefinedIfEmpty(json.review_note),
-		createdAt: json.created_at,
-		resultingMaterialId: idOrUndefined(json.resulting_material)
 	};
 }
 
@@ -989,7 +947,22 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	taxonomy_moved: 'taxonomyMoved',
 	taxonomy_rejected: 'taxonomyRejected',
 	issue_status_changed: 'issueStatusChanged',
-	legal_notice_decided: 'legalNoticeDecided'
+	legal_notice_decided: 'legalNoticeDecided',
+	// `event_posted` has existed backend-side since the event-updates feature and was never added
+	// here, so every "the host wrote an update" notification fell through the `?? 'commentReply'`
+	// fallback below and rendered as a reply to a comment. The type union, the category map and the
+	// card all already knew about it — only this table did not, which is exactly the kind of
+	// four-file drift this map's own doc comment exists to warn about.
+	event_posted: 'eventPosted',
+	governor_application_submitted: 'governorApplicationSubmitted',
+	governor_application_decided: 'governorApplicationDecided',
+	material_version_proposed: 'materialVersionProposed',
+	material_version_decided: 'materialVersionDecided',
+	material_version_published: 'materialVersionPublished',
+	project_invite_used: 'projectInviteUsed',
+	project_member_added: 'projectMemberAdded',
+	project_join_requested: 'projectJoinRequested',
+	project_join_decided: 'projectJoinDecided'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -1261,6 +1234,9 @@ export interface RawNotification {
 	event_id: number | null;
 	post_id?: number | null;
 	issue_id?: number | null;
+	// The co-authoring FK, added after the rest of this shape existed — optional so that a backend
+	// without it sends nothing rather than this mapper reading `undefined` as a real absence.
+	material_project?: number | null;
 	note: string;
 	is_read: boolean;
 	created_at: string;
@@ -1282,6 +1258,7 @@ export function mapNotification(json: RawNotification): Notification {
 		postId: json.post_id !== null && json.post_id !== undefined ? String(json.post_id) : undefined,
 		issueId:
 			json.issue_id !== null && json.issue_id !== undefined ? String(json.issue_id) : undefined,
+		materialProjectId: idOrUndefined(json.material_project),
 		note: json.note,
 		isRead: json.is_read,
 		createdAt: json.created_at
@@ -1740,5 +1717,429 @@ export function mapGovernorApplication(json: RawGovernorApplication): GovernorAp
 		decidedByDisplayName: json.decided_by_display_name ?? '',
 		decidedAt: json.decided_at ?? null,
 		createdAt: json.created_at
+	};
+}
+
+// ---- co-authoring: projects, versions, members, invites, join requests --------------------------
+// (backend/coauthoring/, COAUTHORING-BRIEF.md §5 — the serializer shapes are quoted there field for
+// field). Appended as one self-contained block with its own import, so nothing above had to move.
+//
+// Two conventions worth restating here because this block leans on both: every id is `String(pk)`,
+// and a nullable id becomes `null` rather than `undefined` (the raw JSON's own absence is not a
+// third state — `decided_by` on an undecided row means "nobody has", and a component renders that).
+
+import type {
+	JoinBlockReason,
+	JoinRequestStatus,
+	MaterialProject,
+	MaterialVersion,
+	MaterialVersionKind,
+	MaterialVersionQueueRow,
+	MaterialVersionStatus,
+	MaterialVersionSummary,
+	ProjectCoverageDraft,
+	ProjectInvite,
+	ProjectInvitePreview,
+	ProjectJoinRequest,
+	ProjectMember,
+	ProjectMemberRole,
+	ProjectInviteUnusableReason,
+	ProposeBlockReason,
+	VersionScanStatus
+} from '$lib/types/materialProject';
+
+interface RawProjectCoverage {
+	topic_id: number | string;
+	level: number;
+	kind?: string;
+}
+
+function mapProjectCoverage(json: RawProjectCoverage): ProjectCoverageDraft {
+	return {
+		topicId: String(json.topic_id),
+		level: json.level,
+		// A catalogue coverage row written before the covers/requires split (or by a caller that
+		// only ever meant "covers") has no kind; `covers` is what such a row has always meant.
+		kind: json.kind === 'requires' ? 'requires' : 'covers'
+	};
+}
+
+/** `file_name` is served beside `file_url`, but a row whose blob was reclaimed has neither — and a
+ *  URL is still the honest fallback for a name, the same derivation `mapMaterial` already uses. */
+function fileNameFrom(fileUrl: string, given?: string | null): string {
+	if (given) return given;
+	return fileUrl ? (fileUrl.split('/').pop() ?? fileUrl) : '';
+}
+
+export interface RawProjectMember {
+	user_id: number;
+	display_name: string;
+	role: string;
+	added_at: string;
+}
+
+export function mapProjectMember(json: RawProjectMember): ProjectMember {
+	return {
+		userId: String(json.user_id),
+		displayName: json.display_name ?? '',
+		role: (json.role ?? 'coauthor') as ProjectMemberRole,
+		addedAt: json.added_at
+	};
+}
+
+export interface RawMaterialVersionSummary {
+	id: number;
+	number: number;
+	status: string;
+	kind: string;
+	title: string;
+	change_note?: string;
+	created_by_id: number | null;
+	created_by_display_name?: string;
+	created_at: string;
+	published_at: string | null;
+	file_url?: string | null;
+	file_name?: string | null;
+	url?: string | null;
+	scan_status?: string;
+}
+
+export function mapMaterialVersionSummary(json: RawMaterialVersionSummary): MaterialVersionSummary {
+	const fileUrl = json.file_url ?? '';
+	return {
+		id: String(json.id),
+		number: json.number,
+		status: json.status as MaterialVersionStatus,
+		kind: json.kind as MaterialVersionKind,
+		title: json.title ?? '',
+		changeNote: json.change_note ?? '',
+		createdByUserId: idOrUndefined(json.created_by_id) ?? null,
+		createdByDisplayName: json.created_by_display_name ?? '',
+		createdAt: json.created_at,
+		publishedAt: json.published_at ?? null,
+		fileUrl,
+		fileName: fileNameFrom(fileUrl, json.file_name),
+		url: json.url ?? '',
+		scanStatus: (json.scan_status ?? 'skipped') as VersionScanStatus
+	};
+}
+
+export interface RawMaterialVersion extends RawMaterialVersionSummary {
+	project_id: number;
+	material_id: number | null;
+	body?: string;
+	description?: string;
+	based_on_id: number | null;
+	decided_by_id: number | null;
+	decided_by_display_name?: string;
+	decided_at: string | null;
+	decision_note?: string;
+	scan_detail?: string;
+	file_size?: number;
+	comment_count?: number;
+	can_publish?: boolean;
+	can_decide?: boolean;
+	can_withdraw?: boolean;
+}
+
+export function mapMaterialVersion(json: RawMaterialVersion): MaterialVersion {
+	const summary = mapMaterialVersionSummary(json);
+	return {
+		...summary,
+		projectId: String(json.project_id),
+		materialId: idOrUndefined(json.material_id) ?? null,
+		body: json.body ?? '',
+		description: json.description ?? '',
+		basedOnId: idOrUndefined(json.based_on_id) ?? null,
+		decidedByUserId: idOrUndefined(json.decided_by_id) ?? null,
+		decidedByDisplayName: json.decided_by_display_name ?? '',
+		decidedAt: json.decided_at ?? null,
+		decisionNote: json.decision_note ?? '',
+		scanDetail: json.scan_detail ?? '',
+		fileSize: json.file_size ?? 0,
+		commentCount: json.comment_count ?? 0,
+		// The server's answers, never re-derived: the deciding circle differs per state, and a
+		// frontend that guessed it would draw buttons that 403.
+		canPublish: Boolean(json.can_publish),
+		canDecide: Boolean(json.can_decide),
+		canWithdraw: Boolean(json.can_withdraw)
+	};
+}
+
+export interface RawMaterialProject {
+	id: number;
+	material_id: number | null;
+	branch_id: string;
+	branch_name: string;
+	locale: string;
+	type: string;
+	audience?: string;
+	author?: string;
+	source_url?: string;
+	price_amount: string | null;
+	price_currency?: string;
+	estimated_minutes: number | null;
+	requirements?: string[];
+	coverage?: RawProjectCoverage[];
+	seeking_coauthors?: boolean;
+	seeking_note?: string;
+	created_by_id: number | null;
+	created_at: string;
+	title?: string;
+	description?: string;
+	published_version: RawMaterialVersionSummary | null;
+	head_version: RawMaterialVersionSummary | null;
+	members?: RawProjectMember[];
+	member_count?: number;
+	my_role: string | null;
+	can_edit?: boolean;
+	can_manage?: boolean;
+	can_propose?: boolean;
+	propose_block_reason: string | null;
+	join_block_reason: string | null;
+	pending_proposals_count?: number;
+	pending_join_requests_count?: number;
+}
+
+export function mapMaterialProject(json: RawMaterialProject): MaterialProject {
+	return {
+		id: String(json.id),
+		materialId: idOrUndefined(json.material_id) ?? null,
+		// The branch travels as its slug, like every other branch reference in this app.
+		branchId: json.branch_id,
+		branchName: json.branch_name ?? '',
+		locale: json.locale ?? 'pl',
+		// A proposed type has no camelCase alias and passes through as its own slug — the same
+		// reasoning (and the same real bug) `mapMaterial` documents.
+		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? json.type,
+		audience: (json.audience ?? 'university') as MaterialProject['audience'],
+		author: json.author ?? '',
+		sourceUrl: json.source_url ?? '',
+		priceAmount: json.price_amount != null ? Number(json.price_amount) : undefined,
+		priceCurrency: json.price_currency ?? 'PLN',
+		estimatedMinutes: json.estimated_minutes ?? undefined,
+		requirements: json.requirements ?? [],
+		coverage: (json.coverage ?? []).map(mapProjectCoverage),
+		seekingCoauthors: Boolean(json.seeking_coauthors),
+		seekingNote: json.seeking_note ?? '',
+		createdByUserId: idOrUndefined(json.created_by_id) ?? null,
+		createdAt: json.created_at,
+		title: json.title ?? '',
+		description: json.description ?? '',
+		publishedVersion: json.published_version
+			? mapMaterialVersionSummary(json.published_version)
+			: null,
+		headVersion: json.head_version ? mapMaterialVersionSummary(json.head_version) : null,
+		members: (json.members ?? []).map(mapProjectMember),
+		memberCount: json.member_count ?? (json.members ?? []).length,
+		myRole: (json.my_role ?? null) as ProjectMemberRole | null,
+		canEdit: Boolean(json.can_edit),
+		canManage: Boolean(json.can_manage),
+		canPropose: Boolean(json.can_propose),
+		proposeBlockReason: (json.propose_block_reason ?? null) as ProposeBlockReason | null,
+		joinBlockReason: (json.join_block_reason ?? null) as JoinBlockReason | null,
+		pendingProposalsCount: json.pending_proposals_count ?? 0,
+		pendingJoinRequestsCount: json.pending_join_requests_count ?? 0
+	};
+}
+
+export interface RawProjectInvite {
+	id: number;
+	token: string;
+	url_path?: string;
+	label?: string;
+	max_uses?: number;
+	uses?: number;
+	expires_at: string | null;
+	revoked_at: string | null;
+	created_at: string;
+	is_usable?: boolean;
+	unusable_reason: string | null;
+}
+
+export function mapProjectInvite(json: RawProjectInvite): ProjectInvite {
+	return {
+		id: String(json.id),
+		token: json.token,
+		urlPath: json.url_path ?? `/project-invites/${json.token}`,
+		label: json.label ?? '',
+		maxUses: json.max_uses ?? 0,
+		uses: json.uses ?? 0,
+		expiresAt: json.expires_at ?? null,
+		revokedAt: json.revoked_at ?? null,
+		createdAt: json.created_at,
+		isUsable: Boolean(json.is_usable),
+		unusableReason: (json.unusable_reason ?? null) as ProjectInviteUnusableReason | null
+	};
+}
+
+export interface RawProjectInvitePreview {
+	project_id: number;
+	material_id: number | null;
+	title: string;
+	branch_name?: string;
+	created_by_display_name?: string;
+	is_usable?: boolean;
+	unusable_reason: string | null;
+}
+
+export function mapProjectInvitePreview(json: RawProjectInvitePreview): ProjectInvitePreview {
+	return {
+		projectId: String(json.project_id),
+		materialId: idOrUndefined(json.material_id) ?? null,
+		title: json.title ?? '',
+		branchName: json.branch_name ?? '',
+		createdByDisplayName: json.created_by_display_name ?? '',
+		isUsable: Boolean(json.is_usable),
+		unusableReason: (json.unusable_reason ?? null) as ProjectInviteUnusableReason | null
+	};
+}
+
+export interface RawProjectJoinRequest {
+	id: number;
+	project_id: number;
+	user_id: number;
+	display_name?: string;
+	statement: string;
+	status: string;
+	decided_by_id: number | null;
+	decided_at: string | null;
+	decision_note?: string;
+	created_at: string;
+}
+
+export function mapProjectJoinRequest(json: RawProjectJoinRequest): ProjectJoinRequest {
+	return {
+		id: String(json.id),
+		projectId: String(json.project_id),
+		userId: String(json.user_id),
+		displayName: json.display_name ?? '',
+		statement: json.statement ?? '',
+		status: json.status as JoinRequestStatus,
+		decidedByUserId: idOrUndefined(json.decided_by_id) ?? null,
+		decidedAt: json.decided_at ?? null,
+		decisionNote: json.decision_note ?? '',
+		createdAt: json.created_at
+	};
+}
+
+export interface RawMaterialVersionQueueRow {
+	id: number;
+	project_id: number;
+	number: number;
+	kind: string;
+	title: string;
+	description?: string;
+	file_url?: string | null;
+	file_name?: string | null;
+	url?: string | null;
+	body_excerpt?: string;
+	scan_status?: string;
+	scan_detail?: string;
+	created_by_id: number | null;
+	created_by_display_name?: string;
+	created_at: string;
+	branch_id: string;
+	branch_name?: string;
+	type: string;
+	author?: string;
+	source_url?: string;
+	requirements?: string[];
+	coverage?: RawProjectCoverage[];
+	price_amount: string | null;
+	price_currency?: string;
+	estimated_minutes: number | null;
+	audience?: string;
+	is_first_publication?: boolean;
+}
+
+/** The moderation queue's `material_versions` section. Used by the moderation page, which decides
+ *  through the app's own `/api/material-versions/{id}/decide/` endpoint rather than a new
+ *  moderation kind (the solution_entries precedent, backend/moderation/CLAUDE.md). */
+export function mapMaterialVersionQueueRow(
+	json: RawMaterialVersionQueueRow
+): MaterialVersionQueueRow {
+	const fileUrl = json.file_url ?? '';
+	return {
+		id: String(json.id),
+		projectId: String(json.project_id),
+		number: json.number,
+		kind: json.kind as MaterialVersionKind,
+		title: json.title ?? '',
+		description: json.description ?? '',
+		fileUrl,
+		fileName: fileNameFrom(fileUrl, json.file_name),
+		url: json.url ?? '',
+		bodyExcerpt: json.body_excerpt ?? '',
+		scanStatus: (json.scan_status ?? 'skipped') as VersionScanStatus,
+		scanDetail: json.scan_detail ?? '',
+		createdByUserId: idOrUndefined(json.created_by_id) ?? null,
+		createdByDisplayName: json.created_by_display_name ?? '',
+		createdAt: json.created_at,
+		branchId: json.branch_id,
+		branchName: json.branch_name ?? '',
+		type: BACKEND_TO_FRONTEND_MATERIAL_TYPE[json.type] ?? json.type,
+		author: json.author ?? '',
+		sourceUrl: json.source_url ?? '',
+		requirements: json.requirements ?? [],
+		coverage: (json.coverage ?? []).map(mapProjectCoverage),
+		priceAmount: json.price_amount != null ? Number(json.price_amount) : undefined,
+		priceCurrency: json.price_currency ?? 'PLN',
+		estimatedMinutes: json.estimated_minutes ?? undefined,
+		audience: (json.audience ?? 'university') as MaterialVersionQueueRow['audience'],
+		isFirstPublication: Boolean(json.is_first_publication)
+	};
+}
+
+// ---- exercise ↔ material links ------------------------------------------------------------------
+// (backend/exercises/models.py's `ExerciseMaterialLink`, served from both ends: a material's own
+// `/exercises/` action carries the EXERCISE, an exercise's own `/materials/` action carries the
+// MATERIAL. Two raw shapes, two mappers, one frontend type — the side that is absent is simply
+// `undefined`, never a fabricated empty object.)
+
+import type { ExerciseMaterialLink, ExerciseLinkRole } from '$lib/types/exerciseMaterialLink';
+
+interface RawExerciseMaterialLinkCommon {
+	id: number;
+	role: ExerciseLinkRole;
+	locator: string;
+	added_by_id: number | null;
+	created_at: string;
+}
+
+/** A row of `GET /api/materials/{id}/exercises/` — the exercise embedded in the LIST shape, so the
+ * card on a material page is the same card a branch listing renders. */
+export interface RawMaterialExerciseLink extends RawExerciseMaterialLinkCommon {
+	added_by_display_name: string | null;
+	exercise: RawExerciseCommon;
+}
+
+/** A row of `GET /api/exercises/{id}/materials/` — the material side of the same row. */
+export interface RawExerciseMaterialLinkForExercise extends RawExerciseMaterialLinkCommon {
+	material: RawMaterial;
+}
+
+export function mapMaterialExerciseLink(json: RawMaterialExerciseLink): ExerciseMaterialLink {
+	return {
+		id: String(json.id),
+		role: json.role,
+		locator: json.locator ?? '',
+		addedByUserId: idOrUndefined(json.added_by_id),
+		addedByDisplayName: json.added_by_display_name ?? undefined,
+		createdAt: json.created_at,
+		exercise: mapResolvedExerciseList(json.exercise)
+	};
+}
+
+export function mapExerciseMaterialLink(
+	json: RawExerciseMaterialLinkForExercise
+): ExerciseMaterialLink {
+	return {
+		id: String(json.id),
+		role: json.role,
+		locator: json.locator ?? '',
+		addedByUserId: idOrUndefined(json.added_by_id),
+		createdAt: json.created_at,
+		material: mapMaterial(json.material)
 	};
 }

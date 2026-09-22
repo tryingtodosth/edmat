@@ -114,17 +114,21 @@ class BranchViewSet(viewsets.ReadOnlyModelViewSet):
         from config.i18n_utils import request_locale
         from materials.models import Material
         from materials.serializers import MaterialSerializer
-        from materials.views import _filter_materials, _sort_materials
+        from materials.views import _filter_materials, _sort_materials, published_version_prefetch
 
         branch = self.get_object()
         params = request.query_params.copy()
         params['branch'] = branch.slug
-        # `select_related('submitted_by__profile')` mirrors `MaterialViewSet.queryset`, which this
-        # route had drifted from: `get_submitted_by_display_name` walks `submitted_by.profile` for
-        # every row, so without it a branch's Materials tab paid two queries per material that the
-        # cross-branch /api/materials/ listing did not.
+        # `select_related('submitted_by__profile', 'project')` mirrors `MaterialViewSet.queryset`,
+        # which this route had drifted from: `get_submitted_by_display_name` walks
+        # `submitted_by.profile` for every row, so without it a branch's Materials tab paid two
+        # queries per material that the cross-branch /api/materials/ listing did not — and
+        # `project_id`/`translation_stale` would add a third and a fourth.
         qs = _filter_materials(
-            Material.objects.filter(published=True).select_related('submitted_by__profile'), params
+            Material.objects.filter(published=True).select_related(
+                'submitted_by__profile', 'project'
+            ),
+            params,
         )
         materials = list(
             qs.prefetch_related(
@@ -136,6 +140,9 @@ class BranchViewSet(viewsets.ReadOnlyModelViewSet):
                 # `requirements__votes__voter__profile`, not a bare `requirements` — again matching
                 # MaterialViewSet.list, whose own comment names this as the N+1 it exists to close.
                 'requirements__votes__voter__profile',
+                # And the published version behind each project, for the same reason and from the
+                # same shared helper — this route has drifted from the cross-branch one before.
+                published_version_prefetch(),
             )
         )
         materials = _sort_materials(

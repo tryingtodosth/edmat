@@ -662,6 +662,29 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
     return results
 
 
+def _material_titles_for_submissions(submissions) -> dict:
+    """`{material_id: title}` for every material a pending exercise submission names.
+
+    Two queries at most (the materials, plus their translations via the prefetch), independent of
+    how many submissions there are — and none at all in the ordinary case where nobody submitted
+    from a material's page. Titles resolve through the shared `resolve_translation`, so a queue row
+    shows the same name the material's own page does rather than a slug.
+    """
+    from config.i18n_utils import DEFAULT_FALLBACK_LOCALE, resolve_translation
+    from exercises.links import submission_material_id
+    from materials.models import Material
+
+    ids = {submission_material_id(s.payload) for s in submissions}
+    ids.discard(None)
+    if not ids:
+        return {}
+    titles = {}
+    for material in Material.objects.filter(pk__in=ids).prefetch_related('translations'):
+        translation = resolve_translation(material.translations, DEFAULT_FALLBACK_LOCALE)
+        titles[material.pk] = translation.title if translation else material.slug
+    return titles
+
+
 def build_moderation_queue_payload(user=None) -> dict:
     """The exact body `GET /api/moderation/queue/` returns (moderation/views.py's
     `ModerationQueueView.get`) — pulled out here, not left duplicated between the view and
@@ -677,31 +700,38 @@ def build_moderation_queue_payload(user=None) -> dict:
     and scopes every one of the four queue sections to it — `None` from THAT resolution (a global
     `is_staff` moderator) still means unfiltered, so today's global-moderator experience is
     completely unchanged; only a real, non-staff node governor ever sees a narrower queue."""
+    from coauthoring.serializers import MaterialVersionQueueRowSerializer
     from exercises.entries import entry_queryset_for_queue
     from exercises.serializers import ExerciseTranslationSerializer, SolutionEntrySerializer
 
-    from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission
-    from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer, MaterialSubmissionSerializer
+    from .models import EditSuggestion, ExerciseSubmission
+    from .serializers import EditSuggestionSerializer, ExerciseSubmissionSerializer
 
     branch_ids = governed_branch_ids(user) if user is not None else None
 
-    # select_related('course') — ExerciseSubmissionSerializer.course/MaterialSubmissionSerializer.course
-    # are both SlugRelatedFields, which resolve `submission.course.slug` per row; without this it's
-    # a real, measured N+1 (one query per pending submission), the next-largest cost in this response
-    # once build_report_queue()'s own, larger N+1 was fixed.
+    # select_related('branch') — ExerciseSubmissionSerializer.branch is a SlugRelatedField, which
+    # resolves `submission.branch.slug` per row; without this it's a real, measured N+1 (one query
+    # per pending submission), the next-largest cost in this response once build_report_queue()'s
+    # own, larger N+1 was fixed.
     submissions = ExerciseSubmission.objects.filter(status='pending').select_related('branch')
-    material_submissions = MaterialSubmission.objects.filter(status='pending').select_related('branch')
     edits = EditSuggestion.objects.filter(status='pending')
     translations = ExerciseTranslation.objects.filter(status='pending')
     if branch_ids is not None:
         submissions = submissions.filter(branch_id__in=branch_ids)
-        material_submissions = material_submissions.filter(branch_id__in=branch_ids)
         edits = edits.filter(exercise__branch_id__in=branch_ids)
         translations = translations.filter(exercise__branch_id__in=branch_ids)
+    # "for material X" on an exercise submission — resolved for the whole queue in ONE query and
+    # handed to the serializer as context, rather than letting each row look its own material up.
+    # The queue's whole performance story is bulk resolution (this function's own docstring), and a
+    # per-row lookup here would be the next N+1 to find. `submissions` is evaluated once by the
+    # list() and reused by the serializer below, so this costs no extra submission query either.
+    submissions = list(submissions)
+    material_titles = _material_titles_for_submissions(submissions)
     return {
         'taxonomy_proposals': build_taxonomy_proposal_queue(),
-        'submissions': ExerciseSubmissionSerializer(submissions, many=True).data,
-        'material_submissions': MaterialSubmissionSerializer(material_submissions, many=True).data,
+        'submissions': ExerciseSubmissionSerializer(
+            submissions, many=True, context={'material_titles': material_titles}
+        ).data,
         'edit_suggestions': EditSuggestionSerializer(edits, many=True).data,
         'translations': ExerciseTranslationSerializer(translations, many=True).data,
         # Pending hints/solutions (the pool, exercises.SolutionEntry) — reviewable inline on the
@@ -710,8 +740,53 @@ def build_moderation_queue_payload(user=None) -> dict:
         'solution_entries': SolutionEntrySerializer(
             entry_queryset_for_queue(branch_ids), many=True
         ).data,
+        # Every pending material decision, of both kinds: a project's FIRST publication — which is
+        # what a `material_submissions` row used to be, and what the submit form produces now — and
+        # a proposal on an orphan project with no members (`coauthoring.access.needs_staff_review`).
+        # A proposal a project's own team can decide never reaches this queue, which is the whole
+        # open-science bet the feature makes. There is no `material_submissions` section beside this
+        # one any more: that model was folded into these rows
+        # (`coauthoring/0003_fold_material_submissions`), so this is the one place a moderator sees
+        # a material waiting. Decisions go through `POST /api/material-versions/{id}/decide/` —
+        # never a new `_KIND_MODELS` kind, the same call the solution-entry pool made and for the
+        # same reason: one claim, one notification sequence, one thing to keep correct.
+        'material_versions': MaterialVersionQueueRowSerializer(
+            material_version_queryset_for_queue(branch_ids), many=True
+        ).data,
         'reports': build_report_queue(branch_ids=branch_ids),
     }
+
+
+def material_version_queryset_for_queue(branch_ids=None):
+    """Proposed co-authored versions that need a moderator — governor-scoped like every other
+    section of the queue.
+
+    The two cases are `coauthoring.access.needs_staff_review` expressed as a queryset: a project
+    with no material (its first publication is the decision "does this material exist") and a
+    project with no members (nobody is left whose acceptance would mean anything). `.distinct()`
+    because the OR reaches across a to-many join and would otherwise repeat a row per member.
+
+    `branch_ids is None` means "do not scope" — a global `is_staff` moderator — and a real, possibly
+    EMPTY set means a governor who sees only their own branches. Never collapse the two
+    (moderation/CLAUDE.md): a zero-grant governor must not become indistinguishable from staff.
+    """
+    from coauthoring.models import MaterialVersion
+
+    queryset = (
+        MaterialVersion.objects.filter(status='proposed')
+        .filter(Q(project__material__isnull=True) | Q(project__members__isnull=True))
+        .select_related('project__branch', 'project__material', 'created_by__profile')
+        .prefetch_related(
+            'project__branch__translations',
+            'project__material__requirements',
+            'project__material__coverage',
+        )
+        .order_by('created_at')
+        .distinct()
+    )
+    if branch_ids is not None:
+        queryset = queryset.filter(project__branch_id__in=branch_ids)
+    return queryset
 
 
 def is_feature_enabled(key: str) -> bool:
@@ -742,18 +817,16 @@ def count_pending_moderation(user=None) -> dict:
     """
     from exercises.models import ExerciseTranslation, SolutionEntry as _SolutionEntry
 
-    from .models import EditSuggestion, ExerciseSubmission, MaterialSubmission, Report
+    from .models import EditSuggestion, ExerciseSubmission, Report
 
     branch_ids = governed_branch_ids(user) if user is not None else None
 
     submissions = ExerciseSubmission.objects.filter(status='pending')
-    material_submissions = MaterialSubmission.objects.filter(status='pending')
     edits = EditSuggestion.objects.filter(status='pending')
     translations = ExerciseTranslation.objects.filter(status='pending')
     entries = _SolutionEntry.objects.filter(status='pending', is_removed=False)
     if branch_ids is not None:
         submissions = submissions.filter(branch_id__in=branch_ids)
-        material_submissions = material_submissions.filter(branch_id__in=branch_ids)
         edits = edits.filter(exercise__branch_id__in=branch_ids)
         translations = translations.filter(exercise__branch_id__in=branch_ids)
         entries = entries.filter(exercise__branch_id__in=branch_ids)
@@ -774,10 +847,12 @@ def count_pending_moderation(user=None) -> dict:
 
     counts = {
         'submissions': submissions.count(),
-        'material_submissions': material_submissions.count(),
         'edit_suggestions': edits.count(),
         'translations': translations.count(),
         'solution_entries': entries.count(),
+        # Scoped by the SAME function the queue section uses, so the badge and the page it links to
+        # can never disagree — a number that disagreed with its own page would be worse than none.
+        'material_versions': material_version_queryset_for_queue(branch_ids).count(),
         'taxonomy_proposals': len(build_taxonomy_proposal_queue()),
         'reports': reports,
     }

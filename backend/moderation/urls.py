@@ -6,7 +6,6 @@ from .views import (
     ExerciseSubmissionViewSet,
     FeatureFlagViewSet,
     GovernorApplicationViewSet,
-    MaterialSubmissionViewSet,
     ModerationActionView,
     ModerationQueueCountView,
     ModerationQueueView,
@@ -18,7 +17,10 @@ from .views import (
 
 router = DefaultRouter()
 router.register('exercise-submissions', ExerciseSubmissionViewSet, basename='exercise-submission')
-router.register('material-submissions', MaterialSubmissionViewSet, basename='material-submission')
+# There is no `material-submissions` route any more: a new material is a `coauthoring` project with
+# a team of one, sent to `POST /api/material-projects/` and decided at
+# `POST /api/material-versions/{id}/decide/` (COAUTHORING-BRIEF.md §0, the fold migration
+# `coauthoring/0003_fold_material_submissions`).
 router.register('edit-suggestions', EditSuggestionViewSet, basename='edit-suggestion')
 router.register('reports', ReportViewSet, basename='report')
 router.register('feature-flags', FeatureFlagViewSet, basename='feature-flag')

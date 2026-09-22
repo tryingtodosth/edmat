@@ -23,10 +23,16 @@ from django.db import models
 NOTIFICATION_TYPES = [
     ('submission_approved', 'Exercise submission approved'),
     ('submission_rejected', 'Exercise submission rejected'),
-    # Both are really sent (moderation/views.py) and both were gated correctly, but neither was ever
-    # a valid choice here — so the admin showed a bare value and `get_type_display()` answered with
-    # the raw string. The two catalogs in this app drift in both directions; this is that drift the
-    # other way round from the five course types services.py was missing.
+    # Both were really sent (moderation/views.py) and both were gated correctly, but neither was
+    # ever a valid choice here — so the admin showed a bare value and `get_type_display()` answered
+    # with the raw string. The two catalogs in this app drift in both directions; this is that drift
+    # the other way round from the five course types services.py was missing.
+    #
+    # **Nothing sends these two any more** and they stay anyway: `MaterialSubmission` was folded
+    # into a co-authored project (`coauthoring/0003_fold_material_submissions`) and a decision on a
+    # material now sends `material_version_decided`. Existing rows in real inboxes still carry the
+    # old types, and a type nobody can look up is exactly the bare-value bug the comment above
+    # records — so removing them would break the history this table is for.
     ('material_submission_approved', 'Material upload approved'),
     ('material_submission_rejected', 'Material upload rejected'),
     ('solution_entry_approved', 'Solution/hint accepted'),
@@ -113,6 +119,24 @@ NOTIFICATION_TYPES = [
     # contribution queue already records for notifying every member of staff rather than one.
     ('governor_application_submitted', 'Somebody applied to look after content'),
     ('governor_application_decided', 'Your application to look after content was decided'),
+    # Co-authoring a material (coauthoring/, COAUTHORING-BRIEF.md §4). Seven rather than one
+    # 'project_activity', on the same reasoning the six course types already record: the recipients
+    # are different people with different next moves. A proposal reaches the team, who must decide
+    # it; the decision reaches the proposer, who wanted to know if their work was taken; a
+    # publication reaches the other co-authors, who now have a new head to work from. Collapsing
+    # them would leave the card unable to say which of the three happened without parsing a label.
+    #
+    # They split across two existing coarse categories rather than adding an eighth Profile
+    # boolean (notifications/services.py's `_PREFERENCE_FIELD_FOR_TYPE`): the two "somebody decided
+    # on the thing I sent" types belong under moderation decisions, and the rest are ordinary
+    # activity on content the recipient is involved with.
+    ('material_version_proposed', 'Somebody proposed a new version'),
+    ('material_version_decided', 'Your proposed version was decided'),
+    ('material_version_published', 'A new version of a material you co-author'),
+    ('project_invite_used', 'Somebody used your project invite link'),
+    ('project_member_added', 'You were added to a material project'),
+    ('project_join_requested', 'Somebody asked to join a project you co-author'),
+    ('project_join_decided', 'Your request to join a project was decided'),
 ]
 
 
@@ -155,6 +179,21 @@ class Notification(models.Model):
     )
     issue = models.ForeignKey(
         'issues.Issue', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    # A co-authoring project, for the notifications that happen BEFORE there is a material to link
+    # to — a first version proposed on a draft project, an invite used, somebody asking to join.
+    # Same nullable/SET_NULL shape and the same reason as every FK above it: a notification you
+    # cannot click is markedly less useful than one you can, and this app's own model only earns an
+    # FK here because it has a real page of its own (`/material-projects/[id]`).
+    #
+    # Once the project publishes, its notifications carry `material` instead — that is the page a
+    # reader actually wants, and `coauthoring.services._link_kwargs` is the one place that chooses.
+    material_project = models.ForeignKey(
+        'coauthoring.MaterialProject',
+        null=True,
+        blank=True,
+        related_name='+',
+        on_delete=models.SET_NULL,
     )
     # A moderator's own review_note/resolved_note, or a comment reply's own short preview — whatever
     # extra context that event type actually has, blank when it doesn't.

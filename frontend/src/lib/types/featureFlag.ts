@@ -1,5 +1,5 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 12 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 13 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
 //
 // THIS UNION AND `FEATURE_FLAG_LABELS` (utils/labels.ts) BOTH MIRROR THE BACKEND'S OWN
@@ -46,6 +46,14 @@ export type FeatureFlagKey =
 	// NOTHING else — the minors regime (accounts/minors.py) and Settings -> Children keep working
 	// exactly as before, since neither has ever depended on this question.
 	| 'age_verification'
+	// Co-authoring a material (backend coauthoring/): the version history, a project's team, the
+	// proposals readers send it, invites and join requests. Off: no project panel, no proposals, no
+	// members/invites; creating a new material still answers to `material_submissions`, which is a
+	// genuinely different ability (a flood of new uploads is not the same problem as a fight over
+	// one document's text) — two abilities, two switches. Deliberately unable to hide content:
+	// `Material` stays the published projection of whichever version is current, so every material
+	// keeps rendering and downloading with this off.
+	| 'coauthoring'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

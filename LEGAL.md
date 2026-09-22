@@ -63,6 +63,15 @@ contributor licence agreement — a person submitting an exercise, a solution or
 nothing explicitly, and EdMat publishes it anyway. The research below recommends CC BY-SA 4.0 plus a
 CLA; neither is built.
 
+**Co-authoring (2026-09-20, `COAUTHORING-BRIEF.md`) makes this sharper, not different.** A material
+now has a team and a history of versions, so one person's improved version of another person's file
+or in-app text is a *derivative work* made routinely, on purpose, inside the product. The version
+editor shows a factual notice only — "what you publish here is public, attributed to you, and may be
+improved by others" (`coauth_publicNotice`) — and deliberately **no** licence grant, because the
+paragraph above says to check with Piotr before any new licensing text. The CC BY-SA 4.0 line on
+that form is the first thing to switch on once lawyer review has happened; until then every version
+sits in exactly the same unlicensed state as every exercise, solution and translation already does.
+
 ---
 
 ## 3. ⚠️ The corpus copyright question — the oldest open item in the project
@@ -204,7 +213,7 @@ author).
 Two fields exist specifically so a legal question can be *investigated* later rather than being
 unanswerable (§17Q):
 
-- `Material.author` / `MaterialSubmission.author` — who wrote it (free text; the corpus's real
+- `Material.author` / `coauthoring.MaterialProject.author` — who wrote it (free text; the corpus's real
   values are human names, usually a course TA, almost never a platform account).
 - `Material.source_url` — where it came from, a `URLField` rather than free text, because
   provenance nobody can follow is worse than none.

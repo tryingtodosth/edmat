@@ -1,5 +1,6 @@
 import type { Audience } from './audience';
 import type { Difficulty, ExerciseSource } from './exercise';
+import type { ExerciseLinkRole } from './exerciseMaterialLink';
 
 export type ModerationStatus = 'pending' | 'approved' | 'rejected';
 
@@ -12,9 +13,22 @@ export interface ExerciseSubmissionDraft {
 	source: ExerciseSource;
 	tags: string[];
 	// Free-text prerequisite/"skill tag" labels — optional, applied into real ExerciseRequirement
-	// rows on approval (moderation/views.py's `_apply_submission`), the same submission-time draft
-	// shape MaterialSubmission.requirements already establishes for a Material.
+	// rows on approval (moderation/views.py's `_apply_submission`), the same draft shape a material
+	// project's catalogue `requirements` uses before its first publication.
 	requirements?: string[];
+	// "Add an exercise to this material" (`/submit?material=<id>`) — which material this exercise
+	// belongs to, turned into a real `ExerciseMaterialLink` the instant the exercise exists
+	// (moderation/views.py's `_apply_submission`). Absent for every submission made the ordinary
+	// way, which is almost all of them.
+	//
+	// **snake_case on purpose, unlike the rest of this draft.** The payload is a JSON blob the
+	// backend reads BY NAME, and these three names are owned by `backend/exercises/links.py` —
+	// which also accepts the camelCase spellings, exactly as `_apply_submission` already accepts
+	// `topicIds` beside `topic_ids`. Spelling them the way the backend documents them is what keeps
+	// a reader of either side able to grep for the other.
+	material_id?: number;
+	material_role?: ExerciseLinkRole;
+	material_locator?: string;
 	statement: string;
 	hint: string;
 	answer: string;

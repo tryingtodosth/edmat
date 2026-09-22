@@ -15,6 +15,7 @@ before widening it.
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
+from coauthoring.models import MaterialVersion
 from community.models import Comment, Review
 from community.targets import target_type_for
 from exercises.models import ExerciseClaim, SolutionEntry
@@ -25,7 +26,10 @@ from .services import record_activity, remove_activity_for
 
 # Comment targets whose threads are public-by-construction. Deliberately absent: every course
 # target (private by policy), 'issue' (an issue can be staff-only), 'service'/'serviceReview'
-# (a listing can be paused into invisibility), 'courseClaim' (its course can be a draft).
+# (a listing can be paused into invisibility), 'courseClaim' (its course can be a draft), and
+# 'materialVersion' (a version's thread is a REVIEW thread — a draft's or a proposal's is visible
+# only to its author and the people who may decide it, so it is never public by construction; see
+# `community.targets.PRIVATE_TARGET_TYPES`, which holds the same answer for the same reason).
 _PUBLIC_COMMENT_TARGETS = frozenset(
     {'exercise', 'material', 'materialCoverage', 'materialReview', 'exerciseClaim', 'solutionEntry', 'review', 'post'}
 )
@@ -152,6 +156,12 @@ def material_claim_feed_row(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=MaterialCoverage)
 @receiver(post_delete, sender=SolutionEntry)
 @receiver(post_delete, sender=Post)
+# A published material version announces itself here (`record_activity('material_version', …)`,
+# from `coauthoring.services`), so its deletion has to take the announcement with it — the generic
+# `source` reference has no FK to cascade. Listed on this receiver rather than in a hook of its own
+# inside `coauthoring/`, because this list IS the convention: one place naming every model whose
+# rows are a feed row's source.
+@receiver(post_delete, sender=MaterialVersion)
 def source_deleted(sender, instance, **kwargs):
     remove_activity_for(instance)
 

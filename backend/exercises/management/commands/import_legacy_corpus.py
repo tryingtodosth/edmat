@@ -126,12 +126,29 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING('--dry-run: rolling back transaction.'))
                 transaction.set_rollback(True)
 
+        # Every imported material needs its co-authoring project (its version history, its team,
+        # the "Improve this material" path). The migration that backfills those runs at `migrate`
+        # time, which on a clean clone is BEFORE this importer has created a single material — and
+        # an applied migration never runs again. So the importer asks for them itself; the helper is
+        # idempotent, so a re-import or a partial one is safe. Not inside the transaction above:
+        # a dry run must not leave projects behind, and there is nothing to roll back after it.
+        if not dry_run:
+            from coauthoring.backfill import ensure_projects
+
+            stats['projects'] = ensure_projects()
+
         self.stdout.write(
             self.style.SUCCESS(
                 'Imported: {fields} fields, {branches} branches, {topics} topics, {chapters} chapters, '
                 '{exercises} exercises, {materials} materials'.format(**stats)
             )
         )
+        if stats.get('projects'):
+            self.stdout.write(
+                self.style.SUCCESS(
+                    'Gave {projects} material(s) their co-authoring project.'.format(**stats)
+                )
+            )
 
     def _import_fields(self, corpus: Path, stats: dict) -> dict[str, Discipline]:
         field_by_slug: dict[str, Discipline] = {}

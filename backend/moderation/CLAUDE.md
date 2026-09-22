@@ -3,11 +3,32 @@
 Models: `ExerciseSubmission` (JSON `payload` draft), `EditSuggestion` (nullable `entry` FK →
 a solution/hint row — those suggestions derive exercise/locale/field from the entry, are decided
 by the entry's AUTHOR + staff/governors via `/edit-suggestions/{id}/decide/`, and only
-title/statement/answer remain valid translation fields), `MaterialSubmission` (real typed fields
-+ a file — no rich text to draft), `Report`, `ContentView` (the viewer pool auto-hide divides
-by), `NodeGovernor`, `FeatureFlag`. The queue payload also carries `solution_entries` (pending
-pool entries, governor-scoped) — their approve/reject goes through the exercises app's ONE
-review endpoint, never a new `_KIND_MODELS` kind.
+title/statement/answer remain valid translation fields), `Report`, `ContentView` (the viewer pool
+auto-hide divides by), `NodeGovernor`, `GovernorApplication`, `FeatureFlag`. The queue payload also
+carries `solution_entries` (pending pool entries, governor-scoped) and `material_versions` — both
+decided through their own app's ONE review endpoint, never a new `_KIND_MODELS` kind.
+
+## `MaterialSubmission` is gone — a new material is a project now
+
+Retired 2026-09-22. A material comes into being in exactly one way: `POST /api/material-projects/`
+(with `publish: true` when the sender means "…and send it"), whose first `coauthoring.MaterialVersion`
+waits in this queue's `material_versions` section and is decided at
+`POST /api/material-versions/{id}/decide/`. Two models for one act was the defect the board named.
+
+- The fold is `coauthoring/0003_fold_material_submissions` (pending → a draft project with a
+  `proposed` v1; rejected → the same with a `rejected` v1 and its decision; approved → its
+  material's backfilled v1 learns who decided and what the scanner found). The model went in
+  `moderation/0038_delete_materialsubmission`, which depends on it so the order cannot invert.
+- **What stayed, and why**: the `material_submissions` feature flag (the ABILITY is unchanged — it
+  gates project creation, first publication and the decision on one, per `coauthoring.access
+  .governing_switch`), the `material_submission` throttle scope (same budget, new endpoint), the
+  `material_submission_approved`/`_rejected` notification types (existing rows carry them), and
+  `models.material_submission_upload_path` (migrations 0005/0021 import it by dotted path).
+- `RequireVerifiedContributorForMaterialUploads` went with it; the flag it read lives on in
+  `coauthoring.services._require_verified_contributor_for_uploads`, which carries its whole
+  argument. `_KIND_MODELS` has three kinds again and `'material'` must not come back.
+- The ported tests are `coauthoring/test_submit_path.py` (the whole old suite, class for class) and
+  `materials/test_validators.py` (the validator tests, which never needed a model).
 
 ## Roles
 
@@ -31,7 +52,8 @@ claim is reverted to 'pending' in an `except` so the item isn't stuck. Translati
 one carve-out: the claim sets only reviewed_by/note, and `_publish_translation` does
 delete-superseded-first then its own pending→published UPDATE (the ordering that fixed a
 deterministic 500). Submission approval retries `(branch, number)` allocation in a bounded loop
-(IntegrityError AND OperationalError, per-attempt savepoints). `select_for_update()` was tried
+(IntegrityError AND OperationalError, per-attempt savepoints). A material version's decision uses
+the identical shape one app over (`coauthoring.services.decide_version`). `select_for_update()` was tried
 and made things WORSE on SQLite — don't reintroduce it.
 
 ## Auto-hide

@@ -63,6 +63,11 @@
 	// and never correct itself.
 	let canSubmitExercise = $derived(can('exercise_submissions'));
 	let canSubmitMaterial = $derived(can('material_submissions'));
+	// Two abilities, two switches (COAUTHORING-BRIEF.md §0): `material_submissions` gates STARTING a
+	// material — the submit form and a new project alike — while `coauthoring` gates everything that
+	// happens inside a project afterwards. So the Add… entry below hangs off the first and the
+	// account entry off this one, and turning either off leaves the other's link exactly where it was.
+	let canCoauthoring = $derived(can('coauthoring'));
 	let canClassroom = $derived(can('courses'));
 	// A minor's account may not host, list tutoring, or message (accounts/minors.py); the links go
 	// with the abilities, the kill-switch rule.
@@ -317,6 +322,15 @@
 		<a role="menuitem" class={itemClass} href={resolve('/submit-material')} {onclick}>
 			{m.nav_submitMaterial()}
 		</a>
+		<!-- The same ability as the line above — making a material that does not exist yet — so the
+		     same flag, deliberately NOT `coauthoring`: that one gates collaborating on a material,
+		     and a project with a team of one is still somebody uploading a material. The two
+		     entries sit together because the question they answer is one question with two answers
+		     ("by myself" / "with other people"). -->
+		<a role="menuitem" class={itemClass} href={resolve('/material-projects/new')} {onclick}>
+			{m.nav_startMaterialProject()}
+			<!-- "Start a material with others" -->
+		</a>
 	{/if}
 	{#if canClassroom}
 		<a role="menuitem" class={itemClass} href={resolve('/courses/new')} {onclick}>
@@ -362,6 +376,27 @@
 				{m.events_myAgenda()}
 			</a>
 		{/if}
+	{/if}
+	{#if canCoauthoring}
+		<!-- With the bookings and the agenda rather than in Add…: this is the list of materials this
+		     person is a co-author of, which is a thing of theirs to come back to, not something to
+		     make. `?tab=mine` is the page's own default tab spelled out, so the link lands on the
+		     half that belongs to them rather than on the public "looking for co-authors" board. -->
+		<!-- A block pair rather than `eslint-disable-next-line`: the rule reports at the `href`
+		     ATTRIBUTE's own line, and Prettier reflows this tag across several lines, so the
+		     single-line form stops pointing at the reported line (frontend/CLAUDE.md records the
+		     same trap for MaterialCard's download link). -->
+		<!-- eslint-disable svelte/no-navigation-without-resolve -- built on resolve('/material-projects'), query parameter only -->
+		<a
+			role="menuitem"
+			class={itemClass}
+			href={`${resolve('/material-projects')}?tab=mine`}
+			{onclick}
+		>
+			{m.nav_coauthoring()}
+			<!-- "Co-authoring" -->
+		</a>
+		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
 	{#if canIssues}

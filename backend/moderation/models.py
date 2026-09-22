@@ -2,7 +2,17 @@
 an existing exercise/translation) — see CLAUDE.md Section 9. Report and ContentView (below) extend
 this app into moderating already-PUBLISHED content (Exercise/Comment/Review), not just pre-publish
 submissions — a genuinely different concern from the three models above, which is why they get their
-own doc comment rather than being folded into this file's original one."""
+own doc comment rather than being folded into this file's original one.
+
+`MaterialSubmission` used to sit beside `ExerciseSubmission` here and does not any more: a new
+material is a `coauthoring.MaterialProject` with a team of one now, its first `MaterialVersion` is
+what waits in the queue, and the two models were two ways to do one thing (COAUTHORING-BRIEF.md §0).
+The data migration that folded it is `coauthoring/0003_fold_material_submissions`; the model went in
+`moderation/0038_delete_materialsubmission`. What stayed: the `material_submissions` feature flag
+(the ability is unchanged, only its endpoint moved), the `material_submission` throttle scope, the
+`material_submission_approved`/`_rejected` notification types that existing rows carry, and
+`material_submission_upload_path` below, which the migration history imports by dotted path.
+"""
 
 import os
 
@@ -10,11 +20,9 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from config.audience import AUDIENCE_CHOICES, DEFAULT_AUDIENCE
 
 from exercises.models import Exercise
-from materials.models import CURRENCY_CHOICES, Material
-from materials.validators import validate_material_submission_file
+from materials.models import Material
 from taxonomy.models import Branch, Discipline
 
 REVIEW_STATUS_CHOICES = [
@@ -84,7 +92,15 @@ class EditSuggestion(models.Model):
 
 
 def material_submission_upload_path(instance, filename: str) -> str:
-    """Deliberately discards the uploader's own original filename, keeping only its (already
+    """**Kept only for the migration history.** Nothing calls this any more: `MaterialSubmission`
+    was folded into `coauthoring.MaterialProject`/`MaterialVersion` and deleted
+    (`coauthoring/0003_fold_material_submissions`, `moderation/0038_delete_materialsubmission`), and
+    new material files are named by `coauthoring.models.version_upload_path`. Migrations 0005 and
+    0021 reference this function BY DOTTED PATH, though, so deleting it would make the historical
+    migration chain unimportable on a fresh database — which is the one thing a retired model's
+    helper must never do. Its reasoning is left intact below because `version_upload_path` cites it.
+
+    Deliberately discards the uploader's own original filename, keeping only its (already
     validated, by the time this actually gets saved) extension — "kept safe" storage, not just safe
     CONTENT: a real original filename is untrusted input too (path-traversal characters, a
     double-extension trick like "invoice.pdf.exe", or just an unpredictable collision), and Django's
@@ -97,123 +113,6 @@ def material_submission_upload_path(instance, filename: str) -> str:
 
     ext = os.path.splitext(filename)[1].lower()
     return f'material_submissions/{uuid.uuid4().hex}{ext}'
-
-
-class MaterialSubmission(models.Model):
-    """A brand-new Material (an exam, a practice test, lecture slides, ...) submitted by a
-    registered user, pending moderator review before it becomes a real, published Material — the
-    same "queue, don't trust blindly" shape ExerciseSubmission above already establishes, adapted
-    for a genuinely FILE-centric submission rather than a JSON payload of text fields (a Material
-    has no rich statement/hint/solution text to draft, just a file plus a handful of plain metadata
-    fields, so a flat JSONField would just be extra indirection around fields this model can hold
-    directly).
-
-    `scan_status`/`scan_detail` record what `materials.validators.scan_for_malware` actually found
-    (or honestly didn't find, if no scanner was reachable) at submission time — surfaced to the
-    moderator reviewing the queue, not silently discarded, since "was this file ever actually
-    scanned" is exactly the kind of thing a moderator deciding whether to trust it should be able to
-    see."""
-
-    SCAN_STATUS_CHOICES = [
-        ('skipped', 'Not scanned'),
-        ('clean', 'Scanned — clean'),
-        ('flagged', 'Scanned — flagged'),
-    ]
-
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
-    submitted_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    # Was max_length=20 — right for the original, fixed 13-value MATERIAL_TYPE_CHOICES enum this
-    # comment used to name, but a real, found-live 400 once the vocabulary became an open,
-    # user-proposable `MaterialType` table (`materials/validators.py`'s `validate_material_type`,
-    # which accepts any PENDING proposed slug, not just an approved built-in): a proposed type's
-    # slug is derived from whatever name somebody typed, routinely longer than 20 characters, and
-    # got refused with "no more than 20 characters" the first time a submission ever tried to file
-    # under one. Widened to match `MaterialType.slug`'s own real width (a bare `SlugField()`,
-    # Django's default max_length=50) — the field that is actually this one's source of truth —
-    # so nothing `MaterialType` can hold is ever too long to reference here.
-    type = models.CharField(max_length=50)
-    title = models.CharField(max_length=300)
-    description = models.TextField(blank=True)
-    locale = models.CharField(max_length=8, default='pl')
-    # Who the material is for (AUDIENCE-BRIEF.md §1); carried onto the real Material on approval.
-    audience = models.CharField(max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE)
-    # Optional, because a material can be a link rather than a file — see `Material.file`. The
-    # serializer requires one or the other; neither is a submission with nothing in it.
-    file = models.FileField(
-        upload_to=material_submission_upload_path,
-        blank=True,
-        validators=[validate_material_submission_file],
-    )
-    #: Where the material is, when it is a link. Carried onto the real Material on approval, exactly
-    #: as the file is. Distinct from `source_url` beside it, which is provenance — see Material.url.
-    url = models.URLField(max_length=500, blank=True)
-    # Provenance, declared by the uploader and carried onto the real Material on approval — both
-    # mirror `materials.models.Material`'s own fields of the same names exactly (see `Material
-    # .source_url`'s doc comment for why the source is a URL rather than free text, and why neither
-    # field is required).
-    #
-    # These matter more at SUBMISSION time than anywhere else, and are the reason they were added:
-    # the uploader is the only person who actually knows where a file came from. A moderator looking
-    # at a pending PDF in the queue has no way to determine its author or origin from the bytes, so
-    # if the form never asks, the information is not merely missing from the record — it is
-    # unrecoverable. `MaterialSubmissionSerializer` exposes both, and the moderation queue's own
-    # Materials tab renders them alongside the file link so a reviewer can actually weigh provenance
-    # as part of the approve/reject decision (CLAUDE.md Section 18 item 2's still-open copyright
-    # question is exactly the kind of call that needs this in front of the person making it).
-    author = models.CharField(max_length=200, blank=True)
-    source_url = models.URLField(max_length=500, blank=True)
-    # A brand-new upload can optionally declare its own requirements/price/time-estimate at
-    # submission time, mirroring the same three fields `materials.models.Material`/
-    # `MaterialRequirement` itself carries once published — see `_apply_material_submission`
-    # (views.py) for how these three carry over onto the real Material row on approval.
-    # `requirements` is a plain `list[str]` (materials.models.MaterialRequirement has no equivalent
-    # at submission time, since there's no real Material row yet for it to be a FK to) — a JSONField,
-    # not a second typed model, since this is a draft value that only becomes real MaterialRequirement
-    # rows once approved, the same "structural fields now, translation/derived rows later" split
-    # ExerciseSubmission.payload already establishes for a different field, just narrower (three
-    # plain fields instead of one whole JSON draft, since a Material submission is otherwise
-    # real, typed fields already, not a JSON blob).
-    requirements = models.JSONField(default=list, blank=True)
-    # A brand-new upload can optionally declare initial "Covers" claims too, the requirement-side
-    # sibling above — a plain `list[{"topic_id": int, "level": int}]`, not real `MaterialCoverage`
-    # rows, since there's no real Material yet for them to be a FK to (see `requirements`'s own doc
-    # comment for the identical reasoning). Deliberately narrower than the post-publish "+Add
-    # coverage" flow (`MaterialViewSet.coverage`, materials/views.py): topic + level only, no
-    # subtopic — the get-or-create-a-subtopic-on-the-fly flow that action supports is real UX
-    # richness this submission form doesn't need on day one; a submitter who wants subtopic-level
-    # precision can still add it after publish via that same, already-working flow.
-    coverage = models.JSONField(default=list, blank=True)
-    price_amount = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
-    price_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='PLN', blank=True)
-    estimated_minutes = models.PositiveIntegerField(null=True, blank=True)
-    scan_status = models.CharField(max_length=10, choices=SCAN_STATUS_CHOICES, default='skipped')
-    scan_detail = models.CharField(max_length=300, blank=True)
-    # Set when a rejection drops this submission's stored blob — see
-    # `_reclaim_rejected_material_file` (moderation/views.py) for the full reasoning, including why
-    # the ROW and every other field on it deliberately survive.
-    #
-    # These two exist so the record never quietly lies about itself. Without them, a reclaimed
-    # submission is indistinguishable from one that somehow never had a file at all, and a reader
-    # asking "where did the PDF go?" has nothing to read. `file_reclaimed_at` is the answer to
-    # "was there one, and what happened to it"; `reclaimed_file_bytes` is the only place its size
-    # survives at all, since size is a property of bytes that are no longer there.
-    file_reclaimed_at = models.DateTimeField(null=True, blank=True)
-    reclaimed_file_bytes = models.PositiveBigIntegerField(default=0)
-    status = models.CharField(max_length=10, choices=REVIEW_STATUS_CHOICES, default='pending')
-    reviewed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
-    )
-    review_note = models.TextField(blank=True)
-    resulting_material = models.ForeignKey(
-        'materials.Material', null=True, blank=True, on_delete=models.SET_NULL
-    )  # set once approved
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-created_at']
-
-    def __str__(self) -> str:
-        return f'material submission by {self.submitted_by} [{self.status}]'
 
 
 REPORT_STATUS_CHOICES = [
@@ -465,6 +364,22 @@ FEATURE_FLAG_CHOICES = [
     # thing for exactly the people it exists to serve, and `feature_gate`'s is_staff bypass means
     # nothing to a caller who has no account yet.
     ('age_verification', 'Age gate on self-registration'),
+    # Co-authoring a material (coauthoring/): the version history, the project's team, proposals
+    # from readers, invites and join requests. A plain kill switch, seeded on.
+    #
+    # It gates COLLABORATING on a material that already exists, and deliberately NOT the existence
+    # of the material itself: `Material` stays the published projection of whatever version is
+    # current, so turning this off takes away the project panel, the version pages, the "improve
+    # this material" button and every link to them, while every material on the site keeps
+    # rendering, downloading and being found exactly as before. That is the whole reason the
+    # projection exists — a kill switch here must never be able to hide content.
+    #
+    # CREATING a new material stays under the existing `material_submissions` flag, which is a
+    # genuinely different ability with a genuinely different reason to be switched off (a flood of
+    # new uploads is not the same problem as a fight over one document's text), so the two are two
+    # switches rather than one: `material_submissions` gates starting a project, this one gates
+    # everything that happens inside one afterwards.
+    ('coauthoring', 'Co-authoring materials: versions, teams, proposals'),
 ]
 
 
