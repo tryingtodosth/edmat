@@ -7038,6 +7038,275 @@ change if review votes are ever added.
   the database is back to its 35.
 - **Not** run: `manage.py test` — nothing backend changed.
 
+## 17BC. Co-authoring materials: a project, a team, and the versions a material is published from (✅ built, full stack)
+
+Piotr's ask, 2026-09-20: "analyze and plan on how we should implement a new cooperation on
+creating/improving materials module" — then, once the plan was on the table, "get it all done. in
+case of doubt try thinking about what would be my call (its open-source and open-science project)".
+The plan became `COAUTHORING-BRIEF.md` at the repository root, which is the contract every agent on
+this feature built against and is kept as the reference for the data model and the API.
+
+### What existed, and what did not
+
+A material could be *submitted* (`moderation.MaterialSubmission`, one person, one moderated upload)
+and then never changed again except through the Django admin. Not by a governor, not by the person
+who uploaded it, not by any endpoint. `EditSuggestion` was exercise-only and overwrote the published
+text in place, so the old text was kept nowhere. There was no account-level co-ownership (the
+free-text `author` is deliberately unlinked), no written body (a material was a file or a link plus
+a short description), and no history of any kind. What *did* exist and was reused: a material is
+already a governable node with an apply-to-govern flow, it already has a whole-material discussion
+thread, the upload pipeline (sniff, re-encode, optional ClamAV, per-account quota, verified-only
+switch) was complete, and the rich editor with inline pictures and chemistry existed on every other
+surface but this one.
+
+### The design, in one sentence and five models
+
+**The `Material` row stays the published projection of a project's current version.** Publishing a
+version copies its payload onto the material (`file`/`url`/the new `body`) and its title and
+description onto the translation row for the project's own locale (`coauthoring/services.py
+sync_material`, the one writer). That single decision is why no existing read site — listings,
+courses, galleries, reports, the feed, the recommender — had to change, and why killing the
+`coauthoring` switch can never remove a material.
+
+- `MaterialProject` — one per material, or a draft with no material yet. Its catalogue columns
+  (type, audience, author, price, requirements, coverage…) mean something only while drafting; after
+  the first publication the material's own columns are the answer and a catalogue edit is written
+  there instead.
+- `ProjectMember` — `owner` | `coauthor`. The owner row is real data created in `save()` (the
+  `courses.Course.save()` precedent: seeds, the admin and fixtures create projects too), one owner
+  per project by a partial unique index, never removable, handed over only by an explicit transfer.
+- `ProjectInvite` — a token link, no role on it (a link that could hand a project away is a link
+  somebody can forward), revoke = a timestamp.
+- `ProjectJoinRequest` — for a draft that says it is looking for co-authors; one pending per person.
+- `MaterialVersion` — one immutable attempt: `draft → proposed → published → superseded`, plus
+  `rejected` and `withdrawn`; `kind` file | link | body; exactly one `published` row per project by
+  a partial unique index. Every save is a new row, numbered in a bounded retry loop (SQLite rule 3).
+
+Collaboration is **turn-based on purpose** (PRODUCT.md keeps real-time editing a non-goal): a save
+records what it was written against, and a save against a stale head is a **409 carrying the head**,
+so the editor can show what landed underneath instead of the word "conflict".
+
+**Two deciding circles, one predicate.** A project with a material and a team decides its own
+proposals — the open-science bet the feature makes, the same one posts and galleries make, with
+reports and the kill switch covering abuse. A **first publication** and a proposal on an **orphan**
+project (no members — every backfilled corpus material with no submitter) go to staff or the branch
+governor instead, through a new `material_versions` section of the moderation queue.
+`access.needs_staff_review` is the one predicate both the queue and `can_decide` read, so the queue
+can never show a row nobody in it may decide. Decisions go through the app's own endpoint, never a
+new `_KIND_MODELS` kind (the solution-entry precedent).
+
+### Decisions taken on Piotr's behalf
+
+"In case of doubt, what would my call be, for an open-source and open-science project":
+
+| Question | Call |
+|---|---|
+| Do co-authors publish without staff review? | Yes. Staff review only first publications and orphan proposals. |
+| Minors | May **propose** (a person always reads a proposal); may not own, join, or be added — refused with `minor`. |
+| The single-shot submit form | Folded into "a project with a team of one"; `MaterialSubmission` retired (below). One way to create a material. |
+| A contributor licence line | **Not written.** `LEGAL.md` §2 says to check with Piotr before any licensing text. The editor shows a factual notice only; the CC BY-SA line is a named gap. |
+| Two switches | `coauthoring` gates collaborating on a material that exists; `material_submissions` keeps gating bringing a new one into being — including accepting its first publication, so the submit path survives `coauthoring` being off. |
+
+### Found by building it
+
+- **A lost update the number check could not see.** Publishing checked only that a draft was
+  numbered above the published version. A draft saved while somebody's proposal was waiting is
+  numbered above that proposal and written without it; once the proposal was accepted, publishing
+  the draft silently replaced accepted work. `access.publish_block_reason` now walks the draft's
+  `based_on` chain to the first row that was ever the material and requires it to be the version
+  published *now* — read by the publish service and by the serializer's `can_publish`, so the button
+  is never drawn for a publish the server would refuse.
+- **Unpublished text on a public page.** The project serializer named a project by its raw head,
+  which is a member's draft whenever one is open — so a stranger reading a published material's
+  project saw the draft's working title and description. It now names itself by the version the
+  caller may see; only a teaser (a draft asking for help) names itself by its draft, on purpose.
+- `MaterialVersion.clean()` compared the payload *column* with the *kind* — a link's column is `url`
+  and its kind is `link` — so every link version failed `full_clean()`, which is what the admin runs.
+- A publication names the version's author as its actor, so `notify()`'s own guard skipped the author
+  but not the co-author who pressed Publish; `_notify_members` takes a `skip`.
+- A stranger deciding or withdrawing somebody's join request got 403, which confirmed the request
+  existed; it is 404 now, as house rule 4 says.
+- A plain `CharField` accepted any three-letter currency and the column's `choices` is not enforced
+  by the database, so a bad code would have ridden through to the material at publication.
+- In the browser: deciding a version unmounted the decision section in the same tick that set its
+  confirmation, so the person who decided never saw it; and **no control anywhere published a saved
+  draft** — the editor publishes only at save time — so an owner could not publish a co-author's
+  draft. The version page has a Publish button now, and the browser script drives it.
+- `settings_notifyOnContentAction` listed exactly three things ("auto-hidden, restored, or removed");
+  five co-authoring types now sit under that preference, so its label was widened in both languages
+  rather than left to lie.
+- Two pre-existing drifts closed while the notification files were open: the two governor-application
+  types existed only on the backend and rendered as "reply to your comment", and `event_posted` was
+  missing from the type map.
+
+Cross-cutting pieces added for this and usable by anything else: `materials/publish.py
+create_material` (the one way a material comes into being, extracted verbatim from submission
+approval), `telemetry/audit.py record_audit` (the course-only history helper generalised; the first
+writers of `moderation_decision` and `permission_change`), `Material.body`, and
+`MaterialTranslation.updated_at`, which is what the "this description may be out of date" marker on a
+translated material compares against.
+
+### Phase 3 — one way to create a material
+
+`/submit-material` was the other way to bring a material into being, and it stayed one for exactly
+two days. It now creates **a project with a team of one**: the same page, the same fields, the same
+`material_submissions` kill switch, and one request — `POST /api/material-projects/` with
+`publish: true` — that makes the project, its owner row and version 1 and publishes it. Immediately
+for staff, a verified contributor or the branch's governor; into the moderation queue for everybody
+else, which is exactly who the old queue was for.
+
+`moderation.MaterialSubmission` is **retired**. `coauthoring.0003_fold_material_submissions` turns
+every pending row into a queued first publication (the same stored file, never re-uploaded), every
+rejected row into a `rejected` version carrying its reviewer and their note, and writes an approved
+row's decision onto the material's existing version 1; `moderation.0038` then drops the table. They
+must be applied together and in that order, because the second drops what the first reads. Proved on
+a copy of the real dev database before it was run on it, and then seen in the browser: the one
+pending submission that had been sitting in this database since July is now a row in the queue's
+Materials tab, with its own file and its scan status, reviewable by the endpoint that replaced the
+one it was filed through.
+
+Four things worth knowing about the shape:
+
+- **The two switches now answer per project, not per viewset.** A first publication answers to
+  `material_submissions` and everything else to `coauthoring` (`access.governing_switch`), so turning
+  collaboration off leaves submitting a new material — and accepting it — working. That is what "two
+  abilities, two switches" has to mean once the submit form runs on co-authoring's own endpoint.
+- **One Materials tab again** in the moderation queue, reading `material_versions`; the separate
+  submissions panel and its decide path are gone.
+- **The old suite was ported, not dropped**: 93 tests in `coauthoring/test_submit_path.py` (upload
+  validation, the image re-encode, the byte quota, the verified-only restriction, link-only
+  materials, the auto-publish fast path, approval, the reclaim, throttling, the two switches) plus
+  the seven validator tests moved unchanged into `materials/test_validators.py`. Where a behaviour
+  could not survive the move it was ported by intent and the test says so — "a regular user only
+  sees their own submissions" is now `?mine=1` plus a 404 on somebody else's draft.
+- **A gap the fold exposed, and closed.** On a clean clone `setup.sh` migrates and *then* imports the
+  corpus, so the backfill migration finds an empty database and every corpus material would have been
+  left with no project — the whole feature silently absent on exactly the install somebody sees
+  first. An applied migration never runs again, so the importer now asks for the projects itself
+  (`coauthoring/backfill.py`, also a `backfill_material_projects` command). Found by proving the fold
+  on a copy rather than by reading anything.
+
+One quiet correctness win came with it: `Profile.material_upload_bytes` had begun counting an
+approved submission and the version pointing at the very same stored file as two uploads. It sums
+versions only now.
+
+### Verified — what was actually run
+
+- **Backend, the whole suite: 1739 tests.** `coauthoring` alone is 173 (`tests.py` + `test_submit_path.py`);
+  `moderation/test_material_versions_queue.py` 9; `materials/test_validators.py` 7.
+  `manage.py check` clean, `makemigrations --check --dry-run` clean.
+  The one failure is `booking.test_week_schedules.PrecedenceTests.test_the_weeks_around_a_detached_one_are_untouched`, which is **pre-existing and not this work's**: `backend/booking` is untouched on this branch and the test fails identically in isolation. Its fixture builds `next_weekday(TUESDAY)` and then looks a week earlier, which lands in the past on the one weekday where it can — and 2026-09-22 was a Tuesday. On the board as its own item.
+- **Frontend:** `npm run check` 4338 files, **0 errors, 0 warnings**; `npm run build` clean;
+  `npx eslint src/` clean; both catalogues 2460 keys with identical key sets; `npm run lint`'s six
+  prettier failures are the same six pre-existing files in other people's uncommitted work.
+- **Accessibility:** `npm run check:a11y` against the real servers — 25 pages (three of them the new
+  co-authoring ones, added to the sweep), **0 critical/serious**, one moderate `heading-order` node
+  on `/services` that predates this work. Two heading-order faults the sweep found on the new pages
+  (a card's `h3` under a page `h1`, twice) were fixed by giving those components a heading level.
+- **A real browser, against both live servers, screenshots looked at:**
+  `e2e/coauthoring.mjs` **52/52**, the whole feature end to end — a project created, its first
+  publication queued and accepted by staff, the panel on the material page, an invite link minted,
+  accepted by a second person who then saves a draft, the owner publishing it with the version page's
+  Publish button and the material's own download changing to the new file, a third person proposing a
+  change from the material page, the owner rejecting it with a reason, the proposer reading that
+  reason, and the kill switch taking the panel and the menu entry away while the material page keeps
+  working. `e2e/exercise-material-links.mjs` 21/21, `e2e/material-types.mjs` 11/11 (updated to the
+  form's inline "Other…", which it had been asking for by its long-removed button),
+  `e2e/audience-bands.mjs` 21/21.
+- **The rewritten submit form driven by hand** as staff, because no script drives it end to end: a
+  real material came out with its project, its published version 1 and the submitter as owner.
+- **The fold on the real dev database**, after a snapshot: 11 projects → 12, 15 versions → 16 (the
+  new one `proposed`, carrying the submission's own stored file), the submission table gone, and the
+  folded row visible in the queue's Materials tab.
+
+### Left open, not built
+
+- **The CC BY-SA 4.0 contributor line** on the version editor — waiting for the lawyer review
+  `LEGAL.md` §2 asks for. Until then every version sits in the same unlicensed state as every
+  exercise, solution and translation already does, and the notice says only what is true.
+- **A material's other-locale translations are not versioned.** The project's own locale is; any
+  other translation keeps what it said and is flagged as possibly stale, nothing more.
+- **Superseded versions keep their files** — that is the history — so storage grows with every
+  published file version; the per-account quota (which now counts version files) is the bound.
+- **No people search**, so adding a co-author by hand needs their account id; the invite link is
+  the ergonomic path.
+- **Nobody is told when a published material they follow gets a new version** beyond its own team:
+  there is no branch or material follow yet. The feed row exists.
+- **No diff for a changed file**, only for text: a new PDF is reported as "a new file".
+- **Join requests are for drafts only.** A published material takes proposals from anybody, so asking
+  to join one would be asking for something slower — a deliberate call, not an oversight, but it
+  means `seeking_coauthors` on a published project has no effect.
+
+---
+
+## 17BE. Exercises linked to the materials they come from (✅ built, full stack)
+
+(§17BD is reserved by `CONCEPTS-BRIEF.md`, another session's work in flight.)
+
+Piotr's ask, 2026-09-20, in the middle of the co-authoring work: "let users link exercises to
+materials (both for open materials and proprietary ones we link to) … by clicking something like
+*add an exercise to this material* (new exercise, also discoverable in the exercises set)".
+
+### The shape
+
+`exercises.ExerciseMaterialLink` — exercise, material, `role` (`source`: the exercise is IN the
+material; `practice`: it practises what the material teaches), a free-text `locator` ("p. 34, ex.
+3.2"), who added it. Unique per pair. It works identically for a material this site hosts and one
+it only links to, because a link is about the material *row*, not about where its bytes live.
+
+**A link is not moderation-gated; the exercise it points at is.** "Add an exercise to this
+material" opens the ordinary `/submit` form with the material pre-filled (`?material=`), and the
+exercise goes through the same queue as every other submission — or the verified-contributor fast
+path — and only on approval does `_apply_submission` create the link. Once published it is a normal
+exercise in its branch, found by every browse and search path, and it also lists on the material.
+Saying which material an existing exercise belongs to is organisational metadata of the same weight
+as a coverage claim or a tag: additive, reversible, corrected by the community, so "Link an existing
+exercise" writes straight through. That split is the whole design and is invisible from the code.
+
+- `exercises/links.py` is the rule module: `can_manage_link` (object check) and `manageable_links`
+  (its queryset mirror) — the creator, staff, the material's submitter, and its governors, but not
+  the exercise's author, because a link is a claim about the *material*. It also owns the three
+  submission payload keys, because four places read them and a half-landed rename would make an
+  approved submission silently lose its link.
+- Ordering is `source` before `practice` through an explicit `Case`; ordering on the column would
+  have put `practice` first and inverted the reading order of the section.
+- The material's list of linked exercises resolves them through the same annotated browse queryset
+  the branch listing uses, so it stays at a fixed query count — and doubles as the visibility filter,
+  which is why an unpublished exercise's link drops out rather than rendering an empty card.
+
+Surfaces: an "Exercises from this material" section on `/materials/[id]` (cards, role and locator
+chips, remove for whoever may manage the link, Add and Link-existing), a "From material" block on
+`/exercises/[id]`, and the material chip, role and locator on `/submit`.
+
+### Verified — what was actually run
+
+- `manage.py test exercises materials moderation` green at the time it landed (400 tests, 39 of them
+  new: 26 in `exercises/test_material_links.py`, 13 in `moderation/test_submission_material_links.py`),
+  `manage.py check` and `makemigrations --check --dry-run` clean, and the whole suite green since.
+- `npm run check` 0 errors 0 warnings, `npm run build` clean, both catalogues identical.
+- **A real browser**: `e2e/exercise-material-links.mjs` **21/21**, screenshots looked at — the section
+  on the material page with its role and locator chips, the reverse block on the exercise page, the
+  submit form's "For material" chip with the material's own branch pre-selected, and the link removed
+  again and confirmed gone through an authenticated request. Two of its checks were reading the first
+  frame rather than the state they asserted (the branch is filled two requests after the chip
+  appears; the remove control needs the signed-in user), and were made to wait.
+
+### Left open, not built
+
+- **Nobody is notified when an exercise is linked to their material.** A coverage claim notifies
+  nobody either; "somebody attached an exercise to your material" is arguably worth telling the
+  submitter, and that is a decision rather than an oversight.
+- **`ExerciseSource` and a `source` link overlap.** The corpus provenance block is free text (a
+  collection name and pages); a link is a real foreign key. The unification worth doing is a nullable
+  `ExerciseSource.material` plus a backfill matching collections to material titles — a data
+  migration with a real matching problem in it.
+- **The remove control is a hint, not a gate:** `canModerate` is true for any governor, so a
+  governor of an unrelated branch sees a control the API then refuses. A `can_manage` field on the
+  row would fix the cosmetics.
+- The reverse listing hides unpublished materials even from staff (an unpublished material has no
+  page to link to), while the material page shows staff unpublished exercises — deliberate, and
+  tested, but an asymmetry somebody will question.
+- No bulk link/unlink and no curated order within a material.
 ---
 
 # Appendix — the original blueprint's technical sections

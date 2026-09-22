@@ -3,7 +3,6 @@ import type {
 	ExerciseSubmission,
 	ExerciseTranslation,
 	GovernableNodeKind,
-	MaterialSubmission,
 	ModerationStatus,
 	NodeGovernorGrant,
 	ReportGroup,
@@ -11,18 +10,19 @@ import type {
 	SolutionEntry
 } from '$lib/types';
 import { apiClient } from '$lib/api/client';
+import type { MaterialVersionQueueRow } from '$lib/types/materialProject';
 import {
 	mapEditSuggestion,
 	mapExerciseSubmission,
 	mapExerciseTranslation,
-	mapMaterialSubmission,
+	mapMaterialVersionQueueRow,
 	mapNodeGovernorGrant,
 	mapReportGroup,
 	mapSolutionEntry,
 	type RawEditSuggestion,
 	type RawExerciseSubmission,
 	type RawExerciseTranslation,
-	type RawMaterialSubmission,
+	type RawMaterialVersionQueueRow,
 	type RawNodeGovernorGrant,
 	type RawReportGroup,
 	type RawSolutionEntry
@@ -34,7 +34,18 @@ export interface ModerationQueue {
 	 * that differs is which level it sits at, which `kind` carries. */
 	taxonomyProposals: TaxonomyProposal[];
 	exerciseSubmissions: ExerciseSubmission[];
-	materialSubmissions: MaterialSubmission[];
+	/** Proposed material versions that genuinely need a staff/governor decision — a project's FIRST
+	 * publication, or a proposal on an orphan project nobody co-authors (COAUTHORING-BRIEF.md §5).
+	 * Everything else a project publishes is its own team's business and never reaches this queue.
+	 *
+	 * This is the WHOLE material queue: a new material is a project whose first version waits here,
+	 * which is what the retired `material_submissions` section used to hold (`/submit-material`
+	 * files one exactly that way now), so the moderation page's Materials tab reads this alone.
+	 *
+	 * Decided through the co-authoring app's own `/api/material-versions/{id}/decide/`, never a new
+	 * moderation "kind" — the `solution_entries` precedent (backend/moderation/CLAUDE.md): one
+	 * review path per object, so the queue and the object's own page cannot disagree. */
+	materialVersions: MaterialVersionQueueRow[];
 	editSuggestions: EditSuggestion[];
 	translations: ExerciseTranslation[];
 	/** Pending hints/solutions from the pool — decided through the same one review endpoint the
@@ -49,7 +60,9 @@ export interface ModerationQueue {
 export async function getModerationQueue(): Promise<ModerationQueue> {
 	const raw = await apiClient.get<{
 		submissions: RawExerciseSubmission[];
-		material_submissions: RawMaterialSubmission[];
+		// Optional on the wire all the same: a page that threw on a missing key would take every
+		// other queue down with it.
+		material_versions?: RawMaterialVersionQueueRow[];
 		edit_suggestions: RawEditSuggestion[];
 		translations: RawExerciseTranslation[];
 		solution_entries: RawSolutionEntry[];
@@ -58,7 +71,7 @@ export async function getModerationQueue(): Promise<ModerationQueue> {
 	}>('/moderation/queue/');
 	return {
 		exerciseSubmissions: raw.submissions.map(mapExerciseSubmission),
-		materialSubmissions: raw.material_submissions.map(mapMaterialSubmission),
+		materialVersions: (raw.material_versions ?? []).map(mapMaterialVersionQueueRow),
 		editSuggestions: raw.edit_suggestions.map(mapEditSuggestion),
 		translations: raw.translations.map(mapExerciseTranslation),
 		solutionEntries: (raw.solution_entries ?? []).map(mapSolutionEntry),
@@ -73,7 +86,7 @@ export async function getModerationQueue(): Promise<ModerationQueue> {
 // moderator's own token can reach this endpoint at all, so a caller can't decide as someone else
 // even by passing a different id here.
 async function decide(
-	kind: 'submission' | 'material' | 'edit' | 'translation',
+	kind: 'submission' | 'edit' | 'translation',
 	id: string,
 	status: ModerationStatus,
 	note?: string
@@ -91,15 +104,6 @@ export async function decideExerciseSubmission(
 	note?: string
 ): Promise<void> {
 	await decide('submission', id, status, note);
-}
-
-export async function decideMaterialSubmission(
-	id: string,
-	status: ModerationStatus,
-	_reviewerId: string,
-	note?: string
-): Promise<void> {
-	await decide('material', id, status, note);
 }
 
 export async function decideEditSuggestion(
@@ -124,7 +128,12 @@ export async function decideTranslation(
  *
  * A dedicated endpoint rather than `getModerationQueue().length`: the queue serializes every pending
  * item to produce a body a badge would throw away. Scoped server-side exactly as the queue is, so
- * the number always agrees with the page it links to. */
+ * the number always agrees with the page it links to.
+ *
+ * The sum is the backend's (`count_pending_moderation`), not a client-side addition over the
+ * sections — which is why a new section like `material_versions` needs nothing here. If this ever
+ * became a sum over keys, every new section would have to remember to join it, and the one that
+ * forgot would be invisible rather than wrong. */
 export async function getModerationPendingCount(): Promise<number> {
 	const raw = await apiClient.get<{ total?: number }>('/moderation/queue/count/');
 	return raw.total ?? 0;

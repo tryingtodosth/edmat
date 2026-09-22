@@ -10,6 +10,7 @@ import type {
 	SessionLinkRole,
 	Difficulty,
 	DonationPlatform,
+	ExerciseLinkRole,
 	FeatureFlagKey,
 	BuiltinMaterialType,
 	MaterialSort,
@@ -244,7 +245,24 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		issueStatusChanged: 'notifyOnModerationDecision',
 		// Same category as `issueStatusChanged`, on its own precedent above — this is the same kind
 		// of "somebody decided on something I filed" event, just for a DSA legal notice.
-		legalNoticeDecided: 'notifyOnModerationDecision'
+		legalNoticeDecided: 'notifyOnModerationDecision',
+		// Applying to look after content, and the answer. Both under the moderation-decision switch
+		// — the first is somebody asking a moderator to decide, the second is the decision.
+		governorApplicationSubmitted: 'notifyOnModerationDecision',
+		governorApplicationDecided: 'notifyOnModerationDecision',
+		// Co-authoring (coauthoring/). Split exactly as the backend's own `_PREFERENCE_FIELD_FOR_TYPE`
+		// splits them, because a preference that disagreed with the field the server actually reads
+		// would show a switch that does not do what its row says: the five "something happened on a
+		// project of mine" types are content actions, while the two that answer something this person
+		// submitted are decisions. No new coarse category — these seven genuinely belong to two that
+		// already exist, and a switch per feature is how a settings page becomes unreadable.
+		materialVersionProposed: 'notifyOnContentAction',
+		materialVersionDecided: 'notifyOnModerationDecision',
+		materialVersionPublished: 'notifyOnContentAction',
+		projectInviteUsed: 'notifyOnContentAction',
+		projectMemberAdded: 'notifyOnContentAction',
+		projectJoinRequested: 'notifyOnContentAction',
+		projectJoinDecided: 'notifyOnModerationDecision'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -298,7 +316,16 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	taxonomyMoved: m.notifPref_taxonomyMoved,
 	taxonomyRejected: m.notifPref_taxonomyRejected,
 	issueStatusChanged: m.notifPref_issueStatusChanged,
-	legalNoticeDecided: m.notifPref_legalNoticeDecided
+	legalNoticeDecided: m.notifPref_legalNoticeDecided,
+	governorApplicationSubmitted: m.notifPref_governorApplicationSubmitted,
+	governorApplicationDecided: m.notifPref_governorApplicationDecided,
+	materialVersionProposed: m.notifPref_materialVersionProposed,
+	materialVersionDecided: m.notifPref_materialVersionDecided,
+	materialVersionPublished: m.notifPref_materialVersionPublished,
+	projectInviteUsed: m.notifPref_projectInviteUsed,
+	projectMemberAdded: m.notifPref_projectMemberAdded,
+	projectJoinRequested: m.notifPref_projectJoinRequested,
+	projectJoinDecided: m.notifPref_projectJoinDecided
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
@@ -320,6 +347,7 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	chemistry: m.featureFlags_label_chemistry,
 	galleries: m.featureFlags_label_galleries, // "Picture galleries on content"
 	age_verification: m.featureFlags_label_ageVerification, // "Age gate on self-registration"
+	coauthoring: m.featureFlags_label_coauthoring, // "Co-authoring materials: versions, teams, proposals"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 
@@ -382,4 +410,15 @@ export const EXERCISE_SORT_LABELS: Record<ExerciseSort, () => string> = {
 	solutions: m.sort_solutions, // "Most solutions"
 	views: m.sort_views, // "Most read"
 	recent: m.sort_recent // "Newest"
+};
+
+// Exercise ↔ material link roles — a hand-maintained mirror of `EXERCISE_LINK_ROLE_CHOICES` in
+// backend/exercises/models.py, which names this file back (house rule 13: say so in BOTH files,
+// because a mirrored enum is where drift creeps in). Two values, and the difference between them is
+// the whole point of the feature: `source` means the exercise is IN that material, `practice` means
+// it is not in it at all and practises what it teaches.
+export const EXERCISE_LINK_ROLES: ExerciseLinkRole[] = ['source', 'practice'];
+export const EXERCISE_LINK_ROLE_LABELS: Record<ExerciseLinkRole, () => string> = {
+	source: m.exLink_roleSource, // "In this material"
+	practice: m.exLink_rolePractice // "Practises this material"
 };

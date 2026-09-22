@@ -456,3 +456,75 @@ class ExerciseClaimCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExerciseClaim
         fields = ['id', 'kind', 'topic', 'subtopic', 'level']
+
+
+# --- exercise ↔ material links -------------------------------------------------------------------
+#
+# Two serializers for one model, because the two pages read the row from opposite ends: the material
+# page wants the EXERCISE embedded, the exercise page wants the MATERIAL. Neither embeds both — a
+# material's own claim rows and an exercise's own translation walk are each paid for once, and
+# putting both on one shape would make every row of either list carry the other side for nothing.
+
+from materials.serializers import MaterialSerializer  # noqa: E402
+
+from .models import ExerciseMaterialLink  # noqa: E402
+
+
+def _link_display_name(user):
+    if user is None:
+        return None
+    profile = getattr(user, 'profile', None)
+    return profile.display_name if profile and profile.display_name else user.username
+
+
+class ExerciseMaterialLinkSerializer(serializers.ModelSerializer):
+    """`GET/POST /api/materials/{id}/exercises/` — one linked exercise, in the LIST shape the
+    exercise cards already render, resolved for `?lang=` like every other list on the site.
+
+    `exercise` is the shared `ExerciseListSerializer`, so the card on a material page is the same
+    card as in a branch listing; the view is responsible for handing this serializer exercises off
+    an ANNOTATED queryset (`average_rating`/`review_count` are annotations, not columns).
+    """
+
+    exercise = ExerciseListSerializer(read_only=True)
+    added_by_id = serializers.PrimaryKeyRelatedField(source='added_by', read_only=True)
+    added_by_display_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExerciseMaterialLink
+        fields = [
+            'id',
+            'role',
+            'locator',
+            'added_by_id',
+            'added_by_display_name',
+            'created_at',
+            'exercise',
+        ]
+
+    def get_added_by_display_name(self, obj):
+        # `None`, not '', when nobody is attached — the same distinction MaterialSerializer's own
+        # `submitted_by_display_name` draws between "no real person" and "a person with a blank name".
+        return _link_display_name(obj.added_by)
+
+
+class MaterialLinkForExerciseSerializer(serializers.ModelSerializer):
+    """`GET /api/exercises/{id}/materials/` — the same row read from the exercise's end, so the
+    exercise page can say "From material …". Published materials only; the view filters."""
+
+    material = MaterialSerializer(read_only=True)
+    added_by_id = serializers.PrimaryKeyRelatedField(source='added_by', read_only=True)
+
+    class Meta:
+        model = ExerciseMaterialLink
+        fields = ['id', 'role', 'locator', 'added_by_id', 'created_at', 'material']
+
+
+class ExerciseMaterialLinkWriteSerializer(serializers.ModelSerializer):
+    """What a PATCH may change: which claim the row makes, and where in the material it points.
+    Never the pair itself — re-pointing a link at a different exercise is a delete and a new link,
+    not an edit, or the `added_by` credit would follow a claim nobody made."""
+
+    class Meta:
+        model = ExerciseMaterialLink
+        fields = ['role', 'locator']

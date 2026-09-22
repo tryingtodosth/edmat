@@ -149,7 +149,50 @@
 		taxonomyRejected: () => m.notification_taxonomyRejected({ title: notification.targetLabel }),
 		issueStatusChanged: () =>
 			m.notification_issueStatusChanged({ title: notification.targetLabel }),
-		legalNoticeDecided: () => m.notification_legalNoticeDecided()
+		legalNoticeDecided: () => m.notification_legalNoticeDecided(),
+		// Somebody applied to look after content, and the answer. Both existed backend-side and had
+		// no arm here, so they arrived as "replied to your comment" — the map's `?? 'commentReply'`
+		// fallback doing exactly what it was written to do with a type nobody had told it about.
+		// `note` carries the applicant's statement (and, for a decline, the reason) and renders on
+		// its own line below, so neither sentence repeats it.
+		governorApplicationSubmitted: () =>
+			m.notification_governorApplicationSubmitted({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		governorApplicationDecided: () =>
+			m.notification_governorApplicationDecided({ title: notification.targetLabel }),
+		// Co-authoring. `note` carries the change note on a proposal and the decision's reason on a
+		// decision, so these say what happened and let the quoted line say why — the restraint every
+		// type above already follows for its own note.
+		materialVersionProposed: () =>
+			m.notification_materialVersionProposed({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		materialVersionDecided: () =>
+			m.notification_materialVersionDecided({ title: notification.targetLabel }),
+		materialVersionPublished: () =>
+			m.notification_materialVersionPublished({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		projectInviteUsed: () =>
+			m.notification_projectInviteUsed({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		projectMemberAdded: () =>
+			m.notification_projectMemberAdded({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		projectJoinRequested: () =>
+			m.notification_projectJoinRequested({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}),
+		projectJoinDecided: () => m.notification_projectJoinDecided({ title: notification.targetLabel })
 	};
 
 	// A booking has no page of its own, and deliberately so: both parties' destination is the same
@@ -163,6 +206,16 @@
 		'bookingCancelled'
 	]);
 
+	// A governor application has no page of its own either, and the two sides of it end up in two
+	// different places: the moderator who is told one arrived wants the queue, and the person told
+	// what was decided wants their own list of applications, which lives on Settings. Routed by
+	// type for the same reason a booking is — a nullable FK per side would always point at the
+	// same two URLs.
+	const APPLICATION_HREF: Partial<Record<Notification['type'], string>> = {
+		governorApplicationSubmitted: `${resolve('/moderation')}?tab=applications`,
+		governorApplicationDecided: resolve('/settings')
+	};
+
 	let message = $derived(MESSAGE_BY_TYPE[notification.type]());
 	// ✅ Phase 4 — a newTaggedContent notification can target a Material instead of an Exercise;
 	// this used to have nowhere real to link to at all (no routes/materials/[id] existed), so that
@@ -172,22 +225,32 @@
 	let href = $derived(
 		BOOKING_TYPES.has(notification.type)
 			? resolve('/bookings')
-			: // An event, unlike a booking, DOES have a page of its own — and it is the page carrying
-				// the new time or the cancellation notice, so it is where somebody clicking a
-				// notification about one wants to land.
-				notification.postId
-				? resolve('/posts/[id]', { id: notification.postId })
-				: notification.issueId
-					? resolve('/issues/[id]', { id: notification.issueId })
-					: notification.eventId
-						? resolve('/events/[id]', { id: notification.eventId })
-						: notification.exerciseId
-							? resolve('/exercises/[id]', { id: notification.exerciseId })
-							: notification.materialId
-								? resolve('/materials/[id]', { id: notification.materialId })
-								: notification.courseId
-									? resolve('/courses/[id]', { id: notification.courseId })
-									: undefined
+			: APPLICATION_HREF[notification.type]
+				? APPLICATION_HREF[notification.type]
+				: // An event, unlike a booking, DOES have a page of its own — and it is the page carrying
+					// the new time or the cancellation notice, so it is where somebody clicking a
+					// notification about one wants to land.
+					notification.postId
+					? resolve('/posts/[id]', { id: notification.postId })
+					: notification.issueId
+						? resolve('/issues/[id]', { id: notification.issueId })
+						: notification.eventId
+							? resolve('/events/[id]', { id: notification.eventId })
+							: notification.exerciseId
+								? resolve('/exercises/[id]', { id: notification.exerciseId })
+								: notification.materialId
+									? resolve('/materials/[id]', { id: notification.materialId })
+									: notification.courseId
+										? resolve('/courses/[id]', { id: notification.courseId })
+										: // Last, and only ever reached by a co-authoring notification whose project has
+											// not published anything yet: a project that HAS a material sets `materialId`
+											// too, and the material is where a reader wants to land — the project page is
+											// its history, not the thing itself.
+											notification.materialProjectId
+											? resolve('/material-projects/[id]', {
+													id: notification.materialProjectId
+												})
+											: undefined
 	);
 
 	function handleClick() {

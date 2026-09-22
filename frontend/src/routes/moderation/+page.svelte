@@ -7,14 +7,19 @@
 		FeatureFlagKey,
 		Discipline,
 		GovernableNodeKind,
-		MaterialSubmission,
 		NodeGovernorGrant,
 		ReportGroup,
 		SolutionEntry,
 		User
 	} from '$lib/types';
 	import type { TaxonomyProposal } from '$lib/services/moderation';
+	import type { MaterialVersionQueueRow } from '$lib/types/materialProject';
 	import { m } from '$lib/paraglide/messages.js';
+	// The version queue decides through the co-authoring app's OWN endpoint, not through
+	// `services/moderation.ts`'s `decide()` — there is one review path per object (the
+	// solution_entries precedent), so the queue and the version's own page cannot disagree.
+	import { decideVersion } from '$lib/services/materialProjects';
+	import { COAUTHORING_FLAG, messageForError } from '$lib/components/coauthoring/labels';
 	import { decideApplication, getApplicationQueue } from '$lib/services/governorApplications';
 	import type { GovernorApplication, GovernorNodeKind } from '$lib/types/governorApplication';
 	import {
@@ -22,7 +27,6 @@
 		getModerationQueue,
 		decideEditSuggestion,
 		decideExerciseSubmission,
-		decideMaterialSubmission,
 		decideTranslation,
 		resolveReport,
 		listNodeGovernors,
@@ -37,6 +41,7 @@
 	import { featureFlagLabel } from '$lib/utils/labels';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -47,17 +52,39 @@
 	// "governors" — the node-governor administration panel itself — only ever rendered as a real
 	// tab option for a global (is_staff) moderator; a scoped governor never sees it at all (see the
 	// tab bar's own `{#if authStore.isModerator}` guard below).
-	let tab = $state<
+	type ModerationTab =
 		| 'reports'
 		| 'submissions'
+		// Material versions waiting for a staff/governor decision — which is every new material now:
+		// `/submit-material` files a project whose first version waits here, beside proposals on a
+		// material nobody co-authors. One tab, because it is one queue with one decide endpoint; the
+		// chip on each row says which of the two questions it asks.
 		| 'materials'
 		| 'edits'
 		| 'translations'
 		| 'entries'
 		| 'governors'
 		| 'applications'
-		| 'flags'
-	>('reports');
+		| 'flags';
+	const TABS: ModerationTab[] = [
+		'reports',
+		'submissions',
+		'materials',
+		'edits',
+		'translations',
+		'entries',
+		'governors',
+		'applications',
+		'flags'
+	];
+	// `?tab=` is READ once, at mount, and never written: a notification about a governor application
+	// has to be able to open the queue it is about, and landing on Reports instead is a link that
+	// does not do what it says. Clicking a tab stays plain local state — the homepage's own
+	// URL-backed tabs exist so a tab can be linked to and shared, which is not a thing anybody does
+	// with a moderation queue. Evaluated at component init rather than in an `$effect`, so nothing
+	// can re-fire it and drag a moderator back to where they arrived (frontend/CLAUDE.md trap 2).
+	const askedTab = page.url.searchParams.get('tab') as ModerationTab | null;
+	let tab = $state<ModerationTab>(askedTab && TABS.includes(askedTab) ? askedTab : 'reports');
 	let flagTogglePending = $state<Record<string, boolean>>({});
 	let flagError = $state('');
 	let taxonomyProposals = $state<TaxonomyProposal[]>([]);
@@ -92,7 +119,12 @@
 	}
 	let reports = $state<ReportGroup[]>([]);
 	let submissions = $state<ExerciseSubmission[]>([]);
-	let materialSubmissions = $state<MaterialSubmission[]>([]);
+	let materialVersions = $state<MaterialVersionQueueRow[]>([]);
+	/** Per-row, because a refusal from the version endpoint is a SENTENCE — `already_decided` and
+	 *  `note_required` are different things that happened, and one shared error line would attach
+	 *  the wrong one to the wrong row (house rule 6). */
+	let versionErrors = $state<Record<string, string>>({});
+	let versionBusy = $state<Record<string, boolean>>({});
 	let editSuggestions = $state<EditSuggestion[]>([]);
 	let translations = $state<ExerciseTranslation[]>([]);
 	let solutionEntries = $state<SolutionEntry[]>([]);
@@ -126,14 +158,16 @@
 		reports = queue.reports;
 		taxonomyProposals = queue.taxonomyProposals;
 		submissions = queue.exerciseSubmissions;
-		materialSubmissions = queue.materialSubmissions;
+		// No extra user/branch lookups for these: the queue row carries `createdByDisplayName` and
+		// `branchName` itself, precisely because a first publication has no `Material` yet for the
+		// page to read either from.
+		materialVersions = queue.materialVersions;
 		editSuggestions = queue.editSuggestions;
 		translations = queue.translations;
 		solutionEntries = queue.solutionEntries;
 
 		const userIds = [
 			...submissions.map((s) => s.submittedByUserId),
-			...materialSubmissions.map((s) => s.submittedByUserId),
 			...editSuggestions.map((e) => e.submittedByUserId),
 			...translations.map((t) => t.translatedByUserId).filter((id): id is string => Boolean(id)),
 			...solutionEntries.map((e) => e.authorId).filter((id): id is string => Boolean(id))
@@ -143,12 +177,7 @@
 		for (const u of users) if (u) uMap[u.id] = u;
 		usersById = uMap;
 
-		const branchIds = [
-			...new Set([
-				...submissions.map((s) => s.branchId),
-				...materialSubmissions.map((s) => s.branchId)
-			])
-		];
+		const branchIds = [...new Set(submissions.map((s) => s.branchId))];
 		const branches = await Promise.all(branchIds.map((id) => getBranchById(id)));
 		const cMap: Record<string, Branch> = {};
 		for (const c of branches) if (c) cMap[c.id] = c;
@@ -214,15 +243,28 @@
 		await decideExerciseSubmission(s.id, 'rejected', authStore.user.id, notes[s.id]);
 		await load();
 	}
-	async function approveMaterial(s: MaterialSubmission) {
-		if (!authStore.user) return;
-		await decideMaterialSubmission(s.id, 'approved', authStore.user.id, notes[s.id]);
-		await load();
-	}
-	async function rejectMaterial(s: MaterialSubmission) {
-		if (!authStore.user) return;
-		await decideMaterialSubmission(s.id, 'rejected', authStore.user.id, notes[s.id]);
-		await load();
+	// A proposed version. Unlike every other handler here, this one CATCHES: the co-authoring
+	// endpoint answers a race with 409 `already_decided` (somebody on the project's own team decided
+	// it while this page was open, which is not a breakage) and a note-less rejection with 400
+	// `note_required`. Both are sentences the reviewer should read on the row, not a thrown error
+	// that takes the queue down.
+	async function decideVersionRow(v: MaterialVersionQueueRow, decision: 'accept' | 'reject') {
+		const note = (notes[`version:${v.id}`] ?? '').trim();
+		// The API refuses this too; saying so here saves the round trip and points at the field.
+		if (decision === 'reject' && !note) {
+			versionErrors = { ...versionErrors, [v.id]: m.coauth_error_note_required() };
+			return;
+		}
+		versionBusy = { ...versionBusy, [v.id]: true };
+		versionErrors = { ...versionErrors, [v.id]: '' };
+		try {
+			await decideVersion(v.id, decision, note);
+			await load();
+		} catch (e) {
+			versionErrors = { ...versionErrors, [v.id]: messageForError(e) };
+		} finally {
+			versionBusy = { ...versionBusy, [v.id]: false };
+		}
 	}
 	async function approveEdit(e: EditSuggestion) {
 		if (!authStore.user) return;
@@ -480,6 +522,11 @@
 			>
 				{m.moderation_tab_submissions({ count: submissions.length })}
 			</button>
+			<!-- Offered to a scoped governor as well as to staff: the backend scopes this section by
+			     branch for a governor (and leaves it unscoped for staff), so each of them sees their
+			     own queue. Deliberately NOT behind the `coauthoring` switch — every new material comes
+			     through here, and that ability answers to `material_submissions` alone; turning
+			     collaboration off must not strand a first publication with nobody able to decide it. -->
 			<button
 				type="button"
 				role="tab"
@@ -489,7 +536,8 @@
 				class:active={tab === 'materials'}
 				onclick={() => (tab = 'materials')}
 			>
-				{m.moderation_tab_materials({ count: materialSubmissions.length })}
+				{m.moderation_tab_materials({ count: materialVersions.length })}
+				<!-- "Materials ({count})" -->
 			</button>
 			<button
 				type="button"
@@ -592,7 +640,7 @@
 						count: submissions.length
 					})}
 				{:else if tab === 'materials'}{m.moderation_tab_materials({
-						count: materialSubmissions.length
+						count: materialVersions.length
 					})}
 				{:else if tab === 'edits'}{m.moderation_tab_edits({ count: editSuggestions.length })}
 				{:else if tab === 'translations'}{m.moderation_tab_translations({
@@ -691,19 +739,32 @@
 					</ul>
 				{/if}
 			{:else if tab === 'materials'}
-				{#if materialSubmissions.length === 0}
-					<p class="empty">{m.moderation_empty()}</p>
+				{#if materialVersions.length === 0}
+					<p class="empty">{m.moderation_materials_empty()}</p>
+					<!-- "No materials are waiting. A new material comes here before it is published, and so
+					     does a proposed change to a material nobody looks after — every other change is
+					     decided by the material's own co-authors." -->
 				{:else}
 					<ul class="queue">
-						{#each materialSubmissions as s (s.id)}
+						{#each materialVersions as v (v.id)}
 							<li class="queue-item">
 								<div class="report-header">
-									<span class="report-kind">{materialTypesStore.nameFor(s.type)}</span>
-									{#if s.scanStatus === 'skipped'}
+									<span class="report-kind">{materialTypesStore.nameFor(v.type)}</span>
+									<!-- Which of the two questions this row is asking. They are genuinely
+									     different decisions: one creates a material, the other changes one that
+									     already exists and has nobody watching it. -->
+									{#if v.isFirstPublication}
+										<span class="version-badge">{m.moderation_versions_firstPublication()}</span>
+										<!-- "First publication" -->
+									{:else}
+										<span class="version-badge">{m.moderation_versions_orphanProposal()}</span>
+										<!-- "Proposal on an orphan material" -->
+									{/if}
+									{#if v.scanStatus === 'skipped'}
 										<span class="scan-badge scan-badge--skipped"
 											>{m.moderation_material_scanSkipped()}</span
 										>
-									{:else if s.scanStatus === 'clean'}
+									{:else if v.scanStatus === 'clean'}
 										<span class="scan-badge scan-badge--clean"
 											>{m.moderation_material_scanClean()}</span
 										>
@@ -713,75 +774,123 @@
 										>
 									{/if}
 								</div>
-								<h3>{s.title}</h3>
+								<h3>{v.title}</h3>
 								<p class="meta">
-									{m.moderation_submittedBy({
-										name: usersById[s.submittedByUserId]?.displayName ?? '—'
-									})}
-									{m.moderation_forBranch({ branch: coursesById[s.branchId]?.name ?? s.branchId })}
+									{m.moderation_versions_number({ number: v.number })}
+									<!-- "Version {number}" -->
+									{m.moderation_submittedBy({ name: v.createdByDisplayName || '—' })}
+									{m.moderation_forBranch({ branch: v.branchName || v.branchId })}
 								</p>
-								<p class="excerpt">{s.description.slice(0, 200)}</p>
-								<!-- Provenance, surfaced to the reviewing moderator rather than only stored.
-								     CLAUDE.md Section 18 item 2 is a still-open question about the copyright
-								     status of transcribed branch material — that is a judgment the person
-								     clicking Approve is actually making, so where the file came from belongs
-								     in front of them at that moment, not just in the database. -->
-								{#if s.author || s.sourceUrl}
+								<!-- A file version has a description; a body version has the prose itself, which
+								     the backend already flattened to 200 characters with its tags stripped. -->
+								<p class="excerpt">
+									{v.kind === 'body' ? v.bodyExcerpt : v.description.slice(0, 200)}
+								</p>
+								<!-- Provenance, surfaced to the reviewer rather than only stored: whether a
+								     transcribed handout may be republished (LEGAL.md's corpus copyright question)
+								     is a judgment the person clicking Accept is making at that moment, and where
+								     the file came from belongs in front of them then, not just in the database. -->
+								{#if v.author || v.sourceUrl}
 									<p class="meta submission-provenance">
-										{#if s.author}
-											<span>{m.material_by({ author: s.author })}</span>
+										{#if v.author}
+											<span>{m.material_by({ author: v.author })}</span>
 										{/if}
-										{#if s.sourceUrl}
+										{#if v.sourceUrl}
 											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a user-declared external URL, not an app route resolve() can express -->
-											<a href={s.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">
+											<a href={v.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">
 												{m.material_source()}
 											</a>
 										{/if}
 									</p>
 								{/if}
-								{#if s.requirements.length > 0 || s.priceAmount !== undefined || s.estimatedMinutes !== undefined}
+								{#if v.requirements.length > 0 || v.priceAmount !== undefined || v.estimatedMinutes !== undefined}
 									<div class="submission-declared">
-										{#if s.requirements.length > 0}
+										{#if v.requirements.length > 0}
 											<span class="declared-label">{m.moderation_material_requirementsLabel()}</span
 											>
-											{#each s.requirements as requirement (requirement)}
+											{#each v.requirements as requirement (requirement)}
 												<span class="requirement-chip">{requirement}</span>
 											{/each}
 										{/if}
-										{#if s.priceAmount !== undefined}
+										{#if v.priceAmount !== undefined}
 											<span class="meta-pill price"
 												>{m.material_price({
-													amount: s.priceAmount.toFixed(2),
-													currency: s.priceCurrency
+													amount: v.priceAmount.toFixed(2),
+													currency: v.priceCurrency
 												})}</span
 											>
 										{/if}
-										{#if s.estimatedMinutes !== undefined}
+										{#if v.estimatedMinutes !== undefined}
 											<span class="meta-pill time"
-												>{m.material_estimatedMinutes({ minutes: s.estimatedMinutes })}</span
+												>{m.material_estimatedMinutes({ minutes: v.estimatedMinutes })}</span
 											>
 										{/if}
 									</div>
 								{/if}
-								<!-- eslint-disable svelte/no-navigation-without-resolve -- an external file URL (the Django media server), not an app route resolve() can express -->
-								<a
-									class="context-link"
-									href={s.fileUrl}
-									target="_blank"
-									rel="noopener noreferrer"
-									download
-								>
-									{m.moderation_material_viewFile({ name: s.fileName })}
-								</a>
-								<!-- eslint-enable svelte/no-navigation-without-resolve -->
-								<textarea rows="1" placeholder={m.moderation_reviewNote()} bind:value={notes[s.id]}
-								></textarea>
-								<div class="actions">
-									<button type="button" class="approve" onclick={() => approveMaterial(s)}
-										>{m.moderation_approve()}</button
+								<!-- eslint-disable svelte/no-navigation-without-resolve -- external URLs (our own media server, or a user-submitted link), neither of which resolve() can express -->
+								{#if v.kind === 'file' && v.fileUrl}
+									<a
+										class="context-link"
+										href={v.fileUrl}
+										target="_blank"
+										rel="noopener noreferrer"
+										download
 									>
-									<button type="button" class="reject" onclick={() => rejectMaterial(s)}
-										>{m.moderation_reject()}</button
+										{m.moderation_material_viewFile({ name: v.fileName })}
+									</a>
+								{:else if v.kind === 'link' && v.url}
+									<a
+										class="context-link"
+										href={v.url}
+										target="_blank"
+										rel="noopener noreferrer nofollow"
+									>
+										{m.coauth_version_openLink()}
+										<!-- "Open the link" -->
+									</a>
+								{/if}
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+								<!-- The excerpt above is a row's worth; the version's own page is where the whole
+								     thing, its change note and its review thread are. Only while that page is
+								     reachable: it sits behind the `coauthoring` switch (staff bypass it, as
+								     FeatureGate does), and a link that lands a governor on "this feature is
+								     unavailable" is a link that lies about where it goes. The row itself stays
+								     decidable either way. -->
+								{#if featureFlagsStore.isEnabled(COAUTHORING_FLAG) || authStore.isModerator}
+									<a
+										class="context-link"
+										href={resolve('/material-projects/[id]/versions/[number]', {
+											id: v.projectId,
+											number: String(v.number)
+										})}
+									>
+										{m.moderation_versions_openVersion()}
+										<!-- "Open the version" -->
+									</a>
+								{/if}
+								<textarea
+									rows="1"
+									placeholder={m.moderation_reviewNote()}
+									bind:value={notes[`version:${v.id}`]}></textarea>
+								{#if versionErrors[v.id]}
+									<p class="version-error" role="alert">{versionErrors[v.id]}</p>
+								{/if}
+								<div class="actions">
+									<button
+										type="button"
+										class="approve"
+										disabled={versionBusy[v.id]}
+										onclick={() => decideVersionRow(v, 'accept')}>{m.moderation_approve()}</button
+									>
+									<!-- Disabled until a note exists, the entries tab's own precedent: the server
+									     refuses a note-less rejection, and a button that round-trips to be told so
+									     is a button that lies about what it does. -->
+									<button
+										type="button"
+										class="reject"
+										disabled={versionBusy[v.id] || !notes[`version:${v.id}`]?.trim()}
+										title={m.coauth_error_note_required()}
+										onclick={() => decideVersionRow(v, 'reject')}>{m.moderation_reject()}</button
 									>
 								</div>
 							</li>
@@ -1181,6 +1290,17 @@
 	}
 	.scan-badge--flagged {
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+	}
+	// Which question a version row is asking. Informational rather than a warning hue: neither
+	// "first publication" nor "nobody looks after this" is a problem, they are two different jobs.
+	.version-badge {
+		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		font-size: var(--font-size-xs);
+	}
+	// Per row, not per page: `already_decided` on one version says nothing about the next one.
+	.version-error {
+		color: var(--status-danger);
+		font-size: var(--font-size-sm);
 	}
 	.context-link {
 		align-self: flex-start;

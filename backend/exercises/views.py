@@ -28,9 +28,11 @@ from .entries import (
     sort_entries,
     visible_entries,
 )
+from .links import can_manage_link, manageable_links
 from .models import (
     ExerciseTranslation,
     Exercise,
+    ExerciseMaterialLink,
     ExerciseRequirement,
     ExerciseRequirementVote,
     SolutionEntry,
@@ -41,8 +43,11 @@ from .models import (
 from .serializers import (
     ExerciseDetailSerializer,
     ExerciseListSerializer,
+    ExerciseMaterialLinkSerializer,
+    ExerciseMaterialLinkWriteSerializer,
     ExerciseRequirementSerializer,
     ExerciseTranslationSerializer,
+    MaterialLinkForExerciseSerializer,
     SolutionEntryCreateSerializer,
     SolutionEntrySerializer,
     TagFollowSerializer,
@@ -164,7 +169,12 @@ def _annotated_exercises(published=True):
     # a conditional aggregate (filter= on Avg/Count) is what actually excludes just the hidden rows
     # from the calculation while keeping every exercise.
     visible_reviews = Q(reviews__is_removed=False, reviews__auto_hidden_at__isnull=True)
-    return Exercise.objects.filter(published=published).annotate(
+    # `published=None` means "don't filter on it at all" — the one caller is the material page's
+    # own exercise list, which shows a staff reader the unpublished rows too rather than making a
+    # linked-but-hidden exercise look like a link that vanished. Every other caller passes a real
+    # boolean and is unchanged.
+    base = Exercise.objects.all() if published is None else Exercise.objects.filter(published=published)
+    return base.annotate(
         average_rating=Avg('reviews__rating', filter=visible_reviews),
         review_count=Count('reviews', filter=visible_reviews, distinct=True),
     )
@@ -192,6 +202,71 @@ def _browse_exercises(published=True):
         .select_related('branch', 'source')
         .prefetch_related('translations', 'topics', 'tags', 'source__translations')
     )
+
+
+def _with_listed_exercises(links, *, include_unpublished=False):
+    """Give each `ExerciseMaterialLink` row the exercise its serializer actually needs.
+
+    `ExerciseListSerializer` reads two ANNOTATIONS (`average_rating`/`review_count`) plus the
+    branch, the source, the translations, the topics and the tags — so a plain
+    `select_related('exercise')` produces an object that raises on the first annotated field and
+    then costs four queries a row for the rest. Resolving the whole set through `_browse_exercises`
+    once and assigning the result onto the link (a forward FK assignment, which just warms the
+    relation cache) keeps the endpoint at a fixed handful of queries however many links there are.
+
+    Doubles as the visibility filter: an exercise missing from the resolved set is one this caller
+    may not see, so its link drops out of the list rather than appearing with an empty card.
+    """
+    ids = [link.exercise_id for link in links]
+    if not ids:
+        return list(links)
+    by_id = {
+        exercise.pk: exercise
+        for exercise in _browse_exercises(published=None if include_unpublished else True).filter(
+            pk__in=ids
+        )
+    }
+    rows = []
+    for link in links:
+        exercise = by_id.get(link.exercise_id)
+        if exercise is None:
+            continue
+        link.exercise = exercise
+        rows.append(link)
+    return rows
+
+
+def _with_listed_materials(links):
+    """The mirror of `_with_listed_exercises` for the exercise page's "From material …" list —
+    `MaterialSerializer` walks coverage claims, their two vote sets, tags and requirements, which
+    is one query per row per relation without this. Published materials only; a link to an
+    unpublished one drops out."""
+    ids = [link.material_id for link in links]
+    if not ids:
+        return list(links)
+    from materials.models import Material
+
+    by_id = {
+        material.pk: material
+        for material in Material.objects.filter(pk__in=ids, published=True)
+        .select_related('submitted_by__profile')
+        .prefetch_related(
+            'translations',
+            'coverage__votes__voter__profile',
+            'coverage__importance_votes__voter__profile',
+            'coverage__topic',
+            'tags',
+            'requirements__votes__voter__profile',
+        )
+    }
+    rows = []
+    for link in links:
+        material = by_id.get(link.material_id)
+        if material is None:
+            continue
+        link.material = material
+        rows.append(link)
+    return rows
 
 
 EXERCISE_SORT_KEYS = ('number', 'title', 'difficulty', 'rating', 'reviews', 'solutions', 'views', 'recent', 'top')
@@ -258,6 +333,14 @@ def _filter_exercises(qs, params):
     tag = params.get('tag')
     if tag:
         qs = qs.filter(tags__slug=tag)
+    # Every exercise linked to one material (`ExerciseMaterialLink`) — what "browse the exercises
+    # from this script" asks for from the exercise side, so the material page's own list and a
+    # plain `/api/exercises/?material=` answer the same question through the same filter chain
+    # rather than two code paths. A non-numeric value filters to nothing instead of 500ing, the
+    # same posture `?submitted_by=` already takes for a junk id.
+    material = params.get('material')
+    if material:
+        qs = qs.filter(material_links__material_id=material) if str(material).isdigit() else qs.none()
     # A user's own published exercise submissions — "what they were doing/contributing," a public
     # profile page's own new section (CLAUDE.md's tutoring-listings feature note, item 6). Already
     # scoped to `published=True` by `_annotated_exercises()` itself, so this never leaks a still-
@@ -470,6 +553,29 @@ class ExerciseViewSet(viewsets.ModelViewSet):
         return Response(
             ExerciseClaimSerializer(claim, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['get'])
+    def materials(self, request, pk=None):
+        """GET /api/exercises/{id}/materials/ — "From material …": every published material this
+        exercise is linked to, with which claim the link makes (`role`) and where in it
+        (`locator`). Read-only here on purpose: a link is created from the MATERIAL's end
+        (`POST /api/materials/{id}/exercises/`) or by an exercise submission that named one, so
+        there is exactly one create path to keep correct.
+
+        Published materials only, for everybody including staff — unlike the material page's own
+        list, which shows a staff reader unpublished exercises. The asymmetry is deliberate: an
+        unpublished exercise is a row a moderator is actively deciding about, while an unpublished
+        material has no queue behind it and no page to link to.
+        """
+        exercise = self.get_object()
+        links = list(
+            exercise.material_links.filter(material__published=True).select_related('material')
+        )
+        return Response(
+            MaterialLinkForExerciseSerializer(
+                _with_listed_materials(links), many=True, context={'request': request}
+            ).data
         )
 
     @action(detail=True, methods=['get', 'post'])
@@ -916,4 +1022,63 @@ class SolutionEntryViewSet(viewsets.GenericViewSet):
         if not (request.user.is_staff or (entry.author_id and entry.author_id == request.user.pk)):
             return Response(status=status.HTTP_403_FORBIDDEN)
         entry.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# --- exercise ↔ material links: per-link actions -------------------------------------------------
+
+
+class ExerciseMaterialLinkViewSet(viewsets.GenericViewSet):
+    """`PATCH|DELETE /api/exercise-material-links/{id}/` — correcting or withdrawing ONE link.
+
+    No list or retrieve of its own: a link is always reached through the material it is on
+    (`GET /api/materials/{id}/exercises/`) or the exercise it is on
+    (`GET /api/exercises/{id}/materials/`), the same shape `ExerciseRequirementViewSet` and
+    `SolutionEntryViewSet` already have.
+
+    Who may do either is `links.can_manage_link` — creator, staff, a governor of the material, or
+    the material's submitter. Both halves of house rule 4 are here on purpose: `get_queryset`
+    scopes the row away so a stranger's PATCH is a **404** (they have no business learning the id
+    exists), and the object-level check runs again before the mutation, because a filter is not a
+    permission and the two are allowed to be read separately by whoever changes one next.
+    """
+
+    serializer_class = ExerciseMaterialLinkWriteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return manageable_links(
+            ExerciseMaterialLink.objects.select_related('material__branch', 'exercise'),
+            self.request.user,
+        )
+
+    def partial_update(self, request, pk=None):
+        """Change which claim the link makes (`role`) or where in the material it points
+        (`locator`). Never the pair — see the write serializer."""
+        link = self.get_object()
+        if not can_manage_link(request.user, link):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = ExerciseMaterialLinkWriteSerializer(link, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        link = serializer.save()
+        rows = _with_listed_exercises([link], include_unpublished=request.user.is_staff)
+        if not rows:
+            # The link survives; only its card cannot be drawn for this caller (an unpublished
+            # exercise seen by a non-staff manager of the material). Say so honestly with 204
+            # rather than inventing an empty exercise object.
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            ExerciseMaterialLinkSerializer(rows[0], context={'request': request}).data
+        )
+
+    def destroy(self, request, pk=None):
+        """A real delete, not a tombstone. House rule 12 asks for one wherever a thread or a link
+        would break, and nothing hangs off this row: it carries no comments, no votes, no reports
+        and no foreign keys of its own, and both the exercise and the material outlive it
+        untouched. Keeping a "removed" link would only mean every reader of either end having to
+        filter it out forever."""
+        link = self.get_object()
+        if not can_manage_link(request.user, link):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        link.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

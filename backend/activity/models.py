@@ -33,6 +33,13 @@ from .postimage import validate_activity_post_image
 ACTIVITY_KIND_CHOICES = [
     ('exercise', 'New exercise'),
     ('material', 'New material'),
+    # A material a team improved (coauthoring/, COAUTHORING-BRIEF.md §4). Distinct from 'material',
+    # which announces one arriving for the first time — this says an existing one just got better,
+    # which is a different thing for a reader who has already seen it. The row links through the
+    # `material` FK (the version has no page a stranger can open on its own; the material is where
+    # they should land) and carries the MaterialVersion as its generic `source`, so reclaiming or
+    # deleting that one version takes exactly its own row out of the feed.
+    ('material_version', 'New material version'),
     ('solution_entry', 'New solution/hint'),
     ('translation', 'New translation'),
     ('course', 'New course'),

@@ -39,6 +39,11 @@ TARGET_TYPE_BY_MODEL = {
     ('issues', 'issue'): 'issue',
     ('activity', 'post'): 'post',
     ('events', 'session'): 'eventSession',
+    # The review thread on one proposed/published version of a material (coauthoring/). Named
+    # `materialVersion` and not `version`, for the same reason `taughtCourse` is not `course`: the
+    # frontend's union is a flat namespace across the whole platform, and a bare "version" would
+    # be the first name in it that does not say what it is a version OF.
+    ('coauthoring', 'materialversion'): 'materialVersion',
 }
 
 # The targets whose own threads are NOT public: a course's discussion, and a week's or a session's
@@ -46,11 +51,26 @@ TARGET_TYPE_BY_MODEL = {
 # `participants` precisely because the roster is private). Everything else in the map above hangs off
 # a page anybody can open.
 #
+# `materialVersion` is here for the same reason and a slightly different one: a version's thread is
+# a REVIEW thread, and most versions are not public at all. A draft is visible to the project's
+# team, a proposal to its author and the people who may decide it, a rejected one to the same
+# circle — only `published`/`superseded` rows are readable by anybody (`coauthoring.access
+# .can_view_version`). A set that said "public" for the two visible statuses and "private" for the
+# four others would be a per-ROW answer, and this is a per-TYPE table; the honest per-type answer
+# for a thread that is usually private is private, which costs a published version's thread the
+# ability to be linked into a course and costs nothing else.
+#
 # Kept here rather than in `courses/` because it is a fact about comment targets, and the code that
 # needs it is the code that has just resolved one — see `CourseItemWriteSerializer`, which refuses to
 # link somebody else's private thread into a course for the same reason it refuses another course's
 # attachment.
-PRIVATE_TARGET_TYPES = {'taughtCourse', 'courseLesson', 'courseChapter', 'eventSession'}
+PRIVATE_TARGET_TYPES = {
+    'taughtCourse',
+    'courseLesson',
+    'courseChapter',
+    'eventSession',
+    'materialVersion',
+}
 
 
 def target_type_for(comment) -> str:

@@ -44,16 +44,27 @@ used by BOTH write paths (governor PUT and submission-time validate).
 
 Sniff real content via libmagic against a per-extension whitelist — never filename/browser
 Content-Type (`.docx` legitimately sniffs as zip, `.doc` as OLE2; a PE renamed `.pdf` is
-rejected). 25MB cap. Stored name = random UUID hex + validated extension. `scan_for_malware`
+rejected). 25MB cap. Stored name = random UUID hex + validated extension. The validator is still
+called `validate_material_submission_file` — a fossil of the retired submission model, kept because
+two migrations import it by dotted path; it validates any material file, wherever it came from.
+`scan_for_malware`
 returns a `ScanOutcome` dataclass, never a bare bool — `scanned=False` is the honest dev outcome
 (no ClamAV daemon here); `MATERIAL_SCAN_REQUIRED=True` makes "couldn't scan" a hard reject on a
 real deployment. Scan status is surfaced to the reviewing moderator, not hidden.
 
 ## Notes
 
-- `MaterialViewSet` is read-only for ordinary CRUD — creation happens ONLY via
-  `moderation.MaterialSubmission` approval (or the corpus importer). Tags attach only via the
-  tag-apply endpoint, requirements via the governor PUT.
+- `MaterialViewSet` is read-only for ordinary CRUD — creation happens ONLY through
+  `materials/publish.py`'s `create_material`, whose one runtime caller is
+  `coauthoring.services.materialise` (a project's first published version), plus the corpus
+  importer. `moderation.MaterialSubmission` was the other caller and was retired on 2026-09-22
+  (`coauthoring/0003_fold_material_submissions`); `POST /api/material-projects/` is the submit form
+  now. Tags attach only via the tag-apply endpoint, requirements via the governor PUT.
+- **The `Material` row is the published PROJECTION of a `coauthoring.MaterialVersion`** — every
+  field a reader sees is written by `coauthoring.services.sync_material` on publication, and
+  `Material.body` (a written material) joined `file`/`url` for it. Nothing here needs to know that,
+  which is the point; see coauthoring/CLAUDE.md before writing a material's payload from anywhere
+  else.
 - Coverage-claim comments: validate a submitted `parent` belongs to the SAME coverage row's
   thread (checked in the view — content_type/object_id aren't client data at serializer time).
   The identical check exists in `ExerciseViewSet.comments`; keep them in step.
@@ -62,6 +73,7 @@ real deployment. Scan status is surfaced to the reviewing moderator, not hidden.
 
 ## Verify
 
-`manage.py test materials` (+ submission/approval paths in `moderation`). E2E:
-`material-claims.mjs`, `material-claims-rework.mjs` (kind split, importance vote, comment votes),
-`material-types.mjs`.
+`manage.py test materials` (its `test_validators.py` holds the sniff/size/scan tests, moved here
+from `moderation` with the submission model) + `manage.py test coauthoring.test_submit_path` for the
+upload→publish path itself. E2E: `material-claims.mjs`, `material-claims-rework.mjs` (kind split,
+importance vote, comment votes), `material-types.mjs`.

@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from config.i18n_utils import request_locale, resolve_translation
+from exercises.links import submission_material_id
 from exercises.models import SolutionEntry
 from materials.services import clean_requirement_labels, find_duplicate_requirement_label
 from taxonomy.models import Branch
@@ -14,7 +15,6 @@ from .models import (
     ExerciseSubmission,
     FeatureFlag,
     GovernorApplication,
-    MaterialSubmission,
     NodeGovernor,
     Report,
 )
@@ -29,6 +29,12 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
     # own branch_slug) already uses the slug as the id it round-trips, so submitting/reading a
     # submission's own `course` this way needs no separate slug<->PK lookup on the frontend side.
     branch = serializers.SlugRelatedField(slug_field='slug', queryset=Branch.objects.all())
+    # "for material X" — lifted out of `payload` onto the row itself so the queue can SAY which
+    # material a submission was written for without every reader of the queue having to know the
+    # payload's key names. Read-only derivations, not stored columns: the draft stays the one
+    # place the answer lives (`ExerciseMaterialLink` is created from it on approval).
+    material_id = serializers.SerializerMethodField()
+    material_title = serializers.SerializerMethodField()
 
     class Meta:
         model = ExerciseSubmission
@@ -37,6 +43,8 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
             'branch',
             'submitted_by',
             'payload',
+            'material_id',
+            'material_title',
             'status',
             'reviewed_by',
             'review_note',
@@ -45,14 +53,41 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['submitted_by', 'status', 'reviewed_by', 'review_note', 'resulting_exercise']
 
+    def get_material_id(self, obj):
+        return submission_material_id(obj.payload)
+
+    def get_material_title(self, obj):
+        """The material's own title, resolved for the reader's locale.
+
+        Reads a `{id: title}` map out of the serializer context when the caller supplied one —
+        which is how `build_moderation_queue_payload` keeps this at ONE extra query for the whole
+        queue instead of one per submission, the same discipline `ReplyCountMixin` already applies
+        to reply counts. Falls back to a single lookup when nothing prepared a map (the submission
+        ViewSet's own list/retrieve, where there is one row), so a caller that has not been taught
+        about the map still gets the truth rather than a blank.
+        """
+        material_id = submission_material_id(obj.payload)
+        if material_id is None:
+            return None
+        titles = self.context.get('material_titles')
+        if titles is not None:
+            return titles.get(material_id)
+        from materials.models import Material
+
+        material = Material.objects.filter(pk=material_id).prefetch_related('translations').first()
+        if material is None:
+            return None
+        translation = resolve_translation(material.translations, request_locale(self.context))
+        return translation.title if translation else material.slug
+
     def validate_payload(self, value):
         """`payload` stays a flat, unvalidated JSON blob for every OTHER key (Section 9's own
         "draft of everything Exercise + ExerciseTranslation would need"), but `requirements` — a
         new list[str] of skill-tag labels, applied into real `ExerciseRequirement` rows on approval
         (`_apply_submission`, moderation/views.py) — gets the exact same real validation
-        `MaterialSubmissionSerializer.validate_requirements` already applies to the identical
-        concept for a Material: reject (don't silently dedupe) a case-insensitive-after-trim
-        duplicate within the submitted list itself, sharing `find_duplicate_requirement_label`
+        `coauthoring.serializers._CatalogueValidationMixin.validate_requirements` applies to the
+        identical concept for a material: reject (don't silently dedupe) a case-insensitive-after-
+        trim duplicate within the submitted list itself, sharing `find_duplicate_requirement_label`
         rather than a second, independently-drifting copy of that check."""
         if 'requirements' in value:
             labels = value.get('requirements')
@@ -68,6 +103,32 @@ class ExerciseSubmissionSerializer(serializers.ModelSerializer):
                     [f'requirements: "{duplicate}" appears more than once in this list.']
                 )
             value['requirements'] = cleaned
+        # `material_id` / `material_role` / `material_locator` — the "add an exercise to THIS
+        # material" flow's own half of the draft (exercises/links.py owns the key names). Validated
+        # here rather than only at apply time for the reason the requirement check above already
+        # gives: a draft that names a material nobody can link to is a submission that will quietly
+        # lose half of what it was for, weeks later, in front of a moderator who cannot tell why.
+        if any(key in value for key in ('material_id', 'materialId')):
+            from exercises.models import EXERCISE_LINK_ROLE_CHOICES
+            from materials.models import Material
+
+            material_id = submission_material_id(value)
+            if material_id is None or not Material.objects.filter(
+                pk=material_id, published=True
+            ).exists():
+                raise serializers.ValidationError(
+                    ['material_id: no published material with that id.']
+                )
+            role = value.get('material_role', value.get('materialRole'))
+            if role is not None and role not in dict(EXERCISE_LINK_ROLE_CHOICES):
+                raise serializers.ValidationError(
+                    ["material_role: must be 'source' or 'practice'."]
+                )
+            locator = value.get('material_locator', value.get('materialLocator'))
+            if locator is not None and len(str(locator)) > 120:
+                raise serializers.ValidationError(
+                    ['material_locator: keep this under 120 characters.']
+                )
         return value
 
 
@@ -147,187 +208,6 @@ class EditSuggestionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'locale': [f'No existing translation for locale "{locale}" on this exercise.']}
             )
-        return attrs
-
-
-class MaterialSubmissionSerializer(serializers.ModelSerializer):
-    """POST /api/material-submissions/ (multipart — `file` is a real upload, not JSON) — the
-    file-centric counterpart to ExerciseSubmissionSerializer above. `course` follows the exact same
-    by-slug convention that one already established. `scan_status`/`scan_detail` are read-only here
-    too — MaterialSubmissionViewSet.perform_create (views.py) is what actually runs
-    materials.validators.scan_for_malware and sets them, never trusted from the client.
-
-    `requirements`/`price_amount`/`price_currency`/`estimated_minutes` are all genuinely optional —
-    a submission that never sets any of them behaves exactly as before this feature existed.
-    `requirements` is declared explicitly (not left to ModelSerializer's own JSONField default)
-    because this endpoint is multipart, not JSON: a plain `serializers.JSONField(binary=False)`
-    round-trips a real Python list fine when the request body actually IS JSON (this project's own
-    test suite posts this way), but a multipart form field always arrives as a bare STRING — so
-    `validate_requirements` below accepts either shape, parsing a JSON-encoded string itself rather
-    than silently storing the raw string as a single-element requirement.
-    """
-
-    branch = serializers.SlugRelatedField(slug_field='slug', queryset=Branch.objects.all())
-    requirements = serializers.JSONField(required=False, default=list)
-    coverage = serializers.JSONField(required=False, default=list)
-
-    def validate_file(self, upload):
-        """An image is never stored as the bytes the uploader sent — see `materials/materialfile.py`
-        for why, and `accounts/avatar.py` for the long form. A PDF or a `.docx` is stored untouched.
-
-        Here, at SUBMISSION time, rather than when a moderator approves it: the file is written to
-        disk the moment this serializer saves, and `_apply_material_submission` then points the real
-        `Material` at that same stored file rather than re-saving it. Stripping on approval would
-        mean the GPS-bearing original sat on disk — and in front of the reviewing moderator — for
-        however long the queue took, and would leave it there entirely if the submission were
-        rejected.
-        """
-        from materials.materialfile import process_material_file
-
-        return process_material_file(upload)
-
-    def validate_type(self, value):
-        """`MaterialSubmission.type` has always been a bare CharField with a comment naming the
-        enum it was supposed to hold, so a malformed value only surfaced later as a 500 when
-        approval tried to build a real Material from it. Now that the vocabulary is a table, it can
-        be checked at submission time — where the person who can fix it is still looking."""
-        from materials.validators import validate_material_type
-
-        return validate_material_type(value)
-
-    class Meta:
-        model = MaterialSubmission
-        fields = [
-            'id',
-            'branch',
-            'submitted_by',
-            'type',
-            'title',
-            'description',
-            'locale',
-            'audience',
-            'file',
-            'url',
-            'author',
-            'source_url',
-            'requirements',
-            'coverage',
-            'price_amount',
-            'price_currency',
-            'estimated_minutes',
-            'scan_status',
-            'scan_detail',
-            # Surfaced rather than kept internal: the reject response is delivered straight back to
-            # the moderator who just decided, and a `file` that has quietly become null with nothing
-            # to explain it reads as a bug. These two say what actually happened — see
-            # `_reclaim_rejected_material_file` (moderation/views.py).
-            'file_reclaimed_at',
-            'reclaimed_file_bytes',
-            'status',
-            'reviewed_by',
-            'review_note',
-            'resulting_material',
-            'created_at',
-        ]
-        read_only_fields = [
-            'submitted_by',
-            'scan_status',
-            'scan_detail',
-            'file_reclaimed_at',
-            'reclaimed_file_bytes',
-            'status',
-            'reviewed_by',
-            'review_note',
-            'resulting_material',
-        ]
-
-    def validate_requirements(self, value):
-        if isinstance(value, str):
-            import json
-
-            try:
-                value = json.loads(value) if value.strip() else []
-            except ValueError:
-                raise serializers.ValidationError('Must be a JSON array of strings.')
-        if not isinstance(value, list):
-            raise serializers.ValidationError('Must be a JSON array of strings.')
-        cleaned = clean_requirement_labels(value)
-        # Same case-insensitive (after trim) duplicate check the governor-only bulk-replace endpoint
-        # (materials/views.py's `requirements` action) already enforces on an already-published
-        # Material — shared via materials/services.py's `find_duplicate_requirement_label` so a
-        # brand-new submission can't sneak in duplicates any more than an edit to an existing
-        # Material's own requirement list can.
-        duplicate = find_duplicate_requirement_label(cleaned)
-        if duplicate is not None:
-            raise serializers.ValidationError(f'"{duplicate}" appears more than once in this list.')
-        return cleaned
-
-    def validate_coverage(self, value):
-        """Same string-or-list acceptance `validate_requirements` above already establishes (this
-        endpoint is multipart, not JSON) — each entry is `{"topic_id": int, "level": int}` (1-100).
-        Which COURSE a `topic_id` must belong to isn't known yet at this point (`course` is a
-        sibling field, validated independently) — that cross-field check happens in `validate()`
-        below, the same split DRF itself expects for anything needing more than one field's value."""
-        if isinstance(value, str):
-            import json
-
-            try:
-                value = json.loads(value) if value.strip() else []
-            except ValueError:
-                raise serializers.ValidationError('Must be a JSON array of {topic_id, level} objects.')
-        if not isinstance(value, list):
-            raise serializers.ValidationError('Must be a JSON array of {topic_id, level} objects.')
-
-        cleaned = []
-        seen = set()
-        for entry in value:
-            if not isinstance(entry, dict):
-                raise serializers.ValidationError('Each coverage entry must be an object.')
-            try:
-                topic_id = int(entry.get('topic_id'))
-                level = int(entry.get('level'))
-            except (TypeError, ValueError):
-                raise serializers.ValidationError('Each coverage entry needs a real topic_id and level.')
-            if not (1 <= level <= 100):
-                raise serializers.ValidationError('level must be between 1 and 100.')
-            # `kind` is optional and defaults to a "covers" claim; a "requires" claim on the same
-            # topic is a different statement, so the two may coexist.
-            kind = entry.get('kind') or 'covers'
-            if kind not in ('covers', 'requires'):
-                raise serializers.ValidationError("kind must be 'covers' or 'requires'.")
-            if (topic_id, kind) in seen:
-                raise serializers.ValidationError('The same topic was listed more than once.')
-            seen.add((topic_id, kind))
-            cleaned.append({'topic_id': topic_id, 'level': level, 'kind': kind})
-        return cleaned
-
-    def validate(self, attrs):
-        """Everything that needs more than one field to decide.
-
-        Two checks in one method deliberately, and worth saying why: this class briefly had a second
-        `def validate` added below the first, and Python simply kept the later one — no error, no
-        warning, the earlier check just never ran. A serializer gets one.
-        """
-        # A material is a file or a link. Here as well as on the model, because this is the path a
-        # person actually uses, and a 400 naming the field is more use to them than a 500 out of
-        # `full_clean`. Read through to the instance so a PATCH that touches neither — editing a
-        # link-only submission's title — cannot fail for want of a file it never had.
-        has_file = attrs.get('file', getattr(self.instance, 'file', None))
-        has_url = attrs.get('url', getattr(self.instance, 'url', ''))
-        if not has_file and not has_url:
-            raise serializers.ValidationError(
-                {'file': 'Upload a file, or give a link to where the material lives.'}
-            )
-
-        coverage = attrs.get('coverage')
-        branch = attrs.get('branch')
-        if coverage and branch is not None:
-            valid_topic_ids = set(branch.topics.values_list('id', flat=True))
-            for entry in coverage:
-                if entry['topic_id'] not in valid_topic_ids:
-                    raise serializers.ValidationError(
-                        {'coverage': [f'Topic {entry["topic_id"]} is not one of this branch\'s own topics.']}
-                    )
         return attrs
 
 

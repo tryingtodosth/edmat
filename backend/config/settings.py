@@ -157,6 +157,11 @@ INSTALLED_APPS = [
     # Deliberately its own app rather than a variant of courses or booking; see events/models.py
     # for why neither of those is the same shape.
     'events',
+    # Co-authoring a material: a project with a team and a history of immutable versions, of which
+    # the `Material` row is the published projection. Its own app rather than more of `materials`
+    # because it owns a team, an invite link and a review workflow — none of which a material had —
+    # while `materials` keeps being the thing every existing read site already reads.
+    'coauthoring',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
@@ -605,8 +610,12 @@ REST_FRAMEWORK = {
         # changing their profile picture needs, and low enough that the decode cost can't be used as
         # a CPU-exhaustion lever by a logged-in account.
         'avatar': '20/hour',
-        # Material upload (`POST /api/material-submissions/`, wired onto the `create` action alone by
-        # MaterialSubmissionViewSet.get_throttles). The most disk-expensive write in the app: up to
+        # Material upload — `POST /api/material-projects/`, wired onto the `create` action alone by
+        # `coauthoring.views.MaterialProjectViewSet.get_throttles`. The endpoint changed when the
+        # single-shot `/submit-material` form was folded into a project with a team of one; the
+        # budget deliberately did not, because the ability it bounds ("bring a NEW material into
+        # being") is the same one, and a rename that reset somebody's allowance would be a bug.
+        # The most disk-expensive write in the app: up to
         # 25MB per request (`MAX_MATERIAL_SUBMISSION_SIZE_BYTES`), stored permanently, plus a
         # malware scan over every byte of it.
         #
@@ -621,6 +630,29 @@ REST_FRAMEWORK = {
         # Neither substitutes for the other: a rate limit alone permits unbounded growth given time,
         # and a byte quota alone permits burning a whole allowance plus a scan queue in one second.
         'material_submission': '20/hour',
+        # Attaching an exercise to a material (`POST /api/materials/{id}/exercises/`, wired onto the
+        # POST half of that action alone by MaterialViewSet.get_throttles). Each call writes one
+        # small row and nothing else, so this is a flood bound rather than a cost bound: somebody
+        # working through a script and linking its exercises one by one does a few dozen in a
+        # sitting, and 60/hour leaves room for that while stopping a loop from filling a popular
+        # material's page with junk faster than anybody can unlink it. The GET half keeps the loose
+        # global `user` budget — reading a list is not the thing being bounded here.
+        'exercise_link': '60/hour',
+        # Saving a version of a co-authored material. Bounded like a material submission and for
+        # the same reason — a version can carry a 25MB file, stored permanently and scanned on the
+        # way in — but looser at 30/hour, because most versions carry a link or a written text
+        # instead, and somebody editing a document in a sitting genuinely saves more often than
+        # somebody uploading past papers. `Profile.material_upload_quota_bytes` is still what
+        # bounds the TOTAL; this bounds the rate.
+        'material_version': '30/hour',
+        # Minting an invite link to a project. One row and nothing else, so this is a flood bound
+        # rather than a cost bound: a person making links for a handful of collaborators does a few,
+        # and a loop would fill a project's panel faster than anybody could revoke them.
+        'project_invite': '30/hour',
+        # Asking to join a project. Tighter than the other two on purpose — every request notifies
+        # EVERY member of the project, so this is the one here that can be used to bother people,
+        # and 10/hour is far more than somebody genuinely looking for something to work on needs.
+        'project_join': '10/hour',
         # Address lookup proxies to Nominatim (OpenStreetMap), whose usage policy caps the WHOLE
         # application at 1 request/second. services/geocoding.py enforces that globally and caches
         # results for a day; this per-user scope is the second layer, so one account typing in the

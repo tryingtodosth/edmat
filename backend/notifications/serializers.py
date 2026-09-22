@@ -25,6 +25,11 @@ class NotificationSerializer(serializers.ModelSerializer):
             'event_id',
             'post_id',
             'issue_id',
+            # The co-authoring project a notification is about, when it has no material yet
+            # (notifications/models.py). Named for the raw column rather than with an `_id` alias
+            # like its neighbours because that is the key the frontend's own mapper already reads
+            # (`mappers.ts` → `materialProjectId`), and the wire name is the contract.
+            'material_project',
             'note',
             'is_read',
             'created_at',

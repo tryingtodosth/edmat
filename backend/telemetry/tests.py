@@ -194,6 +194,65 @@ class RetentionTests(TestCase):
         self.assertEqual(event.summary, 'Approved submission 42')
 
 
+class RecordAuditTests(TestCase):
+    """`telemetry.audit.record_audit` — the shared writer `courses.history.record_content_change`
+    became a wrapper over, and which co-authoring writes its own decisions through.
+
+    The one thing worth a test of its own is the rule that is invisible until it breaks: the row
+    must be BUILT and `.save()`d, never `.objects.create()`d, or `LogShardRouter` has no instance
+    to read `actor_id` off, falls back to `default`, and raises `no such table`. A test that only
+    checked the returned row would pass against a `create()` on a single-database project and fail
+    on this one; asserting the row landed in the ACTOR's own shard is what actually pins it.
+    """
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        self.user = User.objects.create_user('auditor', password='x')
+
+        class _Request:
+            pass
+
+        self.request = _Request()
+        self.request.user = self.user
+
+    def test_the_row_lands_in_the_actors_own_shard(self):
+        from telemetry.audit import record_audit
+
+        record_audit(
+            self.request,
+            action='moderation_decision',
+            target_type='material_project',
+            # An int, not a string — callers pass a pk and the helper is what coerces it.
+            target_id=42,
+            summary='Accepted version 3',
+            detail={'version': 3},
+        )
+
+        event = AuditEvent.objects.using(shard_for_user(self.user.pk)).get()
+        self.assertEqual(event.actor_id, self.user.pk)
+        self.assertEqual(event.actor_label, 'auditor')
+        self.assertEqual(event.action, 'moderation_decision')
+        self.assertEqual(event.target_type, 'material_project')
+        self.assertEqual(event.target_id, '42')
+        self.assertEqual(event.detail, {'version': 3})
+
+    def test_detail_defaults_to_an_empty_dict_not_null(self):
+        """`AuditEvent.detail` is `default=dict`, and a caller with nothing extra to say should get
+        that default rather than a None the reader has to guard against."""
+        from telemetry.audit import record_audit
+
+        record_audit(
+            self.request,
+            action='permission_change',
+            target_type='material_project',
+            target_id='7',
+            summary='Added a co-author',
+        )
+
+        self.assertEqual(AuditEvent.objects.using(shard_for_user(self.user.pk)).get().detail, {})
+
+
 class ConsentBoundaryTests(TestCase):
     databases = set(all_log_shards()) | {'default'}
 

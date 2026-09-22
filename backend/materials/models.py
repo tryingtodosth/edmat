@@ -77,8 +77,8 @@ class MaterialType(ProposableNode):
     would give referential integrity, and it would also mean rejecting a proposed type could reach
     the materials filed under it — which is exactly the shape of the bug this project already
     shipped once, where rejecting a proposed branch cascade-deleted the exercises under it. It also
-    keeps `MaterialSubmission.type` (a draft, which may name a type that is later rejected) able to
-    hold its value without pointing at a row that has to survive for it. The vocabulary is a table;
+    keeps `coauthoring.MaterialProject.type` (a draft, which may name a type that is later
+    rejected) able to hold its value without pointing at a row that has to survive for it. The vocabulary is a table;
     the field records which word was chosen.
 
     The consequence, stated rather than glossed: a Material can hold a slug with no row behind it,
@@ -125,7 +125,8 @@ class Material(models.Model):
     # without a code change. Validated on write by `validate_material_type` rather than by the field,
     # because `choices` cannot express "and anything somebody has since proposed". max_length=50 to
     # match `MaterialType.slug`'s own real width (a bare `SlugField()`, Django's default 50) — the
-    # same widening `moderation.MaterialSubmission.type`'s own doc comment explains in full; this
+    # same widening the retired `moderation.MaterialSubmission.type` was given after a real,
+    # found-live 400 (a freely-typed proposed type's slug routinely runs past 20 characters); this
     # field's old 32 was already narrower than that source of truth, just not yet caught live.
     type = models.CharField(max_length=50)
     # Who this is for — AUDIENCE-BRIEF.md §1. `university` is what every row that predates the
@@ -135,10 +136,10 @@ class Material(models.Model):
         max_length=12, choices=AUDIENCE_CHOICES, default=DEFAULT_AUDIENCE, db_index=True
     )
     # validators=[...] — same real content-type/size check materials.validators.
-    # validate_material_submission_file already gives every user-submitted MaterialSubmission
-    # (moderation/models.py), added here too for defense-in-depth consistency: a raw `.save()` call
-    # (the corpus importer, or MaterialSubmission's own approval path copying an already-validated
-    # file across) bypasses field validators entirely, by design — this only ever runs where
+    # validate_material_submission_file already gives every user-submitted `coauthoring
+    # .MaterialVersion.file`, added here too for defense-in-depth consistency: a raw `.save()` call
+    # (the corpus importer, or the projection copying an already-validated version's file across)
+    # bypasses field validators entirely, by design — this only ever runs where
     # something is actually being VALIDATED (a ModelForm/DRF serializer write), not on every save.
     # `blank=True`: a material can be a LINK instead of a file — a lecture recording, a departmental
     # page, somebody's published notes. Plenty of what a course actually points students at is not a
@@ -156,6 +157,21 @@ class Material(models.Model):
     # both). Folding them together would also render wrongly: MaterialCard shows source_url as a
     # small provenance note, so a link-only material would have had no primary action at all.
     url = models.URLField(max_length=500, blank=True)
+    # The THIRD shape a material can take: one written here, in the site's own content format
+    # (Markdown + raw-HTML passthrough + literal LaTeX delimiters, exactly like an exercise
+    # statement — root CLAUDE.md's content pipeline), rather than a document to download or a link
+    # to somewhere else. Added with co-authoring, where it is the shape a team can actually
+    # collaborate on: two people cannot merge each other's PDFs, but they can both edit a text.
+    #
+    # Sanitized in `save()` below, which is what makes this safe to set from anywhere — the
+    # MaterialTranslation.save() precedent, and the same reason it is there rather than in a
+    # serializer: the corpus importer, the admin and `materials.publish.create_material` are all
+    # write paths that never see a serializer.
+    #
+    # `blank=True` and never required on its own: the overwhelming majority of this corpus is and
+    # will stay files. `clean()` below is what holds the real rule — a material is one of the
+    # three, and a row with none of them is a title pointing at nothing.
+    body = models.TextField(blank=True)
     # Free text, NOT a User FK — the real corpus's own material.yaml `author:` values are plain
     # human names (a course TA/professor), almost never a registered platform account, so this is
     # deliberately never rendered as a clickable link (frontend's own MaterialCard, see its doc
@@ -183,9 +199,9 @@ class Material(models.Model):
     # source URL, so backfilling one would mean fabricating provenance, which is the precise opposite
     # of what this field is for.
     source_url = models.URLField(max_length=500, blank=True)
-    # A found, real gap: `_apply_material_submission` (moderation/views.py) builds a real Material
-    # from an approved MaterialSubmission — which already has a real `submitted_by` User — but
-    # nothing ever carried that onto the resulting Material, so a community-submitted material had
+    # A found, real gap: the approval path builds a real Material from an accepted upload — which
+    # already has a real `submitted_by` User — but nothing ever carried that onto the resulting
+    # Material, so a community-submitted material had
     # NO real, clickable attribution at all, unlike Exercise's own `submitted_by`. Null for every
     # one of the 7 legacy corpus materials (imported with no submitter, matching
     # Exercise.submitted_by's own "null for migrated legacy content" convention) and for any
@@ -222,17 +238,34 @@ class Material(models.Model):
         return f'{self.branch.slug}/{self.slug}'
 
     def clean(self):
-        """A material is a file or a link. Neither is a title pointing at nothing.
+        """A material is a file, a link, or a text written here. None of the three is a title
+        pointing at nothing.
+
+        `body` joined the rule when co-authoring made a written material a real shape (see the
+        field's own comment); the check stays "at least one", not "exactly one", because the three
+        genuinely coexist — a written introduction above a downloadable PDF is one material, not
+        two, and refusing that would push somebody into uploading a second row.
 
         On the model rather than only in the serializer, so the Django admin is held to it too — the
         one write path that skips DRF entirely. The corpus importer bypasses `full_clean` like every
         other bulk `create()` in this project, which is correct: all 7 legacy materials are real PDFs
         and satisfy this anyway.
         """
-        if not self.file and not self.url:
+        if not self.file and not self.url and not self.body:
             raise ValidationError(
-                {'file': 'A material needs either a file or a link to where it lives.'}
+                {'file': 'A material needs a file, a link to where it lives, or a text of its own.'}
             )
+
+    def save(self, *args, **kwargs):
+        # The same real, server-side sanitization MaterialTranslation.save() applies to its own
+        # rich text (config/sanitize.py) — see that model's doc comment for the full reasoning.
+        # Here it matters more, not less: `body` IS rendered as rich content on the detail page,
+        # and a co-authored one can be rewritten by anybody the project's team let in, with no
+        # moderator between them and every reader.
+        from config.sanitize import sanitize_content
+
+        self.body = sanitize_content(self.body)
+        super().save(*args, **kwargs)
 
 
 class MaterialReview(models.Model):
@@ -445,6 +478,19 @@ class MaterialTranslation(models.Model):
     locale = models.CharField(max_length=8)
     title = models.CharField(max_length=300)
     description = models.TextField(blank=True)
+    # When this row last changed — what makes "this translation is older than the material it
+    # describes" answerable at all (COAUTHORING-BRIEF.md §2). A co-authored material's versions
+    # carry title/description in the PROJECT's locale only, and publishing one rewrites that one
+    # translation row; every OTHER locale's row keeps whatever it said before, which may now
+    # describe a document that has moved on. Comparing this against the published version's own
+    # `published_at` is how a reader of the Polish page is told the English text is newer.
+    #
+    # `auto_now=True` rather than a field somebody sets: every existing row gets a real value the
+    # moment it is next saved, and no write path can forget it. The consequence, stated rather than
+    # glossed: every row that predates this field is stamped at migration time with the time the
+    # migration ran, not the time it was really written — so the stale marker is honest going
+    # forward and silent about the past, which is the right direction for a hint.
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = [('material', 'locale')]

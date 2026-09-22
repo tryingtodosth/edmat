@@ -161,6 +161,43 @@ def _sort_materials(materials, sort, locale, topic_id=None):
     return materials
 
 
+def _ordered_exercise_links(material):
+    """This material's links, grouped by what they claim and then oldest-first inside a group.
+
+    `source` before `practice` explicitly rather than by ordering on the column: the two roles read
+    as one list on the page — what is IN this material, then what merely practises it — and plain
+    alphabetical order on `role` would put `practice` first and silently invert that. `created_at`
+    inside a group keeps a re-read of the page stable, which a bare `role` order does not.
+    """
+    from django.db.models import Case, IntegerField, Value, When
+
+    return material.exercise_links.annotate(
+        role_rank=Case(When(role='source', then=Value(0)), default=Value(1), output_field=IntegerField())
+    ).order_by('role_rank', 'created_at', 'id')
+
+
+def published_version_prefetch():
+    """The one published `MaterialVersion` of each row's project, in ONE query for the whole list.
+
+    `MaterialSerializer.translation_stale` needs `project.published_version`, whose model property
+    walks `versions.all()` — so without this every material in a listing would cost a query to find
+    the row it was published from. Narrowed to `status='published'` rather than fetching the whole
+    history, because that property is the only thing reading this cache here and a corpus material
+    with fifty versions should not drag forty-nine of them into a browse page.
+
+    Imported inside the function: `coauthoring.models` imports `materials.models`, so a module-level
+    import here would close that loop. The same local-import discipline `MaterialCoverageSerializer
+    .get_comment_count` already uses for `community`.
+    """
+    from django.db.models import Prefetch
+
+    from coauthoring.models import MaterialVersion
+
+    return Prefetch(
+        'project__versions', queryset=MaterialVersion.objects.filter(status='published')
+    )
+
+
 class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
     """GET /api/materials/ — the cross-course materials browse/search/filter/sort endpoint; a
     course-scoped listing is ALSO available via /api/courses/{slug}/materials/
@@ -177,7 +214,13 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
     omitted/unrecognized keeps the existing `(course, order)` default).
     """
 
-    queryset = Material.objects.filter(published=True).select_related('submitted_by__profile')
+    # `select_related('project')` is not decoration: `MaterialSerializer.project_id` and
+    # `translation_stale` both read the reverse one-to-one, which is one query per row without it —
+    # the N+1 that serializer's own comment predicted the moment `coauthoring` landed.
+    queryset = (
+        Material.objects.filter(published=True)
+        .select_related('submitted_by__profile', 'project')
+    )
     serializer_class = MaterialSerializer
 
     def get_queryset(self):
@@ -194,6 +237,7 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
                 'coverage__topic',
                 'tags',
                 'requirements__votes__voter__profile',
+                published_version_prefetch(),
             )
         )
         materials = _sort_materials(
@@ -247,6 +291,98 @@ class MaterialViewSet(viewsets.ReadOnlyModelViewSet):
         materials, personalized = get_recommended_materials(user, limit=limit)
         serializer = MaterialSerializer(materials, many=True, context={'request': request})
         return Response({'personalized': personalized, 'results': serializer.data})
+
+    def get_throttles(self):
+        """The tighter `exercise_link` budget (config/settings.py) applies to linking alone.
+
+        Set here rather than as a class attribute, the shape `coauthoring.views
+        .MaterialProjectViewSet` also uses: a ViewSet's actions are not the same request, and
+        reading a material must keep the
+        loose global `user` budget. `ScopedRateThrottle` reads `throttle_scope` off the view at
+        request time and treats a falsy one as "not scoped", and `self.action` is resolved before
+        `initial()` runs. GET on the same action is deliberately left unscoped — it is an ordinary
+        cheap read, and only the POST creates rows.
+        """
+        self.throttle_scope = (
+            'exercise_link' if self.action == 'exercises' and self.request.method == 'POST' else None
+        )
+        return super().get_throttles()
+
+    @action(detail=True, methods=['get', 'post'])
+    def exercises(self, request, pk=None):
+        """`/api/materials/{id}/exercises/` — the exercises attached to this material.
+
+        GET lists them, each as the same card shape a branch listing renders, plus which claim the
+        link makes (`role`) and where in the material it points (`locator`). Bounded by
+        construction, like every other list in this API: a material has tens of exercises, not
+        thousands, so this stays a bare array with no pagination envelope. Unpublished exercises
+        are included for staff only — see `_with_listed_exercises`.
+
+        POST `{exercise_id, role?, locator?}` attaches one that is already in the database. Open to
+        any authenticated user and deliberately NOT moderation-gated: `ExerciseMaterialLink`'s own
+        docstring has the reasoning, and it is the same call `coverage`/`propose_requirement` right
+        below already make for the identical shape of low-stakes, reversible metadata. The exercise
+        must exist and be published — a 404, not a 400, because an unpublished exercise is one this
+        caller has no business learning exists. A pair that is already linked is a **409**: the
+        world already contains what was asked for, and re-sending it is not a malformed request.
+        """
+        material = self.get_object()
+        # Local import for the reason every other cross-app reach in this file uses one:
+        # `exercises` imports `materials` at module scope in three places already, and a fourth
+        # edge from this side is how that becomes a cycle somebody has to unpick later.
+        from exercises.models import EXERCISE_LINK_ROLE_CHOICES, ExerciseMaterialLink
+        from exercises.serializers import ExerciseMaterialLinkSerializer
+        from exercises.views import _with_listed_exercises
+
+        if request.method == 'GET':
+            links = list(
+                _ordered_exercise_links(material).select_related('added_by__profile', 'exercise')
+            )
+            rows = _with_listed_exercises(
+                links, include_unpublished=bool(request.user and request.user.is_staff)
+            )
+            return Response(
+                ExerciseMaterialLinkSerializer(rows, many=True, context={'request': request}).data
+            )
+
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        from exercises.models import Exercise
+
+        exercise = Exercise.objects.filter(
+            pk=request.data.get('exercise_id'), published=True
+        ).first() if str(request.data.get('exercise_id') or '').isdigit() else None
+        if exercise is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        role = request.data.get('role') or 'source'
+        if role not in dict(EXERCISE_LINK_ROLE_CHOICES):
+            return Response(
+                {'role': ["Must be 'source' or 'practice'."]}, status=status.HTTP_400_BAD_REQUEST
+            )
+        locator = (request.data.get('locator') or '').strip()
+        if len(locator) > 120:
+            return Response(
+                {'locator': ['Keep this under 120 characters.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        link, created = ExerciseMaterialLink.objects.get_or_create(
+            exercise=exercise,
+            material=material,
+            defaults={'role': role, 'locator': locator, 'added_by': request.user},
+        )
+        if not created:
+            # 409, never 400 — backend/CLAUDE.md's own split: the request was fine, the world
+            # already moved. `already_linked` is a code the frontend branches on to say "it is
+            # already here" rather than showing a generic failure.
+            return Response({'detail': 'already_linked'}, status=status.HTTP_409_CONFLICT)
+        link = _with_listed_exercises([link], include_unpublished=False)[0]
+        return Response(
+            ExerciseMaterialLinkSerializer(link, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=['post'])
     def coverage(self, request, pk=None):

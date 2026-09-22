@@ -1,9 +1,18 @@
 <script lang="ts">
+	// A new material, in one form. Since co-authoring (COAUTHORING-BRIEF.md §0) this is "a project
+	// with a team of one": the submit creates the project and its first version and asks the server
+	// to publish that version in the same request. The form, its fields and its switch did not
+	// change — `material_submissions` still gates it, because bringing a NEW material into being is
+	// that switch's ability, and `coauthoring` (collaborating on one that exists) is a different one.
+	// What happens next is the server's call and this page reads it rather than assuming: staff, a
+	// verified contributor or a governor of the branch publish at once; anybody else's first
+	// publication waits in the moderation queue's Materials tab for a person to read it.
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
-	import type { Branch, Discipline, MaterialCoverageDraft, MaterialType, Topic } from '$lib/types';
+	import type { Branch, Discipline, MaterialType, Topic } from '$lib/types';
+	import type { MaterialProject, ProjectCoverageDraft } from '$lib/types/materialProject';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
 		getBranchesForDiscipline,
@@ -11,12 +20,14 @@
 		getTopicsForBranch,
 		proposeTaxonomyNode
 	} from '$lib/services/taxonomy';
-	import { submitMaterial } from '$lib/services/materials';
+	import { createProject, ProjectRefusedError } from '$lib/services/materialProjects';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { MATERIAL_CURRENCIES } from '$lib/utils/labels';
 	import { isComposingKey } from '$lib/utils/textInput';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
+	import { COAUTHORING_FLAG, refusalMessage } from '$lib/components/coauthoring/labels';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
@@ -46,7 +57,11 @@
 	let isCustomDiscipline = $derived(disciplineId === OTHER_VALUE);
 	let isCustomBranch = $derived(branchId === OTHER_VALUE);
 	let topics = $state<Topic[]>([]);
-	let type = $state<MaterialType>('examCollection');
+	// The BACKEND SLUG, not the camelCase frontend name: the picker's options are keyed by slug
+	// (`typeOptions` below, because a proposed kind only ever has one), so seeding this with
+	// `examCollection` left the select with nothing selected while the form went on sending "exam
+	// collection" — a picker that showed blank and submitted a value. Found by looking at the page.
+	let type = $state<MaterialType>('exam_collection');
 	// "Other…" for the type select too, the identical inline pattern rather than the separate
 	// "Suggest a kind" link this used to be the only field on this form to use — one mechanism per
 	// field, not two competing ones for the same action.
@@ -72,13 +87,24 @@
 		materialTypesStore.list.map((t) => ({ id: t.slug, name: t.name, status: t.status }))
 	);
 	let submitting = $state(false);
-	let success = $state(false);
-	// ✅ Verified-contributor fast path, extended to materials (mirrors /submit's own
-	// publishedExerciseId): set only when the backend published this upload immediately
-	// (`status: 'approved'`, `resultingMaterialId` present) rather than queuing it, so the
-	// confirmation can say what actually happened instead of always implying a review queue.
-	let publishedMaterialId = $state<string | null>(null);
+	/**
+	 * What the submit actually did, read off the server's answer — never assumed from which button
+	 * was pressed:
+	 *   published — the project has a material (`materialId`), live now;
+	 *   queued    — no material yet: the first version waits in the moderation queue;
+	 *   draft     — the head came back still a draft, i.e. the server saved it without publishing.
+	 *               The contract says that does not happen with `publish`; if it ever does, the page
+	 *               says "draft" rather than "awaiting review", because nobody would be reviewing it.
+	 */
+	type Outcome =
+		| { kind: 'published'; materialId: string }
+		| { kind: 'queued'; projectId: string }
+		| { kind: 'draft'; projectId: string };
+	let outcome = $state<Outcome | null>(null);
 	let errorMessage = $state('');
+	/** The server's own message per refused field, drawn under that field (keyed by the API's field
+	 *  name). A file refusal is not in here: it gets one of the two sentences in `describeFailure`. */
+	let fieldErrors = $state<Record<string, string>>({});
 
 	// All three genuinely optional, matching the real Material fields they'll eventually become
 	// (materials/models.py) — a submission that leaves them all unset behaves exactly as before this
@@ -111,11 +137,13 @@
 		requirements = requirements.filter((_, i) => i !== index);
 	}
 
-	// "Covers" — topic + level only (no subtopic at submission time, see MaterialCoverageDraft's
-	// own doc comment for why). `coverageLevel` is text/`inputmode="numeric"`, not `type="number"`,
-	// the same real, live-reproduced Svelte 5 `bind:value` mismatch this file's own doc comment
-	// above already explains for `priceAmount`/`estimatedMinutes`.
-	let coverage = $state<MaterialCoverageDraft[]>([]);
+	// "Covers" — topic + level only: a subtopic breakdown is a votable claim on a material that
+	// exists, added from its page after publication, and a draft project's catalogue carries plain
+	// `{topic, level, kind}` triples (ProjectCoverageDraft). Every row here is a `covers` claim.
+	// `coverageLevel` is text/`inputmode="numeric"`, not `type="number"`, the same real,
+	// live-reproduced Svelte 5 `bind:value` mismatch this file's own doc comment above already
+	// explains for `priceAmount`/`estimatedMinutes`.
+	let coverage = $state<ProjectCoverageDraft[]>([]);
 	let coverageTopicId = $state('');
 	let coverageLevel = $state('50');
 
@@ -124,7 +152,7 @@
 		const level = Number(coverageLevel);
 		if (!Number.isFinite(level) || level < 1 || level > 100) return;
 		if (coverage.some((c) => c.topicId === coverageTopicId)) return;
-		coverage = [...coverage, { topicId: coverageTopicId, level }];
+		coverage = [...coverage, { topicId: coverageTopicId, level, kind: 'covers' }];
 		coverageTopicId = '';
 		coverageLevel = '50';
 	}
@@ -196,10 +224,14 @@
 		file = input.files?.[0] ?? null;
 	}
 
-	// A file OR a link, never neither — the same rule the backend enforces, checked here so the
-	// button is honest rather than the refusal arriving after a submit.
+	// A file OR a link — never neither, and never both: a version carries exactly one payload, and
+	// the server would keep the file and silently drop the link rather than refuse the pair. Checked
+	// here so the button is honest rather than the refusal (or the loss) arriving after a submit; the
+	// "one or the other" hint above the two fields turns into the warning it is while both are set.
+	let bothPayloads = $derived(Boolean(file) && Boolean(url.trim()));
 	let canSubmit = $derived(
 		Boolean(branchId && title.trim() && (file || url.trim())) &&
+			!bothPayloads &&
 			(!isCustomDiscipline || Boolean(customDisciplineName.trim())) &&
 			(!isCustomBranch || Boolean(customBranchName.trim())) &&
 			(!isCustomType || Boolean(customTypeName.trim()))
@@ -240,36 +272,131 @@
 		return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 	}
 
+	/** The API's field names this form draws a note under. Every other field it could refuse is one
+	 *  the form itself never lets go wrong (the band, the kind), so a refusal there falls through to
+	 *  the page-level sentence. */
+	const NOTED_FIELDS = [
+		'branch',
+		'title',
+		'type',
+		'locale',
+		'description',
+		'url',
+		'author',
+		'source_url',
+		'coverage',
+		'requirements',
+		'price_amount',
+		'price_currency',
+		'estimated_minutes'
+	];
+
+	/**
+	 * The sentence for a refused submit, and the per-field notes that go with it.
+	 *
+	 * A refused FILE keeps the two sentences this form has always had — the verified-contributors
+	 * one when that is the reason (`material_uploads_verified_only`, which the server reports on the
+	 * `file` field in its own words, matched below), the "couldn't be accepted" one for everything
+	 * else a file can fail (type, size, the scan). Any other refused field is named where it is,
+	 * with the server's own message, which is the precedent the guardian and contribution forms set.
+	 * A refusal that carries a reason (`{detail: 'minor'}`) gets that reason's sentence, and a 403
+	 * means the switch went off while the form was open.
+	 */
+	function describeFailure(error: unknown): { message: string; fields: Record<string, string> } {
+		if (error instanceof ProjectRefusedError) {
+			return { message: refusalMessage(error.reason), fields: {} };
+		}
+		if (error instanceof ApiError && error.status === 403) {
+			return { message: m.featureFlags_disabledNotice(), fields: {} }; // "This feature is currently unavailable — please check back later."
+		}
+		if (error instanceof ApiError && error.status === 400) {
+			const body = (error.body ?? {}) as Record<string, unknown>;
+			const said = (key: string): string[] => {
+				const value = body[key];
+				if (Array.isArray(value)) return value.map(String);
+				return typeof value === 'string' ? [value] : [];
+			};
+			const fileErrors = said('file');
+			if (fileErrors.length > 0) {
+				// The server's sentence: coauthoring/services.py `_require_verified_contributor_for_uploads`.
+				const verifiedOnly = fileErrors.some((text) => /verified contributor/i.test(text));
+				return {
+					message: verifiedOnly
+						? m.submitMaterial_verifiedContributorsOnly() // "Material uploads are currently limited to verified contributors. …"
+						: m.submitMaterial_uploadFailed(), // "This file couldn't be accepted — …"
+					fields: {}
+				};
+			}
+			const fields: Record<string, string> = {};
+			for (const key of NOTED_FIELDS) {
+				const text = said(key).join(' ');
+				if (text) fields[key] = text;
+			}
+			if (Object.keys(fields).length > 0) {
+				return { message: m.submitMaterial_checkFields(), fields }; // "Some details were not accepted — see the notes under the fields."
+			}
+		}
+		return {
+			// Anything else — a proxy's own 413, a dropped connection — is most likely the upload
+			// when there was one, and honestly unknown when there was not.
+			message: file ? m.submitMaterial_uploadFailed() : m.common_error_generic(),
+			fields: {}
+		};
+	}
+
+	/** Reads what the create request did — see `Outcome`. */
+	function outcomeOf(project: MaterialProject): Outcome {
+		if (project.materialId) return { kind: 'published', materialId: project.materialId };
+		if (project.headVersion?.status === 'draft') return { kind: 'draft', projectId: project.id };
+		return { kind: 'queued', projectId: project.id };
+	}
+
+	// The project page (and the version pages under it) sit behind the `coauthoring` switch, which
+	// staff bypass the way FeatureGate does. Offering a link into a page that would only say "this
+	// feature is unavailable" is a link that lies about where it goes.
+	let canOpenProject = $derived(
+		featureFlagsStore.isEnabled(COAUTHORING_FLAG) || authStore.isModerator
+	);
+
 	async function handleSubmit() {
 		if (!audience) return;
 		if (!authStore.user || !canSubmit) return;
 		errorMessage = '';
+		fieldErrors = {};
 		submitting = true;
+		// Which half failed decides which sentence is true: a refused "Other…" proposal is not a file
+		// that could not be accepted.
+		let stage: 'taxonomy' | 'material' = 'taxonomy';
 		try {
 			const filedBranchId = await resolveBranch();
 			const filedType = await resolveMaterialType();
-			const result = await submitMaterial(
+			stage = 'material';
+			const project = await createProject(
 				{
 					branchId: filedBranchId,
-					type: filedType,
-					title: title.trim(),
-					description: description.trim(),
 					locale,
+					type: filedType,
 					audience: audience as Audience,
 					author: author.trim() || undefined,
 					sourceUrl: normalizeUrl(sourceUrl),
-					url: normalizeUrl(url),
 					requirements: requirements.length > 0 ? requirements : undefined,
 					coverage: coverage.length > 0 ? coverage : undefined,
 					priceAmount: priceAmount.trim() ? Number(priceAmount) : undefined,
 					priceCurrency: priceAmount.trim() ? priceCurrency.trim() || 'PLN' : undefined,
-					estimatedMinutes: estimatedMinutes.trim() ? Number(estimatedMinutes) : undefined
+					estimatedMinutes: estimatedMinutes.trim() ? Number(estimatedMinutes) : undefined,
+					// Version 1: the file when there is one, otherwise the link — `canSubmit` has
+					// already made sure it is exactly one of the two.
+					version: {
+						kind: file ? 'file' : 'link',
+						title: title.trim(),
+						description: description.trim(),
+						url: file ? undefined : normalizeUrl(url)
+					}
 				},
-				file
+				file,
+				{ publish: true }
 			);
-			success = true;
-			publishedMaterialId =
-				result.status === 'approved' ? (result.resultingMaterialId ?? null) : null;
+			outcome = outcomeOf(project);
 			title = description = '';
 			author = sourceUrl = '';
 			file = null;
@@ -283,18 +410,12 @@
 			const input = document.getElementById('material-file-input') as HTMLInputElement | null;
 			if (input) input.value = '';
 		} catch (e) {
-			// A rejected content-type/oversized-file/failed-scan upload all come back as a real 400
-			// from the backend (materials/validators.py's own validator, or MaterialSubmissionViewSet
-			// .perform_create's scan check) — one honest, generic message covers every case, matching
-			// this app's own established convention for the material-submission upload form
-			// (materials/views.py's own doc comment). A 403 is a genuinely different failure kind —
-			// the new material_uploads_verified_only kill switch (moderation/permissions.py's
-			// RequireVerifiedContributorForMaterialUploads) — worth its own clearer message so a
-			// non-verified user understands WHY, rather than assuming their file itself was rejected.
-			if (e instanceof ApiError && e.status === 403) {
-				errorMessage = m.submitMaterial_verifiedContributorsOnly();
+			if (stage === 'taxonomy') {
+				errorMessage = m.common_error_generic(); // "Something went wrong."
 			} else {
-				errorMessage = m.submitMaterial_uploadFailed();
+				const failure = describeFailure(e);
+				errorMessage = failure.message;
+				fieldErrors = failure.fields;
 			}
 		} finally {
 			submitting = false;
@@ -306,12 +427,27 @@
 	<title>{pageTitle(m.submitMaterial_heading())}</title>
 </svelte:head>
 
+<!-- The server's own message for a refused field, under the field it refused. One snippet rather
+     than a line per field: the keys are the API's field names, and a price refusal can name either
+     half of the pair. -->
+{#snippet fieldNote(keys: string[])}
+	{@const text = keys
+		.map((key) => fieldErrors[key])
+		.filter(Boolean)
+		.join(' ')}
+	{#if text}
+		<span class="field-error">{text}</span>
+	{/if}
+{/snippet}
+
 <FeatureGate feature="material_submissions">
 	<div class="page">
 		<h1>{m.submitMaterial_heading()}</h1>
-		<!-- Reads the same isVerifiedContributor flag /submit's own subtitle already reads — the
-		     material-upload pipeline now has the identical fast path (moderation/views.py's
-		     MaterialSubmissionViewSet.perform_create). -->
+		<!-- Reads the same isVerifiedContributor flag /submit's own subtitle already reads, and the
+		     fast path it promises is real: `access.can_autopublish_first` publishes a first
+		     publication at once for staff, a verified contributor or a governor of the branch. It
+		     cannot name the governor case in advance (that depends on the branch picked below), so it
+		     says the honest general thing and the confirmation says what actually happened. -->
 		<p class="subtitle">
 			{authStore.user?.isVerifiedContributor
 				? m.submitMaterial_subtitleVerified()
@@ -324,6 +460,14 @@
 			<p data-session-hidden class="login-prompt">
 				<a href={resolve('/login')}>{m.submitMaterial_loginRequired()}</a>
 			</p>
+		{:else if authStore.user?.isMinor}
+			<!-- Said here rather than after a filled-in form is refused: creating a material publishes
+			     something under somebody's name with nobody in between, which is the one thing a minor's
+			     account may not do (COAUTHORING-BRIEF.md §0). Proposing a change to a material that
+			     exists stays open to them — a person always reads a proposal. -->
+			<p class="minor-notice">{m.submitMaterial_minorBlocked()}</p>
+			<!-- "An account belonging to someone under 18 cannot add a new material. You can still
+			     suggest a change to a material that already exists, from its own page." -->
 		{:else}
 			{#if errorMessage}
 				<p class="error">{errorMessage}</p>
@@ -366,6 +510,7 @@
 					<select id="submit-material-branch" bind:value={branchId} disabled={isCustomDiscipline}>
 						<TaxonomyOptions nodes={branches} allowOther />
 					</select>
+					{@render fieldNote(['branch'])}
 					{#if isCustomBranch}
 						<input
 							type="text"
@@ -386,9 +531,11 @@
 					<input
 						type="text"
 						bind:value={title}
+						maxlength="300"
 						placeholder={m.submitMaterial_titlePlaceholder()}
 						required
 					/>
+					{@render fieldNote(['title'])}
 				</label>
 
 				<div class="field-row">
@@ -405,6 +552,7 @@
 						<select id="submit-material-type" bind:value={type}>
 							<TaxonomyOptions nodes={typeOptions} allowOther />
 						</select>
+						{@render fieldNote(['type'])}
 						{#if isCustomType}
 							<input
 								type="text"
@@ -423,6 +571,7 @@
 							<option value="pl">PL</option>
 							<option value="en">EN</option>
 						</select>
+						{@render fieldNote(['locale'])}
 					</label>
 					<AudienceSelect bind:value={audience} />
 				</div>
@@ -430,6 +579,7 @@
 				<label class="field">
 					<span>{m.submitMaterial_field_description()} <em>({m.common_optional()})</em></span>
 					<textarea rows="3" bind:value={description}></textarea>
+					{@render fieldNote(['description'])}
 				</label>
 
 				<!-- A file OR a link, and the form says so before either field rather than after a
@@ -442,7 +592,11 @@
 				     opposite of the rule. The check below is on the pair. -->
 				<fieldset class="field where">
 					<legend>{m.submitMaterial_whereLegend()}</legend>
-					<p class="file-hint">{m.submitMaterial_whereHint()}</p>
+					<!-- The rule, and the refusal when it is broken: a version holds exactly one payload, so
+					     filling in both is the one state the submit button will not take. -->
+					<p class="file-hint" class:hint-refused={bothPayloads}>
+						{m.submitMaterial_whereHint()}
+					</p>
 
 					<label class="field">
 						<span>{m.submitMaterial_field_file()} <em>({m.common_optional()})</em></span>
@@ -472,6 +626,7 @@
 							placeholder={m.submitMaterial_urlPlaceholder()}
 						/>
 						<span class="file-hint">{m.submitMaterial_urlHint()}</span>
+						{@render fieldNote(['url'])}
 					</label>
 				</fieldset>
 
@@ -482,6 +637,7 @@
 					<span>{m.submitMaterial_field_author()} <em>({m.common_optional()})</em></span>
 					<input type="text" bind:value={author} maxlength="200" />
 					<span class="file-hint">{m.submitMaterial_authorHint()}</span>
+					{@render fieldNote(['author'])}
 				</label>
 
 				<label class="field">
@@ -494,6 +650,7 @@
 						placeholder={m.submitMaterial_sourceUrlPlaceholder()}
 					/>
 					<span class="file-hint">{m.submitMaterial_sourceUrlHint()}</span>
+					{@render fieldNote(['source_url'])}
 				</label>
 
 				<!-- Keyed on the branch rather than on `topics.length`, so the block still renders for a
@@ -551,6 +708,7 @@
 							</div>
 						{/if}
 						<span class="file-hint">{m.submitMaterial_coverageHint()}</span>
+						{@render fieldNote(['coverage'])}
 					</div>
 				{/if}
 
@@ -581,6 +739,7 @@
 						}}
 					/>
 					<span class="file-hint">{m.submitMaterial_requirementsHint()}</span>
+					{@render fieldNote(['requirements'])}
 				</div>
 
 				<div class="field-row">
@@ -603,6 +762,7 @@
 								{/each}
 							</select>
 						</div>
+						{@render fieldNote(['price_amount', 'price_currency'])}
 					</label>
 					<label class="field">
 						<span>{m.submitMaterial_field_estimatedMinutes()} <em>({m.common_optional()})</em></span
@@ -614,6 +774,7 @@
 							placeholder={m.submitMaterial_estimatedMinutesPlaceholder()}
 							bind:value={estimatedMinutes}
 						/>
+						{@render fieldNote(['estimated_minutes'])}
 					</label>
 				</div>
 
@@ -625,23 +786,43 @@
 	</div>
 </FeatureGate>
 
-{#if success}
+{#if outcome}
 	<!-- A centered modal, triggered the instant the submit resolves — not the old top-of-page
 	     banner, which a submitter who had just clicked "Submit" at the bottom of a long form never
 	     saw without scrolling back up. ModalShell is the same shell every other confirmation dialog
-	     in this app already uses. -->
-	<ModalShell title={m.submitMaterial_successTitle()} onClose={() => (success = false)}>
+	     in this app already uses.
+
+	     Three outcomes, three sentences: live now, waiting for a moderator, or saved as a draft
+	     nobody is reviewing. The link into the project is offered for the last two, since that is
+	     where the decision will show up and where co-authors can be invited — but only while that
+	     page is reachable (`coauthoring`, staff bypassing it). -->
+	<ModalShell title={m.submitMaterial_successTitle()} onClose={() => (outcome = null)}>
 		<p class="success-body">
-			{#if publishedMaterialId}
+			{#if outcome.kind === 'published'}
 				{m.submitMaterial_successPublished()}
-				<a href={resolve('/materials/[id]', { id: publishedMaterialId })}
+				<!-- "Published! Your material is live now — thanks for contributing." -->
+				<a href={resolve('/materials/[id]', { id: outcome.materialId })}
 					>{m.submitMaterial_viewMaterial()}</a
 				>
+				<!-- "View material" -->
 			{:else}
-				{m.submitMaterial_success()}
+				{#if outcome.kind === 'queued'}
+					{m.submitMaterial_success()}
+					<!-- "Thanks! Your material was submitted and is awaiting review." -->
+				{:else}
+					{m.coauth_new_created()}
+					<!-- "The project exists and the first version is saved as a draft. Publish it when it
+					     is ready." -->
+				{/if}
+				{#if canOpenProject}
+					<a href={resolve('/material-projects/[id]', { id: outcome.projectId })}
+						>{m.submitMaterial_viewProject()}</a
+					>
+					<!-- "Open its project page" -->
+				{/if}
 			{/if}
 		</p>
-		<button type="button" class="success-close" onclick={() => (success = false)}>
+		<button type="button" class="success-close" onclick={() => (outcome = null)}>
 			{m.common_close()}
 		</button>
 	</ModalShell>
@@ -738,6 +919,22 @@
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
 		font-weight: 400;
+	}
+	// The same hint, now the reason the submit button will not move.
+	.hint-refused {
+		color: var(--status-danger);
+		font-weight: 600;
+	}
+	// The server's own words about one field, under that field.
+	.field-error {
+		font-size: var(--font-size-xs);
+		color: var(--status-danger);
+		font-weight: 600;
+	}
+	.minor-notice {
+		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		align-self: flex-start;
+		white-space: normal;
 	}
 	.file-picked {
 		font-size: var(--font-size-xs);

@@ -144,6 +144,43 @@ class MaterialSerializer(serializers.ModelSerializer):
     # `None` (not '') when `submitted_by` itself is null, so the frontend can tell "no real
     # submitter" apart from "a submitter with a blank display name."
     submitted_by_display_name = serializers.SerializerMethodField()
+    # The co-authoring project this material is the published projection of, or null for one that
+    # has none yet (COAUTHORING-BRIEF.md §2). Read through `getattr` with a default on purpose,
+    # and it is not a defensive habit: `project` is a REVERSE one-to-one, whose descriptor raises
+    # `RelatedObjectDoesNotExist` — a subclass of `AttributeError`, which is exactly what makes
+    # `getattr(obj, 'project', None)` the correct spelling — when no row points here. The same
+    # line also answers correctly before the `coauthoring` app exists at all, when `Material` has
+    # no `project` attribute whatsoever, which is what lets this ship ahead of it.
+    #
+    # A plain id, not a nested project: the material page fetches the project itself when it needs
+    # one, and embedding it here would put a members list and a version history into every row of
+    # every listing.
+    #
+    # **N+1, named rather than left to be discovered.** While no `project` relation exists this
+    # costs nothing (the attribute is simply absent). The moment `coauthoring` lands it becomes one
+    # query per row on every material listing, and the fix is `select_related('project')` in the
+    # TWO places that build a material list — `MaterialViewSet.queryset` (materials/views.py) and
+    # the branch tab's own copy in `taxonomy/views.py`'s `BranchViewSet.materials`, which has
+    # drifted from the first one before and carries a comment saying so. A reverse one-to-one is
+    # `select_related`-able from this side, so that is all it takes.
+    project_id = serializers.SerializerMethodField()
+    # "The text you are reading is older than the document it describes."
+    #
+    # A co-authored material's versions carry title/description in the PROJECT's locale only, and
+    # publishing one rewrites that one `MaterialTranslation` row. Every OTHER locale's row keeps
+    # whatever it said, which may now describe a document that has moved on — so this compares the
+    # translation the reader actually resolved to against the published version's own
+    # `published_at`, and says so when it is behind.
+    #
+    # Deliberately a HINT and not a hiding rule (the content-language rule in root CLAUDE.md is
+    # about which items a LIST shows; this is about one item a reader already has open). Translating
+    # a material is not versioned at all — COAUTHORING-BRIEF.md §9 names that as left open — and
+    # this field is the whole of what the app says about it.
+    #
+    # False, never null, when there is no project, no published version, or the reader is already
+    # reading the project's own locale: three different ways of "there is nothing to warn about",
+    # and a reader does not need them told apart.
+    translation_stale = serializers.SerializerMethodField()
 
     class Meta:
         model = Material
@@ -158,10 +195,17 @@ class MaterialSerializer(serializers.ModelSerializer):
             'requirements',
             'file',
             'url',
+            # The material's own written text, when it is that shape rather than a file or a link
+            # (materials/models.py's `Material.body`). Read-only here like every other field on
+            # this serializer — `MaterialViewSet` is a ReadOnlyModelViewSet, and the only writer is
+            # a published version's projection (`coauthoring.services.sync_material`).
+            'body',
+            'project_id',
             'author',
             'source_url',
             'submitted_by',
             'submitted_by_display_name',
+            'translation_stale',
             'tags',
             'published',
             'featured',
@@ -204,6 +248,26 @@ class MaterialSerializer(serializers.ModelSerializer):
         if obj.submitted_by_id is None:
             return None
         return getattr(obj.submitted_by.profile, 'display_name', '') or obj.submitted_by.username
+
+    def get_project_id(self, obj):
+        project = getattr(obj, 'project', None)
+        return project.pk if project is not None else None
+
+    def get_translation_stale(self, obj):
+        # `getattr(..., None)` for the same reason `get_project_id` above documents: `project` is a
+        # reverse one-to-one whose descriptor raises `RelatedObjectDoesNotExist` (an AttributeError
+        # subclass) when nothing points here.
+        project = getattr(obj, 'project', None)
+        if project is None:
+            return False
+        published = project.published_version
+        if published is None or published.published_at is None:
+            return False
+        translation = resolve_translation(obj.translations, request_locale(self.context))
+        if translation is None or translation.locale == project.locale:
+            return False
+        updated = getattr(translation, 'updated_at', None)
+        return bool(updated is not None and updated < published.published_at)
 
 
 class MaterialTypeSerializer(serializers.ModelSerializer):

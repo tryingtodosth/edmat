@@ -778,9 +778,11 @@ class CourseItemSerializer(serializers.ModelSerializer):
 def _thread_belongs_to(comment, target_type, course) -> bool:
     """Is this private thread one of THIS course's own?
 
-    Only asked about the three private target types, so the three branches are the whole set —
-    anything else reaching here is a bug in `PRIVATE_TARGET_TYPES` rather than a case to guess at,
-    and returning False refuses the link instead of leaking one.
+    The three branches are the three private target types a course can ever own. The rest of
+    `PRIVATE_TARGET_TYPES` — a session's thread, a material version's review thread — belongs to
+    something that is not a course at all and can never be one of ITS threads, so falling through
+    to False is the right answer for them rather than an unhandled case: it refuses the link
+    instead of leaking one, which is also what an actual gap in that set would get.
     """
     if target_type == 'taughtCourse':
         return comment.object_id == course.pk

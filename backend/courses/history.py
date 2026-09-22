@@ -17,11 +17,17 @@ once per accepted request, win or lose — the log is what still answers "did I 
 independent of whose write the database ended up keeping.
 """
 
-from telemetry.models import AuditEvent
+from telemetry.audit import record_audit
 
 
 def record_content_change(request, course, *, summary: str, detail: dict) -> None:
     """One `AuditEvent` for one accepted write against `course`'s own structure.
+
+    The body of this moved to `telemetry/audit.py` once co-authoring needed the same row for its
+    own targets and actions — this is now exactly what its name always said, `record_audit` with
+    the two course-shaped arguments filled in. Both of that helper's rules still bind every call
+    site here, and are restated rather than linked because they are what a reader of this function
+    needs to know:
 
     Deliberately outside the write's own `transaction.atomic()` block (every call site here runs it
     right after the block, not inside it): `AuditEvent` lives in a completely different SQLite file,
@@ -39,13 +45,11 @@ def record_content_change(request, course, *, summary: str, detail: dict) -> Non
     on purpose). A plain model `.save()` passes `instance=self` to the router correctly, which is
     exactly the difference between this working and raising `OperationalError: no such table`.
     """
-    event = AuditEvent(
-        actor_id=request.user.id,
-        actor_label=getattr(request.user, 'username', ''),
+    record_audit(
+        request,
         action='content_edit',
         target_type='course',
-        target_id=str(course.pk),
+        target_id=course.pk,
         summary=summary,
         detail=detail,
     )
-    event.save()

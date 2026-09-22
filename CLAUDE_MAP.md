@@ -21,7 +21,7 @@ the present, the other file wins.
 
 ```
 edmat/
-├── backend/           Django 5.2 + DRF. 15 apps + config/ + testing/ + imaging.py. SQLite.
+├── backend/           Django 5.2 + DRF. 21 apps + config/ + testing/ + imaging.py. SQLite.
 ├── frontend/          SvelteKit 2 + Svelte 5 runes + TS. adapter-static (SPA). Paraglide i18n.
 ├── deploy/            Apache vhosts + the webek4/edmat.net runbooks.
 ├── scripts/           One legacy helper (mock-fixture extraction from the corpus).
@@ -95,6 +95,13 @@ The uniqueness rule has real history: it started as `unique_together('exercise',
 Meta comment claimed and produced three deterministic 500s. It is now a **partial unique constraint** — at most one *published* row
 per (exercise, locale) — with multiple pending/rejected rows explicitly legal.
 
+`ExerciseMaterialLink` (2026-09-22, `HISTORY.md` §17BE) attaches an exercise to a material — `role` (`source`: it is IN the
+material; `practice`: it practises what the material teaches), a free-text `locator` ("p. 34, ex. 3.2"), unique per pair, and
+deliberately NOT moderation-gated: the exercise is the contribution and keeps its queue, while saying which material it belongs to
+is metadata the community corrects. Rules in `exercises/links.py` (the object check and its queryset mirror, plus the three
+submission payload keys four places read). `GET|POST /api/materials/{id}/exercises/`, `GET /api/exercises/{id}/materials/`,
+`PATCH|DELETE /api/exercise-material-links/{id}/`, and `?material=` on the exercise list.
+
 `ExerciseViewSet` carries filtering (`?topic=&difficulty=&source_type=&q=&tag=&sort=`), `?lang=` resolution with fallback to
 `original_locale`, `random/` (a list-level action registered *before* the `{pk}` route; prefer-unseen then weighted-roulette by
 topic affinity), `bulk/?ids=` (built to kill a 115-request frontend N+1), plus `translations/`, `reviews/`, `comments/`,
@@ -119,6 +126,22 @@ because they read as structural claims about the material rather than community 
 `materials/validators.py` + `materialfile.py` hold upload validation and the ClamAV seam (§2.5); `services.py` holds the
 recommendation helpers and the duplicate-label guard shared by both requirement write paths.
 
+### `coauthoring` — projects, teams and versions on materials (2026-09-20)
+Models: `MaterialProject` (one per material, or a draft with no material yet), `ProjectMember` (`owner` | `coauthor`,
+owner row created in `save()`, one owner per project by partial unique index), `ProjectInvite` (token link, revoke =
+timestamp), `ProjectJoinRequest` (apply → decide, one pending per person), `MaterialVersion` (immutable rows numbered
+per project, `status` draft → proposed → published → superseded plus rejected / withdrawn, `kind` file | link | body,
+exactly one `published` per project by partial unique index).
+
+**The `Material` row stays the published projection**: publishing a version copies its payload onto the material and
+its title/description onto the original-locale translation, so every read site is unchanged and a killed switch never
+removes a material. Every save is a new version; a save based on a stale head gets 409. Co-authors publish directly;
+staff/branch governors review only a project's first publication and proposals on orphan materials (that is the
+`material_versions` section of the moderation queue). `access.py` is the rule module (`can_edit`, `can_decide`,
+`propose_block_reason`, …), `services.py` the slow half (allocation loop, publish/decide claims, the projection,
+`materialise` through `materials/publish.py create_material`). Kill switch `coauthoring`; creating a new material
+still answers to `material_submissions`. Spec: `COAUTHORING-BRIEF.md`; write-up: `HISTORY.md` §17BC.
+
 ### `community` — reviews and threaded comments
 `Review` (1–5 stars + optional body, unique per (exercise, author), resubmitting **updates** rather than duplicating) and `Comment`
 (a `GenericForeignKey` target + self-FK `parent`, so one model threads discussion under exercises, materials, coverage claims,
@@ -130,8 +153,11 @@ different object's thread. Now checked in the view (not the serializer — `cont
 validation time), in both the exercise and coverage endpoints.
 
 ### `moderation` — the queue, the scoped role, and the kill switches
-Models: `ExerciseSubmission` (a JSON `payload` draft), `EditSuggestion`, `MaterialSubmission` (real typed fields + a file),
-`Report`, `ContentView` (the viewer pool auto-hide divides by), `NodeGovernor`, `FeatureFlag`.
+Models: `ExerciseSubmission` (a JSON `payload` draft), `EditSuggestion`,
+`Report`, `ContentView` (the viewer pool auto-hide divides by), `NodeGovernor`, `FeatureFlag`,
+`GovernorApplication`. **`MaterialSubmission` is gone** (2026-09-22, `HISTORY.md` §17BC): a material
+is created by publishing the first version of a `coauthoring.MaterialProject`, so the queue's
+Materials tab reads `material_versions` and decisions go through that app's own endpoint.
 
 - **Moderator** = `is_staff`. **Node governor** = a `NodeGovernor` grant (a `GenericForeignKey` to a Discipline *or* a Branch);
   a Discipline grant cascades to every Branch under it. `governed_branch_ids()` returns `None` for global staff (meaning "don't
@@ -310,7 +336,7 @@ Everything is mounted under `/api/`. Standalone paths cover auth (`register/logi
 `services/{id}/availability/`, `my-schedule/`, `schools/`, `education/*`, and `course-invites/<token>/` + `/accept/`.
 Routers register: `disciplines`, `branches`, `exercises`, `exercise-requirements`,
 `exercise-submissions`, `edit-suggestions`, `tags`, `comments`, `reviews`, `materials`, `material-types`, `material-reviews`,
-`material-coverage`, `material-requirements`, `material-submissions`, `exercise-sets`, `notifications`, `donation-links`,
+`material-coverage`, `material-requirements`, `material-projects`, `material-versions`, `exercise-sets`, `notifications`, `donation-links`,
 `me/experience`, `me/skills`, `me/certificates`, `services`, `service-reviews`, `service-watches`, `messages`, `courses`,
 `bookings`, `availability-rules`, `week-templates`, `week-schedules`, `events`, `reports`, `feature-flags`,
 `moderation/governors`.
@@ -341,7 +367,7 @@ Two safety layers, kept honest about which is which:
 Stored filenames are a random UUID hex plus the validated extension — the original filename is untrusted input (traversal
 characters, `invoice.pdf.exe`, collisions). Avatars and event-post images go further and are fully re-encoded (§2.2).
 
-**Provenance:** `Material` and `MaterialSubmission` carry `author` (who wrote it) and `source_url` (where it came from) — genuinely
+**Provenance:** `Material` and `coauthoring.MaterialProject` carry `author` (who wrote it) and `source_url` (where it came from) — genuinely
 distinct, both optional, both surfaced to the moderator *at the approve/reject click*, because that is where the judgment happens
 and the uploader is the only person who ever knows. Nothing verifies the URL resolves; it's a declaration for a human to weigh. The
 7 legacy materials are correctly blank rather than backfilled with invented provenance.

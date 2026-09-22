@@ -9,7 +9,8 @@ from rest_framework.test import APITestCase
 from courses.models import Course
 from events.models import Event
 from materials.models import Material
-from moderation.models import ExerciseSubmission, MaterialSubmission
+from coauthoring.models import MaterialProject, MaterialVersion
+from moderation.models import ExerciseSubmission
 from services.models import Service
 from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_exercise, make_material, make_user
@@ -145,12 +146,20 @@ class AudienceSubmissionTests(APITestCase):
         submission.refresh_from_db()
         self.assertEqual(submission.resulting_exercise.audience, 'university')
 
-    def test_material_submission_carries_its_band(self):
-        submission = MaterialSubmission.objects.create(
-            branch=self.branch, submitted_by=self.student, type='script', title='Senior notes',
-            url='https://example.org/notes', audience='senior',
+    def test_a_first_publication_carries_its_band(self):
+        """Ported from the `MaterialSubmission` path, which was folded into a project with a team of
+        one (`coauthoring/0003_fold_material_submissions`): the band is declared on the project and
+        has to survive onto the real `Material` when its first version publishes."""
+        project = MaterialProject.objects.create(
+            branch=self.branch, created_by=self.student, type='script', audience='senior'
         )
-        response = self._approve('material', submission.pk)
+        version = MaterialVersion.objects.create(
+            project=project, number=1, status='proposed', kind='link',
+            url='https://example.org/notes', title='Senior notes', created_by=self.student,
+        )
+        response = self.client.post(
+            f'/api/material-versions/{version.pk}/decide/', {'decision': 'accept'}, format='json',
+        )
         self.assertEqual(response.status_code, 200, response.content)
-        submission.refresh_from_db()
-        self.assertEqual(submission.resulting_material.audience, 'senior')
+        project.refresh_from_db()
+        self.assertEqual(project.material.audience, 'senior')

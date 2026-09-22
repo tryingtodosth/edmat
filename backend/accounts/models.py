@@ -93,8 +93,9 @@ class Profile(models.Model):
     #
     # The two do not overlap, and the gap between them is why this exists. That one is enforced on
     # the course-content path alone (`TaughtCourseViewSet.items`, classroom/views.py); the main
-    # upload route, `POST /api/material-submissions/`, never consulted it and had no aggregate limit
-    # of its own at all, so one account was bounded only by the 25MB per-file cap
+    # upload route — `POST /api/material-projects/` now, `POST /api/material-submissions/` when this
+    # was written — never consulted it and had no aggregate limit of its own at all, so one account
+    # was bounded only by the 25MB per-file cap
     # (`MAX_MATERIAL_SUBMISSION_SIZE_BYTES`) times however many requests it cared to make. On a
     # university box with a shared filesystem that is the whole disk, one account at a time.
     #
@@ -189,12 +190,21 @@ class Profile(models.Model):
 
     @property
     def material_upload_bytes(self) -> int:
-        """Total bytes this account currently occupies with material submissions.
+        """Total bytes this account currently occupies with material uploads.
+
+        **One source, because there is one way a material file gets here**: a
+        `coauthoring.MaterialVersion`. That was briefly two — `moderation.MaterialSubmission` was
+        the single-shot submit form's own row and was summed beside versions — and folding that
+        model away (`coauthoring/0003_fold_material_submissions`) is what made this one line again.
+        It also removed a real double count: an approved submission and the backfilled version that
+        described it named the SAME stored path, so those bytes were charged twice to whoever
+        uploaded them. One account, one budget, however the bytes got there — the same rule
+        `galleries` already follows when it charges pictures against this allowance.
 
         Summed live from storage rather than kept as a running total on the row — deliberately the
         same shape as `TaughtCourse.uploaded_bytes` (classroom/models.py) rather than a second
         answer to the same question, and for the same reason, which is worth restating because the
-        obvious objection ("that is one `stat()` per submission") is real:
+        obvious objection ("that is one `stat()` per version") is real:
 
         A stored counter has to stay correct after every upload, every rejection that reclaims a
         file, every upload that failed validation halfway, and every deletion an administrator makes
@@ -205,28 +215,30 @@ class Profile(models.Model):
 
         The cost is bounded by where this is read: once per upload request (alongside a malware scan
         that is orders of magnitude more expensive) and on the Django admin changelist. Neither is
-        hot, and one account's submissions number in the tens — keeping that true is the point of
+        hot, and one account's versions number in the tens — keeping that true is the point of
         the quota. If this ever does become hot, the first move is a `file_size` column written at
         upload time plus a single `Sum()` aggregate, which is still derived from real rows and so
         still cannot drift, unlike a counter kept here.
 
-        **Every submission counts, whatever its status, and that is a decision rather than a
-        shortcut.** An approved one still counts because its bytes are still on disk — the published
-        `Material` points at the very same stored path (`_apply_material_submission` copies the
-        reference, never the file) — and exempting approved uploads would leave the cap bounding
-        nothing at all over a long enough membership. A rejected one whose blob has been reclaimed
-        needs no status filter to stop counting: it has no file left, so it contributes zero on its
-        own. The quota measures disk, not decisions.
+        **Every version counts, whatever its status, and that is a decision rather than a
+        shortcut.** A published one still counts because its bytes are still on disk — the `Material`
+        points at the very same stored path (`services.sync_material` copies the reference, never
+        the file) — and a superseded one still counts because keeping its file IS the history;
+        exempting either would leave the cap bounding nothing at all over a long enough membership.
+        A rejected or withdrawn one whose blob has been reclaimed needs no status filter to stop
+        counting: it has no file left, so it contributes zero on its own. The quota measures disk,
+        not decisions.
         """
         # Imported here rather than at module scope so the model-import graph stays one-way:
-        # `moderation` already imports `materials`, which imports `taxonomy`, and nothing in that
-        # chain imports `accounts` — keeping this app a leaf is cheaper than reasoning about a cycle
-        # every time somebody adds an import over there.
-        from moderation.models import MaterialSubmission
+        # `coauthoring` imports `materials`, which imports `taxonomy`, and nothing in that chain
+        # imports `accounts` — keeping this app a leaf is cheaper than reasoning about a cycle every
+        # time somebody adds an import over there.
+        from coauthoring.models import MaterialVersion
 
         total = 0
-        for submission in MaterialSubmission.objects.filter(submitted_by=self.user).only('file'):
-            stored = submission.file
+        rows = MaterialVersion.objects.filter(created_by=self.user).only('file')
+        for row in rows:
+            stored = row.file
             if not stored:
                 continue
             try:

@@ -138,6 +138,8 @@ async function main() {
 		{ name: 'Tutoring hub', url: '/services' },
 		{ name: 'Courses hub', url: '/courses' },
 		{ name: 'Activity feed', url: '/activity' },
+		// Co-authoring (HISTORY.md §17BC): the public half — projects looking for people.
+		{ name: 'Co-authoring hub', url: '/material-projects' },
 		{ name: 'Exercise detail', url: `/exercises/${exerciseId}` },
 		{ name: 'My Set (guest)', url: '/my-set' },
 		{ name: 'Login', url: '/login' },
@@ -153,6 +155,8 @@ async function main() {
 		{ name: 'Moderation queue', url: '/moderation' },
 		{ name: 'Notifications', url: '/notifications' },
 		{ name: 'Submit material', url: '/submit-material' },
+		{ name: 'My material projects', url: '/material-projects?tab=mine' },
+		{ name: 'Start a material with others', url: '/material-projects/new' },
 		{ name: 'My agenda', url: '/events/agenda' },
 		{ name: 'Host an event', url: '/events/new' },
 		{ name: 'Offer tutoring', url: '/services/new' }

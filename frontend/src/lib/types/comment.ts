@@ -28,6 +28,22 @@ export type CommentTargetType =
 	| 'eventSession'
 	// A site issue report (issues/) — its discussion is the reason a published one has a page.
 	| 'issue'
+	// The review thread on one version of a material (coauthoring/) — where a proposal is argued
+	// about before somebody accepts or rejects it. Named `materialVersion` rather than `version`
+	// for the same reason `taughtCourse` is not `course`: this union is one flat namespace across
+	// the whole platform, and a bare "version" would be the first name in it that does not say what
+	// it is a version OF. The backend says the same thing from its side, in
+	// `community/targets.py`'s TARGET_TYPE_BY_MODEL.
+	//
+	// It is also in that file's PRIVATE_TARGET_TYPES, so a version's thread cannot be linked into a
+	// course: most versions are not public at all (a draft is the team's, a proposal is its author's
+	// and its deciders'), and a per-TYPE table has to answer per type.
+	//
+	// `SavedCommentsList.svelte` deliberately has no case for it either, and that is a gap rather
+	// than a decision: a saved row carries only (targetType, targetId=the version's id), while the
+	// version page is addressed by (project id, version number). Linking one would need the server
+	// to resolve that pair, so the row renders without a link rather than with a broken one.
+	| 'materialVersion'
 	// An anchored micro-post on the activity feed (activity.Post) — its own thread.
 	| 'post'
 	// The three review kinds. Replying to somebody's review is not a new kind of object — it is a

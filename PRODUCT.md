@@ -165,7 +165,7 @@ user stories (Section 6), not losing in the rewrite.
 | Role | Can do |
 |---|---|
 | **Anonymous visitor** | Browse, search, filter, read exercises + materials, read reviews/discussion, build a local (browser-only) "my set" and export it to PDF. |
-| **Registered user** | Everything above, plus: leave a rating/review, post/reply in discussion threads, submit a new exercise, suggest an edit to an existing one, submit a translation, save "my set" server-side under a name. |
+| **Registered user** | Everything above, plus: leave a rating/review, post/reply in discussion threads, submit a new exercise, suggest an edit to an existing one, submit a translation, save "my set" server-side under a name, and — since 2026-09-22 (`COAUTHORING-BRIEF.md`) — propose an improved version of any material, or co-author one as a member of its project. |
 | **Verified contributor** *(a lightweight reputation tier, not a separate account type — a flag a moderator grants)* | ✅ **Resolved, Section 18 item 4.** A brand-new exercise submitted by this tier publishes immediately, no queue. Edit suggestions and translations from the same person still queue regardless — trust in new work doesn't extend to an unreviewed change to something already published. |
 | **Moderator** | Everything above, plus: approve/reject new-exercise submissions, edit suggestions, and translation submissions; toggle `published`/`verified` on any exercise; moderate flagged discussion content. |
 | **Admin** | Everything above, plus: manage fields/courses/topics (the controlled vocabularies), manage user roles. |
@@ -223,6 +223,20 @@ Grouped by epic, each tagged with the role it's written for.
   student studying for an exam.
 - As a **moderator**, I can un-publish or un-verify an exercise that turns out to be wrong, so a bad
   solution doesn't sit live indefinitely once flagged.
+
+**Co-authoring a material** (added 2026-09-22; the design and its decisions are in
+`COAUTHORING-BRIEF.md`, the build in `HISTORY.md` §17BC):
+- As a **registered user**, I can propose an improved version of any published material — a new
+  file, a link, or text written here — and the people who look after it accept or reject it with a
+  reason, so a material with a mistake in it is not stuck with the mistake.
+- As a **registered user**, I can start a material *with other people*: a project with a team, an
+  invite link, and a first version a moderator reads before it becomes a material.
+- As a **co-author**, I can publish a new version without waiting for a moderator, because somebody
+  already vouched for this material and its history says who changed what.
+- As **anybody**, I can see what a material used to be and who changed it, because every version is
+  kept rather than overwritten.
+- *Not* real-time editing, which stays out of scope above: collaboration is turn-based, and a save
+  written against an older version is refused rather than silently winning.
 
 ### Translation
 - As a **registered user** fluent in a second language, I can submit a translation of an exercise's

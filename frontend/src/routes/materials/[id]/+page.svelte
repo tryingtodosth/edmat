@@ -44,12 +44,17 @@
 	import RequirementsEditor from '$lib/components/material/RequirementsEditor.svelte';
 	import CoverageVoteWidget from '$lib/components/material/CoverageVoteWidget.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
+	// The renderer behind it is loaded on demand (lib/utils/mathRender.ts), so a material with no
+	// body — every one of them until co-authoring landed — still downloads no KaTeX from here.
+	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 	import ReviewList from '$lib/components/review/ReviewList.svelte';
 	import ReviewForm from '$lib/components/review/ReviewForm.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
+	import MaterialExercises from '$lib/components/material/MaterialExercises.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
+	import ProjectPanel from '$lib/components/coauthoring/ProjectPanel.svelte';
 	import ApplyToGovern from '$lib/components/governance/ApplyToGovern.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
@@ -280,6 +285,29 @@
 		<MaterialCard {material} linkTitle={false} headingLevel={1} />
 		<ReportButton kind="material" objectId={material.id} />
 
+		{#if material.translationStale}
+			<!-- The material moved on and this rendering of it did not: a newer version was published
+			     after the description was translated. Said out loud rather than hidden or silently
+			     replaced with another language — translations of a material are deliberately not
+			     versioned (COAUTHORING-BRIEF.md §9), so the honest answer is to show the slightly old
+			     text and name the gap, which is also the only thing that ever gets it retranslated. -->
+			<p class="notice notice--stale">
+				{m.material_translationStale()}
+				<!-- "This description may be out of date: a newer version was published after it was translated." -->
+			</p>
+		{/if}
+
+		{#if material.body}
+			<!-- The material written here rather than uploaded or linked. Directly under the card, in
+			     the place a PDF or a picture preview would be, because for a `body` material this IS
+			     the material. Through MathContent like every other content field in this app — the
+			     storage format is the same Markdown + raw HTML + literal LaTeX (root CLAUDE.md's
+			     content pipeline), so nothing here needs its own renderer. -->
+			<section class="content-section material-body">
+				<MathContent source={material.body} />
+			</section>
+		{/if}
+
 		{#if isPdf}
 			<section class="content-section pdf-preview">
 				<div class="pdf-preview__head">
@@ -317,6 +345,12 @@
 			</section>
 		{/if}
 
+		<!-- Under the previews and above the gallery: the panel is about the bytes somebody just
+		     looked at — which version they are, who wrote them, and how to improve them — so it
+		     belongs with them rather than down among the claims. It renders nothing at all when the
+		     co-authoring switch is off, or when this material has no project. -->
+		<ProjectPanel materialId={material.id} />
+
 		<GallerySection
 			targetType="material"
 			targetId={material.id}
@@ -336,6 +370,14 @@
 		</section>
 
 		<AppearsInSessions materialId={material.id} />
+
+		<!-- Above the claim groups on purpose: "what can I actually work through from this" is a
+		     more immediate question than "which topics does it cover, and how deeply". -->
+		<MaterialExercises
+			materialId={material.id}
+			branchId={material.branchId}
+			submittedByUserId={material.submittedByUserId}
+		/>
 
 		<section class="claim-group">
 			<div class="claim-group__heading">
@@ -647,6 +689,18 @@
 	.notice {
 		@include mix.status-pill(var(--status-success), var(--status-success-bg));
 		align-self: flex-start;
+	}
+	// The success hue above is right for "thanks for the review" and wrong for "this text may be
+	// out of date" — a caution that is drawn as a confirmation is a message the colour contradicts.
+	.notice--stale {
+		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		// A whole sentence, not a badge: the pill mixin's own `nowrap` would push it off a phone.
+		white-space: normal;
+	}
+	// The material itself when it was written here. No card of its own — it is the page's content,
+	// the way an exercise's statement is, rather than one more section about the material.
+	.material-body {
+		font-size: var(--font-size-base);
 	}
 	.login-prompt {
 		font-size: var(--font-size-sm);

@@ -29,6 +29,12 @@ function targetPath(targetType: CommentTargetType, targetId: string): string {
 	if (targetType === 'taughtCourse') {
 		return `/courses/${encodeURIComponent(targetId)}/comments/`;
 	}
+	// A material version's review thread (coauthoring/). The version page loads and posts through
+	// `services/materialProjects.ts` instead, which already speaks that app's refusals — this entry
+	// is what lets anything generic that resolves a target BY NAME reach the same endpoint.
+	if (targetType === 'materialVersion') {
+		return `/material-versions/${encodeURIComponent(targetId)}/comments/`;
+	}
 	// The three review threads. Addressed by the review's own id rather than nested under the
 	// exercise/material/listing it is about, because a reply belongs to the review, not to the
 	// thing being reviewed.

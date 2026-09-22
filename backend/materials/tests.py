@@ -1107,3 +1107,126 @@ class MaterialClaimImportanceVoteTests(APITestCase):
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class CreateMaterialFactoryTests(APITestCase):
+    """`materials.publish.create_material` — the shared "a new material exists now" step.
+
+    It was `moderation/views.py`'s `_apply_material_submission` until co-authoring needed the same
+    thing for a project's first published version. The submission path's own tests (in
+    `moderation`) are what pin that the extraction changed nothing for it; these pin the contract
+    the OTHER caller builds against, which no submission can exercise: a body-shaped material, a
+    slug that has to dodge a collision, and the one feed row this function is responsible for.
+    """
+
+    def setUp(self):
+        self.branch = make_course()
+        self.author = make_user('factory-author')
+
+    def _create(self, **overrides):
+        from materials.publish import create_material
+
+        kwargs = dict(
+            branch=self.branch,
+            type='script',
+            audience='university',
+            submitted_by=self.author,
+            locale='pl',
+            title='Notatki z analizy',
+            description='Opis',
+        )
+        kwargs.update(overrides)
+        return create_material(**kwargs)
+
+    def test_a_body_material_needs_no_file_and_no_url(self):
+        material = self._create(body='Treść **napisana** tutaj.')
+
+        material.full_clean()  # would raise if file-or-url-or-body were not the rule
+        self.assertEqual(material.file, '')
+        self.assertEqual(material.url, '')
+        self.assertIn('Treść', material.body)
+        self.assertTrue(material.published)
+        self.assertEqual(material.translations.get().title, 'Notatki z analizy')
+
+    def test_the_body_is_sanitized_on_write(self):
+        """House rule 8 — on write as well as on read, and `Material.save()` is the write side, so
+        it holds for the admin and the corpus importer too, not only for a serializer."""
+        material = self._create(body='<p>ok</p><script>alert(1)</script>')
+
+        self.assertNotIn('<script>', material.body)
+        self.assertIn('<p>ok</p>', material.body)
+
+    def test_the_slug_dodges_one_that_already_exists_in_the_branch(self):
+        first = self._create(body='a')
+        second = self._create(body='b')
+
+        self.assertNotEqual(first.slug, second.slug)
+        self.assertEqual(second.slug, f'{first.slug}-2')
+
+    def test_requirements_and_coverage_become_real_rows_attributed_to_the_submitter(self):
+        topic = make_topic(self.branch, 'pochodne')
+        material = self._create(
+            body='a',
+            requirements=['Ciągłość', 'Granice'],
+            coverage=[{'topic_id': topic.pk, 'level': 3, 'kind': 'requires'}],
+        )
+
+        self.assertEqual(
+            [r.label for r in material.requirements.order_by('order')], ['Ciągłość', 'Granice']
+        )
+        claim = material.coverage.get()
+        self.assertEqual((claim.topic_id, claim.level, claim.kind), (topic.pk, 3, 'requires'))
+        self.assertEqual(claim.proposed_by_id, self.author.pk)
+
+    def test_it_announces_the_material_on_the_feed_once(self):
+        from activity.models import ActivityEvent
+
+        material = self._create(body='a')
+
+        row = ActivityEvent.objects.get(kind='material', material=material)
+        self.assertEqual(row.actor_id, self.author.pk)
+        self.assertEqual(row.target_label, 'Notatki z analizy')
+
+    def test_activity_actor_can_differ_from_the_submitter(self):
+        """A co-authored project's first publication is announced as the person who published it,
+        while the material is still attributed to its owner."""
+        from activity.models import ActivityEvent
+
+        publisher = make_user('factory-publisher')
+        material = self._create(body='a', activity_actor=publisher)
+
+        self.assertEqual(material.submitted_by_id, self.author.pk)
+        self.assertEqual(ActivityEvent.objects.get(material=material).actor_id, publisher.pk)
+
+
+class MaterialBodyAndProjectIdSerializationTests(APITestCase):
+    """The two read-only fields the co-authoring frontend needs before the app itself exists."""
+
+    def setUp(self):
+        self.branch = make_course()
+        self.material = make_material(self.branch, 'with-body', title='Z treścią')
+        self.material.body = 'Napisane **tutaj**.'
+        self.material.save(update_fields=['body'])
+
+    def test_the_detail_response_carries_the_body(self):
+        response = self.client.get(reverse('material-detail', kwargs={'pk': self.material.pk}))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['body'], 'Napisane **tutaj**.')
+
+    def test_project_id_is_null_while_no_project_points_here(self):
+        """`project` is a reverse one-to-one that does not exist yet — the serializer must answer
+        null rather than raising, both before the `coauthoring` app lands and after it, for a
+        material no project has claimed."""
+        response = self.client.get(reverse('material-detail', kwargs={'pk': self.material.pk}))
+
+        self.assertIsNone(response.data['project_id'])
+
+    def test_a_translation_row_records_when_it_last_changed(self):
+        translation = self.material.translations.get()
+        before = translation.updated_at
+        translation.title = 'Zmieniony'
+        translation.save()
+
+        translation.refresh_from_db()
+        self.assertGreater(translation.updated_at, before)

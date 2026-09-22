@@ -7,8 +7,6 @@ import type {
 	MaterialCoverage,
 	MaterialRequirement,
 	MaterialReview,
-	MaterialSubmission,
-	MaterialSubmissionDraft,
 	MaterialTypeOption,
 	RecommendedMaterialsResult
 } from '$lib/types';
@@ -19,13 +17,11 @@ import {
 	mapMaterialCoverage,
 	mapMaterialRequirement,
 	mapMaterialReview,
-	mapMaterialSubmission,
 	toBackendMaterialType,
 	type RawMaterial,
 	type RawMaterialCoverage,
 	type RawMaterialRequirement,
 	type RawMaterialReview,
-	type RawMaterialSubmission,
 	type RawMaterialType
 } from '$lib/api/mappers';
 
@@ -230,70 +226,11 @@ export async function retractImportanceVote(claim: MaterialCoverage): Promise<Ma
 	return mapMaterialCoverage(raw);
 }
 
-// ---- material submissions ("exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word
-// document should be accepted too, scanned and kept safe") ------------------------------------
-
-/** A real multipart upload, not JSON — `file` travels as an actual `File` object, separate from the
- * rest of the draft's plain metadata fields (mirroring how `MaterialSubmissionDraft` itself keeps
- * the two apart, see that type's own doc comment). The backend runs real content-type sniffing
- * AND an (optional, honestly-flagged-when-unavailable) malware scan before this ever reaches the
- * moderation queue — a 400 here can mean either check failed, surfaced via the thrown `ApiError`'s
- * own message exactly like any other validation error in this app. */
-export async function submitMaterial(
-	draft: MaterialSubmissionDraft,
-	/** Null when the material is a link rather than a hosted file. The backend refuses a submission
-	 * with neither, so this being null means `draft.url` is set. */
-	file: File | null
-): Promise<MaterialSubmission> {
-	const formData = new FormData();
-	formData.append('branch', draft.branchId);
-	formData.append('type', toBackendMaterialType(draft.type));
-	formData.append('title', draft.title);
-	formData.append('description', draft.description);
-	formData.append('locale', draft.locale);
-	formData.append('audience', draft.audience);
-	// Omitted entirely rather than appended empty: an empty multipart file part arrives as a blank
-	// upload rather than as "no file", and DRF would try to validate it as one.
-	if (file) formData.append('file', file);
-	if (draft.url?.trim()) formData.append('url', draft.url.trim());
-	// Provenance — both optional, both only ever knowable by the uploader (see
-	// MaterialSubmission.author/source_url in moderation/models.py). Sent as plain multipart
-	// fields, not JSON-encoded like `requirements`/`coverage` below, since neither is a list.
-	if (draft.author?.trim()) formData.append('author', draft.author.trim());
-	if (draft.sourceUrl?.trim()) formData.append('source_url', draft.sourceUrl.trim());
-	// All three genuinely optional — a submission that never sets any of them behaves exactly as
-	// before this feature existed. `requirements` travels as a JSON-encoded string, not a native
-	// array — this is a multipart body, and the backend's own `validate_requirements` (moderation/
-	// serializers.py) specifically parses a string here rather than assuming a real list arrived.
-	if (draft.requirements && draft.requirements.length > 0) {
-		formData.append('requirements', JSON.stringify(draft.requirements));
-	}
-	// Same "JSON-encoded string over multipart" shape `requirements` just above already uses —
-	// `validate_coverage` (moderation/serializers.py) parses this string itself, same reasoning.
-	if (draft.coverage && draft.coverage.length > 0) {
-		formData.append(
-			'coverage',
-			JSON.stringify(draft.coverage.map((c) => ({ topic_id: Number(c.topicId), level: c.level })))
-		);
-	}
-	if (draft.priceAmount !== undefined) formData.append('price_amount', String(draft.priceAmount));
-	if (draft.priceCurrency) formData.append('price_currency', draft.priceCurrency);
-	if (draft.estimatedMinutes !== undefined) {
-		formData.append('estimated_minutes', String(draft.estimatedMinutes));
-	}
-
-	const raw = await apiClient.postForm<RawMaterialSubmission>('/material-submissions/', formData);
-	return mapMaterialSubmission(raw);
-}
-
-export async function getMaterialSubmissionsForBranch(
-	branchId: string
-): Promise<MaterialSubmission[]> {
-	const raw = await apiClient.get<RawMaterialSubmission[]>(
-		`/material-submissions/?branch=${encodeURIComponent(branchId)}`
-	);
-	return raw.map(mapMaterialSubmission);
-}
+// ---- a new material is a project now: `/submit-material` creates one and publishes its first
+// version in the same request (`createProject(…, { publish: true })`, services/materialProjects.ts).
+// The one-shot `/api/material-submissions/` endpoint this file used to call is gone, and so are
+// `submitMaterial` and `getMaterialSubmissionsForBranch` (COAUTHORING-BRIEF.md §0: two ways to
+// create a material was the defect).
 
 // ---- material requirements — a governor-only bulk replace of an ALREADY-PUBLISHED material's own
 // requirement list (materials/views.py's `requirements` action) — see that view's own doc comment

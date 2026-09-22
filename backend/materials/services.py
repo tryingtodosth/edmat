@@ -26,8 +26,8 @@ from .models import Material, MaterialCoverageVote, MaterialView
 
 def clean_requirement_labels(labels: list) -> list[str]:
     """Trim + drop-blank a raw requirement-label list — the shared first half of what both the
-    submission-time `MaterialSubmission.requirements` validator (moderation/serializers.py) and the
-    governor-only bulk-replace endpoint (materials/views.py's `requirements` action) need to do
+    submission-time requirements validator (`coauthoring.serializers._CatalogueValidationMixin`)
+    and the governor-only bulk-replace endpoint (materials/views.py's `requirements` action) need to do
     before a list of labels is fit to store. Kept here, not duplicated in each of those two files,
     for the exact same "one definition, not two independently-drifting copies" reasoning this
     module's own `_vote_weight` docstring already gives.
