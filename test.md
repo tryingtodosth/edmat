@@ -1228,3 +1228,8 @@ cd frontend && E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node
 
 The script creates one scratch draft (to show that a signed-out visitor previews it as nothing at
 all) and deletes it through the real API at the end, confirming by re-query.
+
+**One trap about running any of this.** `manage.py test … | grep … | tail` reports the exit status
+of `tail`, not of Django, so a piped run says `EXIT=0` however many tests failed. Run it unpiped
+into a file and read the `OK` / `FAILED (…)` line out of that file. This was caught here after two
+suite runs had already been recorded as passing on nothing but a pipeline's exit code.
