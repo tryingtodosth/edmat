@@ -226,10 +226,84 @@ materials are correctly blank rather than backfilled with invented values.
 
 ---
 
-## 8. Still open
+## 8. Event data: who sees what, and for how long
+
+Built 2026-09-23 as step G of the conference layer (`CONFERENCE-BRIEF.md` §3.G,
+`HISTORY.md` §17BF.G). The rules are in `backend/events/exports.py`; this is what they mean.
+
+> ⚠️ **The research this rests on has not been checked by a lawyer.** The role table below comes
+> from `CONFERENCE-RESEARCH-REPORT.md` §1.4, §4.2 and §4.3 — a Gemini deep-research answer whose
+> legal citations were dropped in the paste and are therefore **unverified**. Every number here is
+> a project default chosen because it is defensible, not a finding about Polish law, and the
+> reasoning it follows (data minimisation, storage limitation) is the GDPR's general principle
+> rather than a cited article applied to this case. Nothing in this section may be relied upon in
+> a privacy notice, in an answer to a data subject, or in a conversation with the Faculty, until
+> somebody qualified has read it. That review is listed in §9.
+
+### Who sees what, on one event
+
+| Role | Sees | Deliberately does not see |
+|---|---|---|
+| Anyone, signed out | The event, its programme, and — only if the organiser turned the list on — first name and last initial of the people going | Everything else: no ids, no statuses, no answers |
+| Somebody going | The same, plus full names of other attendees | Answers, notes, check-in state, anyone's contact data |
+| Volunteer | The registration list as **name, status, checked-in** — and the row id their check-in button addresses. The door list as a CSV | Every answer, the accessibility note, the attendee's note to the organiser, the account id, the waiting-list timing, the full CSV |
+| Reviewer | The same narrow list as a volunteer, and the single-blind contribution queue | The same as a volunteer. A reviewer has *less* business with the roster than a door volunteer, not more |
+| Organiser (and the host) | Everything: every answer, every note, the full CSV, the needs summary and the export log | Nothing on their own event. They have no platform-wide access of any kind |
+| Platform moderator | What the moderation surfaces show (a report, a hidden event) | The registration list. Moderation is about published content, not about who signed up |
+
+The **aggregated** figures an organiser hands on — to catering, to the accessibility desk, to the
+building — are counts and only counts (`/api/events/{id}/exports/needs/`): how many are coming in
+person, how many online, how many stated an accessibility need, and per multiple-choice question
+how many chose each option. No row of the roster is in that response. Where a question is free
+text, the honest aggregate is **how many answered it**, never a guess at what they said — a count
+of "wheelchair access" cannot be derived from prose without reading the prose.
+
+Every download of a file that **names people** writes a row (`events.ExportLog`: who, which file,
+how many people, when), and the organiser can read that log on the event page. The aggregate
+figures are deliberately not logged: they carry no identifiers, and a log full of page-loads is a
+log nobody reads.
+
+### How long it is kept
+
+`manage.py purge_event_data --older-than-days 30 [--dry-run]`.
+
+| Data | Kept | Then |
+|---|---|---|
+| Accessibility note (`_needs`) and every free-text answer | While the event is being run, plus 30 days | Blanked in place |
+| Who checked somebody in (`checked_in_by`) | The same | Nulled — that somebody was checked in survives; which volunteer tapped it does not need to |
+| That a person registered, their status, whether they turned up, their multiple-choice answers | Indefinitely | Kept. It is the event's own record, and it is what an organiser is asked for a year later |
+| The programme, the contributions, the public schedule | Indefinitely | Kept — the academic record |
+
+**Nothing schedules this command.** There is no cron on this deployment yet, so the retention
+above is a capability, not a running process, and saying otherwise in a privacy notice would be
+untrue (house rule 10). `deploy/` is where a cron entry would go when there is one.
+
+The tables the two other conference steps add — `events.ScanEvent` (scan timestamps and device
+labels) and `cloakroom.CloakroomItem` (the deposit log and the lost-token exception record) —
+are **not yet covered**; `RETENTION_NOTE` in `backend/events/exports.py` names them and says what
+the command should do with each, and the integration step (`CONFERENCE-BRIEF.md` §5) teaches it.
+
+### What is not solved by any of this
+
+- There is still no **self-service export or deletion** (§5), so an attendee who wants their
+  registration erased before the window is a manual database job like every other erasure request.
+- `EventAttendance.note` — free text the attendee writes for the organiser — is **not** blanked by
+  the purge. It is prose about a person and a fair candidate; §3.G enumerated answers, and
+  widening a purge quietly is how a purge starts deleting things somebody was relying on. Named
+  here so the decision is somebody's.
+- An organiser is trusted completely with their own event's data, and nothing technical stops them
+  from downloading the full CSV and emailing it to a caterer. The export log is what makes that
+  askable-about afterwards; it is not a control.
+
+---
+
+## 9. Still open
 
 - **The corpus question itself** (§3) — the report exists, no lawyer has reviewed it, nothing is
   implemented.
+- **The conference research behind §8** — same shape, same problem: two deep-research reports
+  whose citations were lost, whose role table and retention windows are already implemented as
+  defaults. A lawyer has to read §8 before any of it is quoted to anybody.
 - **No terms of service, no CLA, no outbound content licence.**
 - **No email backend**, which is why an anonymous DSA filer and a guardian both have gaps above, and
   why the password-reset endpoint is still an honest always-200 stub.

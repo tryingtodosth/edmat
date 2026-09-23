@@ -880,3 +880,49 @@ class Contribution(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+# ---- exports and retention (CONFERENCE-BRIEF.md §3.G) ------------------------------------------
+# The rules that read and write this model live in `events/exports.py`; this is only the row.
+
+EXPORT_KIND_CHOICES = [
+    # The full roster: every answer, every note, every name. The one export that carries personal
+    # data, and therefore the one that has to leave a trace.
+    ('full_csv', 'Full registration CSV'),
+    # Name, status, checked-in. What somebody on the door is handed.
+    ('door_list', 'Door list CSV'),
+]
+
+
+class ExportLog(models.Model):
+    """One line per time somebody took registration data out of the system as a file.
+
+    The research report's blunt finding is that a monolithic CSV is the commonest accidental
+    disclosure in an academic event, so the mitigation is two-sided: the full export is narrowed
+    to organisers (`events/exports.py`), and every download of a file that names people is
+    recorded here. Aggregate reads (`exports/needs/`) are deliberately NOT logged — they carry no
+    identifiers, the organiser's own panel fetches them on open, and a log that fills with
+    page-loads is a log nobody reads.
+
+    `user` is `SET_NULL` rather than `CASCADE` for the reason `telemetry.AuditEvent` records: a
+    decision survives the account that made it, or closing an account would erase the evidence.
+    `rows` is the number of people in the file — how much left, not who.
+    """
+
+    event = models.ForeignKey(Event, related_name='export_logs', on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='event_exports',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    kind = models.CharField(max_length=16, choices=EXPORT_KIND_CHOICES)
+    rows = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self) -> str:
+        return f'{self.kind} of {self.event} by {self.user} ({self.rows} rows)'

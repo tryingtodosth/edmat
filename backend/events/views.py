@@ -50,9 +50,10 @@ from .agenda_views import ProgrammeMixin
 from .registration import demote_over_capacity, expire_promotions, mask_name, register, validate_answers, withdraw
 from .registration_views import RegistrationMixin
 from .contribution_views import ContributionMixin
+from .exports import ExportMixin
 
 
-class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, viewsets.ModelViewSet):
+class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, ExportMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate]
 
     _hidden_by_language = 0

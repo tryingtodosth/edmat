@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from documents.access import briefing_block_reason
 from moderation.permissions import feature_gate
 
+from .exports import DoorListAttendanceSerializer, log_export
 from .models import ATTENDING_STATUSES, RegistrationField, SessionAttendance
 from .registration import check_in, decide, expire_promotions
 from .serializers import EventAttendanceSerializer, RegistrationFieldSerializer
@@ -34,21 +35,38 @@ class RegistrationMixin:
 
     @action(detail=True, methods=['get'], permission_classes=_AUTH)
     def registrations(self, request, pk=None):
-        """Every row, every state, with answers — staff only (volunteers included: they check
-        people in against this list)."""
+        """Every row, every state — but not the same body to everybody (CONFERENCE-BRIEF.md §3.G).
+
+        Still staff-only, volunteers included: they check people in against this list, and that has
+        not changed. What changed is how much of a person it hands them. An organiser gets the full
+        row (answers, notes, the account id); every other staff member gets
+        `exports.DoorListAttendanceSerializer` — name, status, checked-in, and the row id the
+        check-in action below addresses. The reasoning, and why a reviewer is on the narrow side
+        too, is in `events/exports.py`.
+        """
         event = self.get_object()
         refused = self._staff_or_403(event)
         if refused:
             return refused
         expire_promotions(event, request.user)
-        return Response(EventAttendanceSerializer(self._rows(event), many=True).data)
+        rows = self._rows(event)
+        if event.can_organise(request.user):
+            return Response(EventAttendanceSerializer(rows, many=True).data)
+        return Response(DoorListAttendanceSerializer(rows, many=True).data)
 
     @action(detail=True, methods=['get'], url_path='registrations/export', permission_classes=_AUTH)
     def registrations_csv(self, request, pk=None):
         """The roster as a file: one row per person, one column per question. What an organiser
-        takes to the door, or to whoever gives course credit."""
+        takes to whoever gives course credit.
+
+        **Organisers only** since §3.G — it was every staff member, and this is the file the
+        research report names as the commonest accidental disclosure in an academic event: one CSV
+        carrying every answer, handed to whoever is on the door. What a volunteer needs is
+        `exports/door-list.csv`. Every download writes an `ExportLog` row, because a file that
+        names people leaving the system is a thing somebody should be able to ask about later.
+        """
         event = self.get_object()
-        refused = self._staff_or_403(event)
+        refused = self._staff_or_403(event, organiser_only=True)
         if refused:
             return refused
         expire_promotions(event, request.user)
@@ -58,7 +76,9 @@ class RegistrationMixin:
         # `_attendance_mode` / `_needs` are the baseline questions every form asks (rendered by the
         # client, stored under reserved keys) — exported beside the organiser's own.
         writer.writerow(['name', 'status', 'registered_at', 'checked_in_at', 'note', 'attendance_mode', 'needs', *[f.label for f in fields]])
+        written = 0
         for row in self._rows(event):
+            written += 1
             profile = getattr(row.attendee, 'profile', None)
             name = getattr(profile, 'display_name', '') or row.attendee.username
             answers = row.answers or {}
@@ -71,6 +91,7 @@ class RegistrationMixin:
             ])
         response = HttpResponse(out.getvalue(), content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = f'attachment; filename="edmat-event-{event.pk}-registrations.csv"'
+        log_export(event, request.user, 'full_csv', written)
         return response
 
     @action(detail=True, methods=['post'], url_path='registrations/(?P<row_id>[^/.]+)/decide', permission_classes=_AUTH)
