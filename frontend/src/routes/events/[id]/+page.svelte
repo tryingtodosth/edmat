@@ -26,6 +26,8 @@
 	import ContributionsPanel from '$lib/components/event/ContributionsPanel.svelte';
 	import EventStaffPanel from '$lib/components/event/EventStaffPanel.svelte';
 	import CloakroomPanel from '$lib/components/cloakroom/CloakroomPanel.svelte';
+	import VenuePanel from '$lib/components/venue/VenuePanel.svelte'; // conference step A
+	import ChecklistPanel from '$lib/components/venue/ChecklistPanel.svelte'; // conference step A
 	import {
 		addEventStaff,
 		getEventStaff,
@@ -582,9 +584,17 @@
 			     each replaced by its own component on its own branch. Kept apart by blank lines so that
 			     seven branches editing this page merge without touching each other's lines. -->
 
-			<!-- conference: venue -->
+			<VenuePanel
+				eventId={event.id}
+				canOrganise={event.canOrganise}
+				startsAt={event.startsAt}
+				endsAt={event.endsAt}
+				onchanged={async () => {
+					if (event) event = await getEvent(event.id);
+				}}
+			/>
 
-			<!-- conference: checklist -->
+			<ChecklistPanel eventId={event.id} canOrganise={event.canOrganise} />
 
 			<!-- conference: documents -->
 

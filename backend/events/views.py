@@ -216,6 +216,21 @@ class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, viewset
         # Captured before the write, because "did the time or the place move" is a question only
         # something holding the old values can answer — see `notify_attendees_of_change`.
         before = (event.starts_at, event.location_kind, event.location_text, event.online_url)
+        # Conference step A (CONFERENCE-BRIEF.md §3.A): an event that has been GIVEN A ROOM carries
+        # the building's conditions with it, so it cannot be announced while a mandatory line of
+        # that building's checklist has not even been started. The rule itself is not here — this
+        # endpoint asks `venues/access.py` for it (boundary 2 in the root CLAUDE.md), which is also
+        # what makes it answer `None` when the `venues` kill switch is off or the event has no
+        # venue, so an event with no booking publishes exactly as it did before that app existed.
+        #
+        # Imported inside the method rather than at module level, deliberately: `events` must keep
+        # no import-time dependency on a separately kill-switchable app.
+        if event.status == 'draft' and request.data.get('status') == 'published':
+            from venues.access import publish_block_reason
+
+            blocked = publish_block_reason(event)
+            if blocked:
+                return Response({'detail': blocked}, status=status.HTTP_409_CONFLICT)
         write = self.get_serializer(event, data=request.data, partial=kwargs.pop('partial', False))
         write.is_valid(raise_exception=True)
         event = write.save()
