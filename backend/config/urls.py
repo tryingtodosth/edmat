@@ -46,6 +46,7 @@ urlpatterns = [
     path('api/', include('concepts.urls')),
     path('api/', include('cloakroom.urls')),
     path('api/', include('venues.urls')),
+    path('api/', include('documents.urls')),
 ]
 
 if settings.DEBUG:
