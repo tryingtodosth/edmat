@@ -110,7 +110,9 @@ page.on('request', (req) => {
 // — and its submit does nothing — until the bundle has hydrated, which on a cold dev server takes
 // many seconds. Waiting for the root layout's own boot request is the honest signal, registered
 // BEFORE the navigation.
-const booted = page.waitForResponse((r) => r.url().includes('/feature-flags/'), { timeout: 180000 });
+const booted = page.waitForResponse((r) => r.url().includes('/feature-flags/'), {
+	timeout: 180000
+});
 await page.goto(`${BASE}/login`, { waitUntil: 'load', timeout: 300000 });
 await booted;
 await page.locator('form input[autocomplete="username"]').waitFor({ timeout: 90000 });
@@ -163,10 +165,7 @@ check(
 	(await view.locator('button').count()) === 0,
 	`${await view.locator('button').count()} found`
 );
-check(
-	'no link is rendered inside the preview view',
-	(await view.locator('a').count()) === 0
-);
+check('no link is rendered inside the preview view', (await view.locator('a').count()) === 0);
 check(
 	'no form control is rendered inside the preview view',
 	(await view.locator('input, select, textarea').count()) === 0
