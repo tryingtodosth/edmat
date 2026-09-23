@@ -8009,6 +8009,67 @@ somebody working the event gets the link to the desk. Behind the `cloakroom` fla
   list.
 - Both catalogues have identical key sets (2760 keys each), and Paraglide recompiled.
 
+### For the integrator
+
+Everything this step touched **outside `backend/cloakroom/` and `frontend/src/lib/{types,services,components}/cloakroom*`**, so the merge has no surprises:
+
+| File | What changed |
+|---|---|
+| `backend/config/settings.py` | one entry `'cloakroom'` added to `INSTALLED_APPS`, immediately after `'concepts'` and before the `# third-party` block, with a four-line comment |
+| `backend/config/urls.py` | one line `path('api/', include('cloakroom.urls')),` appended after the `concepts.urls` line |
+| `frontend/src/routes/events/[id]/+page.svelte` | **two lines only**: `import CloakroomPanel from '$lib/components/cloakroom/CloakroomPanel.svelte';` added directly after the `EventStaffPanel` import (§4 rule 3), and the marker line `<!-- conference: cloakroom -->` replaced by `<CloakroomPanel {event} />`. Nothing else on that page moved |
+| `frontend/messages/en.json` | 79 keys appended as one contiguous block, **lines 2683–2761** (after `moderation_concepts_openConcept`); every key prefixed `cloakroom_` |
+| `frontend/messages/pl.json` | the same 79 keys, same order, **lines 2683–2761**; key sets verified identical (2760 keys each) |
+| `frontend/src/lib/utils/labels.ts` | one block appended at the **end** of the file (§4 rule 5): a type-only `import type {...} from '$lib/types/cloakroom'` plus `CLOAKROOM_ITEM_STATUSES`, `CLOAKROOM_ITEM_STATUS_LABELS`, `CLOAKROOM_IDENTITY_KINDS`, `CLOAKROOM_IDENTITY_KIND_LABELS`, `CLOAKROOM_BLOCK_REASON_LABELS`, `CLOAKROOM_RETURN_RESULT_LABELS` |
+| `frontend/package.json`, `package-lock.json` | three packages (below) |
+| `test.md`, `HISTORY.md` | one section each, appended at the end |
+
+**`frontend/src/lib/types/index.ts` was deliberately NOT touched** — the cloakroom types are
+imported from `$lib/types/cloakroom` directly, so seven branches are not all appending to one barrel.
+
+- **Migration**: `backend/cloakroom/migrations/0001_initial.py` only. **No `events` migration, no
+  `moderation` migration** (§4 rules 1 and 2).
+- **npm packages** (step D adds the same two — these are the exact versions here):
+  `qrcode@^1.5.4`, `@zxing/browser@^0.2.1`, and the devDependency `@types/qrcode@^1.5.6`
+  (`qrcode` ships no types of its own; `@zxing/browser` does). Both runtime packages are
+  **dynamically imported at the point of use** and asserted absent from the entry bundle.
+- **Who may operate a desk — the one function to rewire**:
+  `backend/cloakroom/rules.py: can_operate(user, event) -> bool`. Today it is
+  `event.is_staff_member(user)` and nothing else in the app asks the question. §5's change (a
+  confirmed `cloakroom` station assignment on step E's rota when the event has one, staff
+  membership otherwise) is an `if` in that body; every endpoint already goes through it, and
+  `RuleModuleTests.test_can_operate_is_staff_membership_today` is the test that will need updating.
+- **The other integration points**: gate the deposit and return actions behind
+  `documents.access.missing_acknowledgements` (step C's 409 `briefing_unread`) in
+  `cloakroom/views.py`'s `items` / `return_by_token` / `item_return*`; teach step G's
+  `purge_event_data` about `CloakroomItem`; add rows for the nine endpoints below to step B's
+  permission matrix.
+- **Endpoints for the permission matrix**: `GET|POST /api/events/{id}/cloakroom-desks/`,
+  `GET|PATCH|DELETE /api/cloakroom-desks/{id}/`, `GET|POST /api/cloakroom-desks/{id}/items/`,
+  `POST /api/cloakroom-desks/{id}/return/`,
+  `POST /api/cloakroom-desks/{id}/items/{item}/return/`,
+  `POST /api/cloakroom-desks/{id}/items/{item}/return-by-exception/`,
+  `POST /api/cloakroom-desks/{id}/reconcile/`, `GET /api/cloakroom-desks/{id}/export/`.
+- **Running the browser script**: it needs both servers and the seeded demo users (`kasia@edmat.example`
+  as host and clerk, `michal@edmat.example` as the attendee, password `password123`), and it cleans
+  up its own event through the API:
+
+  ```sh
+  cd frontend && E2E_BASE=http://localhost:5206 E2E_API=http://127.0.0.1:8106 node e2e/event-cloakroom.mjs
+  ```
+
+  Both ports are this worktree's own; any pair works as long as the backend is started with
+  `DJANGO_CORS_ALLOWED_ORIGINS` naming the frontend's origin.
+- **Exact commands run** (all from this worktree, on a machine also running six sibling agents'
+  suites): `../.venv/bin/python3 manage.py test cloakroom` → 34 tests, OK;
+  `../.venv/bin/python3 manage.py test cloakroom events moderation`;
+  `../.venv/bin/python3 manage.py check` → no issues;
+  `../.venv/bin/python3 manage.py makemigrations --check --dry-run` → no changes detected;
+  `npm run check` → 0 errors / 0 warnings; `npm run lint` (the only two prettier complaints left are
+  the pre-existing `project.inlang/.meta.json` and `project.inlang/README.md`); `npm run build` →
+  built, and `grep -c BrowserQRCodeReader build/_app/immutable/entry/app.*.js` → 0;
+  `node e2e/event-cloakroom.mjs` → 24 passed, 0 failed.
+
 ### Left open
 
 - **A closed desk refuses returns.** Somebody coming back the next morning for an `unclaimed` coat
