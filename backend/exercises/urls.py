@@ -1,4 +1,4 @@
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import (
     ExerciseClaimViewSet,
@@ -9,7 +9,7 @@ from .views import (
     TagViewSet,
 )
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('exercises', ExerciseViewSet, basename='exercise')
 router.register('exercise-requirements', ExerciseRequirementViewSet, basename='exercise-requirement')
 router.register(

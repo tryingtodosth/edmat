@@ -1,11 +1,11 @@
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from django.urls import path, re_path
 
 from .agenda_views import MyAgendaView, SessionViewSet
 from .views import EventViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 # `events`, plainly — unlike `courses`, there is no existing `/api/events/` meaning something
 # else for this to collide with.
 router.register('events', EventViewSet, basename='event')

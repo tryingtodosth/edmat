@@ -7,7 +7,7 @@ one line `events` does own (the publish block) is a single function call into `v
 """
 
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import (
     ChecklistInstanceViewSet,
@@ -19,7 +19,7 @@ from .views import (
     VenueViewSet,
 )
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('venues', VenueViewSet, basename='venue')
 router.register('rooms', RoomViewSet, basename='room')
 router.register('room-bookings', RoomBookingViewSet, basename='room-booking')

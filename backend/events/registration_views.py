@@ -11,6 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from documents.access import briefing_block_reason
+from config.routers import NUMERIC_PK_REGEX
 from moderation.permissions import feature_gate
 
 from .exports import DoorListAttendanceSerializer, log_export
@@ -20,6 +21,13 @@ from .serializers import EventAttendanceSerializer, RegistrationFieldSerializer
 
 _EventsFeatureGate = feature_gate('events')
 _AUTH = [permissions.IsAuthenticated, _EventsFeatureGate]
+
+#: The same `[0-9]+` the router puts on a top-level detail segment (`config/routers.py`), applied to
+#: the ids nested inside a custom action's own `url_path`. The router cannot reach those — they are
+#: this action's regex, not the router's — and left at DRF's `[^/.]+` they matched
+#: `/api/events/50/staff/undefined/`, which reached `.filter(pk='undefined')` and raised
+#: `ValueError: Field 'id' expected a number but got 'undefined'` → a **500**. Found by
+#: `test_permission_matrix.py`, which has a row per nested id for exactly this.
 
 
 class RegistrationMixin:
@@ -94,7 +102,7 @@ class RegistrationMixin:
         log_export(event, request.user, 'full_csv', written)
         return response
 
-    @action(detail=True, methods=['post'], url_path='registrations/(?P<row_id>[^/.]+)/decide', permission_classes=_AUTH)
+    @action(detail=True, methods=['post'], url_path=f'registrations/(?P<row_id>{NUMERIC_PK_REGEX})/decide', permission_classes=_AUTH)
     def registration_decide(self, request, pk=None, row_id=None):
         event = self.get_object()
         refused = self._staff_or_403(event, organiser_only=True)
@@ -114,7 +122,7 @@ class RegistrationMixin:
             return Response({'detail': problem}, status=status.HTTP_409_CONFLICT)
         return Response(EventAttendanceSerializer(row).data)
 
-    @action(detail=True, methods=['post', 'delete'], url_path='registrations/(?P<row_id>[^/.]+)/checkin', permission_classes=_AUTH)
+    @action(detail=True, methods=['post', 'delete'], url_path=f'registrations/(?P<row_id>{NUMERIC_PK_REGEX})/checkin', permission_classes=_AUTH)
     def registration_checkin(self, request, pk=None, row_id=None):
         """Day-of: mark somebody as here (POST) or undo a wrong tap (DELETE). Never touches the
         seat. Any staff member, volunteers included — that is what the role is for."""
@@ -158,7 +166,7 @@ class RegistrationMixin:
         RegistrationField.objects.bulk_create(rows)
         return Response(RegistrationFieldSerializer(event.registration_fields.all(), many=True).data)
 
-    @action(detail=True, methods=['post', 'delete'], url_path='sessions/(?P<session_id>[^/.]+)/register', permission_classes=_AUTH)
+    @action(detail=True, methods=['post', 'delete'], url_path=f'sessions/(?P<session_id>{NUMERIC_PK_REGEX})/register', permission_classes=_AUTH)
     def session_register(self, request, pk=None, session_id=None):
         """A seat in a capped session, for somebody who already holds a seat at the event.
         Re-checked against the database on every call — two people answering the last seat at

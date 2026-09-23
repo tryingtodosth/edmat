@@ -1,9 +1,9 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import GeocodeView, ServiceReviewViewSet, ServiceViewSet, ServiceWatchViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('services', ServiceViewSet, basename='service')
 router.register('service-watches', ServiceWatchViewSet, basename='service-watch')
 router.register('service-reviews', ServiceReviewViewSet, basename='service-review')

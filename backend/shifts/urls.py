@@ -1,7 +1,7 @@
 """Explicit paths, no router.
 
 The rota hangs off an event (`/api/events/{id}/stations/`) and off a shift
-(`/api/shifts/{id}/claim/`), and a `DefaultRouter` registered on `events` here would collide with
+(`/api/shifts/{id}/claim/`), and a `NumericPkRouter` registered on `events` here would collide with
 `events/urls.py`'s own. These patterns are reached only after the events router has declined —
 its detail route is `^events/(?P<pk>[^/.]+)/$`, which does not match a longer path — so the two
 apps coexist without either editing the other's file. That mattered: seven conference steps were

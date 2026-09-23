@@ -3,11 +3,11 @@ know it yet — the list on an event page — which is why that one URL is event
 rather than as an `@action` on `EventViewSet` (`CONFERENCE-BRIEF.md` §4 rule 1)."""
 
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import CloakroomDeskViewSet, EventCloakroomDesksView
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('cloakroom-desks', CloakroomDeskViewSet, basename='cloakroom-desk')
 
 urlpatterns = router.urls + [

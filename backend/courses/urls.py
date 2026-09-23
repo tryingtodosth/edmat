@@ -1,9 +1,9 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import CourseClaimViewSet, CourseViewSet, invite_accept, invite_preview
 
-router = DefaultRouter()
+router = NumericPkRouter()
 # `courses`, plainly. This used to read `taught-courses` because /api/courses/ belonged to the
 # taxonomy's przedmiot list; that list is now /api/branches/, and a course here is what everybody
 # means by the word.
