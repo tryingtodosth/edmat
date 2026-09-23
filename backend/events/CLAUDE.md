@@ -47,7 +47,29 @@ post is refused. `EventSerializer.post_count` prefetch needs **`to_attr`** — w
 deferred queryset lands in the related manager's cache and later `.select_related()` chains onto
 its `.only()` → `FieldError`.
 
+## Personas and the matrix (CONFERENCE-BRIEF.md §3.B)
+
+`manage.py seed_conference_personas` builds seven ordinary accounts — organiser, reviewer,
+volunteer, attendee, guardian, a real minor made through the guardian flow, and a stranger — plus
+one published multi-day "Sandbox conference" with a programme, an open call and a checked-in
+attendee, and prints who can do what. Idempotent; `--password` sets the one password. The building
+lives in `testing/personas.make_personas()`, which `test_permission_matrix.py` calls too: the table
+and the accounts a person signs in as are then the same seven.
+
+**There is no "log in as", and there is not going to be one.** The frontend's preview re-asks the
+API with the `Authorization` header omitted (`client.ts`'s `anonymous` option); no token for
+anybody else is ever minted, so there is nothing to audit and nothing to leak. The reasoning, and
+the 2018 Facebook "View As" post-mortem it comes from, is in `testing/personas.py`'s docstring.
+
+`test_permission_matrix.py` is one declarative table `(persona, method, path, body, expected, why)`
+driven through `subTest`, each row in its own rolled-back savepoint so a row that writes cannot
+change what a later row sees. It is where a new events endpoint's permissions are pinned — add
+rows, not a new file. Three shapes it exists to hold: a stranger gets **404** on a draft, an
+attendee **403** on the staff list and the registrations, and a volunteer **403** on a contribution
+decision even though they are staff (a role is not a ladder).
+
 ## Verify
 
-`manage.py test events` (95 tests, refusal-weighted) + the availability half in
-`booking/tests.py`. E2E: `events-and-nav.mjs`, `known-issues.mjs`.
+`manage.py test events` (154 tests + the permission matrix, refusal-weighted) + the availability
+half in `booking/tests.py`. E2E: `events-and-nav.mjs`, `known-issues.mjs`, `event-preview.mjs`
+(needs `seed_conference_personas` run against the backend it drives).

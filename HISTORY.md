@@ -7914,3 +7914,140 @@ one language as more "native" than the other.
 ```
 
 ---
+
+---
+
+## 17BF.B. The preview: seven personas, a page seen without a sign-in, and a table that proves the rest (✅ built, full stack)
+
+`CONFERENCE-BRIEF.md` §3.B, one of seven conference steps built in parallel on 2026-09-23. No new
+app, no new model, no migration.
+
+### The decision this step is made of
+
+The research report (`CONFERENCE-RESEARCH-REPORT.md` §5) lays out two ways an organiser can see
+what somebody else sees. **Role preview**: the viewer stays themselves and the interface is
+narrowed. **Session impersonation**: the server hands the viewer a token belonging to a real
+person. It then spends a page on the 2018 Facebook "View As" breach, in which the second pattern
+leaked ~50 million access tokens — not through an authorization bug but because a preview meant to
+be read-only rendered one interactive widget, and that widget minted an access token for the person
+being viewed and left it in the page source.
+
+So: only the first, and built so that the second is not reachable by accident.
+
+- **A preview never carries a token for anybody.** `client.ts` grew one option, `anonymous: true`,
+  which omits the `Authorization` header. That is the whole mechanism. Nothing is minted, nothing
+  is stored, the viewer's own token is untouched, and what is rendered is literally the server's
+  answer to a signed-out request rather than this app's guess at one. Because the header is the
+  only thing that changes, there is no impersonation session to audit — which is why the report's
+  proposed `is_sandbox` flag, `PreviewUser` proxy and impersonation ledger are all absent.
+- **A preview renders no action control at all.** Not disabled — absent. The preview body contains
+  no button, no link and no form control, which the browser script asserts by counting them. The
+  one control that exists is the way out, and it lives in the bar.
+- **The bar cannot be dismissed while the preview is on.** Fixed to the top of the viewport, amber
+  in both themes (a fixed colour on purpose: a themed token would stop reading as "not the ordinary
+  page" in one of them), and the only thing that removes it is leaving the preview.
+
+The second option, **"as somebody going"**, is deliberately a weaker thing and says so on its face:
+it renders the viewer's own responses with the controls `can_organise` / `can_check_in` deny taken
+away. It cannot prove a permission, because the data behind it is still the organiser's. Proving an
+attendee's permissions is what the matrix and the `persona.attendee` account are for, and the
+component's copy says that rather than implying otherwise.
+
+### What landed
+
+- **`backend/testing/personas.py`** — `make_personas(password=…)`: seven accounts on
+  `@edmat.example` (a reserved domain that can never receive mail) and one published, public,
+  multi-day **"Sandbox conference"** with three sessions on a track, a registration form with a
+  question, an open call for contributions, a reviewer and a volunteer on staff, an attendee
+  registered and checked in, a guardian's child registered by the guardian, and one submitted
+  proposal waiting for a decision. `persona.child` is a **real minor**, made the way
+  `accounts.views.ChildrenView.post` makes one — no email, `is_minor` on the profile, the profile
+  private, a `Guardianship` row — because the guardian flow is the one code path in this project
+  allowed to mark an account a minor's (`accounts/CLAUDE.md`), and a persona that faked it would be
+  proving something about a shape that does not exist.
+- **`manage.py seed_conference_personas [--password]`** (`events/management/commands/`) — calls it
+  and prints a who-can-do-what table. Idempotent: accounts are keyed by username, every piece of the
+  event by (event, title), and the schedule is recomputed from *now* on each run, so a sandbox whose
+  conference happened last March never happens. Verified by running it three times: 7 personas, 1
+  event, 3 sessions, 3 staff rows, 2 attendances, 1 contribution, 1 registration field, unchanged.
+- **`frontend/src/lib/api/client.ts`** — the `RequestOptions` type and the `anonymous` flag,
+  threaded through `get`/`getText` only (a write with no token is not a preview of anything, it is a
+  401) and through four `services/events.ts` reads. The layer boundary holds: the component still
+  never touches `lib/api/`.
+- **`EventPreview.svelte`**, mounted at the event page's `<!-- conference: preview -->` marker with
+  one import added after `EventStaffPanel`. Offered only to somebody who runs the event, behind
+  `role_preview` with the usual moderator bypass.
+- **`backend/events/test_permission_matrix.py`** — one table of 142 rows across eight personas
+  (anonymous included) and the whole existing events surface: event CRUD, cancel, the staff list and
+  its writes, tracks, sessions, bookmarks, registrations, the CSV export, accept/decline, check-in
+  and its undo, the registration fields, the roster in both its public and private shapes, attend,
+  the contribution list, edit, review, accept, withdraw and schedule, and `my-agenda` in both
+  formats. Driven through `subTest`, so a failing row names itself and the rest still run.
+- **`backend/config/routers.py`** — `NumericPkRouter`, the todo board's "found beside the feature"
+  item, applied in all 21 apps' `urls.py` by a one-word change each.
+- `frontend/e2e/event-preview.mjs` (26 checks), the `preview_*` block in both catalogues (18 keys,
+  key sets identical), the "personas and the matrix" paragraph in `backend/events/CLAUDE.md`, and
+  `test.md` §6.
+
+### Two things worth keeping
+
+**Every row of the matrix runs inside its own rolled-back savepoint.** Without that, "the organiser
+may DELETE this session" quietly breaks the next four rows that address the same session, and the
+table stops being readable as a table — you would have to know its order to know what each row
+meant. With it the table is order-independent, which is the property that makes "read down the
+volunteer column" an honest thing to do.
+
+**`lookup_value_regex` belongs on the router, not on forty viewsets.** DRF's detail segment
+defaults to `[^/.]+` — anything that is not a slash or a dot — so `/api/events/undefined/` matched
+the detail route, reached the database as `pk='undefined'`, and Django raised
+`ValueError: Field 'id' expected a number but got 'undefined'` → a **500** (confirmed by probe
+before the fix). A frontend that sends `undefined` in a URL is a frontend bug, but a 500 is both
+the wrong answer and the thing that hides it. `NumericPkRouter` narrows the segment to `[0-9]+`
+with two automatic opt-outs: a viewset that sets its own `lookup_value_regex` keeps it
+(`concepts.ConceptViewSet`), and a viewset whose `lookup_field` is not `pk` is left alone —
+Discipline, Branch, `ExerciseSetViewSet`, `TagViewSet` and `FeatureFlagViewSet` all address by slug
+or key and all keep working. Asserted both ways in the matrix: six `undefined` rows answer 404,
+and `/api/disciplines/<slug>/` and `/api/branches/<slug>/` answer 200.
+
+### Verified
+
+- `manage.py test events accounts moderation` and the whole suite; `manage.py check`;
+  `makemigrations --check --dry-run` → **No changes detected** (this step produces no migration).
+- The matrix: 142 rows, all passing. **No row failed on first run** — the events permission surface
+  was already correct where the table asks about it, so this step names no permission bug. The one
+  real bug it found and fixed is the `undefined` 500 above, which is a routing bug rather than a
+  permission one.
+- `npm run check` 0 errors / 0 warnings, `npx prettier --check` on every file touched, `npm run
+  build`. (`npm run lint` reports six pre-existing eslint errors in older e2e scripts and two
+  prettier warnings on gitignored generated `project.inlang/` files — neither touched here.)
+- `frontend/e2e/event-preview.mjs` against real servers on 8102/5202: **26 checks, 0 failures**,
+  including "not one preview request carried an Authorization header" (asserted by intercepting
+  every outgoing request), "no button/link/form control inside the preview view", and "a draft
+  previews as nothing at all". Both screenshots looked at.
+- Looking at the screenshot is also what raised the one honest wrinkle: the sandbox conference reads
+  09:00 in the command's output and 11:00 on the page, because the page draws the instant in the
+  *reader's browser* timezone while `settings.TIME_ZONE` is UTC. That is the standing "no
+  per-account timezone" gap, not something this step introduced; the command now prints the zone
+  beside the time so the two are not silently different.
+- en/pl key sets identical (2699 each), verified programmatically.
+
+### Left open
+
+- **The preview is a panel, not a whole-page swap.** The brief's mount-point rule gives each step
+  one marker on the event page and forbids reordering anything on it, so the preview renders the
+  visitor's view inside its own framed region rather than replacing the page around it. The
+  organiser's real controls are still on screen above it (behind the fixed bar). Everything the
+  rule asks for holds — no token, no action control, an unclosable bar — but somebody expecting the
+  page itself to transform will not get that. Whole-page swapping wants the marker rule relaxed at
+  integration, and is a five-line change to `+page.svelte` once it is.
+- **Only four reads are re-fetched** (event, programme, roster, contributions). The event's updates
+  (`EventPost`) and the registration fields are not, so the preview does not show the host's
+  announcements as a visitor sees them. Adding them is one line each in the component.
+- **The matrix covers today's events endpoints only.** Steps A and C–G add rows for theirs at
+  integration; the file's header block says exactly where and how.
+- **No test asserts the router's regex from the URL conf side** — the six `undefined` rows assert
+  the behaviour, and a unit probe of `get_lookup_regex` was used while building but not kept. If a
+  future app registers a viewset with a non-numeric pk and no `lookup_field`, the matrix will not
+  notice until something 404s.
+- **`registrations/export` for a volunteer is 200 here.** That is today's behaviour and the matrix
+  records it as such; step G tightens exactly that response, and its own rows will change this one.

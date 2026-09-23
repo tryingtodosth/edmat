@@ -13,7 +13,7 @@ import type {
 	EventPostDraft,
 	EventSummary
 } from '$lib/types/event';
-import { apiClient } from '$lib/api/client';
+import { apiClient, type RequestOptions } from '$lib/api/client';
 import type {
 	Contribution,
 	ContributionDraft,
@@ -170,8 +170,11 @@ export async function getEvents(query: EventQuery = {}): Promise<EdmatEvent[]> {
 	return raw.map(mapEvent);
 }
 
-export async function getEvent(id: string): Promise<EdmatEvent> {
-	return mapEvent(await apiClient.get<any>(`/events/${id}/`));
+// The four reads the role preview re-runs with no token (CONFERENCE-BRIEF.md §3.B). They take the
+// option rather than the preview calling `apiClient` itself, because the layer boundary is the
+// point: a component still never touches `lib/api/`, and `client.ts` is still the only fetch.
+export async function getEvent(id: string, options?: RequestOptions): Promise<EdmatEvent> {
+	return mapEvent(await apiClient.get<any>(`/events/${id}/`, options));
 }
 
 export async function createEvent(draft: EventDraft): Promise<EdmatEvent> {
@@ -261,8 +264,11 @@ export async function setSessionSeat(
 	return { registered: !!raw.registered, registeredCount: raw.registered_count ?? 0 };
 }
 
-export async function getEventAttendees(id: string): Promise<EventAttendee[]> {
-	const raw = await apiClient.get<any[]>(`/events/${id}/attendees/`);
+export async function getEventAttendees(
+	id: string,
+	options?: RequestOptions
+): Promise<EventAttendee[]> {
+	const raw = await apiClient.get<any[]>(`/events/${id}/attendees/`, options);
 	return raw.map(mapAttendee);
 }
 
@@ -468,8 +474,8 @@ export async function deleteTrack(eventId: string, trackId: string): Promise<voi
 	await apiClient.delete(`/events/${eventId}/tracks/${trackId}/`);
 }
 
-export async function getSessions(eventId: string): Promise<Session[]> {
-	return (await apiClient.get<any[]>(`/events/${eventId}/sessions/`)).map(mapSession);
+export async function getSessions(eventId: string, options?: RequestOptions): Promise<Session[]> {
+	return (await apiClient.get<any[]>(`/events/${eventId}/sessions/`, options)).map(mapSession);
 }
 export async function createSession(eventId: string, draft: SessionDraft): Promise<Session> {
 	return mapSession(await apiClient.post<any>(`/events/${eventId}/sessions/`, sessionBody(draft)));
@@ -564,8 +570,13 @@ function contributionBody(draft: Partial<ContributionDraft>): Record<string, unk
 	if (draft.notesToOrganiser !== undefined) body.notes_to_organiser = draft.notesToOrganiser;
 	return body;
 }
-export async function getContributions(eventId: string): Promise<Contribution[]> {
-	return (await apiClient.get<any[]>(`/events/${eventId}/contributions/`)).map(mapContribution);
+export async function getContributions(
+	eventId: string,
+	options?: RequestOptions
+): Promise<Contribution[]> {
+	return (await apiClient.get<any[]>(`/events/${eventId}/contributions/`, options)).map(
+		mapContribution
+	);
 }
 export async function proposeContribution(
 	eventId: string,

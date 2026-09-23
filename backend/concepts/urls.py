@@ -1,5 +1,5 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import (
     ConceptArticleViewSet,
@@ -9,7 +9,7 @@ from .views import (
     ConceptViewSet,
 )
 
-router = DefaultRouter()
+router = NumericPkRouter()
 # `lookup_value_regex` on the concepts route: a concept is addressed by SLUG, the way a discipline
 # and a branch are, because the slug is what `[[…]]` in somebody's text and every shared link point
 # at. The default router pattern would stop at the first dash-free segment.

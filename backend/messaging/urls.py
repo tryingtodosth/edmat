@@ -1,8 +1,8 @@
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import MessageViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('messages', MessageViewSet, basename='message')
 
 urlpatterns = router.urls

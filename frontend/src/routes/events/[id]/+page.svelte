@@ -25,6 +25,7 @@
 	import Programme from '$lib/components/event/Programme.svelte';
 	import ContributionsPanel from '$lib/components/event/ContributionsPanel.svelte';
 	import EventStaffPanel from '$lib/components/event/EventStaffPanel.svelte';
+	import EventPreview from '$lib/components/event/EventPreview.svelte';
 	import {
 		addEventStaff,
 		getEventStaff,
@@ -593,7 +594,7 @@
 
 			<!-- conference: cloakroom -->
 
-			<!-- conference: preview -->
+			<EventPreview {event} />
 
 			<EventUpdates eventId={event.id} isHost={event.isHost} />
 

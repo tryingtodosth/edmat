@@ -1,9 +1,9 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import CommentRevisionViewSet, CommentViewSet, InlineImageViewSet, ReviewViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 # `/api/reviews/{id}/comments/` — the thread under one exercise review. Addressed by the review's
 # own id rather than nested under the exercise, because a reply belongs to the review, not to the
 # exercise it happens to be about.

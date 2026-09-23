@@ -1,8 +1,8 @@
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import LegalNoticeViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('legal-notices', LegalNoticeViewSet, basename='legal-notice')
 
 urlpatterns = router.urls
