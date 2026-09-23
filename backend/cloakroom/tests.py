@@ -388,3 +388,38 @@ class RuleModuleTests(DeskCase):
         self.assertEqual(rules.deposit_block_reason(self.clerk, self.desk, '1'), 'rack_taken')
         rules.reconcile(self.desk, self.host)
         self.assertEqual(rules.deposit_block_reason(self.clerk, self.desk, '2'), 'desk_closed')
+
+
+class NumericItemIdTests(DeskCase):
+    """`/api/cloakroom-desks/{desk}/items/undefined/return/` was a **500**, not a 404.
+
+    The desk id is narrowed by `NumericPkRouter` for free, but the item id lives inside the
+    action's own `url_path`, which the router never sees — so DRF's default `[^/.]+` matched
+    `undefined`, `get_object_or_404(desk.items, pk='undefined')` asked the database for it, and
+    Django's integer field raised. A frontend that sends `undefined` in a URL is a frontend bug;
+    the honest answer to "the thing at this id" is still 404, and a 500 is also what hides the
+    frontend bug. Found by `events/test_permission_matrix.py` (17BF.H), and fixed the way
+    §17BF.B fixed the eleven in `events/`: interpolate `config.routers.NUMERIC_PK_REGEX`.
+    """
+
+    def test_a_return_at_an_id_that_is_not_a_number_is_a_404(self):
+        response = as_(self.clerk).post(
+            f'/api/cloakroom-desks/{self.desk.pk}/items/undefined/return/', {}, format='json'
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_an_exception_return_at_an_id_that_is_not_a_number_is_a_404(self):
+        response = as_(self.clerk).post(
+            f'/api/cloakroom-desks/{self.desk.pk}/items/undefined/return-by-exception/',
+            {'description': 'Czarny płaszcz', 'identity_kind': 'student_card'}, format='json',
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_a_real_item_id_still_resolves(self):
+        """The narrowing must not break the URL it was added to — the row this pair needs."""
+        item = self.deposit(self.clerk, '1').data
+        response = as_(self.clerk).post(
+            f'/api/cloakroom-desks/{self.desk.pk}/items/{item["id"]}/return/', {}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['result'], 'returned')

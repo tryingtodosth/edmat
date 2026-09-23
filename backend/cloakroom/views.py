@@ -24,6 +24,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+# `NUMERIC_PK_REGEX` rather than DRF's default `[^/.]+` for the two nested item ids below. The
+# router narrows the DESK id for free (`config/routers.py`), but an `@action`'s own `url_path` is
+# that action's regex and the router never sees it — so `/cloakroom-desks/3/items/undefined/return/`
+# reached `get_object_or_404(..., pk='undefined')` and raised, which is a **500** for a request that
+# is simply about nothing. Found by `events/test_permission_matrix.py` (17BF.H), which is exactly
+# the shape §17BF.B's own fix took in `events/`.
+from config.routers import NUMERIC_PK_REGEX
 from moderation.permissions import feature_gate
 
 # The one visibility rule for events, borrowed rather than copied: `events/agenda_views.py` owns
@@ -208,7 +215,7 @@ class CloakroomDeskViewSet(viewsets.GenericViewSet):
         })
 
     @action(
-        detail=True, methods=['post'], url_path='items/(?P<item_id>[^/.]+)/return',
+        detail=True, methods=['post'], url_path=f'items/(?P<item_id>{NUMERIC_PK_REGEX})/return',
         permission_classes=[permissions.IsAuthenticated, _CloakroomGate],
     )
     def item_return(self, request, pk=None, item_id=None):
@@ -234,7 +241,8 @@ class CloakroomDeskViewSet(viewsets.GenericViewSet):
         return Response({'result': rules.RETURNED, 'item': CloakroomItemSerializer(item).data})
 
     @action(
-        detail=True, methods=['post'], url_path='items/(?P<item_id>[^/.]+)/return-by-exception',
+        detail=True, methods=['post'],
+        url_path=f'items/(?P<item_id>{NUMERIC_PK_REGEX})/return-by-exception',
         permission_classes=[permissions.IsAuthenticated, _CloakroomGate],
     )
     def item_return_by_exception(self, request, pk=None, item_id=None):

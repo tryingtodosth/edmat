@@ -105,8 +105,26 @@ rows, not a new file. Three shapes it exists to hold: a stranger gets **404** on
 attendee **403** on the staff list and the registrations, and a volunteer **403** on a contribution
 decision even though they are staff (a role is not a ladder).
 
+Since integration (`HISTORY.md` §17BF, "Matrix rows for A, C, E, F, G") the table also covers the
+conference layer — `venues`, `documents`, `shifts`, `cloakroom` and `exports.py` — and its fixture
+builds, all on the same Sandbox conference: a **venue** with one administrator, a room, an
+**approved** `RoomBooking` (which is what makes `documents.access.venue_admin_check` answer at all)
+and a second still-`requested` one so approve/reject are 200s; a checklist template whose one item
+`requires_venue_signoff`, instantiated; a **document at each of the five tiers**, the `staff` one
+mandatory; a `cloakroom` station with a worked shift and an `info` station with an open one; a
+**desk** with one coat on rack 1; a `VolunteerRecord`; and an `ExportLog` row. The class carries its
+own temporary `MEDIA_ROOT`, because one document has real bytes for `GET /documents/{id}/file/`.
+
+**Two personas live in that fixture rather than in `make_personas()`, deliberately.** `venue_admin`
+runs the building and is *not* event staff. `clerk` is a second volunteer who has not acknowledged
+the mandatory briefing, and exists for exactly one row — `409 briefing_unread` on a desk write. The
+volunteer persona cannot carry that row: the volunteer is who the check-in rows assert a **200**
+for, and one unread mandatory document would turn every one of those into the same 409. Keeping
+both out of `make_personas` keeps `seed_conference_personas`, `CAPABILITY_TABLE` and
+`event-preview.mjs` free of four more apps and four more kill switches.
+
 ## Verify
 
-`manage.py test events` (154 tests + the 148-row permission matrix, refusal-weighted) + the availability
+`manage.py test events` (154 tests + the 411-row permission matrix, refusal-weighted) + the availability
 half in `booking/tests.py`. E2E: `events-and-nav.mjs`, `known-issues.mjs`, `event-preview.mjs`
 (needs `seed_conference_personas` run against the backend it drives).
