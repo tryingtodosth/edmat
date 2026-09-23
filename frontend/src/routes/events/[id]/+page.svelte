@@ -25,6 +25,7 @@
 	import Programme from '$lib/components/event/Programme.svelte';
 	import ContributionsPanel from '$lib/components/event/ContributionsPanel.svelte';
 	import EventStaffPanel from '$lib/components/event/EventStaffPanel.svelte';
+	import RotaPanel from '$lib/components/shift/RotaPanel.svelte';
 	import {
 		addEventStaff,
 		getEventStaff,
@@ -589,7 +590,7 @@
 
 			<!-- conference: ticket -->
 
-			<!-- conference: rota -->
+			<RotaPanel eventId={event.id} canOrganise={event.canOrganise} />
 
 			<!-- conference: cloakroom -->
 

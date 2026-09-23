@@ -171,6 +171,11 @@ INSTALLED_APPS = [
     # than more of `exercises`, because what it owns is a review workflow over community-written
     # text. See CONCEPTS-BRIEF.md.
     'concepts',
+    # The volunteer rota for an event: stations, shifts, assignments, hours and the safeguarding
+    # record an organiser fills in. Its own app rather than more of `events` because it owns a
+    # lifecycle and a set of minor-safeguarding invariants nothing else has any use for — see
+    # shifts/models.py and CONFERENCE-BRIEF.md §3.E.
+    'shifts',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting

@@ -429,6 +429,16 @@
 		</a>
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	{/if}
+	{#if can('shifts')}
+		<!-- The rota, from the volunteer's side (CONFERENCE-BRIEF.md §3.E): every event they have
+		     helped run, the hours, and the certificate for each. With the bookings and the agenda
+		     rather than in Add…, for the same reason co-authoring is: it is a thing of theirs to come
+		     back to, not something to make. -->
+		<a role="menuitem" class={itemClass} href={resolve('/volunteering')} {onclick}>
+			{m.shifts_volunteeringTitle()}
+			<!-- "Volunteering" -->
+		</a>
+	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
 	{#if canIssues}
 		<button

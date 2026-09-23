@@ -17,6 +17,14 @@ import type {
 	NotificationType,
 	SourceType
 } from '$lib/types';
+// The rota's own four enums, imported on their own line rather than merged into the block above:
+// seven conference steps were edited in parallel and a separate line is one fewer merge conflict.
+import type {
+	AssignmentStatus,
+	ClaimBlockReason,
+	DropBlockReason,
+	StationKind
+} from '$lib/types/shift';
 import { m } from '$lib/paraglide/messages.js';
 
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
@@ -446,4 +454,53 @@ export const EXERCISE_LINK_ROLES: ExerciseLinkRole[] = ['source', 'practice'];
 export const EXERCISE_LINK_ROLE_LABELS: Record<ExerciseLinkRole, () => string> = {
 	source: m.exLink_roleSource, // "In this material"
 	practice: m.exLink_rolePractice // "Practises this material"
+};
+
+// ---------------------------------------------------------------------------------------------
+// The volunteer rota — a hand-maintained mirror of `backend/shifts/models.py` (station kinds,
+// assignment statuses) and `backend/shifts/rules.py` (`HARD_REASONS` + `SOFT_REASONS`, and the
+// drop reasons). Both of those modules name this file back, per house rule 13: a mirrored enum is
+// exactly where drift creeps in, and a missing key here is a blank where a refusal should be.
+export const STATION_KIND_LABELS: Record<StationKind, () => string> = {
+	door: m.shifts_kind_door, // "Door"
+	room: m.shifts_kind_room, // "Session room"
+	info: m.shifts_kind_info, // "Information desk"
+	cloakroom: m.shifts_kind_cloakroom, // "Cloakroom"
+	runner: m.shifts_kind_runner, // "Runner"
+	setup: m.shifts_kind_setup, // "Set-up and tear-down"
+	other: m.shifts_kind_other // "Other"
+};
+
+export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, () => string> = {
+	offered: m.shifts_status_offered, // "Offered"
+	claimed: m.shifts_status_claimed, // "Waiting to be confirmed"
+	confirmed: m.shifts_status_confirmed, // "Confirmed"
+	dropped: m.shifts_status_dropped, // "Given back"
+	no_show: m.shifts_status_noShow, // "Did not turn up"
+	done: m.shifts_status_done // "Done"
+};
+
+// Why a Claim button is disabled — or, for the last two, what the claim will become rather than a
+// refusal at all.
+export const CLAIM_BLOCK_REASON_LABELS: Record<ClaimBlockReason, () => string> = {
+	sign_in: m.shifts_reason_signIn, // "Sign in to take a shift."
+	event_over: m.shifts_reason_eventOver, // "This event is over."
+	not_volunteer: m.shifts_reason_notVolunteer, // "The organiser has to put you on the event as a volunteer first."
+	minor_no_consent: m.shifts_reason_minorNoConsent, // "The organiser has to record a guardian's consent first."
+	already_assigned: m.shifts_reason_alreadyAssigned, // "You are already on this shift."
+	shift_full: m.shifts_reason_shiftFull, // "This shift is full."
+	overlap: m.shifts_reason_overlap, // "You are already somewhere else at that time."
+	too_close: m.shifts_reason_tooClose, // "Too close to another of your shifts — 15 minutes between them."
+	minor_station: m.shifts_reason_minorStation, // "This station is not open to under-16s."
+	minor_night: m.shifts_reason_minorNight, // "Under-16s cannot be rostered between 22:00 and 06:00."
+	minor_daily_cap: m.shifts_reason_minorDailyCap, // "That would be more than 7 hours in one day."
+	needs_adult: m.shifts_reason_needsAdult, // "You can take it, but it waits until an adult is on the same shift."
+	needs_confirmation: m.shifts_reason_needsConfirmation // "You can take it, but the organiser confirms it."
+};
+
+export const DROP_BLOCK_REASON_LABELS: Record<DropBlockReason, () => string> = {
+	sign_in: m.shifts_reason_signIn, // "Sign in to take a shift."
+	not_yours: m.shifts_dropReason_notYours, // "That shift is not yours."
+	not_active: m.shifts_dropReason_notActive, // "That shift has already been decided."
+	cutoff: m.shifts_dropReason_cutoff // "Less than four hours to go — tell the organiser instead."
 };

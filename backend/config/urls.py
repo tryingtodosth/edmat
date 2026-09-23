@@ -44,6 +44,10 @@ urlpatterns = [
     path('api/', include('galleries.urls')),
     path('api/', include('coauthoring.urls')),
     path('api/', include('concepts.urls')),
+    # After `events.urls`, and that order is load-bearing: the rota's paths hang off an event
+    # (`events/<id>/stations/`), which the events router's own detail pattern declines because it
+    # ends at the id. See shifts/urls.py.
+    path('api/', include('shifts.urls')),
 ]
 
 if settings.DEBUG:
