@@ -176,6 +176,11 @@ INSTALLED_APPS = [
     # person, which is the opposite of everything `events` stores about who is coming. See
     # cloakroom/models.py.
     'cloakroom',
+    # Buildings, their rooms and the paperwork they hand an organiser (CONFERENCE-BRIEF.md §3.A).
+    # Its own app rather than fields on `events.Event` because a venue outlives every event held in
+    # it and has administrators who are not anybody's event staff; the event <-> venue link IS the
+    # `RoomBooking` row, which is what lets `events` keep an untouched schema. See venues/models.py.
+    'venues',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting

@@ -42,6 +42,7 @@
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import { moderationQueueStore } from '$lib/state/moderationQueue.svelte';
+	import { venueStaffStore } from '$lib/state/venueStaff.svelte'; // conference step A
 	import { saveTargetsStore } from '$lib/state/saveTargets.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { issueReportStore } from '$lib/state/issueReport.svelte';
@@ -81,6 +82,11 @@
 	let canEvents = $derived(can('events'));
 	let canPosts = $derived(can('posts'));
 	let canMessaging = $derived(can('messaging') && !isMinor);
+	// Conference step A (CONFERENCE-BRIEF.md §3.A). The Add… entry is for **staff of a venue only**,
+	// so it hangs off two things: the kill switch, and whether this account actually runs a building.
+	// The `/venues` browse link is in the footer, not here.
+	let canVenues = $derived(can('venues'));
+	let runsAVenue = $derived(canVenues && venueStaffStore.runsSomething);
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -91,13 +97,21 @@
 		moderationQueueStore.ensureLoaded(authStore.canModerate ? (authStore.user?.id ?? null) : null);
 	});
 
+	// Same shape and the same reason: signing in later in the same session never re-runs `onMount`.
+	// Passing `null` while the switch is off is what takes the menu entry away WITHOUT a second
+	// condition anywhere — house rule 3 (a killed feature removes its links, and stops asking).
+	$effect(() => {
+		venueStaffStore.ensureLoaded(canVenues ? (authStore.user?.id ?? null) : null);
+	});
+
 	let hasAnythingToAdd = $derived(
 		canSubmitExercise ||
 			canSubmitMaterial ||
 			canClassroom ||
 			canTutoring ||
 			canEvents ||
-			canConcepts
+			canConcepts ||
+			runsAVenue
 	);
 
 	function logout() {
@@ -109,6 +123,7 @@
 		// in memory after they sign out is not something to rely on a later check to undo.
 		saveTargetsStore.clear();
 		moderationQueueStore.clear();
+		venueStaffStore.clear();
 	}
 
 	// ---- the drawer -----------------------------------------------------------------------------
@@ -383,6 +398,21 @@
 		<a role="menuitem" class={itemClass} href={resolve('/concepts/new')} {onclick}>
 			{m.nav_add_concept()}
 			<!-- "New concept" -->
+		</a>
+	{/if}
+	{#if runsAVenue}
+		<!-- Conference step A. Not a "create" action like the rest of this menu, and deliberately
+		     placed last: it is the one entry here that only exists for the handful of people who run
+		     a building, and it is where they go to answer the room requests sitting in their queue.
+		     A venue's own page carries the link onward when somebody runs more than one. -->
+		<a
+			role="menuitem"
+			class={itemClass}
+			href={resolve('/venues/[slug]/manage', { slug: venueStaffStore.venues[0].slug })}
+			{onclick}
+		>
+			{m.venues_navAdd()}
+			<!-- "Venues you run" -->
 		</a>
 	{/if}
 {/snippet}
