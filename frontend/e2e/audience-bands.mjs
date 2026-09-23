@@ -23,6 +23,10 @@ const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
 const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+// `baseLocale` is Polish, so a fresh context reads the Polish interface and every label below would
+// be asserting the wrong catalogue. The cookie is where a person's own language choice persists
+// (`lib/state/locale.svelte.ts`); trap 7 — `/pl/...` is not a locale URL.
+await context.addCookies([{ name: 'PARAGLIDE_LOCALE', value: 'en', url: BASE }]);
 const page = await context.newPage();
 page.on('console', (m) => {
 	if (m.type() === 'error') errors.push(m.text());
@@ -135,7 +139,9 @@ await page.reload({ waitUntil: 'load' });
 await settle(2500);
 check(
 	'a guest choice survives a reload (localStorage)',
-	(await page.locator('.chips .chip', { hasText: 'Everything' }).getAttribute('aria-pressed')) ===
+	// The chips became a real radio group on 2026-09-23 (single-select): `aria-checked`, not
+	// `aria-pressed`.
+	(await page.locator('.chips .chip', { hasText: 'Everything' }).getAttribute('aria-checked')) ===
 		'true'
 );
 
