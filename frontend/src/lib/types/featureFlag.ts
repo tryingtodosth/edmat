@@ -1,5 +1,5 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 15 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 21 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
 //
 // THIS UNION AND `FEATURE_FLAG_LABELS` (utils/labels.ts) BOTH MIRROR THE BACKEND'S OWN
@@ -66,6 +66,16 @@ export type FeatureFlagKey =
 	// keep working while showing nothing for it (house rule 3). A `[[slug]]` anchor already written
 	// into somebody's content still renders; the page it leads to shows the gate.
 	| 'concepts'
+	// The six conference surfaces (CONFERENCE-BRIEF.md §0), seeded together by moderation migration
+	// 0043 so that the seven parallel branches never each add a flag. Each closes its own app's
+	// endpoints to a non-staff caller and takes its own links with it; the older events surfaces
+	// (programme, registration, contributions) keep working with all six off.
+	| 'venues'
+	| 'event_documents'
+	| 'tickets'
+	| 'shifts'
+	| 'cloakroom'
+	| 'role_preview'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

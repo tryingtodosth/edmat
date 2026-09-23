@@ -360,6 +360,12 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	age_verification: m.featureFlags_label_ageVerification, // "Age gate on self-registration"
 	coauthoring: m.featureFlags_label_coauthoring, // "Co-authoring materials: versions, teams, proposals"
 	concepts: m.featureFlags_label_concepts, // "Concepts: wiki articles per audience"
+	venues: m.featureFlags_label_venues, // "Venues, rooms and checklists"
+	event_documents: m.featureFlags_label_eventDocuments, // "Event documents and briefings"
+	tickets: m.featureFlags_label_tickets, // "Tickets, QR codes and scanning"
+	shifts: m.featureFlags_label_shifts, // "Volunteer rota (shifts)"
+	cloakroom: m.featureFlags_label_cloakroom, // "Cloakroom desk"
+	role_preview: m.featureFlags_label_rolePreview, // "View an event as a visitor"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 

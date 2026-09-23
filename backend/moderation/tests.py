@@ -1247,6 +1247,14 @@ class FeatureFlagTests(APITestCase):
                 'coauthoring',
                 'concepts',
                 'sketches',
+                # The six conference switches, seeded together by migration 0043
+                # (CONFERENCE-BRIEF.md §0).
+                'venues',
+                'event_documents',
+                'tickets',
+                'shifts',
+                'cloakroom',
+                'role_preview',
                 'material_uploads_verified_only',
             },
         )
