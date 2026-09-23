@@ -14,6 +14,7 @@
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import { documentAcks } from '$lib/state/documentAcks.svelte';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import { downloadBlob } from '$lib/utils/download';
 	import { DOCUMENT_TIERS, DOCUMENT_TIER_LABELS } from '$lib/utils/labels';
@@ -58,11 +59,14 @@
 	let chosenFile = $state<File | null>(null);
 
 	$effect(() => {
+		// Keyed on the acknowledgement counter as well as the event, so a briefing confirmed in the
+		// check-in interstitial (a sibling component with no relationship to this one) re-reads this
+		// list instead of leaving a stale "still to read" pill behind — see state/documentAcks.
+		const stamp = `${event.id}:${documentAcks.version}`;
 		if (!enabled) return;
-		const id = event.id;
-		if (loadedFor === id) return;
-		loadedFor = id;
-		load(id);
+		if (loadedFor === stamp) return;
+		loadedFor = stamp;
+		load(event.id);
 	});
 
 	async function load(id: string) {

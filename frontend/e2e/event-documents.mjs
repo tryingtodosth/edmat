@@ -306,6 +306,24 @@ await registrations.getByRole('button', { name: 'Check in', exact: true }).first
 await volunteer.waitForTimeout(2000);
 const checkedIn = await registrations.locator('.pill--checked').count();
 check('check-in goes through afterwards', checkedIn === 1, String(checkedIn));
+// The panel further down the page holds its own copy of the list and was loaded BEFORE the
+// acknowledgement. Nothing asserted this and the screenshot showed it lying ("1 still to read"
+// beside a briefing that had just been read) — hence `state/documentAcks` and this check.
+// Scoped to the HEADER pill ("n still to read"): the row's own "Must be read" pill is a property
+// of the document, not of this reader, and stays exactly where it is (e2e/CLAUDE.md trap 6 — the
+// first version of this check counted both and failed against a correct page).
+const stillToRead = await volunteerPanel.locator('.head .pill--warn').count();
+check(
+	'the panel no longer claims the briefing is unread',
+	stillToRead === 0,
+	await volunteerPanel.locator('.head').innerText()
+);
+check(
+	'and the row now reads as read',
+	(
+		await volunteerPanel.locator('li', { hasText: 'Volunteer briefing' }).first().innerText()
+	).includes('Read')
+);
 await volunteer.screenshot({ path: 'e2e/screens/event-documents-after-briefing.png' });
 
 // --- the organiser's read-receipt table now says so ---

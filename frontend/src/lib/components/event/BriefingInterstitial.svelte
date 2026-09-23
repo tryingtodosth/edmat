@@ -11,6 +11,7 @@
 	import { onMount } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import { acknowledgeDocument, getEventDocuments } from '$lib/services/documents';
+	import { documentAcks } from '$lib/state/documentAcks.svelte';
 	import type { BriefingBlock, EventDocument } from '$lib/types/document';
 	import DocumentPreview from './DocumentPreview.svelte';
 
@@ -41,6 +42,8 @@
 		try {
 			const updated = await acknowledgeDocument(doc.id);
 			documents = documents.map((d) => (d.id === doc.id ? updated : d));
+			// The Documents panel further down the page holds its own copy of this list.
+			documentAcks.bump();
 			if (documents.every((d) => d.acknowledged)) onread();
 		} catch {
 			error = m.documents_superseded(); // "There is a newer version of this. Reload the page."
