@@ -27,3 +27,4 @@ export * from './materialProject';
 export * from './exerciseMaterialLink';
 export * from './concept';
 export * from './venue';
+export * from './document';

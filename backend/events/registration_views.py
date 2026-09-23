@@ -10,6 +10,7 @@ from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from documents.access import briefing_block_reason
 from moderation.permissions import feature_gate
 
 from .models import ATTENDING_STATUSES, RegistrationField, SessionAttendance
@@ -103,6 +104,17 @@ class RegistrationMixin:
         row = event.attendances.filter(pk=row_id).first()
         if row is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        # The briefing gate, and the ONLY edit this file takes for CONFERENCE-BRIEF.md §3.C: a staff
+        # member who still owes a mandatory acknowledgement cannot work the door. The rule itself
+        # lives in `documents/access.py` (steps D and F call the same function for the scanner and
+        # the cloakroom desk at integration); here it is one call and one refusal, and it answers
+        # `None` — so this action behaves exactly as it did before — whenever the `event_documents`
+        # flag is off, the event has no mandatory documents, or they have all been read.
+        # Undo is gated with check-in on purpose: it is the same tool, and somebody who may not open
+        # the door may not reopen it either.
+        blocked = briefing_block_reason(event, request.user)
+        if blocked:
+            return Response(blocked, status=status.HTTP_409_CONFLICT)
         problem = check_in(row, request.user, undo=request.method == 'DELETE')
         if problem:
             return Response({'detail': problem}, status=status.HTTP_409_CONFLICT)
