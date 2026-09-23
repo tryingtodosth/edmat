@@ -8052,3 +8052,100 @@ production build and a green assertion run, and was found by opening the PNG (ho
 - **The venue is not on the event page for a reader.** An approved booking shows in the Venue panel,
   but `Event.location_text` is still the free-text field a stranger reads; wiring the two together
   (or deciding they stay separate) is an integration question, not a step-A one.
+
+### For the integrator
+
+Merge position: **A is fifth** in the brief's order (B → G → C → D → **A** → E → F). Commit
+`4ca3537` on `conf/a-venues`. Nothing was pushed, merged or rebased.
+
+**Files changed outside the new `venues` app** (everything else is new files under
+`backend/venues/`, `frontend/src/lib/components/venue/`, `frontend/src/lib/services/venues.ts`,
+`frontend/src/lib/state/venueStaff.svelte.ts`, `frontend/src/lib/types/venue.ts`,
+`frontend/src/routes/venues/`, `frontend/e2e/venues.mjs`, `frontend/e2e/screens/venues-*.png`):
+
+| File | Where | What |
+|---|---|---|
+| `backend/config/settings.py` | `INSTALLED_APPS`, +5 lines after `'concepts',` (≈174) | adds `'venues'` with its comment |
+| `backend/config/urls.py` | +1 line after the `concepts.urls` include (≈47) | `path('api/', include('venues.urls'))` |
+| `backend/events/views.py` | `EventViewSet.update`, +15 lines after the `before = (...)` capture (≈219) | the `publish_block_reason` call. **The only edit to `events`, and there is no `events` migration** |
+| `frontend/src/routes/events/[id]/+page.svelte` | +2 import lines right after `import EventStaffPanel …` (≈28); the two marker lines replaced (≈586, ≈596) | `VenuePanel`, `ChecklistPanel` |
+| `frontend/src/lib/components/layout/Header.svelte` | +1 import (≈45), +5 derived (≈85), +7 `$effect` (≈100), 2 lines in `hasAnythingToAdd` (≈113), +1 in `logout` (≈126), +15 at the **end of the `createItems` snippet** (≈403) | the "Venues you run" Add… entry |
+| `frontend/src/lib/components/layout/Footer.svelte` | +1 derived after `canIssues`, +4 in the links row | the `/venues` browse link |
+| `frontend/src/lib/utils/labels.ts` | +7 import lines after the `from '$lib/types'` block (≈20); +65 lines **appended at the end of the file** (≈457) | the enum mirrors |
+| `frontend/src/lib/types/index.ts` | +1 line after `export * from './concept';` | `export * from './venue';` |
+| `frontend/messages/en.json`, `pl.json` | **lines 2683–2818** in each, one contiguous block at the end | 136 keys |
+| `test.md` | one section appended at the end | |
+| `HISTORY.md` | this section, appended at the end | |
+
+**Migrations:** `venues/0001_initial.py`, `venues/0002_seed_default_templates.py` (data — the four
+platform-default templates, idempotent by `(venue IS NULL, name)`). **No migration in `events` or
+`moderation`.** `makemigrations --check --dry-run` is clean.
+
+**npm packages added: none.** No new Python dependency either.
+
+**i18n:** prefix `venues_` and `checklist_`, 136 keys, appended as one contiguous block at the end of
+both catalogues in the same insertion order, key sets verified identical (2817 each). Paraglide was
+recompiled; the generated `src/lib/paraglide/` output is gitignored as usual.
+
+**What other steps must call or wire** — all in `backend/venues/access.py`:
+
+```python
+is_venue_admin(user, venue) -> bool          # step C: documents.access.venue_admin_check binds to THIS
+is_venue_staff(user, venue) -> bool          # administrator OR porter — "who may look"
+can_manage_room(user, room) -> bool
+venues_administered_by(user) -> QuerySet[int]   # venue ids, what the Add… entry is scoped by
+booking_block_reason(event, room, starts_at, ends_at, headcount, *, exclude_pk=None) -> str | None
+item_change_block_reason(user, item, *, wanted_status=None, na_reason=None) -> str | None
+publish_block_reason(event) -> str | None    # already wired into events/views.py by this branch
+visible_venues(qs, user) -> QuerySet         # the queryset filter half of house rule 4
+```
+
+Step C's §5 integration item is one line: replace `documents.access.venue_admin_check`'s
+organisers-only default with `venues.access.is_venue_admin`. Nothing else in A needs wiring.
+
+**New endpoints for B's permission matrix:** `/api/venues/` (+ `{id}/staff/`,
+`{id}/staff/{staff_id}/`, `{id}/bookings/`, `{id}/templates/`), `/api/rooms/`,
+`/api/room-bookings/` (+ `{id}/approve|reject|cancel/`), `/api/checklist-templates/`,
+`/api/checklist-instances/{id}/sync/` and `{id}` DELETE, `/api/checklist-items/{id}/` PATCH and
+`{id}/sign-off/`, and `/api/events/{id}/checklist/` GET/POST — the last one is routed from
+`venues/urls.py`, not from `events`, so it will not collide with another step's `EventViewSet`
+actions.
+
+**Running the e2e script:**
+
+```sh
+cd backend && DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:5201,http://127.0.0.1:5201 \
+  ../.venv/bin/python3 manage.py runserver 127.0.0.1:8101
+cd frontend && PUBLIC_API_BASE_URL=http://127.0.0.1:8101/api npx vite dev --port 5201 --strictPort
+cd frontend && E2E_BASE=http://localhost:5201 E2E_API=http://127.0.0.1:8101 node e2e/venues.mjs
+```
+
+Seeded demo users only (`seed_demo_users`, password `password123`): **kasia** (the staff account —
+creates the building, is named its administrator, and pulls the `venues` flag), **michal** (the
+organiser), **ola** (the stranger). It restores the flag and removes its building and event through
+the real API at the end.
+
+**Exact commands run, and their results:**
+
+```
+backend/  ../.venv/bin/python3 manage.py test venues events      # venues 53 tests
+backend/  ../.venv/bin/python3 manage.py test moderation
+backend/  ../.venv/bin/python3 manage.py check                   # no issues
+backend/  ../.venv/bin/python3 manage.py makemigrations --check --dry-run   # No changes detected
+frontend/ npm run check                                          # 0 errors, 0 warnings
+frontend/ npx eslint .                                           # 6 findings, all pre-existing in other e2e scripts
+frontend/ npm run build                                          # adapter-static, wrote build/
+frontend/ E2E_BASE=… E2E_API=… node e2e/venues.mjs               # 31 passed, 0 failed, zero console/page errors
+```
+
+`npm run lint` runs `prettier --check` before eslint and reports two pre-existing untracked files
+(`project.inlang/.meta.json`, `project.inlang/README.md`); every file this branch touches is
+prettier-clean.
+
+**Likely conflict points with the other six:** `frontend/messages/*.json` (everybody appends at the
+end — the blocks concatenate, ours is lines 2683–2818), `frontend/src/lib/utils/labels.ts` (same,
+end of file), `frontend/src/routes/events/[id]/+page.svelte` (imports after `EventStaffPanel` and one
+marker line each — ours are `venue` and `checklist`, and the remaining five markers are untouched),
+`frontend/src/lib/components/layout/Header.svelte` (D, E and F may also append to `createItems` or
+the account menu), `frontend/src/lib/types/index.ts`, `backend/config/settings.py` and
+`backend/config/urls.py` (C, E and F each add an app), `test.md` and `HISTORY.md` (appended).
