@@ -602,7 +602,7 @@
 
 			<!-- conference: ticket -->
 
-			<RotaPanel eventId={event.id} canOrganise={event.canOrganise} />
+			<RotaPanel eventId={event.id} canOrganise={event.canOrganise} isStaff={event.canCheckIn} />
 
 			<CloakroomPanel {event} />
 

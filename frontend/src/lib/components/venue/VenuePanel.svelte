@@ -87,10 +87,16 @@
 	});
 
 	async function load() {
-		try {
-			bookings = await getEventBookings(eventId);
-		} catch {
-			bookings = [];
+		// Do not ASK for what the API will refuse: the bookings list is 401 to a signed-out visitor,
+		// and the e2e zero-console-errors check on the merged event page found exactly that
+		// (integration, 2026-09-23). A visitor sees no venue panel; a signed-in reader sees the
+		// approved booking; an organiser sees the rest.
+		if (authStore.user) {
+			try {
+				bookings = await getEventBookings(eventId);
+			} catch {
+				bookings = [];
+			}
 		}
 		if (canOrganise) {
 			try {

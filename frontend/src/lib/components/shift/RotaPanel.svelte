@@ -56,7 +56,14 @@
 		VolunteerRecord
 	} from '$lib/types/shift';
 
-	let { eventId, canOrganise }: { eventId: string; canOrganise: boolean } = $props();
+	// `isStaff` is the event's `canCheckIn` — true for every staff member, volunteers included — so
+	// that the panel never asks the rota API on behalf of an attendee or a visitor (a 404 by house
+	// rule 4, and a console error the e2e run counts). Found on the merged event page, 2026-09-23.
+	let {
+		eventId,
+		canOrganise,
+		isStaff = false
+	}: { eventId: string; canOrganise: boolean; isStaff?: boolean } = $props();
 
 	// The programme, only for the station editor's "this station follows that session" picker. Read
 	// here rather than handed down from the event page: the page does not hold the sessions either
@@ -90,7 +97,7 @@
 		// browser console logs it, which is a kill switch making noise about a feature it is
 		// supposed to have removed. Found by the e2e run's zero-console-errors check, not by any
 		// assertion about the panel itself.
-		if (!enabled) {
+		if (!enabled || !(canOrganise || isStaff)) {
 			hidden = true;
 			loaded = true;
 			return;
