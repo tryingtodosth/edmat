@@ -521,8 +521,24 @@ class EventAttendance(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
     )
+    # The ticket (CONFERENCE-BRIEF.md §3.D). An opaque random string, minted the first time this
+    # row holds a seat and never derived from anything about the person — the QR code carries this
+    # and nothing else, so a photograph of somebody's phone is not a photograph of their name. Null
+    # until then (SQLite, like every backend here, allows many NULLs in a unique column, which is
+    # what makes "unique, but most rows have none" expressible at all).
+    ticket_token = models.CharField(max_length=64, unique=True, null=True, blank=True, default=None)
+    # Check-OUT, the mirror of `checked_in_at`. Two timestamps rather than an `is_inside` boolean:
+    # "inside" is derived (`checked_in_at` set and no LATER `checked_out_at`), so a row cannot be
+    # both inside and outside, and a re-entry is one comparison rather than a flag to reconcile.
+    checked_out_at = models.DateTimeField(null=True, blank=True)
     responded_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_inside(self) -> bool:
+        if self.checked_in_at is None:
+            return False
+        return self.checked_out_at is None or self.checked_out_at < self.checked_in_at
 
     class Meta:
         # One answer per person per event, enforced by the database rather than by whichever view
@@ -880,3 +896,75 @@ class Contribution(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+
+# ---- tickets and scanning (CONFERENCE-BRIEF.md §3.D) -------------------------------------------
+
+SCAN_DIRECTION_CHOICES = [
+    ('entry', 'Entry'),
+    ('exit', 'Exit'),
+]
+
+#: Every answer the door can give, in words rather than a boolean (house rule 6). Mirrored in
+#: `frontend/src/lib/utils/labels.ts` (house rule 13 — say so in BOTH files).
+SCAN_RESULT_CHOICES = [
+    ('admitted', 'Admitted'),
+    ('already_in', 'Nothing changed — already on that side of the door'),
+    ('not_going', 'Not on the going list'),
+    ('unknown', 'No such ticket for this event'),
+    ('exited', 'Recorded leaving'),
+    ('collision', 'The same ticket entered twice in one sync — possibly passed back'),
+]
+
+
+class ScanEvent(models.Model):
+    """One scan at one door, **append-only**: a row is written once and never updated or deleted.
+
+    That is the whole reason it exists as a table rather than as more columns on
+    `EventAttendance`. The attendance row holds the CURRENT state (`checked_in_at`,
+    `checked_out_at`); this holds what actually happened, including the refusals — an unknown
+    token, a waitlisted person at the door, a ticket that came through twice. A door log that
+    only recorded the successes could not answer "how many people did we turn away, and when",
+    which is the question an organiser has at 09:10 on the morning of the event.
+
+    `client_nonce` is what makes the batch endpoint safe to retry: the scanner generates it when
+    the scan happens, offline, and a nonce already stored returns its own row unchanged instead of
+    scanning again. `client_at` is the phone's clock and is therefore NOT trusted for anything but
+    ordering within a batch and display — `received_at` is this server's own clock.
+    """
+
+    event = models.ForeignKey(Event, related_name='scans', on_delete=models.CASCADE)
+    # Nullable and SET_NULL: an unknown token has no attendance at all, and a row deleted later
+    # must not take the fact that somebody was turned away with it (house rule 12).
+    attendance = models.ForeignKey(
+        EventAttendance, related_name='scans', null=True, blank=True, on_delete=models.SET_NULL
+    )
+    # What the camera actually read, kept verbatim even when it matched nothing — a stack of
+    # `unknown` rows all carrying the same string is how you find out somebody printed last year's
+    # ticket, and it is opaque by construction, so storing it reveals nothing about a person.
+    token_seen = models.CharField(max_length=64, blank=True)
+    direction = models.CharField(max_length=5, choices=SCAN_DIRECTION_CHOICES, default='entry')
+    result = models.CharField(max_length=10, choices=SCAN_RESULT_CHOICES)
+    client_nonce = models.CharField(max_length=64, unique=True)
+    client_at = models.DateTimeField(null=True, blank=True)
+    received_at = models.DateTimeField(auto_now_add=True)
+    scanned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='event_scans_made',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    device_label = models.CharField(max_length=60, blank=True)
+    # True when this scan sat in the phone's queue before it reached the server — it is the
+    # difference between "the door was slow" and "the Wi-Fi was down", and only the client knows.
+    is_offline_sync = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-received_at', '-id']
+        indexes = [
+            models.Index(fields=['event', 'received_at']),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.direction} {self.result} @ {self.event_id}'

@@ -25,6 +25,7 @@
 	import Programme from '$lib/components/event/Programme.svelte';
 	import ContributionsPanel from '$lib/components/event/ContributionsPanel.svelte';
 	import EventStaffPanel from '$lib/components/event/EventStaffPanel.svelte';
+	import TicketLinks from '$lib/components/event/TicketLinks.svelte';
 	import {
 		addEventStaff,
 		getEventStaff,
@@ -587,7 +588,7 @@
 
 			<!-- conference: documents -->
 
-			<!-- conference: ticket -->
+			<TicketLinks {event} />
 
 			<!-- conference: rota -->
 

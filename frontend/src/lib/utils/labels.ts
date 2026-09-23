@@ -15,6 +15,7 @@ import type {
 	BuiltinMaterialType,
 	MaterialSort,
 	NotificationType,
+	ScanDirection,
 	SourceType
 } from '$lib/types';
 import { m } from '$lib/paraglide/messages.js';
@@ -446,4 +447,44 @@ export const EXERCISE_LINK_ROLES: ExerciseLinkRole[] = ['source', 'practice'];
 export const EXERCISE_LINK_ROLE_LABELS: Record<ExerciseLinkRole, () => string> = {
 	source: m.exLink_roleSource, // "In this material"
 	practice: m.exLink_rolePractice // "Practises this material"
+};
+
+// Tickets and scanning — a hand-maintained mirror of `SCAN_RESULT_CHOICES` in
+// backend/events/models.py, which names this file back (house rule 13: say so in BOTH files).
+//
+// Two functions rather than one map, because the door's vocabulary has one word for "nothing
+// changed" (`already_in`) and a person at the door needs two different sentences for it: entering
+// when you are already inside, and leaving when you never came in. `scanning.py`'s module docstring
+// records that choice; this is its other half.
+export function scanResultLabel(result: string, direction: ScanDirection): () => string {
+	if (result === 'already_in') {
+		return direction === 'exit' ? m.tickets_result_already_out : m.tickets_result_already_in;
+	}
+	const map: Record<string, () => string> = {
+		admitted: m.tickets_result_admitted, // "Come in"
+		not_going: m.tickets_result_not_going, // "Not on the going list"
+		unknown: m.tickets_result_unknown, // "No such ticket for this event"
+		exited: m.tickets_result_exited, // "Recorded as leaving"
+		collision: m.tickets_result_collision // "This ticket has already come in — it may have been passed back"
+	};
+	return map[result] ?? m.tickets_result_unknown; // "No such ticket for this event"
+}
+
+/** Green, amber or red — the only thing a volunteer reads from two metres away. */
+export function scanResultTone(result: string): 'ok' | 'warn' | 'bad' {
+	if (result === 'admitted' || result === 'exited') return 'ok';
+	if (result === 'already_in') return 'warn';
+	return 'bad';
+}
+
+/** Why there is no ticket yet. The backend answers 409 with the attendance status itself
+ *  (`ticket_views.my_ticket`), so the reasons ARE the registration states — a refusal that carries
+ *  its reason (house rule 6) is only worth carrying if the frontend has a line for each one. */
+export const TICKET_BLOCK_REASONS: Record<string, () => string> = {
+	pending: m.tickets_blocked_pending, // "The organiser has not confirmed your place yet."
+	waitlisted: m.tickets_blocked_waitlisted, // "You are on the waiting list. A ticket appears when a seat is offered."
+	expired: m.tickets_blocked_expired, // "Your seat offer expired and the seat went to the next person."
+	not_going: m.tickets_blocked_notGoing, // "You said you are not coming to this."
+	not_registered: m.tickets_blocked_notRegistered, // "You have not registered for this event."
+	not_yours: m.tickets_blocked_notYours // "This is somebody else's ticket."
 };
