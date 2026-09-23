@@ -353,6 +353,40 @@ staff) nor a booking (published first, answered by *many*, nobody approves anybo
   a post is multipart with a picture and JSON without; the repeated-form-key case needed a `get_value` override, since DRF reads
   only the last value of a repeated QueryDict key.
 
+### `venues` — buildings, rooms, room bookings, the building's checklist (2026-09-23)
+`Venue`, `VenueStaff` (administrator / porter), `Room` (a seated and a fire-evacuation capacity, `seated ≤ fire` in `clean()`),
+`RoomBooking` (**this row is the event ↔ venue link** — there is no `Event.venue`), `ChecklistTemplate`/`Item` (bilingual columns;
+four platform defaults seeded by migration 0002) and `ChecklistInstance`/`Item` (a snapshot, never a view of the template).
+`venues/access.py` owns every rule: `is_venue_admin`, `booking_block_reason` (`room_busy`, `over_fire_capacity`),
+`item_change_block_reason`, `publish_block_reason` (an approved booking with a pending mandatory item keeps an event a draft —
+called from `EventViewSet.update`). Kill switch `venues`. Frontend: `/venues`, `/venues/[slug]`, `/venues/[slug]/manage`, the
+Venue and Checklist panels on the event page.
+
+### `documents` — files and links on an event, with visibility tiers and acknowledgements (2026-09-23)
+`EventDocument` (`public ⊂ attendees ⊂ staff ⊂ organisers`, plus `venue` off the ladder — answered by `venue_admin_check`, which
+asks `venues.access.is_venue_admin` for the building with an APPROVED booking), `DocumentAcknowledgement` (unique per document,
+user, version; a replacement is a new row and the old one tombstones forward). Bytes are served by a tier-checked endpoint, never
+a `/media/` URL; PDFs go through the materials scan path, images through `imaging.py`. `documents/access.py:
+briefing_block_reason(event, user)` is the **409 `briefing_unread`** that check-in, the cloakroom desk (and D's scanner, when it
+lands) answer until the mandatory documents are acknowledged. Kill switch `event_documents` — off, the gate stops applying.
+
+### `shifts` — the volunteer rota (2026-09-23)
+`Station` (kind door / room / info / cloakroom / runner / setup / other; may follow a `Session`), `Shift`, `Assignment` (claimed /
+confirmed / dropped / no_show / done; hours derived from `done` with an organiser override), `VolunteerRecord` (consent and
+vetting as **fields an organiser fills, never files**). `shifts/rules.py` owns `claim_block_reason` (the minor rules read
+`Profile.is_minor`, under 16: no station unless `minors_permitted`, nothing touching 22:00–06:00, 7 h a day, an adult confirmed
+where `requires_adult`), `drop_block_reason` (4 h cutoff), `coverage` (COUNTs), and `holds_station_assignment(user, event, kind)`
+— what the cloakroom asks. A confirmed shift blocks a tutor's hours like hosting (`booking/availability.py`). Kill switch
+`shifts`. Frontend: the Rota panel, `/volunteering`, `/events/[id]/{rota,certificate}`.
+
+### `cloakroom` — a coat, a paper ticket, and nobody's name (2026-09-23)
+`CloakroomDesk` (rack labels, open / closed), `CloakroomItem` (an 8-character bearer token, **no FK to a person**; the lost-slip
+path records what the item looks like and the KIND of identity shown, never a number, and blacklists the token). `cloakroom/rules.py:
+can_operate` is the one "who works this desk" — staff membership, narrowed to a confirmed `cloakroom` station assignment (plus the
+organisers) when the event rostered one and the `shifts` switch is on. Deposit and return answer the documents briefing gate.
+`purge_event_data` blanks the exception fields after the retention window. Kill switch `cloakroom`. Frontend:
+`/events/[id]/cloakroom` (deposit slip with a lazily loaded QR, return by typed token or camera, reconciliation, CSV).
+
 ### `telemetry` — request logging and audit
 `RequestLog`, `AuditEvent`, `middleware.py`, `routers.py` (`LogShardRouter`), `checks.py`. Logs are written to **separate SQLite
 databases** (`logs_*` shards under `backend/logdata/`, sized by `EDMAT_LOG_SHARD_SIZE`/`COUNT`), with an anonymous shard

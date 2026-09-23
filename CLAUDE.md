@@ -86,15 +86,18 @@ taxonomy. An untracked `backend/classroom/` directory may still exist on disk �
 frontend/  SvelteKit 2 + Svelte 5 runes + TS, adapter-static (SPA fallback), Paraglide i18n
              routes/ + components  →  lib/services/*.ts  →  lib/api/client.ts  →  HTTP
                    (never fetch)         (the only seam)      (the only fetch())
-backend/   Django 5.2 + DRF, SQLite, 21 local apps + config/ + testing/ + imaging.py
+backend/   Django 5.2 + DRF, SQLite, 27 local apps + config/ + testing/ + imaging.py
              views  →  <app>/services.py or a rule module  →  models
 deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 23 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 27 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
-`courses` `booking` `activity` `events` `coauthoring` `concepts` `sketches`. Each has its own `CLAUDE.md`.
+`courses` `booking` `activity` `events` `coauthoring` `concepts` `sketches` `venues` `documents`
+`shifts` `cloakroom`. Each has its own `CLAUDE.md`. The last four are the conference layer
+(`CONFERENCE-BRIEF.md`, 2026-09-23), each hung off `events.Event` by a row of its own so that
+`events` kept its schema while seven branches were built at once.
 
 **Two boundaries are load-bearing and everything else follows from them:**
 
@@ -131,9 +134,12 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Fourteen exist today — `exercise_submissions` `material_submissions`
+  with an `is_staff` bypass. Twenty exist today — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
-  `age_verification` `coauthoring` `concepts` `sketches` — and the `legal` notice channel is the one deliberate exception
+  `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
+  `venues` `event_documents` `tickets` `shifts` `cloakroom` `role_preview` (seeded together by
+  moderation migration 0043, so that seven parallel branches never each added one) — and the
+  `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
   has been forgotten twice, each time taking the whole Flags tab down. `age_verification` is also
