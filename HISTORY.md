@@ -8071,8 +8071,10 @@ has no plural machinery).
   **ola** registers, **michał** is the volunteer — no `register` call, so the throttle is not
   touched. It creates its own event, adds Michał through `/staff/` and deletes everything at the
   end. Needs `manage.py migrate` first (the `ExportLog` table) or `/exports/log/` 500s.
-- Screenshots land at `frontend/e2e/screens/event-exports-{organiser,volunteer}.png`; they are
-  **not committed** (most e2e screenshots here are not).
+- Screenshots land at `frontend/e2e/screens/event-exports-{organiser,volunteer}.png` and **are
+  committed**, joining the six the language work already tracks. The volunteer one is the
+  deliverable seen from outside: a row with a name, a status and a Check in button, and nothing
+  else on the panel.
 
 *Docs.* `LEGAL.md` gains **`## 8. Event data: who sees what, and for how long`**, inserted before
 the old §8, which is renumbered **`## 9. Still open`** and gains one bullet. Nothing else in that
