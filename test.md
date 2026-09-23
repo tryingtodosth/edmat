@@ -1384,6 +1384,20 @@ runs inside its own savepoint which is then rolled back, so a row that writes ca
 later row sees, and the table stays order-independent. Adding an events endpoint means adding
 rows, not writing a new file; the file's own header says so for the parallel conference steps.
 
+**411 rows since integration** (148 before it). The added 263 cover every endpoint the conference
+layer exposes — `venues` (buildings, rooms, room bookings, checklist templates, instances and
+items), `documents` (the five tiers, the protected file, acknowledgements, replace), `shifts`
+(stations, shifts, claim/drop/assign/confirm/no-show/done, the records, `my-volunteering`),
+`cloakroom` (the desk, deposit, both returns, reconcile, export) and `events/exports.py`
+(`exports/needs`, `exports/door-list.csv`, `exports/log`) — plus an `undefined` row per new router.
+Two personas exist only for this table and are built in its own fixture rather than in
+`make_personas()`: **`venue_admin`**, who runs the building and is not event staff, and
+**`clerk`**, a second volunteer who has not acknowledged the mandatory briefing (the persona the
+`409 briefing_unread` desk row needs — the ordinary volunteer cannot carry it without turning
+every check-in row into the same 409). It found one real bug: two cloakroom nested-id routes
+answered **500** rather than 404 on `/items/undefined/…` — `HISTORY.md` §17BF, "Matrix rows for A,
+C, E, F, G".
+
 Its personas come from `backend/testing/personas.make_personas()`, which is also what
 `../.venv/bin/python3 manage.py seed_conference_personas [--password X]` runs — seven accounts
 (`persona.organiser@edmat.example` … `persona.stranger@…`, plus `persona.child`, a real minor made

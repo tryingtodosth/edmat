@@ -9144,8 +9144,68 @@ at by the step that wrote it; the integrator looked at the merged event page and
   verification; everything it built is WIP commit `ea80208` on `conf/d-tickets` (history section
   written, verification list not run). Merging it means renumbering G's `0011_exportlog` to `0012`,
   gating `/scans/` behind `briefing_block_reason`, teaching the purge `ScanEvent`, and matrix rows.
-- **The permission matrix has rows for the pre-existing events surface only.** A, C, E, F and G's
-  endpoints are named in their integrator notes; the rows are still to be written.
+- ~~The permission matrix has rows for the pre-existing events surface only.~~ Closed the same
+  evening on `conf/h-matrix` (below): 411 rows, and one real 500 it found in the cloakroom's nested
+  item id. D's endpoints are the rows still missing.
 - The nineteen nested-id routes outside `events/` that still answer 500 to a non-numeric id
   (B's list: `courses/views.py` 16, `coauthoring/views.py` 2, `community/views.py` 1).
 - Each step's own "left open" list (§17BF.A–G), and the brief's §7.
+
+### Matrix rows for A, C, E, F, G
+
+The one thing §17BF.B left for the integrator: each of the other steps' endpoints needed rows in
+the permission matrix, and nobody could write them until the branches were in one tree. Done on
+`conf/h-matrix`, against `ux-and-whiteboard` at 7ce74b4 (every step but D). **148 rows → 411**, and
+the new 263 cover every endpoint `venues`, `documents`, `shifts`, `cloakroom` and `events/exports.py`
+expose, for stranger / attendee / volunteer / reviewer / organiser and two new personas.
+
+**Two personas were added, and to the matrix's own fixture rather than to `make_personas()`.**
+`venue_admin` runs a building and is deliberately *not* event staff — it is the persona that makes
+"the organiser is not the building, and the building is not the organiser" a row rather than a
+sentence (a venue administrator gets 403 on the event's checklist write path only for the lines
+their building signs; an organiser gets 403 on the building's booking queue). `clerk` is a second
+volunteer who has **not** acknowledged the mandatory briefing, and it exists for exactly one row:
+`409 briefing_unread` on a cloakroom deposit. The volunteer persona could not carry that row,
+because the volunteer is the persona the existing check-in rows assert a **200** for, and one
+unread mandatory document would have turned every one of those into the same 409 — the briefing
+rule is not about who somebody is. Keeping both out of `make_personas` keeps
+`seed_conference_personas`, its printed `CAPABILITY_TABLE` and `event-preview.mjs` independent of
+four more apps and four more kill switches; the matrix needs them, the demonstration does not.
+
+The fixtures they act on, all hung on the same Sandbox conference: a venue with one administrator,
+a room, an **approved** booking (which is what makes `documents.access.venue_admin_check` answer at
+all) and a second, still-`requested` one so approve/reject are 200s rather than the honest 409 an
+already-decided booking gives; a checklist template whose single item `requires_venue_signoff`,
+instantiated — the one flag that makes an organiser and a building's administrator answer
+differently to the same PATCH; a document at each of the five tiers, the `staff` one mandatory and
+acknowledged by everybody except `clerk`; a `cloakroom` station with a worked shift and an `info`
+station with an open one, a day apart so `MIN_GAP` is never what a claim row is about; a desk with
+one coat on rack 1; and an `ExportLog` row. The class also gets its own temporary `MEDIA_ROOT`,
+because one document carries real bytes so `GET /documents/{id}/file/` has something to stream.
+
+**Every row passed first time except two, and those two were a real bug: a 500.**
+`POST /api/cloakroom-desks/{desk}/items/undefined/return/` and its `return-by-exception` sibling
+returned **500**, not 404. `NumericPkRouter` narrows the *desk* id for free, but an `@action`'s
+nested id lives in that action's own `url_path`, which the router never sees — so DRF's default
+`[^/.]+` matched `undefined`, `get_object_or_404(desk.items, pk='undefined')` asked SQLite for it,
+and the integer field raised. Exactly the bug §17BF.B found and fixed in eleven places in `events/`,
+reintroduced by a new app written in parallel with the fix. Fixed here the same way — interpolate
+`config.routers.NUMERIC_PK_REGEX` into both `url_path`s — with three tests in `cloakroom/tests.py`
+(`NumericItemIdTests`): the two 404s and one that a real item id still resolves, because a
+narrowing that breaks the URL it was added to is not a fix.
+
+That no *expectation* was wrong is worth saying plainly rather than claiming as a win: it means the
+five rule modules already agreed with each other about who may do what, which is what
+`CONFERENCE-BRIEF.md` §4's "one rule module per app, and the endpoints ask it" was for. The rows
+that are 409 by design are the ones worth reading down: `already_decided` on a second booking
+decision, `room_busy` against an approved booking, `last_administrator`, `already_started` on a
+second checklist, `already_assigned` / `not_volunteer` / `organiser_assigns` on a claim,
+`rack_taken` and `briefing_unread` at the desk, `has_items` on deleting a desk that took a coat.
+Each of them is a sentence somebody says to a person standing in front of them.
+
+**Left open.** Step D (`tickets`) is not in this tree, so its endpoints have no rows — whoever
+merges `conf/d-tickets` adds them, and the file's header block still says how. The nested-id
+regexes named in §17BF.B as remaining (`courses/views.py` ×16, `coauthoring` ×2, `community` ×1)
+are still untouched: they are outside the conference layer and the matrix has no rows for them, so
+fixing them blind would have been a change nothing here could verify. No frontend change and no
+migration: this step is a test file, one regex pair and three documents.
