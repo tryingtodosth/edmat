@@ -1,5 +1,5 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import (
     MaterialProjectViewSet,
@@ -9,7 +9,7 @@ from .views import (
     invite_preview,
 )
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('material-projects', MaterialProjectViewSet, basename='material-project')
 router.register('material-versions', MaterialVersionViewSet, basename='material-version')
 router.register(

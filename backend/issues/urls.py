@@ -1,8 +1,8 @@
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import IssueViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('issues', IssueViewSet, basename='issue')
 
 urlpatterns = router.urls

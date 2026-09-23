@@ -1,5 +1,5 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import (
     AvailabilityExceptionViewSet,
@@ -11,7 +11,7 @@ from .views import (
     WeekTemplateViewSet,
 )
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('availability-rules', AvailabilityRuleViewSet, basename='availability-rule')
 router.register(
     'availability-exceptions', AvailabilityExceptionViewSet, basename='availability-exception'

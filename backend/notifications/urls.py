@@ -1,9 +1,9 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import NotificationStreamView, NotificationViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('notifications', NotificationViewSet, basename='notification')
 
 # Registered as a real, explicit path BEFORE the router's own generated URLs — Django tries

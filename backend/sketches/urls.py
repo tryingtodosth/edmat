@@ -1,8 +1,8 @@
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import SketchViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('sketches', SketchViewSet, basename='sketch')
 
 urlpatterns = router.urls

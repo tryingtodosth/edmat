@@ -1,8 +1,8 @@
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import GalleryImageViewSet, GalleryViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('galleries', GalleryViewSet, basename='gallery')
 router.register('gallery-images', GalleryImageViewSet, basename='gallery-image')
 

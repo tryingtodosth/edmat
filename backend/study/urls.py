@@ -1,8 +1,8 @@
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import ExerciseSetViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('exercise-sets', ExerciseSetViewSet, basename='exercise-set')
 
 urlpatterns = router.urls

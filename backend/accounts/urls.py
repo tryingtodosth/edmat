@@ -1,5 +1,5 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .profile_extras import (
     CertificateViewSet,
@@ -24,7 +24,7 @@ from .views import (
     UserServiceReviewsView,
 )
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('donation-links', DonationLinkViewSet, basename='donation-link')
 router.register('me/experience', ExperienceViewSet, basename='my-experience')
 router.register('me/skills', SkillViewSet, basename='my-skill')

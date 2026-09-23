@@ -17,6 +17,7 @@ from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from config.routers import NUMERIC_PK_REGEX
 from moderation.permissions import feature_gate
 
 from .models import (
@@ -44,6 +45,13 @@ from .services import (
 
 User = get_user_model()
 _EventsFeatureGate = feature_gate('events')
+
+#: The same `[0-9]+` the router puts on a top-level detail segment (`config/routers.py`), applied to
+#: the ids nested inside a custom action's own `url_path`. The router cannot reach those — they are
+#: this action's regex, not the router's — and left at DRF's `[^/.]+` they matched
+#: `/api/events/50/staff/undefined/`, which reached `.filter(pk='undefined')` and raised
+#: `ValueError: Field 'id' expected a number but got 'undefined'` → a **500**. Found by
+#: `test_permission_matrix.py`, which has a row per nested id for exactly this.
 
 
 from .agenda_views import ProgrammeMixin
@@ -398,7 +406,7 @@ class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, ExportM
     @action(
         detail=True,
         methods=['patch', 'delete'],
-        url_path='posts/(?P<post_id>[^/.]+)',
+        url_path=f'posts/(?P<post_id>{NUMERIC_PK_REGEX})',
         permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate],
     )
     def post_detail(self, request, pk=None, post_id=None):

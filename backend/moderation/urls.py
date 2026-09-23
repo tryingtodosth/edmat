@@ -1,5 +1,5 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import (
     EditSuggestionViewSet,
@@ -15,7 +15,7 @@ from .views import (
     TaxonomyProposalActionView,
 )
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('exercise-submissions', ExerciseSubmissionViewSet, basename='exercise-submission')
 # There is no `material-submissions` route any more: a new material is a `coauthoring` project with
 # a team of one, sent to `POST /api/material-projects/` and decided at

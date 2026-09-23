@@ -1373,3 +1373,36 @@ asserted **as Ola**, who is not global staff — with the flag off the panel is 
 her, and the event page keeps working. Run it with
 `E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node e2e/event-shifts.mjs` (adjust the
 ports); it creates and deletes its own event and puts the flag back.
+## 7. The events permission matrix and the conference personas (CONFERENCE-BRIEF.md §3.B)
+
+`backend/events/test_permission_matrix.py` is one declarative table — `(persona, method, path,
+body, expected status, why)` — driven through `subTest`, covering event CRUD, the staff list and
+its writes, programme writes, registrations, the CSV export, accept/decline, check-in, the
+contribution decisions, `my-agenda`, and the `/api/<thing>/undefined/` rows that prove the
+router's numeric detail segment (`backend/config/routers.py`; those were 500s before it). Each row
+runs inside its own savepoint which is then rolled back, so a row that writes cannot change what a
+later row sees, and the table stays order-independent. Adding an events endpoint means adding
+rows, not writing a new file; the file's own header says so for the parallel conference steps.
+
+Its personas come from `backend/testing/personas.make_personas()`, which is also what
+`../.venv/bin/python3 manage.py seed_conference_personas [--password X]` runs — seven accounts
+(`persona.organiser@edmat.example` … `persona.stranger@…`, plus `persona.child`, a real minor made
+through the guardian flow) on one published multi-day "Sandbox conference", default password
+`persona-pass-2026`. It is idempotent and prints a who-can-do-what table. Run it before
+`frontend/e2e/event-preview.mjs`, which signs in as the organiser persona, turns the preview on,
+and asserts — by intercepting every outgoing request — that **no `Authorization` header leaves the
+page** while the preview fetches, and that no button, link or form control is rendered inside the
+preview view:
+
+```sh
+cd backend && ../.venv/bin/python3 manage.py seed_conference_personas
+cd frontend && E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node e2e/event-preview.mjs
+```
+
+The script creates one scratch draft (to show that a signed-out visitor previews it as nothing at
+all) and deletes it through the real API at the end, confirming by re-query.
+
+**One trap about running any of this.** `manage.py test … | grep … | tail` reports the exit status
+of `tail`, not of Django, so a piped run says `EXIT=0` however many tests failed. Run it unpiped
+into a file and read the `OK` / `FAILED (…)` line out of that file. This was caught here after two
+suite runs had already been recorded as passing on nothing but a pipeline's exit code.

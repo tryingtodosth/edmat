@@ -82,7 +82,31 @@ function withAudience(path: string): string {
 	return out;
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** Per-call options that are about the REQUEST rather than about its body.
+ *
+ * `anonymous` is the whole of the role preview (CONFERENCE-BRIEF.md §3.B): the same GET, with the
+ * `Authorization` header simply not set, so the server answers with what it would answer a
+ * signed-out visitor. It lives here because this is the only function in the app that attaches
+ * that header, and a preview that filtered the response client-side instead would be a guess — the
+ * thing it is meant to replace.
+ *
+ * It is deliberately not "log in as somebody else". No second token is ever minted, nothing is
+ * stored, and the viewer's own token is untouched; the page simply asks the API a question without
+ * saying who is asking. See `backend/testing/personas.py` for the Facebook "View As" post-mortem
+ * that this shape is the answer to.
+ *
+ * Reads only, by construction: only `get`/`getText` take it. A write with no token is not a
+ * preview of anything — it is a 401 — so there is nothing to offer.
+ */
+export interface RequestOptions {
+	anonymous?: boolean;
+}
+
+async function request<T>(
+	path: string,
+	init: RequestInit = {},
+	options: RequestOptions = {}
+): Promise<T> {
 	const headers = new Headers(init.headers);
 	// A FormData body (multipart file upload — see `postForm` below) must NEVER get an explicit
 	// Content-Type set here: the browser generates one itself (`multipart/form-data;
@@ -92,7 +116,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 		headers.set('Content-Type', 'application/json');
 	}
 	const token = tokenStore.value;
-	if (token) headers.set('Authorization', `Token ${token}`);
+	if (token && !options.anonymous) headers.set('Authorization', `Token ${token}`);
 
 	// `credentials: 'omit'` — this app is Token-auth only (DRF's TokenAuthentication, via the
 	// Authorization header above); no request this client ever makes needs a cookie. Left at
@@ -154,12 +178,12 @@ async function requestBlob(path: string): Promise<Blob> {
 }
 
 export const apiClient = {
-	get<T>(path: string): Promise<T> {
-		return request<T>(withAudience(path));
+	get<T>(path: string, options?: RequestOptions): Promise<T> {
+		return request<T>(withAudience(path), {}, options);
 	},
 	/** A text response (an `.ics` export) — same headers, no JSON parse. */
-	getText(path: string): Promise<string> {
-		return request<string>(path);
+	getText(path: string, options?: RequestOptions): Promise<string> {
+		return request<string>(path, {}, options);
 	},
 	/** The raw bytes of a protected file (an event document). Same headers, no parse at all. */
 	getBlob(path: string): Promise<Blob> {

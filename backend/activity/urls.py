@@ -1,9 +1,9 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from config.routers import NumericPkRouter
 
 from .views import FeedView, PostViewSet
 
-router = DefaultRouter()
+router = NumericPkRouter()
 router.register('posts', PostViewSet, basename='post')
 
 urlpatterns = [
