@@ -7914,3 +7914,111 @@ one language as more "native" than the other.
 ```
 
 ---
+
+---
+
+## 17BF.F. The cloakroom: a coat, a paper ticket, and nobody's name (✅ built, full stack)
+
+Step F of `CONFERENCE-BRIEF.md` (§3.F), built on `conf/f-cloakroom` alongside six other conference
+branches. New app **`cloakroom`**, one migration, a rule module, six endpoints, a staff desk page,
+a panel on the event page, 79 message keys in both catalogues and a browser script.
+
+### The decision the whole app is built out of
+
+`CONFERENCE-RESEARCH-REPORT.md` §2.1 and its decision 5: **an item is never linked to a person.**
+There is no FK to a depositor on `CloakroomItem`, no name, no account, and no document number
+anywhere in this app. A coat is found by an 8-character token printed on a paper ticket and by
+nothing else — which is how every real cloakroom works, and is also the only shape where an
+event's cloakroom log is not personal data. There is no "who left what" table to leak, to be asked
+for, or to forget to purge.
+
+`deposited_by`, `returned_by` and `exception_verified_by` are the **clerk working the desk**, not
+the owner. That distinction is the whole of the accountability story: the organiser who has to
+reconstruct a mix-up needs to know which staff member took the coat in, and nobody ever needs to
+know whose coat it was.
+
+The price is a lost ticket, and it is paid openly. `returned_by_exception` is the clerk looking at
+the rail, the person describing their coat, and the clerk writing down **what the item looks like**
+plus **the KIND of identity they were shown** — `student_card`, `id_document`, `account`. Never the
+number on it. Recording a number would put back exactly the personal data the token design exists
+to avoid, for a case that happens twice a night; and the moment the exception return is recorded,
+the ticket somebody lost is blacklisted at that desk, so the ticket that turns up in the corridor
+twenty minutes later is worth nothing.
+
+### Shapes worth knowing
+
+- **Two partial unique constraints**, the `ExerciseTranslation` shape the root `CLAUDE.md` names:
+  one `stored` token per desk, one `stored` item per hook. A flat `unique_together` would make the
+  second evening's rack 12 a 500 instead of a coat.
+- **The token generator is stricter than the constraint.** `new_token()` avoids every token the
+  desk has ever issued in any status, so `return_result` can never be ambiguous about which coat a
+  ticket means — cheap to avoid, expensive to debug at a counter with a queue.
+- **A screenshot found a bug no assertion would have.** The closing view reported "6 hooks free" on
+  a desk whose rail visibly still held a rucksack: `free_racks` counted only `stored` items, and a
+  coat nobody came back for is `unclaimed` and still on its hook. Fixed in the rule module, with a
+  test — house rule 2's "look at the screenshot", earning its place again.
+- **The token alphabet drops `O`, `0`, `I` and `1`.** It is not `secrets.token_urlsafe` like the
+  ticket token step D mints, because this one is read off a paper slip by a tired person at
+  midnight and typed into a phone. The return endpoint upper-cases and trims for the same reason.
+- **`rack_labels` is a JSON list, not a `Rack` model.** A hook label is not something anybody
+  queries or hangs anything off; the item keeps its own copy of the string, so re-typing the rail
+  half way through the evening does not rewrite history.
+- **`status` is one field**, item and desk both. A desk closes once; the reconciliation list is a
+  statement about a moment, so reopening is deliberately not offered.
+- **Every refusal is a word** (house rule 6): `not_staff`, `desk_closed`, `rack_taken`,
+  `unknown_rack`, `description_required`, `identity_required`, `not_stored`, `has_items`. Every
+  return is a verdict: `returned`, `unknown_token`, `already_returned`, `blacklisted`,
+  `desk_closed` — five sentences a clerk says out loud, which a boolean would collapse into a
+  shrug. `labels.ts` has a line for each, in both languages.
+- **`can_operate` is one function on purpose.** Today it is "any `EventStaff` member", the same bar
+  check-in already sets. §5 has the integrator narrowing it to a confirmed `cloakroom` station
+  assignment on step E's rota when the event has one; when that lands, this body grows an `if` and
+  nothing else in the app moves.
+- The event-nested list is **this app's own URL**, not an `@action` on `EventViewSet` (§4 rule 1 —
+  nothing in `events` moves for any step but D), and event visibility is
+  `events.agenda_views._visible_events` **imported rather than copied**.
+
+### The desk, on screen
+
+`/events/[id]/cloakroom` is four tabs rather than four pages, because a clerk with a queue switches
+between "take this in" and "hand that back" every few seconds. **Take something in**: a grid of
+hooks, free ones enabled, an optional description, and the result is a printable ticket — a QR code
+of the token, the token itself set large enough to read across a counter, the hook number, and a
+60 mm print stylesheet so the browser makes a till-roll slip. **Hand something back**: a typed
+token or the camera, and the verdict as the largest thing on the card. **The racks**: the same grid
+as live state, with hand-back and the exception dialog per row. **Close the desk**: reconciliation,
+the list of what is still hanging, and the CSV.
+
+`qrcode` and `@zxing/browser` are both dynamically imported at the point of use (house rule 11) and
+`e2e/event-cloakroom.mjs` asserts neither is fetched by a page that never draws a ticket. Step D
+adds the same two packages for the same reasons; they were chosen together so the merge is trivial.
+
+On the event page, at the `<!-- conference: cloakroom -->` mount point, the panel says two
+different things to two readers: somebody coming is told "there is a cloakroom at the north
+entrance" and the opening note, and **nothing** about how full it is or what is on which hook;
+somebody working the event gets the link to the desk. Behind the `cloakroom` flag, links included
+(house rule 3).
+
+### Verified
+
+- `manage.py test cloakroom` — 34 tests, refusals first, all passing; `manage.py test events
+  moderation` unaffected. `manage.py check` clean, `makemigrations --check --dry-run` clean.
+- `npm run check` 0 errors / 0 warnings, `npm run lint`, `npm run build`.
+- `e2e/event-cloakroom.mjs` against the real servers on ports 8106 / 5206, and the screenshots
+  looked at: the ticket with its QR code, the rack grid with three hooks taken, and the closing
+  list.
+- Both catalogues have identical key sets (2760 keys each), and Paraglide recompiled.
+
+### Left open
+
+- **A closed desk refuses returns.** Somebody coming back the next morning for an `unclaimed` coat
+  is handled off-system, from the reconciliation CSV. Reopening a desk is deliberately not
+  offered; a "collect an unclaimed item" endpoint is the honest way to add it.
+- **No offline queue.** Every deposit needs the network; step D's batch-with-a-client-nonce shape
+  is the model if a desk ever has to work with the Wi-Fi down.
+- **No notification anywhere** — a cloakroom has nobody to notify, because it knows nobody.
+- **Retention**: step G's `purge_event_data` does not know `CloakroomItem` yet (its own
+  `RETENTION_NOTE` names it). Nothing here is personal data, so this is tidiness rather than a duty.
+- **The camera path was not driven end to end in the browser run** — there is no camera on this
+  machine, so `@zxing/browser` is exercised only as far as "the button is there, the import is
+  lazy, and a refusal falls back to the typed field". The typed path is the one under test.

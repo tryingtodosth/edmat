@@ -171,6 +171,11 @@ INSTALLED_APPS = [
     # than more of `exercises`, because what it owns is a review workflow over community-written
     # text. See CONCEPTS-BRIEF.md.
     'concepts',
+    # The cloakroom desk at an event (CONFERENCE-BRIEF.md §3.F). Its own app rather than more of
+    # `events` because what it owns is an ANONYMOUS BEARER TOKEN — a coat is never linked to a
+    # person, which is the opposite of everything `events` stores about who is coming. See
+    # cloakroom/models.py.
+    'cloakroom',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
