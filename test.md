@@ -277,6 +277,7 @@ node e2e/login-return.mjs
 E2E_USER=<id> E2E_PUBLISHED=55 E2E_PRIVATE=2 node e2e/profile-exercise-counts.mjs   # needs an account with >50 exercises; see its header
 node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs in as ola + kasia, toggles the `issues` flag and restores it
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
+node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRANCH=<slug>, default analiza-matematyczna; signs nobody in, saves to the guest working set only
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
@@ -285,6 +286,7 @@ node e2e/activity-feed.mjs            # the activity feed + micro-posts; ola + m
 node e2e/pdf-preview.mjs              # E2E_MATERIAL=<hosted-PDF material id>, default 1; signs nobody in
 node e2e/topic-threads.mjs            # E2E_MATERIAL=<material with covers claims>, default 1; ola (UI) + kasia (API); cleans its marker posts
 node e2e/audience-bands.mjs           # audience chips/badges/forms (§17AL); kasia (API) + ola (UI); creates and deletes one listing, resets ola's filter
+node e2e/audience-radio.mjs           # the chip row as a RADIO group (single-select); kasia submits + deletes two scratch exercises, ola gets two pinned bands and is restored; waits out the 60 s read cache first (E2E_NO_CACHE_WAIT=1 to skip)
 node e2e/event-programme.mjs          # the programme (§17AM); kasia builds it on the page, ola bookmarks/asks/exports; deletes the scratch event
 node e2e/event-registration.mjs       # registration (§17AN); kasia/ola/michał; clears the login throttle cache first if re-running (backend/cachedata)
 node e2e/event-contributions.mjs      # the call for contributions (§17AO); kasia (host) / michał (reviewer) / ola (author); deletes the scratch event
@@ -293,6 +295,7 @@ node e2e/sorting-and-languages.mjs    # sort keys in the URL + the content-langu
 node e2e/comment-attachments.mjs      # pictures/PDFs on comments (§17AR); ola on exercise 1 with generated files; deletes its marker comments
 node e2e/rich-editor.mjs              # the Tiptap editor + maths palette (§17AS); ola on exercise 2; resets her editor_mode to source
 node e2e/comment-input-kinds.mjs      # the six input kinds + inline pictures + chemistry (§17AV, §17BA); ola on exercise 2; kasia toggles the `chemistry` flag; ~3 min (Indigo WASM)
+node e2e/sketch.mjs                  # the freehand whiteboard (Excalidraw); ola draws a real stroke on exercise 2; kasia toggles the `sketches` flag; leaves its two sketch rows (no delete endpoint)
 node e2e/reading-comfort.mjs          # text size / high contrast / 44px floor / hero copy (§17AT); a guest + ola; resets her text_size/high_contrast
 E2E_PROD=http://127.0.0.1:5190 node e2e/fcp.mjs   # against a static serve of build/ with 200.html fallback
 node e2e/classroom-overhaul.mjs      # staff, contributions, locked chapters, invite links; ola/julia/bartek/michał by token
@@ -716,6 +719,24 @@ Settings saves a different list, and all four submit forms carry a required "Who
 select with no default. Cleanup is verified through an AUTHENTICATED request — the anonymous
 `?audience=` list URL is served from the 60 s read cache and can still show the deleted row.
 
+**`e2e/audience-radio.mjs` (41 checks)** — the chip row after it became single-select (Piotr,
+2026-09-23: "selecting one audience on the home page should display content only for the selected
+audience and work as radio button not as checkbox as it is rn"). Two scratch exercises, one
+`primary` and one `secondary`, are created through the REAL submission endpoint — kasia is a
+verified contributor, so `/api/exercise-submissions/` auto-publishes AND writes the published
+English translation; a row posted straight to `/api/exercises/` has no translation and is invisible
+to an English reader (§17AQ), which made every count zero against zero. Then, as a guest: one chip
+checked at a time, `localStorage['edmat.audienceFilter']` holding a ONE-element list, the exercises
+tab re-asking with `?audience=<band>`, every card badged with that band or "Everyone", the card
+count matching the API for the very URL the page asked for, re-clicking the checked chip NOT
+clearing it, "Everything" restoring the full list, and Arrow/Home moving the selection with focus.
+Then, signed in as Ola with two bands pinned through `/api/auth/me/`: no chip checked and a
+"Bands: 2 — set in Settings" hint, and one click collapsing the pin to a single band on the profile.
+Screenshots at 1280 and 390 px. Two traps it pays: a fresh context reads the POLISH interface
+(`baseLocale`), so it sets the `PARAGLIDE_LOCALE=en` cookie; and the anonymous read cache serves the
+PREVIOUS run's list for 60 s with no write invalidation, so it waits the TTL out before the browser
+ever opens the page.
+
 **`e2e/event-programme.mjs` (23 checks)** — the programme (root `HISTORY.md` §17AM): a multi-day event
 made through the API, then on the page: a track added inline, a session with a speaker and two
 links pasted as addresses (an unreadable one refused in words), rendered under its day heading with
@@ -913,6 +934,31 @@ the button and the API refuses a non-staff drawing. Deletes its marker comments 
 inline pictures have no delete endpoint and are left behind). Screenshots of the posted comment
 and the picture panel in `e2e/screenshots/`.
 
+**`e2e/sketch.mjs` (29 checks)** — the freehand whiteboard (Excalidraw, MIT) as a content input.
+The strip offers **Sketch** and nothing of the drawing library is downloaded until the button is
+pressed; pressing it opens a board that genuinely covers the viewport, with Excalidraw's own
+toolbar (so the pan/zoom are the library's, not hand-built) and the MIT notice in the footer.
+The fonts come from this origin (`static/excalidraw/fonts/`), never from esm.sh — a stroke needs
+no font, so the check provokes the fetch with `document.fonts.load` rather than waiting for one.
+Clicking the toolbar's pencil selects the freehand tool and a **real mouse drag** —
+down / move × 24 / up — leaves one `freedraw` element with many points; the XY space zooms.
+Saving posts the scene JSON and the exported PNG to `/api/sketches/`, and the composer receives an
+`<img data-sketch>` pointing at a re-encoded WebP under `/media/sketches/`, with its intrinsic size
+and `loading="lazy"`. The posted comment shows the picture and it genuinely loads; the stored body
+kept `data-sketch` and the class through bleach. In rich mode the drawing is a live node that keeps
+its whole tag, and clicking it reopens the board **with the stroke still on it** (the scene JSON
+round-tripped). With the `sketches` flag off the button leaves the strip for a non-staff account
+and the API answers 403 while staff still reach an existing row. Deletes its marker comments; the
+two sketch rows stay (no delete endpoint). Screenshots: `sketch-board.png` (the fullscreen board
+with the stroke), `sketch-posted-comment.png`, `sketch-reopened.png`.
+
+Two traps this script had to learn, both worth knowing before writing another: Excalidraw is a
+**new** dependency, so Vite's optimizer reloads the page the first time it is imported (trap 22) —
+the run opens the board once as a throwaway and reloads before believing anything; and the
+freedraw **keyboard shortcut only fires once the board has focus**, so pressing `7` straight after
+the dialog opened left the selection tool active and the drag that followed selected empty space
+while the check still read "a stroke was drawn".
+
 **`e2e/reading-comfort.mjs` (17 checks)** — reading comfort (root `HISTORY.md` §17AT): the hero
 copy speaks to every age; a guest's "Aa" press sets `data-text-size` and really grows the root
 font, twice, survives a reload (localStorage + the app.html restore) and wraps back; every visible
@@ -937,6 +983,17 @@ focus to the ☰. Signs nobody in. (`events-and-nav.mjs` 92/92 and `known-issues
 again as of 2026-08-26 — both had drifted from the event form: the exact-date scheduling mode and
 public visibility now have to be chosen explicitly, `goto` had to stop waiting for `networkidle`,
 and a drawer link is found by role because the icon span leaves its textContent as " Events".)
+
+**`e2e/language-default.mjs` (30 checks)** — the language selector after 2026-09-23. Three things
+at once: `/api/locale-hint/` answering 200 / `pl` / `country: null` / `Cache-Control: no-store` on a
+machine with no GeoIP database; a fresh context landing in **Polish** with exactly ONE request to
+the hint and none at all on the second load; a context the hint is answered for as `DE` being moved
+to English and that answer being remembered as an offer rather than written down as a choice; a
+stored choice (Paraglide's cookie, or its localStorage key) winning with no request; and, at
+390×844, the picker sitting in the drawer's top 120px beside the ✕, staying there with the drawer
+scrolled to its end, and nothing needed hiding under an injected 60px "Messenger bar" — in the
+drawer or at the end of the document. Finishes by switching language through the picker and
+reloading. Signs nobody in; creates nothing; screenshots to `e2e/screens/language-*.png`.
 
 **`e2e/course-search.mjs` (24 checks)** — searching inside one course, in three contexts, because
 the whole point is that the same box shows the owner, a participant and a stranger different things.

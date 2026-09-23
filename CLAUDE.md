@@ -92,9 +92,9 @@ deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 22 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 23 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
-`courses` `booking` `activity` `events` `coauthoring` `concepts`. Each has its own `CLAUDE.md`.
+`courses` `booking` `activity` `events` `coauthoring` `concepts` `sketches`. Each has its own `CLAUDE.md`.
 
 **Two boundaries are load-bearing and everything else follows from them:**
 
@@ -131,9 +131,9 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirteen exist today — `exercise_submissions` `material_submissions`
+  with an `is_staff` bypass. Fourteen exist today — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
-  `age_verification` `coauthoring` `concepts` — and the `legal` notice channel is the one deliberate exception
+  `age_verification` `coauthoring` `concepts` `sketches` — and the `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
   has been forgotten twice, each time taking the whole Flags tab down. `age_verification` is also
@@ -248,8 +248,10 @@ already allows. Storage does not change.
 
 ## i18n — two separate axes, deliberately
 
-- **Interface language**: a small, curated, developer-maintained catalogue. Paraglide/inlang, `en`
-  base + `pl`, `messages/{locale}.json`. Not community-editable. House rule 1 governs it.
+- **Interface language**: a small, curated, developer-maintained catalogue. Paraglide/inlang, **`pl`
+  base** (since 2026-09-23 — a first visit paints Polish with no flash; `/api/locale-hint/` offers
+  English once when the IP resolves outside Poland, and a stored choice always wins) + `en`,
+  `messages/{locale}.json`. Not community-editable. House rule 1 governs it.
 - **Content language**: unbounded, community-submitted, moderator-reviewed rows
   (`ExerciseTranslation` and friends). A reader's interface language and the content language they
   are reading are genuinely independent — somebody may read the English UI and want the Polish
@@ -274,6 +276,8 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/courses/ /api/events/ /api/services/ /api/bookings/             user-run surfaces
 /api/material-projects/ /api/material-versions/ /api/project-invites/ co-authoring (COAUTHORING-BRIEF.md)
 /api/concepts/ /api/concept-articles/ /api/concept-revisions/ /api/concept-links/  concepts (CONCEPTS-BRIEF.md)
+/api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
+/api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
 ```
 

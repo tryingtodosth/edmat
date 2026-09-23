@@ -174,7 +174,11 @@ export interface RawExerciseSource {
 	name: string;
 }
 
-function mapSource(json: RawExerciseSource): ExerciseSource {
+function mapSource(json: RawExerciseSource | null | undefined): ExerciseSource {
+	// An exercise created through the API can have no `ExerciseSource` row at all (the submit form
+	// always sends one, defaulting to `other`). One such row used to throw here and blank the whole
+	// home Exercises tab — found by e2e/audience-radio.mjs, 2026-09-23.
+	if (!json) return { type: 'other' };
 	return {
 		type: json.type,
 		name: undefinedIfEmpty(json.name),
@@ -201,7 +205,7 @@ export interface RawExerciseCommon {
 	submitted_by: number | null;
 	title: string;
 	resolved_locale: string;
-	source: RawExerciseSource;
+	source: RawExerciseSource | null;
 	average_rating: number | null;
 	review_count: number;
 	created_at: string;
