@@ -1197,3 +1197,37 @@ cd backend
   right; the assertion was ambiguous. Scope to the section (`.enrol`, `.roster`) instead.
 - **Chromium's `innerText` returns *rendered* text**, so a heading styled `text-transform: uppercase`
   reads back uppercase. Match case-insensitively or you are testing the stylesheet.
+
+---
+
+## Conference step F — the cloakroom desk
+
+`backend/cloakroom/tests.py` covers the desk that takes coats in against an anonymous bearer token
+(`CONFERENCE-BRIEF.md` §3.F). Refusals first, because every one of them is a coat that would
+otherwise go home with the wrong person: a stranger and an attendee are both refused a deposit; a
+taken hook is a 409 with `rack_taken` and a hook the desk does not have is a 400 with
+`unknown_rack`; a closed desk takes nothing more; an unknown token is a **verdict**, not a 404;
+a coat only ever leaves once; the ticket somebody lost is blacklisted the moment its coat is handed
+back by exception; and an exception return with no description, or with no kind of identity named,
+is refused. Then the happy paths: a deposit mints an 8-character ticket and holds the hook, a
+return frees it, reconciliation turns everything still hanging into `unclaimed` and closes the
+desk, and the CSV export has six columns and not one person's name in it. `RuleModuleTests` asks
+`cloakroom/rules.py` directly, so the integration change §5 plans for `can_operate` (a confirmed
+`cloakroom` station on step E's rota) has a test that fails if it changes meaning.
+
+```sh
+cd backend && ../.venv/bin/python3 manage.py test cloakroom
+```
+
+The browser half is `frontend/e2e/event-cloakroom.mjs`: an organiser opens a desk with six hooks,
+takes three things in, hands one back against its typed ticket, hands a second back through the
+exception dialog, is refused when that lost ticket is presented afterwards, and closes the desk
+with one item still on a hook; an attendee is told there is a cloakroom and is given no way into
+the desk and nothing about what is on the racks; and neither `qrcode` nor `@zxing/browser` is
+fetched by a page that never draws a ticket (house rule 11). It leaves three screenshots in
+`e2e/screens/` — `cloakroom-slip.png` is the one worth looking at, because a ticket with no QR code
+on it still passes every assertion that is not about the picture.
+
+```sh
+E2E_BASE=http://localhost:5206 E2E_API=http://127.0.0.1:8106 node frontend/e2e/event-cloakroom.mjs
+```

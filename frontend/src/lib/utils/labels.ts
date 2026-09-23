@@ -447,3 +447,70 @@ export const EXERCISE_LINK_ROLE_LABELS: Record<ExerciseLinkRole, () => string> =
 	source: m.exLink_roleSource, // "In this material"
 	practice: m.exLink_rolePractice // "Practises this material"
 };
+
+// ---- the cloakroom desk (CONFERENCE-BRIEF.md §3.F) -------------------------------------------
+// A hand-maintained mirror of `ITEM_STATUS_CHOICES` and `IDENTITY_KIND_CHOICES` in
+// backend/cloakroom/models.py, and of the refusal words `backend/cloakroom/rules.py` returns —
+// all three of those name this file back (house rule 13: say so in BOTH files, because a mirrored
+// enum is where drift creeps in). Imported from `$lib/types/cloakroom` directly rather than
+// through `$lib/types`, so that seven conference branches are not all appending to one barrel file.
+import type {
+	CloakroomBlockReason,
+	CloakroomIdentityKind,
+	CloakroomItemStatus,
+	CloakroomReturnResult
+} from '$lib/types/cloakroom';
+
+export const CLOAKROOM_ITEM_STATUSES: CloakroomItemStatus[] = [
+	'stored',
+	'returned',
+	'returned_by_exception',
+	'unclaimed'
+];
+export const CLOAKROOM_ITEM_STATUS_LABELS: Record<CloakroomItemStatus, () => string> = {
+	stored: m.cloakroom_status_stored, // "On the rack"
+	returned: m.cloakroom_status_returned, // "Handed back"
+	returned_by_exception: m.cloakroom_status_returnedByException, // "Handed back without a ticket"
+	unclaimed: m.cloakroom_status_unclaimed // "Left unclaimed"
+};
+
+// `none` is deliberately offered nowhere in the exception dialog — it is the value every ordinary
+// item carries, and an illegal answer when somebody is being handed a coat without a ticket
+// (`cloakroom/rules.py: exception_block_reason`). The label exists because the rack grid and the
+// CSV still render the field.
+export const CLOAKROOM_IDENTITY_KINDS: CloakroomIdentityKind[] = [
+	'student_card',
+	'id_document',
+	'account'
+];
+export const CLOAKROOM_IDENTITY_KIND_LABELS: Record<CloakroomIdentityKind, () => string> = {
+	none: m.cloakroom_identity_none, // "Nothing shown"
+	student_card: m.cloakroom_identity_studentCard, // "Student card"
+	id_document: m.cloakroom_identity_idDocument, // "Identity document"
+	account: m.cloakroom_identity_account // "Signed-in EdMat account"
+};
+
+// House rule 6, spelled out: every refusal this desk can produce has its own sentence, because
+// "no" tells the person at the counter nothing.
+export const CLOAKROOM_BLOCK_REASON_LABELS: Record<CloakroomBlockReason, () => string> = {
+	not_staff: m.cloakroom_reason_notStaff, // "You are not on this event's staff."
+	desk_closed: m.cloakroom_reason_deskClosed, // "This desk is closed."
+	rack_taken: m.cloakroom_reason_rackTaken, // "That rack already has something on it."
+	unknown_rack: m.cloakroom_reason_unknownRack, // "This desk has no such rack."
+	description_required: m.cloakroom_reason_descriptionRequired, // "Write down what the item looks like."
+	identity_required: m.cloakroom_reason_identityRequired, // "Say what kind of identity you were shown."
+	not_stored: m.cloakroom_reason_notStored, // "That item is not on the rack any more."
+	has_items: m.cloakroom_reason_hasItems // "A desk that has taken a coat cannot be deleted."
+};
+
+// The four verdicts of a return, in the words a clerk says out loud. `returned` takes the rack as
+// a parameter — "hand over what is on hook 12" is the whole answer.
+export const CLOAKROOM_RETURN_RESULT_LABELS: Record<
+	Exclude<CloakroomReturnResult, 'returned'>,
+	() => string
+> = {
+	unknown_token: m.cloakroom_resultUnknownToken, // "No coat at this desk carries that number."
+	already_returned: m.cloakroom_resultAlreadyReturned, // "That coat has already gone home."
+	blacklisted: m.cloakroom_resultBlacklisted, // "That ticket was cancelled — the coat was handed back without it."
+	desk_closed: m.cloakroom_resultDeskClosed // "The desk is closed."
+};
