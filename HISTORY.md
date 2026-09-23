@@ -8004,6 +8004,99 @@ exactly as intended and a better assertion than the one that was written; and `{
 is the only shape that is correct in Polish too (1 osoba / 2 osoby / 5 osób, and this catalogue
 has no plural machinery).
 
+**For the integrator** (merge order §5 puts G second, right after B):
+
+*Backend — files I created.*
+- `backend/events/exports.py` — the whole rule module: `RETENTION_NOTE` (the constant that names
+  `ScanEvent` and `CloakroomItem` as what the purge must learn, near the top, right under the
+  imports), `DEFAULT_RETENTION_DAYS = 30`, the reserved answer keys, `FREE_TEXT_KINDS`,
+  `WITHHELD_FROM_NON_ORGANISERS`, `DoorListPersonSerializer`, `DoorListAttendanceSerializer`,
+  `_resolved_mode()`, `needs_summary()`, `door_list_rows()`, `log_export()`, `as_csv()`,
+  `purge_event_data()`, `ExportLogSerializer`, `ExportMixin`.
+- `backend/events/migrations/0011_exportlog.py` — **one `CreateModel` and nothing else**, with a
+  docstring saying this. Step D also writes an `events` `0011`; renumber this one to
+  `0012_exportlog` and point `dependencies` at D's `0011_tickets`. Nothing else to reconcile.
+- `backend/events/management/__init__.py`, `…/commands/__init__.py`,
+  `…/commands/purge_event_data.py` — the package did not exist in `events` before; step B's
+  `seed_conference_personas` lands in the same directory, so expect an add/add on the two
+  `__init__.py` files and keep either (both are empty).
+- `backend/events/test_exports.py` — 25 tests.
+
+*Backend — files I edited, and exactly where.*
+- `backend/events/models.py` — **appended only**, at the very end of the file: the
+  `EXPORT_KIND_CHOICES` list and `class ExportLog`. Nothing above it is touched.
+- `backend/events/views.py` — **two lines**: `from .exports import ExportMixin` added after the
+  existing `from .contribution_views import ContributionMixin` (line ~53), and `ExportMixin` added
+  to `EventViewSet`'s bases between `ContributionMixin` and `viewsets.ModelViewSet` (line ~56).
+- `backend/events/registration_views.py` — three edits, all inside `RegistrationMixin`:
+  1. the import block gains `from .exports import DoorListAttendanceSerializer, log_export`;
+  2. `registrations()` — the body now branches on `event.can_organise(request.user)`:
+     `EventAttendanceSerializer` for an organiser, `DoorListAttendanceSerializer` for anybody else.
+     The `_staff_or_403(event)` gate above it is unchanged, so **who may call it has not changed** —
+     only what comes back. The fields a non-organiser no longer receives are `answers`, `note`,
+     `registered_by`, `waitlisted_at`, `promotion_expires_at`, `session_ids`, `responded_at`, and
+     `attendee.id` is serialised as `null`; what remains is `id`, `attendee.display_name`, `status`,
+     `checked_in`, `checked_in_at`;
+  3. `registrations_csv()` — `self._staff_or_403(event)` became
+     `self._staff_or_403(event, organiser_only=True)`, a `written` counter was added to the row
+     loop, and `log_export(event, request.user, 'full_csv', written)` runs just before the
+     `return response`.
+- `backend/events/CLAUDE.md` — one new `## Exports and retention` section inserted immediately
+  before `## Verify`, and the `## Verify` line's test count reworded.
+
+*Frontend.*
+- `frontend/src/lib/components/event/ExportsCard.svelte` — new.
+- `frontend/src/lib/components/event/RegistrationsPanel.svelte` — **three small edits**:
+  one import line (`import ExportsCard from './ExportsCard.svelte';`, added above the
+  `downloadText` import); the existing CSV button wrapped in `{#if event.canOrganise}` … `{/if}`
+  inside `<div class="head">`; and, immediately after that `</div>`, the two lines
+  `<!-- conference: exports -->` and `<ExportsCard {event} />`. **Step D's badge-sheet link belongs
+  below the CSV button, inside the `{#if}`** — a different line, no conflict. A third edit guards
+  the registration row's profile link on `row.attendee.id` (a volunteer's rows have none).
+- `frontend/src/lib/types/event.ts` — **appended at the end**: `EventExportKind`,
+  `EventNeedsField`, `EventNeedsSummary`, `EventExportLogEntry`.
+- `frontend/src/lib/services/events.ts` — one name added to the existing `import type { … }` block
+  (`EventExportLogEntry`, `EventNeedsSummary`) and **three functions appended at the end**:
+  `getEventNeeds`, `getDoorListCsv`, `getExportLog`. No fetch outside `client.ts`.
+- `frontend/src/lib/utils/labels.ts` — `EventExportKind` added to the existing
+  `import type … from '$lib/types'` list, and `EVENT_EXPORT_KIND_LABELS` **appended at the end**
+  under a comment naming `backend/events/models.py` (house rule 13, said in both files).
+- `frontend/messages/en.json` and `pl.json` — **20 keys, all prefixed `exports_`, one contiguous
+  block appended at the end of each file**. In `en.json` that is lines **2683–2702** and in
+  `pl.json` lines **2683–2702** (both files end at line 2703, the closing `}`); the last
+  pre-existing key in both is `moderation_concepts_openConcept`. Key sets identical, 2701 each.
+- `frontend/e2e/event-exports.mjs` — new, 24 checks.
+  `E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node e2e/event-exports.mjs`
+  (I ran it on 5207 / 8107). Seeded users only, password `password123`: **kasia** hosts,
+  **ola** registers, **michał** is the volunteer — no `register` call, so the throttle is not
+  touched. It creates its own event, adds Michał through `/staff/` and deletes everything at the
+  end. Needs `manage.py migrate` first (the `ExportLog` table) or `/exports/log/` 500s.
+- Screenshots land at `frontend/e2e/screens/event-exports-{organiser,volunteer}.png`; they are
+  **not committed** (most e2e screenshots here are not).
+
+*Docs.* `LEGAL.md` gains **`## 8. Event data: who sees what, and for how long`**, inserted before
+the old §8, which is renumbered **`## 9. Still open`** and gains one bullet. Nothing else in that
+file moves. `test.md` gains `## 6. Exports, minimisation and retention — conference step G` at the
+end. `HISTORY.md` gains this section at the very end. `CLAUDE.md`'s app and flag lists are
+untouched (G adds no app and no flag).
+
+*Cross-step work that is yours, not mine.*
+- Teach `purge_event_data` `ScanEvent` and `CloakroomItem`; `RETENTION_NOTE` in
+  `backend/events/exports.py` says what to do with each.
+- Add rows for `/exports/needs/`, `/exports/door-list.csv`, `/exports/log/` and the now
+  organiser-only `/registrations/export/` to step B's permission matrix.
+- If step D's scanner reads `/registrations/`, note that a volunteer's body no longer carries
+  `answers` or an account id — D's own `/checkin-list/` is the endpoint it should use.
+
+*Exact commands I ran.* From `backend/`: `../.venv/bin/python3 manage.py test events.test_exports`
+(25 tests, OK), `… manage.py test events moderation accounts`, `… manage.py check`,
+`… manage.py makemigrations --check --dry-run`, `… manage.py purge_event_data --dry-run` against
+the real dev database. From `frontend/` with Node 24: `npx paraglide-js compile --project
+./project.inlang --outdir ./src/lib/paraglide`, `npm run check` (0 errors / 0 warnings),
+`npm run lint`, `npm run build`, and
+`E2E_BASE=http://localhost:5207 E2E_API=http://127.0.0.1:8107 node e2e/event-exports.mjs` (24/24,
+zero console errors, both screenshots looked at).
+
 **Left open**:
 - **The purge is not scheduled.** No cron on this deployment; `LEGAL.md` §8 says so rather than
   implying otherwise. One `deploy/` entry closes it.
