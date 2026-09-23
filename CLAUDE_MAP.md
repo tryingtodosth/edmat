@@ -21,7 +21,7 @@ the present, the other file wins.
 
 ```
 edmat/
-├── backend/           Django 5.2 + DRF. 22 apps + config/ + testing/ + imaging.py. SQLite.
+├── backend/           Django 5.2 + DRF. 23 apps + config/ + testing/ + imaging.py. SQLite.
 ├── frontend/          SvelteKit 2 + Svelte 5 runes + TS. adapter-static (SPA). Paraglide i18n.
 ├── deploy/            Apache vhosts + the webek4/edmat.net runbooks.
 ├── scripts/           One legacy helper (mock-fixture extraction from the corpus).
@@ -160,6 +160,17 @@ renders as a link (a pre-pass in `renderContent.ts`) and is harvested into `orig
 so backlinks exist without being filed. Kill switch `concepts`; the `GET /api/concept-links/?target_type=` chip-row read
 answers `[]` when it is off so exercise and material pages keep working. Spec: `CONCEPTS-BRIEF.md`; write-up:
 `HISTORY.md` §17BD.
+
+### `sketches` — freehand whiteboard drawings embedded in content (2026-09-23)
+`Sketch` (author, the Excalidraw scene JSON as `source`, a label, a WebP `image` re-encoded from the editor's PNG
+through `imaging.py`, width/height). A deliberate near-copy of `chem/` with a different editor behind it: Excalidraw
+(MIT — checked on npm at install time, tldraw is not MIT and is out), mounted as a React island in
+`components/sketch/SketchHost.svelte` with every import lazy, its fonts served from `static/excalidraw/fonts/` so
+nothing is fetched from esm.sh. One **Sketch** button on `InsertStrip` opens a fullscreen board (pan, zoom, freehand);
+Save posts scene + PNG to `POST /api/sketches/` and the composer receives `<img data-sketch=… class="sketch-drawing">`,
+which `config/sanitize.py` allows beside `data-chem`; clicking it in the rich editor reopens the board with the strokes.
+Raster only, on purpose (`sketches/CLAUDE.md` says when to move `chem/svg.py` up a level instead). Kill switch
+`sketches`, throttle `sketch` 60/hour, no DELETE (a published comment must keep resolving). Write-up: `HISTORY.md` §17BE.
 
 ### `community` — reviews and threaded comments
 `Review` (1–5 stars + optional body, unique per (exercise, author), resubmitting **updates** rather than duplicating) and `Comment`

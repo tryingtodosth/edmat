@@ -7441,6 +7441,115 @@ blocks side by side. 197 message keys, both catalogues, identical key sets.
   `.badge--waiting` fails colour contrast; two moderation test classes do not declare the log shards
   and log `DatabaseOperationForbidden` noise; six pre-existing eslint errors in e2e files.
 
+## 17BE. Three asks in one afternoon: the whiteboard, Polish first, and a radio for audiences (✅ built, full stack)
+
+Piotr, 2026-09-23, while the concepts feature was being verified: four items typed as a checklist.
+Run as three agents in parallel on branch `ux-and-whiteboard` (cut from `concepts` at `cdc256a`), each
+on disjoint files, each writing and running its own browser script.
+
+### Whiteboard — "adding pictures with the mouse, writing like on Zoom"
+
+A button that opens a fullscreen XY canvas you draw on with the mouse, pan and zoom around, and whose
+result lands in the sentence you are writing. The shape was decided on the board on 2026-09-18 and is
+the Ketcher one: a `sketches` app that is a deliberate near-copy of `chem/` with a different editor
+behind it. **Excalidraw**, checked on npm at install time (`license = 'MIT'`, React peer range
+includes the 19.3 already installed for Ketcher, no `--force`); `tldraw` is not MIT and stays out.
+`Sketch(author, source = the scene JSON, label, image, width, height)`; the editor exports PNG and
+`imaging.py` re-encodes it to WebP — **raster only, on purpose**: a freehand stroke is a `<path>` of
+hundreds of points and `chem/svg.py` is a geometry-diagram sanitiser, so the vector would buy nothing
+a 1600 px WebP does not; `sketches/CLAUDE.md` says when to move `svg.py` up a level instead.
+`<img data-sketch=… class="sketch-drawing">` allowed in `config/sanitize.py` beside `data-chem`, with
+the refusal test for `data-other`. Frontend: `SketchHost.svelte` (the React island, imports lazy,
+`process`/`global` shims, no Vite aliases needed), `SketchEditorModal.svelte` (a fullscreen overlay
+that copies `ModalShell`'s backdrop, dialog role, Escape, Tab cycle and focus restore, passing Escape
+and Tab through when the event came from inside the canvas), `editor/sketchImage.ts` extending
+`ChemImage` (one Tiptap node type per name), `RichEditor` gaining `onSketchEdit`/`replaceSketchImage`,
+one **Sketch** button on `InsertStrip` — which puts it on comments, co-authoring versions and concept
+markdown blocks at once. Kill switch `sketches` (three files, migrations `0041`/`0042`), throttle
+`sketch` 60/hour, scene cap 512 KB. The Excalidraw chunks (~2.5 MB raw, ~700 KB gzipped) are out of
+the entry graph, verified by walking the import closure and in the browser.
+
+Two things the browser found that nothing else did: Excalidraw's freedraw shortcut only fires once
+the board has focus, so the first script "drew" with the selection tool and a check read "a stroke
+was drawn" while nothing was; and with `EXCALIDRAW_ASSET_PATH` unset the library fetches its fonts
+from **esm.sh** — the eight Latin families (480 KB) are now copied into `static/excalidraw/fonts/` and
+a check provokes a font load and asserts no third-party request (the 13 MB CJK family is not copied;
+CJK text in a sketch would still reach esm.sh, documented in the host).
+
+### Polish first — the picker beside ✕, `pl` unless the IP is abroad, and the Messenger bar
+
+Three asks, one stream. The locale picker is now the **first** control in the phone drawer, beside
+its close button, and the first item in the account menu. The interface **base locale is `pl`**:
+nothing a script can do before hydration rewrites prerendered text, so Polish-without-flash *is* the
+base locale (`project.inlang/settings.json`, `<html lang="pl">` in every prerendered page, and
+`<html lang>` now follows a live switch, which it never did). A new `config/geo.py` answers
+`country_for_ip()` through the `geoip2` package and a MaxMind country database **only when**
+`EDMAT_GEOIP_DB` is set and the package imports — otherwise `None`, which `GET /api/locale-hint/`
+turns into `{"suggested_locale": "pl", "country": null}` (`Cache-Control: no-store`, off the read
+cache, nothing stored, `geoip2` not in `requirements.txt` — house rule 10). A foreign visitor paints
+Polish, is offered English once (`edmat.localeGuess`), and a stored choice short-circuits before any
+request. The browser found that Paraglide writes its cookie on the **first** visit, so "a cookie
+exists" is not "they chose": a choice is now an explicit `edmat.localeChoice` written by the picker
+and the registration form. The drawer and the phone footer got
+`calc(48px + 16px + env(safe-area-inset-bottom))` of bottom clearance, sized against a synthetic 60 px
+Messenger bar.
+
+The base-locale flip has a cost: every older browser script that asserts English copy now reads the
+Polish catalogue. `e2e/english.mjs` (`englishContext()` sets `PARAGLIDE_LOCALE=en` on the context
+before the first navigation) was applied to the eleven scripts whose checks name English buttons;
+`navbar-stages.mjs` went 43/8 → 50/1 (the remaining failure is pre-existing). Traps 24 and 25 in
+`e2e/CLAUDE.md` record it, and that a `visibility: hidden` drawer still returns a bounding box.
+
+### Home audience chips — a radio, not a checkbox
+
+`AudienceChips.svelte` rewritten as a real radio group (`role="radiogroup"`, `aria-checked`, roving
+tabindex, Arrow/Home/End selecting as they move). Options are **Everything** followed by the six
+bands; a click writes a one-element list to the store, so `?audience=<band>` narrows every list to
+that band plus rows marked `all`. The explicit "Everything" chip is the only way back — a radio does
+not untick itself. The settings page keeps its multi-select (a parent pinning two bands is an
+AUDIENCE-BRIEF §1 decision); when the profile holds two bands the row shows **no** chip checked and
+"Bands: 2 — set in Settings", and any click collapses the pin to one band. Found on the way: a
+`bind:this` into a plain array warns at runtime only; and `mapSource` dereferenced `json.source`
+unconditionally, so one exercise created through the API with no source row blanked the whole home
+Exercises tab — fixed with a default `{ type: 'other' }`.
+
+### Verified — what was actually run
+
+- Backend: `manage.py test sketches moderation community` 209 OK; `manage.py test moderation telemetry
+  config` 174 OK (10 new for the locale hint: unknown → pl, DE → en, PL → pl, private address → pl);
+  `manage.py check` and `makemigrations --check --dry-run` clean; `migrate` applied `0041`, `0042`,
+  `sketches/0001`.
+- Frontend: `npm run check` 0/0 after all three streams, `npm run lint` (prettier clean; the six
+  known eslint errors in pre-existing e2e files remain), `npm run build` (`build/index.html` is
+  `<html lang="pl">`), both catalogues identical.
+- **Real browsers**: `e2e/sketch.mjs` **29/29** (a real `page.mouse` stroke of 24 moves, the posted
+  comment showing the picture, click-to-reopen with the stroke intact, flag off hiding the button);
+  `e2e/language-default.mjs` **30/30** and `e2e/phone-navbar.mjs` 12/12 (fresh context Polish; a
+  stored `en` stays; picker's box within the top 120 px beside ✕ at 390×844; a 60 px bottom overlay
+  covering nothing needed; switching re-renders); `e2e/audience-radio.mjs` **41/41** and
+  `audience-bands.mjs` 21/21 (exactly one `aria-checked`, `localStorage` `["primary"]`, exact counts
+  against `GET /api/exercises/?audience=primary`, arrow keys, the two-bands state). Screenshots looked
+  at: the fullscreen board with a wavy stroke and the MIT line, the posted comment, the drawer in
+  Polish and English at phone width with the picker on top and the synthetic Messenger bar under
+  nothing, the chip row at both widths.
+
+### Left open, not built
+
+- Whiteboard: no DELETE and no "my sketches" page (the list endpoint exists, nothing calls it); no
+  dedicated concept block kind (the markdown block carries a sketch through the strip); the CJK font
+  family is not self-hosted; the run left two sketch rows in the dev database.
+- Language: login and settings never apply `Profile.preferred_locale` (register does), so an account's
+  stored language is not a source for the first paint on a new device; a cookie holding `pl` is
+  indistinguishable from Paraglide's automatic write, so a Polish-by-choice reader abroad whose
+  storage was cleared is offered English once; the DE → en path is proven by unit test and a route
+  intercept, no MaxMind database exists on this machine; the bottom clearance is sized against a
+  synthetic bar, not a measured Messenger one; ~43 older scripts assert no English copy and now run
+  Polish-by-default, which is what a first-time visitor sees.
+- Audience: `navbar-stages.mjs`'s last failure ("a discipline is found by name") is pre-existing;
+  `pdf-preview.mjs` and `exercise-card-click.mjs` fail identically with and without the cookie
+  (data/structural, not chased); the anonymous 60 s read cache served the previous run's list to a
+  fresh guest, so `audience-radio.mjs` waits the TTL out (`E2E_NO_CACHE_WAIT=1` skips it).
+
 ---
 
 # Appendix — the original blueprint's technical sections

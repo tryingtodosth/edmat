@@ -81,6 +81,10 @@ After adding keys, paraglide must recompile (stale generated messages throw
 `m.x is not a function` at runtime). Long-form documents (`lib/content/privacy.ts`,
 `levels.ts`) are the deliberate exception — both locales in one file, reviewable as documents.
 **No URL locale strategy** — `/pl/...` is not a route; language is chosen via the picker.
+**The base locale is `pl`** (2026-09-23): a fresh context paints Polish, `/api/locale-hint/` offers
+English once when the country is known and not Poland, and `edmat.localeChoice` marks an explicit pick
+(Paraglide's own cookie is written on the first visit, so a cookie is not a choice). e2e scripts that
+assert English copy use `e2e/english.mjs` (`e2e/CLAUDE.md` trap 24).
 Interface language and content language are independent axes (a `?lang=` picker per exercise).
 
 ## Page titles
@@ -116,6 +120,10 @@ needed that nothing else here does, each found by a browser run and invisible to
   runs Node 24 (setup.sh installs it). A drawing is saved through `/api/chem-drawings/` and embedded
   as `<img data-chem=…>`; `editor/chemImage.ts` reopens it on click. ChemDoodle was the second
   editor for one afternoon and was dropped as GPLv3 in an MIT repo — don't re-add it.
+  **`components/sketch/` is the same island pattern with Excalidraw (MIT)** — no Node-builtin aliases
+  needed, only the `process`/`global` shims; fonts copied into `static/excalidraw/fonts/` so nothing is
+  fetched from esm.sh; `editor/sketchImage.ts` extends `ChemImage` (one Tiptap node type per name).
+  `tldraw` is not MIT and must not be added.
 
 ## Hand-maintained mirrors of backend enums
 
