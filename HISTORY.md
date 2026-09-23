@@ -8037,11 +8037,20 @@ table earned: the rows I was least sure about are the ones that found something.
   including "not one preview request carried an Authorization header" (asserted by intercepting
   every outgoing request), "no button/link/form control inside the preview view", and "a draft
   previews as nothing at all". Both screenshots looked at.
-- Looking at the screenshot is also what raised the one honest wrinkle: the sandbox conference reads
-  09:00 in the command's output and 11:00 on the page, because the page draws the instant in the
-  *reader's browser* timezone while `settings.TIME_ZONE` is UTC. That is the standing "no
+- **Three things came from looking at the screenshot rather than from any assertion.** (a) The
+  preview is mounted below the organiser's own panels, so entering it left the reader staring at the
+  Edit and Cancel buttons the bar had just said could not be used — it now scrolls itself under the
+  bar on entry. (b) The persona child's display name `Antoni (12)` masked to **"Antoni (."** on the
+  public roster, because `registration.mask_name` takes the first name plus the last word's initial;
+  the name is `Antoni Nowak` now and the age lives in the seed command's printed line. (c) The
+  sandbox reads 09:00 in the command's output and 11:00 on the page, because the page draws the
+  instant in the *reader's browser* timezone while `settings.TIME_ZONE` is UTC — the standing "no
   per-account timezone" gap, not something this step introduced; the command now prints the zone
   beside the time so the two are not silently different.
+- **A caught near-miss in the verification itself**, worth recording because it would have made this
+  whole section a lie: the first two suite runs were piped into `grep | tail`, and a pipeline's exit
+  status is the LAST command's, so `EXIT=0` said only that `tail` succeeded. Both were re-run
+  unpiped, to a file, and the summary line read from it.
 - en/pl key sets identical (2699 each), verified programmatically.
 
 ### For the integrator
