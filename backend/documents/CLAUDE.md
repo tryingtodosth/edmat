@@ -92,6 +92,17 @@ The two event-scoped paths are registered in `documents/urls.py`, not as actions
 the router in `events/urls.py` never matches `events/<id>/documents/`, so the request falls through
 to this app and `events/urls.py` stays untouched.
 
+## One thing inherited from the cache
+
+`/api/events/` is on `config/cachemw.py`'s anonymous-read allowlist, so
+`GET /api/events/{id}/documents/` **from a signed-out visitor** can be served from the 60 s response
+cache. That is safe rather than merely tolerated: the middleware only stores and only replays a
+response for a request carrying no Authorization header and no session cookie, and an anonymous
+caller resolves to the `public` tier alone — there is no tier whose answer could leak into somebody
+else's. What it does mean is the usual sub-minute lag: a newly-posted public document, and a flipped
+kill switch, reach a signed-out reader up to 60 s late, exactly as the events list itself already
+does. The file endpoint is not under that prefix, so bytes are never cached.
+
 ## The flag
 
 `event_documents`, seeded ON by `moderation/migrations/0043_conference_flags.py` with the other five

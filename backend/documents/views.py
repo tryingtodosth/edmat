@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from urllib.parse import quote
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
@@ -204,9 +205,14 @@ class DocumentViewSet(
             if field in request.data:
                 setattr(document, field, request.data[field])
         try:
+            # The model is what says which tiers exist and what a document of each kind must carry,
+            # so an invented tier is refused here rather than by a second list in this view.
             document.full_clean(exclude=['file', 'url', 'event', 'uploaded_by', 'replaced_by'])
-        except Exception as exc:  # Django's ValidationError carries a per-field dict
-            return Response(getattr(exc, 'message_dict', {'detail': str(exc)}), status=400)
+        except DjangoValidationError as exc:
+            return Response(
+                getattr(exc, 'message_dict', {'detail': exc.messages}),
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         document.save(update_fields=['title', 'visibility', 'requires_acknowledgement'])
         return Response(EventDocumentSerializer(document, context={'request': request}).data)
 

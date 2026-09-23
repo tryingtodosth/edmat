@@ -6,7 +6,6 @@ from __future__ import annotations
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .access import missing_acknowledgements
 from .files import process_document_upload
 from .models import KIND_CHOICES, KIND_FILE, KIND_LINK, VISIBILITY_CHOICES, EventDocument
 
@@ -143,8 +142,3 @@ class DocumentAcknowledgementRowSerializer(serializers.Serializer):
     acknowledged_at = serializers.DateTimeField(read_only=True, allow_null=True)
     outstanding = serializers.BooleanField(read_only=True)
 
-
-def outstanding_for(user, event) -> list[int]:
-    """The ids `briefing_unread` would name for this person — exposed on the documents list so the
-    panel can say "two still to read" without a second call."""
-    return [d.pk for d in missing_acknowledgements(user, event)]

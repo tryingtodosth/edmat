@@ -92,6 +92,14 @@
 		return `${doc.title}${extension}`;
 	}
 
+	function explain(e: unknown): string {
+		return e instanceof ApiError
+			? String((e.body as { detail?: string } | undefined)?.detail ?? e.message)
+			: m.common_error(); // "Something went wrong."
+	}
+
+	/** Anything that CHANGES a document: do it, then re-read the list, because a replacement, a
+	 *  withdrawal and an acknowledgement all change rows other than the one that was clicked. */
 	async function run(id: string, action: () => Promise<unknown>) {
 		busy = id;
 		error = '';
@@ -99,17 +107,25 @@
 			await action();
 			await load(event.id);
 		} catch (e) {
-			error =
-				e instanceof ApiError
-					? String((e.body as { detail?: string } | undefined)?.detail ?? e.message)
-					: m.common_error(); // "Something went wrong."
+			error = explain(e);
 		} finally {
 			busy = '';
 		}
 	}
 
+	/** Deliberately NOT through `run`: fetching the bytes changes nothing, and reloading the list
+	 *  after it made the whole panel blink through its loading state on a download (seen in an e2e
+	 *  screenshot — nothing asserted it, which is the point of looking at them). */
 	async function download(doc: EventDocument) {
-		await run(doc.id, async () => downloadBlob(fileName(doc), await getDocumentFile(doc.id)));
+		busy = doc.id;
+		error = '';
+		try {
+			downloadBlob(fileName(doc), await getDocumentFile(doc.id));
+		} catch (e) {
+			error = explain(e);
+		} finally {
+			busy = '';
+		}
 	}
 
 	function startNew() {
@@ -170,10 +186,10 @@
 			{/if}
 		</div>
 
-		{#if loading}
+		{#if loading && documents.length === 0}
 			<p class="status">{m.common_loading()}</p>
 			<!-- "Loading…" -->
-		{:else if documents.length === 0}
+		{:else if !loading && documents.length === 0}
 			<p class="status">{m.documents_empty()}</p>
 			<!-- "Nothing has been shared here yet." -->
 		{/if}

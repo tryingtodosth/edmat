@@ -58,7 +58,8 @@ const kasia = await tokenFor('kasia@edmat.example');
 const ola = await tokenFor('ola@edmat.example');
 const michal = await tokenFor('michal@edmat.example');
 const auth = (t) => ({ 'Content-Type': 'application/json', Authorization: `Token ${t}` });
-const me = async (t) => (await (await fetch(`${API}/api/auth/me/`, { headers: auth(t) })).json()).id;
+const me = async (t) =>
+	(await (await fetch(`${API}/api/auth/me/`, { headers: auth(t) })).json()).id;
 
 const MARKER = 'Documents e2e — conference day';
 const removeEvent = async (id) => {
@@ -124,12 +125,42 @@ await fetch(`${API}/api/events/${event.id}/documents/`, {
 	})
 });
 
+// A real, renderable one-page PDF built byte by byte (with a correct xref, which pdf.js does look
+// at) — the point is to drive the WHOLE file path in a browser: multipart upload through the real
+// form, the sniff and the scan on the server, the stored random name, and then the tier-checked
+// byte endpoint fetched as a Blob through `client.ts` and handed to pdf.js.
+function onePagePdf() {
+	const objects = [
+		'<</Type/Catalog/Pages 2 0 R>>',
+		'<</Type/Pages/Kids[3 0 R]/Count 1>>',
+		'<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>',
+		null, // the content stream, built below
+		'<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>'
+	];
+	const stream = 'BT /F1 24 Tf 30 100 Td (Volunteer briefing) Tj ET';
+	objects[3] = `<</Length ${stream.length}>>\nstream\n${stream}\nendstream`;
+	let pdf = '%PDF-1.4\n';
+	const offsets = [];
+	objects.forEach((body, i) => {
+		offsets.push(pdf.length);
+		pdf += `${i + 1} 0 obj\n${body}\nendobj\n`;
+	});
+	const xref = pdf.length;
+	pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+	for (const offset of offsets) pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+	pdf += `trailer\n<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+	return Buffer.from(pdf, 'latin1');
+}
+
 // ---- the browser ------------------------------------------------------------------------------
 const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
 const mk = async () => {
-	const ctx = await englishContext(browser, BASE, { viewport: { width: 1280, height: 1100 } });
+	const ctx = await englishContext(browser, BASE, {
+		viewport: { width: 1280, height: 1100 },
+		acceptDownloads: true
+	});
 	const p = await ctx.newPage();
 	p.on('console', (msg) => {
 		// The ONE expected console error in this script: Chromium logs every non-2xx response, and
@@ -184,16 +215,49 @@ await form.getByRole('button', { name: 'Add', exact: true }).click();
 await organiser.waitForTimeout(2500);
 const briefingRow = panel.locator('li', { hasText: 'Volunteer briefing' }).first();
 check('the briefing was added and is listed', await briefingRow.isVisible());
-check(
-	'it carries the "Must be read" pill',
-	(await briefingRow.locator('.pill--warn').count()) > 0
-);
+check('it carries the "Must be read" pill', (await briefingRow.locator('.pill--warn').count()) > 0);
 check(
 	'the organiser sees both tier groups (staff and organisers)',
 	(await panel.locator('.group').count()) === 2,
 	String(await panel.locator('.group').count())
 );
 await organiser.screenshot({ path: 'e2e/screens/event-documents-organiser.png', fullPage: false });
+
+// The same form again, this time with a real file: the upload path, the protected byte endpoint and
+// the lazy pdf.js preview, all in a browser (house rule 2 — the Django tests prove the refusals, a
+// browser is the only thing that proves the reader ever sees the page).
+await panel.getByRole('button', { name: 'Add a document', exact: true }).click();
+const fileForm = panel.locator('form');
+await fileForm.waitFor({ timeout: 10000 });
+await fileForm.locator('input[type="text"]').fill('Site plan');
+await fileForm.locator('select:has(option[value="organisers"])').selectOption('attendees');
+await fileForm.locator('input[type="file"]').setInputFiles({
+	name: 'site-plan.pdf',
+	mimeType: 'application/pdf',
+	buffer: onePagePdf()
+});
+await fileForm.getByRole('button', { name: 'Add', exact: true }).click();
+await organiser.waitForTimeout(3000);
+const pdfRow = panel.locator('li', { hasText: 'Site plan' }).first();
+check('the PDF upload was accepted', await pdfRow.isVisible());
+check(
+	'it is flagged as not virus-scanned rather than silently "clean"',
+	(await pdfRow.innerText()).includes('Not virus-scanned')
+);
+await pdfRow.getByRole('button', { name: 'Preview', exact: true }).click();
+const canvas = pdfRow.locator('.pdf-viewer canvas');
+await canvas.waitFor({ timeout: 40000 });
+const box = await canvas.boundingBox();
+check('pdf.js renders the stored PDF in place', Boolean(box) && box.width > 50 && box.height > 50);
+const download = organiser.waitForEvent('download', { timeout: 30000 });
+await pdfRow.getByRole('button', { name: 'Download', exact: true }).click();
+const saved = await download;
+check(
+	'the download is named after the document, not the uploaded file',
+	saved.suggestedFilename() === 'Site plan.pdf',
+	saved.suggestedFilename()
+);
+await organiser.screenshot({ path: 'e2e/screens/event-documents-pdf.png' });
 
 // --- the attendee sees neither ---
 const attendee = await mk();
@@ -203,6 +267,7 @@ const attendeePanel = attendee.locator('section.documents');
 const attendeeText = (await attendeePanel.count()) ? await attendeePanel.innerText() : '';
 check('an attendee does not see the staff briefing', !attendeeText.includes('Volunteer briefing'));
 check('an attendee does not see the organisers document', !attendeeText.includes('Budget'));
+check('an attendee DOES see the attendees-tier document', attendeeText.includes('Site plan'));
 await attendee.screenshot({ path: 'e2e/screens/event-documents-attendee.png' });
 
 // --- the volunteer is blocked at check-in until the briefing is acknowledged ---
