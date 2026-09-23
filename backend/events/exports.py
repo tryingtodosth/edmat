@@ -57,11 +57,10 @@ Covered by `manage.py purge_event_data`:
     they showed covers a property claim for 30 days and nothing after; the item's own rack, token
     and status are not personal data and stay, so the reconciliation history still adds up.
 
-NOT covered yet:
-  * `events.ScanEvent` (step D, `conf/d-tickets`, not merged at the time of writing) — scan
-    timestamps, device labels and the token seen. The report puts device telemetry in the
-    T+14–30 day bucket; the rows should go entirely rather than be blanked, since a scan row with
-    every field emptied is not a record of anything.
+  * `events.ScanEvent` — the rows go entirely (wired when step D merged, 2026-09-23): scan
+    timestamps, device labels and the token seen are device telemetry, the report's T+14–30 day
+    bucket, and a scan row with every field emptied is not a record of anything. Who was checked in
+    survives on the attendance row's own `checked_in_at`.
 
 Also deliberately left alone today, and named so that the decision is somebody's rather than an
 omission (house rule 14):
@@ -265,7 +264,8 @@ def purge_event_data(older_than_days=DEFAULT_RETENTION_DAYS, dry_run=False):
         .order_by('starts_at', 'id')
     )
     report = {'cutoff': cutoff, 'dry_run': dry_run, 'events': [], 'answers_blanked': 0,
-              'accessibility_blanked': 0, 'checkins_unlinked': 0, 'cloakroom_exceptions_blanked': 0}
+              'accessibility_blanked': 0, 'checkins_unlinked': 0, 'cloakroom_exceptions_blanked': 0,
+              'scans_deleted': 0}
 
     for event in candidates:
         ends_at = event.ends_at
@@ -301,18 +301,33 @@ def purge_event_data(older_than_days=DEFAULT_RETENTION_DAYS, dry_run=False):
                 # update names its fields and leaves that stamp where it was.
                 row.save(update_fields=list(dict.fromkeys(changed)))
         cloakroom_blanked = _purge_cloakroom_exceptions(event, dry_run)
-        if answers_blanked or accessibility_blanked or checkins_unlinked or cloakroom_blanked:
+        scans_deleted = _purge_scans(event, dry_run)
+        if (answers_blanked or accessibility_blanked or checkins_unlinked or cloakroom_blanked
+                or scans_deleted):
             report['events'].append({
                 'id': event.pk, 'title': event.title, 'ended': ends_at,
                 'answers_blanked': answers_blanked, 'accessibility_blanked': accessibility_blanked,
                 'checkins_unlinked': checkins_unlinked,
                 'cloakroom_exceptions_blanked': cloakroom_blanked,
+                'scans_deleted': scans_deleted,
             })
             report['answers_blanked'] += answers_blanked
             report['accessibility_blanked'] += accessibility_blanked
             report['checkins_unlinked'] += checkins_unlinked
             report['cloakroom_exceptions_blanked'] += cloakroom_blanked
+            report['scans_deleted'] += scans_deleted
     return report
+
+
+def _purge_scans(event, dry_run) -> int:
+    """The door's scan log for this event (see `RETENTION_NOTE`): deleted whole, not blanked."""
+    from .models import ScanEvent
+
+    rows = ScanEvent.objects.filter(event=event)
+    count = rows.count()
+    if count and not dry_run:
+        rows.delete()
+    return count
 
 
 def _purge_cloakroom_exceptions(event, dry_run) -> int:

@@ -9140,10 +9140,15 @@ day's earlier header work and filed on the todo board. Every screenshot the scri
 at by the step that wrote it; the integrator looked at the merged event page and the phone drawer.
 
 **Left open** (each on the board under "Conference step X" or "Conference integration"):
-- **Step D (tickets, QR, scanner, badge sheet) is not merged.** Its agent was stopped before
-  verification; everything it built is WIP commit `ea80208` on `conf/d-tickets` (history section
-  written, verification list not run). Merging it means renumbering G's `0011_exportlog` to `0012`,
-  gating `/scans/` behind `briefing_block_reason`, teaching the purge `ScanEvent`, and matrix rows.
+- ~~Step D (tickets, QR, scanner, badge sheet) is not merged.~~ Merged later the same evening on
+  Piotr's word, verified at integration since its agent never got to (its §17BF.D "Verified"
+  paragraph says exactly what was run): D's `0011_tickets` renumbered to **`0012_tickets`** after
+  G's `0011_exportlog`; `POST /scans/` behind `documents.access.briefing_block_reason` (the third
+  surface answering `409 briefing_unread`, with a test); `purge_event_data` deletes `ScanEvent` rows
+  whole (test); 21 matrix rows, two of which taught the integrator that this fixture's stranger holds
+  a *pending* row and is therefore told `409 pending`, not 404 — D's rule, working as designed; the
+  badge-sheet link moved inside the registrations panel's header where D meant it, beneath the CSV
+  button and behind the `tickets` switch.
 - ~~The permission matrix has rows for the pre-existing events surface only.~~ Closed the same
   evening on `conf/h-matrix` (below): 411 rows, and one real 500 it found in the cloakroom's nested
   item id. D's endpoints are the rows still missing.
@@ -9209,3 +9214,112 @@ regexes named in §17BF.B as remaining (`courses/views.py` ×16, `coauthoring` �
 are still untouched: they are outside the conference layer and the matrix has no rows for them, so
 fixing them blind would have been a change nothing here could verify. No frontend change and no
 migration: this step is a test file, one regex pair and three documents.
+
+## 17BF.D. Tickets: an opaque token, a door that works with no Wi-Fi, and a badge sheet (✅ built, full stack)
+
+CONFERENCE-BRIEF.md §3.D, built on branch `conf/d-tickets` as one of the seven parallel conference
+steps. The registration engine (§17AN) already had `checked_in_at` and a check-in button; what it
+did not have was anything a person could be *given*, or any way to work a door faster than reading
+names off a laptop.
+
+**The ticket is an opaque random string and nothing else.** 32 characters of
+`secrets.token_urlsafe`, unique, null until the row first holds a seat. The QR carries the token and
+not a name, an account id, an event id or a signature — a QR code is photographed by whoever is
+standing behind you, and a signed token that carried "Anna Kowalska, u/4412" would tell that person
+who you are for free. The research report offered Ed25519-signed tokens and then preferred opaque
+itself; the only thing a signature buys is offline validation, which is deliberately not built,
+because of the second decision.
+
+**The scanner never decides.** It caches the check-in list on open so it can show a name with no
+network, queues every scan in IndexedDB, and syncs in batches; `events/scanning.apply_batch` decides
+what each one means when it arrives. A phone that decided for itself would have to be told the
+rules, would disagree with the phone next to it, and would make "the earlier scan wins" unknowable.
+So "works offline" is a queue, not local authority — and the result a volunteer sees can change from
+"queued" to a real answer five seconds later, which is the honest depiction of what happened.
+
+**Idempotency is the client's nonce**, stamped when the scan happens. A batch retried because the
+*reply* was lost returns the stored rows unchanged instead of scanning anybody twice; without it a
+flaky connection at the door becomes a stack of `already_in` refusals aimed at people who were
+admitted perfectly well the first time. `apply_batch` is one `transaction.atomic()`
+(`backend/CLAUDE.md` rule 2 — a transaction per scan turns a forty-scan sync into forty write locks
+on a single-writer database), ordered by the client's own clock so an exit cannot land before the
+entry that preceded it.
+
+**Two things the vocabulary forced, and both are better for it.** §3.D fixes six results
+(`admitted | already_in | not_going | unknown | exited | collision`) and there is exactly one word
+for "nothing changed" — so `already_in` covers entering when already inside *and* leaving when never
+admitted, with `direction` on the row and two different sentences read off the pair in
+`labels.ts:scanResultLabel`. And `collision` turned out to be a **same-window** fact: two entries for
+one token inside one batch flag the later one, because the likeliest explanation is a ticket passed
+back out of the door, but across two syncs the first scan is already durable state and the second is
+an ordinary duplicate with nothing left to tell the stories apart. That limit is written into
+`scanning.py`'s docstring rather than papered over with a time heuristic that would make a genuine
+second tap at the same door look like fraud.
+
+**Issuance is hooked into the transitions, not a signal.** `ensure_ticket` is called from
+`register`, `promote_next` and `decide` in `events/registration.py`, because `QuerySet.update()`
+fires no signal and the seat machinery uses it — a signal-based mint would silently skip exactly the
+paths that matter on the morning of an event. The cost is that a status changed in the admin or a
+shell mints nothing, which `ensure_ticket`'s docstring says out loud and `my-ticket` corrects by
+calling it too. `client_at` is used for the check-in stamp (a scanner that was offline all morning
+should record "admitted at 09:02", not the moment the Wi-Fi came back) but **clamped to `now`**,
+because a phone's clock running fast would otherwise stamp a check-in that has not happened yet.
+
+**What each surface may know** is the data-minimisation half. `checkin-list` — any staff member,
+cached onto a volunteer's phone, the least trusted copy of a guest list this system produces — is
+`token`, `Anna K.`, status and in/out, with no ids, no email and no answers to the organiser's
+questions; a test asserts the key set and that no `@` appears anywhere in it. The scan log
+(organisers only) masks names too, because an organiser can already read the full roster on the
+registrations panel and an append-only table would otherwise be a second, longer-lived copy of the
+same personal data. A **sixth endpoint `badge-sheet`** that §3.D did not list was added and is
+argued for in `ticket_views.py`'s docstring: the badge sheet is the one place the minors' rule (R1
+§2.5, decision 9) applies, and it cannot be built from `checkin-list` without either masking every
+adult's name (a conference badge nobody can read) or un-masking every minor's. The rule itself lives
+server-side in `_badge_name`, so the full name is never in the response of a page whose whole point
+is that it must not be there.
+
+Frontend: `/events/[id]/ticket` (QR via `qrcode` imported dynamically, the short code under it for
+when the camera will not focus, when/where, an A6 print stylesheet, a coloured band and a masked
+name for a minor — a guardian opens a child's with `?attendee=`), `/events/[id]/scan` (camera via
+`jsqr` imported at the moment the camera starts, entry/exit radio, typed code, name search over the
+cached list, a big green/amber/red banner with the reason in words, queue length, last-synced, an
+IndexedDB queue flushed every 5 s and on `online`), `/events/[id]/badges` (2 × 4 A4 grid, cut lines,
+linked from the RegistrationsPanel beside the CSV button). All three behind `tickets` through
+`FeatureGate`, and `TicketLinks.svelte` — mounted at the page's own `<!-- conference: ticket -->`
+marker — shows each link only to the person it works for and disappears entirely with the flag,
+because a kill switch that leaves its links behind has hidden nothing.
+
+**Verified — at integration, not by the step's own agent.** The agent that built this step was
+stopped before it ran a single check, and the paragraph that stood here claimed a verification list
+it never ran; it is replaced by what was actually done when the branch was merged (2026-09-23,
+evening, the integration section at the end of this file): `manage.py test events.test_tickets` on
+the branch — 24 tests, OK; `manage.py check` and `makemigrations --check` clean on the branch and
+again after the merge with the migration renumbered to `0012_tickets` (G's `0011_exportlog` had
+landed first); after the merge `events.test_tickets` (25, with the briefing-gate test the
+integration added), `events.test_exports` (the purge learning `ScanEvent`) and the 432-row
+permission matrix with 21 rows for these endpoints, all OK; `npm run check` 0 errors / 0 warnings,
+eslint and prettier clean on every file this step touched, en/pl key sets identical (3152 each),
+`npm run build` clean with the QR decoder out of the entry chunk; `e2e/event-tickets.mjs` against fresh servers on the merged tree — **27/27**, zero console
+errors (its ticket-page, scanner and badge-sheet screenshots looked at by the integrator), alongside
+`event-registration` 26/26, `event-documents` 27/27, `event-preview` 26/26 and `event-exports` 24/24
+re-run after the merge, because this step touches the registrations panel they all render. The `tickets` kill switch
+is asserted from both sides in the tests — the whole surface 403s while check-in by button keeps working.
+
+**Left open.**
+
+- **The camera path is not driven by a test.** Playwright can fake a webcam stream but not one
+  holding a real QR code in focus, so `event-tickets.mjs` asserts the camera button exists and
+  exercises the same `queueScan()` → IndexedDB → batch path through the typed code. The decode loop
+  itself was verified by hand only.
+- **No per-scan authority beyond "staff of this event".** §5's integration step is what gates
+  `/scans/` behind step C's `documents.access.missing_acknowledgements` (the `briefing_unread` 409),
+  and step E's is what would ask whether this volunteer is actually on a door shift right now.
+- **`ScanEvent` has no retention story of its own** — §5 hands it to step G's purge command.
+- **A ticket is never revoked when a seat is lost**, on purpose: the row's current status is what
+  the door reads, so a withdrawn person's ticket answers `not_going` rather than `unknown`, which is
+  the more useful refusal to read out loud. Nothing cleans up tokens on rows that have gone cold.
+- **The short code is an 8-character prefix of the token**, resolved case-insensitively, and an
+  ambiguous prefix is deliberately answered `unknown` rather than guessed at. With a few hundred
+  tickets this will not happen; at conference scale it is worth a dedicated code column.
+- **No multi-day re-entry policy.** A two-day event's second morning is an ordinary re-entry, and
+  nothing distinguishes "came back on day two" from "went out for coffee".

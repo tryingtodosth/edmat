@@ -59,13 +59,15 @@ class Command(BaseCommand):
                 f'{row["accessibility_blanked"]} accessibility notes, '
                 f'{row["answers_blanked"]} free-text answers, '
                 f'{row["checkins_unlinked"]} check-ins unlinked, '
-                f'{row["cloakroom_exceptions_blanked"]} cloakroom lost-slip records blanked'
+                f'{row["cloakroom_exceptions_blanked"]} cloakroom lost-slip records blanked, '
+                f'{row["scans_deleted"]} door scans deleted'
             )
         line = (
             f'{prefix}{report["accessibility_blanked"]} accessibility notes and '
             f'{report["answers_blanked"]} free-text answers blanked, '
             f'{report["checkins_unlinked"]} check-ins unlinked, '
-            f'{report["cloakroom_exceptions_blanked"]} cloakroom lost-slip records blanked.'
+            f'{report["cloakroom_exceptions_blanked"]} cloakroom lost-slip records blanked, '
+            f'{report["scans_deleted"]} door scans deleted.'
         )
         self.stdout.write(self.style.SUCCESS(line) if not dry_run else line)
         if report['events'] and dry_run:
