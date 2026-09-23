@@ -344,6 +344,19 @@ FEATURE_FLAG_CHOICES = [
     # since they are ordinary media files. Seeded ON by migration 0042 — there is no sketch on the
     # platform the moment it runs, so turning the switch on removes nothing from anybody.
     ('sketches', 'Freehand sketches (whiteboard)'),
+    # The six conference surfaces (CONFERENCE-BRIEF.md §0), seeded ON together by migration 0043 —
+    # none of them has a row anywhere the moment it runs, so turning them on removes nothing. Each
+    # is a plain kill switch owned by one app: venues/ (venues, rooms, room bookings, checklists),
+    # documents/ (event documents and acknowledgements), events/scanning.py (tickets, QR, scans),
+    # shifts/ (the volunteer rota), cloakroom/ (the desk), and the role-preview toggle on the event
+    # page. Off, each closes its own endpoints to a non-staff caller and takes its own links with it
+    # (house rule 3); the older events surfaces keep working with all six off.
+    ('venues', 'Venues, rooms and checklists'),
+    ('event_documents', 'Event documents and briefings'),
+    ('tickets', 'Tickets, QR codes and scanning'),
+    ('shifts', 'Volunteer rota (shifts)'),
+    ('cloakroom', 'Cloakroom desk'),
+    ('role_preview', 'View an event as a visitor'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

@@ -577,6 +577,24 @@
 				/>
 			{/if}
 
+			<!-- Conference mount points (CONFERENCE-BRIEF.md §4 rule 3): one marker per parallel step,
+			     each replaced by its own component on its own branch. Kept apart by blank lines so that
+			     seven branches editing this page merge without touching each other's lines. -->
+
+			<!-- conference: venue -->
+
+			<!-- conference: checklist -->
+
+			<!-- conference: documents -->
+
+			<!-- conference: ticket -->
+
+			<!-- conference: rota -->
+
+			<!-- conference: cloakroom -->
+
+			<!-- conference: preview -->
+
 			<EventUpdates eventId={event.id} isHost={event.isHost} />
 
 			<section class="roster">
