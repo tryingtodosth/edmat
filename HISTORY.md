@@ -8045,8 +8045,9 @@ will refuse). Found by the e2e script's zero-console-errors check.
   drop after the cutoff, a non-organiser assigning, a volunteer reading the coverage grid or the
   safeguarding records), then the session-move signal, the coverage counts, hours with and without
   an override, the `.ics`, the masking, the kill switch and the availability coupling.
-- `manage.py test shifts events booking notifications moderation`, `manage.py check`,
-  `manage.py makemigrations --check --dry-run` (no changes detected).
+- `manage.py test shifts events booking notifications moderation` — 462 tests, OK (rerun on the
+  final tree). `manage.py check` — no issues. `manage.py makemigrations --check --dry-run` — no
+  changes detected.
 - `npm run check` 0 errors / 0 warnings, `npx eslint src/` clean, `npm run build` (adapter-static).
 - `frontend/e2e/event-shifts.mjs` against real servers on ports 8105 / 5205: **28 checks, 0
   failures**, zero console errors. Screenshots looked at
