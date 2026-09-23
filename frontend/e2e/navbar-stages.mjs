@@ -21,6 +21,9 @@ try {
 	({ chromium } = await import('playwright-core'));
 }
 
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
 // E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
 const API = (process.env.E2E_API ?? 'http://127.0.0.1:8000').replace(/\/api\/?$/, '') + '/api';
@@ -91,7 +94,7 @@ async function shot(page, name) {
 // ---- seats ---------------------------------------------------------------------------------------
 const { token } = await api('POST', '/auth/login/', null, { username: HOST, password: PASSWORD });
 
-const signedCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const signedCtx = await englishContext(browser, BASE, { viewport: { width: 1280, height: 900 } });
 const signed = wire(await signedCtx.newPage(), 'signed');
 await signed.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
 await signed.evaluate((value) => localStorage.setItem('edmat-auth-token', value), token);
@@ -101,7 +104,7 @@ await goto(signed, '/');
 // the one element that only a signed-in header renders before asserting anything about it.
 await signed.locator('.account-trigger').waitFor({ timeout: 30000 });
 
-const guestCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+const guestCtx = await englishContext(browser, BASE, { viewport: { width: 1280, height: 900 } });
 const guest = wire(await guestCtx.newPage(), 'guest');
 await goto(guest, '/');
 

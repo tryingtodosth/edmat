@@ -762,6 +762,18 @@
 							</span>
 						{/snippet}
 						{#snippet children(close: () => void)}
+							<!-- Stage 8: the language picker's narrow-width home once somebody has an
+							     account. The row keeps it for guests — see `.row-locale` above.
+
+							     FIRST in the menu, not last (2026-09-23, owner's request). It was at the
+							     bottom, under every account link, which is the wrong end for the one control
+							     somebody may need BEFORE they can read the words above it: a person who
+							     opened this menu because they cannot read the interface had to scan past the
+							     whole list to find the only item that would help them. Same reasoning, and
+							     same position, as the drawer's own picker beside its ✕ below. -->
+							<div class="menu-locale">
+								<LocaleSwitcher />
+							</div>
 							<!-- Stage 7 removes the logo — the bar's only link home — so a Home entry appears
 							     in this menu at exactly the widths where that happens. Page breadcrumbs keep
 							     home reachable for guests in the same band. -->
@@ -769,11 +781,6 @@
 								{m.nav_home()}
 							</a>
 							{@render accountItems('menu-item', close)}
-							<!-- Stage 8: the language picker's narrow-width home once somebody has an
-							     account. The row keeps it for guests — see `.row-locale` above. -->
-							<div class="menu-locale">
-								<LocaleSwitcher />
-							</div>
 						{/snippet}
 					</Popover>
 				{:else}
@@ -1417,7 +1424,16 @@
 			bottom: 0;
 			width: min(20rem, 86vw);
 			z-index: var(--z-modal);
-			padding: var(--space-2) var(--space-4) var(--space-4);
+			// The bottom padding is not symmetry, it is clearance. An in-app browser (Facebook
+			// Messenger's is the one this was reported from) draws its own toolbar OVER the bottom
+			// edge of the viewport, and it is not reported through `env(safe-area-inset-bottom)` —
+			// that inset describes the device's own chrome (a home indicator, a notch), which is why
+			// both are added rather than either being trusted alone. Without the fixed part, the last
+			// item in a drawer long enough to scroll sits flush against the bottom edge and is
+			// covered by a bar the page cannot see. Measured at ~60px in Messenger; 64px is that plus
+			// room to be wrong.
+			padding: var(--space-2) var(--space-4)
+				calc(var(--space-6) + var(--space-3) + env(safe-area-inset-bottom, 0px));
 			background: var(--bg-surface);
 			border-left: 1px solid var(--border-color);
 			overflow-y: auto;
@@ -1450,6 +1466,18 @@
 			align-items: center;
 			justify-content: space-between;
 			min-height: 40px;
+			// Sticky, so the two controls that are here BECAUSE they must always be available — the
+			// way out, and the way to a language you can read — stay on screen however far down the
+			// drawer is scrolled. The drawer is its own scroll container, so this is `top: 0` against
+			// it rather than against the page. The background is what stops links scrolling
+			// underneath it visibly; the negative margins plus matching padding let it span the
+			// drawer's full width so nothing shows through at the edges.
+			position: sticky;
+			top: 0;
+			z-index: 1;
+			margin: calc(var(--space-2) * -1) calc(var(--space-4) * -1) 0;
+			padding: var(--space-2) var(--space-4);
+			background: var(--bg-surface);
 		}
 		// The ✕ keeps the look the floating toggle had in production — a bordered 40px box on the
 		// surface colour with the modal shadow — at the owner's request; only the ☰ in the bar went

@@ -10,6 +10,9 @@ try {
 } catch {
 	({ chromium } = await import('playwright-core'));
 }
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
 const API = process.env.E2E_API ?? 'http://localhost:8000';
 let pass = 0,
@@ -24,7 +27,9 @@ const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
 const mk = async () => {
-	const p = await (await browser.newContext({ viewport: { width: 1280, height: 1000 } })).newPage();
+	const p = await (
+		await englishContext(browser, BASE, { viewport: { width: 1280, height: 1000 } })
+	).newPage();
 	p.on('console', (m) => {
 		if (m.type() !== 'error') return;
 		// The under-16 refusal IS a 400 from /auth/register/, and Chromium logs every failed

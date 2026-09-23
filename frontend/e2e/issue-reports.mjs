@@ -8,6 +8,9 @@ try {
 } catch {
 	({ chromium } = await import('playwright-core'));
 }
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
 // E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
 const API = (process.env.E2E_API ?? 'http://localhost:8000').replace(/\/api\/?$/, '') + '/api';
@@ -23,7 +26,7 @@ const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
 async function newPage(viewport = { width: 1280, height: 800 }) {
-	const page = await (await browser.newContext({ viewport })).newPage();
+	const page = await (await englishContext(browser, BASE, { viewport })).newPage();
 	// A deliberate 404 (a private report opened by its own reporter) logs a resource error; that
 	// one is the behaviour under test, not a defect.
 	page.on(

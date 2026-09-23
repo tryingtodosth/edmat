@@ -25,6 +25,9 @@ try {
 	({ chromium } = await import('playwright-core'));
 }
 
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
 // E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
 const API = (process.env.E2E_API ?? 'http://127.0.0.1:8000').replace(/\/api\/?$/, '') + '/api';
@@ -73,7 +76,7 @@ function wire(page, ctx, name) {
 }
 
 async function person(name) {
-	const ctx = await browser.newContext();
+	const ctx = await englishContext(browser, BASE);
 	return wire(await ctx.newPage(), ctx, name);
 }
 
@@ -661,7 +664,7 @@ check('and the nav', /Wydarzenia/.test(polishNav), polishNav.replace(/\n+/g, ' |
 console.log('\n[13] The navbar on a phone');
 // A dedicated context, because the viewport is the thing under test and resizing a page other checks
 // have already used would leave them depending on the order they ran in.
-const phoneCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+const phoneCtx = await englishContext(browser, BASE, { viewport: { width: 390, height: 844 } });
 const phone = wire(await phoneCtx.newPage(), phoneCtx, 'phone');
 await phone.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
 await phone.evaluate((value) => localStorage.setItem('edmat-auth-token', value), hostToken);

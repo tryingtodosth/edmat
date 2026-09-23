@@ -14,7 +14,7 @@
 	// so switching language re-renders the text in place instead of reloading the page. Imported
 	// here, in the one component every page is inside, so the override is installed before anything
 	// calls a message function.
-	import '$lib/state/locale.svelte';
+	import { localeStore } from '$lib/state/locale.svelte';
 	import Header from '$lib/components/layout/Header.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
 	import { issueReportStore } from '$lib/state/issueReport.svelte';
@@ -22,6 +22,13 @@
 	let { children } = $props();
 
 	onMount(() => themeStore.init());
+	// The interface language for somebody who has never chosen one. Polish is already what the page
+	// painted in (`baseLocale`), so this costs one small request exactly once per browser and does
+	// nothing at all unless the visitor turns out to be somewhere other than Poland — see
+	// lib/state/locale.svelte.ts. Never awaited and never able to reject.
+	onMount(() => {
+		localeStore.initFirstVisit();
+	});
 	// AllowAny server-side and independent of auth — an anonymous visitor's nav/routes need to
 	// reflect a killed feature just as much as a logged-in one's, so this doesn't wait on (or get
 	// gated behind) authStore.init() the way notifications/messages below do.

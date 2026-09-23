@@ -11,6 +11,9 @@ try {
 } catch {
 	({ chromium } = await import('playwright-core'));
 }
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
 const API = process.env.E2E_API ?? 'http://localhost:8000';
 const EXERCISE = process.env.E2E_EXERCISE ?? '1';
@@ -27,7 +30,7 @@ const browser = await chromium.launch(
 );
 
 async function newSession() {
-	const context = await browser.newContext({ viewport: { width: 1280, height: 950 } });
+	const context = await englishContext(browser, BASE, { viewport: { width: 1280, height: 950 } });
 	const page = await context.newPage();
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 	page.on('pageerror', (e) => errors.push(e.message));

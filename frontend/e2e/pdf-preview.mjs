@@ -8,6 +8,9 @@ try {
 } catch {
 	({ chromium } = await import('playwright-core'));
 }
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
 const MATERIAL = process.env.E2E_MATERIAL ?? '1'; // a hosted-PDF material (corpus skrypt)
 let pass = 0,
@@ -21,7 +24,9 @@ const check = (l, ok, x = '') => {
 const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
-const page = await (await browser.newContext({ viewport: { width: 1200, height: 950 } })).newPage();
+const page = await (
+	await englishContext(browser, BASE, { viewport: { width: 1200, height: 950 } })
+).newPage();
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(e.message));
 const settle = (ms) => page.waitForTimeout(ms);

@@ -9,6 +9,9 @@ try {
 } catch {
 	({ chromium } = await import('playwright-core'));
 }
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
 // E2E_API may be given with or without a trailing /api — both conventions exist among these scripts.
 const API = (process.env.E2E_API ?? 'http://localhost:8000').replace(/\/api\/?$/, '') + '/api';
@@ -25,7 +28,9 @@ const check = (l, ok, x = '') => {
 const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
-const page = await (await browser.newContext({ viewport: { width: 1200, height: 900 } })).newPage();
+const page = await (
+	await englishContext(browser, BASE, { viewport: { width: 1200, height: 900 } })
+).newPage();
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(e.message));
 const settle = (ms = 800) => page.waitForTimeout(ms);

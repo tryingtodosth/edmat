@@ -86,6 +86,25 @@ test-runner suite.
     works, so the symptom reads as "that one feature is broken" rather than "the migration never
     ran" — check the server log for `no such table` before believing the feature.
 
+24. **The interface default is POLISH (2026-09-23).** `baseLocale` in `project.inlang/settings.json`
+    is `pl`, so a fresh context — no cookie, no storage — reads the Polish catalogue, and a script
+    written before that date whose checks name English buttons now fails, or passes vacuously
+    because its `includes()` matched nothing either way. `navbar-stages.mjs` failed five search
+    checks and two picker checks on exactly this. Ask for English the way a person does:
+    `import { englishContext } from './english.mjs'` and replace `browser.newContext(opts)` with
+    `englishContext(browser, BASE, opts)` — it sets `PARAGLIDE_LOCALE=en` on the CONTEXT, before
+    the first navigation, so even the server-rendered first paint is English. Already applied to
+    eleven scripts; the rest are Polish-by-default now, which is what a real first-time visitor
+    sees. A script testing the default itself (`language-default.mjs`) must NOT use it.
+
+25. **Waiting for an element proves nothing about whether it WORKS.** Every control in the header
+    is in the server-rendered HTML, so `.drawer-toggle` resolves — and clicks do nothing — until
+    the bundle has hydrated, which on a dev server can be many seconds (trap 11). A
+    `visibility: hidden` drawer still returns a bounding box, so geometry checks "pass" against a
+    drawer that never opened. `phone-navbar.mjs` and `language-default.mjs` now wait for the root
+    layout's own boot request instead of a fixed timeout:
+    `page.waitForResponse((r) => r.url().includes('/feature-flags/'))`, registered BEFORE `goto`.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through
