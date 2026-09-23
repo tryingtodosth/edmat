@@ -9082,3 +9082,70 @@ e2e:       node e2e/event-preview.mjs (8102 / 5202)     → 26 passed, 0 failed;
   notice until something 404s.
 - **`registrations/export` for a volunteer is 200 here.** That is today's behaviour and the matrix
   records it as such; step G tightens exactly that response, and its own rows will change this one.
+
+## 17BF. Conference management: seven branches built at once, and the integration (2026-09-23)
+
+`CONFERENCE-BRIEF.md` reconciled two Gemini Deep Research reports (saved beside it with the prompt
+that produced them) into seven steps and one set of rules for building them **in parallel**: one new
+app per step, only one step (D) allowed an `events` migration, i18n keys prefixed per step and
+appended at the end of both catalogues, seven HTML-comment mount points on the event page, and a
+prep commit (`1da5027`) that seeded all six kill switches in one `moderation` migration so no branch
+would add its own. Seven Opus 5 agents then built A–G on seven worktrees, each with its own port
+pair, boards entry and history section (§17BF.A–G above, in the order they were merged: F, A, C, G,
+E, B). This section is the integrator's: what merging them took, what was wired across them, and
+what the merged page revealed that no single branch could.
+
+**What merging took.** Every merge conflicted in the same eight places — both catalogues, `labels.ts`,
+the event page's import block, `settings.py`, `urls.py`, `test.md`, `HISTORY.md` — and every conflict
+was the "both appended here" kind the rules had made inevitable and harmless. A small resolver
+(`resolve_union.py`, kept in the job's scratch directory, not the repo) rebuilt each catalogue from
+base + ours + theirs and unioned the rest; the seams it could not know about were a missing `};`
+where one step's last object met the next step's first comment in `labels.ts` (three times), a
+missing blank line before each appended history section, and once a history section split in two
+because git found common lines inside it — rebuilt from the branch's own copy. Step G's
+`events/0011_exportlog` keeps its number because D's `0011_tickets` is not merged.
+
+**Wired across steps** (`CONFERENCE-BRIEF.md` §5), commit `2e94f2f`: the `venue` document tier
+answers to the administrators of the building the event has an *approved* booking with
+(`documents.access.venue_admin_check` → `venues.access.is_venue_admin`); a rostered cloakroom desk is
+worked by its confirmed assignees and the organisers, the plain staff rule otherwise or with the
+`shifts` switch off (`cloakroom.rules.can_operate` → `shifts.rules.holds_station_assignment`); the
+desk's deposit and every return answer the same `409 briefing_unread` as check-in, its reads do not,
+and the desk page shows the same interstitial; `purge_event_data` blanks a cloakroom item's lost-slip
+fields after the window. Then B's router: the four new apps' `urls.py` use `NumericPkRouter`, and the
+one matrix row B had recorded as "today's behaviour" (a volunteer downloading the full CSV) now
+expects the 403 step G introduced.
+
+**What only the merged page could show.** Each panel had been alone on its branch's event page and
+each was clean there. Together, three of them asked the API on behalf of readers it refuses — the
+venue panel's bookings for a signed-out visitor (401), the checklist for an attendee (401/404), the
+rota's stations for anyone (404 by house rule 4) — and the zero-console-errors checks in three e2e
+scripts counted every one. Bookings now need a signed-in reader, the checklist an organiser, the
+rota a staff member (the page passes its `canCheckIn` as `isStaff`); commit `11230e1`. Two e2e
+lessons on the way: eleven scripts signing in back to back trip the login throttle (three crashed
+at `login` with 429s in the backend log — a pause between scripts is the fix), and the three older
+event scripts (registration, programme, contributions) predate the Polish-by-default flip and
+asserted English copy against a Polish page; they use `englishContext()` now.
+
+**Verified on the merged tree**: `manage.py test` — **2064 tests, OK** (20 min, `--parallel 1`, after the last
+merge); `manage.py check` clean and `makemigrations --check` empty after every merge; `npm run check`
+0 errors / 0 warnings after every merge; `npm run build` clean with the QR decoder and pdf.js absent
+from the entry chunk; the e2e scripts against fresh servers on the merged tree, one at a time with the
+throttle cache cleared before each: `venues` 33/33, `event-documents` 27/27, `event-shifts` 28/28,
+`event-cloakroom` 24/24, `event-exports` 24/24, `event-preview` 26/26, `event-registration` 26/26,
+`event-programme` 23/23, `event-contributions` 19/19, `events-and-nav` 90/92 — the two left are the
+`events` kill switch still showing its nav link and homepage tab after the flag is pulled, **bisected
+to `1da5027`** (a scratch worktree at the prep commit fails the same two), so pre-existing from the
+day's earlier header work and filed on the todo board. Every screenshot the scripts take was looked
+at by the step that wrote it; the integrator looked at the merged event page and the phone drawer.
+
+**Left open** (each on the board under "Conference step X" or "Conference integration"):
+- **Step D (tickets, QR, scanner, badge sheet) is not merged.** Its agent was stopped before
+  verification; everything it built is WIP commit `ea80208` on `conf/d-tickets` (history section
+  written, verification list not run). Merging it means renumbering G's `0011_exportlog` to `0012`,
+  gating `/scans/` behind `briefing_block_reason`, teaching the purge `ScanEvent`, and matrix rows.
+- **The permission matrix has rows for the pre-existing events surface only.** A, C, E, F and G's
+  endpoints are named in their integrator notes; the rows are still to be written.
+- The nineteen nested-id routes outside `events/` that still answer 500 to a non-numeric id
+  (B's list: `courses/views.py` 16, `coauthoring/views.py` 2, `community/views.py` 1).
+- Each step's own "left open" list (§17BF.A–G), and the brief's §7.
