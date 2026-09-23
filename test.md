@@ -1420,3 +1420,33 @@ all) and deletes it through the real API at the end, confirming by re-query.
 of `tail`, not of Django, so a piped run says `EXIT=0` however many tests failed. Run it unpiped
 into a file and read the `OK` / `FAILED (…)` line out of that file. This was caught here after two
 suite runs had already been recorded as passing on nothing but a pipeline's exit code.
+
+## Conference step D — tickets, the door and the badge sheet
+
+`backend/events/test_tickets.py` (CONFERENCE-BRIEF.md §3.D) covers the ticket token, the scanner's
+batch endpoint and the badge sheet, refusals first: a stranger asking for somebody else's ticket
+(403), an attendee posting scans (403), a volunteer reading the scan log or the badge sheet (403),
+a `pending` row told *which* refusal it is instead of being handed a ticket (409 carrying the
+status), an unknown token logged as `unknown`, a second entry → `already_in`, two entries for one
+token **in one batch** → the later is `collision`, an exit then an entry → admitted again, a
+replayed `client_nonce` returning the same stored row with no second `ScanEvent`, `rotate`
+invalidating the old token, a clock running fast that cannot stamp a check-in in the future, and
+the shape assertions that `checkin-list` carries no ids and no contact data while the badge sheet
+prints adults in full and minors as `Anna K.`. One test flips the `tickets` flag off and asserts
+the whole surface 403s **while check-in by button still works** — house rule 3 from the other side.
+Run it with `../.venv/bin/python3 manage.py test events` from `backend/`.
+
+`frontend/e2e/event-tickets.mjs` drives the real pages: Ola's ticket page (the QR read back as
+drawn pixels rather than a present element, the short code matching the API, the room named), the
+scanner's **typed-code** path with its result banner turning from "queued" into "Come in", the name
+search over the cached list, the registrations panel showing her checked in, the badge-sheet link
+beside the CSV button, and the badge grid. The camera cannot be driven — Playwright can fake a
+stream but not one holding a QR code in focus — so the camera button is asserted to exist and the
+decode path is exercised through the code a volunteer types when it fails, which is the same
+`queueScan()` → IndexedDB → batch path. A batch with an exit, a re-entry, a same-batch duplicate
+and an unknown token goes through the API directly, because a batch is what the offline queue
+actually sends and a browser only ever queues one scan at a time. It finishes with the house-rule-11
+bundle assertion — `jsqr` and `qrcode` absent from `build/_app/immutable/entry/*.js` — which prints
+a loud skip line rather than passing when no build is lying beside the source.
+
+    cd frontend && E2E_BASE=http://localhost:5204 E2E_API=http://127.0.0.1:8104 node e2e/event-tickets.mjs

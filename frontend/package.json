@@ -58,6 +58,7 @@
 		"dompurify": "^3.2.4",
 		"events": "^3.3.0",
 		"isomorphic-dompurify": "^3.20.0",
+		"jsqr": "^1.4.0",
 		"katex": "^0.16.11",
 		"ketcher-core": "^3.18.0",
 		"ketcher-react": "^3.18.0",

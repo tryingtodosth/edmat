@@ -22,6 +22,8 @@
 	import BriefingInterstitial from './BriefingInterstitial.svelte';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import { onMount } from 'svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import { authStore } from '$lib/state/auth.svelte';
 
 	let { event, onchanged }: { event: EdmatEvent; onchanged?: () => void } = $props();
 	let rows = $state<EventAttendee[]>([]);
@@ -78,6 +80,12 @@
 			<button type="button" onclick={exportCsv} disabled={rows.length === 0}
 				>{m.events_exportCsv()}</button
 			>
+			<!-- CONFERENCE-BRIEF.md §3.D: one line, beneath the CSV button. The badge sheet is the printable
+			     half of this same list, and this is where an organiser is already standing when they want it. -->
+			{#if featureFlagsStore.isEnabled('tickets') || authStore.isModerator}<a
+					class="badges"
+					href={resolve('/events/[id]/badges', { id: event.id })}>{m.tickets_badges()}</a
+				>{/if}
 		{/if}
 	</div>
 	<!-- conference: exports -->
@@ -248,6 +256,9 @@
 		background: var(--status-warning-bg);
 		color: var(--status-warning);
 		border-color: transparent;
+	}
+	.badges {
+		font-size: 0.85rem;
 	}
 	.by,
 	.note,

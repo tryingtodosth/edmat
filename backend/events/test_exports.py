@@ -19,7 +19,7 @@ from testing.factories import make_user
 from .exports import WITHHELD_FROM_NON_ORGANISERS, needs_summary
 from cloakroom.models import CloakroomDesk, CloakroomItem
 
-from .models import Event, EventStaff, ExportLog, RegistrationField
+from .models import Event, EventStaff, ExportLog, RegistrationField, ScanEvent
 
 
 def as_(user):
@@ -291,6 +291,21 @@ class PurgeTests(ExportCase):
         self.assertEqual(item.exception_identity_kind, 'none')
         self.assertEqual(item.status, 'returned_by_exception')
         self.assertEqual(item.rack_label, '1')
+
+    def test_it_deletes_the_door_scans_and_keeps_the_check_in(self):
+        # Integration with step D (CONFERENCE-BRIEF.md §5): scan rows are telemetry and go whole.
+        ScanEvent.objects.create(
+            event=self.event, attendance=self.row, token_seen='ABCDEFGH', direction='entry',
+            result='admitted', client_nonce='purge-1', client_at=timezone.now(),
+            scanned_by=self.volunteer, device_label='door A',
+        )
+        text = self.run_command('--dry-run')
+        self.assertIn('1 door scans deleted', text)
+        self.assertEqual(ScanEvent.objects.count(), 1)
+        self.run_command()
+        self.assertEqual(ScanEvent.objects.count(), 0)
+        self.row.refresh_from_db()
+        self.assertIsNotNone(self.row.checked_in_at)
 
     def test_a_recent_event_is_left_alone(self):
         self.event.starts_at = timezone.now() - timedelta(days=2)

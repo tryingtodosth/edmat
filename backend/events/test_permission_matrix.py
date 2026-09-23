@@ -431,6 +431,38 @@ _EXCEPTION_ANONYMOUS = {'description': 'Czarny płaszcz', 'identity_kind': 'none
 #: (persona, method, path, body, expected status, why). Paths are formatted with `cls.ids` and get
 #: an `/api` prefix. `None` as a body means "send nothing".
 MATRIX = [
+
+    # ---- step D: tickets, the door, the badge sheet (events/ticket_views.py; integration) --------
+    # This fixture's stranger holds a `pending` registration (the approval-mode row above), so the
+    # ticket endpoint names that refusal rather than 404-ing — the whole point of §3.D's design.
+    ('stranger', 'GET', '/events/{event}/my-ticket/', None, 409, 'pending — told which refusal, not 404'),
+    ('attendee', 'GET', '/events/{event}/my-ticket/', None, 200, 'holds a seat, so has a ticket'),
+    ('volunteer', 'GET', '/events/{event}/my-ticket/', None, 404, 'staff without a seat has no ticket'),
+    ('organiser', 'GET', '/events/{event}/my-ticket/', None, 404, 'the host does not attend'),
+    ('stranger', 'POST', '/events/{event}/my-ticket/rotate/', {}, 409, 'pending — nothing to rotate yet'),
+    ('attendee', 'POST', '/events/{event}/my-ticket/rotate/', {}, 200, 'their own ticket'),
+    ('stranger', 'GET', '/events/{event}/checkin-list/', None, 403, 'staff only'),
+    ('attendee', 'GET', '/events/{event}/checkin-list/', None, 403, 'staff only'),
+    ('volunteer', 'GET', '/events/{event}/checkin-list/', None, 200, 'the door needs the list'),
+    ('organiser', 'GET', '/events/{event}/checkin-list/', None, 200, 'staff'),
+    ('stranger', 'POST', '/events/{event}/scans/',
+     {'scans': [{'token': 'nope', 'direction': 'entry', 'client_nonce': 'mx-s', 'client_at': '2026-09-23T10:00:00Z'}]},
+     403, 'staff only'),
+    ('attendee', 'POST', '/events/{event}/scans/',
+     {'scans': [{'token': 'nope', 'direction': 'entry', 'client_nonce': 'mx-a', 'client_at': '2026-09-23T10:00:00Z'}]},
+     403, 'staff only'),
+    ('volunteer', 'POST', '/events/{event}/scans/',
+     {'scans': [{'token': 'nope', 'direction': 'entry', 'client_nonce': 'mx-v', 'client_at': '2026-09-23T10:00:00Z'}]},
+     200, 'a batch is always answered; an unknown token is a result, not an error'),
+    ('clerk', 'POST', '/events/{event}/scans/',
+     {'scans': [{'token': 'nope', 'direction': 'entry', 'client_nonce': 'mx-c', 'client_at': '2026-09-23T10:00:00Z'}]},
+     409, 'briefing_unread — the door answers the documents gate like check-in and the desk'),
+    ('stranger', 'GET', '/events/{event}/scans/', None, 403, 'organisers only'),
+    ('volunteer', 'GET', '/events/{event}/scans/', None, 403, 'the log is the organisers\''),
+    ('organiser', 'GET', '/events/{event}/scans/', None, 200, 'the log'),
+    ('attendee', 'GET', '/events/{event}/badge-sheet/', None, 403, 'organisers only'),
+    ('volunteer', 'GET', '/events/{event}/badge-sheet/', None, 403, 'organisers only'),
+    ('organiser', 'GET', '/events/{event}/badge-sheet/', None, 200, 'the printable list'),
     # ---- the event itself ---------------------------------------------------------------------
     ('anonymous', 'GET', '/events/{event}/', None, 200, 'a published, public event is public'),
     ('stranger', 'GET', '/events/{event}/', None, 200, 'same'),

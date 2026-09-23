@@ -20,6 +20,7 @@ from django.utils import timezone
 from notifications.services import notify
 
 from .models import PROMOTION_WINDOW, SEAT_HOLDING_STATUSES, EventAttendance
+from .scanning import ensure_ticket
 
 
 def _label(event) -> str:
@@ -50,6 +51,9 @@ def promote_next(event, actor=None):
             candidate.status = 'promoted'
             candidate.promotion_expires_at = timezone.now() + PROMOTION_WINDOW
             candidate.save(update_fields=['status', 'promotion_expires_at', 'responded_at'])
+            # A promoted row holds a seat, so it gets its ticket now rather than when it confirms:
+            # somebody offered a seat at 23:00 should be able to open their ticket at 23:01.
+            ensure_ticket(candidate)
             notify(
                 candidate.attendee,
                 'registration_promoted',
@@ -97,6 +101,9 @@ def register(event, user, *, answers=None, note='', registered_by=None, actor=No
         else:
             row.status = 'going'
         row.save()
+        # The ticket is minted HERE, in the transition, not in a signal — `ensure_ticket`'s own
+        # docstring says why (`QuerySet.update()` fires no signal) and what it costs.
+        ensure_ticket(row)
     newly_holding = row.status in SEAT_HOLDING_STATUSES and not was_holding and first_seat_possible
     if row.status == 'waitlisted' and not was_holding:
         # `actor=None`: the person did this themselves, and notify() drops a self-actor row — but a
@@ -117,6 +124,7 @@ def withdraw(event, user, *, note='', actor=None):
         row.promotion_expires_at = None
         row.checked_in_at = None
         row.checked_in_by = None
+        row.checked_out_at = None
         if note:
             row.note = note
         row.save()
@@ -145,6 +153,7 @@ def decide(event, row, accept: bool, actor):
         row.status = 'not_going'
         kind = 'registration_declined'
     row.save()
+    ensure_ticket(row)
     notify(row.attendee, kind, actor=actor, target_label=_label(event), event=event)
     return row, None
 
@@ -153,12 +162,16 @@ def check_in(row, actor, undo=False):
     if undo:
         row.checked_in_at = None
         row.checked_in_by = None
+        # The exit stamp goes with it: "inside" is derived from the pair, and an undo that left a
+        # `checked_out_at` behind would leave a row that had left without ever arriving.
+        row.checked_out_at = None
     else:
         if row.status != 'going':
             return 'not_going'
         row.checked_in_at = timezone.now()
         row.checked_in_by = actor
-    row.save(update_fields=['checked_in_at', 'checked_in_by', 'responded_at'])
+        row.checked_out_at = None
+    row.save(update_fields=['checked_in_at', 'checked_in_by', 'checked_out_at', 'responded_at'])
     return None
 
 
@@ -179,6 +192,7 @@ def demote_over_capacity(event, actor):
         row.promotion_expires_at = None
         row.checked_in_at = None
         row.checked_in_by = None
+        row.checked_out_at = None
         row.save()
         row.session_registrations.all().delete()
         notify(row.attendee, 'registration_waitlisted', actor=actor, target_label=_label(event), event=event, note='capacity_reduced')

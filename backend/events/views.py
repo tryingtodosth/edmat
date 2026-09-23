@@ -61,7 +61,12 @@ from .contribution_views import ContributionMixin
 from .exports import ExportMixin
 
 
-class EventViewSet(ProgrammeMixin, RegistrationMixin, ContributionMixin, ExportMixin, viewsets.ModelViewSet):
+from .ticket_views import TicketMixin
+
+
+class EventViewSet(
+    ProgrammeMixin, RegistrationMixin, ContributionMixin, ExportMixin, TicketMixin, viewsets.ModelViewSet
+):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate]
 
     _hidden_by_language = 0

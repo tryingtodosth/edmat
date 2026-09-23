@@ -31,6 +31,7 @@
 	import DocumentsPanel from '$lib/components/event/DocumentsPanel.svelte';
 	import RotaPanel from '$lib/components/shift/RotaPanel.svelte';
 	import EventPreview from '$lib/components/event/EventPreview.svelte';
+	import TicketLinks from '$lib/components/event/TicketLinks.svelte';
 	import {
 		addEventStaff,
 		getEventStaff,
@@ -603,7 +604,7 @@
 
 				<DocumentsPanel {event} />
 
-				<!-- conference: ticket -->
+				<TicketLinks {event} />
 
 				<RotaPanel eventId={event.id} canOrganise={event.canOrganise} isStaff={event.canCheckIn} />
 
