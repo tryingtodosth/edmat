@@ -17,6 +17,8 @@ from telemetry.routers import all_log_shards
 from testing.factories import make_user
 
 from .exports import WITHHELD_FROM_NON_ORGANISERS, needs_summary
+from cloakroom.models import CloakroomDesk, CloakroomItem
+
 from .models import Event, EventStaff, ExportLog, RegistrationField
 
 
@@ -270,6 +272,25 @@ class PurgeTests(ExportCase):
         self.assertEqual(self.row.answers['_attendance_mode'], 'online')
         self.assertEqual(self.row.note, 'I will be twenty minutes late')
         self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
+
+    def test_it_blanks_the_cloakroom_lost_slip_records_and_keeps_the_rack_history(self):
+        # Integration with step F (CONFERENCE-BRIEF.md §5).
+        desk = CloakroomDesk.objects.create(event=self.event, name='Szatnia', rack_labels=['1'])
+        item = CloakroomItem.objects.create(
+            desk=desk, rack_label='1', token='ABCDEFGH', status='returned_by_exception',
+            description='czarna kurtka', exception_note='pokazano legitymację',
+            exception_identity_kind='student_card',
+        )
+        text = self.run_command('--dry-run')
+        self.assertIn('1 cloakroom lost-slip records blanked', text)
+        item.refresh_from_db()
+        self.assertEqual(item.exception_note, 'pokazano legitymację')
+        self.run_command()
+        item.refresh_from_db()
+        self.assertEqual(item.exception_note, '')
+        self.assertEqual(item.exception_identity_kind, 'none')
+        self.assertEqual(item.status, 'returned_by_exception')
+        self.assertEqual(item.rack_label, '1')
 
     def test_a_recent_event_is_left_alone(self):
         self.event.starts_at = timezone.now() - timedelta(days=2)

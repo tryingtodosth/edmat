@@ -49,7 +49,21 @@ def can_operate(user, event) -> bool:
     """
     if not (user and getattr(user, 'is_authenticated', False)):
         return False
-    return event.is_staff_member(user)
+    if not event.is_staff_member(user):
+        return False
+    # Integration (CONFERENCE-BRIEF.md §5, 2026-09-23): when the event rostered a `cloakroom`
+    # station on step E's rota, the desk is worked by whoever holds a confirmed assignment there —
+    # and by the organisers, who built the rota and are the ones a clerk fetches when a slip is
+    # lost. An event that never built a rota keeps the plain staff rule; and with the `shifts`
+    # switch off the rota is invisible, so it cannot be the thing that locks a desk.
+    if event.can_organise(user):
+        return True
+    from moderation.services import is_feature_enabled
+    from shifts.rules import event_has_station, holds_station_assignment
+
+    if is_feature_enabled('shifts') and event_has_station(event, 'cloakroom'):
+        return holds_station_assignment(user, event, 'cloakroom')
+    return True
 
 
 def deposit_block_reason(user, desk, rack_label: str) -> str | None:

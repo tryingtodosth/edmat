@@ -20,6 +20,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
 from events.models import Event, EventStaff
+from venues.models import Room, RoomBooking, Venue, VenueStaff
 from moderation.models import FeatureFlag
 from telemetry.routers import all_log_shards
 from testing.factories import make_user
@@ -90,6 +91,45 @@ class DocumentCase(APITestCase):
         }
         payload.update(over)
         return client.post(self.list_url, payload, format='multipart')
+
+
+class VenueTierTests(DocumentCase):
+    """Integration with step A (CONFERENCE-BRIEF.md §5): the `venue` tier answers to the
+    administrators of the building the event has an APPROVED booking with — nobody else, and not
+    before the building has said yes."""
+
+    def setUp(self):
+        super().setUp()
+        self.venue_admin = make_user('doc-venue-admin')
+        self.porter = make_user('doc-porter')
+        venue = Venue.objects.create(name='Pasteura 5', slug='pasteura-5')
+        VenueStaff.objects.create(venue=venue, user=self.venue_admin, role='administrator',
+                                  added_by=self.venue_admin)
+        VenueStaff.objects.create(venue=venue, user=self.porter, role='porter',
+                                  added_by=self.venue_admin)
+        self.room = Room.objects.create(venue=venue, name='Aula', seated_capacity=100,
+                                        fire_capacity=150)
+        self.booking = RoomBooking.objects.create(
+            event=self.event, room=self.room, starts_at=self.event.starts_at,
+            ends_at=self.event.starts_at + timedelta(hours=4), requested_by=self.host,
+        )
+        self.doc = self.make_document(title='Umowa najmu', visibility='venue')
+
+    def titles(self, user):
+        response = as_(user).get(self.list_url)
+        self.assertEqual(response.status_code, 200)
+        return {row['title'] for row in response.data}
+
+    def test_a_requested_booking_grants_nothing_yet(self):
+        self.assertNotIn('Umowa najmu', self.titles(self.venue_admin))
+
+    def test_an_approved_booking_opens_the_tier_to_the_administrator_only(self):
+        self.booking.status = 'approved'
+        self.booking.save(update_fields=['status'])
+        self.assertIn('Umowa najmu', self.titles(self.venue_admin))
+        self.assertNotIn('Umowa najmu', self.titles(self.porter))
+        self.assertNotIn('Umowa najmu', self.titles(self.volunteer))
+        self.assertIn('Umowa najmu', self.titles(self.host))
 
 
 class TierRefusalTests(DocumentCase):

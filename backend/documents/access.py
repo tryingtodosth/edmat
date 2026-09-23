@@ -30,7 +30,7 @@ FLAG = 'event_documents'
 # defaults OPEN would mean every document filed under it was readable by the wrong people for the
 # length of one merge window.
 #
-# INTEGRATION (CONFERENCE-BRIEF.md §5, first bullet): replace the body with
+# INTEGRATION (CONFERENCE-BRIEF.md §5, first bullet) — DONE 2026-09-23; the body below is what this asked for:
 #     from venues.access import is_venue_admin
 #     booking = event.room_bookings.filter(status='approved').first()
 #     return bool(booking) and is_venue_admin(user, booking.room.venue)
@@ -39,7 +39,18 @@ FLAG = 'event_documents'
 # module that owns the rule, and so a test can monkeypatch it (see `tests.py`) to prove the tier is
 # real rather than decorative.
 def venue_admin_check(user, event) -> bool:
-    return False
+    """Wired at integration (CONFERENCE-BRIEF.md §5, 2026-09-23) exactly as the comment above
+    prescribed: the building an event has an APPROVED booking with is the one whose administrators
+    read its `venue` tier. A requested-but-undecided booking grants nothing — the building has not
+    said yes yet — and an event with no booking has no venue tier reader but its organisers."""
+    if not (user and getattr(user, 'is_authenticated', False)):
+        return False
+    from venues.access import is_venue_admin
+
+    booking = (
+        event.room_bookings.filter(status='approved').select_related('room__venue').first()
+    )
+    return bool(booking) and is_venue_admin(user, booking.room.venue)
 
 
 def visible_tiers_for(user, event) -> frozenset[str]:
