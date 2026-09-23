@@ -147,7 +147,7 @@
 							<span class="kind">{EVENT_EXPORT_KIND_LABELS[entry.kind]()}</span>
 							<span class="who"
 								>{m.exports_logEntry({
-									name: entry.user?.displayName ?? m.exports_logDeletedAccount(),
+									name: entry.user?.displayName ?? m.exports_logDeletedAccount(), // "a closed account"
 									rows: entry.rows,
 									when: formatDateTime(entry.createdAt)
 								})}<!-- "{name}, {when} · people: {rows}" --></span
