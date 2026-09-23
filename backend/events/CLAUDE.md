@@ -47,7 +47,39 @@ post is refused. `EventSerializer.post_count` prefetch needs **`to_attr`** — w
 deferred queryset lands in the related manager's cache and later `.select_related()` chains onto
 its `.only()` → `FieldError`.
 
+## Exports and retention (`exports.py`, CONFERENCE-BRIEF.md §3.G)
+
+**Not every staff member gets the same registration row.** `GET /registrations/` answers an
+organiser with `EventAttendanceSerializer` (answers, note, account id, waiting-list timing) and
+everybody else — volunteers *and* reviewers — with `exports.DoorListAttendanceSerializer`: the row
+id, the name, the status and the check-in stamp, and `attendee.id` is **null**. The row id is kept
+deliberately, because it is what `POST /registrations/{row_id}/checkin/` addresses; nothing a
+volunteer does addresses a person. Adding a field to the full serializer without deciding which
+side of that line it falls on is the way this leaks — `WITHHELD_FROM_NON_ORGANISERS` is asserted
+against in `test_exports.py` so the decision is forced.
+
+The **full CSV** (`/registrations/export/`) is organisers-only since §3.G — it was every staff
+member, and it is the exact file the research report names as the commonest accidental disclosure
+at an academic event. Every download of it, and of the door list, writes an `ExportLog` row
+(`log_export()` is the only writer). `exports/needs/` is counts and nothing else and is
+**not** logged: no identifiers, and the organiser's own panel fetches it on open. Where a question
+is free text, the aggregate is `answered` / `unanswered` and never the text — house rule 10.
+
+`_attendance_mode` is resolved, not merely read (`_resolved_mode`): only a hybrid event asks the
+question, so reading the stored key alone would report every attendee of an ordinary onsite
+lecture as "did not say".
+
+**Retention** is `manage.py purge_event_data --older-than-days 30 [--dry-run]`, implemented in
+`purge_event_data()` here rather than in the command, so the integration work has one place to
+happen. It blanks the accessibility note and free-text answers and nulls `checked_in_by`; it never
+touches who attended, the multiple-choice answers (so an aggregate stays reproducible) or the
+programme. `Event.ends_at` is a property, so the cutoff is a `starts_at__lt` candidate filter plus
+a Python test. `RETENTION_NOTE` names `ScanEvent` and `CloakroomItem` as what the command must
+learn at integration, and `EventAttendance.note` as the field somebody still has to decide about.
+Nothing schedules the command — `LEGAL.md` §8 says so rather than implying a cron that is not
+there.
+
 ## Verify
 
-`manage.py test events` (95 tests, refusal-weighted) + the availability half in
+`manage.py test events` (refusal-weighted; `test_exports.py` is the §3.G half) + the availability half in
 `booking/tests.py`. E2E: `events-and-nav.mjs`, `known-issues.mjs`.

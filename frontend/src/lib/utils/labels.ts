@@ -10,6 +10,7 @@ import type {
 	SessionLinkRole,
 	Difficulty,
 	DonationPlatform,
+	EventExportKind,
 	ExerciseLinkRole,
 	FeatureFlagKey,
 	BuiltinMaterialType,
@@ -446,4 +447,13 @@ export const EXERCISE_LINK_ROLES: ExerciseLinkRole[] = ['source', 'practice'];
 export const EXERCISE_LINK_ROLE_LABELS: Record<ExerciseLinkRole, () => string> = {
 	source: m.exLink_roleSource, // "In this material"
 	practice: m.exLink_rolePractice // "Practises this material"
+};
+
+// Event export kinds — a hand-maintained mirror of `EXPORT_KIND_CHOICES` in
+// backend/events/models.py, which names this file back (house rule 13). Two values, and the
+// difference between them is the whole of `backend/events/exports.py`: `full_csv` names people and
+// carries their answers, `door_list` is a name, a status and a tick.
+export const EVENT_EXPORT_KIND_LABELS: Record<EventExportKind, () => string> = {
+	full_csv: m.exports_kind_fullCsv, // "Full registration CSV"
+	door_list: m.exports_kind_doorList // "Door list"
 };

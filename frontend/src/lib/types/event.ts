@@ -385,3 +385,37 @@ export type ContributionVerb =
 	| 'reject'
 	| 'schedule'
 	| 'unschedule';
+
+// ---- exports and retention (CONFERENCE-BRIEF.md §3.G, backend/events/exports.py) ---------------
+
+/** What kind of file left the system. Mirrored in `lib/utils/labels.ts`; the backend list is
+ * `EXPORT_KIND_CHOICES` in `backend/events/models.py`. */
+export type EventExportKind = 'full_csv' | 'door_list';
+
+/** One organiser-defined question, counted. `options` is empty for a free-text question, where
+ * `answered` / `unanswered` is the whole of what can honestly be aggregated. */
+export interface EventNeedsField {
+	fieldId: number;
+	label: string;
+	kind: RegistrationFieldKind;
+	options: { option: string; count: number }[];
+	answered: number;
+	unanswered: number;
+}
+
+/** Counts, and nothing but counts — no row of the roster reaches this response. */
+export interface EventNeedsSummary {
+	total: number;
+	attendanceMode: { inPerson: number; online: number; unstated: number };
+	/** Two numbers. The wording of an accessibility request stays with the organiser. */
+	accessibility: { stated: number; none: number };
+	fields: EventNeedsField[];
+}
+
+export interface EventExportLogEntry {
+	id: string;
+	kind: EventExportKind;
+	rows: number;
+	user: EventPerson | null;
+	createdAt: string;
+}

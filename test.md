@@ -1197,3 +1197,50 @@ cd backend
   right; the assertion was ambiguous. Scope to the section (`.enrol`, `.roster`) instead.
 - **Chromium's `innerText` returns *rendered* text**, so a heading styled `text-transform: uppercase`
   reads back uppercase. Match case-insensitively or you are testing the stylesheet.
+
+---
+
+## 6. Exports, minimisation and retention — conference step G (2026-09-23)
+
+`backend/events/test_exports.py` (25 tests, `CONFERENCE-BRIEF.md` §3.G). Refusals first: the needs
+summary and the export log are organisers-only and a stranger, an attendee, a volunteer and a
+reviewer are each turned away by name; the door list is every staff member and nobody else; the
+**full registration CSV, which was every staff member, is organisers-only now** — that one line is
+the whole of the change and has its own test. Then the minimisation itself:
+`test_a_volunteer_sees_no_answers_no_note_and_no_account_id` asserts the volunteer's row is exactly
+`{id, attendee, status, checked_in, checked_in_at}` and that `attendee.id` is `null`, and it is
+checked against `exports.WITHHELD_FROM_NON_ORGANISERS` so a field added to the full serializer
+later has to be put on one side of the line or the other. A companion test checks that the narrow
+row is still *enough* — a volunteer undoes a check-in from it. Then the aggregates (seat holders
+only, a declined row's accessibility note never reaching the count, per-option counts for a choice
+field, `answered`/`unanswered` and never the text for a free-text one, and an onsite event not
+reporting everybody as "did not say"), the `ExportLog` rows the two file downloads write and the
+aggregate read deliberately does not, and finally the purge: a dry run that reports and writes
+nothing, a real run that blanks the accessibility note and the free text and nulls `checked_in_by`,
+a run that leaves status, `checked_in_at`, the choice answers and the event itself alone, a recent
+event untouched, the window as a flag, and a second run that is a no-op.
+
+```sh
+cd backend
+../.venv/bin/python3 manage.py test events            # includes test_exports.py
+../.venv/bin/python3 manage.py purge_event_data --dry-run    # prints what it would blank, writes nothing
+```
+
+**`e2e/event-exports.mjs` (24 checks)** — Kasia hosts a hybrid form event with a choice question
+and a free-text one, Ola registers with an accessibility note, Michał is the volunteer. Half the
+script is API probes (a volunteer's `/registrations/` body has exactly five keys and contains
+neither the access note nor the affiliation; 403 on the needs summary and on the full CSV; 200 on
+the door list, whose header row is `name,status,checked_in`), and half is the page: the organiser's
+Exports card renders the needs table with the right counts and the free-text question as
+"1 of 1 answered" with its text nowhere on the card, the export log already carries Michał's API
+download (which is the point of a log), the door list downloads and Kasia's row joins it newest
+first; then the same page as the volunteer, which has the door-list button and no needs table, no
+log, no full-CSV button and no profile link on the registration row.
+
+```sh
+E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node e2e/event-exports.mjs
+```
+
+Two screenshots land in `e2e/screens/`: `event-exports-organiser.png` and
+`event-exports-volunteer.png`. The second is the one worth looking at — it is what the
+minimisation actually looks like.
