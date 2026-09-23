@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * The seven ways into a comment, side by side (asked for as "different abilities to input a
+	 * The ways into a comment, side by side (asked for as "different abilities to input a
 	 * comment: .md, .json, latex, ketcher, chemdoodle, PDF, image"). Each is an INSERT into the one
 	 * body the `RichEditor` beside it already owns, or a file beside it — never a second storage
 	 * shape:
@@ -8,6 +8,12 @@
 	 * - Markdown file — read into the body as text (the body IS Markdown).
 	 * - LaTeX — a displayed equation, previewed live, inserted through the editor's maths node.
 	 * - JSON — pasted or picked, validated and pretty-printed, inserted as a fenced code block.
+	 * - Sketch — a freehand drawing made with the mouse on a FULLSCREEN board (Excalidraw, MIT),
+	 *   saved through `/sketches/` and inserted as the `<img data-sketch>` the server hands back;
+	 *   clicking it later reopens it, exactly like a chemistry drawing. Asked for as "pisanie jak
+	 *   na Zoom" — a picture you draw rather than one you upload. Because this strip is mounted on
+	 *   comments, co-authoring versions and concept markdown blocks, that one button puts a
+	 *   whiteboard on all three.
 	 * - Chemistry — a structure or reaction drawn in a modal, saved through `/chem-drawings/` and
 	 *   inserted as the `<img data-chem>` the server hands back; clicking it later reopens it. The
 	 *   button says what it makes, not which editor makes it; Ketcher is named in the modal's own
@@ -29,6 +35,8 @@
 	import type RichEditor from './RichEditor.svelte';
 	import type { ChemDrawing } from '$lib/types/chem';
 	import { getChemDrawing } from '$lib/services/chem';
+	import type { Sketch } from '$lib/types/sketch';
+	import { getSketch } from '$lib/services/sketches';
 	import { uploadInlineImage } from '$lib/services/inlineImages';
 	import { ApiError } from '$lib/api/client';
 
@@ -46,6 +54,7 @@
 	} = $props();
 
 	const chemistryOn = $derived(featureFlagsStore.isEnabled('chemistry') || authStore.isModerator);
+	const sketchesOn = $derived(featureFlagsStore.isEnabled('sketches') || authStore.isModerator);
 
 	type Panel = 'latex' | 'json' | 'image' | null;
 	let panel = $state<Panel>(null);
@@ -66,6 +75,11 @@
 	// The chemistry modal is fetched on first use — it drags the whole editor stack behind it.
 	let chemOpen = $state(false);
 	let chemExisting = $state<ChemDrawing | null>(null);
+
+	// The whiteboard is fetched on first use for the same reason: Excalidraw (and React with it)
+	// is a chunk nobody who does not draw should ever download.
+	let sketchOpen = $state(false);
+	let sketchExisting = $state<Sketch | null>(null);
 
 	function toggle(next: Panel) {
 		panel = panel === next ? null : next;
@@ -190,6 +204,31 @@
 		}
 	}
 
+	function openSketch() {
+		sketchExisting = null;
+		sketchOpen = true;
+	}
+
+	/** Reopen the board behind a clicked picture (RichEditor's `onSketchEdit`). */
+	export async function editSketch(sketchId: string) {
+		try {
+			sketchExisting = await getSketch(sketchId);
+			sketchOpen = true;
+		} catch {
+			/* a picture whose sketch is gone is just a picture */
+		}
+	}
+
+	function sketchSaved(sketch: Sketch) {
+		if (sketchExisting) {
+			editor?.replaceSketchImage(sketch.id, sketch.imageUrl, sketch.label);
+		} else {
+			editor?.insertHtml(sketch.embedHtml);
+		}
+		sketchOpen = false;
+		sketchExisting = null;
+	}
+
 	function chemSaved(drawing: ChemDrawing) {
 		if (chemExisting) {
 			editor?.replaceChemImage(drawing.id, drawing.imageUrl, drawing.label);
@@ -228,6 +267,12 @@
 			<button type="button" title={m.insert_chemHint()} onclick={openChem}
 				>{m.insert_chemistry()}</button
 			>
+		{/if}
+		{#if sketchesOn && authStore.isAuthenticated}
+			<button type="button" title={m.insert_sketchHint()} onclick={openSketch}
+				>{m.insert_sketch()}</button
+			>
+			<!-- "Sketch" -->
 		{/if}
 		{#if authStore.isAuthenticated}
 			<label class="insert-strip__file" class:on={panel === 'image'}>
@@ -323,6 +368,19 @@
 			onClose={() => {
 				chemOpen = false;
 				chemExisting = null;
+			}}
+		/>
+	{/await}
+{/if}
+
+{#if sketchOpen}
+	{#await import('$lib/components/sketch/SketchEditorModal.svelte') then { default: SketchEditorModal }}
+		<SketchEditorModal
+			existing={sketchExisting}
+			onSaved={sketchSaved}
+			onClose={() => {
+				sketchOpen = false;
+				sketchExisting = null;
 			}}
 		/>
 	{/await}

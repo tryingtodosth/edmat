@@ -1,5 +1,5 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 14 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 15 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
 //
 // THIS UNION AND `FEATURE_FLAG_LABELS` (utils/labels.ts) BOTH MIRROR THE BACKEND'S OWN
@@ -38,6 +38,10 @@ export type FeatureFlagKey =
 	// Chemistry drawings (backend chem/, Ketcher). Off: the editor button leaves every composer and
 	// the drawing API closes; pictures already in content keep rendering.
 	| 'chemistry'
+	// Freehand whiteboard sketches (backend sketches/, Excalidraw). Off: the Sketch button leaves
+	// every composer and `/api/sketches/` closes for a non-staff caller; pictures already embedded
+	// in content keep rendering, because by then they are ordinary media files.
+	| 'sketches'
 	// Picture galleries on a piece of content (backend galleries/). Off: no gallery, no adding a
 	// picture, and the gallery strip leaves every content page.
 	| 'galleries'

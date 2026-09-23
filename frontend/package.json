@@ -44,6 +44,7 @@
 		"vite": "^8.0.16"
 	},
 	"dependencies": {
+		"@excalidraw/excalidraw": "^0.18.1",
 		"@tiptap/core": "^2.27.3",
 		"@tiptap/extension-image": "^2.27.3",
 		"@tiptap/extension-link": "^2.27.3",

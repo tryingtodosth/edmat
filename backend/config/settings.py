@@ -143,6 +143,9 @@ INSTALLED_APPS = [
     'legal',
     # Chemical structure drawings (Ketcher) embedded in content — root CLAUDE.md §17AV.
     'chem',
+    # Freehand whiteboard sketches (Excalidraw) embedded in content — the same shape as `chem`,
+    # a different editor. See sketches/models.py.
+    'sketches',
     'galleries',
     'telemetry',
     'identity',
@@ -597,6 +600,11 @@ REST_FRAMEWORK = {
         # Saving a chemistry drawing decodes and re-encodes a picture (chem/serializers.py) — plenty
         # for somebody drawing a mechanism step by step, far too few for a CPU-exhaustion loop.
         'chem_drawing': '60/hour',
+        # Saving a whiteboard sketch (sketches/serializers.py) decodes a PNG the editor exported
+        # and re-encodes it as WebP — the same decode-and-re-encode CPU lever a chemistry drawing
+        # is, so it gets the same budget. 60/hour is plenty for somebody drawing a figure, fixing
+        # it, and drawing the next one, and far too few for a loop that wants the CPU.
+        'sketch': '60/hour',
         # A picture embedded in the body being written (community/inline_images.py). The same
         # decode-and-re-encode cost as a gallery picture, and the same reason for a rate: somebody
         # illustrating a long answer uploads several, a loop uploads thousands.
@@ -758,6 +766,14 @@ EDMAT_USOS_MOCK = os.environ.get('EDMAT_USOS_MOCK', 'false').lower() == 'true'
 EDMAT_REPOSITORY_URL = os.environ.get(
     'EDMAT_REPOSITORY_URL', 'https://github.com/tryingtodosth/edmat'
 )
+
+# Path to a MaxMind GeoLite2-Country database, for `/api/locale-hint/` — the only thing on this
+# platform that ever asks where a visitor is. Unset (the default, and what every clone and every
+# test run uses) means the lookup answers "I do not know" and a first-time visitor gets Polish,
+# which is the intended default anyway; the database only ever moves somebody OUT of it. The
+# `geoip2` package is an optional extra and is deliberately NOT in requirements.txt — see the
+# setup lines in config/geo.py, which also records why nothing about this is stored or logged.
+EDMAT_GEOIP_DB = os.environ.get('EDMAT_GEOIP_DB', '')
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -339,6 +339,11 @@ FEATURE_FLAG_CHOICES = [
     # editor button leaves every composer; pictures already embedded in content keep rendering,
     # since they are ordinary media files.
     ('chemistry', 'Chemistry drawings (Ketcher)'),
+    # Freehand whiteboard sketches (sketches/, Excalidraw). Off: no saving or editing a sketch, and
+    # the Sketch button leaves every composer; pictures already embedded in content keep rendering,
+    # since they are ordinary media files. Seeded ON by migration 0042 — there is no sketch on the
+    # platform the moment it runs, so turning the switch on removes nothing from anybody.
+    ('sketches', 'Freehand sketches (whiteboard)'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

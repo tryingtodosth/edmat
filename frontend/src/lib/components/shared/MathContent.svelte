@@ -58,6 +58,16 @@
 			max-height: 360px;
 			vertical-align: middle;
 		}
+		// A freehand sketch (backend sketches/) gets the same treatment as a chemistry drawing, and
+		// for the same reason: it is dark line art on a transparent-ish background, so it needs a
+		// white sheet under it to stay readable in the dark theme.
+		:global(img.sketch-drawing) {
+			background: #fff;
+			border-radius: 6px;
+			padding: 4px;
+			max-height: 360px;
+			vertical-align: middle;
+		}
 		:global(p:last-child) {
 			margin-bottom: 0;
 		}

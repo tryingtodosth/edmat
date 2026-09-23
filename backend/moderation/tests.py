@@ -1246,6 +1246,7 @@ class FeatureFlagTests(APITestCase):
                 'age_verification',
                 'coauthoring',
                 'concepts',
+                'sketches',
                 'material_uploads_verified_only',
             },
         )
@@ -1275,6 +1276,9 @@ class FeatureFlagTests(APITestCase):
                     # And concepts, for the plainest version of the same reason: there is no concept
                     # on the platform the moment 0040 runs, so seeding the switch on removes nothing.
                     'concepts',
+                    # And sketches, for exactly that reason again: 0042 seeds the switch on with no
+                    # sketch on the platform, so provisioning it takes nothing away.
+                    'sketches',
                 )
             )
         )

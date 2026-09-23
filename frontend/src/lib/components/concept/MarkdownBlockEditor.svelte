@@ -31,6 +31,7 @@
 		rows={6}
 		placeholder={m.concept_block_markdownPlaceholder()}
 		onChemEdit={(id) => strip?.editChem(id)}
+		onSketchEdit={(id) => strip?.editSketch(id)}
 	/>
 	<!-- "Write this part of the article. LaTeX between \( … \) is typeset, and [[another-concept]]
 	     becomes a link." -->
