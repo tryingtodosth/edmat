@@ -7977,7 +7977,7 @@ component's copy says that rather than implying otherwise.
 - **`EventPreview.svelte`**, mounted at the event page's `<!-- conference: preview -->` marker with
   one import added after `EventStaffPanel`. Offered only to somebody who runs the event, behind
   `role_preview` with the usual moderator bypass.
-- **`backend/events/test_permission_matrix.py`** — one table of 142 rows across eight personas
+- **`backend/events/test_permission_matrix.py`** — one table of 148 rows across eight personas
   (anonymous included) and the whole existing events surface: event CRUD, cancel, the staff list and
   its writes, tracks, sessions, bookmarks, registrations, the CSV export, accept/decline, check-in
   and its undo, the registration fields, the roster in both its public and private shapes, attend,
@@ -7997,7 +7997,9 @@ table stops being readable as a table — you would have to know its order to kn
 meant. With it the table is order-independent, which is the property that makes "read down the
 volunteer column" an honest thing to do.
 
-**`lookup_value_regex` belongs on the router, not on forty viewsets.** DRF's detail segment
+**The bug the matrix found: seven 500s on an id that is not a number.**
+
+`lookup_value_regex` belongs on the router, not on forty viewsets. DRF's detail segment
 defaults to `[^/.]+` — anything that is not a slash or a dot — so `/api/events/undefined/` matched
 the detail route, reached the database as `pk='undefined'`, and Django raised
 `ValueError: Field 'id' expected a number but got 'undefined'` → a **500** (confirmed by probe
@@ -8006,17 +8008,28 @@ the wrong answer and the thing that hides it. `NumericPkRouter` narrows the segm
 with two automatic opt-outs: a viewset that sets its own `lookup_value_regex` keeps it
 (`concepts.ConceptViewSet`), and a viewset whose `lookup_field` is not `pk` is left alone —
 Discipline, Branch, `ExerciseSetViewSet`, `TagViewSet` and `FeatureFlagViewSet` all address by slug
-or key and all keep working. Asserted both ways in the matrix: six `undefined` rows answer 404,
+or key and all keep working. Asserted both ways in the matrix: seven `undefined` rows answer 404,
 and `/api/disciplines/<slug>/` and `/api/branches/<slug>/` answer 200.
+
+The router fixed one of the seven. The other six were **nested ids inside a custom `@action`'s own
+`url_path`** — `staff/(?P<staff_id>[^/.]+)`, `registrations/(?P<row_id>…)/checkin`,
+`sessions/(?P<session_id>…)`, `tracks/(?P<track_id>…)`, `contributions/(?P<contribution_id>…)`,
+`posts/(?P<post_id>…)` — which the router never sees, because they are the action's regex rather
+than the router's. They were worse, not better: `.filter(pk='undefined')` on an already-scoped
+related manager raises the same `ValueError`, so `/api/events/50/staff/undefined/` was a 500 too.
+I had written in `config/routers.py` that those were fine, reasoning that a scoped `.filter()`
+could not reach the database with a bad pk — then added a row per nested id to check, and all six
+failed. The docstring now says the true thing, the eleven nested ids in `events/` interpolate the
+shared `NUMERIC_PK_REGEX`, and there is a matrix row for each. This is the clearest thing the
+table earned: the rows I was least sure about are the ones that found something.
 
 ### Verified
 
 - `manage.py test events accounts moderation` and the whole suite; `manage.py check`;
   `makemigrations --check --dry-run` → **No changes detected** (this step produces no migration).
-- The matrix: 142 rows, all passing. **No row failed on first run** — the events permission surface
-  was already correct where the table asks about it, so this step names no permission bug. The one
-  real bug it found and fixed is the `undefined` 500 above, which is a routing bug rather than a
-  permission one.
+- The matrix: 148 rows, all passing. **No permission row failed** — the events permission surface
+  was already correct everywhere the table asks about it, so this step names no permission bug. What
+  it did find is **seven 500s**, all the same shape and all fixed here; see below.
 - `npm run check` 0 errors / 0 warnings, `npx prettier --check` on every file touched, `npm run
   build`. (`npm run lint` reports six pre-existing eslint errors in older e2e scripts and two
   prettier warnings on gitignored generated `project.inlang/` files — neither touched here.)
@@ -8030,6 +8043,83 @@ and `/api/disciplines/<slug>/` and `/api/branches/<slug>/` answer 200.
   per-account timezone" gap, not something this step introduced; the command now prints the zone
   beside the time so the two are not silently different.
 - en/pl key sets identical (2699 each), verified programmatically.
+
+### For the integrator
+
+**Files changed outside this step's own new modules** (everything else is new and touches nobody):
+
+| Path | What changed |
+|---|---|
+| `frontend/src/lib/api/client.ts` | New exported `interface RequestOptions { anonymous?: boolean }` above `request()`; `request()` takes a third parameter `options: RequestOptions = {}`; the token line became `if (token && !options.anonymous)`; `apiClient.get` and `apiClient.getText` take and forward an optional `options`. Nothing else in the file moved. |
+| `frontend/src/lib/services/events.ts` | Import line 16 now `import { apiClient, type RequestOptions } from '$lib/api/client'`. Four functions take an optional second/third `options` and forward it: `getEvent`, `getEventAttendees`, `getSessions`, `getContributions`. No behaviour change when it is omitted. |
+| `frontend/src/routes/events/[id]/+page.svelte` | Exactly two lines: the import `EventPreview from '$lib/components/event/EventPreview.svelte'` on the new line straight after the `EventStaffPanel` import (line 28), and the marker `<!-- conference: preview -->` replaced by `<EventPreview {event} />` (line 597). Nothing reordered. |
+| `frontend/messages/en.json`, `frontend/messages/pl.json` | One contiguous `preview_*` block of **18 keys** appended at the very end of each file, after `moderation_concepts_openConcept`, separated by one blank line. en.json lines **2684–2701**, pl.json lines **2684–2701**; 2699 keys each, key sets identical. No existing key touched. |
+| 21 × `backend/<app>/urls.py` | One-word change each: `from rest_framework.routers import DefaultRouter` → `from config.routers import NumericPkRouter`, and `DefaultRouter()` → `NumericPkRouter()`. The apps: accounts, activity, booking, chem, coauthoring, community, concepts, courses, events, exercises, galleries, issues, legal, materials, messaging, moderation, notifications, services, sketches, study, taxonomy. |
+| `backend/events/views.py`, `agenda_views.py`, `registration_views.py`, `contribution_views.py` | The bug fix: 11 nested `url_path` regexes now interpolate `NUMERIC_PK_REGEX` (`url_path=f'staff/(?P<staff_id>{NUMERIC_PK_REGEX})'` and friends), plus `from config.routers import NUMERIC_PK_REGEX` and a comment block in each file. No view logic changed. |
+| `backend/events/CLAUDE.md`, `test.md`, `HISTORY.md` | Docs. `test.md` gained §6 at the end. |
+
+**No migration, and none is possible from this step** — `makemigrations --check --dry-run` says
+*No changes detected*. **No npm package added, none removed** (`package.json` untouched). No
+`labels.ts` change — this step mirrors no backend enum. No nav, menu or flag-key change; the
+`role_preview` key was already seeded by §0.
+
+**The bug it found and fixed, in case it collides with yours:** `/api/events/{id}/staff/undefined/`
+and five sibling nested-id routes returned **500**, not 404. Fixed by narrowing the eleven nested
+`url_path` id groups in `events/` to `[0-9]+`. **19 more of these remain**, untouched, in
+`courses/views.py` (16), `coauthoring/views.py` (2) and `community/views.py` (1) — a step that
+touches those files should interpolate `config.routers.NUMERIC_PK_REGEX` the same way.
+
+**What to call, and how:**
+
+- `backend/testing/personas.py` → **`make_personas(password: str = DEFAULT_PASSWORD) -> dict`**.
+  Returns `{organiser, reviewer, volunteer, attendee, guardian, stranger, child, event, track,
+  sessions, attendance, child_attendance, contribution, password}`. Idempotent, safe to call from
+  any test's `setUpTestData`. Also exported: `DEFAULT_PASSWORD` (`'persona-pass-2026'`),
+  `SANDBOX_TITLE` (`'Sandbox conference'`), `PERSONA_USERNAMES`, `CAPABILITY_TABLE`.
+- `backend/config/routers.py` → **`NumericPkRouter`** (use it for any new app's `urls.py`) and
+  **`NUMERIC_PK_REGEX`** (interpolate it into any nested `url_path` id group).
+- `backend/events/test_permission_matrix.py` → append rows to the module-level **`MATRIX`** list;
+  the ids `setUpTestData` publishes are in `cls.ids` (`event`, `draft`, `closed`, `session`,
+  `track`, `attendance`, `pending`, `contribution`, `accepted`, `staff_volunteer`, `staff_host`,
+  `stranger_id`, `child_id`, `branch`, `discipline`). A body may be a callable
+  `(ids, event_start) -> dict` when it needs a real instant or id. The file's header block says
+  this too.
+- `frontend/src/lib/api/client.ts` → pass `{ anonymous: true }` to `apiClient.get`/`getText` for
+  any read another step wants previewable, and thread it through that step's service function.
+- `EventPreview.svelte` re-fetches four reads. A step that adds a panel a visitor would see should
+  add its own read to `enter()` in that component (four lines).
+
+**Running the e2e script:**
+
+```sh
+cd backend && ../.venv/bin/python3 manage.py seed_conference_personas      # required first
+cd ../frontend && E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 \
+  node e2e/event-preview.mjs        # E2E_PERSONA_PASSWORD overrides 'persona-pass-2026'
+```
+
+It signs in as `persona.organiser@edmat.example` through the real login form, creates one scratch
+draft and deletes it at the end. 26 checks. It writes
+`e2e/screens/event-preview-{visitor,draft}.png`.
+
+**Exactly what was run, and the result:**
+
+```
+backend:   manage.py check                              → no issues
+           manage.py makemigrations --check --dry-run   → No changes detected
+           manage.py test events                        → OK (154 tests, before the matrix existed)
+           manage.py test events.test_permission_matrix → OK (148 rows)
+           manage.py test                               → the whole suite, OK
+           manage.py seed_conference_personas ×3        → 7 personas, 1 event, 3 sessions, 3 staff,
+                                                          2 attendances, 1 contribution, unchanged
+frontend:  npm run check                                → 0 errors, 0 warnings (4729 files)
+           npm run build                                → built, adapter-static wrote build/
+           npx prettier --check <every file touched>    → clean
+           npx eslint .                                 → 6 pre-existing errors in older e2e
+                                                          scripts, none in anything touched here
+           paraglide-js compile                         → ok; en/pl key sets identical (2699 each)
+e2e:       node e2e/event-preview.mjs (8102 / 5202)     → 26 passed, 0 failed; both screenshots
+                                                          looked at
+```
 
 ### Left open
 

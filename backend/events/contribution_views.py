@@ -7,6 +7,7 @@ from rest_framework import permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from config.routers import NUMERIC_PK_REGEX
 from moderation.permissions import feature_gate
 
 from . import contributions as engine
@@ -14,6 +15,13 @@ from .models import CONTRIBUTION_PUBLIC_STATUSES, Contribution, Track
 from .serializers import ContributionSerializer, ContributionWriteSerializer
 
 _EventsFeatureGate = feature_gate('events')
+
+#: The same `[0-9]+` the router puts on a top-level detail segment (`config/routers.py`), applied to
+#: the ids nested inside a custom action's own `url_path`. The router cannot reach those — they are
+#: this action's regex, not the router's — and left at DRF's `[^/.]+` they matched
+#: `/api/events/50/staff/undefined/`, which reached `.filter(pk='undefined')` and raised
+#: `ValueError: Field 'id' expected a number but got 'undefined'` → a **500**. Found by
+#: `test_permission_matrix.py`, which has a row per nested id for exactly this.
 
 
 class ContributionMixin:
@@ -45,7 +53,7 @@ class ContributionMixin:
             engine.submit(c, request.user)
         return Response(ContributionSerializer(c, context=self._ctx(event)).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['get', 'patch'], url_path='contributions/(?P<contribution_id>[^/.]+)', permission_classes=[permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate])
+    @action(detail=True, methods=['get', 'patch'], url_path=f'contributions/(?P<contribution_id>{NUMERIC_PK_REGEX})', permission_classes=[permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate])
     def contribution_detail(self, request, pk=None, contribution_id=None):
         event = self.get_object()
         c = self._visible_contributions(event).filter(pk=contribution_id).first()
@@ -64,7 +72,7 @@ class ContributionMixin:
         serializer.save()
         return Response(ContributionSerializer(c, context=self._ctx(event)).data)
 
-    @action(detail=True, methods=['post'], url_path='contributions/(?P<contribution_id>[^/.]+)/(?P<verb>submit|unsubmit|withdraw|review|revisions|accept|reject|schedule|unschedule)', permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate])
+    @action(detail=True, methods=['post'], url_path=f'contributions/(?P<contribution_id>{NUMERIC_PK_REGEX})/(?P<verb>submit|unsubmit|withdraw|review|revisions|accept|reject|schedule|unschedule)', permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate])
     def contribution_transition(self, request, pk=None, contribution_id=None, verb=None):
         event = self.get_object()
         c = self._visible_contributions(event).filter(pk=contribution_id).first()

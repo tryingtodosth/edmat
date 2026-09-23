@@ -2,8 +2,9 @@
 
 Why this exists. DRF's `SimpleRouter` builds a detail URL out of `lookup_value_regex`, which
 defaults to `[^/.]+` — "anything that is not a slash or a dot". So `/api/events/undefined/`
-matched the detail route, `get_object()` ran `pk='undefined'`, and SQLite raised on the cast: a
-**500** for a request that is simply about nothing. A frontend that sends `undefined` in a URL is
+matched the detail route, `get_object()` ran `pk='undefined'`, and Django's own integer field
+raised on the cast (`ValueError: Field 'id' expected a number but got 'undefined'`): a **500** for
+a request that is simply about nothing. A frontend that sends `undefined` in a URL is
 a frontend bug, but the honest answer to "the thing at this id" when the id cannot name a thing is
 404, not "the server fell over" — and a 500 is also what hides the frontend bug, because nothing
 in a log tells the two apart.
@@ -22,10 +23,14 @@ numbers:
    and `exercises.TagViewSet` by slug, `moderation.FeatureFlagViewSet` by key. Forcing digits on
    any of those would 404 every real URL they have.
 
-Nested ids inside a custom `@action`'s `url_path` (`posts/(?P<post_id>[^/.]+)`) are that action's
-own regex and are not touched here; they answer 404 through their own `.filter(pk=…).first()`
-lookups, which never reach the database with a non-numeric pk because the filter is on an
-already-scoped related manager. Where they do, `events/test_permission_matrix.py` has the rows.
+**Nested ids inside a custom `@action`'s `url_path` are NOT reached by this** — they are that
+action's own regex, and the router never sees them. They had exactly the same bug, and worse,
+because `.filter(pk='undefined')` on an already-scoped related manager raises the same `ValueError`
+that `get_object()` did: `/api/events/50/staff/undefined/` was a 500 too. The eleven in `events/`
+now interpolate `NUMERIC_PK_REGEX` below, and `events/test_permission_matrix.py` has a row for
+each. **Every other app's nested actions still carry DRF's `[^/.]+`** — a new step adding one
+should interpolate this constant, and the remaining apps are named as left open in `HISTORY.md`
+§17BF.B.
 
 Found beside the role-preview work (CONFERENCE-BRIEF.md §3.B) — the permission matrix asks for
 `/api/<thing>/undefined/` on purpose, and every row of it expects 404.

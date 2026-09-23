@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 
 from community.models import Comment
 from community.serializers import CommentSerializer
+from config.routers import NUMERIC_PK_REGEX
 from moderation.permissions import feature_gate
 from moderation.services import is_feature_enabled
 from notifications.services import notify
@@ -32,6 +33,13 @@ from .models import (
 from .services import going_attendees
 
 _EventsFeatureGate = feature_gate('events')
+
+#: The same `[0-9]+` the router puts on a top-level detail segment (`config/routers.py`), applied to
+#: the ids nested inside a custom action's own `url_path`. The router cannot reach those — they are
+#: this action's regex, not the router's — and left at DRF's `[^/.]+` they matched
+#: `/api/events/50/staff/undefined/`, which reached `.filter(pk='undefined')` and raised
+#: `ValueError: Field 'id' expected a number but got 'undefined'` → a **500**. Found by
+#: `test_permission_matrix.py`, which has a row per nested id for exactly this.
 
 
 def _session_queryset():
@@ -89,7 +97,7 @@ class ProgrammeMixin:
         row = EventStaff.objects.create(event=event, user=user, role=role, added_by=request.user)
         return Response(EventStaffSerializer(row).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['patch', 'delete'], url_path='staff/(?P<staff_id>[^/.]+)', permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate])
+    @action(detail=True, methods=['patch', 'delete'], url_path=f'staff/(?P<staff_id>{NUMERIC_PK_REGEX})', permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate])
     def staff_detail(self, request, pk=None, staff_id=None):
         event = self.get_object()
         refused = self._organiser_or_403(event)
@@ -127,7 +135,7 @@ class ProgrammeMixin:
         track = serializer.save(event=event)
         return Response(TrackSerializer(track).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['patch', 'delete'], url_path='tracks/(?P<track_id>[^/.]+)', permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate])
+    @action(detail=True, methods=['patch', 'delete'], url_path=f'tracks/(?P<track_id>{NUMERIC_PK_REGEX})', permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate])
     def track_detail(self, request, pk=None, track_id=None):
         event = self.get_object()
         refused = self._organiser_or_403(event)
@@ -160,7 +168,7 @@ class ProgrammeMixin:
         session = _session_queryset().get(pk=session.pk)
         return Response(SessionSerializer(session, context={'request': request, 'event': event}).data, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['get', 'patch', 'delete'], url_path='sessions/(?P<session_id>[^/.]+)', permission_classes=[permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate])
+    @action(detail=True, methods=['get', 'patch', 'delete'], url_path=f'sessions/(?P<session_id>{NUMERIC_PK_REGEX})', permission_classes=[permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate])
     def session_detail(self, request, pk=None, session_id=None):
         event = self.get_object()
         session = _session_queryset().filter(event=event, pk=session_id).first()
@@ -190,7 +198,7 @@ class ProgrammeMixin:
         session = _session_queryset().get(pk=session.pk)
         return Response(SessionSerializer(session, context=ctx).data)
 
-    @action(detail=True, methods=['post', 'delete'], url_path='sessions/(?P<session_id>[^/.]+)/bookmark', permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate])
+    @action(detail=True, methods=['post', 'delete'], url_path=f'sessions/(?P<session_id>{NUMERIC_PK_REGEX})/bookmark', permission_classes=[permissions.IsAuthenticated, _EventsFeatureGate])
     def session_bookmark(self, request, pk=None, session_id=None):
         event = self.get_object()
         session = event.sessions.filter(pk=session_id).first()
@@ -203,7 +211,7 @@ class ProgrammeMixin:
         session = _session_queryset().get(pk=session.pk)
         return Response(SessionSerializer(session, context={'request': request, 'event': event}).data)
 
-    @action(detail=True, methods=['get', 'post'], url_path='sessions/(?P<session_id>[^/.]+)/comments', permission_classes=[permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate])
+    @action(detail=True, methods=['get', 'post'], url_path=f'sessions/(?P<session_id>{NUMERIC_PK_REGEX})/comments', permission_classes=[permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate])
     def session_comments(self, request, pk=None, session_id=None):
         """The session's Q&A — the generic Comment with the votes it already has, so a question
         asked from the room can be upvoted by the rest of it."""
