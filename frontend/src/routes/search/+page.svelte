@@ -9,11 +9,12 @@
 	//
 	// Exercises and materials first, in that order, because an exercise is what the site is for and
 	// a material is the supporting thing. Then everything else the navbar's staged collapse leans on
-	// this page reaching: disciplines and their branches (stage 6 replaces the Disciplines link with
-	// this page's own icon, so the things that link opened must be findable here), taught courses
-	// (stage 9 removes the Courses link on the same grounds), events, and tutoring listings. Kinds
-	// are kept as separate, labelled sections rather than one ranked list — folding six kinds into
-	// one ordering would need a relevance model this has no basis for.
+	// this page reaching: concepts (stage 0 replaces the Concepts link with its icon first of all),
+	// disciplines and their branches (stage 6 replaces the Disciplines link with this page's own
+	// icon, so the things that link opened must be findable here), taught courses (stage 9 removes
+	// the Courses link on the same grounds), events, and tutoring listings. Kinds are kept as
+	// separate, labelled sections rather than one ranked list — folding seven kinds into one
+	// ordering would need a relevance model this has no basis for.
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -24,6 +25,7 @@
 	import { getCourses } from '$lib/services/course';
 	import { getEvents } from '$lib/services/events';
 	import { getServices } from '$lib/services/tutoring';
+	import { searchConcepts } from '$lib/services/concepts';
 	import { getDisciplines, getAllBranches } from '$lib/services/taxonomy';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -32,9 +34,11 @@
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import EventCard from '$lib/components/event/EventCard.svelte';
+	import ConceptCard from '$lib/components/concept/ConceptCard.svelte';
 	import SearchInput from '$lib/components/shared/SearchInput.svelte';
 	import type { Branch, Discipline, Material, ResolvedExercise, Service } from '$lib/types';
 	import type { Course } from '$lib/types/course';
+	import type { ConceptListRow } from '$lib/types/concept';
 	import type { EdmatEvent } from '$lib/types/event';
 	import { SEARCH_MIN_QUERY_LENGTH } from '$lib/utils/textInput';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -46,6 +50,7 @@
 	let courses = $state<Course[]>([]);
 	let events = $state<EdmatEvent[]>([]);
 	let services = $state<Service[]>([]);
+	let concepts = $state<ConceptListRow[]>([]);
 	let loading = $state(false);
 	let searchedFor = $state('');
 
@@ -56,6 +61,7 @@
 	let canClassroom = $derived(can('courses'));
 	let canTutoring = $derived(can('tutoring'));
 	let canEvents = $derived(can('events'));
+	let canConcepts = $derived(can('concepts'));
 
 	const query = $derived(page.url.searchParams.get('q') ?? '');
 
@@ -89,6 +95,7 @@
 			courses = [];
 			events = [];
 			services = [];
+			concepts = [];
 			searchedFor = '';
 			return;
 		}
@@ -109,14 +116,15 @@
 			// Settled together: one kind's search failing should not decide whether the others
 			// render, and they are independent requests. A killed feature's kind is never asked for
 			// at all — the gate must hold on the request, not only on the rendering.
-			const [ex, mat, disc, br, crs, ev, srv] = await Promise.allSettled([
+			const [ex, mat, disc, br, crs, ev, srv, cpt] = await Promise.allSettled([
 				searchExercises(q, getLocale(), 24),
 				searchMaterials(q),
 				getDisciplines(),
 				getAllBranches(),
 				canClassroom ? getCourses({ q }) : Promise.resolve([]),
 				canEvents ? getEvents({ q }) : Promise.resolve([]),
-				canTutoring ? getServices(undefined, { q }) : Promise.resolve([])
+				canTutoring ? getServices(undefined, { q }) : Promise.resolve([]),
+				canConcepts ? searchConcepts(q, 24) : Promise.resolve([])
 			]);
 			// Only adopt an answer that is still the current question — a slower earlier search must
 			// not overwrite a newer one.
@@ -132,6 +140,7 @@
 			courses = crs.status === 'fulfilled' ? crs.value : [];
 			events = ev.status === 'fulfilled' ? ev.value : [];
 			services = srv.status === 'fulfilled' ? srv.value : [];
+			concepts = cpt.status === 'fulfilled' ? cpt.value : [];
 			searchedFor = q;
 		} finally {
 			if (q === query) loading = false;
@@ -145,7 +154,8 @@
 			branches.length +
 			courses.length +
 			events.length +
-			services.length
+			services.length +
+			concepts.length
 	);
 </script>
 
@@ -187,6 +197,16 @@
 			<div class="grid">
 				{#each materials as material (material.id)}
 					<MaterialCard {material} />
+				{/each}
+			</div>
+		{/if}
+
+		{#if concepts.length}
+			<h2>{m.home_tab_concepts()}</h2>
+			<!-- "Concepts" -->
+			<div class="grid">
+				{#each concepts as concept (concept.id)}
+					<ConceptCard {concept} />
 				{/each}
 			</div>
 		{/if}

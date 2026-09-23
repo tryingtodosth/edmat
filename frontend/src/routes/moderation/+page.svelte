@@ -20,6 +20,18 @@
 	// solution_entries precedent), so the queue and the version's own page cannot disagree.
 	import { decideVersion } from '$lib/services/materialProjects';
 	import { COAUTHORING_FLAG, messageForError } from '$lib/components/coauthoring/labels';
+	// Concept revisions decide through the concepts app's own endpoint too, and for the same
+	// reason: one review path per object. That endpoint also admits the ARTICLE'S AUTHOR as a
+	// reviewer, which no moderation "kind" could express — so this queue is a view onto it, not a
+	// second way of deciding.
+	import { decideRevision } from '$lib/services/concepts';
+	import {
+		CONCEPTS_FLAG,
+		messageForError as conceptErrorMessage
+	} from '$lib/components/concept/labels';
+	import BlockRenderer from '$lib/components/concept/BlockRenderer.svelte';
+	import type { ConceptQueueRow } from '$lib/types/concept';
+	import { AUDIENCE_LABELS } from '$lib/utils/labels';
 	import { decideApplication, getApplicationQueue } from '$lib/services/governorApplications';
 	import type { GovernorApplication, GovernorNodeKind } from '$lib/types/governorApplication';
 	import {
@@ -60,6 +72,10 @@
 		// material nobody co-authors. One tab, because it is one queue with one decide endpoint; the
 		// chip on each row says which of the two questions it asks.
 		| 'materials'
+		// Pending revisions of concept articles (concepts/). Modelled on 'materials' exactly: one
+		// queue, one decide endpoint, and a chip on each row saying which of the three questions it
+		// is asking (a whole new concept, a new article of one, or a change to an existing article).
+		| 'concepts'
 		| 'edits'
 		| 'translations'
 		| 'entries'
@@ -70,6 +86,7 @@
 		'reports',
 		'submissions',
 		'materials',
+		'concepts',
 		'edits',
 		'translations',
 		'entries',
@@ -125,6 +142,12 @@
 	 *  the wrong one to the wrong row (house rule 6). */
 	let versionErrors = $state<Record<string, string>>({});
 	let versionBusy = $state<Record<string, boolean>>({});
+	let conceptRevisions = $state<ConceptQueueRow[]>([]);
+	/** Per-row, for the same reason the version queue's are: `already_decided` and `note_required`
+	 *  are different things that happened, and one shared line would attach the wrong one to the
+	 *  wrong row (house rule 6). */
+	let conceptErrors = $state<Record<string, string>>({});
+	let conceptBusy = $state<Record<string, boolean>>({});
 	let editSuggestions = $state<EditSuggestion[]>([]);
 	let translations = $state<ExerciseTranslation[]>([]);
 	let solutionEntries = $state<SolutionEntry[]>([]);
@@ -162,6 +185,9 @@
 		// `branchName` itself, precisely because a first publication has no `Material` yet for the
 		// page to read either from.
 		materialVersions = queue.materialVersions;
+		// Same: the queue row carries its own author name and branch names, because a revision that
+		// would create a whole concept has no concept page for this one to read them from either.
+		conceptRevisions = queue.conceptRevisions;
 		editSuggestions = queue.editSuggestions;
 		translations = queue.translations;
 		solutionEntries = queue.solutionEntries;
@@ -266,6 +292,27 @@
 			versionBusy = { ...versionBusy, [v.id]: false };
 		}
 	}
+	// A pending concept revision. Catches for the same reasons `decideVersionRow` does — 409
+	// `already_decided` when the article's own author decided it from the history page while this
+	// was open, 400 `note_required` on a note-less rejection — both sentences for the row.
+	async function decideConceptRow(r: ConceptQueueRow, decision: 'accept' | 'reject') {
+		const note = (notes[`concept:${r.id}`] ?? '').trim();
+		if (decision === 'reject' && !note) {
+			conceptErrors = { ...conceptErrors, [r.id]: m.concept_error_note_required() };
+			return;
+		}
+		conceptBusy = { ...conceptBusy, [r.id]: true };
+		conceptErrors = { ...conceptErrors, [r.id]: '' };
+		try {
+			await decideRevision(r.id, decision, note);
+			await load();
+		} catch (e) {
+			conceptErrors = { ...conceptErrors, [r.id]: conceptErrorMessage(e) };
+		} finally {
+			conceptBusy = { ...conceptBusy, [r.id]: false };
+		}
+	}
+
 	async function approveEdit(e: EditSuggestion) {
 		if (!authStore.user) return;
 		await decideEditSuggestion(e.id, 'approved', authStore.user.id, notes[e.id]);
@@ -316,6 +363,7 @@
 		solution_entry: m.report_kind_solution_entry,
 		post: m.report_kind_post,
 		event: m.report_kind_event,
+		concept_article: m.report_kind_concept_article, // "Concept article"
 		contribution: m.report_kind_contribution
 	};
 
@@ -564,6 +612,18 @@
 			<button
 				type="button"
 				role="tab"
+				id="mod-tab-concepts"
+				aria-selected={tab === 'concepts'}
+				aria-controls="mod-tabpanel"
+				class:active={tab === 'concepts'}
+				onclick={() => (tab = 'concepts')}
+			>
+				{m.moderation_tab_concepts({ count: conceptRevisions.length })}
+				<!-- "Concepts ({count})" -->
+			</button>
+			<button
+				type="button"
+				role="tab"
 				id="mod-tab-entries"
 				aria-selected={tab === 'entries'}
 				aria-controls="mod-tabpanel"
@@ -641,6 +701,9 @@
 					})}
 				{:else if tab === 'materials'}{m.moderation_tab_materials({
 						count: materialVersions.length
+					})}
+				{:else if tab === 'concepts'}{m.moderation_tab_concepts({
+						count: conceptRevisions.length
 					})}
 				{:else if tab === 'edits'}{m.moderation_tab_edits({ count: editSuggestions.length })}
 				{:else if tab === 'translations'}{m.moderation_tab_translations({
@@ -891,6 +954,115 @@
 										disabled={versionBusy[v.id] || !notes[`version:${v.id}`]?.trim()}
 										title={m.coauth_error_note_required()}
 										onclick={() => decideVersionRow(v, 'reject')}>{m.moderation_reject()}</button
+									>
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{:else if tab === 'concepts'}
+				{#if conceptRevisions.length === 0}
+					<p class="empty">{m.moderation_concepts_empty()}</p>
+					<!-- "No concept articles are waiting. A revision comes here when its author cannot
+				     publish on their own — everything a verified contributor or a governor writes goes
+				     live at once." -->
+				{:else}
+					<ul class="queue">
+						{#each conceptRevisions as r (r.id)}
+							<li class="queue-item">
+								<div class="report-header">
+									<!-- Which of the three questions this row asks. They are genuinely different
+								     decisions: one brings a whole concept into being, one adds a page for an
+								     audience nobody had written for, and one changes a text that exists. -->
+									{#if r.isNewConcept}
+										<span class="version-badge">{m.moderation_concepts_newConcept()}</span>
+										<!-- "New concept" -->
+									{:else if r.isNewArticle}
+										<span class="version-badge">{m.moderation_concepts_newArticle()}</span>
+										<!-- "New article" -->
+									{:else}
+										<span class="version-badge"
+											>{m.moderation_concepts_revision({ number: r.number })}</span
+										>
+										<!-- "Revision {number}" -->
+									{/if}
+									<span class="report-kind">{AUDIENCE_LABELS[r.audience]()}</span>
+									<span class="report-kind">{r.locale}</span>
+									<!-- A revision written against something other than the current head is the
+								     409 the editor refuses — it can still reach this queue if the head moved
+								     after it was submitted, and a reviewer accepting one supersedes the newer
+								     text, so it is worth saying out loud. -->
+									{#if !r.basedOnIsCurrent}
+										<span class="scan-badge scan-badge--flagged"
+											>{m.moderation_concepts_stale()}</span
+										>
+										<!-- "Written against an older version" -->
+									{/if}
+								</div>
+								<h3><MathTitle text={r.title} /></h3>
+								<p class="meta">
+									{m.moderation_submittedBy({ name: r.createdByDisplayName || '—' })}
+									{#if r.branchNames.length > 0}
+										· {m.moderation_forBranch({ branch: r.branchNames.join(', ') })}
+									{/if}
+								</p>
+								{#if r.summary}
+									<p class="excerpt">{r.summary}</p>
+								{/if}
+								{#if r.changeNote}
+									<p class="excerpt">&ldquo;{r.changeNote}&rdquo;</p>
+								{/if}
+								<!-- The proposed text, and the text it would replace beside it when there is one.
+							     Side by side rather than a word diff: the queue row carries the blocks, not
+							     two whole revisions, and the article's own history page is where the per-block
+							     diff lives (`RevisionView`). -->
+								<div class="concept-compare" class:concept-compare--pair={r.current !== null}>
+									<div class="concept-side">
+										<h4 class="concept-side__head">{m.moderation_concepts_proposed()}</h4>
+										<!-- "Proposed" -->
+										<BlockRenderer blocks={r.blocks} />
+									</div>
+									{#if r.current}
+										<div class="concept-side">
+											<h4 class="concept-side__head">{m.moderation_concepts_current()}</h4>
+											<!-- "Published now" -->
+											<BlockRenderer blocks={r.current.blocks} />
+										</div>
+									{/if}
+								</div>
+								<!-- Only while the concept page is reachable: it sits behind the `concepts` kill
+							     switch (staff bypass it, as FeatureGate does), and a link that lands a
+							     governor on "this feature is unavailable" is a link that lies about where it
+							     goes. The row stays decidable either way. -->
+								{#if featureFlagsStore.isEnabled(CONCEPTS_FLAG) || authStore.isModerator}
+									<a class="context-link" href={resolve('/concepts/[slug]', { slug: r.slug })}>
+										{m.moderation_concepts_openConcept()}
+										<!-- "Open the concept" -->
+									</a>
+								{/if}
+								<textarea
+									rows="1"
+									placeholder={m.moderation_reviewNote()}
+									bind:value={notes[`concept:${r.id}`]}></textarea>
+								{#if conceptErrors[r.id]}
+									<p class="version-error" role="alert">{conceptErrors[r.id]}</p>
+								{/if}
+								<div class="actions">
+									<button
+										type="button"
+										class="approve"
+										disabled={conceptBusy[r.id]}
+										onclick={() => decideConceptRow(r, 'accept')}>{m.moderation_approve()}</button
+									>
+									<!-- Disabled until a note exists, the entries and versions tabs' precedent: the
+								     server refuses a note-less rejection, and a button that round-trips to be
+								     told so is a button that lies about what it does. -->
+									<button
+										type="button"
+										class="reject"
+										disabled={conceptBusy[r.id] || !notes[`concept:${r.id}`]?.trim()}
+										title={m.concept_error_note_required()}
+										onclick={() => decideConceptRow(r, 'reject')}>{m.moderation_reject()}</button
 									>
 								</div>
 							</li>
@@ -1237,6 +1409,33 @@
 		color: var(--accent);
 		border-bottom-color: var(--accent);
 	}
+	// The proposed text and the text it would replace, side by side on a wide screen and stacked on
+	// a narrow one — a reviewer comparing two columns on a phone is comparing nothing.
+	.concept-compare {
+		display: grid;
+		gap: var(--space-3);
+		margin: var(--space-2) 0;
+	}
+	.concept-compare--pair {
+		@media (min-width: 900px) {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+	.concept-side {
+		min-width: 0;
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: var(--space-2);
+		background: var(--bg-surface-alt);
+	}
+	.concept-side__head {
+		margin: 0 0 var(--space-2);
+		font-size: var(--font-size-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-secondary);
+	}
+
 	.tabpanel {
 		// Programmatically focusable (tabindex="-1") so an assistive-tech user tabbing through the
 		// tablist per the standard ARIA authoring pattern can be moved straight into the panel

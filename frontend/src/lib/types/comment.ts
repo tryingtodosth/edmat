@@ -44,6 +44,14 @@ export type CommentTargetType =
 	// version page is addressed by (project id, version number). Linking one would need the server
 	// to resolve that pair, so the row renders without a link rather than with a broken one.
 	| 'materialVersion'
+	// The talk about ONE article of a concept (concepts/). Named for the article and not the
+	// concept, because that is what the thread hangs off: a concept has as many articles as people
+	// have written, for as many audiences, and a question about the primary-school wording has no
+	// business under the university one. `community/targets.py` says the same thing from its side.
+	//
+	// Unlike `materialVersion` it is NOT private: an article a reader can see is a page anybody can
+	// open, so a course may link its thread like an exercise's.
+	| 'conceptArticle'
 	// An anchored micro-post on the activity feed (activity.Post) — its own thread.
 	| 'post'
 	// The three review kinds. Replying to somebody's review is not a new kind of object — it is a

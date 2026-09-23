@@ -1,5 +1,5 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 13 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 14 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
 //
 // THIS UNION AND `FEATURE_FLAG_LABELS` (utils/labels.ts) BOTH MIRROR THE BACKEND'S OWN
@@ -54,6 +54,14 @@ export type FeatureFlagKey =
 	// `Material` stays the published projection of whichever version is current, so every material
 	// keeps rendering and downloading with this off.
 	| 'coauthoring'
+	// The wiki-like pages for the things exercises and materials are ABOUT (backend concepts/,
+	// CONCEPTS-BRIEF.md §0). Off: the nav entry, the homepage tab, the "New concept" menu item, the
+	// search section, the moderation tab and the linked-concept chip rows all go, and every concept
+	// endpoint 403s a non-staff caller — with one deliberate exception,
+	// `GET /api/concept-links/?target_type=…`, which answers `[]` so the exercise and material pages
+	// keep working while showing nothing for it (house rule 3). A `[[slug]]` anchor already written
+	// into somebody's content still renders; the page it leads to shows the gate.
+	| 'concepts'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

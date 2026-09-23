@@ -209,6 +209,14 @@
 				<option value="review">{m.activity_kind_review()}</option>
 				<option value="claim">{m.activity_kind_claim()}</option>
 				<option value="comment">{m.activity_kind_comment()}</option>
+				<!-- Two kinds, one option: "concepts" is what a reader wants to filter to, and
+				     "a new one" vs "one that changed" is a distinction the ROW makes, not the
+				     filter. Behind the flag, because a killed feature loses its filter option too
+				     (house rule 3) — the neighbouring options keep working either way. -->
+				{#if featureFlagsStore.isEnabled('concepts')}
+					<option value="concept">{m.activity_kind_concept()}</option>
+					<!-- "New concept" -->
+				{/if}
 			</select>
 		</label>
 		<label class="filter">

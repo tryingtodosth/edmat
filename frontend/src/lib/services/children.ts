@@ -28,7 +28,12 @@ export interface ChildContent {
 }
 
 function mapChild(c: RawChild): Child {
-	return { id: String(c.id), username: c.username, displayName: c.display_name, isActive: c.is_active };
+	return {
+		id: String(c.id),
+		username: c.username,
+		displayName: c.display_name,
+		isActive: c.is_active
+	};
 }
 
 export async function getChildren(): Promise<Child[]> {

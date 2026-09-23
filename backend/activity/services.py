@@ -37,6 +37,7 @@ def record_activity(
     happening=None,
     service=None,
     post=None,
+    concept=None,
     source=None,
     branch=None,
     discipline=None,
@@ -53,7 +54,7 @@ def record_activity(
     `branch`/`discipline`/`tags` scope the row for filters and the Followed view; `branch` is
     derived from the link target when not given.
     """
-    link_target = exercise or material or course or happening or service or post
+    link_target = exercise or material or course or happening or service or post or concept
     if source is None:
         source = link_target
     if branch is None:
@@ -76,6 +77,7 @@ def record_activity(
         happening=happening,
         service=service,
         post=post,
+        concept=concept,
         source_content_type=(
             ContentType.objects.get_for_model(type(source)) if source is not None else None
         ),
@@ -110,6 +112,7 @@ def remove_activity_for(obj) -> int:
         ('happening', 'event'),
         ('service', 'service'),
         ('post', 'post'),
+        ('concept', 'concept'),
     ):
         if type(obj).__name__.lower() == model_name:
             q = q | Q(**{field: obj})
@@ -216,7 +219,9 @@ def feed_events(
     `?content_locales=` convention every other list uses stays in one place
     (`config.content_locale.parse_content_locales`); returns `(events, hidden_count)`."""
     qs = ActivityEvent.objects.select_related(
-        'actor__profile', 'branch', 'discipline', 'post'
+        # `concept` joins so `ActivityEventSerializer.concept_slug` costs no query per row — the
+        # feed is the one list in this app where an N+1 is measured in hundreds.
+        'actor__profile', 'branch', 'discipline', 'post', 'concept'
     ).prefetch_related('tags')
     if not include_posts:
         # The `posts` kill switch removes LINKS as well as pages (the house rule): with the flag

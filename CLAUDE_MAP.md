@@ -21,7 +21,7 @@ the present, the other file wins.
 
 ```
 edmat/
-├── backend/           Django 5.2 + DRF. 21 apps + config/ + testing/ + imaging.py. SQLite.
+├── backend/           Django 5.2 + DRF. 22 apps + config/ + testing/ + imaging.py. SQLite.
 ├── frontend/          SvelteKit 2 + Svelte 5 runes + TS. adapter-static (SPA). Paraglide i18n.
 ├── deploy/            Apache vhosts + the webek4/edmat.net runbooks.
 ├── scripts/           One legacy helper (mock-fixture extraction from the corpus).
@@ -141,6 +141,25 @@ staff/branch governors review only a project's first publication and proposals o
 `propose_block_reason`, …), `services.py` the slow half (allocation loop, publish/decide claims, the projection,
 `materialise` through `materials/publish.py create_material`). Kill switch `coauthoring`; creating a new material
 still answers to `material_submissions`. Spec: `COAUTHORING-BRIEF.md`; write-up: `HISTORY.md` §17BC.
+
+### `concepts` — wiki articles per audience, built from blocks (2026-09-23)
+Models: `Concept` (a slug, branches, tags — **no text of its own**), `ConceptArticle` (one written take for one
+`(audience, locale)`; several people may each write their own for the same pair — a pool of peers, the `SolutionEntry`
+shape, ordered pinned-first then newest head), `ConceptRevision` (immutable, numbered per article, one `published` head
+by partial unique index, a JSON `blocks` list + derived `search_text`), `ConceptAsset` (a picture or PDF placed as a
+block, through `community.attachments.process_attachment`), `ConceptLink` (GFK + a three-entry registry: exercise /
+material / concept; `relation` related | prerequisite; `origin` manual | body).
+
+**Blocks, not a blob**: `markdown` | `latex` | `chem` (an existing `ChemDrawing`) | `pdf` | `image`; `blocks.py` is the
+one place that says what a block may be (`clean_blocks` for the serializer, `sanitize_blocks` for `save()`,
+`expand_blocks` in two queries). **A detail never 404s while anything is published**: `resolve.py` falls back from the
+reader's band and locale through `all`, the nearest band, any locale, and says which it chose. Writing is open to anyone
+signed in; publishing without review is staff / verified / branch governor and never a minor; reviewing is staff, a
+governor, **or the article's own author**; decisions through the app's own `decide/`. `[[slug]]` in a markdown block
+renders as a link (a pre-pass in `renderContent.ts`) and is harvested into `origin='body'` link rows on every publish,
+so backlinks exist without being filed. Kill switch `concepts`; the `GET /api/concept-links/?target_type=` chip-row read
+answers `[]` when it is off so exercise and material pages keep working. Spec: `CONCEPTS-BRIEF.md`; write-up:
+`HISTORY.md` §17BD.
 
 ### `community` — reviews and threaded comments
 `Review` (1–5 stars + optional body, unique per (exercise, author), resubmitting **updates** rather than duplicating) and `Comment`

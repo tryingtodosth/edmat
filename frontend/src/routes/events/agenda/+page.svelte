@@ -59,7 +59,9 @@
 				<ul class="rows">
 					{#each agenda.events as e (e.id)}
 						<li>
-							<span class="when">{e.startsAt ? formatDateTime(e.startsAt) : m.events_form_scheduling_none()}</span>
+							<span class="when"
+								>{e.startsAt ? formatDateTime(e.startsAt) : m.events_form_scheduling_none()}</span
+							>
 							<a href={resolve('/events/[id]', { id: e.id })}>{e.title}</a>
 						</li>
 					{/each}

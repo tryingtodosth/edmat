@@ -7,6 +7,9 @@ export interface TagFollowState {
 	notify: boolean;
 }
 
-// The two content kinds a tag can currently be attached to — the tag-hover menu's "add to different
-// content" action (TagChip.svelte's own picker modal).
-export type TaggableKind = 'exercise' | 'material';
+// The three content kinds a tag can currently be attached to — the tag-hover menu's "add to
+// different content" action (TagChip.svelte's own picker modal). Mirrors the `kind` this project's
+// one tag endpoint accepts, `backend/exercises/views.py`'s `TagViewSet.apply` (which names this
+// file back — house rule 13). `concept` joined the other two with the concepts app: a concept is
+// tagged out of the same global vocabulary, through the same endpoint, so it needs no second one.
+export type TaggableKind = 'exercise' | 'material' | 'concept';

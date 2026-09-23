@@ -20,6 +20,7 @@ from events.models import Contribution, Event
 from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, SolutionEntry, Tag
 from materials.models import Material, MaterialRequirement
+from concepts.models import ConceptArticle
 from galleries.models import GalleryImage
 from services.models import Service, ServiceReview
 from taxonomy.models import Branch, Discipline
@@ -62,6 +63,14 @@ REPORT_KIND_MODELS = {
     # which has nothing to divide by here. Restore/remove work unchanged, because the model carries
     # the `auto_hidden_at`/`is_removed` pair `resolve_report_decision` looks for.
     'gallery_image': GalleryImage,
+    # One article of a concept (concepts/). Community-written, public the moment it has a published
+    # revision, and with no viewer pool of its own — the Service posture: reports gather for a human
+    # rather than tripping the auto-hide arithmetic, which has nothing to divide by here. Restore
+    # and remove work unchanged, because the model carries the `auto_hidden_at`/`is_removed` pair
+    # `resolve_report_decision` looks for; removing one hides it from every list and detail
+    # (`concepts.access.visible_articles`) and, when it was the concept's last visible article,
+    # takes the concept and its backlinks with it by construction.
+    'concept_article': ConceptArticle,
 }
 _REVERSE_KIND_MODELS = {model: kind for kind, model in REPORT_KIND_MODELS.items()}
 
@@ -287,6 +296,16 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
     if kind == 'requirement':
         return target.label[:150], None, None
 
+    if kind == 'concept_article':
+        # The head's title, or the newest revision's when there is no head yet — a moderator reading
+        # a report needs the real words whatever state the row is in, which is this function's own
+        # stated rule. Never the slug: the slug is the concept's, and the report is about one
+        # article of it.
+        head = target.revisions.filter(status='published').first()
+        newest = head or target.revisions.order_by('-number').first()
+        title = newest.title if newest is not None else target.concept.slug
+        return f'{title} ({target.audience}/{target.locale})'[:150], None, None
+
     if kind == 'post':
         exercise = target.ref_exercise
         exercise_title = None
@@ -496,7 +515,7 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
             scope_exercise_by_key[key] = obj.ref_exercise
             if obj.ref_exercise_id:
                 needed_exercise_ids.add(obj.ref_exercise_id)
-        elif isinstance(obj, (Service, Tag, Material, MaterialRequirement, ServiceReview, Event, Contribution)):
+        elif isinstance(obj, (Service, Tag, Material, MaterialRequirement, ServiceReview, Event, Contribution, ConceptArticle)):
             # None of these five have a viewer-pool concept at all (not page-scoped to one Exercise
             # the way a Comment/Review borrows its parent's) — resolved directly to None, matching
             # resolve_view_scope_exercise's own behavior for each, rather than falling into the
@@ -631,6 +650,8 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
             preview, exercise_id, exercise_title = _material_title(target), None, None
         elif kind == 'requirement':
             preview, exercise_id, exercise_title = target.label[:150], None, None
+        elif kind == 'concept_article':
+            preview, exercise_id, exercise_title = _describe(target, kind)
         elif kind == 'service_review':
             preview = target.body[:150] if target.body else f'{target.rating}★ (no written review)'
             exercise_id, exercise_title = None, None
@@ -685,7 +706,7 @@ def _material_titles_for_submissions(submissions) -> dict:
     return titles
 
 
-def build_moderation_queue_payload(user=None) -> dict:
+def build_moderation_queue_payload(user=None, request=None) -> dict:
     """The exact body `GET /api/moderation/queue/` returns (moderation/views.py's
     `ModerationQueueView.get`) — pulled out here, not left duplicated between the view and
     `measure_moderation_queue` (Phase 4's own load-test measurement command), so there is only ever
@@ -701,6 +722,7 @@ def build_moderation_queue_payload(user=None) -> dict:
     `is_staff` moderator) still means unfiltered, so today's global-moderator experience is
     completely unchanged; only a real, non-staff node governor ever sees a narrower queue."""
     from coauthoring.serializers import MaterialVersionQueueRowSerializer
+    from concepts.serializers import ConceptQueueRowSerializer
     from exercises.entries import entry_queryset_for_queue
     from exercises.serializers import ExerciseTranslationSerializer, SolutionEntrySerializer
 
@@ -753,6 +775,24 @@ def build_moderation_queue_payload(user=None) -> dict:
         'material_versions': MaterialVersionQueueRowSerializer(
             material_version_queryset_for_queue(branch_ids), many=True
         ).data,
+        # Every pending revision of a concept article (concepts/, CONCEPTS-BRIEF.md §5). Scoped by
+        # the branches the concept is attached to, exactly like every other section; a concept
+        # attached to NO branch reaches staff only, which is the honest answer rather than a gap —
+        # there is no governor who could claim it. A revision the article's own author can decide
+        # still appears here for staff and governors, because "the author may also decide it" widens
+        # the circle rather than replacing it. Decisions go through
+        # `POST /api/concept-revisions/{id}/decide/` — never a new `_KIND_MODELS` kind, the same
+        # call the solution-entry pool and the material versions make, and for the same reason: one
+        # claim, one notification sequence, one thing to keep correct.
+        # With the REQUEST, because a concept block can carry a picture or a PDF and
+        # `concepts.blocks.expand_blocks` needs it to build an absolute URL. Without it those URLs
+        # come back as bare `/media/…` paths, which the browser resolves against the FRONTEND's
+        # origin — a 404, and a moderator reviewing a submission sees a broken picture exactly
+        # where seeing it matters most. (Found by a browser run: the assertion passed, the image
+        # did not load.) `request=None` — `measure_moderation_queue` — is unchanged.
+        'concept_revisions': ConceptQueueRowSerializer(
+            concept_queue_queryset(branch_ids), many=True, context={'request': request}
+        ).data,
         'reports': build_report_queue(branch_ids=branch_ids),
     }
 
@@ -787,6 +827,19 @@ def material_version_queryset_for_queue(branch_ids=None):
     if branch_ids is not None:
         queryset = queryset.filter(project__branch_id__in=branch_ids)
     return queryset
+
+
+def concept_queue_queryset(branch_ids=None):
+    """Pending concept revisions for the queue — `concepts.access.queue_queryset` under this
+    module's own name, so the queue builder reads every section from one place.
+
+    Its own two-line wrapper rather than importing the other module's function inline at the call
+    site, because `count_pending_moderation` below needs the identical queryset and a badge that
+    disagreed with the page it links to would be worse than no badge.
+    """
+    from concepts.access import queue_queryset
+
+    return queue_queryset(branch_ids)
 
 
 def is_feature_enabled(key: str) -> bool:
@@ -853,6 +906,8 @@ def count_pending_moderation(user=None) -> dict:
         # Scoped by the SAME function the queue section uses, so the badge and the page it links to
         # can never disagree — a number that disagreed with its own page would be worse than none.
         'material_versions': material_version_queryset_for_queue(branch_ids).count(),
+        # Scoped by the SAME function the queue section uses, for the same reason as the line above.
+        'concept_revisions': concept_queue_queryset(branch_ids).count(),
         'taxonomy_proposals': len(build_taxonomy_proposal_queue()),
         'reports': reports,
     }

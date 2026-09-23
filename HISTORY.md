@@ -7307,6 +7307,140 @@ chips, remove for whoever may manage the link, Add and Link-existing), a "From m
   page to link to), while the material page shows staff unpublished exercises — deliberate, and
   tested, but an asymmetry somebody will question.
 - No bulk link/unlink and no curated order within a material.
+## 17BD. Concepts: wiki articles per audience, built from blocks, linked to everything (✅ built, full stack)
+
+Piotr's ask, 2026-09-20: "plan and design implementation of term/pojęcie (I'm open to renaming)
+that's going to create wiki like pages. they can have different versions based on the audience
+(e.g. quantum mechanics would have different versions for primary school and students). it has to
+utilize the exercise tech (for adding formulas, chem, pdf, images, etc), and also link and be linked
+to exercises/materials/tags." Approved on 2026-09-23 with two amendments that changed the shape:
+"each concept can have multiple different articles for a specific audience", and content should
+"utilize the whole UI we have developed for exercises as blocks — a Markdown paragraph, then
+chemistry with Ketcher, then LaTeX, then a PDF, then Markdown again, then an image". The plan is
+`CONCEPTS-BRIEF.md` at the repository root, the contract four agents built against (backend ∥
+frontend surfaces → frontend wiring → browser verification) and the reference for the data model
+and the API. Branch `concepts`, cut from `coauthoring` at `c88b934`.
+
+### What existed, and what did not
+
+Everything a concept page needs to *render* and to *be written* already existed on other surfaces:
+the content format (Markdown + raw HTML + literal LaTeX, §11), the sanitizer in `Model.save()`, the
+rich editor with its insert strip (formula panel, inline pictures, the Ketcher island), the lazy PDF
+viewer on the material page, comment attachments that re-encode a picture and sniff-and-scan a PDF,
+per-locale text rows with a partial unique on one published, the verified-contributor trust rule in
+`exercises/entries.py`, and — three days old — `coauthoring`'s immutable numbered versions with a
+409 on a stale save. What did not exist: any page about *a thing* rather than about *a task* or *a
+file*; any content addressed by a language-neutral slug other than a discipline or a branch; any
+notion of a text having several versions for several audiences; and any block-structured document.
+`[[wiki-links]]` existed nowhere either — the closest precedent was the course editor's
+paste-a-URL-get-a-relation.
+
+### The design, in one sentence and five models
+
+**A concept has no text of its own; its articles do, and articles for one audience are a pool of
+peers rather than one page.** `Concept` is a slug plus branches and tags. `ConceptArticle` is one
+written take for one `(audience, locale)`, and several people may each write their own for the same
+pair (the `SolutionEntry` shape — hints and solutions are a pool, not a field). `ConceptRevision` is
+the immutable, numbered history of one article with exactly one `published` head (partial unique,
+supersede-first-then-claim, the `_publish_translation` lesson). `ConceptAsset` is a picture or PDF
+placed as a block, processed by `community.attachments.process_attachment` — reused, not copied.
+`ConceptLink` is a `GenericForeignKey` plus a three-entry registry (exercise, material, concept) with
+a `relation` (`related` | `prerequisite`) and an `origin` (`manual` | `body`).
+
+- **Blocks, not a blob.** A revision's `blocks` is an ordered JSON list of `markdown` (the rich
+  editor, inline maths/pictures/chemistry still allowed *inside* a paragraph), `latex` (one display
+  formula), `chem` (an existing `ChemDrawing`), `pdf` and `image` (a `ConceptAsset`). `blocks.py` is
+  the one place that says what a block may be: `clean_blocks` validates and sanitizes and may raise
+  (the serializer's 400), `sanitize_blocks` only sanitizes and never queries (what `save()` runs, so
+  the admin and the seed are held to the same allowlist), `expand_blocks` bulk-resolves drawings and
+  assets in two queries however many blocks there are (pinned by a test), `plain_text` feeds
+  `search_text` so `?q=` finds words inside a formula's source as well as a paragraph.
+- **Reading never 404s while anything is published.** `resolve.resolve_page` tries the reader's
+  locale and band, then `all`, then the nearest band by distance in the fixed audience order, then
+  any locale, then anything — and returns `audience_exact` / `locale_exact` so the page says in words
+  which article it is showing and offers to write the missing one. Lists narrow (the content-language
+  rule, `X-EdMat-Hidden-Languages`); the detail never does. `?audience=all` is "no narrowing" on the
+  list, which is what lets a link picker search everything while a reader's stored band still
+  applies on browse.
+- **Three circles.** Writing: anybody signed in. Publishing without waiting: staff, a verified
+  contributor, or a governor of one of the concept's branches — never a minor. Reviewing: staff, a
+  governor, **or the article's own author** (`can_decide_entry_suggestion`'s precedent — the person
+  who wrote a text is its natural first reviewer). Decisions go through the app's own `decide/` and
+  the queue gains a `concept_revisions` section; the moderation view's `_KIND_MODELS` was, again,
+  not widened. A branch-less concept reaches staff only.
+- **`[[slug]]` in a markdown block is a link and a backlink.** The frontend renders it as an anchor
+  in a pre-pass that runs after maths extraction and before markdown-it (so `\[\[` inside a stashed
+  formula is never touched; `check:katex` over 2246 rows proves it); the backend harvests the same
+  regex from the head of every visible article on every publish into `origin='body'` link rows — a
+  recount, never an increment, and never touching a `manual` row. So "linked from" exists without
+  anyone filing it.
+- **Cross-cutting, the usual shape:** kill switch `concepts` (three files, two migrations), three
+  notification types with `concept_slug` on the serializer so a card can open `/concepts/<slug>`,
+  two activity kinds (`concept` on the first publication anywhere under a concept, `concept_revision`
+  after), report kind `concept_article` with the Service posture (no viewer pool), comment target
+  `conceptArticle`, `TagViewSet.apply` learning `kind='concept'`, three throttle scopes,
+  `/api/concepts/` on the anonymous read cache.
+
+### Frontend
+
+Six routes under `/concepts/` (hub, `new`, `[slug]`, `[slug]/write`, `[slug]/articles/[id]/edit`,
+`[slug]/articles/[id]/history`), 19 components under `components/concept/`. The page is a
+`PageSwitcher` (one chip per `(audience, locale)` with its article count, plus "write the <band>
+article" for the reader's missing band and the fallback notice), an `ArticlePool` (the peers, the
+lead selected, pin/unpin for a governor), then `BlockRenderer` — markdown through `MathContent`, a
+formula as display maths, a chemistry picture, a PDF row whose preview mounts the lazy viewer only
+on the click, a captioned picture. `BlockEditor` is a list of block cards with ▲ ▼ ✕ and an "Add
+block" menu, each kind opening the editor this app already had for it: the rich editor + insert
+strip, the formula textarea with a live preview (extracted from the strip's panel), the Ketcher
+modal, two file inputs. `RevisionView` diffs markdown blocks against the head through the existing
+`textDiff.ts`, by position. `ConceptLinks` shows prerequisites, related concepts, exercise and
+material cards and "linked from" chips; `LinkedConcepts` is the chip row now on every exercise,
+material and branch page, self-hiding when empty or when the flag is off. A home tab, a nav entry,
+an "Add… → New concept" item, a search section and a moderation tab with the proposed and current
+blocks side by side. 197 message keys, both catalogues, identical key sets.
+
+### Verified — what was actually run
+
+- `manage.py test` **1831 tests, OK** (whole suite, run twice; 92 of them new in
+  `concepts/tests.py`), `manage.py check` clean, `makemigrations --check --dry-run` clean,
+  `seed_concepts` run four times: 6 concepts, 15 articles over 7 pages, every block kind, 13 manual +
+  2 body links, then "0 new" each time after.
+- `npm run check` 0 errors 0 warnings, `npm run lint` (prettier clean; six pre-existing eslint
+  errors in e2e files this feature did not write remain), `npm run build` clean, `npm run
+  check:katex` 2246 rows 0 issues with the wiki-link pre-pass in place, both catalogues identical.
+- **A real browser**: `e2e/concepts.mjs` **60/60**, three consecutive clean runs on 8012/5183 with zero console errors, `npm run check:a11y` 29 pages 0 findings on the concept routes (one pre-existing serious contrast finding on `/material-projects` remains, not this feature's), every screenshot looked at, and the interface switched to Polish once and screenshotted ("Pojęcia", "Popraw ten artykuł", "Dodaj blok / Tekst / Wzór / Chemia / PDF / Obrazek" — no English leak). The first run crashed at check 3; what it then found were **seven real bugs, none caught by any check that had passed**: the reader's audience band never reached a detail page (`client.ts` only decorated list paths, so `resolve_page` always got "no preference" and a primary-school reader landed on the university article — a new `AUDIENCE_PREFERENCE_PATHS` for `/concepts/<slug>/` only, a *choice* not a narrowing); navigating while the session was still being restored **logged you out** (`authStore.init()` cleared the token in a bare `catch`, so an aborted `/auth/me/` left a guest holding a valid token — app-wide, fixed to clear only on a real 401/403); the two editor routes said "sign in" while the session was restoring (`authStore.restoring`, `/submit`'s precedent); the moderation queue served relative `/media/` URLs so a reviewer's picture 404'd against the Vite origin (the serializer had no request context — the chem-attachment trap, predicted); `/api/concept-articles/undefined/` reached the ORM and 500'd (`lookup_value_regex` on the three viewsets; every other app still does this); a heading-order finding on the hub (`ConceptCard` gained `headingLevel`); and the accessibility script did not audit the concept routes at all.
+
+### Left open, not built
+
+- The CC BY-SA contributor line (lawyer first, `LEGAL.md` §2) — the editor shows a factual notice.
+- Votes on the articles in a pool; ordering is pinned + newest head. `SolutionEntryVote` is the shape.
+- Slug rename and merging two concepts (staff, admin only).
+- Watching a concept; `notify_tag_followers` for a tag applied to a concept (its row links to an
+  exercise or a material and would link nowhere).
+- A comment on a concept article makes no feed row: `conceptArticle` is not in
+  `activity/signals.py`'s public-comment allowlist, a public-by-construction decision left for its
+  owner.
+- `[[slug]]` inside an exercise statement or a material body renders as a link but is not harvested.
+- No `[[` autocomplete in the editor; `@tiptap/suggestion` is the obvious next step.
+- `RevisionView` pairs blocks by position, so a block inserted at the top reads as one addition plus
+  "changed" for everything after it; block ids would fix that.
+- A chemistry block on a read page is a picture; reopening the drawing read-only is not built.
+- `_course_for_report_target` answers with the concept's first branch; a concept under several
+  branches is reported to one governor.
+- Galleries on a concept, concept claims, courses filing a concept as content, per-concept talk (talk
+  is per article).
+- **Seen in the screenshots, not fixed (design calls):** a linked exercise appears twice for someone who
+  may unlink it — as an `ExerciseCard` and as a chip with the remove control below it, because the
+  shared card will not grow a remove button; for a guest, "Sign in to link something here" sits far
+  right of the Connections heading; the hub's tag filter is a `<select>` over the whole global tag
+  vocabulary (hundreds of options — a picker like `AddTagToContentModal`'s would scale); the history
+  diff runs removed and added text together with no separator.
+- **Found beside the feature, left to its owner:** `lookup_value_regex` is set only on the three
+  concept viewsets — every other app 500s on a non-numeric id; the frontend `FeedKind` union lacks
+  `material_version` so such a row renders with a "Post" chip; `/material-projects?tab=mine`'s
+  `.badge--waiting` fails colour contrast; two moderation test classes do not declare the log shards
+  and log `DatabaseOperationForbidden` noise; six pre-existing eslint errors in e2e files.
+
 ---
 
 # Appendix — the original blueprint's technical sections

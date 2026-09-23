@@ -962,7 +962,11 @@ export const NOTIFICATION_TYPE_MAP: Record<string, Notification['type']> = {
 	project_invite_used: 'projectInviteUsed',
 	project_member_added: 'projectMemberAdded',
 	project_join_requested: 'projectJoinRequested',
-	project_join_decided: 'projectJoinDecided'
+	project_join_decided: 'projectJoinDecided',
+	// Concepts (concepts/, notifications/models.py). Three types, three arms in the card.
+	concept_revision_pending: 'conceptRevisionPending',
+	concept_revision_decided: 'conceptRevisionDecided',
+	concept_revision_published: 'conceptRevisionPublished'
 };
 
 // The reverse — needed only when SENDING `mutedNotificationTypes` back to the backend
@@ -1237,6 +1241,11 @@ export interface RawNotification {
 	// The co-authoring FK, added after the rest of this shape existed — optional so that a backend
 	// without it sends nothing rather than this mapper reading `undefined` as a real absence.
 	material_project?: number | null;
+	// The concept FK, as its slug. Optional for the same reason `material_project` is: a backend
+	// that does not send it yet must read as "nothing here", not as a field this mapper can rely
+	// on. `concept` (the numeric pk) is deliberately NOT read — `/concepts/[slug]` cannot be built
+	// from a pk, so a card would have nowhere to go with it.
+	concept_slug?: string | null;
 	note: string;
 	is_read: boolean;
 	created_at: string;
@@ -1259,6 +1268,7 @@ export function mapNotification(json: RawNotification): Notification {
 		issueId:
 			json.issue_id !== null && json.issue_id !== undefined ? String(json.issue_id) : undefined,
 		materialProjectId: idOrUndefined(json.material_project),
+		conceptSlug: json.concept_slug ?? undefined,
 		note: json.note,
 		isRead: json.is_read,
 		createdAt: json.created_at
@@ -2141,5 +2151,540 @@ export function mapExerciseMaterialLink(
 		addedByUserId: idOrUndefined(json.added_by_id),
 		createdAt: json.created_at,
 		material: mapMaterial(json.material)
+	};
+}
+
+// ---- concepts ------------------------------------------------------------------------------
+// (backend/concepts/, CONCEPTS-BRIEF.md §5's serializer shapes. Read the type file first —
+// `lib/types/concept.ts` explains the Concept → Article → Revision shape and what a "page" is.)
+//
+// Two things here that the other mappers in this file do not need:
+//
+// 1. **Blocks go BOTH ways.** The read shape carries the backend's `drawing` / `asset`
+//    expansions; the write shape is the stored shape and nothing else. `toRawConceptBlocks` is
+//    the one place that strips them, so no editor has to remember to.
+// 2. **A block is a discriminated union**, so an unknown `kind` coming off the wire has to land
+//    somewhere honest rather than as a half-built object. It becomes an empty markdown block —
+//    a newer backend that grows a sixth kind renders as a gap in an older frontend, never as a
+//    crash (the `_KIND_MODELS` "unknown → 404, never 500" reasoning, one layer up).
+
+import type {
+	Concept,
+	ConceptArticle,
+	ConceptArticleSummary,
+	ConceptAsset,
+	ConceptAssetKind,
+	ConceptBacklink,
+	ConceptBlock,
+	ConceptLink,
+	ConceptLinkBlockReason,
+	ConceptLinkOrigin,
+	ConceptLinkTargetType,
+	ConceptListRow,
+	ConceptOpenRevision,
+	ConceptPage,
+	ConceptPageRef,
+	ConceptQueueRow,
+	ConceptRelation,
+	ConceptRevision,
+	ConceptRevisionStatus,
+	ConceptRevisionSummary
+} from '$lib/types/concept';
+
+export interface RawConceptBlock {
+	kind: string;
+	body?: string;
+	source?: string;
+	drawing_id?: number | string;
+	asset_id?: number | string;
+	alt?: string;
+	caption?: string;
+	drawing?: {
+		image_url?: string;
+		label?: string;
+		width?: number;
+		height?: number;
+		source_format?: string;
+	} | null;
+	asset?: {
+		url?: string;
+		original_name?: string;
+		size_bytes?: number;
+		width?: number;
+		height?: number;
+	} | null;
+}
+
+export function mapConceptBlock(json: RawConceptBlock): ConceptBlock {
+	switch (json.kind) {
+		case 'latex':
+			return { kind: 'latex', source: json.source ?? '' };
+		case 'chem':
+			return {
+				kind: 'chem',
+				drawingId: String(json.drawing_id ?? ''),
+				caption: json.caption ?? '',
+				drawing: json.drawing
+					? {
+							imageUrl: json.drawing.image_url ?? '',
+							label: json.drawing.label ?? '',
+							width: json.drawing.width ?? 0,
+							height: json.drawing.height ?? 0,
+							sourceFormat: json.drawing.source_format ?? ''
+						}
+					: undefined
+			};
+		case 'pdf':
+			return {
+				kind: 'pdf',
+				assetId: String(json.asset_id ?? ''),
+				caption: json.caption ?? '',
+				asset: json.asset ? mapConceptBlockAsset(json.asset) : undefined
+			};
+		case 'image':
+			return {
+				kind: 'image',
+				assetId: String(json.asset_id ?? ''),
+				alt: json.alt ?? '',
+				caption: json.caption ?? '',
+				asset: json.asset ? mapConceptBlockAsset(json.asset) : undefined
+			};
+		// `markdown`, and anything a newer backend has grown that this build has never heard of.
+		default:
+			return { kind: 'markdown', body: json.kind === 'markdown' ? (json.body ?? '') : '' };
+	}
+}
+
+function mapConceptBlockAsset(asset: NonNullable<RawConceptBlock['asset']>) {
+	return {
+		url: asset.url ?? '',
+		originalName: asset.original_name ?? '',
+		sizeBytes: asset.size_bytes ?? 0,
+		width: asset.width ?? 0,
+		height: asset.height ?? 0
+	};
+}
+
+/** The WRITE shape: exactly the stored keys, with the read-only expansions dropped. The backend
+ *  drops unknown keys anyway (`clean_blocks`), but sending a whole expanded drawing back up would
+ *  be this frontend asserting something it does not own. */
+export function toRawConceptBlocks(blocks: ConceptBlock[]): Record<string, unknown>[] {
+	return blocks.map((block) => {
+		switch (block.kind) {
+			case 'markdown':
+				return { kind: 'markdown', body: block.body };
+			case 'latex':
+				return { kind: 'latex', source: block.source };
+			case 'chem':
+				return { kind: 'chem', drawing_id: Number(block.drawingId), caption: block.caption };
+			case 'pdf':
+				return { kind: 'pdf', asset_id: Number(block.assetId), caption: block.caption };
+			case 'image':
+				return {
+					kind: 'image',
+					asset_id: Number(block.assetId),
+					alt: block.alt,
+					caption: block.caption
+				};
+		}
+	});
+}
+
+export interface RawConceptAsset {
+	id: number;
+	kind: string;
+	url: string;
+	original_name?: string;
+	size_bytes?: number;
+	width?: number;
+	height?: number;
+}
+
+export function mapConceptAsset(json: RawConceptAsset): ConceptAsset {
+	return {
+		id: String(json.id),
+		kind: (json.kind ?? 'image') as ConceptAssetKind,
+		url: json.url ?? '',
+		originalName: json.original_name ?? '',
+		sizeBytes: json.size_bytes ?? 0,
+		width: json.width ?? 0,
+		height: json.height ?? 0
+	};
+}
+
+export interface RawConceptRevisionSummary {
+	id: number;
+	article_id: number;
+	number: number;
+	status: string;
+	title: string;
+	change_note?: string;
+	created_by_id: number | null;
+	created_by_display_name?: string;
+	created_at: string;
+	published_at: string | null;
+}
+
+export function mapConceptRevisionSummary(json: RawConceptRevisionSummary): ConceptRevisionSummary {
+	return {
+		id: String(json.id),
+		articleId: String(json.article_id),
+		number: json.number,
+		status: json.status as ConceptRevisionStatus,
+		title: json.title ?? '',
+		changeNote: json.change_note ?? '',
+		createdByUserId: idOrUndefined(json.created_by_id) ?? null,
+		createdByDisplayName: json.created_by_display_name ?? '',
+		createdAt: json.created_at,
+		publishedAt: json.published_at ?? null
+	};
+}
+
+export interface RawConceptRevision extends RawConceptRevisionSummary {
+	concept_id: number;
+	slug: string;
+	audience?: string;
+	locale?: string;
+	summary?: string;
+	blocks?: RawConceptBlock[];
+	based_on_id: number | null;
+	based_on_is_current?: boolean;
+	updated_at: string;
+	submitted_at: string | null;
+	reviewed_by_id: number | null;
+	reviewed_by_display_name?: string;
+	reviewed_at: string | null;
+	review_note?: string;
+	will_publish?: boolean;
+	can_submit?: boolean;
+	can_decide?: boolean;
+	can_withdraw?: boolean;
+	can_delete?: boolean;
+}
+
+export function mapConceptRevision(json: RawConceptRevision): ConceptRevision {
+	const summary = mapConceptRevisionSummary(json);
+	return {
+		...summary,
+		conceptId: String(json.concept_id),
+		slug: json.slug ?? '',
+		audience: (json.audience ?? 'all') as ConceptRevision['audience'],
+		locale: json.locale ?? '',
+		summary: json.summary ?? '',
+		blocks: (json.blocks ?? []).map(mapConceptBlock),
+		basedOnId: idOrUndefined(json.based_on_id) ?? null,
+		basedOnIsCurrent: Boolean(json.based_on_is_current),
+		updatedAt: json.updated_at,
+		submittedAt: json.submitted_at ?? null,
+		reviewedByUserId: idOrUndefined(json.reviewed_by_id) ?? null,
+		reviewedByDisplayName: json.reviewed_by_display_name ?? '',
+		reviewedAt: json.reviewed_at ?? null,
+		reviewNote: json.review_note ?? '',
+		willPublish: Boolean(json.will_publish),
+		canSubmit: Boolean(json.can_submit),
+		canDecide: Boolean(json.can_decide),
+		canWithdraw: Boolean(json.can_withdraw),
+		canDelete: Boolean(json.can_delete)
+	};
+}
+
+export interface RawConceptArticleSummary {
+	id: number;
+	audience?: string;
+	locale?: string;
+	pinned?: boolean;
+	title: string;
+	summary?: string;
+	created_by_id: number | null;
+	created_by_display_name?: string;
+	head_published_at: string | null;
+	revision_count?: number;
+	comment_count?: number;
+}
+
+export function mapConceptArticleSummary(json: RawConceptArticleSummary): ConceptArticleSummary {
+	return {
+		id: String(json.id),
+		audience: (json.audience ?? 'all') as ConceptArticleSummary['audience'],
+		locale: json.locale ?? '',
+		pinned: Boolean(json.pinned),
+		title: json.title ?? '',
+		summary: json.summary ?? '',
+		createdByUserId: idOrUndefined(json.created_by_id) ?? null,
+		createdByDisplayName: json.created_by_display_name ?? '',
+		headPublishedAt: json.head_published_at ?? null,
+		revisionCount: json.revision_count ?? 0,
+		commentCount: json.comment_count ?? 0
+	};
+}
+
+export interface RawConceptArticle extends RawConceptArticleSummary {
+	concept_id: number;
+	slug: string;
+	head: RawConceptRevision | null;
+	my_open?: RawConceptRevisionSummary | null;
+	can_review?: boolean;
+	can_pin?: boolean;
+	will_publish?: boolean;
+}
+
+export function mapConceptArticle(json: RawConceptArticle): ConceptArticle {
+	return {
+		...mapConceptArticleSummary(json),
+		conceptId: String(json.concept_id),
+		slug: json.slug ?? '',
+		head: json.head ? mapConceptRevision(json.head) : null,
+		myOpen: json.my_open ? mapConceptRevisionSummary(json.my_open) : null,
+		canReview: Boolean(json.can_review),
+		canPin: Boolean(json.can_pin),
+		willPublish: Boolean(json.will_publish)
+	};
+}
+
+export interface RawConceptLink {
+	id: number;
+	relation?: string;
+	origin?: string;
+	target_type: string;
+	target_id: number | string;
+	target_title?: string;
+	target_slug?: string;
+	target_audience?: string | null;
+	added_by_id: number | null;
+	created_at: string;
+	can_remove?: boolean;
+}
+
+export function mapConceptLink(json: RawConceptLink): ConceptLink {
+	return {
+		id: String(json.id),
+		relation: (json.relation ?? 'related') as ConceptRelation,
+		origin: (json.origin ?? 'manual') as ConceptLinkOrigin,
+		targetType: json.target_type as ConceptLinkTargetType,
+		targetId: String(json.target_id),
+		targetTitle: json.target_title ?? '',
+		targetSlug: json.target_slug ?? '',
+		targetAudience: (json.target_audience ?? null) as ConceptLink['targetAudience'],
+		addedByUserId: idOrUndefined(json.added_by_id) ?? null,
+		createdAt: json.created_at,
+		canRemove: Boolean(json.can_remove)
+	};
+}
+
+export interface RawConceptBacklink {
+	link_id: number;
+	concept_id: number;
+	slug: string;
+	title?: string;
+	summary?: string;
+	relation?: string;
+	origin?: string;
+}
+
+export function mapConceptBacklink(json: RawConceptBacklink): ConceptBacklink {
+	return {
+		linkId: String(json.link_id),
+		conceptId: String(json.concept_id),
+		slug: json.slug,
+		title: json.title ?? '',
+		summary: json.summary ?? '',
+		relation: (json.relation ?? 'related') as ConceptRelation,
+		origin: (json.origin ?? 'manual') as ConceptLinkOrigin
+	};
+}
+
+export interface RawConceptPageRef {
+	audience?: string;
+	locale?: string;
+	article_count?: number;
+	lead_title?: string;
+}
+
+export function mapConceptPageRef(json: RawConceptPageRef): ConceptPageRef {
+	return {
+		audience: (json.audience ?? 'all') as ConceptPageRef['audience'],
+		locale: json.locale ?? '',
+		articleCount: json.article_count ?? 0,
+		leadTitle: json.lead_title ?? ''
+	};
+}
+
+export interface RawConceptPage extends RawConceptPageRef {
+	audience_exact?: boolean;
+	locale_exact?: boolean;
+	articles?: RawConceptArticleSummary[];
+	article: RawConceptArticle | null;
+}
+
+export function mapConceptPage(json: RawConceptPage): ConceptPage {
+	return {
+		audience: (json.audience ?? 'all') as ConceptPage['audience'],
+		locale: json.locale ?? '',
+		// Both default TRUE: a server that does not say is saying it did not have to fall back,
+		// and a fallback notice shown over a page that is exactly the reader's own would be a lie
+		// in the one direction that matters.
+		audienceExact: json.audience_exact ?? true,
+		localeExact: json.locale_exact ?? true,
+		articles: (json.articles ?? []).map(mapConceptArticleSummary),
+		article: json.article ? mapConceptArticle(json.article) : null
+	};
+}
+
+export interface RawConceptOpenRevision {
+	revision_id: number;
+	article_id: number;
+	audience?: string;
+	locale?: string;
+	status: string;
+	updated_at: string;
+}
+
+export function mapConceptOpenRevision(json: RawConceptOpenRevision): ConceptOpenRevision {
+	return {
+		revisionId: String(json.revision_id),
+		articleId: String(json.article_id),
+		audience: (json.audience ?? 'all') as ConceptOpenRevision['audience'],
+		locale: json.locale ?? '',
+		status: json.status as ConceptRevisionStatus,
+		updatedAt: json.updated_at
+	};
+}
+
+export interface RawConcept {
+	id: number;
+	slug: string;
+	branch_ids?: string[];
+	branch_names?: string[];
+	tags?: string[];
+	created_by_id: number | null;
+	created_by_display_name?: string;
+	created_at: string;
+	updated_at: string;
+	page: RawConceptPage | null;
+	pages?: RawConceptPageRef[];
+	links?: RawConceptLink[];
+	backlinks?: RawConceptBacklink[];
+	my_open?: RawConceptOpenRevision[];
+	can_edit_metadata?: boolean;
+	can_pin?: boolean;
+	link_block_reason?: string | null;
+	will_publish?: boolean;
+}
+
+export function mapConcept(json: RawConcept): Concept {
+	return {
+		id: String(json.id),
+		slug: json.slug,
+		branchIds: json.branch_ids ?? [],
+		branchNames: json.branch_names ?? [],
+		tags: json.tags ?? [],
+		createdByUserId: idOrUndefined(json.created_by_id) ?? null,
+		createdByDisplayName: json.created_by_display_name ?? '',
+		createdAt: json.created_at,
+		updatedAt: json.updated_at,
+		page: json.page ? mapConceptPage(json.page) : null,
+		pages: (json.pages ?? []).map(mapConceptPageRef),
+		links: (json.links ?? []).map(mapConceptLink),
+		backlinks: (json.backlinks ?? []).map(mapConceptBacklink),
+		myOpen: (json.my_open ?? []).map(mapConceptOpenRevision),
+		canEditMetadata: Boolean(json.can_edit_metadata),
+		canPin: Boolean(json.can_pin),
+		linkBlockReason: (json.link_block_reason ?? null) as ConceptLinkBlockReason | null,
+		willPublish: Boolean(json.will_publish)
+	};
+}
+
+export interface RawConceptListRow {
+	id: number;
+	slug: string;
+	title?: string;
+	summary?: string;
+	audience?: string;
+	locale?: string;
+	article_count?: number;
+	audiences?: string[];
+	locales?: string[];
+	branch_ids?: string[];
+	branch_names?: string[];
+	tags?: string[];
+	updated_at: string;
+	is_fallback?: boolean;
+}
+
+export function mapConceptListRow(json: RawConceptListRow): ConceptListRow {
+	return {
+		id: String(json.id),
+		slug: json.slug,
+		title: json.title ?? '',
+		summary: json.summary ?? '',
+		audience: (json.audience ?? 'all') as ConceptListRow['audience'],
+		locale: json.locale ?? '',
+		articleCount: json.article_count ?? 0,
+		audiences: (json.audiences ?? []) as ConceptListRow['audiences'],
+		locales: json.locales ?? [],
+		branchIds: json.branch_ids ?? [],
+		branchNames: json.branch_names ?? [],
+		tags: json.tags ?? [],
+		updatedAt: json.updated_at,
+		isFallback: Boolean(json.is_fallback)
+	};
+}
+
+export interface RawConceptQueueRow {
+	id: number;
+	article_id: number;
+	concept_id: number;
+	slug: string;
+	audience?: string;
+	locale?: string;
+	number: number;
+	title: string;
+	summary?: string;
+	blocks?: RawConceptBlock[];
+	change_note?: string;
+	is_new_concept?: boolean;
+	is_new_article?: boolean;
+	based_on_is_current?: boolean;
+	current?: { revision_id: number; title?: string; blocks?: RawConceptBlock[] } | null;
+	created_by_id: number | null;
+	created_by_display_name?: string;
+	created_at: string;
+	submitted_at: string | null;
+	branch_ids?: string[];
+	branch_names?: string[];
+}
+
+/** The moderation queue's `concepts` section. Decided through the app's own
+ *  `/api/concept-revisions/{id}/decide/` endpoint rather than a new moderation kind — the
+ *  `material_versions` / `solution_entries` precedent (CONCEPTS-BRIEF.md §0). */
+export function mapConceptQueueRow(json: RawConceptQueueRow): ConceptQueueRow {
+	return {
+		id: String(json.id),
+		articleId: String(json.article_id),
+		conceptId: String(json.concept_id),
+		slug: json.slug,
+		audience: (json.audience ?? 'all') as ConceptQueueRow['audience'],
+		locale: json.locale ?? '',
+		number: json.number,
+		title: json.title ?? '',
+		summary: json.summary ?? '',
+		blocks: (json.blocks ?? []).map(mapConceptBlock),
+		changeNote: json.change_note ?? '',
+		isNewConcept: Boolean(json.is_new_concept),
+		isNewArticle: Boolean(json.is_new_article),
+		basedOnIsCurrent: Boolean(json.based_on_is_current),
+		current: json.current
+			? {
+					revisionId: String(json.current.revision_id),
+					title: json.current.title ?? '',
+					blocks: (json.current.blocks ?? []).map(mapConceptBlock)
+				}
+			: null,
+		createdByUserId: idOrUndefined(json.created_by_id) ?? null,
+		createdByDisplayName: json.created_by_display_name ?? '',
+		createdAt: json.created_at,
+		submittedAt: json.submitted_at ?? null,
+		branchIds: json.branch_ids ?? [],
+		branchNames: json.branch_names ?? []
 	};
 }

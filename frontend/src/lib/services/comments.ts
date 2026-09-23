@@ -35,6 +35,12 @@ function targetPath(targetType: CommentTargetType, targetId: string): string {
 	if (targetType === 'materialVersion') {
 		return `/material-versions/${encodeURIComponent(targetId)}/comments/`;
 	}
+	// One concept article's own discussion (concepts/). Nested under the ARTICLE, not the concept:
+	// several people may write their own article for the same audience, and each one's thread is
+	// about that text.
+	if (targetType === 'conceptArticle') {
+		return `/concept-articles/${encodeURIComponent(targetId)}/comments/`;
+	}
 	// The three review threads. Addressed by the review's own id rather than nested under the
 	// exercise/material/listing it is about, because a reply belongs to the review, not to the
 	// thing being reviewed.

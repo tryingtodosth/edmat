@@ -31,6 +31,7 @@
 	import TranslateForm from '$lib/components/submission/TranslateForm.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
+	import LinkedConcepts from '$lib/components/concept/LinkedConcepts.svelte';
 	import ClaimGroups from '$lib/components/material/ClaimGroups.svelte';
 	import SolutionEntrySection from '$lib/components/exercise/SolutionEntrySection.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
@@ -410,6 +411,11 @@
 					{/each}
 				</div>
 			{/if}
+
+			<!-- What this exercise is ABOUT, as chips — right under the tags, because they answer
+			     neighbouring questions ("filed under" and "about"). Renders nothing at all when there
+			     is nothing linked and nothing this reader could do about it. -->
+			<LinkedConcepts exerciseId={exercise.id} />
 
 			<section class="content-section">
 				<h2>{m.exercise_statement()}</h2>

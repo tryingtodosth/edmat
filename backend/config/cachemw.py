@@ -63,6 +63,14 @@ PUBLIC_PREFIXES = (
     '/api/events/',
     '/api/services/',
     '/api/users/',
+    # Concept list and detail reads. An anonymous reader may see a published edit up to 60s late,
+    # which is the same trade every content prefix above makes and is stated here rather than left
+    # implicit: an editor is authenticated, so their own next read bypasses this cache entirely and
+    # they never see their own change lag. Deliberately NOT `/api/concept-links/` — that one is
+    # read by an exercise's and a material's own page and answers `[]` while the flag is off, so
+    # caching it would serve the flag's previous answer for a minute (the `/api/feature-flags/`
+    # lesson, one paragraph up).
+    '/api/concepts/',
 )
 
 # Carve-outs inside those prefixes. Exercise detail is excluded because `retrieve()` records a real

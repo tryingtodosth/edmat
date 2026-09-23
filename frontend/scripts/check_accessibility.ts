@@ -104,6 +104,11 @@ async function main() {
 	const realExercise = exercises.find((e) => e.id > 10) ?? exercises[0];
 	const exerciseId = realExercise.id;
 
+	// A concept with something on it — `seed_concepts` names six, but the audited page should be a
+	// real one from whatever this database holds, not a slug written down here (CONCEPTS-BRIEF.md).
+	const conceptRows = await fetchJson<{ slug: string }[]>('/api/concepts/?limit=5&audience=all');
+	const conceptSlug = conceptRows[0]?.slug ?? '';
+
 	const login = await fetchJson<RawLoginResponse>('/api/auth/login/', {
 		method: 'POST',
 		body: JSON.stringify({ username: 'kasia@edmat.example', password: 'password123' })
@@ -140,6 +145,10 @@ async function main() {
 		{ name: 'Activity feed', url: '/activity' },
 		// Co-authoring (HISTORY.md §17BC): the public half — projects looking for people.
 		{ name: 'Co-authoring hub', url: '/material-projects' },
+		// Concepts (CONCEPTS-BRIEF.md §8): the hub, and one concept page with its switcher, its pool
+		// and whichever block kinds that concept's lead article happens to carry.
+		{ name: 'Concepts hub', url: '/concepts' },
+		...(conceptSlug ? [{ name: 'Concept detail', url: `/concepts/${conceptSlug}` }] : []),
 		{ name: 'Exercise detail', url: `/exercises/${exerciseId}` },
 		{ name: 'My Set (guest)', url: '/my-set' },
 		{ name: 'Login', url: '/login' },
@@ -159,7 +168,11 @@ async function main() {
 		{ name: 'Start a material with others', url: '/material-projects/new' },
 		{ name: 'My agenda', url: '/events/agenda' },
 		{ name: 'Host an event', url: '/events/new' },
-		{ name: 'Offer tutoring', url: '/services/new' }
+		{ name: 'Offer tutoring', url: '/services/new' },
+		{ name: 'Start a concept', url: '/concepts/new' },
+		...(conceptSlug
+			? [{ name: 'Write a concept article', url: `/concepts/${conceptSlug}/write?audience=adult` }]
+			: [])
 	];
 
 	const context = await browser.newContext();

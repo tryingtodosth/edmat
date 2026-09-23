@@ -13,7 +13,14 @@ export type FeedKind =
 	| 'post'
 	| 'review'
 	| 'claim'
-	| 'comment';
+	| 'comment'
+	// Concepts (concepts/). Two kinds, the `material_version` split: 'concept' is a concept's page
+	// coming into being — the FIRST publication anywhere under it, so a concept with six articles
+	// announces itself once — while 'concept_revision' is an article that already existed getting
+	// a new published revision. "This idea now has a page" and "a page you may have read has
+	// changed" are different things to a reader. Both link through the concept.
+	| 'concept'
+	| 'concept_revision';
 
 /** One anchored micro-post: your words + exactly one discipline/branch/tag anchor + optionally one
  * referenced exercise/material/course + optionally one (re-encoded) image. A removed/auto-hidden
@@ -61,6 +68,9 @@ export interface FeedItem {
 	serviceId?: string;
 	postId?: string;
 	post?: Post;
+	/** The concept a 'concept'/'concept_revision' row is about, as its SLUG — `/concepts/[slug]`
+	 * is keyed by the slug, and an article or a revision has no page of its own. */
+	conceptSlug?: string;
 	branchId?: string;
 	disciplineId?: string;
 	tags: string[];

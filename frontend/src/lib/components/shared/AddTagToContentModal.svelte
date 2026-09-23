@@ -1,23 +1,36 @@
 <script lang="ts">
-	// The tag-hover menu's "add to different content" action — search for another Exercise or
-	// Material and attach this same tag to it. Debounced text search, reusing the exact services
-	// (searchExercises/searchMaterials) built for this modal specifically, since neither existed as
-	// a branch-agnostic lookup before this feature needed one.
+	// The tag-hover menu's "add to different content" action — search for another Exercise,
+	// Material or Concept and attach this same tag to it. Debounced text search, reusing the exact
+	// services (searchExercises/searchMaterials/searchConcepts) built for this modal specifically,
+	// since none existed as a branch-agnostic lookup before this feature needed one.
 	import type { Material, ResolvedExercise, TaggableKind } from '$lib/types';
+	import type { ConceptListRow } from '$lib/types/concept';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { searchExercises } from '$lib/services/exercises';
 	import { searchMaterials } from '$lib/services/materials';
+	import { searchConcepts } from '$lib/services/concepts';
 	import { applyTagToContent } from '$lib/services/tags';
 	import { compositionTracker } from '$lib/utils/textInput';
 	import ModalShell from './ModalShell.svelte';
 
 	let { tag, onClose }: { tag: string; onClose: () => void } = $props();
 
+	// The third tab appears only while the concepts kill switch is on (house rule 3: a killed
+	// feature loses its links, not just its pages), with the same moderator bypass `FeatureGate`
+	// and the header use. The flag key is spelled here rather than imported from
+	// `components/concept/labels.ts` on purpose — this modal opens from a tag chip on nearly every
+	// page, and importing that module would pull the whole concepts service into their chunks for
+	// one string. `FeatureFlagKey` is what checks the spelling.
+	let canConcepts = $derived(featureFlagsStore.isEnabled('concepts') || authStore.isModerator);
+
 	let kind = $state<TaggableKind>('exercise');
 	let query = $state('');
 	let exerciseResults = $state<ResolvedExercise[]>([]);
 	let materialResults = $state<Material[]>([]);
+	let conceptResults = $state<ConceptListRow[]>([]);
 	let searching = $state(false);
 	let addedIds = $state<Set<string>>(new Set());
 	let error = $state('');
@@ -38,6 +51,7 @@
 		if (!query.trim()) {
 			exerciseResults = [];
 			materialResults = [];
+			conceptResults = [];
 			return;
 		}
 		// Captured now rather than read inside `runSearch`, so the request and the results it is
@@ -61,10 +75,14 @@
 				const results = await searchExercises(term, getLocale());
 				if (inFlight !== token) return;
 				exerciseResults = results;
-			} else {
+			} else if (forKind === 'material') {
 				const results = await searchMaterials(term);
 				if (inFlight !== token) return;
 				materialResults = results;
+			} else {
+				const results = await searchConcepts(term);
+				if (inFlight !== token) return;
+				conceptResults = results;
 			}
 		} finally {
 			if (inFlight === token) searching = false;
@@ -75,6 +93,7 @@
 		kind = next;
 		exerciseResults = [];
 		materialResults = [];
+		conceptResults = [];
 		if (query.trim()) scheduleSearch();
 	}
 
@@ -88,11 +107,19 @@
 		return resultTags.includes(tag);
 	}
 
+	// Keyed by KIND and id, not by id alone. Ids are per-model numeric pks, so exercise 5, material
+	// 5 and concept 5 all exist — a bare id set made tagging one of them show "Added" against the
+	// other two the moment you switched tabs. Third kind, same set: the collision stopped being
+	// hypothetical.
+	function addedKey(kindOfRow: TaggableKind, objectId: string): string {
+		return `${kindOfRow}:${objectId}`;
+	}
+
 	async function handleAdd(objectId: string) {
 		error = '';
 		try {
 			await applyTagToContent(tag, kind, objectId);
-			addedIds = new Set([...addedIds, objectId]);
+			addedIds = new Set([...addedIds, addedKey(kind, objectId)]);
 		} catch {
 			error = m.common_error_generic();
 		}
@@ -119,6 +146,18 @@
 		>
 			{m.tag_kindMaterial()}
 		</button>
+		{#if canConcepts}
+			<button
+				type="button"
+				class:active={kind === 'concept'}
+				role="tab"
+				aria-selected={kind === 'concept'}
+				onclick={() => switchKind('concept')}
+			>
+				{m.tag_kindConcept()}
+				<!-- "Concept" -->
+			</button>
+		{/if}
 	</div>
 
 	<input
@@ -151,21 +190,21 @@
 			{#each exerciseResults as exercise (exercise.id)}
 				<li class="result-row">
 					<span class="result-row__title">{exercise.title}</span>
-					{#if alreadyHasTag(exercise.tags) && !addedIds.has(exercise.id)}
+					{#if alreadyHasTag(exercise.tags) && !addedIds.has(addedKey('exercise', exercise.id))}
 						<span class="result-row__already">{m.tag_alreadyTagged()}</span>
 					{:else}
 						<button
 							type="button"
-							disabled={addedIds.has(exercise.id)}
+							disabled={addedIds.has(addedKey('exercise', exercise.id))}
 							onclick={() => handleAdd(exercise.id)}
 						>
-							{addedIds.has(exercise.id) ? m.tag_added() : m.tag_addAction()}
+							{addedIds.has(addedKey('exercise', exercise.id)) ? m.tag_added() : m.tag_addAction()}
 						</button>
 					{/if}
 				</li>
 			{/each}
 		</ul>
-	{:else}
+	{:else if kind === 'material'}
 		{#if query.trim() && materialResults.length === 0}
 			<p class="hint">{m.tag_noResults()}</p>
 		{/if}
@@ -173,15 +212,37 @@
 			{#each materialResults as material (material.id)}
 				<li class="result-row">
 					<span class="result-row__title">{material.title}</span>
-					{#if alreadyHasTag(material.tags) && !addedIds.has(material.id)}
+					{#if alreadyHasTag(material.tags) && !addedIds.has(addedKey('material', material.id))}
 						<span class="result-row__already">{m.tag_alreadyTagged()}</span>
 					{:else}
 						<button
 							type="button"
-							disabled={addedIds.has(material.id)}
+							disabled={addedIds.has(addedKey('material', material.id))}
 							onclick={() => handleAdd(material.id)}
 						>
-							{addedIds.has(material.id) ? m.tag_added() : m.tag_addAction()}
+							{addedIds.has(addedKey('material', material.id)) ? m.tag_added() : m.tag_addAction()}
+						</button>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{:else}
+		{#if query.trim() && conceptResults.length === 0}
+			<p class="hint">{m.tag_noResults()}</p>
+		{/if}
+		<ul class="results">
+			{#each conceptResults as concept (concept.id)}
+				<li class="result-row">
+					<span class="result-row__title">{concept.title}</span>
+					{#if alreadyHasTag(concept.tags) && !addedIds.has(addedKey('concept', concept.id))}
+						<span class="result-row__already">{m.tag_alreadyTagged()}</span>
+					{:else}
+						<button
+							type="button"
+							disabled={addedIds.has(addedKey('concept', concept.id))}
+							onclick={() => handleAdd(concept.id)}
+						>
+							{addedIds.has(addedKey('concept', concept.id)) ? m.tag_added() : m.tag_addAction()}
 						</button>
 					{/if}
 				</li>

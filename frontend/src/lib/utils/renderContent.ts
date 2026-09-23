@@ -69,6 +69,44 @@ const INLINE_MATH = /\\\(([\s\S]+?)\\\)/g;
 const DISPLAY_MATH_DOLLAR = /\$\$([\s\S]+?)\$\$/g;
 const INLINE_MATH_DOLLAR = /(^|[^\\$])\$([^\s$](?:[^$]*[^\s$])?)\$(?!\d)/g;
 
+// `[[slug]]` / `[[slug|label]]` — a link to a concept page (backend concepts/, CONCEPTS-BRIEF.md
+// §7), written the way every wiki writes one.
+//
+// **Mirrored from `backend/concepts/blocks.py`'s `WIKI_LINK_RE`**, character for character, and
+// flagged in both files because neither copy can be derived from the other (house rule 13). That
+// one harvests the mentions into real link rows on publish, so backlinks exist without anybody
+// filing them; this one turns them into anchors for a reader. The slug half is deliberately the
+// strict `slugify` alphabet — anything else is prose that happens to contain brackets, and turning
+// that into a broken link would be worse than leaving it as text.
+//
+// It is applied AFTER the maths extraction and BEFORE markdown-it, for the same reason the maths
+// itself is extracted first: `\[\[` inside a stashed formula is LaTeX (a bracket in an array
+// argument, say) and must never become a link, while a `[[…]]` that reaches markdown-it untouched
+// is parsed as a nested link reference. Between the two passes it is plain text either way.
+// `npm run check:katex` is what proves the first half on the real corpus.
+//
+// Deliberately NOT applied in `renderTitle`: a title is a plain string, never Markdown source, so a
+// `[label](/url)` written into it would render as those literal characters rather than as a link.
+const WIKI_LINK_RE = /\[\[([a-z0-9][a-z0-9-]*)(?:\|[^\]]*)?\]\]/g;
+
+/**
+ * `[[derivative]]` → `[derivative](/concepts/derivative)`, `[[ideal-gas|an ideal gas]]` →
+ * `[an ideal gas](/concepts/ideal-gas)`. A bare slug becomes its own label with the dashes read as
+ * spaces, which is what the slug was made out of in the first place.
+ *
+ * The label is taken off the WHOLE match rather than captured, so this expression stays byte-
+ * identical to the backend's (see above). An empty label (`[[slug|]]`) falls back to the slug,
+ * because an anchor with no text is one nobody can click.
+ */
+function linkConceptMentions(source: string): string {
+	return source.replace(WIKI_LINK_RE, (match, slug: string) => {
+		const bar = match.indexOf('|');
+		const written = bar === -1 ? '' : match.slice(bar + 1, -2).trim();
+		const label = written || slug.replace(/-/g, ' ');
+		return `[${label}](/concepts/${slug})`;
+	});
+}
+
 // Purely alphanumeric, no markdown-significant punctuation (no `*_[]()` etc.) — CommonMark never
 // escapes, emphasizes, or otherwise transforms a plain run of letters/digits, so this token is
 // guaranteed to survive markdown-it's inline parsing completely unchanged, regardless of whether it
@@ -122,7 +160,10 @@ export function renderContent(source: string | undefined | null): string {
 		return token;
 	}
 
-	const protectedSource = extractMath(source, stash);
+	// Maths out first, then the wiki mentions in what is left (see WIKI_LINK_RE's own note for why
+	// that order is the whole point), then markdown-it. The anchor it produces is a relative href,
+	// which DOMPurify keeps, and `MathContent` already styles `a`.
+	const protectedSource = linkConceptMentions(extractMath(source, stash));
 
 	const html = md.render(protectedSource);
 	const withMath = html.replace(PLACEHOLDER_RE, (_m, i) => renderedSegments[Number(i)]);
