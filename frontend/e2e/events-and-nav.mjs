@@ -683,8 +683,21 @@ check('the menu button is there', await toggle.isVisible());
 
 // Opening it, and finding everything the desktop bar holds.
 await toggle.click();
-await settle(phone, 700);
+// Wait for the drawer itself rather than a fixed 700 ms: on a signed-in phone context the header
+// hydrates late (trap 25), a tap before that is lost, and a second tap after a short wait is what a
+// person does too (integration re-run, 2026-09-23 — the drawer itself was fine in a direct probe).
 const drawer = phone.locator('#site-drawer');
+await drawer.waitFor({ state: 'visible', timeout: 5000 }).catch(async () => {
+	await settle(phone, 1500);
+	await toggle.click();
+	await drawer.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+});
+// The token was written to localStorage and applied on boot, so the header may still be drawing
+// its signed-out menu when the drawer first opens; wait for the account fetch to land.
+await drawer
+	.getByText(/^Log in$/)
+	.waitFor({ state: 'hidden', timeout: 8000 })
+	.catch(() => {});
 check('it opens a drawer', await drawer.isVisible());
 const drawerText = (await drawer.innerText()).replace(/\n+/g, ' | ');
 for (const [label, needle] of [
