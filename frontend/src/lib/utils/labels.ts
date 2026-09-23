@@ -486,6 +486,7 @@ export const CLAIM_BLOCK_REASON_LABELS: Record<ClaimBlockReason, () => string> =
 	sign_in: m.shifts_reason_signIn, // "Sign in to take a shift."
 	event_over: m.shifts_reason_eventOver, // "This event is over."
 	not_volunteer: m.shifts_reason_notVolunteer, // "The organiser has to put you on the event as a volunteer first."
+	organiser_assigns: m.shifts_reason_organiserAssigns, // "You run this event — put yourself on a shift with Assign, below."
 	minor_no_consent: m.shifts_reason_minorNoConsent, // "The organiser has to record a guardian's consent first."
 	already_assigned: m.shifts_reason_alreadyAssigned, // "You are already on this shift."
 	shift_full: m.shifts_reason_shiftFull, // "This shift is full."

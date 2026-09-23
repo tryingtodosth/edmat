@@ -2768,6 +2768,7 @@
 	"shifts_reason_signIn": "Zaloguj się, aby wziąć dyżur.",
 	"shifts_reason_eventOver": "To wydarzenie już się zakończyło.",
 	"shifts_reason_notVolunteer": "Organizator musi najpierw dodać Cię do wydarzenia jako wolontariusza.",
+	"shifts_reason_organiserAssigns": "Prowadzisz to wydarzenie — wpisz się na dyżur przyciskiem „Przypisz” poniżej.",
 	"shifts_reason_minorNoConsent": "Organizator musi najpierw odnotować zgodę opiekuna.",
 	"shifts_reason_alreadyAssigned": "Masz już ten dyżur.",
 	"shifts_reason_shiftFull": "Ten dyżur jest już obsadzony.",

@@ -590,3 +590,22 @@ class IntegrationHelperTests(RotaTestCase):
         )
         Assignment.objects.create(shift=shift, user=self.volunteer, status='claimed')
         self.assertFalse(rules.holds_station_assignment(self.volunteer, self.event, 'cloakroom'))
+
+
+class OrganiserSelfClaimTests(RotaTestCase):
+    def test_an_organiser_is_told_to_assign_themselves_rather_than_that_they_are_not_a_volunteer(self):
+        """Two refusals that a boolean would have made one (house rule 6). Found by looking at the
+        real page: the generic line reads absurdly to the person who would have to grant it."""
+        self.client.force_authenticate(self.organiser)
+        response = self.claim()
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.data['reason'], 'organiser_assigns')
+
+    def test_and_assigning_themselves_works(self):
+        self.client.force_authenticate(self.organiser)
+        response = self.client.post(
+            reverse('shift-assign', args=[self.shift.pk]),
+            {'user': self.organiser.pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)

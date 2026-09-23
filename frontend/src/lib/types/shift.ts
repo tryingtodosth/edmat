@@ -22,6 +22,7 @@ export type ClaimBlockReason =
 	| 'sign_in'
 	| 'event_over'
 	| 'not_volunteer'
+	| 'organiser_assigns'
 	| 'minor_no_consent'
 	| 'already_assigned'
 	| 'shift_full'

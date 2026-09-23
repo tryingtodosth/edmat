@@ -1197,3 +1197,33 @@ cd backend
   right; the assertion was ambiguous. Scope to the section (`.enrol`, `.roster`) instead.
 - **Chromium's `innerText` returns *rendered* text**, so a heading styled `text-transform: uppercase`
   reads back uppercase. Match case-insensitively or you are testing the stylesheet.
+
+---
+
+## Conference step E — the volunteer rota (`shifts`)
+
+`backend/shifts/tests.py` — **48 tests**, refusals first, because a rota is mostly refusals and the
+thing that would fail silently is not "a volunteer claimed a shift" but "a fifteen-year-old claimed
+the 23:00 door shift and nobody noticed". Covered: not a volunteer; an organiser told to assign
+themselves rather than that they are not a volunteer; a full shift; an overlap; a gap under 15
+minutes; a minor on a station that forbids minors, on a shift touching 22:00–06:00, over the 7-hour
+daily cap, and with no guardian consent recorded; a drop inside the four-hour cutoff (and an
+organiser dropping anyone through it); a non-organiser assigning; a volunteer reading the coverage
+grid or the safeguarding records. Then the happy halves: a supervised station landing a minor's
+claim as `claimed` pending an adult, the `post_save` signal that moves a session-bound shift when
+the session moves (and leaves a shift with its own hours alone), the coverage `COUNT`s, hours with
+and without an organiser override (and the 400 when a big override carries no note), `my-shifts.ics`,
+the first-name-plus-initial masking, the `shifts` kill switch with its neighbour still answering, and
+the `booking/availability.py` coupling (a confirmed shift blocks a tutor's hours, a claimed one does
+not). Run it with `cd backend && ../.venv/bin/python3 manage.py test shifts`, and with
+`shifts events booking notifications moderation` for the neighbours.
+
+`frontend/e2e/event-shifts.mjs` — **28 checks**. Kasia (host, seeded staff) builds a station and a
+shift through the real panel and sees the coverage grid draw a red `0/1` cell; Ola (volunteer) takes
+one shift, is refused the overlapping one with the reason in words, prints the wall rota and the
+bilingual certificate, and finds the event on `/volunteering`; the hours override is refused without
+a note and accepted with one; `my-shifts.ics` is a real calendar; and the `shifts` kill switch is
+asserted **as Ola**, who is not global staff — with the flag off the panel is gone, the API refuses
+her, and the event page keeps working. Run it with
+`E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node e2e/event-shifts.mjs` (adjust the
+ports); it creates and deletes its own event and puts the flag back.

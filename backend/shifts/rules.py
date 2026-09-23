@@ -54,6 +54,7 @@ HARD_REASONS = (
     'sign_in',
     'event_over',
     'not_volunteer',
+    'organiser_assigns',
     'minor_no_consent',
     'already_assigned',
     'shift_full',
@@ -201,7 +202,11 @@ def claim_block_reason(user, shift, *, by_organiser=False):
     if event.is_past:
         return 'event_over'
     if not by_organiser and not is_volunteer(event, user):
-        return 'not_volunteer'
+        # An organiser is told something different from a stranger. Both are refused a self-claim,
+        # but "the organiser has to add you as a volunteer first" read to the organiser themselves
+        # is a sentence about a person who is standing right there — spotted on the screenshot of
+        # the real page, which is the only place it could have been spotted.
+        return 'organiser_assigns' if event.can_organise(user) else 'not_volunteer'
     if by_organiser and _staff_role(event, user) is None:
         # An organiser assigning somebody who is not on the event's staff at all.
         return 'not_volunteer'
