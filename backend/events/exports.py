@@ -52,15 +52,16 @@ Covered by `manage.py purge_event_data`:
   * `events.EventAttendance.checked_in_by` — nulled (that somebody was checked in survives; which
     volunteer tapped the button does not need to)
 
-NOT covered, because the tables do not exist on this branch. Two of the seven parallel conference
-steps add them, and at integration (CONFERENCE-BRIEF.md §5) this command learns both:
-  * `events.ScanEvent` (step D, `conf/d-tickets`) — scan timestamps, device labels and the token
-    seen. The report puts device telemetry in the T+14–30 day bucket; the rows should go entirely
-    rather than be blanked, since a scan row with every field emptied is not a record of anything.
-  * `cloakroom.CloakroomItem` (step F, `conf/f-cloakroom`) — the deposit log and, on the
-    lost-token exception path, `exception_note` / `exception_identity_kind`. The report keeps
-    these 30 days to cover a property claim and purges them after; the item's own rack and status
-    are not personal data and can stay for the reconciliation history.
+  * `cloakroom.CloakroomItem.exception_note` / `exception_identity_kind` — blanked (wired at
+    integration, 2026-09-23). What a lost-slip claimant's coat looked like and what kind of identity
+    they showed covers a property claim for 30 days and nothing after; the item's own rack, token
+    and status are not personal data and stay, so the reconciliation history still adds up.
+
+NOT covered yet:
+  * `events.ScanEvent` (step D, `conf/d-tickets`, not merged at the time of writing) — scan
+    timestamps, device labels and the token seen. The report puts device telemetry in the
+    T+14–30 day bucket; the rows should go entirely rather than be blanked, since a scan row with
+    every field emptied is not a record of anything.
 
 Also deliberately left alone today, and named so that the decision is somebody's rather than an
 omission (house rule 14):
@@ -264,7 +265,7 @@ def purge_event_data(older_than_days=DEFAULT_RETENTION_DAYS, dry_run=False):
         .order_by('starts_at', 'id')
     )
     report = {'cutoff': cutoff, 'dry_run': dry_run, 'events': [], 'answers_blanked': 0,
-              'accessibility_blanked': 0, 'checkins_unlinked': 0}
+              'accessibility_blanked': 0, 'checkins_unlinked': 0, 'cloakroom_exceptions_blanked': 0}
 
     for event in candidates:
         ends_at = event.ends_at
@@ -299,16 +300,35 @@ def purge_event_data(older_than_days=DEFAULT_RETENTION_DAYS, dry_run=False):
                 # `responded_at` is `auto_now`, and a purge is not the attendee responding — so the
                 # update names its fields and leaves that stamp where it was.
                 row.save(update_fields=list(dict.fromkeys(changed)))
-        if answers_blanked or accessibility_blanked or checkins_unlinked:
+        cloakroom_blanked = _purge_cloakroom_exceptions(event, dry_run)
+        if answers_blanked or accessibility_blanked or checkins_unlinked or cloakroom_blanked:
             report['events'].append({
                 'id': event.pk, 'title': event.title, 'ended': ends_at,
                 'answers_blanked': answers_blanked, 'accessibility_blanked': accessibility_blanked,
                 'checkins_unlinked': checkins_unlinked,
+                'cloakroom_exceptions_blanked': cloakroom_blanked,
             })
             report['answers_blanked'] += answers_blanked
             report['accessibility_blanked'] += accessibility_blanked
             report['checkins_unlinked'] += checkins_unlinked
+            report['cloakroom_exceptions_blanked'] += cloakroom_blanked
     return report
+
+
+def _purge_cloakroom_exceptions(event, dry_run) -> int:
+    """The lost-slip records on this event's cloakroom desks (see `RETENTION_NOTE`). Imported
+    locally: `cloakroom` depends on `events`, and this module must not make that a cycle."""
+    from cloakroom.models import CloakroomItem
+
+    rows = CloakroomItem.objects.filter(desk__event=event).exclude(
+        exception_note='', exception_identity_kind='none'
+    )
+    count = rows.count()
+    if count and not dry_run:
+        # A `QuerySet.update()` fires no signal — the honest limit house rule 5 names; nothing
+        # listens on this model, so there is nothing for it to miss.
+        rows.update(exception_note='', exception_identity_kind='none')
+    return count
 
 
 # ---- the endpoints -------------------------------------------------------------------------

@@ -13,6 +13,11 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { ApiError } from '$lib/api/client';
+	// Integration (CONFERENCE-BRIEF.md §5): the desk's writes answer 409 `briefing_unread` until the
+	// clerk has read the building's briefing — the same refusal, and the same interstitial, as check-in.
+	import BriefingInterstitial from '$lib/components/event/BriefingInterstitial.svelte';
+	import { briefingBlockFrom } from '$lib/services/documents';
+	import type { BriefingBlock } from '$lib/types/document';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import CloakroomSlip from '$lib/components/cloakroom/CloakroomSlip.svelte';
 	import RackGrid from '$lib/components/cloakroom/RackGrid.svelte';
@@ -53,6 +58,7 @@
 	let items = $state<CloakroomItem[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let briefing = $state<BriefingBlock | null>(null);
 
 	let desk = $derived(desks.find((d) => d.id === deskId) ?? null);
 	let stored = $derived(items.filter((item) => item.status === 'stored'));
@@ -122,6 +128,11 @@
 	// `detail`, and a 409 on a return arrives as `result` — the same verdict vocabulary the Return
 	// flow renders on the happy path.
 	function say(e: unknown): string {
+		const block = briefingBlockFrom(e);
+		if (block) {
+			briefing = block;
+			return m.documents_briefingIntro(); // "The briefing is compulsory — check-in stays locked until you confirm you have read it."
+		}
 		if (e instanceof ApiError) {
 			const body = e.body as { detail?: string; result?: string } | undefined;
 			const word = body?.detail ?? body?.result;
@@ -355,6 +366,16 @@
 				</label>
 			{/if}
 
+			{#if briefing}
+				<BriefingInterstitial
+					{eventId}
+					block={briefing}
+					onread={() => {
+						briefing = null;
+						error = '';
+					}}
+				/>
+			{/if}
 			{#if error}
 				<p class="error" data-cloakroom-error>{error}</p>
 			{/if}

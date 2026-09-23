@@ -11,7 +11,9 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
+from documents.models import DocumentAcknowledgement, EventDocument
 from events.models import Event, EventStaff
+from shifts.models import Assignment, Shift, Station
 from moderation.models import FeatureFlag
 from telemetry.routers import all_log_shards
 from testing.factories import make_user
@@ -329,6 +331,46 @@ class RuleModuleTests(DeskCase):
         self.assertTrue(rules.can_operate(self.host, self.event))
         self.assertTrue(rules.can_operate(self.clerk, self.event))
         self.assertFalse(rules.can_operate(self.stranger, self.event))
+
+    def test_a_rostered_desk_is_worked_by_its_assignees_and_the_organisers(self):
+        # Integration with step E (CONFERENCE-BRIEF.md §5): once the event has a `cloakroom`
+        # station, plain staff membership stops being enough for the desk.
+        other = make_user('cloak-other-volunteer')
+        EventStaff.objects.create(event=self.event, user=other, role='volunteer')
+        station = Station.objects.create(event=self.event, kind='cloakroom', name='Szatnia')
+        shift = Shift.objects.create(
+            station=station, starts_at=self.event.starts_at,
+            ends_at=self.event.starts_at + timedelta(hours=4), needed=1,
+        )
+        self.assertFalse(rules.can_operate(self.clerk, self.event))   # staff, not rostered
+        self.assertFalse(rules.can_operate(other, self.event))
+        self.assertTrue(rules.can_operate(self.host, self.event))      # organisers always
+        Assignment.objects.create(shift=shift, user=self.clerk, status='claimed')
+        self.assertFalse(rules.can_operate(self.clerk, self.event))   # claimed is not confirmed
+        Assignment.objects.filter(user=self.clerk).update(status='confirmed')
+        self.assertTrue(rules.can_operate(self.clerk, self.event))
+        self.assertFalse(rules.can_operate(self.stranger, self.event))
+        # With the rota switched off, a station nobody can see must not lock the desk.
+        FeatureFlag.objects.update_or_create(key='shifts', defaults={'is_enabled': False})
+        self.assertTrue(rules.can_operate(other, self.event))
+
+    def test_an_unread_briefing_blocks_the_desk_writes_and_not_its_reads(self):
+        # Integration with step C: the same 409 the check-in button answers with.
+        doc = EventDocument.objects.create(
+            event=self.event, title='Instruktaż ppoż.', kind='link', url='https://example.org/ppoz',
+            visibility='staff', requires_acknowledgement=True, uploaded_by=self.host,
+        )
+        grid = as_(self.clerk).get(self.items_url())
+        self.assertEqual(grid.status_code, 200)
+        refused = self.deposit(self.clerk, '1')
+        self.assertEqual(refused.status_code, 409)
+        self.assertEqual(refused.data['detail'], 'briefing_unread')
+        self.assertEqual(refused.data['documents'], [doc.pk])
+        self.assertFalse(CloakroomItem.objects.exists())
+        returned = as_(self.clerk).post(self.return_url(), {'token': 'ABCDEFGH'}, format='json')
+        self.assertEqual(returned.status_code, 409)
+        DocumentAcknowledgement.objects.create(document=doc, user=self.clerk, version=doc.version)
+        self.assertEqual(self.deposit(self.clerk, '1').status_code, 201)
 
     def test_free_racks_is_derived_not_counted(self):
         self.deposit(self.clerk, '2')

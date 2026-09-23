@@ -30,6 +30,9 @@ from moderation.permissions import feature_gate
 # it, `events/views.py` states the reasoning, and a second hand-written copy here is how two
 # surfaces start disagreeing about whose draft is whose.
 from events.agenda_views import _visible_events as visible_events
+# Integration (CONFERENCE-BRIEF.md §5): the same 409 `briefing_unread` the check-in button answers
+# with, on the desk's writes — a clerk who has not read the building's briefing does not take coats.
+from documents.access import briefing_block_reason
 from . import rules
 from .models import CloakroomDesk
 from .serializers import (
@@ -102,6 +105,14 @@ class CloakroomDeskViewSet(viewsets.GenericViewSet):
             return Response({'detail': rules.NOT_STAFF}, status=status.HTTP_403_FORBIDDEN)
         return None
 
+    def _briefed(self, desk):
+        """The briefing gate (documents/access.py), for the writes only: reading the rack grid
+        while the briefing is still open in the other tab is fine; taking a coat is not."""
+        block = briefing_block_reason(desk.event, self.request.user)
+        if block:
+            return Response(block, status=status.HTTP_409_CONFLICT)
+        return None
+
     def retrieve(self, request, pk=None):
         return Response(_desk_payload(self.get_object(), request.user))
 
@@ -142,6 +153,9 @@ class CloakroomDeskViewSet(viewsets.GenericViewSet):
             return refused
         if request.method == 'GET':
             return Response(CloakroomItemSerializer(desk.items.all(), many=True).data)
+        briefing = self._briefed(desk)
+        if briefing:
+            return briefing
 
         serializer = DepositSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -182,6 +196,9 @@ class CloakroomDeskViewSet(viewsets.GenericViewSet):
         refused = self._operable(desk)
         if refused:
             return refused
+        briefing = self._briefed(desk)
+        if briefing:
+            return briefing
         result, item = rules.return_result(desk, request.data.get('token', ''))
         if result == rules.RETURNED and not rules.hand_back(item, request.user):
             return Response({'result': rules.ALREADY_RETURNED}, status=status.HTTP_409_CONFLICT)
@@ -202,6 +219,9 @@ class CloakroomDeskViewSet(viewsets.GenericViewSet):
         refused = self._operable(desk)
         if refused:
             return refused
+        briefing = self._briefed(desk)
+        if briefing:
+            return briefing
         item = get_object_or_404(desk.items, pk=item_id)
         if desk.status != 'open':
             return Response({'result': rules.DESK_CLOSED}, status=status.HTTP_409_CONFLICT)
@@ -225,6 +245,9 @@ class CloakroomDeskViewSet(viewsets.GenericViewSet):
         refused = self._operable(desk)
         if refused:
             return refused
+        briefing = self._briefed(desk)
+        if briefing:
+            return briefing
         item = get_object_or_404(desk.items, pk=item_id)
         if desk.status != 'open':
             return Response({'detail': rules.DESK_CLOSED}, status=status.HTTP_409_CONFLICT)
