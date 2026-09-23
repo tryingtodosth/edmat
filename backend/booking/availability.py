@@ -281,7 +281,43 @@ def _busy_intervals(tutor, start: datetime, end: datetime) -> list[Interval]:
         starts_at__lt=end,
         ends_at__gt=start,
     )
-    return [Interval(b.starts_at, b.ends_at) for b in bookings] + _event_intervals(tutor, start, end)
+    return (
+        [Interval(b.starts_at, b.ends_at) for b in bookings]
+        + _event_intervals(tutor, start, end)
+        + _shift_intervals(tutor, start, end)
+    )
+
+
+def _shift_intervals(tutor, start: datetime, end: datetime) -> list[Interval]:
+    """Shifts this person has taken on somebody else's event (CONFERENCE-BRIEF.md §3.E).
+
+    **The same argument as hosting, one step further out.** Hosting an event blocks bookable hours
+    because other people will physically turn up expecting you; a confirmed volunteer shift is that
+    exact commitment made to somebody else's event instead of your own. A tutor who could be booked
+    for 14:00 while they are standing at a conference registration desk would be double-booked by
+    the app rather than by their own mistake.
+
+    Only `confirmed` and `done` count. A `claimed` shift is still waiting for an organiser (or for
+    an adult on a supervised station) and may never become anything — withdrawing bookable hours
+    for it would cost somebody income over a maybe. `dropped` and `no_show` give the hour back, for
+    the same reason a cancelled event does.
+
+    The `shifts` kill switch is honoured here exactly as the `events` one is above, and for the
+    identical reason: with the feature off the tutor cannot see the shift anywhere, so an hour
+    vanishing from their published availability would be unexplainable from inside the app.
+    """
+    from moderation.services import is_feature_enabled
+    from shifts.models import Assignment
+
+    if not is_feature_enabled('shifts'):
+        return []
+    assignments = Assignment.objects.filter(
+        user=tutor,
+        status__in=('confirmed', 'done'),
+        shift__starts_at__lt=end,
+        shift__ends_at__gt=start,
+    ).select_related('shift')
+    return [Interval(a.shift.starts_at, a.shift.ends_at) for a in assignments]
 
 
 def _event_intervals(tutor, start: datetime, end: datetime) -> list[Interval]:

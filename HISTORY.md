@@ -8689,3 +8689,161 @@ zero console errors, both screenshots looked at).
   emailing it; the log makes it askable-about afterwards. Also unpaginated (last 100).
 - **Step B's permission matrix has no rows for these four endpoints yet** — added at integration,
   as B's README comment asks.
+
+## 17BF.E. Conference step E: the volunteer rota — stations, shifts, hours and a certificate (✅ built, full stack)
+
+`CONFERENCE-BRIEF.md` §3.E, built on branch `conf/e-shifts` as one of seven conference steps
+running in parallel. New Django app **`shifts`** plus a Rota panel on the event page, a
+`/volunteering` page, a printable bilingual certificate and a printable wall rota.
+
+**The shape, and the three things it deliberately does not build.** A `Station` is a post (a door,
+a room, the information desk); a `Shift` is a window of time at one of them wanting `needed`
+people; an `Assignment` is one person on one shift with one `status` (offered → claimed →
+confirmed → done / no_show, or dropped). `VolunteerRecord` is the organiser's note of the paperwork
+that exists off this server. Against `CONFERENCE-RESEARCH-REPORT-SHIFTS.md`'s five entities that
+drops **SwapRequest** — replaced by drop-to-pool with a four-hour cutoff, because somebody who has
+just fallen ill has no time to negotiate a bilateral trade and software that insists on one
+produces an unannounced no-show instead (R2's own §6 decision 2) — and **HoursLog**, because hours
+are derived from a `done` assignment's own shift and a second table storing what the first one
+implies is one more thing that can disagree with the rota. The third omission is the **14-hour
+daily rest** R2 infers from the Labour Code by analogy: it would refuse the ordinary shape of a
+two-day conference (pack-down at 18:00, doors at 07:00), and the report itself calls the analogy
+unsettled. The daily cap and the night window carry the substance; `rules.py` says so out loud
+rather than leaving a silence.
+
+**One rule module, and two kinds of refusal.** `shifts/rules.py` owns `claim_block_reason`,
+`drop_block_reason`, `assign_block_reason`, `coverage`, `hours_for` and the constants — night
+22:00–06:00, 7 h daily cap, 15 min gap, 4 h drop cutoff, 30 min before a credited-hours override
+needs a note. None is organiser-editable: a number a form can raise is a number somebody raises at
+23:40 on the second evening. The minor line is EdMat's **under 16** (`accounts/minors.py`), not the
+report's 18. The interesting half is that two reasons are **soft**: `needs_adult` and
+`needs_confirmation` do not refuse a claim, they make it land as `claimed` rather than `confirmed`,
+so a fifteen-year-old can take a supervised station and the grid shows the shift as waiting for an
+adult instead of the volunteer being told no for a reason they cannot fix. `HARD_REASONS` /
+`SOFT_REASONS` is that split, and the check order matters — a soft reason must never mask a hard
+one.
+
+**Two refusals that a boolean would have merged.** An organiser who clicks Claim is told
+`organiser_assigns` ("you run this event — put yourself on with Assign") rather than
+`not_volunteer` ("the organiser has to add you first"), which read absurdly to the person who would
+have to grant it. That was found by *looking at the screenshot* of the real page, not by any
+assertion — house rule 2, again.
+
+**Recount, never increment.** Coverage is two `COUNT`s per shift plus `needs_adult`, which is the
+one deficiency a number cannot show: a shift can be full and still unable to run because everybody
+on it is a minor. The frontend grid draws green / amber / red straight from the backend's
+`is_short`, so the screen, the wall print and the API cannot disagree about what "short" means.
+
+**A shift on a session follows it.** A station may point at an `events.Session`; a shift created
+for it with no hours of its own takes the session's and carries `follows_session=True`, and a
+`post_save` receiver moves exactly those when the session moves. A shift somebody gave its own
+hours to (splitting a three-hour session in two) is left alone — that was a deliberate act a
+programme edit has no business undoing.
+
+**Nobody's contact data, ever.** A volunteer sees a co-volunteer as "Anna K." and no account id;
+an organiser sees the full name and the id, because assigning and crediting are done by id while
+there is no people search. One `masked` flag in the serializer context, set once from
+`Event.can_organise`. The desk a volunteer is meant to reach is the `info` station's
+`location_text` — that is the whole of the "supervisor contact" the report asked for.
+
+**Fields, never files.** `VolunteerRecord` records that consent was seen, when, and by whom, plus a
+vetting date and reference and an emergency-contact note. No scan of a guardian's consent form and
+no criminal-record certificate is stored (§6 rule 5) — those are exactly the documents a community
+exercise database has no business holding, and the row carries the fact an inspector asks about
+without the document that would make this server worth attacking.
+
+**The certificate is bilingual on one sheet, and unsigned.** Polish and English simultaneously,
+not "in the reader's interface language": the person receiving it may hand it to a Polish
+institution while reading the English interface. That is the documented i18n exception
+(`lib/content/privacy.ts`, `levels.ts`) — both locales in one file, reviewable as a document. The
+sheet names the organiser and says a signed copy is theirs to issue, because EdMat has no signature
+to give. A print stylesheet makes the PDF; no WeasyPrint, no new binary dependency.
+
+**A kill switch that does not even ask.** With `shifts` off the panel does not fetch at all. The
+first version rendered nothing but still called the API, and the 403 showed up in the browser
+console — a kill switch making noise about a feature it is supposed to have removed. The panel now
+waits for `featureFlagsStore.isLoaded` (which exists for exactly this: `isEnabled` fails open until
+the first response lands, which is right for drawing a link and wrong for firing a request the API
+will refuse). Found by the e2e script's zero-console-errors check.
+
+### For the integrator
+
+- **Files changed outside `backend/shifts/` and the new frontend files:**
+  - `backend/config/settings.py` — `'shifts'` added to `INSTALLED_APPS` after `'concepts'`, with a
+    four-line comment above it.
+  - `backend/config/urls.py` — `path('api/', include('shifts.urls'))` appended after the
+    `concepts` line; the comment there records that it must stay AFTER `events.urls`.
+  - `backend/booking/availability.py` — `_busy_intervals`'s return now adds
+    `_shift_intervals(tutor, start, end)`, and that new function follows it (confirmed/done shifts
+    block a tutor's bookable hours exactly as hosting does; `claimed` does not; honours the
+    `shifts` flag).
+  - `frontend/src/routes/events/[id]/+page.svelte` — ONE import line
+    (`import RotaPanel from '$lib/components/shift/RotaPanel.svelte';`) immediately after the
+    `EventStaffPanel` import, and the `<!-- conference: rota -->` marker replaced by
+    `<RotaPanel eventId={event.id} canOrganise={event.canOrganise} />`. Nothing else on that page
+    moved.
+  - `frontend/src/lib/components/layout/Header.svelte` — one entry appended inside the
+    `accountItems` snippet, immediately before the Settings link, gated on `can('shifts')`,
+    pointing at `/volunteering`.
+  - `frontend/src/lib/utils/labels.ts` — a separate `import type { … } from '$lib/types/shift'`
+    line just above the `m` import (its own line on purpose, to keep the shared import block
+    untouched), and four maps appended at the END of the file.
+  - `frontend/src/lib/types/index.ts` — `export * from './shift';` appended.
+  - `frontend/messages/en.json` and `pl.json` — see the i18n note below.
+  - `test.md` — one paragraph at the end. `HISTORY.md` — this section, at the very end.
+- **Migrations:** `backend/shifts/migrations/0001_initial.py` only. No `events`, `moderation` or
+  `notifications` migration.
+- **The signal:** `backend/shifts/signals.py`, `post_save` on `events.Session`, registered from
+  `ShiftsConfig.ready()` in `backend/shifts/apps.py`. It updates
+  `Shift.objects.filter(station__session=instance, follows_session=True)`.
+- **npm packages added: none.**
+- **i18n:** every key is prefixed `shifts_`; 111 keys, lines **2683–2793** of both
+  `frontend/messages/en.json` and `frontend/messages/pl.json` (identical key sets, verified
+  programmatically). One of them, `shifts_reason_organiserAssigns`, sits beside
+  `shifts_reason_notVolunteer` inside the block rather than at its very end.
+- **For step F (cloakroom):** `shifts.rules.holds_station_assignment(user, event, kind) -> bool`
+  answers "is this person confirmed (or done) on a shift at a station of this kind for this
+  event", and `shifts.rules.event_has_station(event, kind) -> bool` says whether the question is
+  worth asking. Deliberately not narrowed to "on shift right now": a volunteer arriving ten
+  minutes early is the ordinary case. Two tests cover it (`IntegrationHelperTests`).
+- **Running the e2e script:** `cd frontend && E2E_BASE=http://localhost:<web> E2E_API=http://127.0.0.1:<api> node e2e/event-shifts.mjs`
+  — seeded demo users `kasia@edmat.example` (host, global staff) and `ola@edmat.example`
+  (volunteer), password `password123`. It creates and deletes its own event, and toggles the
+  `shifts` flag off and back on.
+
+### Verified
+
+- `manage.py test shifts` — 48 tests, refusals first (not a volunteer, full, overlap, too close,
+  minor on a non-minor station, minor at night, minor over the daily cap, minor with no consent,
+  drop after the cutoff, a non-organiser assigning, a volunteer reading the coverage grid or the
+  safeguarding records), then the session-move signal, the coverage counts, hours with and without
+  an override, the `.ics`, the masking, the kill switch and the availability coupling.
+- `manage.py test shifts events booking notifications moderation` — 462 tests, OK (rerun on the
+  final tree). `manage.py check` — no issues. `manage.py makemigrations --check --dry-run` — no
+  changes detected.
+- `npm run check` 0 errors / 0 warnings, `npx eslint src/` clean, `npm run build` (adapter-static).
+- `frontend/e2e/event-shifts.mjs` against real servers on ports 8105 / 5205: **28 checks, 0
+  failures**, zero console errors. Screenshots looked at
+  (`e2e/screens/event-shifts-{organiser,volunteer,wall,certificate}.png`) — the coverage grid
+  draws the day with a red 0/1 cell, which is what sent the `organiser_assigns` fix above.
+- en/pl key sets compared programmatically; both 2792 keys.
+
+### Left open
+
+- **No notification when an organiser assigns somebody a shift.** A new `Notification.type` changes
+  `choices` and so needs a migration in `notifications`, which is exactly the shared-file change
+  seven parallel branches were told to avoid (§4 rule 1's spirit). One dict entry in
+  `notifications/services.py` — reusing the existing `notify_on_event` preference — plus a
+  migration and a `labels.ts` line is the whole of it, and it should land at integration.
+- **No station reordering or editing of a station's hours in the UI.** `PATCH /api/stations/{id}/`
+  and `PATCH /api/shifts/{id}/` both exist and are tested by the serializer path; the panel only
+  creates and deletes. A wrongly-typed shift is deleted and re-added today.
+- **Assigning is still by account id** — the project-wide people-search gap, named in the root
+  `CLAUDE.md`.
+- **`Assignment.status = 'offered'` and `source = 'pool'` are reachable only from the admin.** The
+  models carry them because an offer-to-a-named-person flow and a pool pickup are the two obvious
+  next moves, and a status added later is a migration everybody's data has to survive.
+- **No per-account timezone**, so the night window and the daily cap are interpreted in
+  `settings.TIME_ZONE` — the same standing gap `booking/availability.py` already names.
+- **The wall rota does not paginate by day across a page break**, and a very long rota will print
+  a table split by the browser wherever it likes.
