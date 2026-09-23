@@ -29,6 +29,7 @@
 	import VenuePanel from '$lib/components/venue/VenuePanel.svelte'; // conference step A
 	import ChecklistPanel from '$lib/components/venue/ChecklistPanel.svelte'; // conference step A
 	import DocumentsPanel from '$lib/components/event/DocumentsPanel.svelte';
+	import RotaPanel from '$lib/components/shift/RotaPanel.svelte';
 	import {
 		addEventStaff,
 		getEventStaff,
@@ -601,7 +602,7 @@
 
 			<!-- conference: ticket -->
 
-			<!-- conference: rota -->
+			<RotaPanel eventId={event.id} canOrganise={event.canOrganise} />
 
 			<CloakroomPanel {event} />
 
