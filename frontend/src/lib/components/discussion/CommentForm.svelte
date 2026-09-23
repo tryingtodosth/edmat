@@ -63,6 +63,7 @@
 		{placeholder}
 		rows={2}
 		onChemEdit={(id) => strip?.editChem(id)}
+		onSketchEdit={(id) => strip?.editSketch(id)}
 	/>
 	<InsertStrip
 		bind:this={strip}

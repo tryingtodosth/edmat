@@ -355,6 +355,7 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	issues: m.featureFlags_label_issues,
 	posts: m.featureFlags_label_posts,
 	chemistry: m.featureFlags_label_chemistry,
+	sketches: m.featureFlags_label_sketches, // "Freehand sketches (whiteboard)"
 	galleries: m.featureFlags_label_galleries, // "Picture galleries on content"
 	age_verification: m.featureFlags_label_ageVerification, // "Age gate on self-registration"
 	coauthoring: m.featureFlags_label_coauthoring, // "Co-authoring materials: versions, teams, proposals"

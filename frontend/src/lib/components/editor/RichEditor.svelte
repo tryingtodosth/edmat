@@ -35,7 +35,11 @@
 		id = undefined,
 		// A click on a chemistry drawing inside the rich document (chemImage.ts) — the caller
 		// (the insert strip) reopens it in the tool that made it.
-		onChemEdit = undefined
+		onChemEdit = undefined,
+		// The same, for a freehand sketch (sketchImage.ts). Two callbacks rather than one
+		// "picture clicked" because they reopen two different editors, and a picture that is
+		// neither must still be inert.
+		onSketchEdit = undefined
 	}: {
 		value: string;
 		placeholder?: string;
@@ -43,6 +47,7 @@
 		required?: boolean;
 		id?: string;
 		onChemEdit?: (chemId: string) => void;
+		onSketchEdit?: (sketchId: string) => void;
 	} = $props();
 
 	let mode = $state<EditorMode>(untrack(() => editorPrefsStore.mode));
@@ -80,7 +85,7 @@
 				{ default: TableHeader },
 				{ default: TableCell },
 				mathModule,
-				{ ChemImage }
+				{ SketchImage }
 			] = await Promise.all([
 				import('@tiptap/core'),
 				import('@tiptap/starter-kit'),
@@ -90,7 +95,10 @@
 				import('@tiptap/extension-table-header'),
 				import('@tiptap/extension-table-cell'),
 				import('./mathNode'),
-				import('./chemImage')
+				// One picture node, not two: `SketchImage` extends `ChemImage`, because Tiptap
+				// resolves one node type per name and mounting both would be a duplicate-name
+				// error. See sketchImage.ts for why it is written that way round.
+				import('./sketchImage')
 			]);
 			mathNodeModule = mathModule;
 			editor = new Editor({
@@ -103,14 +111,19 @@
 					TableHeader,
 					TableCell,
 					mathModule.MathNode,
-					ChemImage
+					SketchImage
 				],
 				editorProps: {
 					// A chemistry drawing is edited by clicking it — the same click-to-edit the maths
 					// node already offers, routed to whoever mounted this editor.
 					handleClickOn: (_view, _pos, node) => {
-						if (node.type.name === 'image' && node.attrs.chem && onChemEdit) {
+						if (node.type.name !== 'image') return false;
+						if (node.attrs.chem && onChemEdit) {
 							onChemEdit(String(node.attrs.chem));
+							return true;
+						}
+						if (node.attrs.sketch && onSketchEdit) {
+							onSketchEdit(String(node.attrs.sketch));
 							return true;
 						}
 						return false;
@@ -242,6 +255,25 @@
 			if (changed) editor.view.dispatch(tr);
 		} else {
 			const re = new RegExp(`(<img\\b[^>]*?)src="[^"]*"([^>]*data-chem="${chemId}")`, 'g');
+			value = value.replace(re, `$1src="${src}"$2`);
+		}
+	}
+	/** The sketch half of `replaceChemImage`, one attribute apart. Kept as its own function
+	 * rather than a shared one taking the attribute name: two call sites is not three (house
+	 * rule 13), and the source-mode regex differs in the attribute it anchors on. */
+	export function replaceSketchImage(sketchId: string, src: string, alt: string) {
+		if (mode === 'rich' && editor) {
+			const { tr } = editor.state;
+			let changed = false;
+			editor.state.doc.descendants((node, pos) => {
+				if (node.type.name === 'image' && String(node.attrs.sketch) === sketchId) {
+					tr.setNodeMarkup(pos, undefined, { ...node.attrs, src, alt });
+					changed = true;
+				}
+			});
+			if (changed) editor.view.dispatch(tr);
+		} else {
+			const re = new RegExp(`(<img\\b[^>]*?)src="[^"]*"([^>]*data-sketch="${sketchId}")`, 'g');
 			value = value.replace(re, `$1src="${src}"$2`);
 		}
 	}
@@ -476,6 +508,16 @@
 		height: auto;
 	}
 	.rich-editor__host :global(.ProseMirror img.chem-drawing) {
+		background: #fff;
+		border-radius: 6px;
+		padding: 4px;
+		max-height: 320px;
+		cursor: pointer;
+		vertical-align: middle;
+	}
+	// A sketch is the same deal: clickable (it reopens the board), on white so dark strokes read
+	// in the dark theme too.
+	.rich-editor__host :global(.ProseMirror img.sketch-drawing) {
 		background: #fff;
 		border-radius: 6px;
 		padding: 4px;

@@ -92,13 +92,18 @@ def _img_src_allowed(tag, name, value) -> bool:
     a picture that came through the upload pipeline is neither. Anything else loses its `src`,
     which leaves an inert `<img>` bleach then drops as empty."""
     if name != 'src':
-        # `data-chem` is the one data attribute allowed on a picture: the id of the chem drawing
-        # behind it (chem/models.py), which is how the rich editor reopens a structure for editing.
+        # `data-chem` and `data-sketch` are the only data attributes allowed on a picture: the id
+        # of the chem drawing (chem/models.py) or of the freehand sketch (sketches/models.py)
+        # behind it, which is how the rich editor reopens the drawing for editing. Two keys rather
+        # than a `data-*` wildcard on purpose — a wildcard would wave through every attribute any
+        # future paste happens to carry, and an allowlist that grows by one line per real feature
+        # is the point of having one.
         # `class` is listed here as well as under `'*'` below because bleach never falls through:
         # a tag with its own callable gets ONLY what the callable allows, so before this an
         # `<img class="chem-drawing">` lost its class on write (found by a browser run — the
         # comment showed the picture unstyled and the check selecting `img.chem-drawing` found 0).
-        # The frontend's `editor/chemImage.ts` is the other half of this list: a ProseMirror node
+        # The frontend's `editor/chemImage.ts` (and its sibling `editor/sketchImage.ts`) is the
+        # other half of this list: a ProseMirror node
         # drops every attribute it has not declared, so an attribute allowed here and missing there
         # is lost the moment somebody edits the text in the rich composer. Both files say so.
         #
@@ -108,7 +113,7 @@ def _img_src_allowed(tag, name, value) -> bool:
         # through: these are the only two the attribute has, and an unknown one is a typo at best.
         if name == 'loading':
             return value in ('lazy', 'eager')
-        return name in ('alt', 'title', 'width', 'height', 'data-chem', 'class')
+        return name in ('alt', 'title', 'width', 'height', 'data-chem', 'data-sketch', 'class')
     from urllib.parse import urlparse
 
     from django.conf import settings

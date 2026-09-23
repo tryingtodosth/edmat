@@ -257,6 +257,7 @@
 				rows={10}
 				placeholder={m.coauth_editor_bodyPlaceholder()}
 				onChemEdit={(id) => strip?.editChem(id)}
+				onSketchEdit={(id) => strip?.editSketch(id)}
 			/>
 			<!-- No file picker on the strip: a file belongs in a `file` version, where it is scanned,
 			     size-capped and counted against the quota. Pictures still go into the body itself. -->
