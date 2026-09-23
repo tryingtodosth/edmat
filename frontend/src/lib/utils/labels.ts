@@ -520,6 +520,8 @@ export const CLOAKROOM_RETURN_RESULT_LABELS: Record<
 	already_returned: m.cloakroom_resultAlreadyReturned, // "That coat has already gone home."
 	blacklisted: m.cloakroom_resultBlacklisted, // "That ticket was cancelled — the coat was handed back without it."
 	desk_closed: m.cloakroom_resultDeskClosed // "The desk is closed."
+};
+
 // ---- venues, rooms, bookings and checklists (conference step A) ---------------------------------
 // A hand-maintained mirror of the `_CHOICES` lists in **backend/venues/models.py**, which names this
 // file back (house rule 13: say so in BOTH files, because a mirrored enum is where drift creeps in).
