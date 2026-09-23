@@ -139,6 +139,23 @@ check(
 check('no preview bar before the toggle', (await page.locator('.preview-bar').count()) === 0);
 
 // ---- the visitor preview --------------------------------------------------------------------
+// Let the organiser's own panels finish their initial loads first. On the merged event page six
+// panels each load in a short chain of awaits, and a chain that began before the toggle keeps
+// going after the page has unmounted it — those were the only Authorization headers this window
+// ever saw (integration, 2026-09-23). `networkidle` never fires on a signed-in page (trap 2), so
+// wait for the request log itself to go quiet.
+{
+	const start = Date.now();
+	let quietSince = Date.now();
+	let lastCount = sent.length;
+	while (Date.now() - quietSince < 1500 && Date.now() - start < 20000) {
+		await page.waitForTimeout(200);
+		if (sent.length !== lastCount) {
+			lastCount = sent.length;
+			quietSince = Date.now();
+		}
+	}
+}
 const before = sent.length;
 await switcher.locator('button', { hasText: 'signed-out visitor' }).click();
 const bar = page.locator('.preview-bar');
