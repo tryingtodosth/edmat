@@ -54,7 +54,7 @@ class Command(BaseCommand):
         self.stdout.write('  Accounts (password below):')
         for username, display_name in PERSONA_USERNAMES.items():
             self.stdout.write(f'    {username + "@edmat.example":36} {display_name}')
-        self.stdout.write(f'    {"persona.child (no email)":36} {built["child"].profile.display_name} — a real minor, via the guardian flow')
+        self.stdout.write(f'    {"persona.child (no email)":36} {built["child"].profile.display_name} — a real minor (12), via the guardian flow')
         self.stdout.write('')
 
         widths = (14, 74)

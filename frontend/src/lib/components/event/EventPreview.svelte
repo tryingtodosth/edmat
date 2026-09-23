@@ -30,6 +30,7 @@
 	 *     an attendee's permissions is what `events/test_permission_matrix.py` is for, and what the
 	 *     `persona.attendee` account is for.
 	 */
+	import { tick } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
@@ -51,6 +52,10 @@
 	/** The roster answering 403 is a RESULT, not an error: it is the rule working, and saying so is
 	 * more useful than an empty list that looks like "nobody is coming". */
 	let rosterRefused = $state(false);
+	/** The preview is mounted where the marker is — below the organiser's own panels — so entering
+	 * it without moving the page leaves the reader looking at the controls the bar has just said
+	 * cannot be used. Scrolled to on entry; `scroll-margin-top` keeps it clear of the fixed bar. */
+	let viewEl = $state<HTMLDivElement | null>(null);
 
 	// The same one-line gate the header uses (`featureFlagsStore.isEnabled || isModerator`), so a
 	// moderator can still see the preview with the switch off and decide whether to turn it back on.
@@ -78,6 +83,8 @@
 			// visitor, and saying so is the most useful thing this preview can say.
 			shown = null;
 			loading = false;
+			await tick();
+			viewEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 			return;
 		}
 		// Each of the three is allowed to refuse on its own — a private roster answers 403 to a
@@ -92,6 +99,8 @@
 		contributions = c ?? [];
 		rosterRefused = r === null;
 		loading = false;
+		await tick();
+		viewEl?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 	}
 
 	function leave() {
@@ -153,7 +162,7 @@
 		<!-- "Leave the preview" -->
 	</div>
 
-	<div class="preview-view" data-preview-mode={mode}>
+	<div class="preview-view" data-preview-mode={mode} bind:this={viewEl}>
 		<p class="preview-view__kind">
 			{mode === 'visitor' ? m.preview_kindVisitor() : m.preview_kindAttendee()}
 			<!-- "Fetched with no sign-in. This is the API's own answer to a stranger, not a guess at one." /
@@ -335,6 +344,7 @@
 	}
 
 	.preview-view {
+		scroll-margin-top: 4rem;
 		border: 2px solid #f59e0b;
 		border-radius: var(--radius-md);
 		padding: var(--space-4);

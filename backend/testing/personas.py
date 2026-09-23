@@ -120,7 +120,11 @@ def _child(guardian, password: str):
     child.save()
     profile = child.profile
     profile.is_minor = True
-    profile.display_name = 'Antoni (12)'
+    # A plain two-word name on purpose: the public roster masks a display name to "first name +
+    # last initial" (`registration.mask_name`), and a name like "Antoni (12)" masks to "Antoni (." —
+    # which is what the preview rendered until somebody looked at the screenshot. The age belongs in
+    # the seed command's printed line, not in the name.
+    profile.display_name = 'Antoni Nowak'
     profile.show_profile_publicly = False
     profile.save()
     # `update_or_create`, so a run after somebody demonstrated "revoke the guardianship" puts the
