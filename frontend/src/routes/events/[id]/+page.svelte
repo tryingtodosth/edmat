@@ -41,6 +41,7 @@
 	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let event = $state<EdmatEvent | null>(null);
+	let previewing = $state(false);
 	let attendees = $state<EventAttendee[]>([]);
 	let staff = $state<EventStaffMember[]>([]);
 	let staffError = $state('');
@@ -393,252 +394,257 @@
 				</section>
 			{/if}
 
-			<section class="respond">
-				{#if event.canOrganise}
-					<p class="mine">{m.events_youAreHosting()}</p>
-					<div class="host-actions">
-						{#if event.status !== 'cancelled'}
-							<a class="edit" href={resolve('/events/[id]/edit', { id: event.id })}>
-								{m.events_edit()}
-							</a>
-							<button type="button" class="danger" disabled={busy} onclick={callOff}>
-								{m.events_cancel()}
-							</button>
+			{#if !previewing}
+				<section class="respond">
+					{#if event.canOrganise}
+						<p class="mine">{m.events_youAreHosting()}</p>
+						<div class="host-actions">
+							{#if event.status !== 'cancelled'}
+								<a class="edit" href={resolve('/events/[id]/edit', { id: event.id })}>
+									{m.events_edit()}
+								</a>
+								<button type="button" class="danger" disabled={busy} onclick={callOff}>
+									{m.events_cancel()}
+								</button>
+							{/if}
+						</div>
+					{:else}
+						{#if event.myAttendance === 'pending'}
+							<p class="mine">{m.events_youArePending()}</p>
+						{:else if event.myAttendance === 'waitlisted'}
+							<p class="mine">
+								{m.events_youAreWaitlisted({ position: event.myWaitlistPosition ?? 0 })}
+							</p>
+						{:else if event.myAttendance === 'promoted'}
+							<p class="mine mine--offer">
+								{m.events_seatOffered({
+									when: event.myRegistration?.promotionExpiresAt
+										? formatDateTime(event.myRegistration.promotionExpiresAt)
+										: ''
+								})}
+							</p>
+						{:else if event.myAttendance === 'expired'}
+							<p class="mine">{m.events_offerExpired()}</p>
 						{/if}
-					</div>
-				{:else}
-					{#if event.myAttendance === 'pending'}
-						<p class="mine">{m.events_youArePending()}</p>
-					{:else if event.myAttendance === 'waitlisted'}
-						<p class="mine">
-							{m.events_youAreWaitlisted({ position: event.myWaitlistPosition ?? 0 })}
-						</p>
-					{:else if event.myAttendance === 'promoted'}
-						<p class="mine mine--offer">
-							{m.events_seatOffered({
-								when: event.myRegistration?.promotionExpiresAt
-									? formatDateTime(event.myRegistration.promotionExpiresAt)
-									: ''
-							})}
-						</p>
-					{:else if event.myAttendance === 'expired'}
-						<p class="mine">{m.events_offerExpired()}</p>
-					{/if}
-					{#if event.myAttendance === 'going'}
-						<p class="mine">
-							{m.events_youAreGoing()}{#if event.myRegistration?.checkedIn}
-								· {m.events_checkedIn()}{/if}
-						</p>
-						<!-- Saying you are coming deliberately does NOT withdraw your bookable hours
+						{#if event.myAttendance === 'going'}
+							<p class="mine">
+								{m.events_youAreGoing()}{#if event.myRegistration?.checkedIn}
+									· {m.events_checkedIn()}{/if}
+							</p>
+							<!-- Saying you are coming deliberately does NOT withdraw your bookable hours
 						     (booking/availability.py explains why an RSVP must not quietly cost somebody
 						     income). This is the escape hatch for the person who does want them held, so
 						     that it is one click rather than a hand-written availability exception. -->
-						{#if !event.isPast && event.status !== 'cancelled'}
-							{#if blocked}
-								<p class="held" role="status">{m.events_holdDone()}</p>
-							{:else}
+							{#if !event.isPast && event.status !== 'cancelled'}
+								{#if blocked}
+									<p class="held" role="status">{m.events_holdDone()}</p>
+								{:else}
+									<button
+										type="button"
+										class="secondary"
+										disabled={blocking}
+										onclick={holdTheEvening}
+									>
+										{blocking ? m.common_loading() : m.events_holdEvening()}
+									</button>
+									<small class="hint">{m.events_holdHint()}</small>
+								{/if}
+							{/if}
+						{:else if event.myAttendance === 'not_going'}
+							<p class="mine">{m.events_youAreNotGoing()}</p>
+						{/if}
+
+						{#if event.canRespond || event.myAttendance}
+							<div class="answers">
+								<button
+									type="button"
+									class="primary"
+									disabled={busy ||
+										['going', 'pending', 'waitlisted'].includes(event.myAttendance ?? '') ||
+										!event.canRespond}
+									aria-pressed={event.myAttendance === 'going'}
+									onclick={startRegistering}
+								>
+									{event.myAttendance === 'promoted'
+										? m.events_claimSeat()
+										: event.registrationMode === 'approval'
+											? m.events_askToJoin()
+											: event.isFull && event.myAttendance !== 'going'
+												? m.events_joinWaitlist()
+												: event.registrationMode === 'form'
+													? m.events_register()
+													: m.events_going()}
+								</button>
 								<button
 									type="button"
 									class="secondary"
-									disabled={blocking}
-									onclick={holdTheEvening}
+									disabled={busy || event.myAttendance === 'not_going'}
+									aria-pressed={event.myAttendance === 'not_going'}
+									onclick={() => respond('not_going')}
 								>
-									{blocking ? m.common_loading() : m.events_holdEvening()}
+									{m.events_notGoing()}
 								</button>
-								<small class="hint">{m.events_holdHint()}</small>
+							</div>
+							{#if authStore.user?.guardianOf?.length && event.registrationMode !== 'form' && !event.isPast}
+								<!-- A guardian answering for a child (AUDIENCE-BRIEF.md §2) — the only way a
+							     primary-school attendee ever reaches a roster. -->
+								<div class="on-behalf">
+									<label>
+										<span>{m.events_registerChild()}</span>
+										<select bind:value={childId}>
+											<option value="">—</option>
+											{#each authStore.user.guardianOf as c (c.id)}<option value={c.id}
+													>{c.displayName}</option
+												>{/each}
+										</select>
+									</label>
+									<button
+										type="button"
+										class="secondary"
+										disabled={busy || !childId}
+										onclick={() => registerChild('going')}>{m.events_registerChildGoing()}</button
+									>
+									{#if childId && childDone[childId] === 'going'}<span class="held"
+											>{m.events_childRegistered()}</span
+										>{/if}
+								</div>
+							{/if}
+							{#if showForm}
+								<RegistrationForm
+									{event}
+									{busy}
+									onsubmit={(answers) => respond('going', answers)}
+									oncancel={() => (showForm = false)}
+								/>
 							{/if}
 						{/if}
-					{:else if event.myAttendance === 'not_going'}
-						<p class="mine">{m.events_youAreNotGoing()}</p>
-					{/if}
 
-					{#if event.canRespond || event.myAttendance}
-						<div class="answers">
-							<button
-								type="button"
-								class="primary"
-								disabled={busy ||
-									['going', 'pending', 'waitlisted'].includes(event.myAttendance ?? '') ||
-									!event.canRespond}
-								aria-pressed={event.myAttendance === 'going'}
-								onclick={startRegistering}
-							>
-								{event.myAttendance === 'promoted'
-									? m.events_claimSeat()
-									: event.registrationMode === 'approval'
-										? m.events_askToJoin()
-										: event.isFull && event.myAttendance !== 'going'
-											? m.events_joinWaitlist()
-											: event.registrationMode === 'form'
-												? m.events_register()
-												: m.events_going()}
-							</button>
-							<button
-								type="button"
-								class="secondary"
-								disabled={busy || event.myAttendance === 'not_going'}
-								aria-pressed={event.myAttendance === 'not_going'}
-								onclick={() => respond('not_going')}
-							>
-								{m.events_notGoing()}
-							</button>
-						</div>
-						{#if authStore.user?.guardianOf?.length && event.registrationMode !== 'form' && !event.isPast}
-							<!-- A guardian answering for a child (AUDIENCE-BRIEF.md §2) — the only way a
-							     primary-school attendee ever reaches a roster. -->
-							<div class="on-behalf">
-								<label>
-									<span>{m.events_registerChild()}</span>
-									<select bind:value={childId}>
-										<option value="">—</option>
-										{#each authStore.user.guardianOf as c (c.id)}<option value={c.id}
-												>{c.displayName}</option
-											>{/each}
-									</select>
-								</label>
-								<button
-									type="button"
-									class="secondary"
-									disabled={busy || !childId}
-									onclick={() => registerChild('going')}>{m.events_registerChildGoing()}</button
-								>
-								{#if childId && childDone[childId] === 'going'}<span class="held"
-										>{m.events_childRegistered()}</span
-									>{/if}
-							</div>
-						{/if}
-						{#if showForm}
-							<RegistrationForm
-								{event}
-								{busy}
-								onsubmit={(answers) => respond('going', answers)}
-								oncancel={() => (showForm = false)}
-							/>
-						{/if}
-					{/if}
-
-					<!-- The refusal is always named. A disabled button with no explanation is the thing
+						<!-- The refusal is always named. A disabled button with no explanation is the thing
 					     this codebase argues against everywhere else, and "full" and "this already
 					     happened" are completely different to a person. -->
-					{#if event.responseBlockReason}
-						<p class="blocked">{BLOCK_REASON[event.responseBlockReason]()}</p>
-						{#if event.responseBlockReason === 'sign_in'}
-							<a href={resolve('/login')}>{m.nav_login()}</a>
+						{#if event.responseBlockReason}
+							<p class="blocked">{BLOCK_REASON[event.responseBlockReason]()}</p>
+							{#if event.responseBlockReason === 'sign_in'}
+								<a href={resolve('/login')}>{m.nav_login()}</a>
+							{/if}
 						{/if}
 					{/if}
-				{/if}
 
-				<!-- Outside the host/attendee split on purpose: a booking already sitting on these hours
+					<!-- Outside the host/attendee split on purpose: a booking already sitting on these hours
 				     is worth knowing about whichever side of the event you are on, and only the person
 				     reading can resolve it. Hosting removes the hours from anything still bookable
 				     (booking/availability.py), but it deliberately never moves a session somebody has
 				     already booked — so this is the one collision nothing else in the app reports. -->
-				{#if clash}
-					<p class="clash" role="status">
-						{clash.kind === 'booking'
-							? m.events_clash_booking({ count: clash.count })
-							: m.events_clash_availability()}
-					</p>
-				{/if}
+					{#if clash}
+						<p class="clash" role="status">
+							{clash.kind === 'booking'
+								? m.events_clash_booking({ count: clash.count })
+								: m.events_clash_availability()}
+						</p>
+					{/if}
 
-				{#if actionError}
-					<p class="error" role="alert">{actionError}</p>
-				{/if}
-			</section>
+					{#if actionError}
+						<p class="error" role="alert">{actionError}</p>
+					{/if}
+				</section>
 
-			<!-- Above the roster, because "the room has moved" is what somebody opens this page for
+				<!-- Above the roster, because "the room has moved" is what somebody opens this page for
 			     once they have already decided to come, and below the answer buttons, because
 			     deciding whether to come is what everybody else opens it for. -->
-			<Programme {event} />
-			<ContributionsPanel
-				{event}
-				onchanged={async () => {
-					if (event) event = await getEvent(event.id);
-				}}
-			/>
-			{#if event.canOrganise && event.registrationMode === 'form'}
-				<RegistrationFieldsEditor
-					initial={event.registrationFields}
-					busy={fieldsBusy}
-					error={fieldsError}
-					onsave={saveFields}
-				/>
-			{/if}
-			{#if event.canCheckIn}
-				<RegistrationsPanel
+				<Programme {event} />
+				<ContributionsPanel
 					{event}
 					onchanged={async () => {
 						if (event) event = await getEvent(event.id);
 					}}
 				/>
-			{/if}
-			{#if event.canOrganise}
-				<EventStaffPanel
-					{staff}
-					error={staffError}
-					onadd={(userId, role) => staffAction(() => addEventStaff(event!.id, userId, role))}
-					onrole={(staffId, role: EventStaffRole) =>
-						staffAction(() => setEventStaffRole(event!.id, staffId, role))}
-					onremove={(staffId) => staffAction(() => removeEventStaff(event!.id, staffId))}
-				/>
-			{/if}
+				{#if event.canOrganise && event.registrationMode === 'form'}
+					<RegistrationFieldsEditor
+						initial={event.registrationFields}
+						busy={fieldsBusy}
+						error={fieldsError}
+						onsave={saveFields}
+					/>
+				{/if}
+				{#if event.canCheckIn}
+					<RegistrationsPanel
+						{event}
+						onchanged={async () => {
+							if (event) event = await getEvent(event.id);
+						}}
+					/>
+				{/if}
+				{#if event.canOrganise}
+					<EventStaffPanel
+						{staff}
+						error={staffError}
+						onadd={(userId, role) => staffAction(() => addEventStaff(event!.id, userId, role))}
+						onrole={(staffId, role: EventStaffRole) =>
+							staffAction(() => setEventStaffRole(event!.id, staffId, role))}
+						onremove={(staffId) => staffAction(() => removeEventStaff(event!.id, staffId))}
+					/>
+				{/if}
 
-			<!-- Conference mount points (CONFERENCE-BRIEF.md §4 rule 3): one marker per parallel step,
+				<!-- Conference mount points (CONFERENCE-BRIEF.md §4 rule 3): one marker per parallel step,
 			     each replaced by its own component on its own branch. Kept apart by blank lines so that
 			     seven branches editing this page merge without touching each other's lines. -->
 
-			<VenuePanel
-				eventId={event.id}
-				canOrganise={event.canOrganise}
-				startsAt={event.startsAt}
-				endsAt={event.endsAt}
-				onchanged={async () => {
-					if (event) event = await getEvent(event.id);
-				}}
-			/>
+				<VenuePanel
+					eventId={event.id}
+					canOrganise={event.canOrganise}
+					startsAt={event.startsAt}
+					endsAt={event.endsAt}
+					onchanged={async () => {
+						if (event) event = await getEvent(event.id);
+					}}
+				/>
 
-			<ChecklistPanel eventId={event.id} canOrganise={event.canOrganise} />
+				<ChecklistPanel eventId={event.id} canOrganise={event.canOrganise} />
 
-			<DocumentsPanel {event} />
+				<DocumentsPanel {event} />
 
-			<!-- conference: ticket -->
+				<!-- conference: ticket -->
 
-			<RotaPanel eventId={event.id} canOrganise={event.canOrganise} isStaff={event.canCheckIn} />
+				<RotaPanel eventId={event.id} canOrganise={event.canOrganise} isStaff={event.canCheckIn} />
 
-			<CloakroomPanel {event} />
+				<CloakroomPanel {event} />
+			{/if}
 
-			<EventPreview {event} />
+			<!-- While the preview is on, the organiser's own page is unmounted around it (see EventPreview). -->
+			<EventPreview {event} onactive={(on) => (previewing = on)} />
 
-			<EventUpdates eventId={event.id} isHost={event.isHost} />
+			{#if !previewing}
+				<EventUpdates eventId={event.id} isHost={event.isHost} />
 
-			<section class="roster">
-				<h2>{m.events_attendees()}</h2>
-				{#if attendees.length === 0}
-					<p class="status">
-						{authStore.isAuthenticated && (event.isHost || event.myAttendance === 'going')
-							? m.events_attendeesEmpty()
-							: m.events_attendeesPrivate()}
-					</p>
-				{:else}
-					<ul>
-						{#each attendees as row (row.id)}
-							<li>
-								{#if row.attendee.id}
-									<a href={resolve('/users/[id]', { id: row.attendee.id })}>
-										{row.attendee.displayName}
-									</a>
-								{:else}
-									<!-- The organiser's masked public list carries no ids on purpose. -->
-									<span>{row.attendee.displayName}</span>
-								{/if}
-								{#if row.status === 'not_going'}
-									<span class="declined">{m.events_notGoing()}</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			</section>
+				<section class="roster">
+					<h2>{m.events_attendees()}</h2>
+					{#if attendees.length === 0}
+						<p class="status">
+							{authStore.isAuthenticated && (event.isHost || event.myAttendance === 'going')
+								? m.events_attendeesEmpty()
+								: m.events_attendeesPrivate()}
+						</p>
+					{:else}
+						<ul>
+							{#each attendees as row (row.id)}
+								<li>
+									{#if row.attendee.id}
+										<a href={resolve('/users/[id]', { id: row.attendee.id })}>
+											{row.attendee.displayName}
+										</a>
+									{:else}
+										<!-- The organiser's masked public list carries no ids on purpose. -->
+										<span>{row.attendee.displayName}</span>
+									{/if}
+									{#if row.status === 'not_going'}
+										<span class="declined">{m.events_notGoing()}</span>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</section>
+			{/if}
 		{/if}
 	</div>
 </FeatureGate>

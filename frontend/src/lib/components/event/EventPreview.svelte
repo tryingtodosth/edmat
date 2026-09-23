@@ -38,7 +38,11 @@
 	import { getContributions, getEvent, getEventAttendees, getSessions } from '$lib/services/events';
 	import type { Contribution, EdmatEvent, EventAttendee, Session } from '$lib/types/event';
 
-	let { event }: { event: EdmatEvent } = $props();
+	// `onactive` is called by the event page (integration, CONFERENCE-BRIEF.md §5 / §17BF.B's "left open"
+	// #2): while the preview is on, the page unmounts every panel above and below it, so that no
+	// component on the page can send the organiser's own token during a preview — the whole-page swap
+	// B's e2e asserts, which a panel alone could not guarantee once six other panels shared the page.
+	let { event, onactive }: { event: EdmatEvent; onactive?: (on: boolean) => void } = $props();
 
 	type Mode = 'off' | 'visitor' | 'attendee';
 	let mode = $state<Mode>('off');
@@ -67,6 +71,7 @@
 
 	async function enter(next: Exclude<Mode, 'off'>) {
 		mode = next;
+		onactive?.(true);
 		loading = true;
 		shown = null;
 		sessions = [];
@@ -105,6 +110,7 @@
 
 	function leave() {
 		mode = 'off';
+		onactive?.(false);
 		shown = null;
 		sessions = [];
 		roster = [];
