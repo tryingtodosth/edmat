@@ -131,6 +131,28 @@ function toBody(data: unknown): string | undefined {
 	return data === undefined ? undefined : JSON.stringify(data);
 }
 
+/** A binary response — the one shape `request` above cannot return, because it parses the body.
+ *
+ * Needed by the tier-checked event-document endpoint (`documents/views.py`), which serves the bytes
+ * itself rather than publishing a `/media/` path, so the only way to get at them is a request that
+ * carries the token. The caller turns the Blob into an object URL (and revokes it). The header and
+ * `credentials: 'omit'` reasoning is identical to `request`'s — see the long note there.
+ */
+async function requestBlob(path: string): Promise<Blob> {
+	const headers = new Headers();
+	const token = tokenStore.value;
+	if (token) headers.set('Authorization', `Token ${token}`);
+	const res = await fetch(`${PUBLIC_API_BASE_URL}${path}`, { headers, credentials: 'omit' });
+	if (!res.ok) {
+		const contentType = res.headers.get('content-type') ?? '';
+		throw new ApiError(
+			res.status,
+			contentType.includes('application/json') ? await res.json() : undefined
+		);
+	}
+	return res.blob();
+}
+
 export const apiClient = {
 	get<T>(path: string): Promise<T> {
 		return request<T>(withAudience(path));
@@ -138,6 +160,10 @@ export const apiClient = {
 	/** A text response (an `.ics` export) — same headers, no JSON parse. */
 	getText(path: string): Promise<string> {
 		return request<string>(path);
+	},
+	/** The raw bytes of a protected file (an event document). Same headers, no parse at all. */
+	getBlob(path: string): Promise<Blob> {
+		return requestBlob(path);
 	},
 	post<T>(path: string, data?: unknown): Promise<T> {
 		return request<T>(path, { method: 'POST', body: toBody(data) });

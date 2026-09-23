@@ -12,6 +12,13 @@
 		setCheckedIn
 	} from '$lib/services/events';
 	import { downloadText } from '$lib/utils/download';
+	// The briefing gate (CONFERENCE-BRIEF.md §3.C). Kept to the smallest possible hook: the API
+	// refuses check-in with 409 `briefing_unread` when the staff member still owes an
+	// acknowledgement, `briefingBlockFrom` recognises that one refusal, and the interstitial below
+	// is the briefing itself with the button that unblocks them.
+	import { briefingBlockFrom } from '$lib/services/documents';
+	import type { BriefingBlock } from '$lib/types/document';
+	import BriefingInterstitial from './BriefingInterstitial.svelte';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import { onMount } from 'svelte';
 
@@ -19,6 +26,7 @@
 	let rows = $state<EventAttendee[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let briefing = $state<BriefingBlock | null>(null);
 
 	const STATUS: Record<EventAttendanceStatus, () => string> = {
 		going: m.events_status_going,
@@ -42,8 +50,9 @@
 			const updated = await run();
 			rows = rows.map((r) => (r.id === updated.id ? updated : r));
 			onchanged?.();
-		} catch {
-			error = m.common_error();
+		} catch (e) {
+			briefing = briefingBlockFrom(e);
+			if (!briefing) error = m.common_error();
 		}
 	}
 	async function exportCsv() {
@@ -142,6 +151,15 @@
 				</li>
 			{/each}
 		</ul>
+	{/if}
+	{#if briefing}
+		<BriefingInterstitial
+			eventId={event.id}
+			block={briefing}
+			onread={() => {
+				briefing = null;
+			}}
+		/>
 	{/if}
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>

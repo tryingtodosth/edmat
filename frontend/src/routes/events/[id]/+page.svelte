@@ -25,6 +25,7 @@
 	import Programme from '$lib/components/event/Programme.svelte';
 	import ContributionsPanel from '$lib/components/event/ContributionsPanel.svelte';
 	import EventStaffPanel from '$lib/components/event/EventStaffPanel.svelte';
+	import DocumentsPanel from '$lib/components/event/DocumentsPanel.svelte';
 	import {
 		addEventStaff,
 		getEventStaff,
@@ -585,7 +586,7 @@
 
 			<!-- conference: checklist -->
 
-			<!-- conference: documents -->
+			<DocumentsPanel {event} />
 
 			<!-- conference: ticket -->
 

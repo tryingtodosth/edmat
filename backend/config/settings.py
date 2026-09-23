@@ -171,6 +171,11 @@ INSTALLED_APPS = [
     # than more of `exercises`, because what it owns is a review workflow over community-written
     # text. See CONCEPTS-BRIEF.md.
     'concepts',
+    # Documents hung on an event, their visibility tiers and the acknowledgement ledger that locks a
+    # volunteer's day-of tools until the mandatory briefings are read. Its own app rather than more
+    # of `events` because the rule it owns is asked by three surfaces (check-in, and the scanner and
+    # the cloakroom once those land) — see documents/models.py and CONFERENCE-BRIEF.md §3.C.
+    'documents',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
@@ -605,6 +610,10 @@ REST_FRAMEWORK = {
         # is, so it gets the same budget. 60/hour is plenty for somebody drawing a figure, fixing
         # it, and drawing the next one, and far too few for a loop that wants the CPU.
         'sketch': '60/hour',
+        # Uploading an event document (documents/files.py) decodes and re-encodes a picture, or reads
+        # a 25 MB PDF past a virus scanner — the same CPU-and-IO lever a drawing is, and an organiser
+        # posting a conference's whole paperwork in one sitting is a few dozen files, not hundreds.
+        'event_document': '60/hour',
         # A picture embedded in the body being written (community/inline_images.py). The same
         # decode-and-re-encode cost as a gallery picture, and the same reason for a rate: somebody
         # illustrating a long answer uploads several, a loop uploads thousands.

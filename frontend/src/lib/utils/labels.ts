@@ -447,3 +447,29 @@ export const EXERCISE_LINK_ROLE_LABELS: Record<ExerciseLinkRole, () => string> =
 	source: m.exLink_roleSource, // "In this material"
 	practice: m.exLink_rolePractice // "Practises this material"
 };
+
+// Event-document visibility tiers — a hand-maintained mirror of `VISIBILITY_CHOICES` in
+// backend/documents/models.py and of `DocumentTier` in `lib/types/document.ts`, both of which name
+// this file back (house rule 13: say so in every file a mirrored enum lives in, because that is
+// where drift creeps in). The order is the LADDER — `public ⊂ attendees ⊂ staff ⊂ organisers` —
+// with `venue` last and deliberately off it: the building's administrators are neither above nor
+// below an organiser. The inline `import(...)` type is what keeps this map honest without adding a
+// line to this file's import block (CONFERENCE-BRIEF.md §4 rule 5 asks each parallel step to touch
+// the END of this file only): `Record` refuses to compile if a tier is added there and not here.
+export const DOCUMENT_TIERS: import('$lib/types/document').DocumentTier[] = [
+	'public',
+	'attendees',
+	'staff',
+	'organisers',
+	'venue'
+];
+export const DOCUMENT_TIER_LABELS: Record<
+	import('$lib/types/document').DocumentTier,
+	() => string
+> = {
+	public: m.documents_tier_public, // "Everybody"
+	attendees: m.documents_tier_attendees, // "People going"
+	staff: m.documents_tier_staff, // "Event staff"
+	organisers: m.documents_tier_organisers, // "Organisers"
+	venue: m.documents_tier_venue // "The venue"
+};
