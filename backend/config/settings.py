@@ -162,6 +162,12 @@ INSTALLED_APPS = [
     # because it owns a team, an invite link and a review workflow — none of which a material had —
     # while `materials` keeps being the thing every existing read site already reads.
     'coauthoring',
+    # The wiki-like pages for what exercises and materials are ABOUT, their per-(audience, locale)
+    # articles and the links between them. Its own app rather than more of `taxonomy` because it is
+    # not a position in the tree — a concept may sit under several branches or none — and rather
+    # than more of `exercises`, because what it owns is a review workflow over community-written
+    # text. See CONCEPTS-BRIEF.md.
+    'concepts',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
@@ -658,6 +664,25 @@ REST_FRAMEWORK = {
         # results for a day; this per-user scope is the second layer, so one account typing in the
         # location picker cannot spend the shared budget everyone else depends on. Generous enough
         # for real use — a search fires per submitted query, not per keystroke.
+        # Saving a revision of a concept article. The same shape as `material_version` and a touch
+        # tighter: a revision carries no file of its own (a picture or a PDF is a `ConceptAsset`
+        # with its own scope below), so what this bounds is rows and review-queue pressure rather
+        # than bytes. 30/hour is far more than somebody working through an article paragraph by
+        # paragraph needs, and few enough that a loop cannot fill a reviewer's queue faster than it
+        # can be read.
+        'concept_revision': '30/hour',
+        # Linking a concept to an exercise, a material or another concept. One small row per call,
+        # so this is a flood bound rather than a cost bound — the same reasoning and the same number
+        # as `exercise_link`, which bounds the identical act one table over: somebody working
+        # through a topic legitimately files a few dozen in a sitting, and 60/hour stops a loop from
+        # filling a popular exercise's chip row faster than anybody can unlink it.
+        'concept_link': '60/hour',
+        # Uploading a picture or a PDF for a block. A real decode and re-encode per call (house rule
+        # 7 — `community.attachments.process_attachment`), so an unbounded rate is a CPU lever.
+        # 60/hour rather than `inline_image`'s 120 because an article carries a handful of figures
+        # and not a page of them; `Profile.material_upload_quota_bytes` is still what bounds the
+        # TOTAL, as it is for every other upload here.
+        'concept_asset': '60/hour',
         'geocode': '60/hour',
     },
 }

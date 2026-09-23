@@ -1245,6 +1245,7 @@ class FeatureFlagTests(APITestCase):
                 'galleries',
                 'age_verification',
                 'coauthoring',
+                'concepts',
                 'material_uploads_verified_only',
             },
         )
@@ -1271,6 +1272,9 @@ class FeatureFlagTests(APITestCase):
                     # never the material itself (moderation/models.py's own note on the key), so
                     # provisioning it is not what takes a feature away from anybody.
                     'coauthoring',
+                    # And concepts, for the plainest version of the same reason: there is no concept
+                    # on the platform the moment 0040 runs, so seeding the switch on removes nothing.
+                    'concepts',
                 )
             )
         )

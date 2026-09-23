@@ -114,7 +114,14 @@ async function openMaterial() {
 		if (i === 0) await page.goto(`${BASE}/materials/${MATERIAL}`, { waitUntil: 'load' });
 		else await page.reload({ waitUntil: 'load' });
 		await settle(1600);
-		if (await page.locator('.gallery').first().isVisible().catch(() => false)) return true;
+		if (
+			await page
+				.locator('.gallery')
+				.first()
+				.isVisible()
+				.catch(() => false)
+		)
+			return true;
 	}
 	return false;
 }
@@ -150,13 +157,19 @@ check('a second one too', (await page.locator('.gallery__thumb').count()) >= 2);
 console.log('\n— the picture is re-encoded, not the bytes that were sent —');
 const stored = await page.evaluate(
 	async ({ api, material }) => {
-		const r = await fetch(`${api}/api/galleries/for-target/?target_type=material&target_id=${material}`);
+		const r = await fetch(
+			`${api}/api/galleries/for-target/?target_type=material&target_id=${material}`
+		);
 		const g = await r.json();
 		return g.images.map((i) => ({ url: i.url, width: i.width, height: i.height }));
 	},
 	{ api: API, material: MATERIAL }
 );
-check('stored as webp', stored.every((i) => i.url.endsWith('.webp')), JSON.stringify(stored[0]));
+check(
+	'stored as webp',
+	stored.every((i) => i.url.endsWith('.webp')),
+	JSON.stringify(stored[0])
+);
 check(
 	'and bounded to 2000px on the long edge, aspect kept',
 	stored.every((i) => i.width <= 2000 && i.height <= 2000 && i.width > i.height),
@@ -189,7 +202,10 @@ await settle(1500);
 check(
 	'the application is queued and its position shown',
 	(await page.locator('.govapp__state').innerText()).length > 0,
-	await page.locator('.govapp').innerText().catch(() => '')
+	await page
+		.locator('.govapp')
+		.innerText()
+		.catch(() => '')
 );
 
 console.log('\n— staff read the queue and approve —');
@@ -200,7 +216,11 @@ await settle(900);
 await page.locator('#mod-tab-applications').click();
 await settle(900);
 const queueText = await page.locator('.applications-panel').innerText();
-check('the application is in the queue', queueText.includes('photographed this handout'), queueText.slice(0, 160));
+check(
+	'the application is in the queue',
+	queueText.includes('photographed this handout'),
+	queueText.slice(0, 160)
+);
 check('with the applicant named', queueText.includes('Gal Anna'), queueText.slice(0, 160));
 
 // Declining without a reason is refused — checked before approving, since approving ends the row.
@@ -208,7 +228,12 @@ await page.locator('.application-row__actions button', { hasText: 'Decline' }).f
 await settle(600);
 check(
 	'declining with no reason is refused in words',
-	(await page.locator('.applications-panel .error').innerText().catch(() => '')).length > 0
+	(
+		await page
+			.locator('.applications-panel .error')
+			.innerText()
+			.catch(() => '')
+	).length > 0
 );
 
 await page.locator('.application-row__actions button', { hasText: 'Approve' }).first().click();
@@ -226,7 +251,9 @@ check(
 	'she is told she looks after this now',
 	(await page.locator('.govapp__state').innerText()).length > 0
 );
-const before = await page.locator('.gallery__thumb img').evaluateAll((els) => els.map((e) => e.src));
+const before = await page
+	.locator('.gallery__thumb img')
+	.evaluateAll((els) => els.map((e) => e.src));
 check(
 	'the reorder buttons are there this time',
 	(await page.locator('.gallery__actions button[aria-label="Move later"]').count()) >= 1
@@ -249,7 +276,10 @@ await page.locator('.lightbox').waitFor({ timeout: 10000 });
 check('opens', await page.locator('.lightbox__image').isVisible());
 await page.locator('.lightbox__nav button', { hasText: 'Next' }).click();
 await settle(500);
-check('and steps to the next picture', (await page.locator('.lightbox__count').innerText()).startsWith('2'));
+check(
+	'and steps to the next picture',
+	(await page.locator('.lightbox__count').innerText()).startsWith('2')
+);
 await page.keyboard.press('Escape');
 await settle(400);
 check('Escape closes it', (await page.locator('.lightbox').count()) === 0);

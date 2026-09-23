@@ -10,7 +10,8 @@ const BASE = process.env.E2E_BASE || 'http://localhost:5174';
 let pass = 0,
 	fail = 0;
 const check = (name, ok, detail = '') => {
-	(ok ? pass++ : fail++), console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`);
+	(ok ? pass++ : fail++,
+		console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`));
 };
 
 const browser = await chromium.launch();
@@ -33,7 +34,13 @@ page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 const noJsCtx = await browser.newContext({ javaScriptEnabled: false });
 const noJsPage = await noJsCtx.newPage();
 await noJsPage.goto(BASE + '/', { waitUntil: 'load' });
-const noJsH1 = (await noJsPage.locator('h1').first().textContent().catch(() => null))?.trim();
+const noJsH1 = (
+	await noJsPage
+		.locator('h1')
+		.first()
+		.textContent()
+		.catch(() => null)
+)?.trim();
 check('homepage renders an h1 with JavaScript disabled', !!noJsH1, noJsH1 || 'none');
 const noJsTitle = await noJsPage.title();
 check('homepage has a title with JavaScript disabled', noJsTitle.length > 0, noJsTitle);
@@ -42,7 +49,11 @@ const noJsDesc = await noJsPage
 	.getAttribute('content')
 	.catch(() => null);
 check('homepage has a meta description with JS disabled', !!noJsDesc && noJsDesc.length > 50);
-const noJsText = (await noJsPage.locator('body').innerText().catch(() => '')) || '';
+const noJsText =
+	(await noJsPage
+		.locator('body')
+		.innerText()
+		.catch(() => '')) || '';
 check('homepage has real body text without JS', noJsText.length > 80, `${noJsText.length} chars`);
 await noJsCtx.close();
 
@@ -70,7 +81,10 @@ await page.waitForTimeout(800);
 check('/levels title is its own', (await page.title()).includes('Levels'), await page.title());
 check(
 	'/levels canonical points at itself',
-	(await page.locator('link[rel="canonical"]').getAttribute('content').catch(() => null)) === null
+	(await page
+		.locator('link[rel="canonical"]')
+		.getAttribute('content')
+		.catch(() => null)) === null
 );
 const lvlCanon = await page.locator('link[rel="canonical"]').getAttribute('href');
 check('/levels canonical href correct', lvlCanon === 'https://edmat.net/levels', lvlCanon);
@@ -78,8 +92,16 @@ check('/levels canonical href correct', lvlCanon === 'https://edmat.net/levels',
 // --- 4. A route that is NOT prerendered still works (the SPA fallback is intact) ----------------
 await page.goto(BASE + '/disciplines', { waitUntil: 'load' });
 await page.waitForTimeout(2000);
-const discH1 = await page.locator('h1').first().textContent().catch(() => '');
-check('non-prerendered route still renders via SPA fallback', (discH1 || '').trim().length > 0, discH1);
+const discH1 = await page
+	.locator('h1')
+	.first()
+	.textContent()
+	.catch(() => '');
+check(
+	'non-prerendered route still renders via SPA fallback',
+	(discH1 || '').trim().length > 0,
+	discH1
+);
 
 // --- 5. Client-side navigation off a prerendered page ------------------------------------------
 await page.goto(BASE + '/', { waitUntil: 'load' });
@@ -88,7 +110,11 @@ await page.waitForTimeout(1500);
 // the drawer (§17V.4), so the nav link exists in the DOM but is not visible and cannot be clicked.
 await page.locator('.hero__browse').click();
 await page.waitForTimeout(2000);
-check('client-side nav from a prerendered page works', page.url().includes('/disciplines'), page.url());
+check(
+	'client-side nav from a prerendered page works',
+	page.url().includes('/disciplines'),
+	page.url()
+);
 
 const realErrors = errors.filter((e) => !/favicon/i.test(e));
 check('no unexpected console errors', realErrors.length === 0, realErrors.slice(0, 3).join(' | '));

@@ -55,6 +55,7 @@
 	import MaterialExercises from '$lib/components/material/MaterialExercises.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
 	import ProjectPanel from '$lib/components/coauthoring/ProjectPanel.svelte';
+	import LinkedConcepts from '$lib/components/concept/LinkedConcepts.svelte';
 	import ApplyToGovern from '$lib/components/governance/ApplyToGovern.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
@@ -350,6 +351,10 @@
 		     belongs with them rather than down among the claims. It renders nothing at all when the
 		     co-authoring switch is off, or when this material has no project. -->
 		<ProjectPanel materialId={material.id} />
+
+		<!-- What this material is ABOUT, as chips. Renders nothing at all when there is nothing
+		     linked and nothing this reader could do about it. -->
+		<LinkedConcepts materialId={material.id} />
 
 		<GallerySection
 			targetType="material"

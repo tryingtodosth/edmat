@@ -33,6 +33,10 @@
 				return m.activity_kind_claim(); // "New claim"
 			case 'comment':
 				return m.activity_kind_comment(); // "New comment"
+			case 'concept':
+				return m.activity_kind_concept(); // "New concept"
+			case 'concept_revision':
+				return m.activity_kind_conceptRevision(); // "Concept updated"
 			default:
 				return m.activity_kind_post(); // "Post"
 		}
@@ -45,6 +49,10 @@
 		if (item.eventId) return resolve('/events/[id]', { id: item.eventId });
 		if (item.serviceId) return resolve('/services/[id]', { id: item.serviceId });
 		if (item.postId) return resolve('/posts/[id]', { id: item.postId });
+		// The concept page, which is where the article, its pool and its history are reachable from.
+		// Without a slug the hub is the honest fallback rather than a row that does not move.
+		if (item.conceptSlug) return resolve('/concepts/[slug]', { slug: item.conceptSlug });
+		if (item.kind === 'concept' || item.kind === 'concept_revision') return resolve('/concepts');
 		return null;
 	}
 </script>

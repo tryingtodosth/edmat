@@ -117,6 +117,14 @@ _PREFERENCE_FIELD_FOR_TYPE = {
     'project_member_added': 'notify_on_content_action',
     'project_join_requested': 'notify_on_content_action',
     'project_join_decided': 'notify_on_moderation_decision',
+    # Concepts (concepts/, CONCEPTS-BRIEF.md §4), split across the two existing categories on the
+    # co-authoring block's own reasoning, one line above: being told the answer to something you
+    # sent is a moderation decision to the person receiving it, whoever decided it (here that may be
+    # the article's own author rather than staff), while a revision ARRIVING on an article you wrote
+    # and a new revision being PUBLISHED on one are things happening to content you are part of.
+    'concept_revision_pending': 'notify_on_content_action',
+    'concept_revision_decided': 'notify_on_moderation_decision',
+    'concept_revision_published': 'notify_on_content_action',
 }
 
 # The full catalog of real notification types, each paired with the coarse category (Profile
@@ -159,6 +167,7 @@ def notify(
     post=None,
     issue=None,
     material_project=None,
+    concept=None,
     note: str = '',
 ):
     """Creates one Notification, or silently no-ops when there's genuinely nothing to notify:
@@ -209,6 +218,7 @@ def notify(
         post=post,
         issue=issue,
         material_project=material_project,
+        concept=concept,
         note=(note or '')[:500],
     )
 

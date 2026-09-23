@@ -47,10 +47,27 @@ const AUDIENCE_LIST_PATHS = [
 	/^\/events\/(\?|$)/,
 	/^\/services\/(\?|$)/,
 	/^\/courses\/(\?|$)/,
-	/^\/activity\/(\?|$)/
+	/^\/activity\/(\?|$)/,
+	// The concept hub's own list (CONCEPTS-BRIEF.md §5). A concept's AUDIENCE lives on its
+	// articles, so `?audience=` narrows the hub to concepts that actually have a page written for
+	// one of the reader's bands (or an `all` one) — and `/concepts/<slug>/` is deliberately not in
+	// this list, because a detail page never narrows.
+	/^\/concepts\/(\?|$)/
 ];
+// The one shape where these two preferences are not a filter but a CHOICE: a concept's detail.
+// `concepts/resolve.py` never narrows — it answers with whatever is published and says how exact
+// the answer is — so sending the reader's bands and languages is what makes a primary-school
+// reader land on the primary-school article, and what makes the fallback notice mean anything.
+// Without them every reader resolves to `university` (`config.audience.DEFAULT_AUDIENCE`) and the
+// notice fires for the wrong people. An explicit `?audience=`/`?lang=` in the URL still wins:
+// `getConcepts`/`getConcept` set those first and neither is overwritten below. Only the concept
+// itself — `/concepts/<slug>/articles/`, `/links/` and the rest are not this shape.
+const AUDIENCE_PREFERENCE_PATHS = [/^\/concepts\/[^/?]+\/(\?|$)/];
 function withAudience(path: string): string {
-	if (!AUDIENCE_LIST_PATHS.some((re) => re.test(path))) return path;
+	const wanted =
+		AUDIENCE_LIST_PATHS.some((re) => re.test(path)) ||
+		AUDIENCE_PREFERENCE_PATHS.some((re) => re.test(path));
+	if (!wanted) return path;
 	let out = path;
 	const bands = audienceFilterStore.param;
 	if (bands && !/[?&]audience=/.test(out)) {

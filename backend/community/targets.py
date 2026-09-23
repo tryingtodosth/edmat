@@ -44,6 +44,11 @@ TARGET_TYPE_BY_MODEL = {
     # frontend's union is a flat namespace across the whole platform, and a bare "version" would
     # be the first name in it that does not say what it is a version OF.
     ('coauthoring', 'materialversion'): 'materialVersion',
+    # The talk about one article of a concept (concepts/). Named for the ARTICLE and not the
+    # concept, because that is what the thread hangs off: a concept has as many articles as people
+    # have written, and one thread across all of them would mix a conversation about the
+    # primary-school wording with one about the university proof.
+    ('concepts', 'conceptarticle'): 'conceptArticle',
 }
 
 # The targets whose own threads are NOT public: a course's discussion, and a week's or a session's
@@ -64,6 +69,10 @@ TARGET_TYPE_BY_MODEL = {
 # needs it is the code that has just resolved one — see `CourseItemWriteSerializer`, which refuses to
 # link somebody else's private thread into a course for the same reason it refuses another course's
 # attachment.
+# `conceptArticle` is deliberately NOT below: an article a reader can see is a page anybody can
+# open (`concepts.access.can_view_article` admits it only once it has a published revision), which
+# is exactly the test this per-type table applies. A course may therefore link a concept's thread
+# in, which is the ordinary and wanted case.
 PRIVATE_TARGET_TYPES = {
     'taughtCourse',
     'courseLesson',

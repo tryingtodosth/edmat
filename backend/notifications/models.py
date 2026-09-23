@@ -137,6 +137,15 @@ NOTIFICATION_TYPES = [
     ('project_member_added', 'You were added to a material project'),
     ('project_join_requested', 'Somebody asked to join a project you co-author'),
     ('project_join_decided', 'Your request to join a project was decided'),
+    # Concepts (concepts/, CONCEPTS-BRIEF.md §4). Three types for the three moments somebody wants
+    # to hear about, and deliberately not one `concept_revision_changed` with the outcome in the
+    # text: the recipient differs for each. `pending` goes to the ARTICLE'S AUTHOR (who is one of
+    # the people who may decide it), `decided` to the person whose revision it was, and `published`
+    # to everybody who has written a revision of that article — the nearest thing a wiki page has to
+    # a team. All three are <= 32 characters, which is what `Notification.type` holds.
+    ('concept_revision_pending', 'A revision is waiting on a concept article'),
+    ('concept_revision_decided', 'Your concept revision was decided'),
+    ('concept_revision_published', 'A new revision of a concept article'),
 ]
 
 
@@ -194,6 +203,14 @@ class Notification(models.Model):
         blank=True,
         related_name='+',
         on_delete=models.SET_NULL,
+    )
+    # A concept (concepts/). The same nullable/SET_NULL shape as every FK above it and the same
+    # reason: `/concepts/<slug>` is a real page, and a notification a reader cannot click is
+    # markedly less useful than one they can. The CONCEPT rather than the article or the revision,
+    # because the concept page is where a reader can see the article, its pool and its history —
+    # and because a rejected revision never becomes anything a stranger could open.
+    concept = models.ForeignKey(
+        'concepts.Concept', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
     # A moderator's own review_note/resolved_note, or a comment reply's own short preview — whatever
     # extra context that event type actually has, blank when it doesn't.

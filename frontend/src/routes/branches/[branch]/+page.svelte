@@ -26,11 +26,18 @@
 	import PendingBadge from '$lib/components/shared/PendingBadge.svelte';
 	import { isPending } from '$lib/utils/taxonomy';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import ConceptCard from '$lib/components/concept/ConceptCard.svelte';
+	import { getConcepts } from '$lib/services/concepts';
+	import type { ConceptListRow } from '$lib/types/concept';
+	import { CONCEPTS_FLAG } from '$lib/components/concept/labels';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import { authStore } from '$lib/state/auth.svelte';
 
 	let branch = $state<Branch | undefined>(undefined);
 	let field = $state<Discipline | undefined>(undefined);
 	let topics = $state<Topic[]>([]);
 	let materials = $state<Material[]>([]);
+	let concepts = $state<ConceptListRow[]>([]);
 	let exercises = $state<ResolvedExercise[]>([]);
 	let tab = $state<'exercises' | 'materials'>('exercises');
 	let filters = $state<ExerciseFilters>({});
@@ -99,6 +106,18 @@
 		field = f;
 		topics = t;
 		materials = await getMaterialsForBranch(branchId);
+		// The ideas this branch's exercises and materials are ABOUT. A separate section rather than a
+		// third tab: it is a short list, and it belongs beside both tabs rather than competing with
+		// them. With the kill switch off there is nothing to ask for — and the request is caught, so
+		// a branch page never breaks over a feature it only decorates.
+		concepts = [];
+		if (featureFlagsStore.isEnabled(CONCEPTS_FLAG) || authStore.isModerator) {
+			try {
+				concepts = await getConcepts({ branchId, sort: 'title' });
+			} catch {
+				concepts = [];
+			}
+		}
 		loading = false;
 	}
 
@@ -226,6 +245,21 @@
 			</button>
 		</div>
 
+		{#if concepts.length > 0}
+			<section class="concepts">
+				<div class="concepts__head">
+					<h2>{m.branch_concepts_heading()}</h2>
+					<!-- "Concepts" -->
+					<a href={resolve('/concepts')}>{m.home_seeAll()}</a>
+				</div>
+				<div class="grid">
+					{#each concepts as concept (concept.id)}
+						<ConceptCard {concept} />
+					{/each}
+				</div>
+			</section>
+		{/if}
+
 		{#if tab === 'exercises'}
 			<div class="layout">
 				<FiltersSidebar
@@ -291,6 +325,25 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
+	}
+	.concepts {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.concepts__head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-2);
+		h2 {
+			font-size: var(--font-size-lg);
+			margin: 0;
+		}
+		a {
+			color: var(--accent);
+			font-size: var(--font-size-sm);
+		}
 	}
 	.breadcrumb {
 		font-size: var(--font-size-sm);

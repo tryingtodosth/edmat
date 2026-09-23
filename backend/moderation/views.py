@@ -268,7 +268,7 @@ class ModerationQueueView(APIView):
         # (services.py) now, not duplicated here — the exact same function
         # `measure_moderation_queue` imports and measures directly, so there is only ever one real
         # code path to keep correct/optimized.
-        return Response(build_moderation_queue_payload(user=request.user))
+        return Response(build_moderation_queue_payload(user=request.user, request=request))
 
 
 def _apply_submission(submission, reviewer):
@@ -698,6 +698,17 @@ def _course_for_report_target(target):
     give governors real scoped access — left as a genuine follow-up, not attempted in this pass."""
     if isinstance(target, Exercise):
         return target.branch
+    from concepts.models import ConceptArticle
+
+    if isinstance(target, ConceptArticle):
+        # A concept is not a governable node (CONCEPTS-BRIEF.md §0) — scope flows from the branches
+        # it is attached to. The FIRST of them, because this function answers with one branch and a
+        # concept can sit under several; a governor of any of them may already decide that
+        # concept's revisions (`concepts.access.can_review`), and picking the first here only
+        # decides who may act on a REPORT, where the safe-default for an unresolvable scope is
+        # already "global staff only". A concept attached to no branch returns None and is
+        # therefore staff-only, which is the honest answer rather than a gap.
+        return target.concept.branches.first()
     exercise = resolve_view_scope_exercise(target)
     return exercise.branch if exercise is not None else None
 

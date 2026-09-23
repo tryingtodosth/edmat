@@ -69,10 +69,19 @@ def used_upload_bytes(user) -> int:
     endpoints need lives in one module). When pictures moved out of the attachment row and into
     the body, an endpoint that still counted only attachments would have handed out storage the
     other one thought it was still guarding."""
+    from concepts.models import ConceptAsset
+
     from .models import CommentAttachment, InlineImage
 
     attachments = sum(
         CommentAttachment.objects.filter(comment__author=user).values_list('size_bytes', flat=True)
     )
     inline = sum(InlineImage.objects.filter(author=user).values_list('size_bytes', flat=True))
-    return user.profile.material_upload_bytes + attachments + inline
+    # A picture or a PDF placed as a block in a concept article (concepts/). Counted here, by this
+    # docstring's own rule: `concepts.services.store_asset` weighs the incoming file against the
+    # same allowance, and an endpoint that counted only the older three would hand out storage the
+    # others still think they are guarding. A local import — `community` is imported BY `concepts`.
+    concept_assets = sum(
+        ConceptAsset.objects.filter(uploaded_by=user).values_list('size_bytes', flat=True)
+    )
+    return user.profile.material_upload_bytes + attachments + inline + concept_assets

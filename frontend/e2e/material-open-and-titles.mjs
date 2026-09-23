@@ -89,10 +89,7 @@ check(
 	'a PDF material still offers its own collapsed preview',
 	(await page.locator('.pdf-preview__toggle').count()) === 1
 );
-check(
-	'and a PDF shows no picture block',
-	(await page.locator('.picture-preview').count()) === 0
-);
+check('and a PDF shows no picture block', (await page.locator('.picture-preview').count()) === 0);
 
 console.log('\n— tab titles —');
 for (const [path, expect] of [
@@ -125,7 +122,11 @@ console.log('\n— a message survives the round trip through encryption —');
 // Two scratch accounts, not the seeded demo ones: this checkout's demo passwords are not the
 // documented `password123`, and resetting somebody else's account to run a test is not on.
 const ANNA = { user: 'scratch-anna@edmat.example', pass: 'scratchpass123' };
-const PIOTR = { user: 'scratch-piotr@edmat.example', pass: 'scratchpass123', id: process.env.E2E_SCRATCH_RECIPIENT ?? '59' };
+const PIOTR = {
+	user: 'scratch-piotr@edmat.example',
+	pass: 'scratchpass123',
+	id: process.env.E2E_SCRATCH_RECIPIENT ?? '59'
+};
 const BODY = `Encrypted at rest, readable here — Thursday at six? ${Date.now()}`;
 
 async function signIn({ user, pass }) {
@@ -156,7 +157,14 @@ async function openAndWait(url, sel, tries = 3) {
 		if (i === 0) await page.goto(url, { waitUntil: 'load' });
 		else await page.reload({ waitUntil: 'load' });
 		await settle(1500);
-		if (await page.locator(sel).first().isVisible().catch(() => false)) return true;
+		if (
+			await page
+				.locator(sel)
+				.first()
+				.isVisible()
+				.catch(() => false)
+		)
+			return true;
 	}
 	console.log('  (page said:)', (await page.locator('body').innerText()).slice(0, 300));
 	return false;

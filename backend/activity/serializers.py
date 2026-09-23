@@ -209,6 +209,10 @@ class ActivityEventSerializer(serializers.ModelSerializer):
     # Embedded for kind='post' so the feed renders the post's own words/image without a second
     # round trip per row; null for every other kind.
     post_detail = PostSerializer(source='post', read_only=True)
+    # The concept's SLUG rather than its pk, for the reason `NotificationSerializer.concept_slug`
+    # states in full: `/concepts/[slug]` is the route and a numeric id cannot be turned into one
+    # client-side. Null for every kind but `concept` and `concept_revision`.
+    concept_slug = serializers.SerializerMethodField()
 
     class Meta:
         model = ActivityEvent
@@ -226,6 +230,8 @@ class ActivityEventSerializer(serializers.ModelSerializer):
             'service',
             'post',
             'post_detail',
+            'concept',
+            'concept_slug',
             'branch',
             'discipline',
             'tags',
@@ -234,6 +240,9 @@ class ActivityEventSerializer(serializers.ModelSerializer):
 
     def get_actor_display_name(self, obj):
         return _display_name(obj.actor)
+
+    def get_concept_slug(self, obj):
+        return obj.concept.slug if obj.concept_id else None
 
     def get_tags(self, obj):
         return [t.slug for t in obj.tags.all() if not t.is_removed]

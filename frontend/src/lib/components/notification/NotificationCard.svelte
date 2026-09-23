@@ -192,7 +192,23 @@
 				actor: notification.actorDisplayName || m.notification_someone(),
 				title: notification.targetLabel
 			}),
-		projectJoinDecided: () => m.notification_projectJoinDecided({ title: notification.targetLabel })
+		projectJoinDecided: () =>
+			m.notification_projectJoinDecided({ title: notification.targetLabel }),
+		// Concepts. `targetLabel` is the article's own title; `note` carries the change note on a
+		// waiting revision and the reviewer's reason on a decision, and renders on its own quoted
+		// line below — so none of these three repeats it, the restraint every type above follows.
+		conceptRevisionPending: () =>
+			m.notification_conceptRevisionPending({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}), // "{actor} proposed a change to “{title}”"
+		conceptRevisionDecided: () =>
+			m.notification_conceptRevisionDecided({ title: notification.targetLabel }), // "Your revision of “{title}” was decided"
+		conceptRevisionPublished: () =>
+			m.notification_conceptRevisionPublished({
+				actor: notification.actorDisplayName || m.notification_someone(),
+				title: notification.targetLabel
+			}) // "{actor} published a new version of “{title}”"
 	};
 
 	// A booking has no page of its own, and deliberately so: both parties' destination is the same
@@ -216,6 +232,24 @@
 		governorApplicationDecided: resolve('/settings')
 	};
 
+	// The three concept notifications all land on the concept's own page: an article and a revision
+	// have no page a stranger can open on their own, and the concept page is where the article, its
+	// pool and its history all are. `/concepts/[slug]` is keyed by the slug rather than the pk, so
+	// this reads `conceptSlug`; when the backend sent none, the hub is the honest fallback — a card
+	// that lands somewhere real and one click away beats a dead link or a card that does not move.
+	const CONCEPT_TYPES = new Set<Notification['type']>([
+		'conceptRevisionPending',
+		'conceptRevisionDecided',
+		'conceptRevisionPublished'
+	]);
+	let conceptHref = $derived(
+		CONCEPT_TYPES.has(notification.type)
+			? notification.conceptSlug
+				? resolve('/concepts/[slug]', { slug: notification.conceptSlug })
+				: resolve('/concepts')
+			: undefined
+	);
+
 	let message = $derived(MESSAGE_BY_TYPE[notification.type]());
 	// ✅ Phase 4 — a newTaggedContent notification can target a Material instead of an Exercise;
 	// this used to have nowhere real to link to at all (no routes/materials/[id] existed), so that
@@ -227,30 +261,32 @@
 			? resolve('/bookings')
 			: APPLICATION_HREF[notification.type]
 				? APPLICATION_HREF[notification.type]
-				: // An event, unlike a booking, DOES have a page of its own — and it is the page carrying
-					// the new time or the cancellation notice, so it is where somebody clicking a
-					// notification about one wants to land.
-					notification.postId
-					? resolve('/posts/[id]', { id: notification.postId })
-					: notification.issueId
-						? resolve('/issues/[id]', { id: notification.issueId })
-						: notification.eventId
-							? resolve('/events/[id]', { id: notification.eventId })
-							: notification.exerciseId
-								? resolve('/exercises/[id]', { id: notification.exerciseId })
-								: notification.materialId
-									? resolve('/materials/[id]', { id: notification.materialId })
-									: notification.courseId
-										? resolve('/courses/[id]', { id: notification.courseId })
-										: // Last, and only ever reached by a co-authoring notification whose project has
-											// not published anything yet: a project that HAS a material sets `materialId`
-											// too, and the material is where a reader wants to land — the project page is
-											// its history, not the thing itself.
-											notification.materialProjectId
-											? resolve('/material-projects/[id]', {
-													id: notification.materialProjectId
-												})
-											: undefined
+				: conceptHref
+					? conceptHref
+					: // An event, unlike a booking, DOES have a page of its own — and it is the page carrying
+						// the new time or the cancellation notice, so it is where somebody clicking a
+						// notification about one wants to land.
+						notification.postId
+						? resolve('/posts/[id]', { id: notification.postId })
+						: notification.issueId
+							? resolve('/issues/[id]', { id: notification.issueId })
+							: notification.eventId
+								? resolve('/events/[id]', { id: notification.eventId })
+								: notification.exerciseId
+									? resolve('/exercises/[id]', { id: notification.exerciseId })
+									: notification.materialId
+										? resolve('/materials/[id]', { id: notification.materialId })
+										: notification.courseId
+											? resolve('/courses/[id]', { id: notification.courseId })
+											: // Last, and only ever reached by a co-authoring notification whose project has
+												// not published anything yet: a project that HAS a material sets `materialId`
+												// too, and the material is where a reader wants to land — the project page is
+												// its history, not the thing itself.
+												notification.materialProjectId
+												? resolve('/material-projects/[id]', {
+														id: notification.materialProjectId
+													})
+												: undefined
 	);
 
 	function handleClick() {

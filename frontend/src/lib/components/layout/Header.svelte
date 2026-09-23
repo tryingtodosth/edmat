@@ -69,6 +69,10 @@
 	// account entry off this one, and turning either off leaves the other's link exactly where it was.
 	let canCoauthoring = $derived(can('coauthoring'));
 	let canClassroom = $derived(can('courses'));
+	// The concepts app (CONCEPTS-BRIEF.md §0). Both entries — the browse link and the "New
+	// concept" item — hang off this one flag, because they are one feature: there is nothing to
+	// write a concept INTO when the hub is gone.
+	let canConcepts = $derived(can('concepts'));
 	// A minor's account may not host, list tutoring, or message (accounts/minors.py); the links go
 	// with the abilities, the kill-switch rule.
 	let isMinor = $derived(authStore.user?.isMinor ?? false);
@@ -88,7 +92,12 @@
 	});
 
 	let hasAnythingToAdd = $derived(
-		canSubmitExercise || canSubmitMaterial || canClassroom || canTutoring || canEvents
+		canSubmitExercise ||
+			canSubmitMaterial ||
+			canClassroom ||
+			canTutoring ||
+			canEvents ||
+			canConcepts
 	);
 
 	function logout() {
@@ -276,6 +285,19 @@
 		<span class="nav-link__icon" aria-hidden="true">{@render bookIcon()}</span>
 		<span class="nav-link__text">{m.nav_materials()}</span>
 	</a>
+	{#if canConcepts}
+		<a
+			class="nav-link nav-link--concepts"
+			href={resolve('/concepts')}
+			aria-label={m.nav_concepts()}
+			title={m.nav_concepts()}
+			{onclick}
+		>
+			<span class="nav-link__icon" aria-hidden="true">{@render conceptIcon()}</span>
+			<span class="nav-link__text">{m.nav_concepts()}</span>
+			<!-- "Concepts" -->
+		</a>
+	{/if}
 	{#if canClassroom}
 		<a
 			class="nav-link nav-link--classroom"
@@ -352,6 +374,15 @@
 		     from anywhere, the same job every other create action in this menu does. -->
 		<a role="menuitem" class={itemClass} href={resolve('/activity')} {onclick}>
 			{m.nav_add_post()}
+		</a>
+	{/if}
+	{#if canConcepts}
+		<!-- Deliberately not gated on being an adult the way Events is: a minor may write a
+		     concept article, their revision simply always queues (CONCEPTS-BRIEF.md §0). Only
+		     LINKING is closed to them, and that is a control on the concept page, not here. -->
+		<a role="menuitem" class={itemClass} href={resolve('/concepts/new')} {onclick}>
+			{m.nav_add_concept()}
+			<!-- "New concept" -->
 		</a>
 	{/if}
 {/snippet}
@@ -480,6 +511,26 @@
 	>
 		<rect x="3" y="5" width="18" height="16" rx="2" />
 		<path d="M3 9.5h18M8 3v4M16 3v4" />
+	</svg>
+{/snippet}
+
+{#snippet conceptIcon()}
+	<!-- Concepts: three nodes joined — an idea with the things around it, which is what a concept
+	     page is (its article, and the exercises, materials and other concepts linked to it). -->
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<circle cx="12" cy="6" r="2.6" />
+		<circle cx="5.5" cy="17.5" r="2.6" />
+		<circle cx="18.5" cy="17.5" r="2.6" />
+		<path d="M10.4 8.1 7.1 15.4M13.6 8.1l3.3 7.3M8.1 17.5h7.8" />
 	</svg>
 {/snippet}
 
@@ -1179,6 +1230,18 @@
 	}
 	.menu-locale {
 		padding: var(--space-2) var(--space-3);
+	}
+
+	// Stage 0 — Concepts loses its label first. It is the newest link in the bar and the one a
+	// reader is least likely to be navigating to mid-task, so it is the cheapest label to spend;
+	// the icon keeps its place in the order rather than moving.
+	@media (max-width: 1240px) {
+		.site-nav .nav-link--concepts .nav-link__text {
+			display: none;
+		}
+		.site-nav .nav-link--concepts .nav-link__icon {
+			display: inline-flex;
+		}
 	}
 
 	// Stage 1 — Events loses its label and becomes a calendar icon, in place.

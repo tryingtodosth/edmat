@@ -28,7 +28,9 @@ class NotificationViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
     def get_queryset(self):
         return Notification.objects.filter(recipient=self.request.user).select_related(
-            'actor', 'actor__profile'
+            # `concept` joins for `concept_slug` — the serializer needs the slug to build
+            # `/concepts/[slug]`, and without this the inbox pays one query per concept row.
+            'actor', 'actor__profile', 'concept'
         )
 
     @action(detail=True, methods=['post'])
@@ -168,7 +170,7 @@ class NotificationStreamView(APIView):
             nonlocal last_id
             rows = Notification.objects.filter(
                 recipient=user, id__gt=last_id
-            ).select_related('actor', 'actor__profile').order_by('id')
+            ).select_related('actor', 'actor__profile', 'concept').order_by('id')
             for notification in rows:
                 payload = NotificationSerializer(notification).data
                 yield emit(notification.id, payload)

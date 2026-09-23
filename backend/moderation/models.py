@@ -380,6 +380,19 @@ FEATURE_FLAG_CHOICES = [
     # switches rather than one: `material_submissions` gates starting a project, this one gates
     # everything that happens inside one afterwards.
     ('coauthoring', 'Co-authoring materials: versions, teams, proposals'),
+    # Concepts (concepts/, CONCEPTS-BRIEF.md): the wiki-like pages for the things exercises and
+    # materials are ABOUT, their per-(audience, locale) articles and the links between them.
+    # A plain kill switch, seeded on.
+    #
+    # Off, every `/api/concepts/`, `/api/concept-articles/`, `/api/concept-revisions/`,
+    # `/api/concept-links/` and `/api/concept-assets/` endpoint 403s a non-staff caller — with one
+    # deliberate carve-out that house rule 3 requires rather than contradicts:
+    # `GET /api/concept-links/?target_type=…` answers `[]` instead of 403, because it is read by the
+    # chip row on an exercise's and a material's own page and those pages must keep working while
+    # returning nothing for this feature. Every link, tab, menu item and chip row disappears on the
+    # frontend; a `[[slug]]` anchor already inside somebody's text still renders (it is an ordinary
+    # relative link) and the page it leads to shows the gate.
+    ('concepts', 'Concepts: wiki articles per audience'),
 ]
 
 

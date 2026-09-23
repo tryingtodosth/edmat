@@ -37,6 +37,7 @@ urlpatterns = [
     path('api/', include('chem.urls')),
     path('api/', include('galleries.urls')),
     path('api/', include('coauthoring.urls')),
+    path('api/', include('concepts.urls')),
 ]
 
 if settings.DEBUG:

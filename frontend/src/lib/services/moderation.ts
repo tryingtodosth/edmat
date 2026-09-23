@@ -11,7 +11,9 @@ import type {
 } from '$lib/types';
 import { apiClient } from '$lib/api/client';
 import type { MaterialVersionQueueRow } from '$lib/types/materialProject';
+import type { ConceptQueueRow } from '$lib/types/concept';
 import {
+	mapConceptQueueRow,
 	mapEditSuggestion,
 	mapExerciseSubmission,
 	mapExerciseTranslation,
@@ -19,6 +21,7 @@ import {
 	mapNodeGovernorGrant,
 	mapReportGroup,
 	mapSolutionEntry,
+	type RawConceptQueueRow,
 	type RawEditSuggestion,
 	type RawExerciseSubmission,
 	type RawExerciseTranslation,
@@ -55,6 +58,15 @@ export interface ModerationQueue {
 	// count descending) — this app's own established convention of not re-deriving server-computed
 	// ordering client-side (same trust model Exercise.averageRating/reviewCount already get).
 	reports: ReportGroup[];
+	/** Pending revisions of concept articles (concepts/, CONCEPTS-BRIEF.md §5). Branch-scoped
+	 * exactly like every other section — a governor sees the concepts attached to their branches,
+	 * staff see all of them, and a concept attached to no branch reaches staff only.
+	 *
+	 * Decided through the concepts app's own `/api/concept-revisions/{id}/decide/`, never a new
+	 * moderation "kind": the `material_versions` and `solution_entries` precedent, one review path
+	 * per object, so the queue and the article's own history page cannot disagree. That endpoint
+	 * also admits the article's own AUTHOR as a reviewer, which no moderation kind could express. */
+	conceptRevisions: ConceptQueueRow[];
 }
 
 export async function getModerationQueue(): Promise<ModerationQueue> {
@@ -63,6 +75,7 @@ export async function getModerationQueue(): Promise<ModerationQueue> {
 		// Optional on the wire all the same: a page that threw on a missing key would take every
 		// other queue down with it.
 		material_versions?: RawMaterialVersionQueueRow[];
+		concept_revisions?: RawConceptQueueRow[];
 		edit_suggestions: RawEditSuggestion[];
 		translations: RawExerciseTranslation[];
 		solution_entries: RawSolutionEntry[];
@@ -72,6 +85,7 @@ export async function getModerationQueue(): Promise<ModerationQueue> {
 	return {
 		exerciseSubmissions: raw.submissions.map(mapExerciseSubmission),
 		materialVersions: (raw.material_versions ?? []).map(mapMaterialVersionQueueRow),
+		conceptRevisions: (raw.concept_revisions ?? []).map(mapConceptQueueRow),
 		editSuggestions: raw.edit_suggestions.map(mapEditSuggestion),
 		translations: raw.translations.map(mapExerciseTranslation),
 		solutionEntries: (raw.solution_entries ?? []).map(mapSolutionEntry),

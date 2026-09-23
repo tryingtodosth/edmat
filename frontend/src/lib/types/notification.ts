@@ -93,7 +93,15 @@ export type NotificationType =
 	// Staff decided a DSA Art. 16 legal notice the recipient filed (legal/). Deliberately unlinked
 	// — a legal notice has no page of its own for anybody but staff/its own notifier, so `note`
 	// (the stated reason) is the whole of what this card says, same as a rejected submission.
-	| 'legalNoticeDecided';
+	| 'legalNoticeDecided'
+	// Concepts (concepts/). Three, for the three moments somebody wants to hear about, split the
+	// same way co-authoring's are: the reviewers are told a revision is waiting, its author is told
+	// what was decided, and the people around an article are told when a new revision went live.
+	// Deliberately not one `conceptRevisionChanged` carrying the outcome in `note` — "decide this"
+	// and "somebody decided yours" are different jobs for different people.
+	| 'conceptRevisionPending'
+	| 'conceptRevisionDecided'
+	| 'conceptRevisionPublished';
 
 export interface Notification {
 	id: string;
@@ -112,6 +120,10 @@ export interface Notification {
 	 * one that has should send the reader to the material rather than to its history. The card
 	 * prefers `materialId` and falls back to this. */
 	materialProjectId?: string;
+	/** The concept a concept notification is about, as its SLUG — `/concepts/[slug]` is keyed by
+	 * the slug, not by the pk, and an article or a revision has no page a stranger can open on its
+	 * own. Absent leaves the card pointing at the hub rather than at a dead link. */
+	conceptSlug?: string;
 	note: string;
 	isRead: boolean;
 	createdAt: string;

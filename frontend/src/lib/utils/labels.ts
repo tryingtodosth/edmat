@@ -262,7 +262,14 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 		projectInviteUsed: 'notifyOnContentAction',
 		projectMemberAdded: 'notifyOnContentAction',
 		projectJoinRequested: 'notifyOnContentAction',
-		projectJoinDecided: 'notifyOnModerationDecision'
+		projectJoinDecided: 'notifyOnModerationDecision',
+		// Concepts (concepts/). Split on the same line co-authoring's are, and for the same reason:
+		// "a revision is waiting on an article you look after" and "a page you may have read has
+		// changed" are things happening to content, while "your revision was accepted/refused" is a
+		// decision about something this person submitted.
+		conceptRevisionPending: 'notifyOnContentAction',
+		conceptRevisionDecided: 'notifyOnModerationDecision',
+		conceptRevisionPublished: 'notifyOnContentAction'
 	};
 
 // Short, parameter-free labels for the settings page's own per-type fine-tune list — deliberately
@@ -325,7 +332,10 @@ export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => st
 	projectInviteUsed: m.notifPref_projectInviteUsed,
 	projectMemberAdded: m.notifPref_projectMemberAdded,
 	projectJoinRequested: m.notifPref_projectJoinRequested,
-	projectJoinDecided: m.notifPref_projectJoinDecided
+	projectJoinDecided: m.notifPref_projectJoinDecided,
+	conceptRevisionPending: m.notifPref_conceptRevisionPending, // "Concept revision waiting"
+	conceptRevisionDecided: m.notifPref_conceptRevisionDecided, // "Concept revision decided"
+	conceptRevisionPublished: m.notifPref_conceptRevisionPublished // "New concept revision"
 };
 
 // The platform-wide moderator kill switches (backend moderation/models.py's FEATURE_FLAG_CHOICES)
@@ -348,8 +358,16 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	galleries: m.featureFlags_label_galleries, // "Picture galleries on content"
 	age_verification: m.featureFlags_label_ageVerification, // "Age gate on self-registration"
 	coauthoring: m.featureFlags_label_coauthoring, // "Co-authoring materials: versions, teams, proposals"
+	concepts: m.featureFlags_label_concepts, // "Concepts: wiki articles per audience"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
+
+// The concepts app's own closed enums (revision status, block kind, relation, link refusal reason)
+// are deliberately NOT mirrored here: they live beside the components that read them, in
+// `lib/components/concept/labels.ts`, which names `backend/concepts/models.py`,
+// `backend/concepts/blocks.py` and `backend/concepts/access.py` as the things it mirrors
+// (house rule 13 — one owner per mirrored enum; two copies is exactly how drift starts). Only the
+// flag key above is shared, because the Flags tab renders every key from one map.
 
 /** The label for a flag the API actually returned, which is not necessarily one this build knows
  * about — a backend seeded ahead of the frontend (or simply an older bundle in someone's tab) sends

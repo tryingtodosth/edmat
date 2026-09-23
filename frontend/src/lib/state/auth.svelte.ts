@@ -94,8 +94,14 @@ export const authStore = {
 			contentLocalesStore.syncFromProfile(user.contentLocales);
 			editorPrefsStore.syncFromProfile(user.editorMode);
 			a11yPrefsStore.syncFromProfile(user.textSize, user.highContrast);
-		} catch {
-			tokenStore.set(null);
+		} catch (e) {
+			// ONLY a token the server actually rejected is cleared. Anything else — a navigation
+			// that aborts this request mid-flight, a dropped connection, a 500 — means "no answer
+			// yet", not "you are not signed in", and clearing on it signs a real session out: a
+			// browser run caught exactly that, one page load opening `/auth/me/` and the next
+			// navigation 1.1s later aborting it, after which the app was a guest holding a
+			// perfectly valid token. The session is restored on the next load instead.
+			if (e instanceof ApiError && (e.status === 401 || e.status === 403)) tokenStore.set(null);
 			user = null;
 		} finally {
 			// In a `finally`, so a failed restore resolves to "guest" rather than leaving the app

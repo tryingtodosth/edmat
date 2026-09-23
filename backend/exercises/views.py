@@ -70,6 +70,13 @@ def _tag_target_model(kind):
         from materials.models import Material
 
         return Material
+    if kind == 'concept':
+        # A concept (concepts/) is tagged with the same global vocabulary and through the same
+        # endpoint every other taggable thing on this platform uses — a third kind here rather than
+        # a bespoke route, which is the whole reason this function exists.
+        from concepts.models import Concept
+
+        return Concept
     return None
 
 
@@ -141,11 +148,19 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
         kind = request.data.get('kind')
         model = _tag_target_model(kind)
         if model is None:
-            return Response({'kind': ["Must be 'exercise' or 'material'."]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'kind': ["Must be 'exercise', 'material' or 'concept'."]}, status=status.HTTP_400_BAD_REQUEST)
         try:
             target = model.objects.get(pk=request.data.get('object_id'))
         except (model.DoesNotExist, ValueError, TypeError):
             return Response({'object_id': ['No matching content found.']}, status=status.HTTP_400_BAD_REQUEST)
+        if kind == 'concept':
+            # A concept nobody can see is not something a tag may be applied to — otherwise this
+            # endpoint would answer "no matching content" for an id that does not exist and 201 for
+            # one that exists but is still waiting, which is a way to find out which ids are real.
+            from concepts.access import can_view
+
+            if not can_view(target, request.user):
+                return Response({'object_id': ['No matching content found.']}, status=status.HTTP_400_BAD_REQUEST)
 
         if request.method == 'DELETE':
             target.tags.remove(tag)
@@ -156,8 +171,12 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
         if not already_tagged:
             if kind == 'exercise':
                 notify_tag_followers(tag, actor=request.user, exercise=target)
-            else:
+            elif kind == 'material':
                 notify_tag_followers(tag, actor=request.user, material=target)
+            # Deliberately NOT widened to concepts (CONCEPTS-BRIEF.md §9): `notify_tag_followers`
+            # builds its row with `exercise=`/`material=` and a `new_tagged_content` notification a
+            # reader cannot click is worse than none. Adding a `concept=` branch there is a small,
+            # real follow-up; guessing at it here would be a notification pointing nowhere.
         return Response(status=status.HTTP_201_CREATED)
 
 

@@ -50,8 +50,12 @@
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
 	import ServiceCard from '$lib/components/service/ServiceCard.svelte';
 	import EventCard from '$lib/components/event/EventCard.svelte';
+	import ConceptCard from '$lib/components/concept/ConceptCard.svelte';
+	import { getConcepts } from '$lib/services/concepts';
+	import type { ConceptListRow } from '$lib/types/concept';
 
-	type TabId = 'exercises' | 'materials' | 'branches' | 'tutoring' | 'events' | 'activity';
+	type TabId =
+		'exercises' | 'materials' | 'branches' | 'concepts' | 'tutoring' | 'events' | 'activity';
 
 	// Each tab names the flag that governs its content, or `null` for the two that are always there.
 	// A tab whose feature a moderator has killed is not rendered at all — a tab strip that opens onto
@@ -60,10 +64,14 @@
 	const TABS: {
 		id: TabId;
 		label: () => string;
-		flag: 'courses' | 'tutoring' | 'events' | null;
+		flag: 'courses' | 'concepts' | 'tutoring' | 'events' | null;
 	}[] = [
 		{ id: 'exercises', label: () => m.home_tab_exercises(), flag: null },
 		{ id: 'materials', label: () => m.home_tab_materials(), flag: null },
+		// Next to the two content tabs it belongs with: a concept is the thing an exercise and a
+		// material are ABOUT, so it reads as a third way into the same corpus rather than as one
+		// more feature.
+		{ id: 'concepts', label: () => m.home_tab_concepts(), flag: 'concepts' }, // "Concepts"
 		{ id: 'branches', label: () => m.home_tab_courses(), flag: 'courses' },
 		{ id: 'tutoring', label: () => m.home_tab_tutoring(), flag: 'tutoring' },
 		{ id: 'events', label: () => m.home_tab_events(), flag: 'events' },
@@ -149,6 +157,7 @@
 	let services = $state<Service[]>([]);
 	let events = $state<EdmatEvent[]>([]);
 	let activity = $state<FeedItem[]>([]);
+	let concepts = $state<ConceptListRow[]>([]);
 
 	let loaded = $state<Record<string, boolean>>({});
 	// The band chips narrow every list, and a tab fetched before the chips changed is stale. Reset
@@ -193,6 +202,11 @@
 				services = (await getServices()).slice(0, 6);
 			} else if (id === 'events') {
 				events = (await getEvents({ when: 'upcoming' })).slice(0, 6);
+			} else if (id === 'concepts') {
+				// Most recently updated rather than alphabetical: the hub's own letter strip is where
+				// somebody goes looking for a name they already know, and a home tab is for what has
+				// been written lately.
+				concepts = await getConcepts({ sort: 'updated', limit: 12 });
 			} else if (id === 'activity') {
 				activity = await getActivityFeed({ limit: 10 });
 			}
@@ -321,6 +335,23 @@
 					<div class="grid">
 						{#each materials as material (material.id)}
 							<MaterialCard {material} />
+						{/each}
+					</div>
+				{/if}
+			</section>
+		{:else if active === 'concepts'}
+			<section class="section">
+				<div class="section__head">
+					<h2>{m.home_concepts_heading()}</h2>
+					<!-- "Recently written about" -->
+					<a href={resolve('/concepts')}>{m.home_seeAll()}</a>
+				</div>
+				{#if concepts.length === 0}
+					<p class="status">{m.home_noResults()}</p>
+				{:else}
+					<div class="grid">
+						{#each concepts as concept (concept.id)}
+							<ConceptCard {concept} />
 						{/each}
 					</div>
 				{/if}

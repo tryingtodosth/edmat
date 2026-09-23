@@ -23,6 +23,13 @@ export type ReportKind =
 	// An event and a proposal to one (events/) — no viewer pool; a moderator's remove hides the
 	// event or withdraws the proposal.
 	| 'event'
+	// One article of a concept (concepts/) — community-written and public the moment it has a
+	// published revision, so it needs the same flag route every other public text has. No viewer
+	// pool of its own, so it never auto-hides; a moderator's remove takes the article out of
+	// `visible_articles` and, when it was the concept's last visible one, the concept and its
+	// backlinks go with it. The report is about the ARTICLE, never the concept: the concept is a
+	// language-neutral node with nobody's words in it.
+	| 'concept_article'
 	| 'contribution';
 
 // One GROUP per reported target (moderation/services.py's build_report_queue) — not one row per

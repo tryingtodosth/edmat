@@ -49,6 +49,16 @@ ACTIVITY_KIND_CHOICES = [
     ('review', 'New review'),
     ('claim', 'New claim'),
     ('comment', 'New comment'),
+    # A concept's page coming into being (concepts/, CONCEPTS-BRIEF.md §4) — the FIRST publication
+    # anywhere under it, and only that one. A concept with six articles announces itself once.
+    ('concept', 'New concept'),
+    # An article of a concept that already existed getting a new published revision. Distinct from
+    # 'concept' for the same reason 'material_version' is distinct from 'material': "this idea now
+    # has a page" and "a page you may have read has changed" are different things to a reader. Both
+    # link through the `concept` FK (an article and a revision have no page a stranger can open on
+    # their own; the concept is where they should land) and carry the article or the revision as the
+    # generic `source`, so deleting one takes exactly its own row out of the feed.
+    ('concept_revision', 'New concept revision'),
 ]
 
 
@@ -90,6 +100,16 @@ class ActivityEvent(models.Model):
     )
     post = models.ForeignKey(
         'activity.Post', null=True, blank=True, related_name='+', on_delete=models.CASCADE
+    )
+    # A concept (concepts/). SET_NULL rather than the CASCADE every link above it uses, and that is
+    # the one deliberate difference in this block: a concept is never hard-deleted in normal
+    # operation — it is made invisible by its articles being removed, which `remove_activity_for`
+    # already handles through the generic `source` — so the only thing CASCADE would buy is the case
+    # this app does not have, while SET_NULL keeps an admin's manual cleanup from silently deleting
+    # feed history. A row whose `concept` has gone null is aged out by the 90-day trim like any
+    # other. (CONCEPTS-BRIEF.md §2 specifies SET_NULL; this note is why it is not an oversight.)
+    concept = models.ForeignKey(
+        'concepts.Concept', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
     )
 
     # WHAT PRODUCED the row, precisely — the generic source is what lets `remove_activity_for(obj)`
