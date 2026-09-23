@@ -45,6 +45,15 @@
 	}
 
 	const done = $derived((data?.shifts ?? []).filter((row) => row.status === 'done'));
+	// Built in the script, not in the markup: written inline, Prettier reflows the `{#if}` around
+	// the dash onto its own line and the sheet prints "…2026– Thursday…" with the space on the
+	// wrong side of it. Visible only on the screenshot, which is where it was caught.
+	const dateRange = $derived(
+		data?.event.startsAt
+			? formatDate(data.event.startsAt) +
+					(data.event.endsAt ? ` – ${formatDate(data.event.endsAt)}` : '')
+			: ''
+	);
 	const today = new Date().toISOString();
 </script>
 
@@ -71,12 +80,9 @@
 					<dd>{authStore.user?.displayName ?? ''}</dd>
 					<dt>Wydarzenie / Event</dt>
 					<dd>{data.event.title}</dd>
-					{#if data.event.startsAt}
+					{#if dateRange}
 						<dt>Termin / Dates</dt>
-						<dd>
-							{formatDate(data.event.startsAt)}{#if data.event.endsAt}
-								– {formatDate(data.event.endsAt)}{/if}
-						</dd>
+						<dd>{dateRange}</dd>
 					{/if}
 					{#if data.event.locationText}
 						<dt>Miejsce / Place</dt>
