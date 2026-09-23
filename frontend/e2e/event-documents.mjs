@@ -303,7 +303,14 @@ await interstitial.getByRole('button', { name: 'Read and understood', exact: tru
 await volunteer.waitForTimeout(2000);
 check('the interstitial closes once it is acknowledged', (await interstitial.count()) === 0);
 await registrations.getByRole('button', { name: 'Check in', exact: true }).first().click();
-await volunteer.waitForTimeout(2000);
+// Wait for the pill itself rather than a fixed two seconds: on the merged event page the refresh
+// after a check-in also re-runs the other conference panels, and a fixed wait raced it (integration,
+// 2026-09-23).
+await registrations
+	.locator('.pill--checked')
+	.first()
+	.waitFor({ timeout: 15000 })
+	.catch(() => {});
 const checkedIn = await registrations.locator('.pill--checked').count();
 check('check-in goes through afterwards', checkedIn === 1, String(checkedIn));
 // The panel further down the page holds its own copy of the list and was loaded BEFORE the

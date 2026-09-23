@@ -22,9 +22,15 @@ const check = (l, ok, x = '') => {
 const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
+// The interface is Polish by default since 2026-09-23; this script's checks read English copy.
+const { englishContext } = await import('./english.mjs');
+
 const mk = async () => {
 	const p = await (
-		await browser.newContext({ viewport: { width: 1280, height: 1000 }, acceptDownloads: true })
+		await englishContext(browser, BASE, {
+			viewport: { width: 1280, height: 1000 },
+			acceptDownloads: true
+		})
 	).newPage();
 	p.on('console', (m) => {
 		if (m.type() === 'error') errors.push(`[${p.url()}] ${m.text()}`);
