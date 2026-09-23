@@ -24,8 +24,15 @@ const page = await (await browser.newContext({ viewport: { width: 390, height: 8
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 page.on('pageerror', (e) => errors.push(e.message));
 
+// The ☰ is in the server-rendered HTML, so waiting for it proves nothing about whether anything
+// can be CLICKED yet — and until the bundle has hydrated, clicking it does nothing, the drawer
+// never opens, and four checks below fail in a way that reads exactly like a broken drawer (it was
+// failing here in September 2026 for precisely this reason, on a warm dev server). The root
+// layout's own boot request is the earliest honest proof that `onMount` has run.
+const booted = page.waitForResponse((r) => r.url().includes('/feature-flags/'), { timeout: 90000 });
 await page.goto(`${BASE}/exercises/51`, { waitUntil: 'load' });
 await page.locator('.drawer-toggle').waitFor({ timeout: 15000 });
+await booted;
 await page.waitForTimeout(1200);
 const header = page.locator('header.site-header');
 const h = await header.boundingBox();

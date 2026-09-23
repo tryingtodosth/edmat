@@ -9,6 +9,9 @@ try {
 } catch {
 	({ chromium } = await import('playwright-core'));
 }
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
 const API = process.env.E2E_API ?? 'http://localhost:8000';
 const MATERIAL = process.env.E2E_MATERIAL ?? '1'; // a material with covers claims
@@ -24,7 +27,7 @@ const browser = await chromium.launch(
 	process.env.CHROME ? { executablePath: process.env.CHROME } : {}
 );
 const page = await (
-	await browser.newContext({ viewport: { width: 1280, height: 1000 } })
+	await englishContext(browser, BASE, { viewport: { width: 1280, height: 1000 } })
 ).newPage();
 page.on('console', (m) => {
 	if (m.type() !== 'error') return;

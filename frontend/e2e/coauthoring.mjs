@@ -56,6 +56,9 @@ try {
 	({ chromium } = await import('playwright-core'));
 }
 
+// English copy in the checks below → ask for the English interface; the default is Polish.
+import { englishContext } from './english.mjs';
+
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5183';
 // E2E_API is given with or without a trailing /api — both conventions exist among these scripts.
 const API = (process.env.E2E_API ?? 'http://127.0.0.1:8011/api').replace(/\/api\/?$/, '') + '/api';
@@ -182,7 +185,7 @@ const browser = await chromium.launch(
 
 /** One person, one context, signed in by token rather than through the form (trap 13's reason). */
 async function person(name, token) {
-	const ctx = await browser.newContext({
+	const ctx = await englishContext(browser, BASE, {
 		viewport: { width: 1280, height: 1000 },
 		locale: 'en-US'
 	});

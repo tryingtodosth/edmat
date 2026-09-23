@@ -49,6 +49,17 @@
 		gap: var(--space-1);
 		font-size: var(--font-size-sm);
 	}
+	// Phone widths only, and for the same reason as the drawer's own bottom padding (Header.svelte):
+	// an in-app browser — Facebook Messenger's, where this was reported — draws a toolbar over the
+	// bottom edge of the viewport, and this row is the end of the document, so its links (privacy,
+	// the DSA notice channel, reporting an issue) are the one place on the site that cannot be
+	// scrolled out from under it. `env(safe-area-inset-bottom)` covers the device's own chrome and
+	// is 0 everywhere else, so the fixed part is what actually does the work here.
+	@media (max-width: 720px) {
+		.site-footer__row {
+			padding-bottom: calc(var(--space-6) + var(--space-3) + env(safe-area-inset-bottom, 0px));
+		}
+	}
 	.muted {
 		color: var(--text-secondary);
 	}

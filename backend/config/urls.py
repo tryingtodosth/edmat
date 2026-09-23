@@ -7,9 +7,14 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 
 from config.sitemaps import SITEMAPS
+from config.views import LocaleHintView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # The first-visit interface-language hint (config/views.py). Routed here rather than from an
+    # app's urls.py because it belongs to no app — it is about the visitor's very first paint, not
+    # about anything the platform stores.
+    path('api/locale-hint/', LocaleHintView.as_view(), name='locale-hint'),
     # Deliberately at the root, not under `/api/`: this is the URL a crawler is told to fetch, and
     # Apache rewrites exactly this path through to Django (everything else at the root is the
     # SvelteKit build served off disk). The URLs it emits are frontend routes — see config/sitemaps.py.
@@ -35,6 +40,7 @@ urlpatterns = [
     path('api/', include('issues.urls')),
     path('api/', include('legal.urls')),
     path('api/', include('chem.urls')),
+    path('api/', include('sketches.urls')),
     path('api/', include('galleries.urls')),
     path('api/', include('coauthoring.urls')),
     path('api/', include('concepts.urls')),
