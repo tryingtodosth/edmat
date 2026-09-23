@@ -8031,7 +8031,7 @@ production build and a green assertion run, and was found by opening the PNG (ho
 - `manage.py check`, `manage.py makemigrations --check --dry-run` — clean, no changes detected.
 - `npm run check` 0 errors / 0 warnings, `npx eslint .` (no new findings; the six pre-existing e2e
   ones are untouched), `npm run build` (adapter-static, wrote `build/`).
-- `frontend/e2e/venues.mjs` against real servers on 8101/5201 — **31 checks, 0 failed, zero
+- `frontend/e2e/venues.mjs` against real servers on 8101/5201 — **33 checks, 0 failed, zero
   console/page errors** — and five screenshots looked at, which is where the `FeatureGate` bug came
   from.
 - `messages/en.json` and `messages/pl.json` compared programmatically: 2817 keys each, identical key
@@ -8135,7 +8135,7 @@ backend/  ../.venv/bin/python3 manage.py makemigrations --check --dry-run   # No
 frontend/ npm run check                                          # 0 errors, 0 warnings
 frontend/ npx eslint .                                           # 6 findings, all pre-existing in other e2e scripts
 frontend/ npm run build                                          # adapter-static, wrote build/
-frontend/ E2E_BASE=… E2E_API=… node e2e/venues.mjs               # 31 passed, 0 failed, zero console/page errors
+frontend/ E2E_BASE=… E2E_API=… node e2e/venues.mjs               # 33 passed, 0 failed, zero console/page errors
 ```
 
 `npm run lint` runs `prettier --check` before eslint and reports two pre-existing untracked files

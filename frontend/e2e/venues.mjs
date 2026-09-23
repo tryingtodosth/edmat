@@ -326,6 +326,26 @@ check('approving moves it out of the queue', (await managePage.textContent()).in
 const strangerQueue = await api(strangerToken, `/venues/${created.venueId}/bookings/`);
 check('a stranger cannot read the queue', strangerQueue.status === 403, strangerQueue.status);
 
+// The Add… entry is for staff of a venue ONLY — the browse link lives in the footer for everybody
+// else. Asserted from both sides, because an entry that appears for everyone is the same bug as one
+// that appears for nobody.
+await goto(desk, '/');
+await desk.getByRole('button', { name: 'Add' }).first().click();
+await settle(desk, 700);
+check(
+	'a venue administrator gets the Venues entry in Add…',
+	(await desk.getByRole('menuitem', { name: 'Venues you run' }).count()) === 1
+);
+
+const outsider = await person('outsider');
+await seat(outsider, strangerToken);
+await outsider.getByRole('button', { name: 'Add' }).first().click();
+await settle(outsider, 700);
+check(
+	'…and somebody who runs no building does not',
+	(await outsider.getByRole('menuitem', { name: 'Venues you run' }).count()) === 0
+);
+
 console.log('\n3. The checklist, and the publish block');
 
 const reloaded = await person('organiser-2');

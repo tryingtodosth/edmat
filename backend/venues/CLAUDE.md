@@ -132,7 +132,7 @@ untouched.
 ## Verify
 
 `../.venv/bin/python3 manage.py test venues events` (53 venue tests, refusal-weighted; the `events`
-half covers the publish path this step edits). E2E: `frontend/e2e/venues.mjs` (31 checks).
+half covers the publish path this step edits). E2E: `frontend/e2e/venues.mjs` (33 checks).
 
 ## Left open
 

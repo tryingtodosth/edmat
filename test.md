@@ -910,7 +910,7 @@ m = Message.objects.order_by('-pk').first()
 print('stored  :', m.body[:60]); print('decrypts:', decrypt_text(m.body)[:60])"
 ```
 
-**`e2e/comment-input-kinds.mjs` (31 checks)** — the six ways into a comment (root CLAUDE.md
+**`e2e/comment-input-kinds.mjs` (33 checks)** — the six ways into a comment (root CLAUDE.md
 §17AV, extended by §17BA): the strip under the composer offers Markdown file / LaTeX / JSON /
 Chemistry / Picture / PDF and no chemistry library is downloaded until asked; a LaTeX panel
 previews with KaTeX and inserts a displayed equation; invalid JSON is refused in words and valid
@@ -1218,7 +1218,7 @@ nothing, a pending mandatory item gives 409 `checklist_pending`, `in_progress` d
 **the block lifts entirely when the `venues` kill switch is off**. The `events` half is run with it
 because this step's one edit to another app is in `EventViewSet.update`.
 
-**Browser: `frontend/e2e/venues.mjs`** — 31 checks against the real servers:
+**Browser: `frontend/e2e/venues.mjs`** — 33 checks against the real servers:
 
 ```sh
 cd backend && DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:5201,http://127.0.0.1:5201 \
@@ -1231,7 +1231,10 @@ It drives the real forms: the Venue panel on the event page asking for a room an
 fire-capacity refusal **in words**, the building's desk approving it with a note, the Checklist panel
 starting a snapshot and spelling the publish block out, and the `venues` kill switch taking the
 panels, the footer link and the pages away **for a non-staff visitor** (trap 10) while `/api/events/`
-keeps working. Screenshots land in `e2e/screens/venues-*.png`; `venues-killed.png` is the one worth
+keeps working. It also asserts the Add… entry from **both** sides — a venue administrator has
+"Venues you run" in the menu, somebody who runs no building does not — because an entry that appears
+for everybody is the same bug as one that appears for nobody.
+Screenshots land in `e2e/screens/venues-*.png`; `venues-killed.png` is the one worth
 opening, because the first run of this script passed every assertion while the page carried two grey
 "this feature is unavailable" paragraphs where the panels had been — a house-rule-3 failure that only
 looking found. It signs in as the seeded demo users (kasia is the staff account that creates a
