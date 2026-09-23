@@ -17,6 +17,13 @@ import type {
 	NotificationType,
 	SourceType
 } from '$lib/types';
+import type {
+	ChecklistEvidenceKind,
+	ChecklistItemStatus,
+	ChecklistOwnerRole,
+	RoomBookingStatus,
+	VenueRole
+} from '$lib/types/venue';
 import { m } from '$lib/paraglide/messages.js';
 
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
@@ -446,4 +453,69 @@ export const EXERCISE_LINK_ROLES: ExerciseLinkRole[] = ['source', 'practice'];
 export const EXERCISE_LINK_ROLE_LABELS: Record<ExerciseLinkRole, () => string> = {
 	source: m.exLink_roleSource, // "In this material"
 	practice: m.exLink_rolePractice // "Practises this material"
+};
+
+// ---- venues, rooms, bookings and checklists (conference step A) ---------------------------------
+// A hand-maintained mirror of the `_CHOICES` lists in **backend/venues/models.py**, which names this
+// file back (house rule 13: say so in BOTH files, because a mirrored enum is where drift creeps in).
+// The types themselves live in `types/venue.ts`.
+
+export const VENUE_ROLES: VenueRole[] = ['administrator', 'porter'];
+export const VENUE_ROLE_LABELS: Record<VenueRole, () => string> = {
+	administrator: m.venues_role_administrator, // "Administrator"
+	porter: m.venues_role_porter // "Porter"
+};
+
+export const ROOM_BOOKING_STATUS_LABELS: Record<RoomBookingStatus, () => string> = {
+	requested: m.venues_status_requested, // "Waiting for the building"
+	approved: m.venues_status_approved, // "Approved"
+	rejected: m.venues_status_rejected, // "Refused"
+	cancelled: m.venues_status_cancelled // "Withdrawn"
+};
+
+export const CHECKLIST_STATUSES: ChecklistItemStatus[] = [
+	'pending',
+	'in_progress',
+	'done',
+	'not_applicable'
+];
+export const CHECKLIST_STATUS_LABELS: Record<ChecklistItemStatus, () => string> = {
+	pending: m.checklist_status_pending, // "Not started"
+	in_progress: m.checklist_status_in_progress, // "Being done"
+	done: m.checklist_status_done, // "Done"
+	not_applicable: m.checklist_status_not_applicable // "Does not apply"
+};
+
+export const CHECKLIST_OWNER_LABELS: Record<ChecklistOwnerRole, () => string> = {
+	organiser: m.checklist_owner_organiser, // "Yours"
+	venue: m.checklist_owner_venue // "The building's"
+};
+
+export const CHECKLIST_EVIDENCE_LABELS: Record<ChecklistEvidenceKind, () => string> = {
+	none: m.checklist_evidence_none, // "Nothing to attach"
+	text: m.checklist_evidence_text, // "A short note"
+	link: m.checklist_evidence_link, // "A link"
+	file: m.checklist_evidence_file // "A file"
+};
+
+// Every refusal word `venues/access.py` and `venues/views.py` can hand back, each with its own
+// sentence (house rule 6). A word with no entry falls through to a generic line at the call site
+// rather than rendering `undefined` — the same safety net `FEATURE_FLAG_LABELS` grew after a
+// missing key took a whole tab down.
+export const VENUE_BLOCK_LABELS: Record<string, () => string> = {
+	bad_times: m.venues_block_bad_times, // "A booking has to end after it starts."
+	room_closed: m.venues_block_room_closed, // "That room is not taking bookings."
+	over_fire_capacity: m.venues_block_over_fire_capacity, // "More people than the room's fire safety instruction allows…"
+	room_busy: m.venues_block_room_busy, // "That room is already booked for part of this time."
+	already_decided: m.venues_block_already_decided, // "Somebody has already answered this request."
+	not_allowed: m.venues_block_not_allowed, // "You are not allowed to do that here."
+	last_administrator: m.venues_block_last_administrator, // "A building cannot be left without an administrator…"
+	already_started: m.venues_block_already_started, // "This event already has a checklist from that building."
+	venue_required: m.venues_block_venue_required, // "Choose which building this checklist is for."
+	no_such_template: m.venues_block_no_such_template, // "That checklist no longer exists."
+	na_not_allowed: m.checklist_block_na_not_allowed, // "The building does not allow this item to be waved away."
+	na_reason_required: m.checklist_block_na_reason_required, // "Say why this does not apply."
+	needs_venue_signoff: m.checklist_block_needs_venue_signoff, // "Only the building can mark this one done…"
+	no_signoff_needed: m.checklist_block_no_signoff_needed, // "This item does not need the building's signature."
+	checklist_pending: m.checklist_block_checklist_pending // "A required checklist item has not been started…"
 };

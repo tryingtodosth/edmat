@@ -7914,3 +7914,141 @@ one language as more "native" than the other.
 ```
 
 ---
+
+---
+
+## 17BF.A — Venues: buildings, rooms, room bookings and the checklist a building hands an organiser
+
+*(conference step A, `CONFERENCE-BRIEF.md` §3.A, branch `conf/a-venues`, 2026-09-23)*
+
+The events app could already run a conference; what it could not do was **be somewhere**. "Room
+4070, Banacha 2" was a string on the event, which meant nobody could find out what else was in that
+room that afternoon, nobody could say how many people the fire instruction let in, and the building
+had no way to hand the organiser its own list of things that have to happen before the doors open.
+Step A is that missing half: a `venues` app with its own administrators, its own rooms, a booking
+that is a *request the building answers*, and a checklist that is a **snapshot** of what the building
+asked for.
+
+### The one decision everything else follows from
+
+**The event ↔ venue link is the `RoomBooking` row.** There is no `Event.venue` field and there is
+not going to be one — which is what let this whole step land with `events` keeping an untouched
+schema (§4 rule 1 of the brief), and is also the more honest shape. An event may ask two buildings,
+be refused by one and hold the other's answer; a nullable FK on `Event` holds exactly one of those
+facts and loses the rest. Three states on one `status` field — `requested`, `approved`, `rejected`,
+plus the organiser's own `cancelled` — rather than a FK and a boolean, for the reason the root
+`CLAUDE.md` gives: two fields make "has a room but was never approved" representable.
+
+### The publish block, and what it deliberately does *not* do
+
+An event that has been given a room carries the building's conditions with it, so it cannot leave
+`draft` while a mandatory line of that building's checklist has not even been started. That is one
+function — `venues/access.py: publish_block_reason(event)` — and one call, inside
+`EventViewSet.update`, imported at the point of use so `events` keeps no import-time dependency on a
+separately kill-switchable app. It returns the word `checklist_pending`, not a boolean, and the
+frontend has a line for it.
+
+It stays silent in three cases, each of which is a rule rather than an omission:
+
+- **The `venues` flag is off.** House rule 3 read the strict way: a killed feature removes itself; it
+  does not leave a lock behind on somebody else's surface. An event whose checklist nobody can see or
+  tick must not be unable to be announced. There is a test for exactly this, and it is the test most
+  likely to catch a future refactor that "tidies" the flag check away.
+- **The event has no approved booking.** An event with no venue publishes precisely as it did before
+  this app existed. A merely `requested` booking blocks nothing — asking is not having.
+- **`in_progress`.** Somebody is on it. This is a gate on acknowledgement, not on progress, and a
+  checklist that refused to let you announce a talk because the waste-disposal protocol is not yet
+  signed would be a checklist people learn to route around.
+
+### A checklist instance is a snapshot, and the cost of that is stated rather than hidden
+
+`ChecklistInstanceItem` carries its own copy of every word — title, description, owner, offset,
+anchor, mandatory, N/A-allowed, evidence kind, sign-off flag. There is no FK to the template item.
+A building editing its template bumps `ChecklistTemplate.version` and the change is **offered** to
+open instances (`POST /checklist-instances/{id}/sync/`), never applied: an organiser three days from
+a conference must not find the list under them has changed.
+
+The cost, written into `services.sync_new_items` rather than discovered later: matching is by
+`(order, title_en)`, so a building that *renames* an existing line produces a second item here rather
+than an edit, and the organiser is the one who notices they now have two. The alternative —
+edit-in-place — would overwrite an item somebody has already ticked and a building has already
+signed, which is the exact thing the snapshot exists to refuse. A worse failure, quietly.
+
+### Two capacities, because they are two numbers
+
+`Room.seated_capacity` is how many chairs there are. `Room.fire_capacity` is how many people the
+building's fire safety instruction permits in the room at once, standing included. They are not the
+same number, and treating them as one is how a workshop with 40 chairs ends up with 120 people in a
+room rated for 90. `clean()` refuses `seated > fire` (a room with more chairs than permitted people
+is a typo, not a room), and `booking_block_reason` refuses a headcount over the fire capacity with
+the word `over_fire_capacity` and a 400 — nothing moved; the request was wrong when it was written.
+
+Overlap is the 409: `room_busy`, checked **against the database** in the rule module rather than by a
+constraint, because the rule is "these intervals intersect" and no SQLite unique index says that. It
+is **half-open** — a booking ending at 12:00 does not collide with one starting at 12:00, or every
+back-to-back lecture in the timetable would be refused — and it is checked twice, once when the room
+is asked for (an approved booking is a fact the organiser can already see, so telling them then is
+more use than a later refusal) and again at the moment of approval, because two organisers may both
+have asked while it was free. The approval itself is one WHERE-anchored `update()`, never
+`select_for_update()` (`backend/CLAUDE.md` rule 1); the loser of a double decision gets 409
+`already_decided`.
+
+### Bilingual checklist items, in two columns, on purpose
+
+The four seeded templates (`migrations/0002_seed_default_templates.py`) are the bilingual starters
+from `CONFERENCE-RESEARCH-REPORT.md` §6.4 — a one-room guest lecture, a one-day workshop with
+catering, a two-day multi-room conference, a school science day with minors — as **platform defaults**
+(`venue = NULL`), so the feature is useful to the very first building that signs up and has written
+nothing.
+
+Their text lives in `title_en` / `title_pl` columns rather than a translation table, which is the one
+deliberate departure from this project's first data shape. A translation row exists because the
+*community* submits and reviews translations of content. A checklist item is not content: it is a
+rule a building wrote, in the two languages this platform speaks, edited by the building itself. A
+review workflow over "zdanie kluczy na portierni" would be machinery with nobody to run it.
+
+**Both research reports' legal citations are unverified** (the paste dropped them; §1 of the brief
+says so). Nothing here turns a citation into code — every seeded item is editable, and the templates
+are a starting point for a building's conversation with its own administration.
+
+### The bug the screenshot found
+
+The first full e2e run passed every assertion it made — and the screenshot of the event page with
+`venues` switched off showed **two grey paragraphs reading "This feature is currently unavailable"**
+where the Venue and Checklist panels had been. `FeatureGate` renders a notice in place of what it
+wraps, which is exactly right for a whole route and exactly wrong for a panel: house rule 3 says a
+killed feature takes its own surface away, not that it leaves a sign where it used to be. The gate
+moved inside both components (`featureFlagsStore.isEnabled('venues') || authStore.isModerator`,
+mirroring the backend's own `is_staff` bypass), where it also stops the panels *asking* — with the
+switch off every request they made was a 403 for a panel nobody was going to see.
+
+That is the second time on this project that a real bug survived `svelte-check`, `eslint`, a
+production build and a green assertion run, and was found by opening the PNG (house rule 2).
+
+### Verified
+
+- `manage.py test venues events moderation` — 53 venue tests + the events and moderation suites.
+- `manage.py check`, `manage.py makemigrations --check --dry-run` — clean, no changes detected.
+- `npm run check` 0 errors / 0 warnings, `npx eslint .` (no new findings; the six pre-existing e2e
+  ones are untouched), `npm run build` (adapter-static, wrote `build/`).
+- `frontend/e2e/venues.mjs` against real servers on 8101/5201 — **31 checks, 0 failed, zero
+  console/page errors** — and five screenshots looked at, which is where the `FeatureGate` bug came
+  from.
+- `messages/en.json` and `messages/pl.json` compared programmatically: 2817 keys each, identical key
+  sets, 136 of them the new `venues_*` / `checklist_*` block appended at the end of both.
+
+### Left open
+
+- **Evidence files.** `ChecklistInstanceItem.evidence_file` exists, validated by the material file
+  validator, but no endpoint takes a multipart write yet and the panel says so in words rather than
+  pretending. Step C builds the protected-file endpoint this should reuse at integration.
+- **No notification when a booking is decided.** An organiser finds out by looking.
+  `notifications.notify()` is the right home for it.
+- **No template editor on the frontend.** A building writes its own templates through the API or the
+  Django admin; `/venues/[slug]/manage` lists them read-only.
+- **Venue administrators are added by account id**, because there is still no people search.
+- **A calendar of a building across events, recurring bookings, a session ↔ room link** — all named
+  out of scope by the brief (§3.A, §7) and still are.
+- **The venue is not on the event page for a reader.** An approved booking shows in the Venue panel,
+  but `Event.location_text` is still the free-text field a stranger reads; wiring the two together
+  (or deciding they stay separate) is an integration question, not a step-A one.

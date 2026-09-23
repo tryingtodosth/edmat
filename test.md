@@ -1197,3 +1197,42 @@ cd backend
   right; the assertion was ambiguous. Scope to the section (`.enrol`, `.roster`) instead.
 - **Chromium's `innerText` returns *rendered* text**, so a heading styled `text-transform: uppercase`
   reads back uppercase. Match case-insensitively or you are testing the stylesheet.
+
+---
+
+## Conference step A — venues (`venues/tests.py`, `frontend/e2e/venues.mjs`)
+
+**Django: `../.venv/bin/python3 manage.py test venues events`** — 53 venue tests, refusals first.
+What they pin, in the order a reader of `venues/access.py` will want them: a stranger reading a
+building (allowed — an address and a seat count are not secret) but not its staff list or its
+booking queue; a non-administrator refused a room edit and a booking decision; `seated > fire`
+refused, including on a PATCH that only touches one of the two; `over_fire_capacity` as a 400 and
+`room_busy` as a 409, the second one both when the room is asked for and again when the building
+approves (two organisers may both have asked while it was free); back-to-back bookings **not**
+colliding; a second decision on a decided booking as `already_decided`; `not_applicable` without a
+reason and on an item the building never allowed it on; an organiser refused an item the building
+signs off, and allowed to mark it `in_progress`; the sign-off itself refused to everybody but a
+venue administrator; the snapshot surviving a template edit and `sync` adding only what is new; and
+the publish block in five shapes — no venue publishes as before, a merely `requested` booking blocks
+nothing, a pending mandatory item gives 409 `checklist_pending`, `in_progress` does not block, and
+**the block lifts entirely when the `venues` kill switch is off**. The `events` half is run with it
+because this step's one edit to another app is in `EventViewSet.update`.
+
+**Browser: `frontend/e2e/venues.mjs`** — 31 checks against the real servers:
+
+```sh
+cd backend && DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:5201,http://127.0.0.1:5201 \
+  ../.venv/bin/python3 manage.py runserver 127.0.0.1:8101
+cd frontend && PUBLIC_API_BASE_URL=http://127.0.0.1:8101/api npx vite dev --port 5201 --strictPort
+cd frontend && E2E_BASE=http://localhost:5201 E2E_API=http://127.0.0.1:8101 node e2e/venues.mjs
+```
+
+It drives the real forms: the Venue panel on the event page asking for a room and printing the
+fire-capacity refusal **in words**, the building's desk approving it with a note, the Checklist panel
+starting a snapshot and spelling the publish block out, and the `venues` kill switch taking the
+panels, the footer link and the pages away **for a non-staff visitor** (trap 10) while `/api/events/`
+keeps working. Screenshots land in `e2e/screens/venues-*.png`; `venues-killed.png` is the one worth
+opening, because the first run of this script passed every assertion while the page carried two grey
+"this feature is unavailable" paragraphs where the panels had been — a house-rule-3 failure that only
+looking found. It signs in as the seeded demo users (kasia is the staff account that creates a
+building and pulls the flag) and removes everything it made through the real API at the end.

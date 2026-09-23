@@ -6,6 +6,11 @@
 	import { issueReportStore } from '$lib/state/issueReport.svelte';
 
 	const canIssues = $derived(featureFlagsStore.isEnabled('issues') || authStore.isModerator);
+	// Conference step A (CONFERENCE-BRIEF.md §3.A): the venue DIRECTORY belongs here rather than in
+	// the header nav — a reader browsing exercises has no reason to be offered a list of buildings,
+	// while an organiser looking for somewhere to hold something goes looking for it. The Add… menu
+	// carries the other half, for people who actually run a building.
+	const canVenues = $derived(featureFlagsStore.isEnabled('venues') || authStore.isModerator);
 </script>
 
 <footer class="site-footer no-print">
@@ -24,6 +29,10 @@
 			     own doc comment: this is a standing DSA notice-and-action channel, not a product feature
 			     somebody might turn off to quiet down bug reports. -->
 			<a href={resolve('/legal')}>{m.footer_legal()}</a>
+			{#if canVenues}
+				<a href={resolve('/venues')}>{m.venues_browseTitle()}</a>
+				<!-- "Venues" -->
+			{/if}
 			{#if canIssues}
 				<a href={resolve('/issues')}>{m.footer_issues()}</a>
 				<!-- "Reported issues" -->
