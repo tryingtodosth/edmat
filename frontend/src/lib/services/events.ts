@@ -18,6 +18,8 @@ import type {
 	Contribution,
 	ContributionDraft,
 	ContributionVerb,
+	EventExportLogEntry,
+	EventNeedsSummary,
 	RegistrationAnswers,
 	RegistrationField,
 	RegistrationFieldDraft,
@@ -596,4 +598,46 @@ export async function transitionContribution(
 	return mapContribution(
 		await apiClient.post<any>(`/events/${eventId}/contributions/${id}/${verb}/`, extra)
 	);
+}
+
+// ---- exports and retention (CONFERENCE-BRIEF.md §3.G) ----------------------------------------
+// The two CSVs come back through `apiClient.getText` and are handed to the browser by
+// `utils/download.ts`, never linked as a URL — a token in an href ends up in history, in a
+// referrer and in whatever the person pastes the link into. Same tradeoff `getRegistrationsCsv`
+// above already makes.
+
+export async function getEventNeeds(eventId: string): Promise<EventNeedsSummary> {
+	const raw = await apiClient.get<any>(`/events/${eventId}/exports/needs/`);
+	return {
+		total: raw.total ?? 0,
+		attendanceMode: {
+			inPerson: raw.attendance_mode?.in_person ?? 0,
+			online: raw.attendance_mode?.online ?? 0,
+			unstated: raw.attendance_mode?.unstated ?? 0
+		},
+		accessibility: {
+			stated: raw.accessibility?.stated ?? 0,
+			none: raw.accessibility?.none ?? 0
+		},
+		fields: (raw.fields ?? []).map((f: any) => ({
+			fieldId: f.field_id,
+			label: f.label,
+			kind: f.kind,
+			options: (f.options ?? []).map((o: any) => ({ option: o.option, count: o.count })),
+			answered: f.answered ?? 0,
+			unanswered: f.unanswered ?? 0
+		}))
+	};
+}
+export async function getDoorListCsv(eventId: string): Promise<string> {
+	return apiClient.getText(`/events/${eventId}/exports/door-list.csv`);
+}
+export async function getExportLog(eventId: string): Promise<EventExportLogEntry[]> {
+	return (await apiClient.get<any[]>(`/events/${eventId}/exports/log/`)).map((raw) => ({
+		id: String(raw.id),
+		kind: raw.kind,
+		rows: raw.rows ?? 0,
+		user: raw.user ? mapPerson(raw.user) : null,
+		createdAt: raw.created_at
+	}));
 }

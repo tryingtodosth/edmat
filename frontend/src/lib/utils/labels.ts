@@ -10,6 +10,7 @@ import type {
 	SessionLinkRole,
 	Difficulty,
 	DonationPlatform,
+	EventExportKind,
 	ExerciseLinkRole,
 	FeatureFlagKey,
 	BuiltinMaterialType,
@@ -611,4 +612,13 @@ export const DOCUMENT_TIER_LABELS: Record<
 	staff: m.documents_tier_staff, // "Event staff"
 	organisers: m.documents_tier_organisers, // "Organisers"
 	venue: m.documents_tier_venue // "The venue"
+};
+
+// Event export kinds — a hand-maintained mirror of `EXPORT_KIND_CHOICES` in
+// backend/events/models.py, which names this file back (house rule 13). Two values, and the
+// difference between them is the whole of `backend/events/exports.py`: `full_csv` names people and
+// carries their answers, `door_list` is a name, a status and a tick.
+export const EVENT_EXPORT_KIND_LABELS: Record<EventExportKind, () => string> = {
+	full_csv: m.exports_kind_fullCsv, // "Full registration CSV"
+	door_list: m.exports_kind_doorList // "Door list"
 };

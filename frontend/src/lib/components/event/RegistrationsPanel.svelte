@@ -11,6 +11,7 @@
 		getRegistrationsCsv,
 		setCheckedIn
 	} from '$lib/services/events';
+	import ExportsCard from './ExportsCard.svelte';
 	import { downloadText } from '$lib/utils/download';
 	// The briefing gate (CONFERENCE-BRIEF.md §3.C). Kept to the smallest possible hook: the API
 	// refuses check-in with 409 `briefing_unread` when the staff member still owes an
@@ -73,10 +74,14 @@
 <section class="registrations">
 	<div class="head">
 		<h3>{m.events_registrationsHeading({ count: rows.length })}</h3>
-		<button type="button" onclick={exportCsv} disabled={rows.length === 0}
-			>{m.events_exportCsv()}</button
-		>
+		{#if event.canOrganise}
+			<button type="button" onclick={exportCsv} disabled={rows.length === 0}
+				>{m.events_exportCsv()}</button
+			>
+		{/if}
 	</div>
+	<!-- conference: exports -->
+	<ExportsCard {event} />
 	{#if loading}
 		<p class="status">{m.common_loading()}</p>
 	{:else if rows.length === 0}
@@ -86,7 +91,13 @@
 			{#each rows as row (row.id)}
 				<li class="row row--{row.status}">
 					<div class="who">
-						<a href={resolve('/users/[id]', { id: row.attendee.id })}>{row.attendee.displayName}</a>
+						{#if row.attendee.id}
+							<a href={resolve('/users/[id]', { id: row.attendee.id })}
+								>{row.attendee.displayName}</a
+							>
+						{:else}
+							<span class="name">{row.attendee.displayName}</span>
+						{/if}
 						<span class="pill pill--{row.status}">{STATUS[row.status]()}</span>
 						{#if row.checkedIn}<span class="pill pill--checked">{m.events_checkedIn()}</span>{/if}
 						{#if row.registeredBy}<span class="by"

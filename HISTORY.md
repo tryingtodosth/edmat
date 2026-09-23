@@ -8486,3 +8486,206 @@ Run in `/Projects/edmat/.claude/worktrees/conf-c-documents`, backend on 8103 and
 - **The read-receipt table lists everybody it can enumerate**, which for the `venue` tier is nobody
   — it shows whoever has acknowledged and expects no one. Honest, and it fixes itself with step A.
 - **No "download all" and no ordering control**; documents sort by tier then title.
+
+## 17BF.G. Conference step G: data minimisation, aggregated exports, the export log, retention (✅ built, full stack)
+
+`CONFERENCE-BRIEF.md` §3.G, from `CONFERENCE-RESEARCH-REPORT.md` §1.4 (the role → minimum-data
+table), §4.2 (export leak vectors) and §4.3 (retention). One of seven branches built in parallel;
+this one adds no app, one model, one migration and one module — `backend/events/exports.py`, where
+all three halves of the idea live.
+
+The finding the step is built on is blunt and worth writing down as the report puts it: the
+commonest accidental personal-data disclosure at an academic event is **one monolithic CSV**. Not a
+breach, not an attacker — a roster with everybody's medical, dietary and accessibility prose on it,
+downloaded by whoever was standing at the table and forwarded to a caterer. EdMat had exactly that:
+`GET /registrations/` handed every staff member the whole row, and `/registrations/export/` handed
+every staff member the whole file.
+
+```
+                     organiser   reviewer / volunteer   attendee   stranger
+/registrations/      full row    name+status+checkin      403        403/404
+/registrations/export/  CSV         403                   403        403
+/exports/needs/      counts        403                   403        403
+/exports/door-list.csv  CSV      CSV (name/status/tick)   403        403
+/exports/log/        the log       403                   403        403
+```
+
+- **Minimisation on read.** An organiser keeps `EventAttendanceSerializer`; everybody else gets
+  `DoorListAttendanceSerializer` — the row id, the display name, the status, the check-in stamp,
+  and **`attendee.id` is `null`**. The row id stays because that is what
+  `POST /registrations/{row_id}/checkin/` addresses: nothing a volunteer does addresses a *person*,
+  and an account id in a door list is a profile link, a messaging target and a join key onto
+  everything that person has ever posted, handed out for no operational reason. A **reviewer** gets
+  the same narrow body although §3.G named only volunteers — the report's own table gives a
+  reviewer *less* business with the roster than a door volunteer, so the split is "organisers and
+  everybody else" rather than a third serializer saying the same thing.
+  `WITHHELD_FROM_NON_ORGANISERS` is named as data and asserted against, so a field added to the
+  full serializer later has to be put on one side of the line deliberately.
+- **Aggregation on export.** `GET /exports/needs/` is counts and nothing else: attendance mode,
+  accessibility, and per organiser-defined choice question a count per option — over seat holders
+  only, because a waiting-list row is not somebody the kitchen has to feed. Two things it does
+  *not* do. It does not guess at free text: where a question is prose the aggregate is
+  `answered` / `unanswered` and never a category, because "14 gluten-free" cannot be derived from
+  sentences without reading the sentences (house rule 10). And it does not read
+  `_attendance_mode` naively — only a hybrid event asks the question, so `_resolved_mode()` falls
+  back to the event's own `location_kind`, or an ordinary onsite lecture would report every
+  attendee as "did not say" and the catering figure would be useless.
+- **The log.** `ExportLog(event, user, kind, rows, created_at)`; `log_export()` is its only writer;
+  both file downloads write one and the aggregate read deliberately does not — no identifiers
+  leave, the organiser's own panel fetches it on open, and a log full of page-loads is a log
+  nobody reads. `user` is `SET_NULL`, the `telemetry.AuditEvent` reasoning: a decision survives the
+  account that made it. This is the step's one migration, `events/0011_exportlog.py`, and its
+  docstring says so — step D numbers its own migration `0011` too, so this file holds **one
+  `CreateModel` and nothing else** and renumbering it to `0012` at integration is a two-line edit.
+- **Retention.** `manage.py purge_event_data --older-than-days 30 [--dry-run]`, implemented in
+  `purge_event_data()` in the rule module rather than in the command, so the integration work has
+  one place to happen. It blanks the accessibility note and every free-text answer and nulls
+  `checked_in_by`. It never touches who attended, the check-in stamp, the multiple-choice answers
+  (so an aggregate an organiser already reported stays reproducible) or the programme. `Event.
+  ends_at` is a property, not a column, so the cutoff is a `starts_at__lt` **candidate** filter —
+  exact as a narrowing, since an event that ended before the cutoff necessarily started before it
+  — plus a Python test. `RETENTION_NOTE` names `ScanEvent` (step D) and `CloakroomItem` (step F) as
+  what the command must learn at integration, and `EventAttendance.note` as the field somebody
+  still has to decide about.
+- **`LEGAL.md` §8** is the prose half: the role table, the retention schedule, and a boxed warning
+  that the underlying research's legal citations were lost in the paste, are **unverified**, and
+  that every number is a project default rather than a finding about Polish law. It also says
+  plainly that **nothing schedules the purge command** — there is no cron on this deployment — so
+  the retention is a capability, not a running process, and a privacy notice must not claim
+  otherwise. "Still open" (renumbered §9) gains the lawyer-review item.
+- **Frontend**: `ExportsCard` mounted with one line in `RegistrationsPanel` behind the
+  `<!-- conference: exports -->` marker (step D's badge-sheet link goes below the CSV button, a
+  different line). The needs summary is a small table, both downloads go through the service layer
+  and `utils/download.ts` so no token rides in a URL, and the log is a list. The panel's own CSV
+  button is now wrapped in `{#if event.canOrganise}` — house rule 3 applies to a role as much as
+  to a kill switch, and a button that 403s has not been hidden, only made to fail somewhere less
+  useful. The registration row's profile link is now conditional on `attendee.id`, the guard the
+  masked public roster already needed in §17AN.
+
+**Verified**: `events/test_exports.py` 25 tests, OK; `manage.py test events moderation accounts`
+→ **426 tests, OK** (its 222 `DatabaseOperationForbidden` tracebacks are pre-existing telemetry
+noise in `moderation` tests, caught and logged rather than failed);
+`manage.py check`; `makemigrations --check --dry-run` clean; `npm run check` 0/0, `npm run lint`,
+`npm run build`; `e2e/event-exports.mjs` **24/24, zero console errors**, both screenshots looked
+at; en/pl key sets identical (2701 each). Three things the browser found that nothing else did:
+the volunteer's row crashed nothing only because the profile-link guard was added (svelte-check is
+happy either way); the first draft of the script asserted the export log "starts empty" and it did
+not, because the script's own API probe had already taken the door list — which is the log working
+exactly as intended and a better assertion than the one that was written; and `{rows} people` /
+`{count} people` rendered as "1 people", so both strings were rewritten as `label: number`, which
+is the only shape that is correct in Polish too (1 osoba / 2 osoby / 5 osób, and this catalogue
+has no plural machinery).
+
+**For the integrator** (merge order §5 puts G second, right after B):
+
+*Backend — files I created.*
+- `backend/events/exports.py` — the whole rule module: `RETENTION_NOTE` (the constant that names
+  `ScanEvent` and `CloakroomItem` as what the purge must learn, near the top, right under the
+  imports), `DEFAULT_RETENTION_DAYS = 30`, the reserved answer keys, `FREE_TEXT_KINDS`,
+  `WITHHELD_FROM_NON_ORGANISERS`, `DoorListPersonSerializer`, `DoorListAttendanceSerializer`,
+  `_resolved_mode()`, `needs_summary()`, `door_list_rows()`, `log_export()`, `as_csv()`,
+  `purge_event_data()`, `ExportLogSerializer`, `ExportMixin`.
+- `backend/events/migrations/0011_exportlog.py` — **one `CreateModel` and nothing else**, with a
+  docstring saying this. Step D also writes an `events` `0011`; renumber this one to
+  `0012_exportlog` and point `dependencies` at D's `0011_tickets`. Nothing else to reconcile.
+- `backend/events/management/__init__.py`, `…/commands/__init__.py`,
+  `…/commands/purge_event_data.py` — the package did not exist in `events` before; step B's
+  `seed_conference_personas` lands in the same directory, so expect an add/add on the two
+  `__init__.py` files and keep either (both are empty).
+- `backend/events/test_exports.py` — 25 tests.
+
+*Backend — files I edited, and exactly where.*
+- `backend/events/models.py` — **appended only**, at the very end of the file: the
+  `EXPORT_KIND_CHOICES` list and `class ExportLog`. Nothing above it is touched.
+- `backend/events/views.py` — **two lines**: `from .exports import ExportMixin` added after the
+  existing `from .contribution_views import ContributionMixin` (line ~53), and `ExportMixin` added
+  to `EventViewSet`'s bases between `ContributionMixin` and `viewsets.ModelViewSet` (line ~56).
+- `backend/events/registration_views.py` — three edits, all inside `RegistrationMixin`:
+  1. the import block gains `from .exports import DoorListAttendanceSerializer, log_export`;
+  2. `registrations()` — the body now branches on `event.can_organise(request.user)`:
+     `EventAttendanceSerializer` for an organiser, `DoorListAttendanceSerializer` for anybody else.
+     The `_staff_or_403(event)` gate above it is unchanged, so **who may call it has not changed** —
+     only what comes back. The fields a non-organiser no longer receives are `answers`, `note`,
+     `registered_by`, `waitlisted_at`, `promotion_expires_at`, `session_ids`, `responded_at`, and
+     `attendee.id` is serialised as `null`; what remains is `id`, `attendee.display_name`, `status`,
+     `checked_in`, `checked_in_at`;
+  3. `registrations_csv()` — `self._staff_or_403(event)` became
+     `self._staff_or_403(event, organiser_only=True)`, a `written` counter was added to the row
+     loop, and `log_export(event, request.user, 'full_csv', written)` runs just before the
+     `return response`.
+- `backend/events/CLAUDE.md` — one new `## Exports and retention` section inserted immediately
+  before `## Verify`, and the `## Verify` line's test count reworded.
+
+*Frontend.*
+- `frontend/src/lib/components/event/ExportsCard.svelte` — new.
+- `frontend/src/lib/components/event/RegistrationsPanel.svelte` — **three small edits**:
+  one import line (`import ExportsCard from './ExportsCard.svelte';`, added above the
+  `downloadText` import); the existing CSV button wrapped in `{#if event.canOrganise}` … `{/if}`
+  inside `<div class="head">`; and, immediately after that `</div>`, the two lines
+  `<!-- conference: exports -->` and `<ExportsCard {event} />`. **Step D's badge-sheet link belongs
+  below the CSV button, inside the `{#if}`** — a different line, no conflict. A third edit guards
+  the registration row's profile link on `row.attendee.id` (a volunteer's rows have none).
+- `frontend/src/lib/types/event.ts` — **appended at the end**: `EventExportKind`,
+  `EventNeedsField`, `EventNeedsSummary`, `EventExportLogEntry`.
+- `frontend/src/lib/services/events.ts` — one name added to the existing `import type { … }` block
+  (`EventExportLogEntry`, `EventNeedsSummary`) and **three functions appended at the end**:
+  `getEventNeeds`, `getDoorListCsv`, `getExportLog`. No fetch outside `client.ts`.
+- `frontend/src/lib/utils/labels.ts` — `EventExportKind` added to the existing
+  `import type … from '$lib/types'` list, and `EVENT_EXPORT_KIND_LABELS` **appended at the end**
+  under a comment naming `backend/events/models.py` (house rule 13, said in both files).
+- `frontend/messages/en.json` and `pl.json` — **20 keys, all prefixed `exports_`, one contiguous
+  block appended at the end of each file**. In `en.json` that is lines **2683–2702** and in
+  `pl.json` lines **2683–2702** (both files end at line 2703, the closing `}`); the last
+  pre-existing key in both is `moderation_concepts_openConcept`. Key sets identical, 2701 each.
+- `frontend/e2e/event-exports.mjs` — new, 24 checks.
+  `E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 node e2e/event-exports.mjs`
+  (I ran it on 5207 / 8107). Seeded users only, password `password123`: **kasia** hosts,
+  **ola** registers, **michał** is the volunteer — no `register` call, so the throttle is not
+  touched. It creates its own event, adds Michał through `/staff/` and deletes everything at the
+  end. Needs `manage.py migrate` first (the `ExportLog` table) or `/exports/log/` 500s.
+- Screenshots land at `frontend/e2e/screens/event-exports-{organiser,volunteer}.png` and **are
+  committed**, joining the six the language work already tracks. The volunteer one is the
+  deliverable seen from outside: a row with a name, a status and a Check in button, and nothing
+  else on the panel.
+
+*Docs.* `LEGAL.md` gains **`## 8. Event data: who sees what, and for how long`**, inserted before
+the old §8, which is renumbered **`## 9. Still open`** and gains one bullet. Nothing else in that
+file moves. `test.md` gains `## 6. Exports, minimisation and retention — conference step G` at the
+end. `HISTORY.md` gains this section at the very end. `CLAUDE.md`'s app and flag lists are
+untouched (G adds no app and no flag).
+
+*Cross-step work that is yours, not mine.*
+- Teach `purge_event_data` `ScanEvent` and `CloakroomItem`; `RETENTION_NOTE` in
+  `backend/events/exports.py` says what to do with each.
+- Add rows for `/exports/needs/`, `/exports/door-list.csv`, `/exports/log/` and the now
+  organiser-only `/registrations/export/` to step B's permission matrix.
+- If step D's scanner reads `/registrations/`, note that a volunteer's body no longer carries
+  `answers` or an account id — D's own `/checkin-list/` is the endpoint it should use.
+
+*Exact commands I ran.* From `backend/`: `../.venv/bin/python3 manage.py test events.test_exports`
+(25 tests, OK), `… manage.py test events moderation accounts` (426 tests, OK), `… manage.py check`,
+`… manage.py makemigrations --check --dry-run`, `… manage.py purge_event_data --dry-run` against
+the real dev database. From `frontend/` with Node 24: `npx paraglide-js compile --project
+./project.inlang --outdir ./src/lib/paraglide`, `npm run check` (0 errors / 0 warnings),
+`npm run lint`, `npm run build`, and
+`E2E_BASE=http://localhost:5207 E2E_API=http://127.0.0.1:8107 node e2e/event-exports.mjs` (24/24,
+zero console errors, both screenshots looked at).
+
+**Left open**:
+- **The purge is not scheduled.** No cron on this deployment; `LEGAL.md` §8 says so rather than
+  implying otherwise. One `deploy/` entry closes it.
+- **`ScanEvent` and `CloakroomItem` are not purged** — they do not exist on this branch.
+  `RETENTION_NOTE` says what to do with each; §5 of the brief owns the wiring.
+- **`EventAttendance.note` is not blanked.** It is prose about a person and a fair candidate;
+  §3.G enumerated answers, and widening a purge quietly is how a purge starts deleting things
+  somebody relied on. Named so the decision is somebody's.
+- **The accessibility aggregate is two numbers**, stated and none. A structured accessibility
+  question (a checkbox list of the common needs, beside the free-text box) would give the desk a
+  real breakdown without anybody reading prose — and it is a change to the registration *form*,
+  not to the exports, so it was out of scope here.
+- **No CSV of the needs summary.** Deliberate: the counts are on the page to be read and copied,
+  and a file is the thing that gets forwarded.
+- **The log is a record, not a control.** Nothing stops an organiser downloading the full CSV and
+  emailing it; the log makes it askable-about afterwards. Also unpaginated (last 100).
+- **Step B's permission matrix has no rows for these four endpoints yet** — added at integration,
+  as B's README comment asks.
