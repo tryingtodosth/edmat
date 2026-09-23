@@ -1197,3 +1197,33 @@ cd backend
   right; the assertion was ambiguous. Scope to the section (`.enrol`, `.roster`) instead.
 - **Chromium's `innerText` returns *rendered* text**, so a heading styled `text-transform: uppercase`
   reads back uppercase. Match case-insensitively or you are testing the stylesheet.
+
+## Event documents and the briefing gate (`documents/`, conference step C)
+
+`backend/documents/tests.py` — 40 tests, refusals first, each class with its own temporary
+`MEDIA_ROOT`. It covers the visibility ladder per role (stranger, attendee, promoted seat holder,
+declined, volunteer, organiser, anonymous), the 404-below-the-tier rule on both the metadata and the
+protected file endpoint, who may upload and retire, the upload refusals (a text file, a script named
+`.pdf`, an oversized file, and a polyglot PNG whose appended payload is gone from the stored WebP),
+the `Content-Type`/`Content-Disposition` of the file endpoint, versioning (a replacement makes an old
+acknowledgement stop counting; acknowledging a superseded or withdrawn document is a 409), the
+organiser's read-receipt table and its "not yet" half, the check-in gate (409 `briefing_unread` then
+allowed once acknowledged), and the kill switch — with `event_documents` off the endpoints 403 a
+non-staff caller, a moderator still passes, and check-in works exactly as before.
+
+```sh
+cd backend && ../.venv/bin/python3 manage.py test documents
+```
+
+The browser script is `frontend/e2e/event-documents.mjs` (20 checks). It signs in as the seeded
+`kasia@edmat.example` (organiser), `ola@edmat.example` (volunteer) and `michal@edmat.example`
+(attendee), password `password123`, creates and removes its own scratch event through the API, and
+asserts what each of the three sees, the refusal interstitial at check-in and the read receipts
+afterwards. It also asserts that pdf.js is absent from `build/_app/immutable/entry/*.js` when a
+build exists (house rule 11), so run `npm run build` first for that check to mean anything. The one
+expected console error is the deliberate 409 on the refused check-in; every other one still fails
+the run.
+
+```sh
+cd frontend && E2E_BASE=http://localhost:5203 E2E_API=http://127.0.0.1:8103 node e2e/event-documents.mjs
+```

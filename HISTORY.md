@@ -7914,3 +7914,148 @@ one language as more "native" than the other.
 ```
 
 ---
+
+---
+
+## 17BF.C. Conference step C: event documents, visibility tiers and the briefing that unlocks the door (✅ built, full stack)
+
+One of the seven parallel conference steps (CONFERENCE-BRIEF.md §3.C), built on `conf/c-documents`
+off `ux-and-whiteboard`@1da5027 while six others built A, B, D, E, F and G.
+
+**What it is.** A conference hands different pieces of paper to different people: a public joining
+note, an attendee's access instructions, a volunteer briefing, an organisers-only budget, and a fire
+plan the building wrote. So documents hang on an event with a **visibility tier**, and the ones that
+must be read carry an **acknowledgement ledger** — which is what locks a volunteer's day-of tools
+until the briefing has actually been confirmed.
+
+### The decisions
+
+- **Its own app, not two more models in `events`.** The rule "has this person read their mandatory
+  briefings?" is asked by check-in today and by the ticket scanner and the cloakroom desk once steps
+  D and F land, so it has to live where those three can import it — and `events` was to take no
+  migration this cycle (§4 rule 1). The FK is a string reference (`'events.Event'`), so the
+  dependency runs one way and `events` knows nothing about this app.
+- **The tiers are a ladder plus a side branch.** `public ⊂ attendees ⊂ staff ⊂ organisers`: a step up
+  sees everything below it, because a document an attendee may read is not a secret from the
+  volunteer at the door. `venue` is deliberately *off* the ladder — the building's administrators
+  are a different party, neither above nor below an organiser. It ships as a tier only organisers
+  answer to, behind a `venue_admin_check` hook the integrator points at `venues.access.is_venue_admin`.
+  A test monkeypatches that hook to prove the tier is real rather than decorative.
+- **A replacement is a new row, never an edit.** `POST /documents/{id}/replace/` writes version + 1
+  and points the old row at it; the old bytes, the old version and every acknowledgement made
+  against it stay put (house rule 12). An in-place swap would silently convert forty people's "I
+  have read it" into a claim about text they never saw — which is the entire reason a document here
+  has a version. `version` is stored on the acknowledgement too, belt and braces.
+- **Refusals carry their reason** (house rule 6): the check-in refusal is `409 briefing_unread` with
+  the blocking document ids AND their titles, so the frontend can put the briefing itself in front
+  of the person with the button that unblocks them, rather than a dead "you cannot do that".
+- **409, not 403, for a superseded acknowledgement**: nothing is wrong with the request or the
+  person making it — the world moved.
+- **Nothing is served from `/media/`.** `GET /documents/{id}/file/` re-checks the tier on every
+  request (404 below it), sets `Content-Type` from what the file was proven to be, and sends
+  `attachment; filename="<slug>"; filename*=UTF-8''…` plus `nosniff`. The frontend fetches it as a
+  Blob through `client.ts` (a new `getBlob`) and renders it itself, so no URL ever carries a token
+  and no disposition has to be inline.
+- **House rule 7, both halves.** An image is re-encoded from decoded pixels through `imaging.py`
+  (the polyglot test uploads a real PNG with a payload appended and reads the stored WebP back to
+  show the payload is gone); a PDF, which cannot be re-encoded, gets the 25 MB cap, the libmagic
+  sniff and `scan_for_malware`, with `scanned=False` recorded honestly. Everything else — a `.txt`,
+  a `.docx`, a script called `plan.pdf` — is refused by name before either path runs.
+- **The kill switch cuts both ways** (house rule 3). With `event_documents` off, every endpoint here
+  403s a non-staff caller and the panel goes — *and the briefing gate stops applying*, so check-in
+  behaves exactly as it did before this app existed. That is why `missing_acknowledgements` reads the
+  flag with a plain `is_feature_enabled()` rather than `feature_gate`: it governs a rule imposed on
+  somebody else's endpoint, and an `is_staff` bypass would hand a platform moderator a different
+  answer from the volunteer standing beside them (the `age_verification` precedent).
+
+### For the integrator
+
+**Files changed outside the new `documents/` app** (everything else is new and self-contained):
+
+| File | What |
+|---|---|
+| `backend/config/settings.py` | `'documents'` added to `INSTALLED_APPS` right after `'concepts'`; throttle scope `'event_document': '60/hour'` added after `'sketch'` in `DEFAULT_THROTTLE_RATES` |
+| `backend/config/urls.py` | one line: `path('api/', include('documents.urls'))` after the concepts include |
+| `backend/events/registration_views.py` | **the one guard.** Import `from documents.access import briefing_block_reason` beside the `feature_gate` import; inside `registration_checkin`, after the row lookup and before `check_in(...)`, three lines returning that dict with 409. No other change, no migration. |
+| `frontend/src/lib/api/client.ts` | new `requestBlob()` helper above `apiClient` and a `getBlob(path)` method after `getText` |
+| `frontend/src/lib/utils/download.ts` | `downloadBlob(filename, blob)` added; `downloadText` now calls it |
+| `frontend/src/lib/utils/labels.ts` | `DOCUMENT_TIERS` + `DOCUMENT_TIER_LABELS` appended at the END, using an inline `import('$lib/types/document')` type so the file's import block is untouched (§4 rule 5) |
+| `frontend/src/lib/types/index.ts` | one appended line: `export * from './document';` |
+| `frontend/src/routes/events/[id]/+page.svelte` | the `<!-- conference: documents -->` marker replaced by `<DocumentsPanel {event} />`; one import line added immediately after `import EventStaffPanel …` |
+| `frontend/src/lib/components/event/RegistrationsPanel.svelte` | the smallest hook: three imports, `let briefing = $state<BriefingBlock \| null>(null)`, `act()`'s `catch` now asks `briefingBlockFrom(e)` first, and a `{#if briefing}<BriefingInterstitial …/>{/if}` block immediately above the existing error line. Step G edits this file too — the changes are in different places. |
+| `frontend/messages/{en,pl}.json` | 40 keys, all prefixed `documents_`, one contiguous block at the very END of each file (identical key sets; 2681 → 2721 keys each) |
+
+**Migrations:** `backend/documents/migrations/0001_initial.py` only (depends on `events.0010_contributions`
+and the user model). No migration in `events` or `moderation`.
+
+**npm packages added:** none.
+
+**What other steps call:**
+
+```python
+from documents.access import missing_acknowledgements, briefing_block_reason, venue_admin_check
+
+missing_acknowledgements(user, event) -> list[EventDocument]   # [] when the flag is off or nothing is owed
+briefing_block_reason(event, user) -> dict | None
+# the dict, returned verbatim with HTTP 409:
+#   {'detail': 'briefing_unread', 'documents': [<int pk>, …], 'titles': ['Volunteer briefing', …]}
+venue_admin_check(user, event) -> bool   # returns False today; replace the body with
+                                         # venues.access.is_venue_admin (the comment above it
+                                         # spells the replacement out)
+```
+
+Frontend: `briefingBlockFrom(error)` in `lib/services/documents.ts` turns that 409 into a
+`BriefingBlock`, and `BriefingInterstitial.svelte` renders it — D's scanner and F's desk can reuse
+both unchanged.
+
+Also for the integrator: `documents/access.py: visible_events(user)` **mirrors**
+`EventViewSet._visible_to` rather than importing it (a viewset method, and `events` was frozen).
+Extracting that into a real function in `events` and calling it from here is a tidy-up worth doing at
+integration; both places say so.
+
+### Verified
+
+Run in `/Projects/edmat/.claude/worktrees/conf-c-documents`, backend on 8103 and frontend on 5203:
+
+- `../.venv/bin/python3 manage.py test documents` — **40 tests, OK** (refusals first: a stranger and
+  an anonymous caller on a staff document → 404, an attendee on an organisers document → 404 and
+  absent from the list, a volunteer uploading/editing/retiring → 403, a text file and a script named
+  `.pdf` → 400, an oversized file → 400, a polyglot PNG re-encoded with its payload gone, the
+  uploader's filename never the stored name, `MATERIAL_SCAN_REQUIRED` refusing an unscannable file,
+  acknowledging a superseded version → 409 naming the replacement, a withdrawn one → 409, check-in
+  refused with `briefing_unread` then allowed, the whole ladder per role, a `promoted` seat counting
+  and a declined one not, the tombstone, the read-receipt table's "not yet" half and its
+  organisers-only refusal, and the kill switch: endpoints 403, check-in unchanged, moderator bypass).
+- `manage.py test documents events materials moderation`, `manage.py check`,
+  `manage.py makemigrations --check --dry-run` — see the board entry for the run.
+- `npm run check` **0 errors / 0 warnings**, `npx eslint src/` clean, `npx prettier --check src/ messages/`
+  clean, `npm run build` (2m3s, wrote `build/`). `npm run lint` also reports two pre-existing
+  formatting warnings on generated, gitignored `project.inlang/` files and pre-existing eslint errors
+  in three older `e2e/*.mjs` scripts — neither touched here.
+- `E2E_BASE=http://localhost:5203 E2E_API=http://127.0.0.1:8103 node e2e/event-documents.mjs` —
+  **20/20**, including the entry-bundle check (pdf.js absent from both entry chunks, house rule 11),
+  the organiser adding a mandatory briefing through the real form, an attendee seeing neither the
+  staff nor the organisers document, the volunteer refused at check-in with the interstitial and
+  allowed straight afterwards, and the read-receipt table. Screenshots looked at (`e2e/screens/
+  event-documents-*.png`): the panel's tier groups, the amber interstitial inside the registrations
+  panel, and the receipts table showing Ola with a timestamp and Kasia "Not yet".
+- en/pl key sets verified identical programmatically (2721 = 2721, symmetric difference empty).
+
+### Left open
+
+- **The `venue` tier answers to nobody but organisers** until step A is merged and
+  `venue_admin_check` is wired. Deliberate: a tier that defaulted open would mean every document
+  filed under it was readable by the wrong people for the length of a merge window.
+- **No notification when a mandatory document is posted or replaced.** A volunteer finds out at the
+  door, which is exactly the moment the brief wanted to stop being a surprise. One `notify()` call
+  and a preference field; not built because the notification type is a three-file change
+  (`_PREFERENCE_FIELD_FOR_TYPE`, the frontend labels) that would collide with six branches.
+- **No PDF page count, thumbnail or text extraction** — the preview is pdf.js on the client.
+- **`visible_events` mirrors the events visibility rule** (see above).
+- **Tier changes are not audited.** Moving a document from `organisers` to `public` is one PATCH and
+  leaves no record of who widened it. The activity feed is the wrong home (house rule 9 — it is
+  public-by-construction, and this is a private surface); a small `moderation`-side log would be the
+  right one, and is not in scope here.
+- **The read-receipt table lists everybody it can enumerate**, which for the `venue` tier is nobody
+  — it shows whoever has acknowledged and expects no one. Honest, and it fixes itself with step A.
+- **No "download all" and no ordering control**; documents sort by tier then title.
