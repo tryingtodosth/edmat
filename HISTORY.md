@@ -7951,6 +7951,15 @@ until the briefing has actually been confirmed.
   of the person with the button that unblocks them, rather than a dead "you cannot do that".
 - **409, not 403, for a superseded acknowledgement**: nothing is wrong with the request or the
   person making it — the world moved.
+- **The stale pill, found by looking.** After the volunteer acknowledged the briefing *in the
+  interstitial* and was let through, the Documents panel further down the same page went on saying
+  "1 still to read" for the rest of the visit: it holds its own copy of the list, fetched before the
+  acknowledgement. No assertion caught it — a screenshot did (house rule 2). The fix is
+  `lib/state/documentAcks.svelte.ts`, one counter the interstitial bumps and the panel's `$effect`
+  is keyed on, rather than threading a callback between two siblings through the event page (which
+  §4 rule 3 holds to one line). The e2e asserts it now, scoped to the HEADER pill — the row's own
+  "Must be read" pill is a property of the document, not of the reader, and the first version of the
+  check failed against a correct page for counting both (e2e trap 6).
 - **Nothing is served from `/media/`.** `GET /documents/{id}/file/` re-checks the tier on every
   request (404 below it), sets `Content-Type` from what the file was proven to be, and sends
   `attachment; filename="<slug>"; filename*=UTF-8''…` plus `nosniff`. The frontend fetches it as a
@@ -7979,6 +7988,7 @@ until the briefing has actually been confirmed.
 | `backend/events/registration_views.py` | **the one guard.** Import `from documents.access import briefing_block_reason` beside the `feature_gate` import; inside `registration_checkin`, after the row lookup and before `check_in(...)`, three lines returning that dict with 409. No other change, no migration. |
 | `frontend/src/lib/api/client.ts` | new `requestBlob()` helper above `apiClient` and a `getBlob(path)` method after `getText` |
 | `frontend/src/lib/utils/download.ts` | `downloadBlob(filename, blob)` added; `downloadText` now calls it |
+| `frontend/src/lib/state/documentAcks.svelte.ts` | **new**, one counter — bumped by the interstitial, read by the panel's `$effect` |
 | `frontend/src/lib/utils/labels.ts` | `DOCUMENT_TIERS` + `DOCUMENT_TIER_LABELS` appended at the END, using an inline `import('$lib/types/document')` type so the file's import block is untouched (§4 rule 5) |
 | `frontend/src/lib/types/index.ts` | one appended line: `export * from './document';` |
 | `frontend/src/routes/events/[id]/+page.svelte` | the `<!-- conference: documents -->` marker replaced by `<DocumentsPanel {event} />`; one import line added immediately after `import EventStaffPanel …` |
@@ -8026,19 +8036,25 @@ Run in `/Projects/edmat/.claude/worktrees/conf-c-documents`, backend on 8103 and
   refused with `briefing_unread` then allowed, the whole ladder per role, a `promoted` seat counting
   and a declined one not, the tombstone, the read-receipt table's "not yet" half and its
   organisers-only refusal, and the kill switch: endpoints 403, check-in unchanged, moderator bypass).
-- `manage.py test documents events materials moderation`, `manage.py check`,
-  `manage.py makemigrations --check --dry-run` — see the board entry for the run.
+- `../.venv/bin/python3 manage.py test documents events materials moderation` — **420 tests, OK**
+  (612 s; six other agents' suites were running on the same machine). `manage.py check` — no issues.
+  `manage.py makemigrations --check --dry-run` — no changes detected.
 - `npm run check` **0 errors / 0 warnings**, `npx eslint src/` clean, `npx prettier --check src/ messages/`
   clean, `npm run build` (2m3s, wrote `build/`). `npm run lint` also reports two pre-existing
   formatting warnings on generated, gitignored `project.inlang/` files and pre-existing eslint errors
   in three older `e2e/*.mjs` scripts — neither touched here.
 - `E2E_BASE=http://localhost:5203 E2E_API=http://127.0.0.1:8103 node e2e/event-documents.mjs` —
-  **20/20**, including the entry-bundle check (pdf.js absent from both entry chunks, house rule 11),
+  **27/27**, including the entry-bundle check (pdf.js absent from both entry chunks, house rule 11),
   the organiser adding a mandatory briefing through the real form, an attendee seeing neither the
   staff nor the organisers document, the volunteer refused at check-in with the interstitial and
-  allowed straight afterwards, and the read-receipt table. Screenshots looked at (`e2e/screens/
-  event-documents-*.png`): the panel's tier groups, the amber interstitial inside the registrations
-  panel, and the receipts table showing Ola with a timestamp and Kasia "Not yet".
+  allowed straight afterwards, and the read-receipt table. It also builds a genuine one-page PDF
+  (correct xref), uploads it through the real form, previews it with pdf.js and downloads it, so the
+  whole file path is exercised in a browser and not only in the Django tests. Screenshots looked at
+  (`e2e/screens/event-documents-*.png`): the panel's tier groups, the PDF rendered in place, the
+  amber interstitial inside the registrations panel, the receipts table showing Ola with a timestamp
+  and Kasia "Not yet", and the attendee's page showing the attendees-tier document and nothing else.
+  Two things only the screenshots showed: the stale pill above, and a panel that blinked through its
+  loading state on a download (fetching bytes changes nothing, so it no longer re-reads the list).
 - en/pl key sets verified identical programmatically (2721 = 2721, symmetric difference empty).
 
 ### Left open
