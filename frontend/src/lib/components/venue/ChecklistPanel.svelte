@@ -76,6 +76,14 @@
 	});
 
 	async function load() {
+		// The checklist is the organiser's contract with the building; a visitor or an attendee gets
+		// 401/404 from the endpoint, so the panel does not ask on their behalf (found by the merged
+		// event page's zero-console-errors e2e check at integration, 2026-09-23). Venue staff read
+		// it on the building's own manage page.
+		if (!canOrganise) {
+			loaded = true;
+			return;
+		}
 		try {
 			instances = await getEventChecklists(eventId);
 		} catch {
