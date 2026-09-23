@@ -8083,6 +8083,7 @@ imported from `$lib/types/cloakroom` directly, so seven branches are not all app
 - **The camera path was not driven end to end in the browser run** — there is no camera on this
   machine, so `@zxing/browser` is exercised only as far as "the button is there, the import is
   lazy, and a refusal falls back to the typed field". The typed path is the one under test.
+
 ## 17BF.A — Venues: buildings, rooms, room bookings and the checklist a building hands an organiser
 
 *(conference step A, `CONFERENCE-BRIEF.md` §3.A, branch `conf/a-venues`, 2026-09-23)*
