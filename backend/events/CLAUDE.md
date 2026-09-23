@@ -70,6 +70,6 @@ decision even though they are staff (a role is not a ladder).
 
 ## Verify
 
-`manage.py test events` (154 tests + the permission matrix, refusal-weighted) + the availability
+`manage.py test events` (154 tests + the 148-row permission matrix, refusal-weighted) + the availability
 half in `booking/tests.py`. E2E: `events-and-nav.mjs`, `known-issues.mjs`, `event-preview.mjs`
 (needs `seed_conference_personas` run against the backend it drives).

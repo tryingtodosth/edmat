@@ -8025,8 +8025,9 @@ table earned: the rows I was least sure about are the ones that found something.
 
 ### Verified
 
-- `manage.py test events accounts moderation` and the whole suite; `manage.py check`;
-  `makemigrations --check --dry-run` → **No changes detected** (this step produces no migration).
+- `manage.py test events accounts moderation` → **Ran 402 tests, OK**. `manage.py test` (the whole
+  suite) → **Ran 1856 tests, OK**. `manage.py check` → no issues. `makemigrations --check
+  --dry-run` → **No changes detected** (this step produces no migration).
 - The matrix: 148 rows, all passing. **No permission row failed** — the events permission surface
   was already correct everywhere the table asks about it, so this step names no permission bug. What
   it did find is **seven 500s**, all the same shape and all fixed here; see below.
@@ -8115,9 +8116,9 @@ draft and deletes it at the end. 26 checks. It writes
 ```
 backend:   manage.py check                              → no issues
            manage.py makemigrations --check --dry-run   → No changes detected
-           manage.py test events                        → OK (154 tests, before the matrix existed)
+           manage.py test events accounts moderation    → Ran 402 tests, OK
+           manage.py test                               → Ran 1856 tests, OK
            manage.py test events.test_permission_matrix → OK (148 rows)
-           manage.py test                               → the whole suite, OK
            manage.py seed_conference_personas ×3        → 7 personas, 1 event, 3 sessions, 3 staff,
                                                           2 attendances, 1 contribution, unchanged
 frontend:  npm run check                                → 0 errors, 0 warnings (4729 files)
