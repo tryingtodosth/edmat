@@ -7992,7 +7992,9 @@ every staff member the whole file.
   useful. The registration row's profile link is now conditional on `attendee.id`, the guard the
   masked public roster already needed in §17AN.
 
-**Verified**: `events/test_exports.py` 25 tests; `manage.py test events moderation accounts`;
+**Verified**: `events/test_exports.py` 25 tests, OK; `manage.py test events moderation accounts`
+→ **426 tests, OK** (its 222 `DatabaseOperationForbidden` tracebacks are pre-existing telemetry
+noise in `moderation` tests, caught and logged rather than failed);
 `manage.py check`; `makemigrations --check --dry-run` clean; `npm run check` 0/0, `npm run lint`,
 `npm run build`; `e2e/event-exports.mjs` **24/24, zero console errors**, both screenshots looked
 at; en/pl key sets identical (2701 each). Three things the browser found that nothing else did:
@@ -8091,7 +8093,7 @@ untouched (G adds no app and no flag).
   `answers` or an account id — D's own `/checkin-list/` is the endpoint it should use.
 
 *Exact commands I ran.* From `backend/`: `../.venv/bin/python3 manage.py test events.test_exports`
-(25 tests, OK), `… manage.py test events moderation accounts`, `… manage.py check`,
+(25 tests, OK), `… manage.py test events moderation accounts` (426 tests, OK), `… manage.py check`,
 `… manage.py makemigrations --check --dry-run`, `… manage.py purge_event_data --dry-run` against
 the real dev database. From `frontend/` with Node 24: `npx paraglide-js compile --project
 ./project.inlang --outdir ./src/lib/paraglide`, `npm run check` (0 errors / 0 warnings),
