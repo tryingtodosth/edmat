@@ -51,6 +51,7 @@
 </script>
 
 <PageHead title={venue?.name ?? m.venues_browseTitle()} description={venue?.address ?? ''} />
+<!-- "Venues" -->
 
 <FeatureGate feature="venues">
 	<div class="page">
@@ -108,12 +109,19 @@
 						<li class="room">
 							<strong>{room.name}</strong>
 							{#if room.number}<span class="meta">{m.venues_roomNumber()}: {room.number}</span>{/if}
+							<!-- "Room number" -->
 							{#if room.floor}<span class="meta">{m.venues_roomFloor()}: {room.floor}</span>{/if}
+							<!-- "Floor" -->
 							<span class="meta">{m.venues_seated()}: {room.seatedCapacity}</span>
+							<!-- "Seats" -->
 							<span class="meta">{m.venues_fire()}: {room.fireCapacity}</span>
+							<!-- "Fire capacity" -->
 							{#if room.accessible}<span class="pill">{m.venues_accessible()}</span>{/if}
+							<!-- "Step-free access" -->
 							{#if room.hasAv}<span class="pill">{m.venues_hasAv()}</span>{/if}
+							<!-- "AV equipment" -->
 							{#if !room.isActive}<span class="pill pill--off">{m.venues_roomRetired()}</span>{/if}
+							<!-- "Retired" -->
 							{#if room.notes}<p class="notes">{room.notes}</p>{/if}
 						</li>
 					{/each}
@@ -133,6 +141,7 @@
 							<span class="meta">
 								{template.items.length}
 								{m.venues_templateItems()} · {m.venues_templateVersion()}
+								<!-- "items / Edition" -->
 								{template.version}
 							</span>
 							{#if template.description}<p class="notes">{template.description}</p>{/if}

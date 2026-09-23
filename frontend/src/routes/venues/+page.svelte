@@ -38,7 +38,9 @@
 <FeatureGate feature="venues">
 	<div class="page">
 		<h1>{m.venues_browseTitle()}</h1>
+		<!-- "Venues" -->
 		<p class="intro">{m.venues_browseIntro()}</p>
+		<!-- "Buildings that host events on EdMat, with their rooms and what each one can hold." -->
 
 		{#if loading}
 			<p class="status">{m.common_loading()}</p>

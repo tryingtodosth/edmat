@@ -132,7 +132,9 @@ async function api(token, path, init = {}) {
 		}
 	});
 	const text = await response.text();
-	let body = null;
+	// A DRF error body is JSON; a 204 is empty; a stray HTML error page is neither. Whatever comes
+	// back, the caller gets something it can assert on rather than a throw from `JSON.parse`.
+	let body;
 	try {
 		body = text ? JSON.parse(text) : null;
 	} catch {
@@ -250,8 +252,10 @@ await api(staffToken, `/venues/${created.venueId}/staff/`, {
 	body: JSON.stringify({ user_id: (await api(staffToken, '/auth/me/')).body.id })
 });
 
+// The event carries a start and a DURATION (events/models.py: two datetimes would make an event
+// that ends before it begins representable); the booking below carries the two instants, because a
+// room is held between two clock times.
 const startsAt = new Date(Date.now() + 20 * 24 * 3600 * 1000);
-const endsAt = new Date(startsAt.getTime() + 2 * 3600 * 1000);
 const event = await api(organiserToken, '/events/', {
 	method: 'POST',
 	body: JSON.stringify({

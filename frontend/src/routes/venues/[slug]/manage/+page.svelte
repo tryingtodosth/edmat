@@ -168,6 +168,7 @@
 			<h1>{m.venues_manageTitle()}</h1>
 			<!-- "Running this building" -->
 			<p class="intro">{m.venues_manageIntro()}</p>
+			<!-- "Staff, rooms, the requests waiting for an answer, and the checklists you hand organisers." -->
 
 			{#if !venue.canAdminister}
 				<p class="status warn">{m.venues_notYours()}</p>
@@ -258,6 +259,7 @@
 				<h2>{m.venues_manageStaff()}</h2>
 				<!-- "Who runs it" -->
 				<p class="hint">{m.venues_roleHint()}</p>
+				<!-- "An administrator decides bookings, edits rooms and signs checklist items off. A porter sees the same lists and ticks nothing." -->
 				<ul class="rows">
 					{#each staff as row (row.id)}
 						<li class="row row--inline">
@@ -265,6 +267,7 @@
 							<span class="pill">{VENUE_ROLE_LABELS[row.role]()}</span>
 							{#if row.addedBy}
 								<span class="meta">{m.venues_staffAddedBy()} {row.addedBy.displayName}</span>
+								<!-- "Added by" -->
 							{/if}
 							{#if venue.canAdminister}
 								<button
@@ -289,6 +292,7 @@
 						</label>
 						<label>
 							<span>{m.venues_staffRole()}</span>
+							<!-- "Role" -->
 							<select bind:value={newRole}>
 								{#each VENUE_ROLES as role (role)}
 									<option value={role}>{VENUE_ROLE_LABELS[role]()}</option>
@@ -296,6 +300,7 @@
 							</select>
 						</label>
 						<button type="submit" disabled={busy === 'staff'}>{m.venues_staffAdd()}</button>
+						<!-- "Add" -->
 					</form>
 					<p class="hint">{m.venues_staffAccountIdHint()}</p>
 					<!-- "There is no people search yet, so a person is added by the number on their profile." -->
@@ -306,13 +311,17 @@
 				<h2>{m.venues_manageRooms()}</h2>
 				<!-- "Rooms" -->
 				<p class="hint">{m.venues_capacityNote()}</p>
+				<!-- "Seats are chairs; the fire capacity is how many people the building’s fire safety instruction allows in the room at once." -->
 				<ul class="rows">
 					{#each venue.rooms as room (room.id)}
 						<li class="row row--inline">
 							<strong>{room.name}</strong>
 							<span class="meta">{m.venues_seated()}: {room.seatedCapacity}</span>
+							<!-- "Seats" -->
 							<span class="meta">{m.venues_fire()}: {room.fireCapacity}</span>
+							<!-- "Fire capacity" -->
 							{#if !room.isActive}<span class="pill pill--off">{m.venues_roomRetired()}</span>{/if}
+							<!-- "Retired" -->
 							{#if venue.canAdminister && room.isActive}
 								<button
 									type="button"
@@ -331,22 +340,27 @@
 					<form class="inline-form" onsubmit={addRoom}>
 						<label>
 							<span>{m.venues_roomName()}</span>
+							<!-- "Name" -->
 							<input type="text" bind:value={roomName} />
 						</label>
 						<label>
 							<span>{m.venues_roomNumber()}</span>
+							<!-- "Room number" -->
 							<input type="text" bind:value={roomNumber} />
 						</label>
 						<label>
 							<span>{m.venues_roomFloor()}</span>
+							<!-- "Floor" -->
 							<input type="text" bind:value={roomFloor} />
 						</label>
 						<label>
 							<span>{m.venues_seated()}</span>
+							<!-- "Seats" -->
 							<input type="text" inputmode="numeric" pattern="[0-9]*" bind:value={roomSeated} />
 						</label>
 						<label>
 							<span>{m.venues_fire()}</span>
+							<!-- "Fire capacity" -->
 							<input type="text" inputmode="numeric" pattern="[0-9]*" bind:value={roomFire} />
 						</label>
 						<button type="submit" disabled={busy === 'room'}>{m.venues_roomAdd()}</button>
@@ -360,6 +374,7 @@
 				<!-- "Checklists" -->
 				{#if templates.length === 0}
 					<p class="status">{m.venues_noTemplates()}</p>
+					<!-- "This building has not written a checklist of its own; the platform’s starter checklists are offered instead." -->
 				{:else}
 					<ul class="rows">
 						{#each templates as template (template.id)}
@@ -368,6 +383,7 @@
 								<span class="meta">
 									{template.items.length}
 									{m.venues_templateItems()} · {m.venues_templateVersion()}
+									<!-- "items / Edition" -->
 									{template.version}
 								</span>
 								{#if !template.venueId}

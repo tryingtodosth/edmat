@@ -236,9 +236,11 @@
 					<!-- "Room" -->
 					<select bind:value={roomId} disabled={rooms.length === 0}>
 						<option value="">{m.venues_pickPrompt()}</option>
+						<!-- "Choose…" -->
 						{#each rooms as room (room.id)}
 							<option value={room.id}>
 								{room.name} — {m.venues_fire()}
+								<!-- "Fire capacity" -->
 								{room.fireCapacity}
 							</option>
 						{/each}
@@ -267,10 +269,14 @@
 				{#if chosenRoom}
 					<p class="hint wide">
 						{m.venues_seated()}
+						<!-- "Seats" -->
 						{chosenRoom.seatedCapacity} · {m.venues_fire()}
+						<!-- "Fire capacity" -->
 						{chosenRoom.fireCapacity}
 						{#if chosenRoom.accessible}· {m.venues_accessible()}{/if}
+						<!-- "Step-free access" -->
 						{#if chosenRoom.hasAv}· {m.venues_hasAv()}{/if}
+						<!-- "AV equipment" -->
 					</p>
 				{/if}
 				<button type="submit" class="wide" disabled={busy || !roomId}>

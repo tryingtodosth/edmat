@@ -235,10 +235,12 @@
 						<!-- "Choose a checklist" -->
 						<select bind:value={chosenTemplate}>
 							<option value="">{m.venues_pickPrompt()}</option>
+							<!-- "Choose…" -->
 							{#each templates as template (template.id)}
 								<option value={template.id}>
 									{template.name} — {template.items.length}
 									{m.venues_templateItems()}
+									<!-- "items" -->
 								</option>
 							{/each}
 						</select>
@@ -325,6 +327,7 @@
 										<!-- "The building signs this one off" -->
 										{#if item.signedOffBy}
 											— {m.checklist_signedOffBy()}
+											<!-- "Signed off by" -->
 											{item.signedOffBy.displayName}
 											<!-- "Signed off by" -->
 										{/if}
@@ -423,6 +426,7 @@
 											/>
 										</label>
 										<button type="submit" disabled={busy === item.id}>{m.checklist_save()}</button>
+										<!-- "Save" -->
 									</form>
 								{/if}
 							</li>
