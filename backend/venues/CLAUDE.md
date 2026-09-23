@@ -76,8 +76,12 @@ a queryset filter never runs for an id in a URL (house rule 4).
 | edit rooms, decide bookings, write templates | ✓ | — | — | — |
 | ask for a room, withdraw the request | — | — | ✓ | — |
 | read the event's checklist | ✓ | ✓ | ✓ (event staff) | — |
-| tick an item | ✓ | — | ✓ | — |
-| tick an item the building signs off | ✓ | — | — | — |
+| change an item at all (tick it, attach evidence, wave it away) | ✓ | — | ✓ | — |
+| mark done an item the building signs off | ✓ | — | — | — |
+
+A porter **reads and does not write** — `item_change_block_reason` asks that unconditionally rather
+than only when the status changes, because an earlier version gated on `wanted_status is not None`
+and let a porter PATCH an item's evidence text straight through.
 
 Platform `is_staff` counts as an administrator everywhere, because that is how a building's *first*
 administrator is granted (`CONFERENCE-BRIEF.md` §6.4 — no self-service "claim this building"). A

@@ -687,6 +687,32 @@ class ChecklistReadAccessTests(VenueTestCase):
         )
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_a_porter_does_not_write_evidence_either(self):
+        """A write that does not change the status is still a write. The first version of
+        `item_change_block_reason` gated its authority check on `wanted_status is not None`, so this
+        went straight through — a porter reads."""
+        item = self.instance.items.first()
+        self.client.force_authenticate(self.porter)
+        res = self.client.patch(
+            f'/api/checklist-items/{item.pk}/',
+            {'evidence_text': 'I was here'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        item.refresh_from_db()
+        self.assertEqual(item.evidence_text, '')
+
+    def test_the_organiser_may_write_evidence(self):
+        item = self.instance.items.first()
+        self.client.force_authenticate(self.organiser)
+        res = self.client.patch(
+            f'/api/checklist-items/{item.pk}/',
+            {'evidence_text': 'Reserved on 12 May, ref 44/2026'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data['evidence_text'], 'Reserved on 12 May, ref 44/2026')
+
     def test_an_event_volunteer_may_read_but_a_stranger_may_not(self):
         volunteer = make_user('read-volunteer')
         EventStaff.objects.create(event=self.event, user=volunteer, role='volunteer')

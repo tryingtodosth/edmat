@@ -162,7 +162,12 @@ def publish_block_reason(event):
 def item_change_block_reason(user, item, *, wanted_status=None, na_reason=None):
     """Why this person may not put this checklist item into this state — or `None`.
 
-    - ``not_allowed`` — neither an organiser of the event nor staff of the building.
+    - ``not_allowed`` — not an organiser of the event and not an administrator of the building.
+      **A porter reads and does not write**, and that is checked here unconditionally rather than
+      only when the status changes: an earlier version gated on `wanted_status is not None`, which
+      let a porter PATCH an item's evidence text (a write, just not a tick) straight through. This
+      function is only ever called from a write path, so "may this person change this item" is the
+      only question it has to answer.
     - ``na_not_allowed`` — the building did not mark this line as one that may be waved away.
     - ``na_reason_required`` — it may, but not silently.
     - ``needs_venue_signoff`` — only a **venue administrator** ticks a line the building signs off.
@@ -174,7 +179,7 @@ def item_change_block_reason(user, item, *, wanted_status=None, na_reason=None):
     venue = item.instance.venue
     is_organiser = event.can_organise(user)
     admin = is_venue_admin(user, venue)
-    if not (is_organiser or is_venue_staff(user, venue)):
+    if not (is_organiser or admin):
         return 'not_allowed'
 
     if wanted_status == 'not_applicable':
@@ -184,9 +189,6 @@ def item_change_block_reason(user, item, *, wanted_status=None, na_reason=None):
             return 'na_reason_required'
     if wanted_status == 'done' and item.requires_venue_signoff and not admin:
         return 'needs_venue_signoff'
-    if wanted_status is not None and not (is_organiser or admin):
-        # A porter reads; they do not tick.
-        return 'not_allowed'
     return None
 
 

@@ -8025,6 +8025,17 @@ switch off every request they made was a 403 for a panel nobody was going to see
 That is the second time on this project that a real bug survived `svelte-check`, `eslint`, a
 production build and a green assertion run, and was found by opening the PNG (house rule 2).
 
+### A second hole, found by re-reading rather than by a test
+
+`item_change_block_reason` gated its authority check on `wanted_status is not None` — so a **porter**
+(who may read a building's checklists and tick nothing) could PATCH an item's `evidence_text`
+straight through, because that request changes no status. A write that does not move the status is
+still a write, and this function is only ever called from a write path, so the question it has to
+answer is simply "may this person change this item". The check is now unconditional, with two tests:
+a porter refused an evidence write with the field still empty afterwards, and the organiser allowed
+one. Nothing in the frontend ever sent that request; the hole was reachable only through the API,
+which is exactly the second entry point house rule 8 keeps naming.
+
 ### Verified
 
 - `manage.py test venues events moderation` — 53 venue tests + the events and moderation suites.
