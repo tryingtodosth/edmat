@@ -355,6 +355,15 @@ def propose_block_reason(project, user) -> str | None:
         return 'not_published'
     if not getattr(project.material, 'published', False):
         return 'removed'
+    # The project's own contribution policy (materials_coop/policy.py): `request` and `closed`
+    # refuse an outsider's proposal with their own word each, so the frontend can say "ask to
+    # join" for one and nothing of the kind for the other. Asked AFTER `member`, so a co-author is
+    # never told the door is shut on a door they hold the key to.
+    from materials_coop.policy import contribution_block_reason
+
+    policy_reason = contribution_block_reason(project, user)
+    if policy_reason is not None:
+        return policy_reason
     from .models import MaterialVersion
 
     if MaterialVersion.objects.filter(
@@ -381,10 +390,15 @@ def join_block_reason(project, user) -> str | None:
     if is_minor(user):
         return 'minor'
     if project.material_id is not None:
-        # A published material takes improvements, not applicants: proposing is open to everybody
-        # and needs no permission, so asking to join would be asking for something slower.
-        return 'published'
-    if not project.seeking_coauthors:
+        # A published material takes improvements, not applicants — UNLESS its policy has closed
+        # proposals to outsiders, in which case asking to join is the only way in and is allowed
+        # (`request`), or refused in its own word (`closed`). materials_coop/policy.py decides.
+        from materials_coop.policy import join_block_reason_after_publication
+
+        published_reason = join_block_reason_after_publication(project)
+        if published_reason is not None:
+            return published_reason
+    elif not project.seeking_coauthors:
         return 'not_seeking'
     from .models import ProjectJoinRequest
 

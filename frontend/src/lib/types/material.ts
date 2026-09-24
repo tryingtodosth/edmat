@@ -177,7 +177,7 @@ export interface Material {
 	/** The co-authoring project this material is the published projection of
 	 * (COAUTHORING-BRIEF.md §2). Every material has one after the backfill; it stays optional
 	 * because a backend older than that migration — or the `coauthoring` switch being off — must
-	 * leave every existing read site working exactly as before. `ProjectPanel` renders nothing
+	 * leave every existing read site working exactly as before. `CoopPanel` renders nothing
 	 * without it.
 	 *
 	 * Deliberately NOT what a reader follows to get the material: the material IS the current

@@ -44,6 +44,10 @@ TARGET_TYPE_BY_MODEL = {
     # frontend's union is a flat namespace across the whole platform, and a bare "version" would
     # be the first name in it that does not say what it is a version OF.
     ('coauthoring', 'materialversion'): 'materialVersion',
+    # The cooperation thread of one material's project (materials_coop/): where the team, and
+    # under an `open` policy anybody weighing a proposal, talk about the work rather than about
+    # one version of it. Hangs off the PROJECT so it survives every version.
+    ('coauthoring', 'materialproject'): 'materialProject',
     # The talk about one article of a concept (concepts/). Named for the ARTICLE and not the
     # concept, because that is what the thread hangs off: a concept has as many articles as people
     # have written, and one thread across all of them would mix a conversation about the
@@ -79,6 +83,9 @@ PRIVATE_TARGET_TYPES = {
     'courseChapter',
     'eventSession',
     'materialVersion',
+    # Readable wherever the project is, but a `request`/`closed` team's room is not a public
+    # thread a course should link in.
+    'materialProject',
 }
 
 

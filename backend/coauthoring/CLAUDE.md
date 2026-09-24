@@ -113,6 +113,11 @@ verified-contributor fast path.
   `select_related('project')` plus `published_version_prefetch()`. Pinned by a query-count test.
 - The tests declare `databases = set(all_log_shards()) | {'default'}`; every publish, decision and
   team change writes an `AuditEvent` to its own SQLite file.
+- **`propose_block_reason` and `join_block_reason` ask `materials_coop.policy`** (2026-09-24) for
+  the project's contribution policy: `request` / `closed` refuse an outsider's proposal with
+  `members_only` / `closed`, and a PUBLISHED project under `request` takes join requests (so
+  `published` is no longer the only answer there). A project with no `CoopSettings` row is `open`,
+  which is the behaviour every test here was written against.
 
 ## Verify
 
@@ -121,4 +126,5 @@ submit path — the whole retired `MaterialSubmission` suite, ported class for c
 `manage.py test moderation.test_material_versions_queue`. `test_submit_path.FoldMigrationTests` is
 the project's only `TransactionTestCase`: it migrates the database backwards to run the fold for
 real, which is why it flushes afterwards and why Django's runner puts it last.
-E2E: `frontend/e2e/coauthoring.mjs`.
+E2E: `frontend/e2e/coauthoring.mjs` (the material-page panel is now `components/coop/CoopPanel`,
+which kept this script's selectors) and `e2e/materials-coop.mjs`.

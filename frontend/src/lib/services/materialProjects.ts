@@ -139,7 +139,7 @@ export async function listSeekingProjects(branchId?: string): Promise<MaterialPr
 /**
  * The project behind one material, or null when the backfill has not given it one (and, for a
  * reader with the feature switched off, when the endpoint answers with nothing). Null is a real
- * answer here, not a failure — `ProjectPanel` renders nothing for it.
+ * answer here, not a failure — `CoopPanel` (components/coop/) renders nothing for it.
  */
 export async function getProjectForMaterial(materialId: string): Promise<MaterialProject | null> {
 	try {

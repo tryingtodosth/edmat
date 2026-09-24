@@ -68,7 +68,9 @@ real deployment. Scan status is surfaced to the reviewing moderator, not hidden.
 - Coverage-claim comments: validate a submitted `parent` belongs to the SAME coverage row's
   thread (checked in the view — content_type/object_id aren't client data at serializer time).
   The identical check exists in `ExerciseViewSet.comments`; keep them in step.
-- Material has **no** top-level comment thread and no star-rating tied to `community.Review`
+- Material HAS a top-level comment thread (`MaterialViewSet.comments`, the public one) and a
+  second, team-facing one on its project (`materials_coop`, `/materials/{id}/coop/comments/`);
+  star ratings are `MaterialReview`, not `community.Review`
   (that model is Exercise-only) — `MaterialReview` is its own thing.
 
 ## Verify

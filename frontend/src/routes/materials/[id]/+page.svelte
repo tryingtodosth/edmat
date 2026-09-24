@@ -54,7 +54,7 @@
 	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
 	import MaterialExercises from '$lib/components/material/MaterialExercises.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
-	import ProjectPanel from '$lib/components/coauthoring/ProjectPanel.svelte';
+	import CoopPanel from '$lib/components/coop/CoopPanel.svelte';
 	import LinkedConcepts from '$lib/components/concept/LinkedConcepts.svelte';
 	import ApplyToGovern from '$lib/components/governance/ApplyToGovern.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -347,10 +347,12 @@
 		{/if}
 
 		<!-- Under the previews and above the gallery: the panel is about the bytes somebody just
-		     looked at — which version they are, who wrote them, and how to improve them — so it
-		     belongs with them rather than down among the claims. It renders nothing at all when the
-		     co-authoring switch is off, or when this material has no project. -->
-		<ProjectPanel materialId={material.id} />
+		     looked at — which version they are, who looks after them, how open they are to change,
+		     and how to improve them — so it belongs with them rather than down among the claims.
+		     It renders nothing at all when the co-authoring switch is off, or when this material
+		     has no project. Its kebab switches between three designs; `/materials/[id]/coop` is
+		     the same overview at full size. -->
+		<CoopPanel materialId={material.id} />
 
 		<!-- What this material is ABOUT, as chips. Renders nothing at all when there is nothing
 		     linked and nothing this reader could do about it. -->
