@@ -11,6 +11,7 @@ import logging
 from django.utils import timezone
 from datetime import timedelta
 from django.conf import settings
+from moderation.services import is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +53,6 @@ def collect(user):
             'generated_at': ISO timestamp
         }
     """
-    from moderation.permissions import feature_gate
-
     sections = []
     unavailable = []
 
@@ -82,7 +81,7 @@ def collect(user):
         flag_key, provider_func = _REGISTRY[key]
 
         # Skip if the feature flag is off
-        if not feature_gate(flag_key, user=user):
+        if not is_feature_enabled(flag_key):
             continue
 
         try:

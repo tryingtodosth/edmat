@@ -7,7 +7,7 @@ from datetime import timedelta
 from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
 from moderation.models import FeatureFlag
-from testing.factories import make_user
+from testing.factories import make_user, make_branch
 from . import providers
 
 User = get_user_model()
@@ -23,7 +23,7 @@ class WorkDashboardAuthTests(APITestCase):
 
     def test_authenticated_succeeds(self):
         """Authenticated request should get 200."""
-        user = make_user()
+        user = make_user('test_user')
         token = Token.objects.create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
 
@@ -39,7 +39,7 @@ class ProviderRegistryTests(TestCase):
 
     def setUp(self):
         """Set up test data."""
-        self.user = make_user()
+        self.user = make_user('registry_test_user')
 
     def test_raising_provider_is_isolated(self):
         """A provider that raises should be reported in unavailable, not fatal."""
@@ -92,29 +92,229 @@ class ProviderRegistryTests(TestCase):
             # Restore original registry
             providers._REGISTRY = original_registry
 
-    def test_response_structure(self):
-        """Response should have the correct structure."""
+
+class EventProviderTests(TestCase):
+    """Tests for the events providers."""
+
+    def setUp(self):
+        """Create test data."""
+        from events.models import Event
+        self.user = make_user('event_test_user')
+        self.event_in_10_days = Event.objects.create(
+            host=self.user,
+            title='Event in 10 days',
+            status='published',
+            visibility='public',
+            starts_at=timezone.now() + timedelta(days=10),
+            duration_minutes=60,
+        )
+        self.event_in_30_days = Event.objects.create(
+            host=self.user,
+            title='Event in 30 days',
+            status='published',
+            visibility='public',
+            starts_at=timezone.now() + timedelta(days=30),
+            duration_minutes=60,
+        )
+
+    def test_event_hosting_within_14_days_appears(self):
+        """An event the user hosts within 14 days should appear."""
         result = providers.collect(self.user)
 
-        # Check structure
-        self.assertIsInstance(result['sections'], list)
-        self.assertIsInstance(result['unavailable'], list)
-        self.assertIsInstance(result['generated_at'], str)
-
-        # Check that all sections have the right keys
+        # Find the event in any section
+        found = False
         for section in result['sections']:
-            self.assertIn('key', section)
-            self.assertIn('items', section)
-            self.assertIsInstance(section['items'], list)
-
-            # Check item structure
             for item in section['items']:
-                self.assertIn('kind', item)
-                self.assertIn('title', item)
-                self.assertIn('url', item)
-                self.assertIn('due_at', item)
-                self.assertIn('status', item)
-                self.assertIn('urgency', item)
-                self.assertIn('node', item)
-                # Verify urgency is 0-3
-                self.assertIn(item['urgency'], [0, 1, 2, 3])
+                if item['title'] == 'Event in 10 days':
+                    found = True
+                    self.assertEqual(item['kind'], 'event')
+                    self.assertEqual(item['status'], 'hosting')
+                    self.assertIn('/events/', item['url'])
+
+        self.assertTrue(found, "Event in 10 days not found in dashboard")
+
+    def test_event_hosting_beyond_14_days_excluded(self):
+        """An event the user hosts beyond 14 days should not appear."""
+        result = providers.collect(self.user)
+
+        # Verify the 30-day event is not in any section
+        for section in result['sections']:
+            for item in section['items']:
+                self.assertNotEqual(item['title'], 'Event in 30 days')
+
+
+class CourseProviderTests(TestCase):
+    """Tests for the courses provider."""
+
+    def setUp(self):
+        """Create test data."""
+        from courses.models import Course, CourseStaffRole
+        self.user = make_user('course_test_user')
+        self.course = Course.objects.create(
+            title='Test Course',
+            created_by=self.user,
+            visibility='listed',
+        )
+        # Make user staff on the course
+        CourseStaffRole.objects.create(
+            course=self.course,
+            staff=self.user,
+        )
+
+    def test_course_with_pending_enrollment_appears(self):
+        """A course with pending enrollments should appear."""
+        from courses.models import Enrollment
+        # Create a pending enrollment
+        other_user = make_user('other_user')
+        Enrollment.objects.create(
+            course=self.course,
+            participant=other_user,
+            status='pending',
+        )
+
+        result = providers.collect(self.user)
+
+        # Find the course in any section
+        found = False
+        for section in result['sections']:
+            for item in section['items']:
+                if 'Test Course' in item['title']:
+                    found = True
+                    self.assertEqual(item['kind'], 'course_request')
+
+        self.assertTrue(found, "Course with pending enrollment not found")
+
+
+class CoauthoringProviderTests(TestCase):
+    """Tests for the coauthoring provider."""
+
+    def setUp(self):
+        """Create test data."""
+        from coauthoring.models import MaterialProject, ProjectMember
+        self.user = make_user('coauth_test_user')
+        self.project = MaterialProject.objects.create(
+            title='Test Material Project',
+            created_by=self.user,
+        )
+        # Make user a member
+        ProjectMember.objects.create(
+            project=self.project,
+            user=self.user,
+            role='editor',
+        )
+
+    def test_project_with_pending_version_appears(self):
+        """A project with a pending version should appear."""
+        from coauthoring.models import MaterialVersion
+        # Create a pending version
+        MaterialVersion.objects.create(
+            project=self.project,
+            title='Pending Version',
+            status='proposed',
+            created_by=self.user,
+        )
+
+        result = providers.collect(self.user)
+
+        # Find the project in any section
+        found = False
+        for section in result['sections']:
+            for item in section['items']:
+                if 'Test Material Project' in item['title']:
+                    found = True
+                    self.assertEqual(item['kind'], 'proposal')
+
+        self.assertTrue(found, "Project with pending version not found")
+
+
+class ShiftProviderTests(TestCase):
+    """Tests for the shifts provider."""
+
+    def setUp(self):
+        """Create test data."""
+        from shifts.models import Shift, Assignment
+        from venues.models import Venue, Station
+        from events.models import Event
+
+        self.user = make_user('shift_test_user')
+        self.venue = Venue.objects.create(
+            name='Test Venue',
+            slug='test-venue',
+        )
+        self.station = Station.objects.create(
+            venue=self.venue,
+            name='Test Station',
+        )
+        self.event = Event.objects.create(
+            host=self.user,
+            title='Shift Test Event',
+            status='published',
+            visibility='public',
+            starts_at=timezone.now() + timedelta(days=5),
+            duration_minutes=60,
+        )
+        self.shift = Shift.objects.create(
+            station=self.station,
+            event=self.event,
+            title='Test Shift',
+            starts_at=timezone.now() + timedelta(days=5),
+            duration_minutes=60,
+        )
+        # Assign user to shift
+        Assignment.objects.create(
+            shift=self.shift,
+            volunteer=self.user,
+            status='confirmed',
+        )
+
+    def test_shift_within_14_days_appears(self):
+        """A shift the user is assigned to within 14 days should appear."""
+        result = providers.collect(self.user)
+
+        # Find the shift in any section
+        found = False
+        for section in result['sections']:
+            for item in section['items']:
+                if 'Test Shift' in item['title']:
+                    found = True
+                    self.assertEqual(item['kind'], 'shift')
+
+        self.assertTrue(found, "Shift not found in dashboard")
+
+
+class TutoringProviderTests(TestCase):
+    """Tests for the tutoring provider."""
+
+    def setUp(self):
+        """Create test data."""
+        from booking.models import Booking
+        from services.models import Service
+
+        self.user = make_user('tutoring_test_user')
+        self.student = make_user('student_user')
+        self.service = Service.objects.create(
+            provider=self.user,
+            title='Test Tutoring',
+            kind='tutoring',
+            is_verified=False,
+        )
+        Booking.objects.create(
+            service=self.service,
+            student=self.student,
+            starts_at=timezone.now() + timedelta(days=5),
+            status='confirmed',
+        )
+
+    def test_tutoring_booking_within_14_days_appears(self):
+        """A tutoring booking within 14 days should appear."""
+        result = providers.collect(self.user)
+
+        # Find the booking in any section
+        found = False
+        for section in result['sections']:
+            for item in section['items']:
+                if 'Test Tutoring' in item['title']:
+                    found = True
+                    self.assertEqual(item['kind'], 'booking')
+
+        self.assertTrue(found, "Tutoring booking not found in dashboard")

@@ -6,9 +6,12 @@ from rest_framework.response import Response
 from moderation.permissions import feature_gate
 from .providers import collect
 
+# The feature gate for the work dashboard
+_WorkDashboardGate = feature_gate('work_dashboard')
+
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, _WorkDashboardGate])
 def work_dashboard(request):
     """GET /api/work/ — all work items waiting on me, aggregated from every module.
 
@@ -23,8 +26,5 @@ def work_dashboard(request):
 
     Gated by feature_gate('work_dashboard').
     """
-    if not feature_gate('work_dashboard', user=request.user):
-        return Response({'detail': 'Feature not enabled'}, status=403)
-
     result = collect(request.user)
     return Response(result)
