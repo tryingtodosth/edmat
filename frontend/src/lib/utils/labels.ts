@@ -727,3 +727,22 @@ export const TICKET_BLOCK_REASONS: Record<string, () => string> = {
 	not_registered: m.tickets_blocked_notRegistered, // "You have not registered for this event."
 	not_yours: m.tickets_blocked_notYours // "This is somebody else's ticket."
 };
+
+// work — personal work dashboard (backend/work/builtin.py mirrors this, house rule 13)
+export const WORK_KIND_LABELS: Record<string, () => string> = {
+	task: m.work_kind_task, // "Task"
+	need_application: m.work_kind_needApplication, // "Help wanted application"
+	need_decision: m.work_kind_needDecision, // "Help wanted decision"
+	plan_step: m.work_kind_planStep, // "Plan step"
+	plan_suggestion: m.work_kind_planSuggestion, // "Plan suggestion"
+	poll: m.work_kind_poll, // "Poll"
+	event: m.work_kind_event, // "Event"
+	course_request: m.work_kind_courseRequest, // "Course request"
+	proposal: m.work_kind_proposal, // "Material proposal"
+	shift: m.work_kind_shift, // "Shift"
+	booking: m.work_kind_booking // "Tutoring booking"
+};
+
+export function workKindLabel(kind: string): () => string {
+	return WORK_KIND_LABELS[kind] ?? (() => kind);
+}

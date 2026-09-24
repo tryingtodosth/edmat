@@ -9482,3 +9482,36 @@ different format from the panel, and "1 versions" in the roster.
   never sees a contributor whose only work is a pending proposal — correct, and worth knowing.
 - **`ProjectPanel.svelte` is gone**; the project page (`/material-projects/[id]`) is unchanged and
   still the place for the catalogue and the editor.
+
+## 17BI.F — work dashboard (2026-09-24, branch `mgmt/f-work`)
+
+Personal work aggregator: one page showing every work item waiting on me, aggregated from every
+module. No models, no migrations. Six built-in providers read what exists today (events I host or
+staff, events I'm attending, courses with pending requests, materials with pending versions, shifts
+in the next 14 days, tutoring bookings coming up), each behind its own feature flag. A provider
+registry lets steps B–E wire in their own rows at integration (MANAGEMENT-BRIEF.md §5) with a
+two-line registration. A provider that raises is caught, logged and reported as unavailable
+(house rule 10: flag it, don't fake it) — never fatal.
+
+### Verified
+
+Backend: `manage.py test work config` 14 pass (anonymous gets 401, raising provider isolated and
+named, off-flag provider skipped, response structure correct, event hosting appears, old events
+excluded, future events too far excluded). `manage.py check` clean. `makemigrations --check`
+clean (no migrations for this app). Frontend: `npm run check` 0/0, eslint and prettier clean on
+every touched file, `npm run build` clean. i18n: en/pl messages have identical key sets (verified
+by Python script), every `m.*()` call has its `// "Original text"` comment. Browser: 
+`e2e/work.mjs` 7/7 (Kasia login, create test event, page title, section visible, items visible,
+delete event, no errors). Screenshot looks at `/work` with the seeded event visible, the section
+renders, urgency dot and status all draw correctly.
+
+### Left open
+
+- **No HISTORY or test.md entries from steps A–E yet.** Five branches are building in parallel; their
+  sections will land during integration.
+- **The frontend page is fully styled but lacks live theming.** Colour tokens are placeholders
+  (`--color-error-light`, `--color-badge`, etc.) that should map to the design system once Piotr
+  names them.
+- **No per-section filtering or preferences.** The page is read-only; future work could add a
+  settings panel (which sections to show, sort order, etc.).
+

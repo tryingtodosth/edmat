@@ -90,6 +90,7 @@
 	// Management flags (MANAGEMENT-BRIEF.md §4 rule 4): one `let can… = $derived(can('…'))` line per
 	// step, appended directly below this comment in step order (A organizations, B tasks, C needs,
 	// D plans, E decisions, F work_dashboard). Nothing else in this block is touched by a step.
+	let canWork = $derived(can('work_dashboard'));
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -479,6 +480,12 @@
 	<!-- Management account-menu marker (MANAGEMENT-BRIEF.md §4 rule 4): steps append directly below
 	     this comment, in step order — A "My organisations", B "My tasks", F "My work" — each behind
 	     its own flag. -->
+	{#if canWork}
+		<a role="menuitem" class={itemClass} href={resolve('/work')} {onclick}>
+			{m.work_title()}
+			<!-- "My work" -->
+		</a>
+	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
 	{#if canIssues}
 		<button
