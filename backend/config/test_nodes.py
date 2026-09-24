@@ -11,6 +11,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from config import nodes
+from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_material, make_user
 
 
@@ -36,6 +37,8 @@ def _course(instructor, **kwargs):
 
 
 class NodeDispatchTests(TestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.host = make_user('host')
         self.other = make_user('other')
@@ -53,7 +56,9 @@ class NodeDispatchTests(TestCase):
         self.assertTrue(nodes.is_node_staff(self.host, event))
         self.assertTrue(nodes.can_manage_node(self.host, event))
         self.assertFalse(nodes.can_manage_node(self.other, event))
-        self.assertIn(self.host, list(nodes.node_staff_users(event)))
+        staff = list(nodes.node_staff_users(event))
+        self.assertIn(self.host, staff)
+        self.assertEqual(len(staff), len(set(staff)), 'the host must not be listed twice')
 
     def test_draft_event_does_not_exist_for_a_stranger(self):
         event = _event(self.host, status='draft')
@@ -95,6 +100,8 @@ class NodeDispatchTests(TestCase):
 
 
 class NodeEndpointTests(TestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.host = make_user('host')
         self.other = make_user('other')
