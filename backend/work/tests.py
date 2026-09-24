@@ -334,3 +334,34 @@ class TutoringProviderTests(TestCase):
                     self.assertEqual(item['kind'], 'booking')
 
         self.assertTrue(found, "Tutoring booking not found in dashboard")
+
+
+class ManagementIntegrationTests(TestCase):
+    """The wiring `work/integrations.py` does at integration (MANAGEMENT-BRIEF.md §5): each
+    management section is a registered provider behind its own app's kill switch, and a fresh
+    user gets every one of them back as an empty section rather than as an error."""
+
+    databases = set(all_log_shards()) | {'default'}
+
+    MANAGEMENT_SECTIONS = {
+        'task': 'tasks',
+        'need_application': 'needs',
+        'need_decision': 'needs',
+        'plan_step': 'plans',
+        'plan_suggestion': 'plans',
+        'poll': 'decisions',
+    }
+
+    def test_management_sections_are_registered_behind_their_own_flags(self):
+        for key, flag in self.MANAGEMENT_SECTIONS.items():
+            with self.subTest(section=key):
+                self.assertIn(key, providers._REGISTRY)
+                self.assertEqual(providers._REGISTRY[key][0], flag)
+
+    def test_management_providers_run_clean_for_a_fresh_user(self):
+        user = make_user('fresh')
+        result = providers.collect(user)
+        self.assertEqual(result['unavailable'], [])
+        keys = [section['key'] for section in result['sections']]
+        for key in self.MANAGEMENT_SECTIONS:
+            self.assertIn(key, keys)
