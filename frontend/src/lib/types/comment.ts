@@ -44,6 +44,11 @@ export type CommentTargetType =
 	// version page is addressed by (project id, version number). Linking one would need the server
 	// to resolve that pair, so the row renders without a link rather than with a broken one.
 	| 'materialVersion'
+	// The cooperation thread of one material's project (materials_coop/) — the team's room,
+	// hung off the PROJECT so it survives every version. Reachable through
+	// `/materials/{id}/coop/comments/`; private in the backend's per-type table for the same
+	// reason a version's thread is: under a `request` or `closed` policy it is not a public room.
+	| 'materialProject'
 	// The talk about ONE article of a concept (concepts/). Named for the article and not the
 	// concept, because that is what the thread hangs off: a concept has as many articles as people
 	// have written, for as many audiences, and a question about the primary-school wording has no

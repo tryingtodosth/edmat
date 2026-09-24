@@ -24,6 +24,7 @@ export * from './profileExtras';
 export * from './gallery';
 export * from './governorApplication';
 export * from './materialProject';
+export * from './materialsCoop';
 export * from './exerciseMaterialLink';
 export * from './concept';
 export * from './venue';

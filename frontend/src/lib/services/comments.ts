@@ -35,6 +35,11 @@ function targetPath(targetType: CommentTargetType, targetId: string): string {
 	if (targetType === 'materialVersion') {
 		return `/material-versions/${encodeURIComponent(targetId)}/comments/`;
 	}
+	// The cooperation thread (materials_coop/) is addressed by the MATERIAL's id — the id the
+	// page has — even though the backend hangs the comments off the project.
+	if (targetType === 'materialProject') {
+		return `/materials/${encodeURIComponent(targetId)}/coop/comments/`;
+	}
 	// One concept article's own discussion (concepts/). Nested under the ARTICLE, not the concept:
 	// several people may write their own article for the same audience, and each one's thread is
 	// about that text.

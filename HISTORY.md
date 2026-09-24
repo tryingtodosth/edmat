@@ -9323,3 +9323,115 @@ is asserted from both sides in the tests — the whole surface 403s while check-
   tickets this will not happen; at conference scale it is worth a dedicated code column.
 - **No multi-day re-entry policy.** A two-day event's second morning is an ordinary re-entry, and
   nothing distinguishes "came back on day two" from "went out for coffee".
+
+## 17BH. Materials coop: the cooperation overview of a material, and how open it is (✅ built, full stack, 2026-09-24)
+
+Piotr asked for a new module, "materials-coop", designed from 2donet's project and content
+layouts: a component on a material's page giving an overview of the cooperation around it —
+"let's test more than one design by allowing users to switch between them from a kebab in the
+top right" — and a page at the material's permalink plus `/coop`, with comments, built on
+`coauthoring` and reusing the exercise page's comment component rather than a second one. And the
+requirement that shaped the data: "sometimes a material can be visible to everyone, but open for
+cooperation only to the few (e.g. editors)".
+
+### What was already there, and what was not
+
+`coauthoring` (§17BC) already owned the project, its team, invites, join requests and the immutable
+versions. What it had no word for was the last sentence above: on a *published* material, proposing
+was open to every signed-in account by construction (`propose_block_reason`), and `join_block_reason`
+answered `published` — a published material "takes improvements, not applicants". So a team that
+wanted its material public but its editing private had no way to say so. That is the one piece of
+state this module adds; everything else in it is derived.
+
+### The backend: one row, one rule module, one derived overview
+
+A new app `materials_coop`, hung off `coauthoring.MaterialProject` by a `OneToOneField` of its own —
+the shape the conference layer used to grow seven apps off `events.Event` without touching its
+schema — rather than columns on the project. `CoopSettings` carries a **policy** (`open` | `request`
+| `closed`) and a **welcome note**. A project with no row is `open`, which is what every one of the
+~740 backfilled corpus projects behaved like before, so the default is the absence of a row and there
+is no data migration.
+
+**The policy is a rule, not a badge.** `policy.py` is the one place that says what the three words
+mean, and `coauthoring.access` asks it (a lazy import, the way that module already imports its own
+models) on the two write paths that already existed: an outsider's `POST …/versions/` is refused
+`400 members_only` under `request` and `400 closed` under `closed`; `POST …/join-requests/` on a
+*published* project now takes an application under `request` (the only way in, once proposing is
+shut) and refuses `closed` in its own word — `published` stays the answer under `open`. A member is
+told `member` before the policy is ever consulted, so a co-author is never told a door is shut that
+they hold the key to. The overview's `can_*` read the same functions, so no button is drawn for a
+call that would be refused (house rule 6, and the serializer/`_switch_refusal` precedent in
+`coauthoring`).
+
+**The overview** (`overview.py`, `GET /api/materials/{id}/coop/`) is built from `coauthoring`'s rows
+and filtered per row through that app's own `can_view_version`: members with their contributions
+*recounted* over the versions the reader may see (house rule 5), outside contributors (an accepted
+proposal makes a contributor without making a co-author — a roster that dropped them would describe
+the team's opinion of itself rather than the material's history), the published and head versions,
+a timeline whose every event exists only because a visible row says it happened (house rule 9 — a
+draft's `version_drafted` appears for the team and not for a reader, with no second rule saying so),
+and stats. `join_requests_pending` is a manager's number, `pending_proposals` a member's; everybody
+else gets zero. `PATCH` takes the policy and the note (`can_manage` only; audited as
+`permission_change`, because that is what it is). Nested under the material rather than the project
+because the material's id is the one a reader has in hand; the project's is in the answer.
+
+**The team thread** (`…/coop/comments/`) is `community.Comment` on the *project* through the shared
+`comment_thread_response` helper, registered in `community/targets.py` as `materialProject` and in
+`PRIVATE_TARGET_TYPES`. It hangs off the project so it survives every version, and is a different room
+from the material's own public thread: readable by whoever can see the project, writable by the team,
+staff and the governor always, and by any signed-in reader only under `open` — because under `open`
+the reader weighing a proposal is exactly who the thread is for, and under `request`/`closed` it is
+the team's room. A test pins that a comment posted here does not appear in the material's thread.
+
+Same `coauthoring` kill switch, deliberately not a new key: the overview is a view onto that app's
+rows, and a killed co-authoring with a live cooperation page would be a page of links to 403s
+(house rule 3). The three-file flag trap was avoided by not adding a flag that could never be
+flipped on its own.
+
+### The frontend: one panel, three designs, one page
+
+From 2donet (Piotr's own project, so nothing was off limits) three shapes were ported, not copied:
+its `RosterList` + `ProjectCard` metrics strip, its content-history timeline, and its dashboard
+tile grid (`DashboardBox`, `GridLayoutA`'s members tile, `GridLayoutB`'s avatar stack), plus the
+deterministic hue-from-id initials avatar from its layout prototype. All in `lib/components/coop/`:
+
+- **`CoopPanel`** on `/materials/[id]`, in the slot `ProjectPanel` had (it absorbed that component,
+  keeping its action — "Improve this material" opening `VersionEditor` inline — and its class names,
+  which `e2e/coauthoring.mjs` reads). A header with the policy badge and a `MeatballsMenu` whose items
+  are "Show as: Team / Timeline / Tiles"; the choice is a per-viewer convenience in `localStorage`
+  (wrapped, so a private window gets the default). `CoopRosterView` (rows: avatar, name, role pill,
+  "N saved · M published", then the stats strip), `CoopTimelineView` (a dotted rail, coloured by kind,
+  linking each event to its version page), `CoopTilesView` (Status / Team / Recently / Open).
+- **`/materials/[id]/coop`** — the same overview at full size with the welcome note, under five views
+  in the URL (`?view=`, through the shared `Tabs`): Overview, Team (the roster, then for a manager
+  `MembersPanel` and `InvitesPanel`, and for everybody `JoinRequestsPanel` — all three reused from
+  `coauthoring`, none rewritten), History (timeline + `VersionList`), Discussion (`DiscussionThread`,
+  the exercise page's component, with `canPost` from the server and the reason line when refused),
+  Settings (managers only: three radios with a sentence each, the note). Every `can*` is the server's.
+- Types in `types/materialsCoop.ts`, the seam in `services/materialsCoop.ts`, the `materialProject`
+  arm in `services/comments.ts`, mappers appended; `ProposeBlockReason` gained `members_only` and
+  `closed`, `JoinBlockReason` gained `closed`, each with its sentence in both catalogues.
+
+### Verified
+
+Backend: `manage.py test materials_coop coauthoring community` — 269 OK; `check` and
+`makemigrations --check` clean. Frontend: `npm run check` 0/0, eslint and prettier clean on every
+touched file, `npm run build` clean, en/pl 3211 keys identical. Browser: `e2e/materials-coop.mjs`
+47/47 with zero console errors, and `e2e/coauthoring.mjs` re-run 52/52 against the new panel.
+Screenshots looked at (`e2e/screenshots/coop-*.png`): the three designs on the material page, the
+page's overview, the owner's team view with the application queue, the settings form. Two things
+were fixed from looking rather than from any assertion — the page header drew its date in a
+different format from the panel, and "1 versions" in the roster.
+
+### Left open
+
+- **No notification for a policy change or a coop-thread reply.** A co-author finds out by looking.
+  Both are one `notify()` plus a type — the three-file change `notifications/CLAUDE.md` describes.
+- **The tiles' "Recently" tile truncates long names** to one line; fine on a laptop, worth a wrap on
+  a phone once somebody looks at it there.
+- **No per-material default design.** The kebab choice is per viewer; a team cannot say "show this
+  one as a timeline" to everybody. It would be one more field on `CoopSettings`.
+- **The roster's outside contributors are computed from visible versions only**, so a stranger
+  never sees a contributor whose only work is a pending proposal — correct, and worth knowing.
+- **`ProjectPanel.svelte` is gone**; the project page (`/material-projects/[id]`) is unchanged and
+  still the place for the catalogue and the editor.

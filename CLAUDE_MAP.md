@@ -142,6 +142,16 @@ staff/branch governors review only a project's first publication and proposals o
 `materialise` through `materials/publish.py create_material`). Kill switch `coauthoring`; creating a new material
 still answers to `material_submissions`. Spec: `COAUTHORING-BRIEF.md`; write-up: `HISTORY.md` §17BC.
 
+### `materials_coop` — the cooperation overview of a material, and its policy (2026-09-24)
+One `CoopSettings` row per `coauthoring.MaterialProject` (`policy` open | request | closed, `welcome_note`), a rule
+module `policy.py` that `coauthoring.access` consults on the propose and join paths, and a derived overview
+(`overview.py`: members with recounted contributions, outside contributors, a per-row-visible timeline, stats)
+served at `GET|PATCH /api/materials/{id}/coop/`; the team thread `…/coop/comments/` is `community.Comment` on
+the project (`materialProject`, private). Frontend: `lib/components/coop/` — `CoopPanel` on the material page
+(replaced `ProjectPanel`) with a kebab switching three designs ported from 2donet (roster / timeline / tiles),
+and the page `/materials/[id]/coop` (overview, team, history, discussion, settings). Same `coauthoring` switch.
+Write-up: `HISTORY.md` §17BH.
+
 ### `concepts` — wiki articles per audience, built from blocks (2026-09-23)
 Models: `Concept` (a slug, branches, tags — **no text of its own**), `ConceptArticle` (one written take for one
 `(audience, locale)`; several people may each write their own for the same pair — a pool of peers, the `SolutionEntry`

@@ -270,6 +270,7 @@ node e2e/education-auth.mjs
 node e2e/material-claims.mjs
 node e2e/material-claims-rework.mjs   # E2E_BASE=http://localhost:5173; signs in as ola@edmat.example
 node e2e/coauthoring.mjs              # co-authoring end to end; kasia/ola/michał/julia; leaves its scratch projects (no delete endpoint)
+node e2e/materials-coop.mjs           # the cooperation overview: panel designs, /coop page, policy, team thread, switch; kasia/ola/julia; leaves its scratch material
 node e2e/exercise-material-links.mjs  # exercises linked to materials; ola on material 1 + exercise 2; removes its own link
 node e2e/concepts.mjs                 # concepts end to end; needs seed_demo_users + seed_concepts; leaves its scratch concept (no delete endpoint)
 node e2e/course-claims.mjs            # E2E_COURSE=<public course id with a subject branch>
@@ -349,6 +350,20 @@ Run with `E2E_BASE` + `E2E_API` set (8012/5183 matched `frontend/.env.e2e` on th
 contexts (leaked SSE streams exhaust Chromium's per-origin pool); non-2xx responses are recorded with their URL and only
 the deliberate 404/409/gate refusals forgiven; 17 screenshots in `e2e/screenshots/concepts-*.png`. Leaves its scratch
 concept behind (no delete endpoint). Three consecutive clean runs on 2026-09-23.
+
+**`e2e/materials-coop.mjs` (47 checks)** — the cooperation overview of a material (`HISTORY.md` §17BH).
+Kasia (staff, API only) publishes a scratch material `e2e-coop-<stamp>` in one request, adds ola and
+hands it over. Julia, signed in but a stranger, reads the panel on the material page (version line,
+policy badge, the two-row roster), switches it to the timeline and the tiles from its kebab and sees
+the choice survive a reload; follows "Cooperation page" to `/materials/<id>/coop`, walks Overview /
+Team / History / Discussion, and posts in the team thread (which the material's public thread does
+not receive). Ola sets the policy to "by request" with a welcome note; julia's panel then refuses her
+in words, the API refuses her proposal with `members_only`, the team view offers "Ask to join" and she
+asks; the thread has no composer for her any more. Ola sees the Team tab's badge, the application,
+accepts it, and the roster grows to three. Finally the `coauthoring` switch is turned off as kasia
+and checked as julia: no panel, the unavailable notice on the page, 403 from the API; and back on.
+Screenshots `e2e/screenshots/coop-*.png`. No cleanup for the material (no delete endpoint); the
+switch and both accounts' `content_locales` are restored.
 
 **`e2e/coauthoring.mjs` (52 checks)** — co-authoring a material end to end (`HISTORY.md` §17BC),
 four seeded people in four browser contexts. Kasia (staff, by API token) makes sure `coauthoring` and

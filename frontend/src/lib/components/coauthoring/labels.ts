@@ -67,7 +67,10 @@ export const PROPOSE_BLOCK_LABELS: Record<ProposeBlockReason, () => string> = {
 	member: m.coauth_block_member, // "You are a co-author here, so edit the material instead of proposing a change to it."
 	not_published: m.coauth_block_not_published, // "Nothing has been published here yet, so there is nothing to improve."
 	removed: m.coauth_block_removed, // "This material was taken down, so it cannot be changed."
-	pending_exists: m.coauth_block_pending_exists // "Your earlier proposal is still waiting for a decision."
+	pending_exists: m.coauth_block_pending_exists, // "Your earlier proposal is still waiting for a decision."
+	// The project's contribution policy (materials_coop/): two more doors, each with its own word.
+	members_only: m.coauth_block_members_only, // "Only co-authors change this material. You can ask to join the team."
+	closed: m.coauth_block_closed // "Only co-authors change this material, and the team is not taking applications."
 };
 
 export const JOIN_BLOCK_LABELS: Record<JoinBlockReason, () => string> = {
@@ -76,7 +79,8 @@ export const JOIN_BLOCK_LABELS: Record<JoinBlockReason, () => string> = {
 	member: m.coauth_joinBlock_member, // "You are already a co-author here."
 	minor: m.coauth_joinBlock_minor, // "An account belonging to someone under 18 cannot join a project. …"
 	pending_exists: m.coauth_joinBlock_pending_exists, // "You have already asked, and nobody has decided yet."
-	published: m.coauth_joinBlock_published // "This material is already published, so it takes improvements rather than co-authors."
+	published: m.coauth_joinBlock_published, // "This material is already published, so it takes improvements rather than co-authors."
+	closed: m.coauth_joinBlock_closed // "The team of this material is not taking applications."
 };
 
 /**

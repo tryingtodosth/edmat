@@ -2692,3 +2692,137 @@ export function mapConceptQueueRow(json: RawConceptQueueRow): ConceptQueueRow {
 		branchNames: json.branch_names ?? []
 	};
 }
+
+// --- materials_coop: the cooperation overview ------------------------------------------------------
+
+import type {
+	CoopMember,
+	CoopOverview,
+	CoopPolicy,
+	CoopPostBlockReason,
+	CoopStats,
+	CoopTimelineEvent,
+	CoopTimelineKind
+} from '$lib/types/materialsCoop';
+
+export interface RawCoopMember {
+	user_id: number;
+	display_name: string;
+	role: string | null;
+	added_at: string | null;
+	versions_count: number;
+	published_count: number;
+	last_active_at: string | null;
+}
+
+export interface RawCoopTimelineEvent {
+	kind: string;
+	at: string;
+	actor_id: number | null;
+	actor_display_name?: string;
+	version_id: number | null;
+	version_number: number | null;
+	label?: string;
+}
+
+export interface RawCoopStats {
+	versions_total: number;
+	published_count: number;
+	proposals_pending: number;
+	join_requests_pending: number;
+	members_count: number;
+	contributors_count: number;
+	comment_count: number;
+	first_published_at: string | null;
+	last_published_at: string | null;
+}
+
+export interface RawCoopOverview {
+	material_id: number | null;
+	project_id: number;
+	title?: string;
+	policy: string;
+	welcome_note?: string;
+	my_role: string | null;
+	can_edit: boolean;
+	can_manage: boolean;
+	can_propose: boolean;
+	propose_block_reason: string | null;
+	join_block_reason: string | null;
+	can_post: boolean;
+	post_block_reason: string | null;
+	published_version: RawMaterialVersionSummary | null;
+	head_version: RawMaterialVersionSummary | null;
+	members: RawCoopMember[];
+	contributors: RawCoopMember[];
+	versions: RawMaterialVersionSummary[];
+	pending_proposals: RawMaterialVersionSummary[];
+	stats: RawCoopStats;
+	timeline: RawCoopTimelineEvent[];
+}
+
+export function mapCoopMember(json: RawCoopMember): CoopMember {
+	return {
+		userId: String(json.user_id),
+		displayName: json.display_name ?? '',
+		role: (json.role ?? null) as ProjectMemberRole | null,
+		addedAt: json.added_at ?? null,
+		versionsCount: json.versions_count ?? 0,
+		publishedCount: json.published_count ?? 0,
+		lastActiveAt: json.last_active_at ?? null
+	};
+}
+
+function mapCoopTimelineEvent(json: RawCoopTimelineEvent): CoopTimelineEvent {
+	return {
+		kind: json.kind as CoopTimelineKind,
+		at: json.at,
+		actorId: idOrUndefined(json.actor_id) ?? null,
+		actorDisplayName: json.actor_display_name ?? '',
+		versionId: idOrUndefined(json.version_id) ?? null,
+		versionNumber: json.version_number ?? null,
+		label: json.label ?? ''
+	};
+}
+
+function mapCoopStats(json: RawCoopStats): CoopStats {
+	return {
+		versionsTotal: json.versions_total ?? 0,
+		publishedCount: json.published_count ?? 0,
+		proposalsPending: json.proposals_pending ?? 0,
+		joinRequestsPending: json.join_requests_pending ?? 0,
+		membersCount: json.members_count ?? 0,
+		contributorsCount: json.contributors_count ?? 0,
+		commentCount: json.comment_count ?? 0,
+		firstPublishedAt: json.first_published_at ?? null,
+		lastPublishedAt: json.last_published_at ?? null
+	};
+}
+
+export function mapCoopOverview(json: RawCoopOverview): CoopOverview {
+	return {
+		materialId: idOrUndefined(json.material_id) ?? null,
+		projectId: String(json.project_id),
+		title: json.title ?? '',
+		policy: (json.policy ?? 'open') as CoopPolicy,
+		welcomeNote: json.welcome_note ?? '',
+		myRole: (json.my_role ?? null) as ProjectMemberRole | null,
+		canEdit: Boolean(json.can_edit),
+		canManage: Boolean(json.can_manage),
+		canPropose: Boolean(json.can_propose),
+		proposeBlockReason: (json.propose_block_reason ?? null) as ProposeBlockReason | null,
+		joinBlockReason: (json.join_block_reason ?? null) as JoinBlockReason | null,
+		canPost: Boolean(json.can_post),
+		postBlockReason: (json.post_block_reason ?? null) as CoopPostBlockReason | null,
+		publishedVersion: json.published_version
+			? mapMaterialVersionSummary(json.published_version)
+			: null,
+		headVersion: json.head_version ? mapMaterialVersionSummary(json.head_version) : null,
+		members: (json.members ?? []).map(mapCoopMember),
+		contributors: (json.contributors ?? []).map(mapCoopMember),
+		versions: (json.versions ?? []).map(mapMaterialVersionSummary),
+		pendingProposals: (json.pending_proposals ?? []).map(mapMaterialVersionSummary),
+		stats: mapCoopStats(json.stats),
+		timeline: (json.timeline ?? []).map(mapCoopTimelineEvent)
+	};
+}

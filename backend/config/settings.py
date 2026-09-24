@@ -165,6 +165,7 @@ INSTALLED_APPS = [
     # because it owns a team, an invite link and a review workflow — none of which a material had —
     # while `materials` keeps being the thing every existing read site already reads.
     'coauthoring',
+    'materials_coop',
     # The wiki-like pages for what exercises and materials are ABOUT, their per-(audience, locale)
     # articles and the links between them. Its own app rather than more of `taxonomy` because it is
     # not a position in the tree — a concept may sit under several branches or none — and rather

@@ -36,12 +36,28 @@ export type VersionScanStatus = 'skipped' | 'clean' | 'flagged';
 /** Why this person cannot propose a new version — a reason, never a boolean, so the refusal can
  *  say which of five completely different things happened (house rule 6). */
 export type ProposeBlockReason =
-	'authentication_required' | 'member' | 'not_published' | 'removed' | 'pending_exists';
+	| 'authentication_required'
+	| 'member'
+	| 'not_published'
+	| 'removed'
+	| 'pending_exists'
+	// The project's contribution policy (materials_coop/): `request` says "ask to join instead",
+	// `closed` says the team is not taking anyone.
+	| 'members_only'
+	| 'closed';
 
 /** Why this person cannot ask to join. `minor` is a rule, not a rejection: a minor may still
  *  propose a version, because a person always reads a proposal (COAUTHORING-BRIEF.md §0). */
 export type JoinBlockReason =
-	'authentication_required' | 'not_seeking' | 'member' | 'minor' | 'pending_exists' | 'published';
+	| 'authentication_required'
+	| 'not_seeking'
+	| 'member'
+	| 'minor'
+	| 'pending_exists'
+	| 'published'
+	// A published project whose policy is `closed` (materials_coop/). Under `request` a published
+	// project takes applications, so the reason is simply null there.
+	| 'closed';
 
 /** Why an invite link will not work — the same three `CourseInvite` already distinguishes, for the
  *  same reason: "expired" and "already used up" are different to the person holding the link. */

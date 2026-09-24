@@ -43,6 +43,7 @@ urlpatterns = [
     path('api/', include('sketches.urls')),
     path('api/', include('galleries.urls')),
     path('api/', include('coauthoring.urls')),
+    path('api/', include('materials_coop.urls')),
     path('api/', include('concepts.urls')),
     path('api/', include('cloakroom.urls')),
     path('api/', include('venues.urls')),
