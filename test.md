@@ -1474,3 +1474,26 @@ under `data-theme="dark"`; English at 390px with a `scrollWidth` overflow check;
 `tutoring` flag flipped off through the API as kasia and the page reloaded as a stranger — its card
 must be gone and seven remain — and flipped back. Zero console/page errors. Four screenshots in
 `e2e/screens/about-*.png`, meant to be looked at: the light, dark and phone renders were.
+
+**`backend/organizations/tests.py` (70 tests) and `frontend/e2e/organizations.mjs` (27 checks)** —
+management step A, organisations (`MANAGEMENT-BRIEF.md` §3.A, `HISTORY.md` §17BI.A). The Django
+suite is refusal-weighted and every class opens with who is told no and with which word: `minor`
+(founding is closed to an under-16), `last_owner` on both the remove and the *demote* path,
+`not_org_manager` / `not_org_owner`, `not_node_manager` and `not_linkable` on the link path,
+`already_linked`, `already_member`, `no_such_user` — plus a dissolved body being 404 to a stranger
+and open to its own roster, a link whose target the reader cannot see being left out of the list,
+the kill switch closing the whole surface for a signed-in non-staff caller while
+`/api/nodes/{kind}/{id}/` keeps answering, and the `work_items` provider's shape. Its last class is
+the node seam: `config/nodes.py` gained the `organization` kind in this step, so the four functions
+it dispatches to are exercised here rather than in `config/test_nodes.py`, which six parallel
+branches would otherwise all have appended to. Run it with
+`../.venv/bin/python3 manage.py test organizations config` from `backend/` (106 tests with the
+`config` half). The browser script founds an organisation through the real form, checks the
+directory's search narrows to exactly one card, links a course its owner runs and is refused **in
+words** when she tries somebody else's, proves the last owner cannot leave, finds the badge in the
+management panel on the course's own page, and then flips the `organizations` flag off **as a
+non-staff visitor** and checks that both header entries, the panel and the page all go while the
+course page keeps working. It leaves two tombstoned organisations behind on a real database, because
+dissolving is not a delete.
+
+    cd frontend && E2E_BASE=http://localhost:5221 E2E_API=http://127.0.0.1:8121 node e2e/organizations.mjs

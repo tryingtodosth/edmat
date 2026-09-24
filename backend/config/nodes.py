@@ -30,14 +30,14 @@ from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth import get_user_model
 
-# kind -> (app_label, model). `organization` is step A's line (MANAGEMENT-BRIEF.md §3.A): the app is
-# registered empty by the prep, and its rule module does not exist until A builds it, so the kind
-# stays out of the registry until then — nothing dispatches to a module that is not there.
+# kind -> (app_label, model). `organization` is step A's line (MANAGEMENT-BRIEF.md §3.A), live since
+# that step built `organizations/access.py` — the four `_org(...)` dispatches below resolve into it
+# lazily, so the import order between this module and that app never matters.
 NODE_KINDS = {
     'course': ('courses', 'course'),
     'event': ('events', 'event'),
     'material': ('materials', 'material'),
-    # 'organization': ('organizations', 'organization'),  # uncommented by step A
+    'organization': ('organizations', 'organization'),  # step A (organizations/access.py)
 }
 NODE_KIND_OF_MODEL = {v: k for k, v in NODE_KINDS.items()}
 

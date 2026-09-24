@@ -16,6 +16,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	// Management imports (MANAGEMENT-BRIEF.md §4 rule 4): each step adds ONE import line directly
 	// below this comment, in step order, and touches nothing else in this script block.
+	import OrganizationsPanel from '$lib/components/organization/OrganizationsPanel.svelte';
 
 	let { nodeKind, nodeId }: { nodeKind: NodeKind; nodeId: string } = $props();
 
@@ -47,6 +48,7 @@
 		     lines. F mounts nothing here (its surface is /work); its marker stays so the file has six. -->
 
 		<!-- management: organizations (A) -->
+		<OrganizationsPanel {node} />
 
 		<!-- management: tasks (B) -->
 

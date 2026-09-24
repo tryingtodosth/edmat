@@ -727,3 +727,62 @@ export const TICKET_BLOCK_REASONS: Record<string, () => string> = {
 	not_registered: m.tickets_blocked_notRegistered, // "You have not registered for this event."
 	not_yours: m.tickets_blocked_notYours // "This is somebody else's ticket."
 };
+
+// ---- Organisations (management step A, MANAGEMENT-BRIEF.md §3.A) ---------------------------------
+//
+// A hand-maintained mirror of `ORGANIZATION_KIND_CHOICES`, `ORGANIZATION_ROLE_CHOICES` and
+// `LINK_KIND_CHOICES` in **backend/organizations/models.py**, which names this file back — house
+// rule 13's "say so in BOTH files", because a value added on one side and not the other is exactly
+// how a filter starts showing a blank option.
+
+export const ORGANIZATION_KIND_LABELS: Record<string, () => string> = {
+	university: m.orgs_kind_university, // "University"
+	faculty: m.orgs_kind_faculty, // "Faculty or institute"
+	school: m.orgs_kind_school, // "School"
+	student_circle: m.orgs_kind_studentCircle, // "Student circle"
+	ngo: m.orgs_kind_ngo, // "Non-governmental organisation"
+	company: m.orgs_kind_company, // "Company"
+	other: m.orgs_kind_other // "Other"
+};
+
+export const ORGANIZATION_ROLE_LABELS: Record<string, () => string> = {
+	owner: m.orgs_role_owner, // "Owner"
+	admin: m.orgs_role_admin, // "Administrator"
+	member: m.orgs_role_member // "Member"
+};
+
+export const ORGANIZATION_LINK_KIND_LABELS: Record<string, () => string> = {
+	runs: m.orgs_linkKind_runs, // "Runs"
+	supports: m.orgs_linkKind_supports // "Supports"
+};
+
+/** The management node kinds (`config/nodes.py`'s `NODE_KINDS`), for the "link something" picker and
+ *  for a link's own row. Kept here rather than in `types/node.ts` for the reason this whole file
+ *  exists: a label is a message, and a type is not. */
+export const NODE_KIND_LABELS: Record<string, () => string> = {
+	course: m.orgs_node_course, // "Course"
+	event: m.orgs_node_event, // "Event"
+	material: m.orgs_node_material, // "Material"
+	organization: m.orgs_node_organization // "Organisation"
+};
+
+/** Why the API said no. Every word `backend/organizations/access.py` can answer with has a sentence
+ *  here — a refusal that carries its reason (house rule 6) is only worth carrying if the frontend
+ *  has a line for each one. */
+export const ORGANIZATION_BLOCK_LABELS: Record<string, () => string> = {
+	minor: m.orgs_blocked_minor, // "You have to be 16 or over to found an organisation."
+	last_owner: m.orgs_blocked_lastOwner, // "An organisation needs at least one owner. Make somebody else an owner first."
+	not_org_manager: m.orgs_blocked_notOrgManager, // "You do not run this organisation."
+	not_org_owner: m.orgs_blocked_notOrgOwner, // "Only an owner can do this."
+	not_node_manager: m.orgs_blocked_notNodeManager, // "You do not run the thing you are linking, and both sides have to agree."
+	not_linkable: m.orgs_blocked_notLinkable, // "Only a course, an event or a material can be linked."
+	already_linked: m.orgs_blocked_alreadyLinked, // "This is already linked to this organisation."
+	already_member: m.orgs_blocked_alreadyMember, // "This person is already on the roster."
+	no_such_user: m.orgs_blocked_noSuchUser // "There is no account with that id."
+};
+
+/** The one lookup every organisation surface uses, so that an unknown word is still a sentence
+ *  rather than a raw token on the screen. */
+export function organizationBlockLabel(reason: string): string {
+	return (ORGANIZATION_BLOCK_LABELS[reason] ?? m.orgs_blocked_generic)(); // "That did not work."
+}
