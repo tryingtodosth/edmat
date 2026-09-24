@@ -20,8 +20,7 @@ class DecisionRulesTests(TestCase):
         self.course = Course.objects.create(
             title='Test Course',
             description='A test course',
-            owner=self.manager,
-            audience='all',
+            instructor=self.manager,
         )
 
     def test_vote_block_reason_poll_closed(self):
@@ -149,10 +148,8 @@ class PollAPITests(APITestCase):
         self.course = Course.objects.create(
             title='Test Course',
             description='A test course',
-            owner=self.manager,
-            audience='all',
+            instructor=self.manager,
         )
-        self.course.staff.add(self.manager)
 
     def test_create_poll_requires_manager(self):
         """Non-managers cannot create polls."""
