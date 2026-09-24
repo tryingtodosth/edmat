@@ -1633,3 +1633,19 @@ The per-SECTION empty state (`work_section_empty` in `+page.svelte`) is not exer
 never returns a section with zero items in the first place (`work/providers.py: collect()` only
 appends a section `if items:`), so that branch is unreachable through the real API rather than a
 gap in the script.
+
+## Management integration — the merged tree (2026-09-24)
+
+The six management steps' own suites and scripts are described in their paragraphs above. At
+integration everything was run once more on `ux-and-whiteboard` with all six merged: the whole
+backend suite (**2 354 tests, OK** — allow ~9 minutes for the test database to build first, or pass
+`--keepdb`), `organizations tasks needs plans config` 231 OK, `work` 12 OK, the permission matrix
+(690 rows, one `subTest`-driven method — see `backend/events/test_permission_matrix.py`), svelte-check
+0/0, `npm run build`, and the e2e scripts one at a time against servers on 8128/5228 with
+`backend/cachedata/*` cleared before each: `organizations` 27, `tasks` 36, `needs` 21, `plans` 21,
+`polls` 15, `work` 15, `event-registration` 26, `coauthoring` 52, `materials-coop` 47,
+`material-claims` clean, `events-and-nav` 90/92 (the two pre-existing `events` kill-switch checks).
+Two scripts were taught to wait for the element they check (`work.mjs`, `events-and-nav.mjs`): the
+event page draws five management panels now, and a read the instant `goto` returns sees "Loading…".
+The first pass's 38 five-hundreds were `no such table: decisions_poll` — run `manage.py migrate` after
+merging a branch that adds a model, before starting the servers. `HISTORY.md` §17BI is the record.

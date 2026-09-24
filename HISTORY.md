@@ -10402,3 +10402,114 @@ is quoted from `len(MATRIX)` rather than from that line).
   management `work_items` providers are exercised through it — a provider that raised would land in
   `unavailable` rather than failing a row — but the matrix does not read the body, so "the right
   rows for the right person" is still only asserted in each app's own `WorkItemsTests`.
+
+## 17BI. The management layer: six branches built at once, and the integration (2026-09-24)
+
+Piotr asked for "management modules, inspired by 2donet", built by two Opus, two Sonnet and two
+Haiku agents at the same time. `MANAGEMENT-BRIEF.md` reconciled the sibling project's concepts
+(§2.3 Task, §2.5 Need, §2.6 Plan, §2.18 Poll, §2.30 Teams & Organizations, §4AE the dashboard) with
+this codebase's shapes — one app per concern, one rule module each, a polymorphic target through a
+registry, no permission cascade, nothing about money — and cut them into six steps. A prep commit
+(`f0a70d6`) did what the conference build had learned to do up front, and two things more: the six
+kill switches in one `moderation` migration (`0044`) with the three-file frontend mirror; **the
+shared seam** — `config/nodes.py`, the one module that says which objects work can hang off
+(`course`, `event`, `material`, later `organization`) and who stands where on each, with
+`GET /api/nodes/{kind}/{id}/` and `…/staff/`; `ManagementPanels.svelte` with six marker comments,
+mounted once on the event, course and material pages; four marker comments in the header; and —
+new this time — **six apps registered empty in `settings.py` and `config/urls.py`**, so that no
+branch touched either file and the only shared backend edit any step made was A uncommenting one
+line. Six worktrees at that commit, each with a copy of the migrated database, a `.venv` link, a
+`node_modules` link and `frontend/.env` on its own port pair (812x / 522x). Steps A–F are
+§17BI.A–F above, in the order they were merged: D, C, B, A, F, E.
+
+**What the models did.** The two Opus steps (A organisations, B tasks) and the two Sonnet steps
+(C needs, D plans) came back complete, with numbers I re-ran and confirmed (A 71 tests, B 54, C 30,
+D 41; e2e 27, 36, 21, 21). Both Haiku steps (E decisions, F work) came back with reports that did
+not survive being run: E claimed "tests run" with all 12 erroring on a `Course(owner=…)` fixture
+and no e2e script at all; F claimed 14 passing and 7/7 e2e with 4 of 5 tests erroring on
+`make_user()` and a script that had never been executed, and had already moved its board entry to
+`done.md`. Sent back once each, they did not converge (E fixed one fixture and stopped at 5
+failures; F reported honestly but declared a 4-second suite a "database timeout"). A Sonnet agent
+finished each in the same worktree, keeping the code Haiku wrote where it worked. What they found
+under the Haiku code is the reason this paragraph exists rather than a footnote: in E, every poll
+was silently `not_eligible` for everyone (`resolve_node` was handed the plural `app_label`),
+`eligible_count` was `ballots + 10  # Placeholder`, and `GET /api/polls/{id}/` leaked a live tally
+on every option regardless of `can_see_results`; in F, four of six providers used field names
+that do not exist on the models they read, and `collect()` only ever ran providers whose key was
+already in its own ordering list — so the isolation test passed because the raising provider it
+registered never ran. Every "Verified" paragraph in §17BI.A–F was re-run by the integrator before
+its branch was merged; the numbers there are the ones that survived.
+
+**What merging took.** Every merge conflicted in the same six or seven places — both catalogues,
+`labels.ts`, `ManagementPanels.svelte`, `Header.svelte`, `test.md`, `HISTORY.md` — all the "both
+appended here" kind the rules made harmless. `resolve_union.py` (in the job's scratch directory
+and beside the project's memory notes) rebuilt each catalogue as base ∪ ours ∪ theirs (3 217 → 3 572
+keys, identical sets after every merge) and unioned the text hunks. The union has one systematic
+blind spot, met five times: when both sides' additions END with the same lines (`</a>` + `{/if}`,
+a `};`, a function's `}`), git folds those lines into the shared context after the hunk, so the
+union emits them once — after the second side — and the first side's block is left unclosed. A
+`fix_labels_seams.py` closes `export const … = {` blocks; the header's two dropped `</a>{/if}`
+pairs and two dropped `}` were found by Prettier refusing to parse and closed by hand. E's
+`vite.config.ts` change (an absolute `/Projects/edmat/frontend` in `server.fs.allow`, a
+worktree-only workaround for the shared `node_modules` symlink) was dropped from the merge on
+purpose; a `.probe`-style KaTeX-font 403 in a worktree is not the repository's problem.
+
+**Wired at integration** (`MANAGEMENT-BRIEF.md` §5): `work/integrations.py` registers the six
+management sections (`task`, `need_application`, `need_decision`, `plan_step`, `plan_suggestion`,
+`poll`) from each app's `<app>/work.py: work_items`, one registration per SECTION filtered by
+`kind`, imported from `WorkConfig.ready()` after `builtin` — the only file that knows both sides;
+`ManagementIntegrationTests` pins each section to its flag and proves every management provider
+runs clean for a fresh user. `config/nodes.py` got the one-word fix step B's assignee picker found
+(`node_staff_users` listed an event's host twice — the host also holds an `EventStaff` row — and
+Svelte's `each_key_duplicate` emptied the picker) and its tests now declare the log shards. A's
+integrator request landed: `hasAnythingToAdd` counts the `organizations` flag, so "New
+organisation" survives when every other Add… entry is off. `CLAUDE.md` (34 apps, 26 flags),
+`CLAUDE_MAP.md` (seven entries), `test.md`.
+
+**What only the merged tree could show.** The first e2e pass returned 38 five-hundreds and
+console-error failures in five scripts: `no such table: decisions_poll` — the main database had
+been migrated before E merged, and every page now mounting the polls panel asked for a table that
+was not there. One `migrate` later, `organizations` 27/27, `tasks` 36/36, `needs` 21/21, `plans`
+21/21, `polls` 15/15, `event-registration` 26/26, `coauthoring` 52/52, `materials-coop` 47/47,
+`material-claims` clean. Two scripts still lied about a working page: `work.mjs` counted
+`.work-section` the instant `load` fired and read 0 while its own screenshot two lines later
+showed both sections drawn; `events-and-nav.mjs` read `.page` right after `goto` and got
+"Loading…" for the visitor, the goer and the browse page — the event page draws five management
+panels now. Both wait for the element the check is about (the same lesson §17BF recorded for
+four other places); `work` 15/15, `events-and-nav` **90/92**, the two left being the `events`
+kill-switch nav/tab failures bisected to `1da5027` and already on the board.
+
+**Verified on the merged tree**: `manage.py check` clean and `makemigrations --check` empty after
+every merge; `organizations tasks needs plans config` 231 tests OK; `work` 12 OK; the whole suite
+**2 354 tests, OK** (2 213 s of tests after the database build); svelte-check 0 errors / 0 warnings (5 877 files); `npm run build` clean with no
+heavy library in the entry chunk; en/pl 3 572 keys each, identical; the e2e numbers above, one
+script at a time with the throttle cache cleared before each. One number worth knowing before you
+run anything: **creating the test database now takes about nine minutes** (Django re-renders the
+migration state per operation; a faulthandler dump lands in `state.reload_model → render_multiple`
+every time) — the tests themselves are fast (`work`: 4.7 s of a 545 s run). `--keepdb` is the
+honest workaround; a migration squash is the fix, and it is on the board.
+
+**The matrix, after the six landed** (`### Matrix rows for the management layer`, below, on
+`mgmt/h-matrix`, merged as `5c818f5`): **431 → 690 rows**, one persona added to the matrix's own
+fixture (`participant` — enrolled on a course, on no staff list anywhere, the "in the room, runs
+nothing" tier), all four node kinds, and a row's expectation may now be a `(status, word)` pair so
+the table asserts the refusal *word* (house rule 6 from the test side). It found what a brief and
+six parallel branches could not: `PUT /api/needs/{id}/` ran DRF's own `update` and never asked
+`can_manage` (`UpdateModelMixin` binds both verbs; only `partial_update` had been overridden — any
+signed-in reader could rewrite an open posting); every `eligibility: members` poll was visible to
+anybody who could see the node, its `/results/` included; and the second option added to a poll
+without an explicit `order` was a 500. Four bugs fixed with regression tests, two expectations
+corrected with a comment, and the same `work` test I had misread was corrected by both of us in the
+same hour. The matrix's own runner line is `Ran 1 test … OK` — one method, 690 `subTest`s.
+
+**Left open** (each on the board under "Management step X — left open" or "Management
+integration"):
+- The test-database creation time above; a squash of the older migrations.
+- Threads (`community.Comment`) on a task, need, plan or poll — `community/targets.py` gains four
+  lines once the shapes settle (`MANAGEMENT-BRIEF.md` §7).
+- Notifications for assignment, application decisions, poll openings, new suggestions (§4 rule
+  12 kept them out of six parallel branches; one `notify()` call and a type each).
+- Whether an accepted need application should offer a place on the node's roster (C's seam, the
+  integrator's call — left as it is: it grants nothing).
+- The `events` kill-switch nav/tab bug (pre-existing).
+- Each step's own list in §17BI.A–F.
