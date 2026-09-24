@@ -94,6 +94,8 @@
 
 	let canTasks = $derived(can('tasks'));
 
+	let canOrganizations = $derived(can('organizations'));
+
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
 	// The waiting-decisions count, loaded whenever a moderator's navigation is drawn. An effect
@@ -117,7 +119,8 @@
 			canTutoring ||
 			canEvents ||
 			canConcepts ||
-			runsAVenue
+			runsAVenue ||
+			canOrganizations
 	);
 
 	function logout() {
@@ -437,6 +440,15 @@
 	{/if}
 	<!-- Management Add… marker (MANAGEMENT-BRIEF.md §4 rule 4): step A appends "New organisation"
 	     directly below this comment, behind its flag and for adults only. -->
+	{#if canOrganizations && !isMinor}
+		<!-- Founding a body means standing publicly behind it, which `accounts/minors.py` closes to an
+		     under-16 exactly as it closes event hosting — the link goes with the ability (house rule 3
+		     read the same way the Events entry reads it). -->
+		<a role="menuitem" class={itemClass} href={resolve('/organizations/new')} {onclick}>
+			{m.orgs_navAdd()}
+			<!-- "New organisation" -->
+		</a>
+	{/if}
 {/snippet}
 
 {#snippet accountItems(itemClass: string, onclick: () => void)}
@@ -501,6 +513,14 @@
 		<a role="menuitem" class={itemClass} href={resolve('/tasks')} {onclick}>
 			{m.tasks_myTitle()}
 			<!-- "My tasks" -->
+		</a>
+	{/if}
+	{#if canOrganizations}
+		<!-- Not gated on being an adult, unlike the Add… entry above: a minor may be ON a roster
+		     somebody else put them on, and this is the list of the bodies they are in. -->
+		<a role="menuitem" class={itemClass} href={resolve('/organizations')} {onclick}>
+			{m.orgs_navMine()}
+			<!-- "My organisations" -->
 		</a>
 	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
