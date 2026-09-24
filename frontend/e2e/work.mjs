@@ -127,6 +127,14 @@ try {
 	check('Page title is "My work"', (pageTitle ?? '').includes('My work'), pageTitle ?? '');
 
 	const sections = k.locator('.work-section');
+	// Wait for the first section rather than counting on arrival: the dashboard is fetched after
+	// mount, and on the integrated tree (six management apps behind the API) the answer lands
+	// after `load` — a count taken at once read 0 while the screenshot two lines later showed the
+	// sections drawn (frontend/e2e/CLAUDE.md: never assert on a fixed pause).
+	await sections
+		.first()
+		.waitFor({ timeout: 30000 })
+		.catch(() => {});
 	check('At least one work section visible', (await sections.count()) > 0);
 
 	// Scope to the section by its own heading — e2e/CLAUDE.md trap 6: never assert positionally.

@@ -388,6 +388,13 @@ check(
 console.log('\n[6] Somebody else says they are coming');
 await seat(goerPage, goerToken);
 await goto(goerPage, `/events/${eventId}`);
+// Wait for the title, not for a pause: the event page draws five management panels now
+// and `.page` still read "Loading…" the instant `goto` returned (integration, 2026-09-24).
+await goerPage
+	.getByText(TITLE)
+	.first()
+	.waitFor({ timeout: 30000 })
+	.catch(() => {});
 let goerView = await goerPage.locator('.page').innerText();
 check('a visitor sees the event', goerView.includes(TITLE));
 check(
@@ -424,6 +431,13 @@ await api(hostToken, `/events/${eventId}/`, {
 const otherPage = await person('other');
 await seat(otherPage, otherToken);
 await goto(otherPage, `/events/${eventId}`);
+// Wait for the title, not for a pause: the event page draws five management panels now
+// and `.page` still read "Loading…" the instant `goto` returned (integration, 2026-09-24).
+await otherPage
+	.getByText(TITLE)
+	.first()
+	.waitFor({ timeout: 30000 })
+	.catch(() => {});
 let otherView = await otherPage.locator('.page').innerText();
 check(
 	'a third person is offered the waiting list instead of a refusal (§17AN)',
@@ -463,6 +477,13 @@ await guestPage.evaluate(() =>
 	localStorage.setItem('edmat.contentLocales', JSON.stringify(['pl']))
 );
 await goto(guestPage, '/events');
+// Wait for the title, not for a pause: the event page draws five management panels now
+// and `.page` still read "Loading…" the instant `goto` returned (integration, 2026-09-24).
+await guestPage
+	.getByText(TITLE)
+	.first()
+	.waitFor({ timeout: 30000 })
+	.catch(() => {});
 const browse = await guestPage.locator('.page').innerText();
 check('a signed-out visitor can browse events', browse.includes(TITLE), browse.slice(0, 400));
 check('and is not offered the host button', !/Host an event/i.test(browse));
