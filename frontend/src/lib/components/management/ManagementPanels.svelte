@@ -18,6 +18,8 @@
 	// below this comment, in step order, and touches nothing else in this script block.
 	import PlansPanel from '$lib/components/plans/PlansPanel.svelte';
 
+	import NeedsPanel from '$lib/components/needs/NeedsPanel.svelte';
+
 	let { nodeKind, nodeId }: { nodeKind: NodeKind; nodeId: string } = $props();
 
 	let node = $state<NodeRef | null>(null);
@@ -52,6 +54,7 @@
 		<!-- management: tasks (B) -->
 
 		<!-- management: needs (C) -->
+		<NeedsPanel {node} />
 
 		<!-- management: plans (D) -->
 		<PlansPanel {node} />

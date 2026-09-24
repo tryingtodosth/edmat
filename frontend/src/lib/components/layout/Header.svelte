@@ -90,6 +90,7 @@
 	// Management flags (MANAGEMENT-BRIEF.md §4 rule 4): one `let can… = $derived(can('…'))` line per
 	// step, appended directly below this comment in step order (A organizations, B tasks, C needs,
 	// D plans, E decisions, F work_dashboard). Nothing else in this block is touched by a step.
+	let canNeeds = $derived(can('needs'));
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -342,6 +343,18 @@
 	{/if}
 	<!-- Management nav marker (MANAGEMENT-BRIEF.md §4 rule 4): step C appends its "Help wanted"
 	     link directly below this comment, behind its flag. No other step touches the nav. -->
+	{#if canNeeds}
+		<a
+			class="nav-link nav-link--needs"
+			href={resolve('/needs')}
+			aria-label={m.nav_needs()}
+			title={m.nav_needs()}
+			{onclick}
+		>
+			<span class="nav-link__icon" aria-hidden="true">{@render needsIcon()}</span>
+			<span class="nav-link__text">{m.nav_needs()}</span>
+		</a>
+	{/if}
 	{#if canTutoring}
 		<a
 			class="nav-link nav-link--services"
@@ -653,6 +666,26 @@
 	>
 		<path d="m12 4 10 4.5-10 4.5L2 8.5z" />
 		<path d="M6.5 11v4.5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V11" />
+	</svg>
+{/snippet}
+
+{#snippet needsIcon()}
+	<!-- Help wanted: a raised hand — deliberately not the money icon tutoring uses above (this
+	     platform never takes or mentions money, FINANCES.md). -->
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="M8 21v-7.5L4.6 9.9a1.6 1.6 0 0 1 2.2-2.3L8 8.7V4a1.4 1.4 0 0 1 2.8 0v6" />
+		<path d="M10.8 10V3.4a1.4 1.4 0 0 1 2.8 0V10" />
+		<path d="M13.6 10.2V4.6a1.4 1.4 0 0 1 2.8 0V11" />
+		<path d="M16.4 11.2 17.9 10a1.4 1.4 0 0 1 2 2l-2.9 3.3c-.7.9-1 1.9-1 3v2.7H8" />
 	</svg>
 {/snippet}
 
