@@ -1,7 +1,7 @@
 // Site issue reports — mirrors backend/issues/views.py's IssueViewSet.
 import { apiClient } from '$lib/api/client';
 import { mapIssue, type RawIssue } from '$lib/api/mappers';
-import type { Issue, IssueDraft, IssueStatus } from '$lib/types/issue';
+import type { Issue, IssueArea, IssueDraft, IssueSource, IssueStatus } from '$lib/types/issue';
 
 function query(params: Record<string, string | undefined>): string {
 	const entries = Object.entries(params).filter((e): e is [string, string] => Boolean(e[1]));
@@ -9,10 +9,22 @@ function query(params: Record<string, string | undefined>): string {
 }
 
 export async function getIssues(
-	filters: { status?: IssueStatus | ''; all?: boolean } = {}
+	filters: {
+		status?: IssueStatus | '';
+		/** Which product the report came from; '' is every product. */
+		source?: IssueSource | '';
+		/** Only meaningful with a source that has areas — the backend refuses a mismatched pair. */
+		area?: IssueArea;
+		all?: boolean;
+	} = {}
 ): Promise<Issue[]> {
 	const raw = await apiClient.get<RawIssue[]>(
-		`/issues/${query({ status: filters.status || undefined, all: filters.all ? '1' : undefined })}`
+		`/issues/${query({
+			status: filters.status || undefined,
+			source: filters.source || undefined,
+			area: filters.area || undefined,
+			all: filters.all ? '1' : undefined
+		})}`
 	);
 	return raw.map(mapIssue);
 }
@@ -28,6 +40,11 @@ export async function getIssueById(id: string): Promise<Issue | undefined> {
 export async function reportIssue(draft: IssueDraft): Promise<Issue> {
 	const raw = await apiClient.post<RawIssue>('/issues/', {
 		kind: draft.kind,
+		// The site's own modal never sets these: the backend defaults to 'site' with no area, which
+		// is what a report filed from here is. They are here so this one seam can file on behalf of
+		// another surface if it ever needs to.
+		source: draft.source,
+		area: draft.area,
 		title: draft.title,
 		body: draft.body,
 		context: {
@@ -35,7 +52,8 @@ export async function reportIssue(draft: IssueDraft): Promise<Issue> {
 			page_title: draft.context.pageTitle,
 			locale: draft.context.locale,
 			viewport: draft.context.viewport,
-			user_agent: draft.context.userAgent
+			user_agent: draft.context.userAgent,
+			role: draft.context.role
 		},
 		anonymous: draft.anonymous,
 		contact_email: draft.contactEmail,

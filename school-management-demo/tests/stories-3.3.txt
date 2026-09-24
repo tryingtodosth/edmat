@@ -1,0 +1,20 @@
+3.3.1 As a Principal, I want to register a sudden three-day sick leave of a physics teacher and trigger the automatic temporary substitute selection module for all lessons scheduled during this period.
+3.3.2 As a Principal, I want the algorithm to suggest physics teachers with free periods first, related subject teachers second, and supervision duty teachers as a last resort.
+3.3.3 As a Principal, I want to handle situations where an absent teacher's lesson is the first or last period for a class, allowing safe cancellation or rescheduling with parent notifications regarding schedule changes.
+3.3.4 As a Principal, I want to approve combining two classes into one lesson period in the school auditorium and assign this cover to a single teacher with automatic recalculation of pay rates.
+3.3.5 As a Principal, I want to publish the substitute schedule for the next day at a set time, ensuring changes are immediately reflected in the timetables of all affected students, teachers, and parents.
+3.3.6 As a Principal, I want to define a monthly settlement period and generate a report on overtime hours and conducted temporary cover lessons for each teaching staff member in accordance with the Teacher's Charter.
+3.3.7 As a Principal, I want to export the extra hours settlement statement in a format compatible with the school's HR and payroll system.
+3.3.8 As a Principal, I want to run a comprehensive system audit verifying the completeness of lesson topics and attendance entries across all school classes for the past week, generating a list of discrepancies with teacher names.
+3.3.9 As a Principal, I want to verify core curriculum completion across all subjects at the end of the semester, checking the completion percentage of planned thematic units.
+3.3.10 As a Principal, I want to invalidate an incorrectly confirmed classification grade upon request of the appeals committee, entering a new grade obtained via verification exam along with attaching committee meeting minutes.
+3.3.11 As a Principal, I want to assign acting homeroom teacher status to another teacher during an extended absence of the regular homeroom teacher while keeping full legal responsibility separation.
+3.3.12 As a Principal, I want to publish a global announcement requiring read confirmation for all parents and staff, blocking other views until acknowledgment.
+3.3.13 As a Principal, I want to review the work log of the psychologist and counselor, ensuring access to consultation statistics and support documents while restricting access to encrypted confidential notes.
+3.3.14 As a Principal, I want to monitor school-wide test load on students to identify classes with regular test accumulation beyond statutory limits.
+3.3.15 As a Principal, I want to approve a field trip plan submitted by the trip leader, automatically marking participating students as absent on trip in regular timetables and generating substitute assignments for chaperones.
+3.3.16 As a Principal, I want to inspect the complete audit log, filtering events by IP address, date, user ID, and edit/delete operations on grades and attendance.
+3.3.17 As a Principal, I want to generate an annual archive package of the e-logbook in XML and PDF format within 10 days after the end of the school year and sign it with a qualified electronic signature or electronic seal.
+3.3.18 As a Principal, I want to block an employee's account immediately upon employment termination, revoking active sessions across web and mobile apps.
+3.3.19 As a Principal, I want access to parent login statistics to identify households at risk of digital exclusion or lacking regular contact with the school.
+3.3.20 As a Principal, I want to manage global visibility settings for grade averages and class rankings, preventing peer comparison on parent accounts according to school policy.

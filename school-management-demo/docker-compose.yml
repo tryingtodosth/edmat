@@ -1,0 +1,32 @@
+# One school = one EdMat container. Optional: a self-hosted Jitsi Meet stack for the meetings module (see docs/VIDEO.md).
+services:
+  edmat:
+    build: .
+    ports: ["3000:3000"]
+    volumes: ["edmat-data:/data"]
+    environment:
+      TZ: "Europe/Warsaw"
+      EDMAT_DEMO: "0"            # "1" turns on the evaluator demo mode (role switch + feedback)
+      EDMAT_SECURE_COOKIES: "1"  # behind a TLS-terminating reverse proxy
+      EDMAT_BASE_PATH: ""        # e.g. "/dziennik" when mounted inside a larger EdMat site
+      EDMAT_SSO_SECRET: ""       # shared secret for /api/auth/sso hand-off from the host platform
+      EDMAT_JITSI_DOMAIN: ""     # e.g. meet.sp12.krakow.pl — the school's OWN Jitsi (empty = set it in Spotkania → Konfiguracja)
+      EDMAT_JITSI_APP_ID: ""     # must equal JWT_APP_ID on the Jitsi stack; empty = rooms without a JWT (lobby + passcode only)
+      EDMAT_JITSI_APP_SECRET: "" # must equal JWT_APP_SECRET on the Jitsi stack; never returned by any API
+      EDMAT_VIDEO_EVENT_SECRET: "" # shared secret for POST /api/meetings/:id/events (header X-EdMat-Video-Secret)
+    # /api/health is public and carries no school data: status, schema version, uptime.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+(process.env.EDMAT_BASE_PATH||'')+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s        # a large data file takes seconds to parse at startup
+    # SIGTERM reaches node (PID 1) and triggers the graceful stop: stop accepting, flush the store,
+    # drop the data-dir lock. Writing a 100 MB JSON document takes seconds — do not kill it sooner.
+    stop_grace_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+volumes:
+  edmat-data: {}

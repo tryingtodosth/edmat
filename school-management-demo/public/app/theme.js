@@ -1,0 +1,3 @@
+/* Theme before first paint (kept out of index.html so the CSP can stay script-src self). */
+// theme before first paint: saved choice, else system preference (prefers-contrast → hc)
+  try { var t = localStorage.getItem('edmat.theme'); if (!t) { t = matchMedia('(prefers-contrast: more)').matches ? 'hc' : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; } document.documentElement.dataset.theme = t; if (localStorage.getItem('edmat.reduceMotion') === '1') document.documentElement.dataset.reduceMotion = '1'; if (localStorage.getItem('edmat.textZoom')) document.documentElement.style.fontSize = localStorage.getItem('edmat.textZoom'); } catch (e) {}

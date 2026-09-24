@@ -1,0 +1,15 @@
+3.6.1 As a Student, I want to see a personalized dashboard upon login displaying today's timetable, upcoming tests, and homework due tomorrow.
+3.6.2 As a Student, I want to check my partial grades by subject with weight, category color, and average, guaranteed that I cannot see peers' grades.
+3.6.3 As a Student, I want to submit homework solutions as text files or smartphone photos, receiving a clear server receipt timestamp.
+3.6.4 As a Student, I want to check my current attendance status for today's lessons to verify correct attendance recording.
+3.6.5 As a Student, I want alerts about sudden lesson cancellations or room changes in advance to avoid waiting outside classrooms.
+3.6.6 As a Student, I want to check upcoming test dates and material scopes in the monthly calendar to verify compliance with advance notice rules.
+3.6.7 As a Student, I want to set educational goals in the progress module, receiving grade simulations required to achieve desired term grades.
+3.6.8 As a Student, I want to download study materials and presentations shared by teachers directly from the lesson history.
+3.6.9 As a Student, I want to message teachers about learning difficulties via internal chat without exposing private phone numbers or email addresses.
+3.6.10 As a Student, I want free access to check schedules and grades in the mobile app without subscription micropayments.
+3.6.11 As an Adult Student, I want permission to submit my own absence excuses, provided school regulations permit it.
+3.6.12 As an Adult Student, I want to object to parent access to my grades and attendance, triggering immediate block on guardian accounts.
+3.6.13 As a Student, I want library return deadline notifications for borrowed books prior to semester end.
+3.6.14 As a Student, I want to switch the app interface to dark mode to reduce eye strain during evening homework checks.
+3.6.15 As a Student, I want to navigate the logbook using dedicated keyboard shortcuts for full accessibility during temporary motor impairments.

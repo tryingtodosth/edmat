@@ -1,0 +1,22 @@
+{
+  "name": "edmat-school-management-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EdMat's single-school management demo: one Node process, zero dependencies, React 18 UMD + the EdMat design-system bundle. Lives inside the main repo so the site's own issue reporter can reach it.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "EDMAT_DATA=./data node server/index.js",
+    "seed": "node server/index.js --reseed --exit",
+    "test": "node --test tests/",
+    "checklist": "node scripts/checklist-status.js",
+    "smoke": "node scripts/smoke.js",
+    "start:blank": "EDMAT_SEED=blank node server/index.js",
+    "bench": "node --max-old-space-size=4096 scripts/bench.js",
+    "pilot": "node scripts/pilot.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}

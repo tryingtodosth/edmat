@@ -1,0 +1,100 @@
+{
+  "generatedAt": "2026-09-24T07:24:12.958Z",
+  "asOf": "2026-09-24",
+  "run": {
+    "pass": 549,
+    "fail": 1,
+    "skipped": 0,
+    "todo": 0,
+    "exit": 1,
+    "clean": false
+  },
+  "stories": {
+    "total": 145,
+    "covered": 144,
+    "open": 1
+  },
+  "sections": [
+    {
+      "id": "3.1",
+      "title": "Subject Teacher: Attendance, Grading, and Lesson Records",
+      "titlePl": "Nauczyciel Przedmiotowy: Frekwencja, Ocenianie i Dokumentacja Lekcji",
+      "total": 25,
+      "covered": 25,
+      "open": []
+    },
+    {
+      "id": "3.2",
+      "title": "Homeroom Teacher: Classification, Legal Documentation, and Certificate Generation",
+      "titlePl": "Wychowawca Klasowy: Klasyfikacja, Dokumentacja Prawna i Generowanie Świadectw",
+      "total": 20,
+      "covered": 20,
+      "open": []
+    },
+    {
+      "id": "3.3",
+      "title": "School Principal and Management: Substitutions, Overtime, and Pedagogical Supervision",
+      "titlePl": "Dyrekcja Szkoły i Kadra Kierownicza: Zastępstwa, Nadgodziny i Nadzór Pedagogiczny",
+      "total": 20,
+      "covered": 20,
+      "open": []
+    },
+    {
+      "id": "3.4",
+      "title": "Counselor, Psychologist, and Psychological-Pedagogical Support Team: IPET, WOPFU, and Sensitive Data",
+      "titlePl": "Pedagog, Psycholog i Zespół Pomocy Psychologiczno-Pedagogicznej: IPET, WOPFU i Dane Wrażliwe",
+      "total": 15,
+      "covered": 15,
+      "open": []
+    },
+    {
+      "id": "3.5",
+      "title": "School Registrar and System Administration: Records, SIO Integration, and Security",
+      "titlePl": "Sekretariat Szkoły i Administracja Systemowa: Ewidencja, Integracja SIO i Bezpieczeństwo",
+      "total": 15,
+      "covered": 15,
+      "open": []
+    },
+    {
+      "id": "3.6",
+      "title": "Student: Study Organization, Homework, and Student Rights",
+      "titlePl": "Uczeń: Organizacja Nauki, Zadania Domowe i Prawa Ucznia",
+      "total": 15,
+      "covered": 15,
+      "open": []
+    },
+    {
+      "id": "3.7",
+      "title": "Parent and Legal Guardian: Educational Oversight, e-Excuses, and Communication",
+      "titlePl": "Rodzic i Opiekun Prawny: Nadzór Edukacyjny, e-Usprawiedliwienia i Komunikacja",
+      "total": 15,
+      "covered": 15,
+      "open": []
+    },
+    {
+      "id": "3.8",
+      "title": "Complementary Modules: After-School Care, Cafeteria, Field Trips, and School Library",
+      "titlePl": "Moduły Komplementarne: Świetlica, Stołówka, Wycieczki i Biblioteka Szkolna",
+      "total": 10,
+      "covered": 10,
+      "open": []
+    },
+    {
+      "id": "3.9",
+      "title": "Non-Functional Requirements: Digital Accessibility (WCAG 2.1 AA), GDPR, Performance, and Security",
+      "titlePl": "Wymagania Niefunkcjonalne: Dostępność Cyfrowa (WCAG 2.1 AA), RODO, Wydajność i Bezpieczeństwo",
+      "total": 10,
+      "covered": 9,
+      "open": [
+        "3.9.1"
+      ]
+    }
+  ],
+  "withoutEvidence": [
+    {
+      "id": "3.9.1",
+      "reason": "test nie przeszedł",
+      "file": "39-nonfunctional.test.js"
+    }
+  ]
+}

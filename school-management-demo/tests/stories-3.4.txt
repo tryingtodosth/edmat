@@ -1,0 +1,15 @@
+3.4.1 As a School Psychologist, I want to create an Other Activities Log for students in social-emotional skills sessions, recording therapeutic goals and weekly meeting topics.
+3.4.2 As a Special Educator, I want to initiate collaborative creation of the WOPFU document for a student with special education needs, inviting assigned class teachers to edit.
+3.4.3 As a Special Educator, I want to prepare an IPET form, defining integrated teaching actions, psychological-pedagogical support forms, rehabilitation session hours, and external exam accommodations.
+3.4.4 As a Psychologist, I want to save a confidential intervention session note in the specialist notes module, ensuring asymmetric encryption accessible only to me and an authorized replacement.
+3.4.5 As a Psychologist, I want class data exports to XML by administration to exclude confidential therapy notes, including only formal attendance logs from the Other Activities Log.
+3.4.6 As a Speech Therapist, I want to record an individual speech therapy session, logging attendance, articulation exercises, and home practice recommendations visible exclusively on the parent's account.
+3.4.7 As a Support Teacher, I want to log daily implementation of IPET recommendations during subject lessons directly from the integrated class logbook view.
+3.4.8 As a Counselor, I want to generate a periodic evaluation of psychological-pedagogical support effectiveness for a student at the end of semester 1 and export it to PDF for the team meeting.
+3.4.9 As a Psychologist, I want to share only public psychological opinions or extracts from WOPFU/IPET with parents, excluding protected diagnostic test documentation.
+3.4.10 As a Counselor, I want to record Blue Card procedure or probation supervision for a student's family in the incident log with strict database-level access restrictions.
+3.4.11 As a Remedial Educator, I want to schedule compensatory learning sessions, ensuring the system flags time conflicts with mandatory student classes.
+3.4.12 As a Counselor, I want to log a community interview with a social welfare worker, attaching a password-protected scan of the official cover letter.
+3.4.13 As a Specialist, I want student IPET and WOPFU documentation to roll over automatically to the new school year with revision history.
+3.4.14 As a Psychologist, I want to send an encrypted request to a subject teacher for a report on student classroom functioning for assessment board evaluation.
+3.4.15 As a Counselor, I want real-time monitoring of attendance rates for social-welfare students, receiving alerts if 3 consecutive days are missed without parent notification.

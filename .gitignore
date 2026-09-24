@@ -82,3 +82,18 @@ gemini.md
 # Browser-check screenshots — looked at during a run, never part of the record.
 # 48 of them had been sitting untracked for weeks; this stops the next commit sweeping them in.
 frontend/e2e/screenshots/
+
+# Claude Code's per-machine permission choices. Personal to one checkout, never part of the record.
+.claude/settings.local.json
+
+# run.sh output when it is run with the log redirected (run-local.log) — a local run, not a record.
+run-local.log
+
+# school-management-demo/ runtime output. The demo is a Node process with a JSON store: `npm start`,
+# `npm test` and `npm run seed` write a whole school into data/ (names, grades, attendance and
+# guardian contacts — synthetic, but shaped exactly like the real thing), `npm run smoke` drops a
+# screenshot per screen into smoke-out/, and the retention job writes backup/. None of it is source.
+school-management-demo/data/
+school-management-demo/smoke-out/
+school-management-demo/backup/
+school-management-demo/backups/

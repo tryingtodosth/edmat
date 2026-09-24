@@ -1,0 +1,10 @@
+3.8.1 As an After-School Care Educator, I want to check students into after-school care using ID barcode scanners or quick roster checks.
+3.8.2 As an After-School Care Educator, I want to verify authorized pickup lists and log exact pickup timestamps and identities.
+3.8.3 As a Cafeteria Manager, I want daily meal count reports generated based on morning logbook attendance entries.
+3.8.4 As a Cafeteria Manager, I want to block meal serving for overdue accounts while discreetly notifying parents via app.
+3.8.5 As a Trip Leader, I want to create a digital Field Trip Sheet with schedules, roster, chaperone groups, and insurance details.
+3.8.6 As a Trip Leader, I want trip approval to automatically assign field trip attendance status to participating students across lesson logs.
+3.8.7 As a Classroom Teacher, I want lists of non-participating students from trip classes along with their temporary group assignments.
+3.8.8 As a Librarian, I want to batch checkout textbook sets for whole classes in September using barcode scanners.
+3.8.9 As a Librarian, I want to verify student material settlement statuses before issuing graduation certificates.
+3.8.10 As a School Nurse, I want to record first aid medical visits with automatic health privacy restrictions.

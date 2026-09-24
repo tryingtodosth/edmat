@@ -68,6 +68,16 @@ class IssueViewSet(
         kind = params.get('kind')
         if kind:
             queryset = queryset.filter(kind=kind)
+        # The school demo files into the same table as the site (models.py, fourth decision), so
+        # the queue is only usable if it can be narrowed back down to one product and one part of
+        # it. Unknown values filter to nothing rather than being ignored: a typo that silently
+        # returns the whole queue is how somebody concludes the demo has no reports.
+        source = params.get('source')
+        if source:
+            queryset = queryset.filter(source=source)
+        area = params.get('area')
+        if area:
+            queryset = queryset.filter(area=area)
         return queryset
 
     def get_serializer_class(self):
