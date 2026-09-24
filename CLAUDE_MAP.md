@@ -397,6 +397,68 @@ organisers) when the event rostered one and the `shifts` switch is on. Deposit a
 `purge_event_data` blanks the exception fields after the retention window. Kill switch `cloakroom`. Frontend:
 `/events/[id]/cloakroom` (deposit slip with a lazily loaded QR, return by typed token or camera, reconciliation, CSV).
 
+
+### The management layer — six apps hung off a node (2026-09-24, `MANAGEMENT-BRIEF.md`)
+
+**The seam first.** `config/nodes.py` is the one place that says which objects work can hang off (`NODE_KINDS`:
+`course`, `event`, `material`, `organization`) and who stands where on each — `can_view_node` (the node's own
+visibility rule; 404 otherwise), `is_node_staff`, `is_node_member` (staff, or enrolled / going), `can_manage_node`,
+`node_staff_users`, `node_ref`. `GET /api/nodes/{kind}/{id}/` and `…/staff/` (`config/views.py`) are the two endpoints
+every panel asks; `lib/types/node.ts` mirrors the kinds. `ManagementPanels.svelte` (`lib/components/management/`) is
+mounted once on the event, course, material and organisation pages and hands a `NodeRef` to five panels. Six kill
+switches, seeded by moderation migration 0044.
+
+### `organizations` — bodies, their rosters, and what they stand behind (2026-09-24)
+`Organization` (kind university / faculty / school / student_circle / ngo / company / other; `is_active` is the tombstone),
+`OrganizationMember` (owner / admin / member — at least one owner always, `409 last_owner`), `OrganizationLink` (a node it
+`runs` or `supports`; needs `can_manage_node` on the target AND `can_manage` on the body: `not_node_manager` /
+`not_org_manager` / `already_linked`). Membership grants NOTHING on the things it runs — no permission cascade, by design.
+`organizations/access.py` owns every rule and the four functions `config/nodes.py` dispatches to for the `organization`
+kind. A minor cannot found one (`minor`). Kill switch `organizations`. Frontend: `/organizations`, `/organizations/new`,
+`/organizations/[slug]`, `/organizations/[slug]/manage`, `OrganizationsPanel`, Add… "New organisation", account "My organisations".
+
+### `tasks` — the universal actionable item (2026-09-24)
+`Task` (node via GenericForeignKey; todo / in_progress / review / done / cancelled; priority 1–4; `due_at`; ONE level of
+subtasks, `409 nested`; `order`) and `TaskAssignee` (node staff only, `not_staff`). `tasks/rules.py`: `visible_tasks`
+(node staff), `can_edit` (manager, creator or assignee), `can_assign` (manager), `transition_block_reason` (the table:
+todo→in_progress→review→done, open→cancelled, done|cancelled→todo by a manager; else `illegal_transition`), `progress`
+(recount), `is_overdue`. `tasks/work.py` feeds the dashboard's `task` section. Kill switch `tasks`. Frontend: `TasksPanel`
+(assignee picker fed by `/api/nodes/{kind}/{id}/staff/`), `/tasks` (mine), `/tasks/[id]`, account "My tasks".
+
+### `needs` — help wanted, and who answered (2026-09-24)
+`Need` (kind help / expertise / equipment / venue / other; open / in_progress / fulfilled / cancelled; skill level, hours,
+deadline, remote, `wanted_count`) and `NeedApplication` (pending / accepted / declined / withdrawn, unique per need + user).
+**Open needs on visible nodes are public** (`/api/needs/`, the board); everything else is the node's staff's.
+`needs/rules.py`: `apply_block_reason` (`not_open`, `own_node`, `minor` — free text to a stranger —, `already_applied`,
+`full`), `decide_block_reason` (`already_decided`), `recount` (fulfilled when accepted reaches `wanted_count`). Never money.
+Kill switch `needs`. Frontend: `/needs` (board + filters), `/needs/[id]`, `NeedsPanel`, main-nav "Help wanted".
+
+### `plans` — roadmaps with steps and suggestions (2026-09-24)
+`Plan` (draft / active / completed / archived), `PlanStep` (one level of nesting, `order`, pending / in_progress / done /
+skipped, `due_at`), `PlanSuggestion` (pending / accepted / rejected / withdrawn; accepting creates a step). An ACTIVE plan on
+a node the reader can view is readable by anyone; editing is the node's managers' and the creator's. `plans/rules.py`:
+`suggest_block_reason` (`not_active`, `minor`, `own_plan`), `complete_block_reason` (`steps_pending`), `progress`
+(done over total − skipped, recounted), `reorder` (exactly the top-level ids, else 400). Kill switch `plans`. Frontend:
+`PlansPanel`, `/plans/[id]` (up/down reorder, no drag library).
+
+### `decisions` — polls, and the decision that closes them (2026-09-24)
+`Poll` (single / multiple; `anonymous`; eligibility staff / members via the seam; draft / open / closed; `decision_note`),
+`PollOption`, `Ballot` (who took part, unique per poll + user), `Vote` (`ballot` NULL when anonymous — nobody can trace a
+choice to a person, house rule 9). Results are a recount and are hidden from non-managers until `closed`; `GET
+/api/polls/{id}/` carries no tally. `decisions/rules.py`: `vote_block_reason` (`not_open`, `not_eligible`,
+`already_voted`, `too_many_choices`, `unknown_option`), `open_block_reason` (`no_options`, `already_open`),
+`close_block_reason`, `can_see_results`, `eligible_count`. A minor may vote. Kill switch `decisions`. Frontend: `PollsPanel`,
+`/polls/[id]`.
+
+### `work` — the personal dashboard, a provider registry (2026-09-24)
+No models. `work/providers.py`: `register(key, flag_key, provider)`, `collect(user)` → sections in a fixed order; a
+provider behind an off flag is skipped, a provider that raises is logged and listed in `unavailable`, never fatal (house
+rule 10). `work/builtin.py` registers six providers over what already existed (events hosted / attended, course requests,
+material proposals, shifts, bookings); `work/integrations.py` registers the six management sections (`task`,
+`need_application`, `need_decision`, `plan_step`, `plan_suggestion`, `poll`) from each app's `<app>/work.py: work_items`,
+filtered by `kind` — the only file that knows both sides. `GET /api/work/` behind `work_dashboard`. Frontend: `/work`,
+account "My work".
+
 ### `telemetry` — request logging and audit
 `RequestLog`, `AuditEvent`, `middleware.py`, `routers.py` (`LogShardRouter`), `checks.py`. Logs are written to **separate SQLite
 databases** (`logs_*` shards under `backend/logdata/`, sized by `EDMAT_LOG_SHARD_SIZE`/`COUNT`), with an anonymous shard
