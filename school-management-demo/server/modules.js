@@ -13,12 +13,13 @@ const MODULES = [
   { id: 'parent', name: { pl: 'Konto rodzica', en: 'Parent account' } },
   { id: 'messages', name: { pl: 'Wiadomości i powiadomienia', en: 'Messages and notifications' }, required: true },
   { id: 'school', name: { pl: 'Świetlica, stołówka, wycieczki, biblioteka, gabinet', en: 'After-school care, cafeteria, trips, library, nurse' } },
+  { id: 'events', name: { pl: 'Wydarzenia szkolne: dni otwarte, festyny, uroczystości', en: 'School events: open days, fetes, ceremonies' } },
   { id: 'courses', name: { pl: 'Kursy i materiały (LMS)', en: 'Courses and materials (LMS)' } },
   { id: 'meetings', name: { pl: 'Spotkania wideo (Jitsi / BigBlueButton, self-hosted)', en: 'Video meetings (Jitsi / BigBlueButton, self-hosted)' } },
   { id: 'compliance', name: { pl: 'Pakiet zgodności: DPIA, deklaracja dostępności, umowa powierzenia', en: 'Compliance pack: DPIA, accessibility statement, processing agreement' } },
   { id: 'demo', name: { pl: 'Tryb demonstracyjny i zbieranie opinii', en: 'Demo mode and feedback collection' } },
 ];
-const ROUTE_MODULE = { attendance: 'logbook', lessons: 'logbook', homework: 'logbook', materials: 'logbook', grades: 'grades', remarks: 'grades', homeroom: 'homeroom', principal: 'principal', substitutions: 'principal', support: 'support', registry: 'registry', admin: 'registry', 'school-year': 'registry', privacy: 'registry', retention: 'registry', student: 'student', parent: 'parent', messages: 'messages', notifications: 'messages', modules: 'school', courses: 'courses', meetings: 'meetings', compliance: 'compliance', demo: 'demo' };
+const ROUTE_MODULE = { attendance: 'logbook', lessons: 'logbook', homework: 'logbook', materials: 'logbook', grades: 'grades', remarks: 'grades', homeroom: 'homeroom', principal: 'principal', substitutions: 'principal', support: 'support', registry: 'registry', admin: 'registry', 'school-year': 'registry', privacy: 'registry', retention: 'registry', student: 'student', parent: 'parent', messages: 'messages', notifications: 'messages', modules: 'school', events: 'events', courses: 'courses', meetings: 'meetings', compliance: 'compliance', demo: 'demo' };
 function enabledMap(db) {
   const cfg = db.data.config; if (!cfg.modules) cfg.modules = { enabled: {} };
   const out = {}; for (const m of MODULES) out[m.id] = m.required || cfg.modules.enabled[m.id] !== false; return out;

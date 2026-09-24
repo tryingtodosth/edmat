@@ -44,6 +44,8 @@ const MATRIX = [
   { id: 'student-courses', login: 'anna.kowalczyk', hash: '/kursy' },
   { id: 'parent-meetings', login: 'rodzic.kowalczyk', hash: '/spotkania', width: 390, height: 1800 },
   /* Strony poza powłoką aplikacji mają własny adres i nie potrzebują logowania (public/projekt/ — strona projektu). */
+  { id: 'events', login: 'j.nowak', hash: '/wydarzenia' },
+  { id: 'events-brief', login: 'j.nowak', hash: '/wydarzenia?e=ev_open_2026' },
   { id: 'coop', login: 'j.nowak', hash: '/wspolpraca' },
   { id: 'coop-detail', login: 'a.wojcik', hash: '/wspolpraca?m=st_mt_mat' },
   { id: 'landing', url: '/projekt/' },

@@ -78,7 +78,16 @@ function blankExtras(yr) {
     libraryNoticeDaysBeforeSemesterEnd: 60,
     studentShortcuts: true,
     /* 00-base.js — klucz dopisany przy R3, a kreator go nie miał */
-    adultAccess: 'until-objection'
+    adultAccess: 'until-objection',
+    /* 20-events.js — progi modułu wydarzeń szkolnych (3.10). Nowa szkoła dostaje te same wartości
+       domyślne co demo; `eventDataRetentionDays` czyta klasa retencyjna `wydarzenia-dane-ulotne`. */
+    events: {
+      minorUnderAge: 16, minorMaxHoursPerDay: 7, minorCurfewFrom: '22:00', minorCurfewTo: '06:00',
+      minShiftGapMin: 15, shiftDropCutoffHours: 4, accessibilityBufferPct: 12,
+      riskAcceptMax: 12, scanCollisionWindowMin: 5, retentionDays: 30,
+      note: 'Progi ochrony małoletnich wolontariuszy ustala szkoła w regulaminie wolontariatu; wartości domyślne są ostrożne, nie są cytatem z przepisu.'
+    },
+    eventDataRetentionDays: 30
   };
 }
 function blankSeed(db) {
