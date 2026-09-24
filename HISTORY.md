@@ -9324,6 +9324,53 @@ is asserted from both sides in the tests — the whole surface 403s while check-
 - **No multi-day re-entry policy.** A two-day event's second morning is an ordinary re-entry, and
   nothing distinguishes "came back on day two" from "went out for coffee".
 
+## 17BG. The landing page: `/about` (✅ built, frontend only, 2026-09-24)
+
+Piotr asked for a landing page for the project, at `/about`. The route was free. It is a standing
+page in the `/levels` / `/privacy` shape — copy in `lib/content/about.ts` with both locales in one
+file (the third page under the exception `privacy.ts` opened, for the same reason: one piece of
+writing, reviewable end to end in each language), a `+page.ts` with `prerender = true`, `PageHead`
+for the title and description, no API call at all — but it is the one standing page meant to be
+looked at rather than read through, so it gets a wider measure, a hero with two CTAs, the
+discipline → subject → topic → exercise path drawn as a strip, an "anatomy of an exercise" card
+(statement always; hint, answer, solution where written — static, no KaTeX, so the page never pulls
+the renderer chunk), a feature grid, a tinted trust band, the seven audience bands drawn from the
+shared `AUDIENCE_LABELS` map, a money / openness pair with the standing links and the MIT source
+link, and a closing call to browse.
+
+**Two things the page reads and one it refuses to.** It reads the feature-flag store so that a
+killed surface's card disappears (house rule 3 — a landing page is exactly the "links" a kill
+switch has to remove; `|| isModerator` mirrors `FeatureGate`), and the auth store so a signed-in
+reader is offered "Submit an exercise" instead of "Create an account" (itself behind
+`exercise_submissions`). It refuses to name a content licence, because `LEGAL.md` says there is
+none yet and to check with Piotr before writing licensing text, and it carries no counts, because a
+number in a prerendered page is stale the day after the build ("several hundred exercises").
+
+**Wired:** a footer link first in the standing-links row (`footer_about`, en + pl);
+`seo_about_description` in both catalogues; `about` added to `deploy/fuw/pack.sh`'s prerender guard
+so a build missing `about.html` refuses to pack.
+
+**Verified:** `npm run check` 0 errors / 0 warnings; eslint clean on every touched file (prettier's
+one complaint, `e2e/event-shifts.mjs`, predates this and was left alone); en/pl key sets identical
+(3154 each); `npm run build` clean and `build/about.html` prerendered with the Polish title and all
+eight cards in the HTML; `e2e/about-page.mjs` **15/15** against real servers (8100 / 5183), zero
+console errors, with the light, dark and phone screenshots looked at. One lesson worth writing
+down: `resolve()` emits *relative* hrefs (`./register`) under the dev server, so an e2e selector
+on `a[href="/register"]` finds nothing while the page is right — match on `href$=`.
+
+**Left open.**
+
+- **No header entry.** The link lives in the footer beside privacy, levels and legal, on the
+  same reasoning those three use; whether "About" also belongs in the top bar or the brand
+  mark's menu is a product call.
+- **No live numbers.** A "how big is it" row (exercises, branches, members) would need a small
+  public stats endpoint and an `onMount` fetch; deliberately not built into a prerendered page.
+- **No picture of real content.** The anatomy card is words. A rendered sample exercise would
+  cost the KaTeX chunk on a page that otherwise needs none (house rule 11).
+- **Not committed by this session** — Piotr asked for the page, not a commit; the working tree on
+  `ux-and-whiteboard` holds it.
+
+
 ## 17BH. Materials coop: the cooperation overview of a material, and how open it is (✅ built, full stack, 2026-09-24)
 
 Piotr asked for a new module, "materials-coop", designed from 2donet's project and content

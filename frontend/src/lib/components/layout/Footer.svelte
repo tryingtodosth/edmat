@@ -21,6 +21,9 @@
 		<!-- With no consent banner, this link is the site's standing disclosure — so it belongs
 		     somewhere permanent and on every page, not behind a dialog. -->
 		<p class="site-footer__links">
+			<!-- The landing page. First in the row: "what is this?" comes before "what does it store?". -->
+			<a href={resolve('/about')}>{m.footer_about()}</a>
+			<!-- "About EdMat" -->
 			<a href={resolve('/privacy')}>{m.footer_privacy()}</a>
 			<!-- Beside the privacy link rather than in the navbar: both are standing explanations of how
 			     the site treats you, wanted occasionally and never mid-task. -->
