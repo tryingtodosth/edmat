@@ -1474,3 +1474,16 @@ under `data-theme="dark"`; English at 390px with a `scrollWidth` overflow check;
 `tutoring` flag flipped off through the API as kasia and the page reloaded as a stranger — its card
 must be gone and seven remain — and flipped back. Zero console/page errors. Four screenshots in
 `e2e/screens/about-*.png`, meant to be looked at: the light, dark and phone renders were.
+
+**`e2e/needs.mjs` (21 checks)** — the needs board, management step C (`HISTORY.md` §17BI.C). Kasia posts a need
+on a scratch event from `NeedsPanel`; the board lists it; Michał opens it from the public board and
+applies; Kasia accepts him from the need's own applications queue and the need flips to `fulfilled`
+once accepted reaches `wanted_count`, which drops it off the anonymous board while it stays on
+Kasia's own read as the node's manager. The `needs` kill switch is then flipped off and checked as a
+NON-staff account (Michał — e2e/CLAUDE.md trap 10): the panel leaves the event page and "Help
+wanted" leaves the nav, both restored afterward. Screenshots in `e2e/screens/needs-*.png`: the
+manager's detail view, the public board, the fulfilled state. Scratch event removed through the API;
+the orphaned `Need` row (no DELETE endpoint by design — tombstone, not hard-delete) becomes
+unreachable through the API the moment its node is gone, which the script also checks.
+
+    cd frontend && E2E_BASE=http://localhost:5223 E2E_API=http://127.0.0.1:8123 node e2e/needs.mjs

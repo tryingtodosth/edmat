@@ -727,3 +727,63 @@ export const TICKET_BLOCK_REASONS: Record<string, () => string> = {
 	not_registered: m.tickets_blocked_notRegistered, // "You have not registered for this event."
 	not_yours: m.tickets_blocked_notYours // "This is somebody else's ticket."
 };
+
+// ---- needs: help wanted (MANAGEMENT-BRIEF.md §3.C) --------------------------------------------
+// A hand-maintained mirror of `NEED_KIND_CHOICES`, `NEED_STATUS_CHOICES`, `SKILL_LEVEL_CHOICES` and
+// `APPLICATION_STATUS_CHOICES` in backend/needs/models.py, and of the refusal words
+// backend/needs/rules.py returns — all of those name this file back (house rule 13: say so in BOTH
+// files). Imported from `$lib/types/need` directly, the same reason the cloakroom section above
+// does: six management branches are not all appending to one barrel file.
+import type {
+	ApplyBlockReason,
+	DecideBlockReason,
+	NeedApplicationStatus,
+	NeedKind,
+	NeedStatus,
+	SkillLevel
+} from '$lib/types/need';
+
+export const NEED_KINDS: NeedKind[] = ['help', 'expertise', 'equipment', 'venue', 'other'];
+export const NEED_KIND_LABELS: Record<NeedKind, () => string> = {
+	help: m.needs_kind_help, // "General help"
+	expertise: m.needs_kind_expertise, // "Expertise"
+	equipment: m.needs_kind_equipment, // "Equipment"
+	venue: m.needs_kind_venue, // "Venue"
+	other: m.needs_kind_other // "Other"
+};
+
+export const NEED_STATUS_LABELS: Record<NeedStatus, () => string> = {
+	open: m.needs_status_open, // "Open"
+	in_progress: m.needs_status_inProgress, // "In progress"
+	fulfilled: m.needs_status_fulfilled, // "Fulfilled"
+	cancelled: m.needs_status_cancelled // "Cancelled"
+};
+
+export const SKILL_LEVELS: SkillLevel[] = ['none', 'beginner', 'intermediate', 'advanced'];
+export const SKILL_LEVEL_LABELS: Record<SkillLevel, () => string> = {
+	none: m.needs_skill_none, // "No particular skill needed"
+	beginner: m.needs_skill_beginner, // "Beginner"
+	intermediate: m.needs_skill_intermediate, // "Intermediate"
+	advanced: m.needs_skill_advanced // "Advanced"
+};
+
+export const NEED_APPLICATION_STATUS_LABELS: Record<NeedApplicationStatus, () => string> = {
+	pending: m.needs_appStatus_pending, // "Pending"
+	accepted: m.needs_appStatus_accepted, // "Accepted"
+	declined: m.needs_appStatus_declined, // "Declined"
+	withdrawn: m.needs_appStatus_withdrawn // "Withdrawn"
+};
+
+// `needs/rules.py: apply_block_reason` — five words, five sentences (house rule 6).
+export const APPLY_BLOCK_REASON_LABELS: Record<ApplyBlockReason, () => string> = {
+	not_open: m.needs_applyReason_notOpen, // "This posting is not open any more."
+	own_node: m.needs_applyReason_ownNode, // "You already run this — post the need, don't apply to it."
+	minor: m.needs_applyReason_minor, // "You need to be 16 or older to apply."
+	already_applied: m.needs_applyReason_alreadyApplied, // "You already applied to this."
+	full: m.needs_applyReason_full // "Enough people have already been accepted."
+};
+
+// `needs/rules.py: decide_block_reason`, and reused by a too-late withdraw.
+export const DECIDE_BLOCK_REASON_LABELS: Record<DecideBlockReason, () => string> = {
+	already_decided: m.needs_decideReason_alreadyDecided // "This was already decided."
+};

@@ -9482,3 +9482,113 @@ different format from the panel, and "1 versions" in the roster.
   never sees a contributor whose only work is a pending proposal — correct, and worth knowing.
 - **`ProjectPanel.svelte` is gone**; the project page (`/material-projects/[id]`) is unchanged and
   still the place for the catalogue and the editor.
+
+## 17BI.C. Management step C: `needs` — help wanted, and who answered (✅ built, full stack, 2026-09-24)
+
+Step C of `MANAGEMENT-BRIEF.md` §3.C, one of six management modules built at once on six sibling
+branches (`mgmt/a-organizations` … `mgmt/f-work`), on `mgmt/c-needs`. New app **`needs`**: two
+models, a rule module, five refusal words, an API behind `feature_gate('needs')`, a frontend panel
+mounted at the shared `ManagementPanels` seam, two routes, and a browser script.
+
+### The shape
+
+`Need(content_type, object_id, …)` hangs off a course, an event or a material through
+`config/nodes.py`'s registry — never a direct FK, so this app's one migration touches nothing else
+(`MANAGEMENT-BRIEF.md` §4 rule 1). `status` is one field: `open` → `in_progress` (a manager's own
+call) → `fulfilled` (**derived only** — `needs/rules.py: recount` is the sole writer, and
+`NeedSerializer.validate_status` refuses a client-set `fulfilled` outright) or `cancelled`.
+`recount` compares a live `COUNT` of accepted `NeedApplication`s against `wanted_count` on every
+decision and withdrawal, a single WHERE-anchored `update()` (house rule 5 — recounted, never
+incremented).
+
+`NeedApplication` is unique per `(need, user)` **across every status, not just the live ones** — a
+withdrawn or declined application is the record of that decision (house rule 12), and re-applying
+after withdrawing is deliberately not offered: the unique constraint reads as "a mind changed once,"
+and a second answer belongs in a message to the node's staff, not a second row pretending to be a
+first one.
+
+Refusals are words, not booleans (house rule 6): `apply_block_reason` answers `not_open`,
+`own_node` (a node's own staff cannot apply to their own posting), `minor` (an application carries
+free text to a stranger — `accounts/minors.py`, asked rather than re-decided), `already_applied`,
+`full`; `decide_block_reason` answers `already_decided`, reused by a too-late withdraw. `not_open` /
+`already_applied` / `full` / `already_decided` are the world having moved (409); `own_node` /
+`minor` / `not_manager` are about who is asking (403); a malformed request (no title, a hand-set
+`fulfilled`, `wanted_count < 1`) is 400 — root `CLAUDE.md`'s own distinction, held throughout.
+
+`needs/rules.py: public_needs(user)` is the board's queryset: open needs on nodes the reader can
+view are public, a node's own staff also see the rest. There is no bulk "which nodes can this user
+see" query in `config.nodes` (each node kind answers visibility differently, and building one here
+would be exactly the re-derivation the seam exists to prevent), so it reads every `Need` row once,
+bulk-resolves each row's `GenericForeignKey` target with one query per content type rather than one
+per row (`_resolve_nodes`), and asks `config.nodes.can_view_node`/`is_node_staff` per node — never a
+hand-written copy of a course's or an event's own visibility rule.
+
+### The API
+
+```
+GET  /api/needs/                              the public board: ?kind=, ?remote=1, ?q=, ?node_kind=
+GET/PATCH /api/needs/{id}/                     detail; PATCH is manager-only (edit, cancel, reopen)
+GET/POST /api/nodes/{kind}/{id}/needs/         this app's own nested route (needs/urls.py)
+POST /api/needs/{id}/apply/ {message}          POST /api/needs/{id}/withdraw/
+GET  /api/needs/{id}/applications/             manager only — 404 to everyone else
+POST /api/need-applications/{id}/decide/ {decision: accept|decline}
+```
+
+`NeedViewSet.get_queryset` **is** `rules.public_needs`, so a stranger's `GET /api/needs/{id}/` on a
+need they cannot see 404s through DRF's own `get_object()` (house rule 4) exactly the way the board
+already narrows for them; every mutating action then asks `rules.can_manage` /
+`apply_block_reason`/`decide_block_reason` explicitly, because a queryset filter never runs for an
+action that arrives with an id in the URL. `needs/work.py: work_items(user)` is written to the §3.F
+provider shape (two rows: my own pending applications, and one row per need I manage with pending
+applications waiting, carrying the count) but is not imported anywhere on this branch — the
+integrator registers it in `work/providers.py` at §5, per rule 13.
+
+### The frontend
+
+`lib/types/need.ts`, `lib/services/needs.ts` (the only fetch — components never do), `NeedsPanel`
+at the `<!-- management: needs (C) -->` mount point (open needs on this node, a post-a-need form for
+its manager, a link into each need's own page for the rest), `/needs` (the board: kind/remote/text/
+node-kind filters, an empty state) and `/needs/[id]` (apply/withdraw for anybody who may, cancel/
+reopen and the applications queue with accept/decline for the manager — read straight off
+`need.node.canManage`, which `config.nodes.node_ref` already computed, so the detail page needs no
+second fetch to know which half to draw). Header: the nav marker gets "Help wanted" → `/needs`
+behind `can('needs')`, with a dedicated raised-hand icon (not the tutoring link's money icon — this
+platform never takes or mentions money, `FINANCES.md`). 68 `needs_`-prefixed keys plus `nav_needs`,
+one contiguous block at the end of both catalogues, identical key sets (verified programmatically).
+`labels.ts` gained the enum maps for `NeedKind`/`NeedStatus`/`SkillLevel`/
+`NeedApplicationStatus`/`ApplyBlockReason`/`DecideBlockReason` at its end, naming
+`backend/needs/models.py` and `rules.py` back.
+
+### Verified
+
+Backend: `../.venv/bin/python3 manage.py test needs config` — **65 tests, OK** (30 in `needs`, 35
+pre-existing in `config`); `manage.py check` — no issues; `manage.py makemigrations --check
+--dry-run` — no changes (one migration, `needs/migrations/0001_initial.py`, already committed).
+Frontend: `npm run check` — 5552 files, 0 errors, 0 warnings; `npx eslint`/`npx prettier --check`
+clean on every file touched; `npm run build` clean; en/pl key sets identical (3283 keys each,
+verified with a small Python diff). Browser: `e2e/needs.mjs` against the real servers on ports
+8123/5223 — **21/21 passed**, zero console/page errors, screenshots in `e2e/screens/needs-*.png`
+looked at (the manager's detail view, the public board, the fulfilled state with Michał accepted
+and the "Obsadzone" pill). Kill-switch behaviour was asserted as a non-staff account (e2e/CLAUDE.md
+trap 10), not a staff bypass. Two real bugs were found only by running this, not by any of the
+above: the migration had never been applied to the dev database (e2e/CLAUDE.md trap 23 exactly —
+`manage.py test` uses its own throwaway DB and never caught it), and the initial script used
+`.first()` on two form fields that share `inputmode="numeric"` (trap 6).
+
+### Left open
+
+- **Matching by declared skills** (`accounts.SkillEntry` exists) is not built — `skill_level` is
+  descriptive text on the posting, not matched against an applicant's own profile.
+- **An accepted application does not offer a place on the node's roster.** Named in
+  `MANAGEMENT-BRIEF.md` §3.C as the integrator's call; the seam is `views.py`'s `decide` action,
+  which has nothing else standing in the way of adding it.
+- **No thread on a need** — `community.Comment`'s registry gains a `need` line later, alongside the
+  other three management apps that want one (§7).
+- **No notification** on a new application or a decision (rule 12 — a new type is a three-file
+  change six branches would collide on).
+- **`NeedsPanel` has no aggregate "N applications waiting" badge** across a node's needs; each
+  need's own queue lives on its `/needs/{id}` page instead, to avoid either an extra request per
+  need in the panel or a new field on the list serializer.
+- **`organization` nodes are silently unsupported** until step A lands and uncomments the line in
+  `config.nodes.NODE_KINDS` — an attempt 404s cleanly and `NeedsPanel` reads that the same as
+  "nothing here yet," but nobody can post a need on an organisation until that merge.
