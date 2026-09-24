@@ -116,7 +116,11 @@ def _event_member(user, event) -> bool:
 
 def _event_staff_users(event):
     User = get_user_model()
-    return User.objects.filter(pk=event.host_id) | User.objects.filter(event_staff_roles__event=event)
+    # `.distinct()` because the host normally also holds an `EventStaff` row, and the union would
+    # list them twice — which step B's assignee picker found as a Svelte `each_key_duplicate`.
+    return (
+        User.objects.filter(pk=event.host_id) | User.objects.filter(event_staff_roles__event=event)
+    ).distinct()
 
 
 # ---- material — its co-authoring project is the authority ---------------------------------------
