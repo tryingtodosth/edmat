@@ -279,6 +279,7 @@ E2E_USER=<id> E2E_PUBLISHED=55 E2E_PRIVATE=2 node e2e/profile-exercise-counts.mj
 node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs in as ola + kasia, toggles the `issues` flag and restores it
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
+node e2e/about-page.mjs               # the /about landing page: both locales, both themes, phone width, the tutoring kill switch hiding its card; signs in kasia through the API only to flip the flag and restore it
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRANCH=<slug>, default analiza-matematyczna; signs nobody in, saves to the guest working set only
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
@@ -1465,3 +1466,11 @@ bundle assertion — `jsqr` and `qrcode` absent from `build/_app/immutable/entry
 a loud skip line rather than passing when no build is lying beside the source.
 
     cd frontend && E2E_BASE=http://localhost:5204 E2E_API=http://127.0.0.1:8104 node e2e/event-tickets.mjs
+
+**`e2e/about-page.mjs` (15 checks)** — the landing page at `/about` (2026-09-24). Polish desktop
+(the base locale): the h1, eight feature cards, seven audience bands, seven sections, exactly one
+`<title>` shaped by PageHead, the register CTA for a stranger and the footer link; the same page
+under `data-theme="dark"`; English at 390px with a `scrollWidth` overflow check; then the
+`tutoring` flag flipped off through the API as kasia and the page reloaded as a stranger — its card
+must be gone and seven remain — and flipped back. Zero console/page errors. Four screenshots in
+`e2e/screens/about-*.png`, meant to be looked at: the light, dark and phone renders were.
