@@ -6,14 +6,19 @@ of which says what the *shape* is. A table can be read down a column: "here is e
 volunteer may not do", which is the question somebody actually has. It is also the shape that
 survives new endpoints — adding one is adding rows, not writing a new file.
 
-    ┌──────────── HOW TO ADD YOUR ROWS (steps A, C, D, E, F, G — at integration) ───────────┐
-    │ Append a block to MATRIX below, with your step's letter in the comment heading. Use  │
-    │ the ids `setUpTestData` already publishes (`event`, `draft`, `session`, `attendance`, │
-    │ `contribution`, `staff_volunteer`, …) and add your own there if you need more. The    │
-    │ personas come from `testing/personas.make_personas()`, so your rows and the seed      │
-    │ command are talking about the same seven accounts. Every endpoint your step adds      │
-    │ needs at least: the role that may (a 2xx), one staff role that may not (403), a       │
-    │ stranger (403 or 404), and anonymous (401 for a write, or 404 on a draft).            │
+    ┌──────────────────────────── HOW TO ADD YOUR ROWS ─────────────────────────────────────┐
+    │ Append a block to MATRIX below, with your step's letter in the comment heading. Use   │
+    │ the ids `setUpTestData` already publishes (`event`, `draft`, `session`, `attendance`,  │
+    │ `contribution`, `staff_volunteer`, …) and add your own there if you need more. The     │
+    │ personas come from `testing/personas.make_personas()`, so your rows and the seed       │
+    │ command are talking about the same seven accounts; a persona only this table needs is  │
+    │ built in `setUpTestData` instead (`venue_admin`, `clerk`, `participant` — each says    │
+    │ why, where it is made). Every endpoint your step adds needs at least: the role that    │
+    │ may (a 2xx), one staff role that may not (403), a stranger (403 or 404), and           │
+    │ anonymous (401 for a write, or 404 on a draft).                                        │
+    │ An expectation is a status, or a **(status, refusal word)** pair — use the pair        │
+    │ wherever your rule module answers a word (house rule 6), because the number alone      │
+    │ passes just as happily on the wrong reason.                                            │
     └───────────────────────────────────────────────────────────────────────────────────────┘
 
 The three shapes this file exists to pin, and why each one is that status and not another
@@ -44,9 +49,18 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from cloakroom.models import CloakroomDesk
+from coauthoring.models import MaterialProject, ProjectMember
+from config import nodes as node_seam
+from courses.models import Course, Enrollment
+from decisions.models import Ballot, Poll, PollOption
 from documents.models import DocumentAcknowledgement, EventDocument
+from needs.models import Need, NeedApplication
+from organizations import services as organization_services
+from organizations.models import OrganizationLink, OrganizationMember
+from plans.models import Plan
 from shifts.models import Assignment, Shift, Station, VolunteerRecord
-from testing.factories import make_branch, make_user
+from tasks.models import Task, TaskAssignee
+from testing.factories import make_branch, make_material, make_user
 from testing.personas import make_personas
 from venues import services as venue_services
 from venues.models import (
@@ -256,6 +270,183 @@ class PermissionMatrixTests(APITestCase):
         # G. Something for the export log to have in it.
         log_export(event, organiser, 'full_csv', 12)
 
+        # ---- the management layer (MANAGEMENT-BRIEF.md §3.A–F, wired at §5) ---------------------
+        #
+        # ONE EXTRA PERSONA, built here for the reason the conference two were: `participant` is
+        # somebody who is *in the room* and runs nothing — enrolled on a course, on no staff list
+        # anywhere. The demo seven have no such person. An attendee is the nearest, and an attendee
+        # is a member of an EVENT, so a course's "member but not staff" tier — the tier that answers
+        # "may they see the task board" (no) and "may they vote in an `eligibility: members` poll"
+        # (yes) — would have no row at all. Kept out of `make_personas()` so that
+        # `seed_conference_personas`, its printed CAPABILITY_TABLE and the browser script that signs
+        # in as its accounts do not grow a course and six more kill switches for a tier the event
+        # page never draws.
+        participant = make_user('persona.participant')
+        cls.people['participant'] = participant
+
+        # Every node kind the seam knows (`config/nodes.py: NODE_KINDS`), so the nested
+        # `/api/nodes/{kind}/{id}/…` lists are exercised on all four rather than four times on an
+        # event — each kind answers `is_node_staff` from a different roster, which is the whole
+        # reason that module exists. `organiser` runs all of them: the persona means "the person who
+        # runs this", and a different owner per node would only be testing Django's foreign keys.
+        course = Course.objects.create(
+            instructor=organiser, title='Sandbox course', visibility='public', status='open'
+        )
+        Enrollment.objects.create(course=course, participant=participant, status='active')
+        # Unlisted — the 404 column for a course, exactly as `draft` is for an event.
+        private_course = Course.objects.create(
+            instructor=organiser, title='Sandbox course, unlisted', visibility='only_you'
+        )
+        # A material whose authority is its co-authoring project, and a bare one with no project at
+        # all — the case `config/nodes.py` answers with platform `is_staff`, which no persona here
+        # is. The reviewer is a co-author and not the owner, so "on the team" and "runs the team"
+        # are two different answers on a material as well as on an event.
+        material = make_material(branch, slug='sandbox-material')
+        bare_material = make_material(branch, slug='sandbox-material-no-project')
+        # `MaterialProject.save()` seats its creator as owner, the way `Course.save()` does — so
+        # only the co-author row is made here.
+        project = MaterialProject.objects.create(
+            material=material, branch=branch, created_by=organiser
+        )
+        ProjectMember.objects.create(
+            project=project, user=built['reviewer'], role='coauthor', added_by=organiser
+        )
+
+        # A. An organisation with exactly ONE owner — which is what makes `last_owner` a row rather
+        # than a sentence — one plain member, and a badge already on the Sandbox conference so that
+        # `already_linked` has something to collide with. Plus a dissolved one, whose page exists
+        # for its own roster and for nobody else.
+        organization = organization_services.found(
+            creator=organiser, name='Koło Naukowe Sandbox', kind='student_circle'
+        )
+        org_owner_row = organization.members.get(user=organiser)
+        org_member_row = OrganizationMember.objects.create(
+            organization=organization, user=built['volunteer'], role='member', added_by=organiser
+        )
+        org_link = OrganizationLink.objects.create(
+            organization=organization,
+            content_type=node_seam.node_content_type(event),
+            object_id=event.pk,
+            kind='runs',
+            added_by=organiser,
+        )
+        dissolved = organization_services.found(
+            creator=built['reviewer'], name='Sandbox, rozwiązane'
+        )
+        dissolved.is_active = False
+        dissolved.save(update_fields=['is_active'])
+        dissolved_row = dissolved.members.get(user=built['reviewer'])
+
+        # B. A task with a subtask (so `has_subtasks` and `nested` are rows), the volunteer carrying
+        # it (so "an assignee may edit but may not assign" is a row), and a finished one, because
+        # reopening is the one transition that asks who you are rather than where the task is.
+        event_ct = node_seam.node_content_type(event)
+        task = Task.objects.create(
+            content_type=event_ct, object_id=event.pk,
+            title='Print the badges', created_by=organiser,
+        )
+        subtask = Task.objects.create(
+            content_type=event_ct, object_id=event.pk, parent=task,
+            title='Collect the artwork', created_by=organiser,
+        )
+        TaskAssignee.objects.create(task=task, user=built['volunteer'], assigned_by=organiser)
+        done_task = Task.objects.create(
+            content_type=event_ct, object_id=event.pk, title='Book the hall',
+            status='done', done_at=timezone.now(), created_by=organiser,
+        )
+        TaskAssignee.objects.create(task=done_task, user=built['volunteer'], assigned_by=organiser)
+
+        # C. An open posting with one pending application, a full one (accepted == wanted, which is
+        # `full` without anybody having to be refused twice), and a cancelled one — the three states
+        # `apply_block_reason` answers differently. Plus one on the DRAFT event, which is how "a
+        # need on a node you cannot see does not exist" gets a row of its own.
+        need_open = Need.objects.create(
+            content_type=event_ct, object_id=event.pk, title='Somebody to work the door',
+            kind='help', status='open', wanted_count=2, created_by=organiser,
+        )
+        app_pending = NeedApplication.objects.create(
+            need=need_open, user=built['stranger'], message='I can do the morning.'
+        )
+        need_full = Need.objects.create(
+            content_type=event_ct, object_id=event.pk, title='A projector',
+            kind='equipment', status='open', wanted_count=1, created_by=organiser,
+        )
+        app_decided = NeedApplication.objects.create(
+            need=need_full, user=built['attendee'], status='accepted',
+            decided_by=organiser, decided_at=timezone.now(),
+        )
+        need_cancelled = Need.objects.create(
+            content_type=event_ct, object_id=event.pk, title='A second room',
+            kind='venue', status='cancelled', created_by=organiser,
+        )
+        need_hidden = Need.objects.create(
+            content_type=event_ct, object_id=draft.pk, title='Nobody may read this',
+            kind='help', status='open', created_by=organiser,
+        )
+
+        # D. An active plan with one done step, one pending step (so `steps_pending` is a row) and a
+        # sub-step (so `nested` is), one pending suggestion and one already decided; plus a draft
+        # plan, which ordinary staff may read and only its editors may move.
+        plan_active = Plan.objects.create(
+            content_type=event_ct, object_id=event.pk, title='Getting the conference open',
+            status='active', created_by=organiser,
+        )
+        step_done = plan_active.steps.create(
+            title='Book the hall', status='done', order=0,
+            done_by=organiser, done_at=timezone.now(),
+        )
+        step_pending = plan_active.steps.create(title='Print the programme', order=1)
+        substep = plan_active.steps.create(parent=step_pending, title='Proof-read it', order=0)
+        suggestion = plan_active.suggestions.create(
+            user=built['attendee'], text='Add a coffee break after the opening lecture.'
+        )
+        suggestion_decided = plan_active.suggestions.create(
+            user=built['stranger'], text='Move it to June.', status='rejected',
+            decided_by=organiser, decided_at=timezone.now(),
+        )
+        plan_draft = Plan.objects.create(
+            content_type=event_ct, object_id=event.pk, title='Next year',
+            status='draft', created_by=organiser,
+        )
+        draft_step = plan_draft.steps.create(title='Pick the dates', order=0)
+
+        # E. One poll in each status, plus a second open one whose eligibility is `staff` — which is
+        # what makes "being in the room is not being on the rota" a row. The closed one is the
+        # anonymous one: its votes carry no ballot, so "who took part" and "what they chose" stay
+        # two different questions even to the manager who closed it.
+        poll_draft = Poll.objects.create(
+            content_type=event_ct, object_id=event.pk, question='Which day for the workshop?',
+            status='draft', eligibility='members', created_by=organiser,
+        )
+        draft_option = PollOption.objects.create(poll=poll_draft, text='Saturday', order=0)
+        PollOption.objects.create(poll=poll_draft, text='Sunday', order=1)
+        # No options at all: the one poll `no_options` can be refused on.
+        poll_bare = Poll.objects.create(
+            content_type=event_ct, object_id=event.pk, question='Nothing to choose from yet',
+            status='draft', eligibility='members', created_by=organiser,
+        )
+        poll_open = Poll.objects.create(
+            content_type=event_ct, object_id=event.pk, question='Coffee or tea?',
+            status='open', mode='single', eligibility='members', created_by=organiser,
+        )
+        open_option_a = PollOption.objects.create(poll=poll_open, text='Coffee', order=0)
+        open_option_b = PollOption.objects.create(poll=poll_open, text='Tea', order=1)
+        # The attendee has already been to this one — `already_voted` without any row having to vote.
+        Ballot.objects.create(poll=poll_open, user=built['attendee'])
+        poll_staff = Poll.objects.create(
+            content_type=event_ct, object_id=event.pk, question='Who locks up on Sunday?',
+            status='open', mode='single', eligibility='staff', created_by=organiser,
+        )
+        PollOption.objects.create(poll=poll_staff, text='The organiser', order=0)
+        PollOption.objects.create(poll=poll_staff, text='The volunteer', order=1)
+        poll_closed = Poll.objects.create(
+            content_type=event_ct, object_id=event.pk, question='Where next year?',
+            status='closed', anonymous=True, eligibility='members', created_by=organiser,
+            closed_by=organiser, closed_at=timezone.now(), decision_note='Banacha again.',
+        )
+        closed_option = PollOption.objects.create(poll=poll_closed, text='Banacha', order=0)
+        PollOption.objects.create(poll=poll_closed, text='Hoża', order=1)
+
         cls.ids = {
             'event': event.pk,
             'draft': draft.pk,
@@ -301,6 +492,46 @@ class PermissionMatrixTests(APITestCase):
             'attendee_id': built['attendee'].pk,
             'clerk_id': clerk.pk,
             'venue_admin_id': venue_admin.pk,
+            # ---- the management layer's own ids (steps A–F) -------------------------------
+            'course': course.pk,
+            'private_course': private_course.pk,
+            'material': material.pk,
+            'bare_material': bare_material.pk,
+            'org': organization.pk,
+            'dissolved': dissolved.pk,
+            'org_owner_row': org_owner_row.pk,
+            'org_member_row': org_member_row.pk,
+            'dissolved_row': dissolved_row.pk,
+            'org_link': org_link.pk,
+            'task': task.pk,
+            'subtask': subtask.pk,
+            'done_task': done_task.pk,
+            'need_open': need_open.pk,
+            'need_full': need_full.pk,
+            'need_cancelled': need_cancelled.pk,
+            'need_hidden': need_hidden.pk,
+            'app_pending': app_pending.pk,
+            'app_decided': app_decided.pk,
+            'plan_active': plan_active.pk,
+            'plan_draft': plan_draft.pk,
+            'step_done': step_done.pk,
+            'step_pending': step_pending.pk,
+            'substep': substep.pk,
+            'draft_step': draft_step.pk,
+            'suggestion': suggestion.pk,
+            'suggestion_decided': suggestion_decided.pk,
+            'poll_draft': poll_draft.pk,
+            'poll_bare': poll_bare.pk,
+            'poll_open': poll_open.pk,
+            'poll_staff': poll_staff.pk,
+            'poll_closed': poll_closed.pk,
+            'draft_option': draft_option.pk,
+            'open_option_a': open_option_a.pk,
+            'open_option_b': open_option_b.pk,
+            'closed_option': closed_option.pk,
+            'participant_id': participant.pk,
+            'guardian_id': built['guardian'].pk,
+            'organiser_id': organiser.pk,
         }
         cls.event_start = event.starts_at
 
@@ -311,6 +542,14 @@ class PermissionMatrixTests(APITestCase):
 
     def test_matrix(self):
         for persona, method, path, body, expected, why in MATRIX:
+            # A row's expectation is a status, or a (status, refusal word) pair. The pair is what
+            # house rule 6 asks of a refusal — `enrollment_block_reason` and its cousins answer
+            # WHY, and a row that only checked the number would pass just as happily on the wrong
+            # reason. Added with the management rows (§17BI.H); the conference rows above are
+            # statuses because their refusal words are asserted in each app's own suite.
+            expected_status, expected_word = (
+                expected if isinstance(expected, tuple) else (expected, None)
+            )
             label = f'{persona} {method} {path} → {expected} ({why})'
             with self.subTest(label):
                 self.client.force_authenticate(
@@ -325,10 +564,16 @@ class PermissionMatrixTests(APITestCase):
                             call(url) if payload is None else call(url, payload, format='json')
                         )
                         self.assertEqual(
-                            response.status_code, expected,
+                            response.status_code, expected_status,
                             f'{label}\n  got {response.status_code}: '
                             f'{getattr(response, "data", b"")!r:.200}',
                         )
+                        if expected_word is not None:
+                            data = getattr(response, 'data', None) or {}
+                            self.assertEqual(
+                                data.get('detail'), expected_word,
+                                f'{label}\n  right status, wrong word: {data!r:.200}',
+                            )
                         raise _Rollback
                 except _Rollback:
                     pass
@@ -416,6 +661,52 @@ def _record_body(ids, _s):
 def _token_body(ids, _s):
     return {'token': ids['coat_token']}
 
+
+# ---- bodies for the management layer (steps A–F) ---------------------------------------------
+#
+# Each of these is a factory rather than a literal because the body has to name a real id, and the
+# ids are not known until `setUpTestData` has run — the same reason the conference bodies above are
+# callables. `_body_for` calls them with (ids, event_start).
+
+
+def _member_body(key, role='member'):
+    return lambda ids, _s: {'user_id': ids[key], 'role': role}
+
+
+def _role_body(role):
+    return {'role': role}
+
+
+def _link_body(kind, key, link_kind='runs'):
+    return lambda ids, _s: {'node_kind': kind, 'node_id': ids[key], 'kind': link_kind}
+
+
+def _user_body(key):
+    return lambda ids, _s: {'user': ids[key]}
+
+
+def _vote_body(*keys):
+    return lambda ids, _s: {'options': [ids[key] for key in keys]}
+
+
+def _reorder_body(*keys):
+    return lambda ids, _s: {'ids': [ids[key] for key in keys]}
+
+
+def _parent_step_body(key):
+    return lambda ids, _s: {'title': 'A step under a step', 'parent': ids[key]}
+
+
+_NEW_ORGANIZATION = {'name': 'Nowe koło', 'kind': 'student_circle'}
+_NEW_TASK = {'title': 'Something that needs doing'}
+_NEW_NEED = {'title': 'Somebody who can bake', 'kind': 'help', 'wanted_count': 1}
+_NEW_PLAN = {'title': 'A roadmap'}
+_NEW_STEP = {'title': 'A step'}
+_NEW_POLL = {'question': 'Shall we?', 'mode': 'single', 'eligibility': 'members'}
+_NEW_OPTION = {'text': 'Maybe'}
+_NEW_SUGGESTION = {'text': 'Please add a break for lunch.'}
+_APPLY = {'message': 'I can help on the Saturday.'}
+_ACCEPT = {'decision': 'accept'}
 
 _NEW_STATION = {'kind': 'info', 'name': 'Drugi punkt'}
 _NEW_DESK = {'name': 'Szatnia — wejście zachodnie', 'rack_labels': ['A1', 'A2']}
@@ -1050,4 +1341,417 @@ MATRIX = [
     ('volunteer', 'GET', '/events/{event}/exports/log/', None, 403, 'who took a file out is the organiser’s'),
     ('reviewer', 'GET', '/events/{event}/exports/log/', None, 403, 'same'),
     ('organiser', 'GET', '/events/{event}/exports/log/', None, 200, 'theirs'),
+
+    # ==== the management layer (MANAGEMENT-BRIEF.md §3, integrated at §5) =======================
+    #
+    # Six apps hang off one seam (`config/nodes.py`), so the rows below are grouped by step and
+    # every one of them is really two questions: what does the SEAM say about this node, and what
+    # does the app's own rule module say about this row. The `(status, word)` pairs are the second
+    # half of house rule 6 — the number says a refusal happened, the word says which sentence the
+    # frontend draws.
+
+    # ---- the node seam itself (config/views.py) ------------------------------------------------
+    ('anonymous', 'GET', '/nodes/event/{event}/', None, 200,
+     'a public event is a node anybody may ask about; every standing comes back false'),
+    ('stranger', 'GET', '/nodes/event/{draft}/', None, 404, 'a draft node does not exist for them'),
+    ('organiser', 'GET', '/nodes/event/{draft}/', None, 200, 'its host'),
+    ('anonymous', 'GET', '/nodes/course/{course}/', None, 200, 'a listed course is public'),
+    ('stranger', 'GET', '/nodes/course/{private_course}/', None, 404, 'only_you — not for them'),
+    ('organiser', 'GET', '/nodes/course/{private_course}/', None, 200, 'they run it'),
+    ('anonymous', 'GET', '/nodes/material/{material}/', None, 200, 'a material is public content'),
+    ('anonymous', 'GET', '/nodes/organization/{org}/', None, 200, 'an active body is public'),
+    ('stranger', 'GET', '/nodes/organization/{dissolved}/', None, 404,
+     'a dissolved body exists for its own roster and for nobody else'),
+    ('reviewer', 'GET', '/nodes/organization/{dissolved}/', None, 200, 'its owner'),
+    ('anonymous', 'GET', '/nodes/exercise/{event}/', None, 404, 'not a node kind this seam knows'),
+    ('anonymous', 'GET', '/nodes/event/undefined/', None, 404, 'not a number, so not a thing'),
+
+    ('anonymous', 'GET', '/nodes/event/{event}/staff/', None, 401, 'a roster is nobody’s by default'),
+    ('stranger', 'GET', '/nodes/event/{event}/staff/', None, 404, 'the event is visible, the roster is not'),
+    ('attendee', 'GET', '/nodes/event/{event}/staff/', None, 404,
+     'in the room is not on the rota — 404 rather than 403, as on the node itself'),
+    ('volunteer', 'GET', '/nodes/event/{event}/staff/', None, 200, 'staff see who else is'),
+    ('participant', 'GET', '/nodes/course/{course}/staff/', None, 404, 'enrolled is not staff'),
+    ('organiser', 'GET', '/nodes/course/{course}/staff/', None, 200, 'they run it'),
+    ('reviewer', 'GET', '/nodes/material/{material}/staff/', None, 200, 'a co-author is on the team'),
+    ('attendee', 'GET', '/nodes/material/{bare_material}/staff/', None, 404,
+     'a material with no project answers is_staff = platform staff, which no persona here is'),
+    ('volunteer', 'GET', '/nodes/organization/{org}/staff/', None, 200,
+     'an organisation’s roster has no reader tier — member and staff are one set'),
+    ('stranger', 'GET', '/nodes/organization/{org}/staff/', None, 404, 'not on it'),
+    ('organiser', 'GET', '/nodes/event/undefined/staff/', None, 404, 'not a number, so not a thing'),
+
+    # ---- A. organisations (17BI.A) -------------------------------------------------------------
+    ('anonymous', 'GET', '/organizations/', None, 200, 'the directory is public'),
+    ('anonymous', 'GET', '/organizations/{org}/', None, 200, 'so is a body’s page'),
+    ('stranger', 'GET', '/organizations/{dissolved}/', None, 404, 'dissolved — for them it is gone'),
+    ('reviewer', 'GET', '/organizations/{dissolved}/', None, 200, 'its own people keep the page'),
+    ('anonymous', 'POST', '/organizations/', _NEW_ORGANIZATION, 401, 'a write needs a sign-in'),
+    ('child', 'POST', '/organizations/', _NEW_ORGANIZATION, (403, 'minor'),
+     'founding one means being the person a stranger writes to about it'),
+    ('attendee', 'POST', '/organizations/', _NEW_ORGANIZATION, 201, 'any adult may found one'),
+    ('anonymous', 'PATCH', '/organizations/{org}/', {'city': 'Warszawa'}, 401, 'a write needs a sign-in'),
+    ('stranger', 'PATCH', '/organizations/{org}/', {'city': 'Warszawa'}, (403, 'not_org_manager'),
+     'the page is visible, so 403 rather than 404 — a real thing, wrong party'),
+    ('volunteer', 'PATCH', '/organizations/{org}/', {'city': 'Warszawa'}, (403, 'not_org_manager'),
+     'a plain member is on the roster, not in charge of it'),
+    ('organiser', 'PATCH', '/organizations/{org}/', {'city': 'Warszawa'}, 200, 'its owner'),
+    # `not_org_owner`, not `not_org_manager`: an administrator runs the roster, and only an owner
+    # decides the body is over — the row was written expecting the manager word and the app was
+    # right (organizations/views.py: OrganizationViewSet.destroy).
+    ('volunteer', 'DELETE', '/organizations/{org}/', None, (403, 'not_org_owner'), 'not theirs to end'),
+    ('organiser', 'DELETE', '/organizations/{org}/', None, 204, 'an owner decides the body is over'),
+
+    ('anonymous', 'GET', '/organizations/{org}/members/', None, 200,
+     'a body’s membership is what it is FOR; hiding it leaves a name and nothing else'),
+    ('anonymous', 'POST', '/organizations/{org}/members/', _member_body('attendee_id'), 401,
+     'a write needs a sign-in'),
+    ('volunteer', 'POST', '/organizations/{org}/members/', _member_body('attendee_id'),
+     (403, 'not_org_manager'), 'a member does not add members'),
+    ('organiser', 'POST', '/organizations/{org}/members/', _member_body('attendee_id'), 201,
+     'by account id — there is no people search'),
+    ('organiser', 'POST', '/organizations/{org}/members/', _member_body('volunteer_id'),
+     (409, 'already_member'), 'the world moved, not a malformed request'),
+    ('organiser', 'POST', '/organizations/{org}/members/', {'user_id': 99999999},
+     (400, 'no_such_user'), 'an id that names nobody is wrong when it was written, so 400'),
+    ('organiser', 'PATCH', '/organization-members/{org_owner_row}/', _role_body('member'),
+     (409, 'last_owner'), 'demoting the last owner leaves a page nobody can ever correct'),
+    ('organiser', 'DELETE', '/organization-members/{org_owner_row}/', None, (409, 'last_owner'),
+     'and removing them is the same end state, so the same word'),
+    ('volunteer', 'PATCH', '/organization-members/{org_member_row}/', _role_body('admin'),
+     (403, 'not_org_manager'), 'nobody promotes themselves'),
+    ('organiser', 'PATCH', '/organization-members/{org_member_row}/', _role_body('admin'), 200,
+     'an owner may'),
+    ('stranger', 'DELETE', '/organization-members/{org_member_row}/', None, (403, 'not_org_manager'),
+     'a bystander takes nobody off a roster'),
+    ('volunteer', 'DELETE', '/organization-members/{org_member_row}/', None, 204,
+     'leaving is not being removed — anybody may take themselves off'),
+    ('stranger', 'PATCH', '/organization-members/{dissolved_row}/', _role_body('member'), 404,
+     'a row inside a body they cannot see does not exist for them'),
+
+    ('anonymous', 'GET', '/organizations/{org}/links/', None, 200, 'what a body runs is public'),
+    ('anonymous', 'POST', '/organizations/{org}/links/', _link_body('course', 'course'), 401,
+     'a write needs a sign-in'),
+    ('volunteer', 'POST', '/organizations/{org}/links/', _link_body('course', 'course'),
+     (403, 'not_org_manager'), 'the badge carries the body’s name, so the body must agree'),
+    ('organiser', 'POST', '/organizations/{org}/links/', _link_body('material', 'bare_material'),
+     (403, 'not_node_manager'), 'and so must the thing being claimed — both halves, never one'),
+    ('organiser', 'POST', '/organizations/{org}/links/', _link_body('event', 'event'),
+     (409, 'already_linked'), 'somebody got there first'),
+    ('organiser', 'POST', '/organizations/{org}/links/', _link_body('organization', 'org'),
+     (400, 'not_linkable'), 'an organisation inside an organisation is a hierarchy A did not model'),
+    ('stranger', 'POST', '/organizations/{org}/links/', _link_body('event', 'draft'), 404,
+     'a node they cannot see 404s before the question of linking to it is ever asked'),
+    ('organiser', 'POST', '/organizations/{org}/links/', _link_body('exercise', 'event'), 404,
+     'an unknown kind is nothing, not a bad request'),
+    ('organiser', 'POST', '/organizations/{org}/links/', _link_body('course', 'course'), 201,
+     'running both ends is what a badge means'),
+    ('anonymous', 'DELETE', '/organization-links/{org_link}/', None, 401, 'a write needs a sign-in'),
+    ('volunteer', 'DELETE', '/organization-links/{org_link}/', None, (403, 'not_org_manager'),
+     'neither end is theirs'),
+    ('organiser', 'DELETE', '/organization-links/{org_link}/', None, 204,
+     'agreeing takes two, withdrawing takes one'),
+
+    ('anonymous', 'GET', '/organizations/managed/', None, 401, '"where may I act" is personal'),
+    ('volunteer', 'GET', '/organizations/managed/', None, 200, 'an empty list is still theirs'),
+    ('organiser', 'GET', '/organizations/managed/', None, 200, 'the picker’s own source'),
+    ('anonymous', 'GET', '/nodes/event/{event}/organizations/', None, 200, 'the badge on a public page'),
+    ('anonymous', 'GET', '/nodes/event/{draft}/organizations/', None, 404, 'a draft node does not exist'),
+    ('anonymous', 'GET', '/nodes/course/{course}/organizations/', None, 200, 'the same panel, a course'),
+    ('stranger', 'GET', '/nodes/course/{private_course}/organizations/', None, 404, 'nor does that one'),
+    ('anonymous', 'GET', '/organizations/undefined/', None, 404, 'not a number, so not a thing'),
+    ('organiser', 'PATCH', '/organization-members/undefined/', _role_body('member'), 404, 'same'),
+    ('organiser', 'DELETE', '/organization-links/undefined/', None, 404, 'same'),
+
+    # ---- B. tasks (17BI.B) ---------------------------------------------------------------------
+    # A board is the inside of a team: everything below staff is 404, on every node kind.
+    ('anonymous', 'GET', '/nodes/event/{event}/tasks/', None, 404,
+     'not 401 — an anonymous caller and a signed-in stranger get the same answer'),
+    ('stranger', 'GET', '/nodes/event/{event}/tasks/', None, 404, 'same'),
+    ('attendee', 'GET', '/nodes/event/{event}/tasks/', None, 404, 'holding a seat is not staffing it'),
+    ('child', 'GET', '/nodes/event/{event}/tasks/', None, 404, 'same'),
+    ('volunteer', 'GET', '/nodes/event/{event}/tasks/', None, 200, 'the rota may read the board'),
+    ('reviewer', 'GET', '/nodes/event/{event}/tasks/', None, 200, 'same'),
+    ('organiser', 'GET', '/nodes/event/{event}/tasks/', None, 200, 'same'),
+    ('participant', 'GET', '/nodes/course/{course}/tasks/', None, 404,
+     'THE member-not-staff row: enrolled on the course, and the board is still not theirs'),
+    ('organiser', 'GET', '/nodes/course/{course}/tasks/', None, 200, 'they run the course'),
+    ('reviewer', 'GET', '/nodes/material/{material}/tasks/', None, 200,
+     'a material’s authority is its co-authoring project, and they are on it'),
+    ('attendee', 'GET', '/nodes/material/{bare_material}/tasks/', None, 404,
+     'a material with no project has no team, so it has no board'),
+    ('volunteer', 'GET', '/nodes/organization/{org}/tasks/', None, 200, 'the roster is the team'),
+    ('stranger', 'GET', '/nodes/organization/{org}/tasks/', None, 404, 'not on it'),
+    ('anonymous', 'GET', '/nodes/exercise/{event}/tasks/', None, 404, 'not a node kind'),
+    ('anonymous', 'POST', '/nodes/event/{event}/tasks/', _NEW_TASK, 404, 'the node check runs first'),
+    ('attendee', 'POST', '/nodes/event/{event}/tasks/', _NEW_TASK, 404, 'same'),
+    ('volunteer', 'POST', '/nodes/event/{event}/tasks/', _NEW_TASK, 201,
+     'any staff member writes a task; only a manager puts somebody on it'),
+
+    ('anonymous', 'GET', '/tasks/{task}/', None, 401, 'the detail route is authenticated'),
+    ('stranger', 'GET', '/tasks/{task}/', None, 404, 'for them it does not exist'),
+    ('attendee', 'GET', '/tasks/{task}/', None, 404, 'same'),
+    ('volunteer', 'GET', '/tasks/{task}/', None, 200, 'they are carrying it'),
+    ('reviewer', 'PATCH', '/tasks/{task}/', {'title': 'Print the lanyards'}, (403, 'not_allowed'),
+     'staff, but neither the manager, the creator nor the assignee'),
+    ('volunteer', 'PATCH', '/tasks/{task}/', {'title': 'Print the lanyards'}, 200,
+     'the assignee may fix the due date of the thing they are doing'),
+    ('organiser', 'PATCH', '/tasks/{task}/', {'title': 'Print the lanyards'}, 200, 'the manager may'),
+    ('stranger', 'PATCH', '/tasks/{task}/', {'title': 'x'}, 404, 'not yours → 404, not 403'),
+
+    ('organiser', 'POST', '/tasks/{task}/transition/', {'status': 'done'},
+     (409, 'illegal_transition'), 'todo → done skips the path; a status people can set to anything'
+     ' stops being read as a status'),
+    ('organiser', 'POST', '/tasks/{task}/transition/', {'status': 'nonsense'}, 400,
+     'a status that is not a status is malformed, not a conflict'),
+    ('volunteer', 'POST', '/tasks/{task}/transition/', {'status': 'in_progress'}, 200, 'the assignee may'),
+    ('reviewer', 'POST', '/tasks/{task}/transition/', {'status': 'in_progress'}, (403, 'not_allowed'),
+     'a bystander on the rota may not move somebody else’s task'),
+    ('organiser', 'POST', '/tasks/{task}/transition/', {'status': 'cancelled'}, 200,
+     'anything open may be cancelled'),
+    ('volunteer', 'POST', '/tasks/{done_task}/transition/', {'status': 'todo'}, (403, 'not_manager'),
+     'reopening un-does a decision somebody recorded, so it is the manager’s'),
+    ('organiser', 'POST', '/tasks/{done_task}/transition/', {'status': 'todo'}, 200, 'and theirs it is'),
+
+    ('organiser', 'POST', '/tasks/{task}/assign/', _user_body('attendee_id'), (400, 'not_staff'),
+     'the request named somebody who cannot be an assignee — a bad request, not a race'),
+    ('organiser', 'POST', '/tasks/{task}/assign/', _user_body('volunteer_id'),
+     (409, 'already_assigned'), 'that one IS a race'),
+    ('volunteer', 'POST', '/tasks/{task}/assign/', _user_body('reviewer_id'), (403, 'not_manager'),
+     'an assignee who could hand their task on makes "who is behind" unanswerable'),
+    ('organiser', 'POST', '/tasks/{task}/assign/', _user_body('reviewer_id'), 200, 'the manager may'),
+    ('organiser', 'POST', '/tasks/{task}/unassign/', _user_body('reviewer_id'), (400, 'not_assigned'),
+     'nobody to take off'),
+    ('organiser', 'POST', '/tasks/{task}/unassign/', _user_body('volunteer_id'), 200, 'and off they come'),
+
+    ('organiser', 'POST', '/tasks/{subtask}/subtasks/', _NEW_TASK, (409, 'nested'), 'one level, and no more'),
+    ('reviewer', 'POST', '/tasks/{task}/subtasks/', _NEW_TASK, (403, 'not_allowed'), 'not theirs to break up'),
+    ('organiser', 'POST', '/tasks/{task}/subtasks/', _NEW_TASK, 201, 'the manager may'),
+    ('organiser', 'DELETE', '/tasks/{task}/', None, (409, 'has_subtasks'),
+     'a button that quietly removes four other people’s rows is the wrong shape for one click'),
+    ('reviewer', 'DELETE', '/tasks/{subtask}/', None, (403, 'not_allowed'), 'neither creator nor manager'),
+    ('organiser', 'DELETE', '/tasks/{subtask}/', None, 204, 'the creator may'),
+
+    ('anonymous', 'GET', '/tasks/mine/', None, 401, 'somebody’s own work'),
+    ('stranger', 'GET', '/tasks/mine/', None, 200, 'an empty one is still theirs'),
+    ('volunteer', 'GET', '/tasks/mine/', None, 200, 'theirs'),
+    ('volunteer', 'GET', '/tasks/undefined/', None, 404, 'not a number, so not a thing'),
+    ('volunteer', 'POST', '/tasks/undefined/transition/', {'status': 'done'}, 404, 'same'),
+
+    # ---- C. needs (17BI.C) ---------------------------------------------------------------------
+    # The one management surface that is public by design: an open posting is help wanted.
+    ('anonymous', 'GET', '/needs/', None, 200, 'the board is the point of it'),
+    ('anonymous', 'GET', '/needs/{need_open}/', None, 200, 'an open posting on a visible node'),
+    ('anonymous', 'GET', '/needs/{need_cancelled}/', None, 404,
+     'a cancelled posting is the node’s own business again'),
+    ('volunteer', 'GET', '/needs/{need_cancelled}/', None, 200, 'the node’s staff see the rest'),
+    ('anonymous', 'GET', '/needs/{need_hidden}/', None, 404, 'it hangs on a draft event'),
+    ('organiser', 'GET', '/needs/{need_hidden}/', None, 200, 'the draft’s host'),
+    ('anonymous', 'GET', '/nodes/event/{event}/needs/', None, 200, 'the panel on a public page'),
+    ('anonymous', 'GET', '/nodes/event/{draft}/needs/', None, 404, 'a draft node does not exist'),
+    ('anonymous', 'GET', '/nodes/material/{material}/needs/', None, 200, 'the same panel, a material'),
+    ('anonymous', 'POST', '/nodes/event/{event}/needs/', _NEW_NEED, 401, 'a write needs a sign-in'),
+    ('volunteer', 'POST', '/nodes/event/{event}/needs/', _NEW_NEED, (403, 'not_manager'),
+     'posting on behalf of an event is running it, not volunteering for it'),
+    ('organiser', 'POST', '/nodes/event/{event}/needs/', _NEW_NEED, 201, 'the host may'),
+    ('stranger', 'POST', '/nodes/course/{private_course}/needs/', _NEW_NEED, 404, 'a node they cannot see'),
+    ('stranger', 'PATCH', '/needs/{need_open}/', {'status': 'cancelled'}, (403, 'not_manager'),
+     'a posting is the node’s, not its readers’'),
+    ('stranger', 'PUT', '/needs/{need_open}/', {'title': 'Mine now', 'kind': 'help'},
+     (403, 'not_manager'),
+     'the same rule through the other verb — PUT inherited from UpdateModelMixin skipped it'),
+    ('organiser', 'PATCH', '/needs/{need_open}/', {'status': 'cancelled'}, 200, 'managers cancel and reopen'),
+
+    ('anonymous', 'POST', '/needs/{need_open}/apply/', _APPLY, 401, 'a write needs a sign-in'),
+    ('volunteer', 'POST', '/needs/{need_open}/apply/', _APPLY, (403, 'own_node'),
+     'the node’s own staff do not answer their own advertisement'),
+    ('child', 'POST', '/needs/{need_open}/apply/', _APPLY, (403, 'minor'),
+     'an application carries free text to somebody they do not know'),
+    ('stranger', 'POST', '/needs/{need_open}/apply/', _APPLY, (409, 'already_applied'), 'once each'),
+    ('guardian', 'POST', '/needs/{need_full}/apply/', _APPLY, (409, 'full'),
+     'accepted has reached wanted_count — recounted, never a stored tally'),
+    # `not_open` is a refusal only the node's own STAFF can reach, and that is house rule 4 working
+    # rather than a gap: a cancelled posting is not in `public_needs` for anybody else, so a
+    # stranger gets 404 at `get_object` long before `apply_block_reason` is asked. The row was
+    # first written for the guardian and the 404 was the honest answer.
+    ('guardian', 'POST', '/needs/{need_cancelled}/apply/', _APPLY, 404, 'for them it is not there'),
+    ('volunteer', 'POST', '/needs/{need_cancelled}/apply/', _APPLY, (409, 'not_open'),
+     'staff can see it, and there is nothing left to answer'),
+    ('guardian', 'POST', '/needs/{need_open}/apply/', _APPLY, 201, 'an adult stranger is exactly who this is for'),
+    ('guardian', 'POST', '/needs/{need_open}/withdraw/', None, 404, 'they never applied'),
+    ('stranger', 'POST', '/needs/{need_open}/withdraw/', None, 200, 'their own application'),
+
+    ('stranger', 'GET', '/needs/{need_open}/applications/', None, 404, 'who answered is the node’s'),
+    ('volunteer', 'GET', '/needs/{need_open}/applications/', None, 404,
+     'staff, but the queue belongs to whoever decides it'),
+    ('organiser', 'GET', '/needs/{need_open}/applications/', None, 200, 'the manager’s queue'),
+    ('stranger', 'POST', '/need-applications/{app_pending}/decide/', _ACCEPT, 404, 'not theirs to decide'),
+    ('volunteer', 'POST', '/need-applications/{app_pending}/decide/', _ACCEPT, 404, 'nor theirs'),
+    ('organiser', 'POST', '/need-applications/{app_pending}/decide/', _ACCEPT, 200, 'the manager decides'),
+    ('organiser', 'POST', '/need-applications/{app_pending}/decide/', {'decision': 'maybe'}, 400,
+     'not one of the two words — malformed, not a conflict'),
+    ('organiser', 'POST', '/need-applications/{app_decided}/decide/', _ACCEPT, (409, 'already_decided'),
+     'a second click is the world having moved'),
+    ('anonymous', 'GET', '/needs/undefined/', None, 404, 'not a number, so not a thing'),
+    ('organiser', 'POST', '/need-applications/undefined/decide/', _ACCEPT, 404, 'same'),
+
+    # ---- D. plans (17BI.D) ---------------------------------------------------------------------
+    # An ACTIVE plan is readable by anybody who can see the node; a draft is the team’s.
+    ('anonymous', 'GET', '/nodes/event/{event}/plans/', None, 200, 'the active one, read-only'),
+    ('volunteer', 'GET', '/nodes/event/{event}/plans/', None, 200, 'staff see the drafts too'),
+    ('anonymous', 'GET', '/nodes/event/{draft}/plans/', None, 404, 'a draft node does not exist'),
+    ('anonymous', 'GET', '/nodes/organization/{org}/plans/', None, 200, 'the same panel, an organisation'),
+    ('stranger', 'GET', '/nodes/organization/{dissolved}/plans/', None, 404, 'nor does a dissolved body'),
+    ('anonymous', 'POST', '/nodes/event/{event}/plans/', _NEW_PLAN, 401, 'a write needs a sign-in'),
+    ('volunteer', 'POST', '/nodes/event/{event}/plans/', _NEW_PLAN, (403, 'not_editor'),
+     'drafting a roadmap is running the thing'),
+    ('organiser', 'POST', '/nodes/event/{event}/plans/', _NEW_PLAN, 201, 'the host may'),
+
+    ('anonymous', 'GET', '/plans/{plan_active}/', None, 200, 'an active plan is public with the node'),
+    ('anonymous', 'GET', '/plans/{plan_draft}/', None, 404, 'a draft is not'),
+    ('attendee', 'GET', '/plans/{plan_draft}/', None, 404, 'same'),
+    ('volunteer', 'GET', '/plans/{plan_draft}/', None, 200, 'ordinary staff READ a draft plan'),
+    ('volunteer', 'PATCH', '/plans/{plan_active}/', {'title': 'x'}, (403, 'not_editor'),
+     '…and do not edit one: reading a draft is not drafting it'),
+    ('stranger', 'PATCH', '/plans/{plan_active}/', {'title': 'x'}, (403, 'not_editor'), 'nor do they'),
+    ('organiser', 'PATCH', '/plans/{plan_active}/', {'title': 'Opening the conference'}, 200, 'its editor'),
+    ('organiser', 'DELETE', '/plans/{plan_active}/', None, (409, 'not_draft'),
+     'a plan people have seen is a record, archived rather than deleted'),
+    ('volunteer', 'DELETE', '/plans/{plan_draft}/', None, (403, 'not_editor'), 'not theirs'),
+    ('organiser', 'DELETE', '/plans/{plan_draft}/', None, 204, 'a draft nobody saw may go'),
+    ('organiser', 'POST', '/plans/{plan_active}/transition/', {'status': 'completed'},
+     (409, 'steps_pending'), '"completed" has to mean what it says'),
+    ('organiser', 'POST', '/plans/{plan_active}/transition/', {'status': 'draft'},
+     (409, 'illegal_transition'), 'the graph has no way back'),
+    ('volunteer', 'POST', '/plans/{plan_draft}/transition/', {'status': 'active'}, (403, 'not_editor'),
+     'publishing a roadmap is the editor’s'),
+    ('organiser', 'POST', '/plans/{plan_draft}/transition/', {'status': 'active'}, 200, 'and theirs it is'),
+
+    ('organiser', 'POST', '/plans/{plan_active}/steps/', _parent_step_body('substep'), (409, 'nested'),
+     'one level of sub-steps, like a subtask'),
+    ('stranger', 'POST', '/plans/{plan_active}/steps/', _NEW_STEP, (403, 'not_editor'), 'a reader suggests'),
+    ('organiser', 'POST', '/plans/{plan_active}/steps/', _NEW_STEP, 201, 'an editor adds'),
+    ('stranger', 'PATCH', '/plan-steps/{step_pending}/', {'status': 'done'}, (403, 'not_editor'),
+     'ticking somebody else’s step off'),
+    ('organiser', 'PATCH', '/plan-steps/{step_pending}/', {'status': 'done'}, 200, 'and who did it is recorded'),
+    ('attendee', 'PATCH', '/plan-steps/{draft_step}/', {'status': 'done'}, 404,
+     'a step of a plan they cannot see does not exist'),
+    ('organiser', 'DELETE', '/plan-steps/{step_pending}/', None, 204, 'the editor’s'),
+    ('organiser', 'POST', '/plans/{plan_active}/reorder/', _reorder_body('step_pending'), 400,
+     'a reorder that is not exactly the group is malformed, not a state that moved'),
+    ('organiser', 'POST', '/plans/{plan_active}/reorder/', _reorder_body('step_pending', 'step_done'),
+     200, 'the whole group, once each'),
+    ('stranger', 'POST', '/plans/{plan_active}/reorder/', _reorder_body('step_done', 'step_pending'),
+     (403, 'not_editor'), 'not theirs to sort'),
+
+    ('organiser', 'GET', '/plans/{plan_active}/suggestions/', None, 200, 'the editor’s queue'),
+    ('attendee', 'GET', '/plans/{plan_active}/suggestions/', None, (403, 'not_editor'),
+     'a suggestion box is not a forum — nobody reads everybody else’s'),
+    ('anonymous', 'POST', '/plans/{plan_active}/suggestions/', _NEW_SUGGESTION, 401,
+     'a write needs a sign-in'),
+    ('attendee', 'POST', '/plans/{plan_active}/suggestions/', _NEW_SUGGESTION, 201,
+     'the reader’s way in'),
+    ('organiser', 'POST', '/plans/{plan_active}/suggestions/', _NEW_SUGGESTION, (403, 'own_plan'),
+     'an editor who wants a step adds one; two ways to do one thing disagree the moment both are used'),
+    ('child', 'POST', '/plans/{plan_active}/suggestions/', _NEW_SUGGESTION, (403, 'minor'),
+     'free text to a stranger again — the same rule as a need’s application'),
+    ('reviewer', 'POST', '/plans/{plan_draft}/suggestions/', _NEW_SUGGESTION, (409, 'not_active'),
+     'staff can SEE the draft, and there is nothing to suggest on yet — 409, the plan moved'),
+    ('attendee', 'POST', '/plan-suggestions/{suggestion}/decide/', _ACCEPT, (403, 'not_editor'),
+     'the author does not decide their own'),
+    ('organiser', 'POST', '/plan-suggestions/{suggestion}/decide/', _ACCEPT, 200,
+     'accepting turns it into a step at the end'),
+    ('organiser', 'POST', '/plan-suggestions/{suggestion_decided}/decide/', _ACCEPT,
+     (409, 'already_decided'), 'once each'),
+    ('stranger', 'POST', '/plan-suggestions/{suggestion}/withdraw/', None, (403, 'not_own_suggestion'),
+     'withdrawing somebody else’s'),
+    ('attendee', 'POST', '/plan-suggestions/{suggestion}/withdraw/', None, 200, 'their own'),
+    ('anonymous', 'GET', '/plans/undefined/', None, 404, 'not a number, so not a thing'),
+    ('organiser', 'PATCH', '/plan-steps/undefined/', {'status': 'done'}, 404, 'same'),
+    ('organiser', 'POST', '/plan-suggestions/undefined/decide/', _ACCEPT, 404, 'same'),
+
+    # ---- E. decisions (17BI.E) -----------------------------------------------------------------
+    # Visibility is eligibility: a poll is shown to the people it is being put to, plus the node’s
+    # staff. A draft is the managers’ alone.
+    ('anonymous', 'GET', '/nodes/event/{event}/polls/', None, 200, 'the list answers; it is empty'),
+    ('attendee', 'GET', '/nodes/event/{event}/polls/', None, 200, 'the ones they may vote in'),
+    ('volunteer', 'GET', '/nodes/event/{event}/polls/', None, 200, 'every open and closed one'),
+    ('organiser', 'GET', '/nodes/event/{event}/polls/', None, 200, 'the drafts too'),
+    ('anonymous', 'GET', '/nodes/event/{draft}/polls/', None, 404, 'a draft node does not exist'),
+    ('anonymous', 'GET', '/nodes/course/{course}/polls/', None, 200, 'the same panel, a course'),
+    ('anonymous', 'POST', '/nodes/event/{event}/polls/', _NEW_POLL, 401, 'a write needs a sign-in'),
+    ('volunteer', 'POST', '/nodes/event/{event}/polls/', _NEW_POLL, (403, 'not_manager'),
+     'putting a question to the room is running it'),
+    ('organiser', 'POST', '/nodes/event/{event}/polls/', _NEW_POLL, 201, 'and it opens as a draft'),
+
+    ('anonymous', 'GET', '/polls/{poll_open}/', None, 404,
+     'an anonymous reader is eligible for nothing, so for them there is no poll here'),
+    ('stranger', 'GET', '/polls/{poll_open}/', None, 404, 'same — a question put to the room, not the street'),
+    ('attendee', 'GET', '/polls/{poll_open}/', None, 200, 'they are in the room'),
+    ('participant', 'GET', '/polls/{poll_open}/', None, 404, 'in a different room'),
+    ('attendee', 'GET', '/polls/{poll_staff}/', None, 404, 'a staff poll is not put to the attendees'),
+    ('volunteer', 'GET', '/polls/{poll_staff}/', None, 200, 'it is put to them'),
+    ('volunteer', 'GET', '/polls/{poll_draft}/', None, 404, 'a draft is the managers’ alone'),
+    ('organiser', 'GET', '/polls/{poll_draft}/', None, 200, 'theirs'),
+    ('volunteer', 'PATCH', '/polls/{poll_draft}/', {'question': 'x'}, 404, 'not theirs to word'),
+    ('organiser', 'PATCH', '/polls/{poll_draft}/', {'question': 'Which day suits?'}, 200, 'while it is a draft'),
+    ('organiser', 'PATCH', '/polls/{poll_open}/', {'question': 'x'}, (409, 'not_draft'),
+     'rewording a question people have already answered'),
+    ('organiser', 'DELETE', '/polls/{poll_open}/', None, (409, 'not_draft'),
+     'a decision, once made, is a record and not a draft to discard'),
+    ('organiser', 'DELETE', '/polls/{poll_draft}/', None, 204, 'a draft may go'),
+    ('volunteer', 'POST', '/polls/{poll_draft}/options/', _NEW_OPTION, 404, 'not theirs'),
+    ('organiser', 'POST', '/polls/{poll_draft}/options/', _NEW_OPTION, 201, 'while it is a draft'),
+    ('organiser', 'POST', '/polls/{poll_open}/options/', _NEW_OPTION, (409, 'not_draft'),
+     'a choice added after the first ballot is a different question'),
+    ('volunteer', 'DELETE', '/poll-options/{draft_option}/', None, 404, 'not theirs'),
+    ('organiser', 'DELETE', '/poll-options/{draft_option}/', None, 204, 'while it is a draft'),
+    ('organiser', 'DELETE', '/poll-options/{open_option_a}/', None, (409, 'not_draft'), 'and not after'),
+
+    ('organiser', 'POST', '/polls/{poll_bare}/open/', None, (409, 'no_options'),
+     'fewer than two options is not a choice'),
+    ('organiser', 'POST', '/polls/{poll_open}/open/', None, (409, 'already_open'), 'the world moved'),
+    ('volunteer', 'POST', '/polls/{poll_draft}/open/', None, 404, 'not theirs to open'),
+    ('organiser', 'POST', '/polls/{poll_draft}/open/', None, 200, 'theirs'),
+    ('organiser', 'POST', '/polls/{poll_closed}/close/', {'decision_note': 'x'},
+     (409, 'already_closed'), 'same'),
+    ('volunteer', 'POST', '/polls/{poll_open}/close/', {'decision_note': 'x'}, 404, 'not theirs to close'),
+    ('organiser', 'POST', '/polls/{poll_open}/close/', {'decision_note': 'Coffee, then.'}, 200,
+     'closing is where the written decision goes'),
+
+    ('anonymous', 'POST', '/polls/{poll_open}/vote/', _vote_body('open_option_a'), 401,
+     'a ballot needs a sign-in'),
+    ('stranger', 'POST', '/polls/{poll_open}/vote/', _vote_body('open_option_a'), (409, 'not_eligible'),
+     'the write endpoint answers the WORD rather than 404 — house rule 6, and the list already hid it'),
+    ('attendee', 'POST', '/polls/{poll_open}/vote/', _vote_body('open_option_a'), (409, 'already_voted'),
+     'one ballot each, and the ballot is what says so'),
+    ('child', 'POST', '/polls/{poll_open}/vote/', _vote_body('open_option_a'), 201,
+     'a minor MAY vote — no free text leaves them'),
+    ('volunteer', 'POST', '/polls/{poll_open}/vote/', _vote_body('open_option_a'), 201, 'staff are members'),
+    ('volunteer', 'POST', '/polls/{poll_open}/vote/', _vote_body('open_option_a', 'open_option_b'),
+     (409, 'too_many_choices'), 'a single-choice poll, asked for two'),
+    ('volunteer', 'POST', '/polls/{poll_open}/vote/', _vote_body('draft_option'), (409, 'unknown_option'),
+     'an option belonging to another poll'),
+    ('volunteer', 'POST', '/polls/{poll_closed}/vote/', _vote_body('closed_option'), (409, 'not_open'),
+     'the room has already been told the answer'),
+    ('attendee', 'POST', '/polls/{poll_staff}/vote/', _vote_body('open_option_a'), (409, 'not_eligible'),
+     'eligibility is the rota here, not the seat'),
+
+    ('anonymous', 'GET', '/polls/{poll_closed}/results/', None, 404,
+     'a closed poll is still only shown to the room it was put to'),
+    ('attendee', 'GET', '/polls/{poll_open}/results/', None, 403,
+     'eligible, and a running tally is the manager’s until it closes'),
+    ('attendee', 'GET', '/polls/{poll_closed}/results/', None, 200, 'once closed, everybody eligible sees it'),
+    ('organiser', 'GET', '/polls/{poll_open}/results/', None, 200, 'a manager always may'),
+    ('anonymous', 'GET', '/polls/undefined/', None, 404, 'not a number, so not a thing'),
+    ('organiser', 'POST', '/polls/undefined/open/', None, 404, 'same'),
+    ('organiser', 'DELETE', '/poll-options/undefined/', None, 404, 'same'),
+
+    # ---- F. the work dashboard (17BI.F) --------------------------------------------------------
+    # One page of everything waiting on ME, so there is nobody else’s view of it to get wrong.
+    ('anonymous', 'GET', '/work/', None, 401, 'there is no "my work" without a me'),
+    ('stranger', 'GET', '/work/', None, 200, 'an empty dashboard is still theirs'),
+    ('volunteer', 'GET', '/work/', None, 200, 'a task and a shift are waiting on them'),
+    ('organiser', 'GET', '/work/', None, 200, 'and rather more on them'),
+    ('child', 'GET', '/work/', None, 200, 'a minor holds tasks and votes, so they have one too'),
 ]

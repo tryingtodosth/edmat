@@ -115,6 +115,15 @@ mandatory; a `cloakroom` station with a worked shift and an `info` station with 
 **desk** with one coat on rack 1; a `VolunteerRecord`; and an `ExportLog` row. The class carries its
 own temporary `MEDIA_ROOT`, because one document has real bytes for `GET /documents/{id}/file/`.
 
+Since the management layer (`HISTORY.md`, "Matrix rows for the management layer") it also covers
+`organizations`, `tasks`, `needs`, `plans`, `decisions` and `work`, plus the two node-seam views in
+`config/views.py` — on all four node kinds, so the fixture also carries a public course with one
+plain participant, an unlisted course, a material with a co-authoring project and a bare one, and
+an organisation with a single owner. A row's expected value may be a **`(status, refusal word)`
+pair** as well as a bare status, and `test_matrix` then checks `response.data['detail']`: that
+layer has twenty-five refusal words and a 403 alone passes on the wrong one. The third persona,
+`participant`, is there for the "member but not staff" tier the demo seven have no example of.
+
 **Two personas live in that fixture rather than in `make_personas()`, deliberately.** `venue_admin`
 runs the building and is *not* event staff. `clerk` is a second volunteer who has not acknowledged
 the mandatory briefing, and exists for exactly one row — `409 briefing_unread` on a desk write. The
@@ -125,7 +134,7 @@ both out of `make_personas` keeps `seed_conference_personas`, `CAPABILITY_TABLE`
 
 ## Verify
 
-`manage.py test events` (154 tests + the 411-row permission matrix, refusal-weighted) + the availability
+`manage.py test events` (154 tests + the 690-row permission matrix, refusal-weighted) + the availability
 half in `booking/tests.py`. E2E: `events-and-nav.mjs`, `known-issues.mjs`, `event-preview.mjs`
 (needs `seed_conference_personas` run against the backend it drives).
 

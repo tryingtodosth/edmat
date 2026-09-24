@@ -1433,6 +1433,23 @@ every check-in row into the same 409). It found one real bug: two cloakroom nest
 answered **500** rather than 404 on `/items/undefined/…` — `HISTORY.md` §17BF, "Matrix rows for A,
 C, E, F, G".
 
+**690 rows since the management layer went in** (431 before it). The added 259 cover every endpoint
+`organizations`, `tasks`, `needs`, `plans`, `decisions` and `work` expose, plus the two shared
+node-seam views in `config/views.py` (`GET /api/nodes/{kind}/{id}/` and `…/staff/`) that all six
+hang off — on all four node kinds, because `config/nodes.py` answers each from a different roster:
+the Sandbox event, a public course, a material with a co-authoring project (and a bare one with
+none) and an organisation. A row's expected value may now be a **`(status, refusal word)` pair**
+rather than a bare status, and `test_matrix` then checks `response.data['detail']`: this layer has
+twenty-five distinct refusal words and a 403 alone passes just as happily on the wrong one. One
+more persona is built in the fixture, **`participant`** — enrolled on the course and on no staff
+list anywhere, which is the tier that answers "may a member see the task board" (no) and "may a
+member vote in an `eligibility: members` poll" (yes). It found four real bugs: `PUT /api/needs/{id}/`
+skipped the manager check entirely (`UpdateModelMixin` binds both verbs and only `partial_update`
+was overridden), every `eligibility: members` poll was visible to anybody who could see the node,
+`GET /api/polls/{id}/results/` had the same hole with the tally in the body, and
+`POST /api/polls/{id}/options/` 500'd on the second option when the body named no `order` —
+`HISTORY.md`, "Matrix rows for the management layer".
+
 Its personas come from `backend/testing/personas.make_personas()`, which is also what
 `../.venv/bin/python3 manage.py seed_conference_personas [--password X]` runs — seven accounts
 (`persona.organiser@edmat.example` … `persona.stranger@…`, plus `persona.child`, a real minor made
