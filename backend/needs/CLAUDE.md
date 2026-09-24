@@ -68,7 +68,10 @@ posting, so authority tracks the node's manager, not `Need.created_by` (which is
 ```
 GET  /api/needs/                              the public board: ?kind=, ?remote=1, ?q=, ?node_kind=
 GET  /api/needs/{id}/                          detail — 404s exactly where public_needs() would omit it
-PATCH /api/needs/{id}/                         manager only: edit fields, cancel (status=cancelled), reopen (status=open)
+PATCH|PUT /api/needs/{id}/                     manager only: edit fields, cancel (status=cancelled), reopen (status=open)
+                                               — BOTH verbs: `UpdateModelMixin` binds `PUT → update` too, and overriding
+                                                 only `partial_update` once left PUT running DRF's own, which asks the
+                                                 queryset (visibility) and never `can_manage` (fixed §17BI.H)
 GET/POST /api/nodes/{kind}/{id}/needs/         this app's own nested route; POST is manager-only
 POST /api/needs/{id}/apply/       {message}    apply_block_reason first
 POST /api/needs/{id}/withdraw/                 the caller's own application only

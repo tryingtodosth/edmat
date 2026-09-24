@@ -360,6 +360,10 @@ class PollAPITests(APITestCase):
         opt = PollOption.objects.create(poll=poll, text='Yes', order=1)
         ballot = Ballot.objects.create(poll=poll, user=self.voter)
         Vote.objects.create(poll=poll, option=opt, ballot=ballot)
+        # "Anyone eligible" is what this test is about, so the voter has to actually BE eligible —
+        # `_enroll` was missing here and the test passed anyway until §17BI.H made `visible_polls`
+        # check membership rather than only the word `members`.
+        self._enroll(self.voter)
 
         self.client.force_authenticate(self.voter)
         response = self.client.get(f'/api/polls/{poll.id}/results/')
@@ -381,6 +385,9 @@ class PollAPITests(APITestCase):
         opt = PollOption.objects.create(poll=poll, text='Yes', order=1)
         ballot = Ballot.objects.create(poll=poll, user=self.voter)
         Vote.objects.create(poll=poll, option=opt, ballot=ballot)
+        # Enrolled, because this test is about what the SERIALIZER carries to somebody who may read
+        # the poll at all — see `test_results_visible_when_closed` for the same missing line.
+        self._enroll(self.voter)
 
         self.client.force_authenticate(self.voter)
         response = self.client.get(f'/api/polls/{poll.id}/')
@@ -441,3 +448,83 @@ class PollAPITests(APITestCase):
         self.assertEqual(response.data['status'], 'closed')
         self.assertEqual(response.data['decision_note'], "We're going with Tuesday.")
         self.assertEqual(response.data['closed_by_id'], self.manager.id)
+
+
+class VisibilityRegressionTests(APITestCase):
+    """The three things `events/test_permission_matrix.py` found when the management rows landed
+    (§17BI.H). Each of these was a real answer this app gave, not an expectation that was wrong.
+
+    They live together because they are one question asked three ways: *who is this poll for*. A
+    poll's question is as much of a decision as its count — "shall we drop Tomek from the rota?"
+    is not a thing a public course page may say to a passer-by — so the eligibility rule has to be
+    a rule about people, not about the word `members`.
+    """
+
+    def setUp(self):
+        self.manager = make_user('vis-manager@test.example')
+        self.member = make_user('vis-member@test.example')
+        self.stranger = make_user('vis-stranger@test.example')
+        self.course = _course(self.manager, title='A public course')
+        self.content_type = _course_content_type()
+        Enrollment.objects.create(course=self.course, participant=self.member, status='active')
+        self.poll = Poll.objects.create(
+            content_type=self.content_type, object_id=self.course.id,
+            question='Shall we move the deadline?', status='open', eligibility='members',
+            created_by=self.manager,
+        )
+        self.option = PollOption.objects.create(poll=self.poll, text='Yes', order=0)
+        PollOption.objects.create(poll=self.poll, text='No', order=1)
+
+    def _list(self):
+        return self.client.get(f'/api/nodes/course/{self.course.id}/polls/')
+
+    def test_a_stranger_on_a_public_course_is_shown_no_members_poll(self):
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self._list().data, [])
+        self.assertEqual(self.client.get(f'/api/polls/{self.poll.id}/').status_code, 404)
+
+    def test_an_anonymous_reader_is_shown_none_either(self):
+        self.assertEqual(self._list().data, [])
+        self.assertEqual(self.client.get(f'/api/polls/{self.poll.id}/').status_code, 404)
+
+    def test_the_room_it_was_put_to_sees_it(self):
+        self.client.force_authenticate(self.member)
+        self.assertEqual(len(self._list().data), 1)
+        self.assertEqual(self.client.get(f'/api/polls/{self.poll.id}/').status_code, 200)
+
+    def test_a_closed_polls_results_are_not_public_either(self):
+        """`/results/` carries the option texts AND the tally, so it needs the same gate the
+        detail route has — it used to ask only whether the NODE was visible."""
+        self.poll.status = 'closed'
+        self.poll.save(update_fields=['status'])
+        self.client.force_authenticate(self.stranger)
+        self.assertEqual(self.client.get(f'/api/polls/{self.poll.id}/results/').status_code, 404)
+        self.client.force_authenticate(self.member)
+        self.assertEqual(self.client.get(f'/api/polls/{self.poll.id}/results/').status_code, 200)
+
+    def test_an_option_with_no_order_appends_rather_than_colliding(self):
+        """`(poll, order)` is unique and the model default is 0, so `POST {"text": …}` — which is
+        the whole of what §3.E's API line promises — raised IntegrityError on the second option."""
+        draft = Poll.objects.create(
+            content_type=self.content_type, object_id=self.course.id,
+            question='Which day?', status='draft', eligibility='members', created_by=self.manager,
+        )
+        self.client.force_authenticate(self.manager)
+        first = self.client.post(f'/api/polls/{draft.id}/options/', {'text': 'Saturday'})
+        second = self.client.post(f'/api/polls/{draft.id}/options/', {'text': 'Sunday'})
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 201)
+        self.assertEqual(
+            list(draft.options.order_by('order').values_list('text', 'order')),
+            [('Saturday', 0), ('Sunday', 1)],
+        )
+
+    def test_a_caller_that_names_an_order_still_gets_it(self):
+        draft = Poll.objects.create(
+            content_type=self.content_type, object_id=self.course.id,
+            question='Which day?', status='draft', eligibility='members', created_by=self.manager,
+        )
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(f'/api/polls/{draft.id}/options/', {'text': 'Sunday', 'order': 5})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(draft.options.get().order, 5)

@@ -359,10 +359,18 @@ class ManagementIntegrationTests(TestCase):
                 self.assertEqual(providers._REGISTRY[key][0], flag)
 
     def test_management_providers_run_clean_for_a_fresh_user(self):
-        """`collect()` drops a section with no rows (the page's per-section empty state is dead
-        code by design), so a fresh user proves the wiring by every management provider RUNNING
-        without landing in `unavailable` — not by the sections it returns."""
+        """All six RUN for somebody with nothing, and none of them raises.
+
+        `unavailable` being empty is the whole assertion: `collect()` appends a section only
+        `if items` (providers.py, and `test.md` records the same thing from the page's side), so a
+        person with nothing waiting on them gets **no** management section rather than six empty
+        ones. This test asserted the opposite and had been failing since the §5 wiring landed;
+        corrected on `mgmt/h-matrix` rather than left red, because a suite with one known failure
+        in it is a suite nobody reads.
+        """
         user = make_user('fresh')
         result = providers.collect(user)
-        broken = set(result['unavailable']) & set(self.MANAGEMENT_SECTIONS)
-        self.assertEqual(broken, set(), f'management providers raised: {sorted(broken)}')
+        self.assertEqual(result['unavailable'], [])
+        keys = [section['key'] for section in result['sections']]
+        for key in self.MANAGEMENT_SECTIONS:
+            self.assertNotIn(key, keys)

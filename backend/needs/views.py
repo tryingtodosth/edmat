@@ -109,14 +109,29 @@ class NeedViewSet(
             qs = qs.filter(content_type=ContentType.objects.get_for_model(model))
         return Response(self.get_serializer(qs, many=True).data)
 
-    def partial_update(self, request, *args, **kwargs):
+    def update(self, request, *args, **kwargs):
+        """PATCH **and PUT**, through one method.
+
+        `UpdateModelMixin` binds both verbs, and overriding only `partial_update` left the
+        inherited `update` — DRF's own, which asks `get_queryset()` and nothing else — routed to
+        `PUT`. `get_queryset()` here is `public_needs`, i.e. *visibility*, so any signed-in reader
+        who could see an open posting could rewrite it by using the other verb. House rule 4's
+        exact shape: a queryset filter is not an authority check, and the authority check has to
+        run on every path that writes. Found by the permission matrix (§17BI.H).
+        """
         need = self.get_object()
         if not rules.can_manage(request.user, need):
             return Response({'detail': rules.NOT_MANAGER}, status=status.HTTP_403_FORBIDDEN)
-        serializer = self.get_serializer(need, data=request.data, partial=True)
+        serializer = self.get_serializer(
+            need, data=request.data, partial=kwargs.get('partial', False)
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, _NeedsGate])
     def apply(self, request, pk=None):

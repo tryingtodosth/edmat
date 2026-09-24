@@ -9,6 +9,7 @@ from django.utils import timezone
 from config.nodes import (
     NODE_KIND_OF_MODEL,
     can_manage_node,
+    can_view_node,
     is_node_member,
     is_node_staff,
     kind_of,
@@ -33,11 +34,18 @@ NOT_DRAFT = 'not_draft'
 def visible_polls(user, node):
     """Polls this user may see on this node.
 
-    - Draft: node managers only (404 to a stranger)
-    - Open and closed: anyone who can see the node, if they are eligible OR if they are staff
+    - Draft: node managers only (404 to everybody else)
+    - Open and closed: anyone **eligible**, plus the node's staff
 
-    So a stranger sees no open poll. A member sees open polls they are eligible for.
-    Node staff see all non-draft polls.
+    So a stranger sees no poll at all, and neither does an anonymous reader: a question put to the
+    room is not put to the street, and its wording ("shall we drop Tomek from the rota?") is as
+    much of the decision as the count is. `eligibility` is the whole of the rule — checking only
+    the WORD `members` and not whether this person is one was how, until §17BI.H, every reader of
+    a public course saw every `members` poll on it.
+
+    Node staff see every open and closed poll whatever its eligibility, because a staff poll is
+    theirs and a members poll is one they are also members of — the seam's `is_node_member`
+    already includes staff.
     """
     ct = node_content_type(node)
     qs = Poll.objects.filter(
@@ -46,20 +54,29 @@ def visible_polls(user, node):
     )
 
     if can_manage_node(user, node):
-        return qs  # Managers see all
+        return qs  # Managers see all, drafts included
 
-    # Non-managers see only open/closed polls they are eligible for
-    if not (user and getattr(user, 'is_authenticated', False)):
-        return qs.filter(status__in=['open', 'closed']).filter(eligibility='members')
-
-    qs = qs.filter(status__in=['open', 'closed'])
-
-    # If they're staff, they see all open/closed; if not, only ones they're eligible for
+    live = qs.filter(status__in=['open', 'closed'])
     if is_node_staff(user, node):
-        return qs
+        return live
+    if is_node_member(user, node):
+        return live.filter(eligibility='members')
+    return qs.none()
 
-    # Non-staff see only those eligible for members
-    return qs.filter(eligibility='members')
+
+def can_view_poll(user, poll, node=None) -> bool:
+    """`visible_polls` for a poll that arrives with its id in the URL — house rule 4's other half.
+
+    A queryset filter never runs for a single-object route, so `retrieve`, `results` and anything
+    else that hands a poll's *contents* back asks this instead of re-deriving the rule. `vote` and
+    the manager-only writes deliberately do NOT: they answer a refusal WORD (`not_eligible`,
+    `not_open`) rather than a 404, because a person who was shown a ballot and lost their place
+    between loading it and clicking needs the sentence, not a vanished page (house rule 6).
+    """
+    node = node if node is not None else poll_node(poll)
+    if node is None or not can_view_node(user, node):
+        return False
+    return visible_polls(user, node).filter(pk=poll.pk).exists()
 
 
 def poll_node(poll):
