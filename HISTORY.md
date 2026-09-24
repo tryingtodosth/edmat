@@ -9715,3 +9715,166 @@ above: the migration had never been applied to the dev database (e2e/CLAUDE.md t
 - **`organization` nodes are silently unsupported** until step A lands and uncomments the line in
   `config.nodes.NODE_KINDS` — an attempt 404s cleanly and `NeedsPanel` reads that the same as
   "nothing here yet," but nobody can post a need on an organisation until that merge.
+
+## 17BI.B. Management step B: tasks — the universal actionable item (✅ built, full stack, 2026-09-24)
+
+Branch `mgmt/b-tasks`, worktree `/Projects/edmat/.claude/worktrees/mgmt-b-tasks`, one of six
+management steps built at once (`MANAGEMENT-BRIEF.md` §3.B; §4 is the set of rules that let six
+branches merge). The ask, from 2donet's §2.3: **a task is a universal actionable item that attaches
+to anything in the system**, with status, priority, a due date, assignees, one level of subtasks,
+and progress derived rather than stored.
+
+### What "attaches to anything" actually meant here
+
+2donet folds every attachable thing into one `Content` row with a cascading RBAC. EdMat does not:
+a course, an event and a material each already have a roster and a rule module, and each answers
+"who runs this" differently in a way that matters (a course's roster includes its participants; an
+event's host is not in its `staff` table; a material's authority is its co-authoring project). So
+the prep commit built **`config/nodes.py`**, and this step's whole relationship with the rest of the
+codebase is that it *asks* it. `tasks/` imports `courses`, `events` and `materials` **nowhere**. The
+practical proof: when step A uncomments the `organization` line in `NODE_KINDS`, tasks work on
+organisations with no change in this app at all.
+
+### The shape
+
+- `Task(content_type + object_id → a node, title, description (sanitized), status: todo |
+  in_progress | review | done | cancelled, priority 1–4 default 3, due_at, parent → Task, order,
+  created_by, created_at, updated_at, done_at)`; `TaskAssignee(task, user, assigned_by,
+  assigned_at)` unique per pair.
+- **One level of subtasks.** `parent` is a self FK; a subtask of a subtask is `409 nested`. Not
+  schema tidiness: `progress()` is "done subtasks over subtasks", which stops meaning anything once
+  the tree is arbitrarily deep, and a checklist that quietly becomes a work-breakdown structure is
+  how a board people trusted stops being read.
+- **`progress` and `is_overdue` are recounted on every read** (house rule 5); `done_at` is stored,
+  because it says *when*, which `status` cannot. A **cancelled** subtask stays in the denominator —
+  a cancelled item is work that did not happen — and that is stated in `rules.progress` rather than
+  discovered later.
+- `rules.py` is the app: `visible_tasks`, `visible_task`, `can_edit`, `can_assign`, `can_create`,
+  `transition_block_reason`, `assign_block_reason`, `unassign_block_reason`, `subtask_block_reason`,
+  `delete_block_reason`, `progress`, `is_overdue`. Eight refusal words, each with its own HTTP
+  status and its own sentence in `labels.ts` (house rule 6): `not_manager` 403, `not_staff` 400
+  (following `shifts/views.py`'s own answer for the same shape — the request named somebody who
+  cannot be an assignee), `not_allowed` 403, `already_assigned` 409, `not_assigned` 400, `nested`
+  409, `has_subtasks` 409, `illegal_transition` 409.
+
+### Three decisions worth the words
+
+1. **A task board is the inside of a team.** `visible_tasks` is **node staff only** — not members,
+   not participants, not attendees. An event's attendee poking at `/api/nodes/event/50/tasks/` gets
+   404, and so does a signed-out reader on the same public event page (house rule 4: for them it
+   does not exist). Creating one, though, is open to **any** staff member rather than to managers
+   only: a roster of people who can see the board but may only ever be *given* work is a board that
+   gets kept in a chat window instead. Assigning stays with the managers.
+2. **There is no SQL for "tasks on nodes I am staff of", and that is said rather than skipped.**
+   House rule 4 asks for a queryset filter *and* an object check. The target is a
+   `GenericForeignKey` across three models with three different rosters, so the join does not exist.
+   What replaces the filter: **every path scopes before it reads** — the nested list resolves its
+   node and 404s a non-staff caller before touching `Task`, and every single-object path goes
+   through `get_object`, which asks `rules.visible_task`. And there is deliberately **no
+   `GET /api/tasks/`**: a list with no node to scope it to is exactly the unscoped queue that leaked
+   once before. `mine` and `work_items` filter in Python, over one account's own rows.
+3. **`status` is not writable by PATCH**, and there is a test that fails if somebody puts it back.
+   It moves through `POST /api/tasks/{id}/transition/` alone, which is **one WHERE-anchored
+   `update()`** (`backend/CLAUDE.md` SQLite rule 1): two people clicking Done at once must not both
+   win, and the loser gets the same `illegal_transition` a genuinely wrong move gets — which, by the
+   time their request ran, it was.
+
+### The API and the frontend
+
+`GET|POST /api/nodes/{kind}/{id}/tasks/` (`?status=`, `?assignee=me`, `?overdue=1`),
+`GET|PATCH|DELETE /api/tasks/{id}/`, `POST …/transition/ {status}`, `…/assign/` and `…/unassign/`
+`{user}`, `…/subtasks/`, `GET /api/tasks/mine/` → `{assigned, created}` (two lists, because they
+answer different questions — work waiting on me, and work I am waiting on somebody else for; a task
+in both appears only in `assigned`). All behind `feature_gate('tasks')`.
+
+Frontend: `types/task.ts`, `services/tasks.ts` (the only seam), four components in
+`components/task/` — `TasksPanel` at mount point B in `ManagementPanels.svelte` (grouped by status,
+`done`/`cancelled` folded away behind a toggle, three filters, an add form), `TaskCard` (which draws
+itself recursively for its own subtasks with `allowSubtasks={false}`), `TaskForm` (one form for
+create, edit and the compact subtask box), `AssigneePicker` (fed by the shared
+`GET /api/nodes/{kind}/{id}/staff/`, so this app never lists people itself, and it fetches the
+roster **only when a manager opens it**). Routes `/tasks` ("my tasks") and `/tasks/[id]` — the
+latter exists because `tasks/work.py` hands the work dashboard a frontend path per row, and a
+dashboard link that only worked if you first found the right course page would not be a link.
+Header: one `canTasks` line and one account-menu entry, at the two markers that name step B.
+
+**Polish.** `zadanie` is already this project's word for an *exercise* (root `CLAUDE.md` glossary),
+so the panel is `Zadania zespołu` and the page `Moje zadania`, rather than a bare `Zadania` sitting
+next to a list of exercises on a course page.
+
+### Verified
+
+Backend, from `backend/`: `manage.py test tasks config` — **89 tests, OK** (54 of them this app's,
+refusals first: visibility, authority, the whole transition table including a lost race, the one
+level of subtasks, the derived numbers, the three filters, the sanitizer, `mine`, `work_items`, the
+kill switch); `manage.py check` clean; `makemigrations --check --dry-run` → "No changes detected".
+
+Frontend: `npm run check` **0 errors 0 warnings** (5554 files), `npx eslint` and
+`npx prettier --check` clean on all twelve touched files, `npm run build` clean (1m25s,
+adapter-static wrote `build/`), en/pl **3282 keys each, key sets identical**.
+
+Browser, against real servers on this step's own ports (API 8122, Vite 5222), `backend/cachedata/*`
+cleared first: **`frontend/e2e/tasks.mjs` 36/36, zero console and page errors**, both screenshots
+looked at. **Four things were found by running it that nothing else caught**, which is the whole
+argument of house rule 2:
+
+1. **The roster came back with the host on it twice.** `config/nodes.py: _event_staff_users` is
+   `filter(pk=host_id) | filter(event_staff_roles__event=event)` with no `.distinct()`, and an
+   event's host **is** an `EventStaff` row (`Event.save` creates the organiser row). Svelte 5 does
+   not degrade on a duplicate key: `{#each available as person (person.id)}` threw
+   `each_key_duplicate` and the **whole block failed to render**, so the picker showed nothing but
+   its placeholder — a symptom that reads as "the roster endpoint is broken". Defended in
+   `AssigneePicker` with a `dedupe()`; the real one-word fix belongs in the seam, which is read-only
+   on this branch (§4 rule 3), and is on `todo.md` for the integrator. **Every step's picker has
+   this bug** until it is fixed there.
+2. **The killed feature still asked.** `/tasks` and `/tasks/[id]` drew the `FeatureGate` notice
+   correctly with the switch off — and still fired `GET /api/tasks/mine/`, which the gate answered
+   403, logging a failed request in the browser. `featureFlagsStore.isEnabled` **fails open** until
+   the first `/api/feature-flags/` response lands, which is right for drawing links and wrong for
+   firing a request, so both routes now gate on `isLoaded &&` as well. House rule 3's "stops
+   asking", enforced by the zero-console-errors pass condition.
+3. **"Overdue" had eaten the date.** Looking at `tasks-mine.png`: the card replaced the due date
+   with the word, and "Overdue" alone cannot tell somebody whether they are an hour late or a
+   fortnight late — which is the only thing they need in order to decide what to do. Now both.
+4. Three e2e traps of the kind `e2e/CLAUDE.md` catalogues, each of which had the script lying:
+   clicking an **unhydrated** login form (trap 25 — the run failed 25 s later at `waitForURL`,
+   reading exactly like a broken login page); `waitFor()` on an `<option>` inside a **closed
+   `<select>`**, which never becomes "visible"; and `selectOption({ index: 1 })` on a roster ordered
+   by pk, which picked the **host** rather than the volunteer and then failed every later check
+   about what a volunteer may do to a task she is carrying (trap 6, positional locators lie). The
+   script now selects by account id. A `catch` was also added around the whole body, because
+   without one a thrown locator timeout ran the `finally` and the script reported "4/4 checks
+   passed" for a run that never reached check five — a vacuous pass of exactly the shape trap 8
+   describes.
+
+### Left open
+
+- **No `review → in_progress`** — a rejection. §3.B's transition table does not have it and this
+  step did not invent one, so a reviewer who wants changes must cancel or wait. It is one pair in
+  `FORWARD_TRANSITIONS`' neighbourhood plus a label, and it should be a decision somebody makes on
+  purpose.
+- **`config/nodes.py` needs `.distinct()` on `_event_staff_users`** — see Verified §1. Read-only
+  here; on `todo.md`. Related and also seam-owned: `config/test_nodes.NodeEndpointTests` does not
+  declare the telemetry log shards in `databases`, so `manage.py test config` prints a
+  `DatabaseOperationForbidden` traceback while still passing.
+- **No notifications** on assignment, on a task reaching `review`, or on a due date passing (§4
+  rule 12 forbids a new notification type on a parallel branch — it is a three-file change six
+  branches would collide on). Those three are the ones worth adding.
+- **No comment thread on a task** (§7): `community/targets.py` gains a line once the shapes settle.
+- **No reordering in the UI.** `order` is a real field and the API accepts it, but nothing moves a
+  card up or down; the board reads `order, created_at`. Up/down controls, no new dependency (§1).
+- **`?assignee=me` narrows top-level rows only** — a subtask of mine travels folded under its
+  parent rather than being promoted, which is right for a board and means "Mine" is not a complete
+  list of everything with my name on it.
+- **`/api/tasks/mine/` and `work_items` filter node staffing in Python**, because the
+  `GenericForeignKey` has no join. Bounded by one account's own rows; if somebody ever carries
+  thousands of tasks, this is the thing to revisit.
+- **A cancelled subtask stays in `progress`'s denominator.** Deliberate — a cancelled item is work
+  that did not happen — and stated in `rules.progress` so nobody has to rediscover it.
+- **A task board is not narrowed by content language** and carries no `X-EdMat-Hidden-Languages`:
+  it is a team's working notes, not published content. Worth saying, because every other list here
+  is narrowed.
+- **No recurring tasks, no estimates or time logging, no templates, no bulk actions** — all four
+  named as out of scope in §3.B.
+- **`tasks/work.py: work_items` is written but not registered.** `work/providers.py` is step F's
+  file and nothing here imports it; the integrator wires it in two lines at §5.

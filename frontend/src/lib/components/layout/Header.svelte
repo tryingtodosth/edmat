@@ -92,6 +92,8 @@
 	// D plans, E decisions, F work_dashboard). Nothing else in this block is touched by a step.
 	let canNeeds = $derived(can('needs'));
 
+	let canTasks = $derived(can('tasks'));
+
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
 	// The waiting-decisions count, loaded whenever a moderator's navigation is drawn. An effect
@@ -492,6 +494,15 @@
 	<!-- Management account-menu marker (MANAGEMENT-BRIEF.md §4 rule 4): steps append directly below
 	     this comment, in step order — A "My organisations", B "My tasks", F "My work" — each behind
 	     its own flag. -->
+	{#if canTasks}
+		<!-- Everything waiting on this person across every course, event and material they help run
+		     (MANAGEMENT-BRIEF.md §3.B). Here rather than in Add… for the same reason Volunteering is:
+		     it is a thing of theirs to come back to, not something to make. -->
+		<a role="menuitem" class={itemClass} href={resolve('/tasks')} {onclick}>
+			{m.tasks_myTitle()}
+			<!-- "My tasks" -->
+		</a>
+	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
 	{#if canIssues}
 		<button

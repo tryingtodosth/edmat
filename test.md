@@ -1519,3 +1519,23 @@ the orphaned `Need` row (no DELETE endpoint by design — tombstone, not hard-de
 unreachable through the API the moment its node is gone, which the script also checks.
 
     cd frontend && E2E_BASE=http://localhost:5223 E2E_API=http://127.0.0.1:8123 node e2e/needs.mjs
+
+**`backend/tasks/tests.py` (54 tests) and `frontend/e2e/tasks.mjs`** — management step B, tasks on a
+course, an event or a material (`MANAGEMENT-BRIEF.md` §3.B, 2026-09-24). The Django suite is
+refusals first: a stranger, an event's attendee and an anonymous caller each get **404** on the
+board and on a task id (a task board is the inside of a team); an unknown node kind and
+`/api/tasks/undefined/` are 404s rather than 500s; who may edit, who may assign, who may delete;
+the whole transition table including the **lost race** (a WHERE-anchored `update()` whose loser
+sees `illegal_transition`); one level of subtasks (`409 nested`); the recounted `progress` and
+`is_overdue`; the three list filters; the bleach pass on `description`; the proof that a PATCH
+cannot set `status`; `mine`; `work_items`; and the kill switch with its moderator bypass. Run it
+with `../.venv/bin/python3 manage.py test tasks config` from `backend/` (89 with `config`).
+`frontend/e2e/tasks.mjs` drives the real pages as Kasia (host) and Ola (volunteer): the panel on a
+real event page, a task written through the form with a due date already in the past, the assignee
+picker fed by the shared `GET /api/nodes/{kind}/{id}/staff/`, the forward transition, a step folded
+under its parent with the progress line, the volunteer's narrower set of buttons, `/tasks` and
+`/tasks/{id}`, an anonymous reader getting **no panel at all** on the same public event page, the
+`tasks` switch taking the panel, the account-menu entry and the page away and giving them back, and
+four refusals asserted straight against the API. Two screenshots in `e2e/screens/tasks-*.png`.
+
+    cd frontend && E2E_BASE=http://localhost:5222 E2E_API=http://127.0.0.1:8122 node e2e/tasks.mjs

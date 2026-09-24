@@ -42,6 +42,10 @@ import type {
 	PlanStepStatus,
 	PlanSuggestionStatus
 } from '$lib/types/plan';
+
+// The management layer's own enums, each step on its own import line for the same reason (six
+// branches in parallel, MANAGEMENT-BRIEF.md §4 rule 6).
+import type { TaskBlockReason, TaskPriority, TaskStatus } from '$lib/types/task';
 import { m } from '$lib/paraglide/messages.js';
 
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
@@ -833,4 +837,52 @@ export const APPLY_BLOCK_REASON_LABELS: Record<ApplyBlockReason, () => string> =
 // `needs/rules.py: decide_block_reason`, and reused by a too-late withdraw.
 export const DECIDE_BLOCK_REASON_LABELS: Record<DecideBlockReason, () => string> = {
 	already_decided: m.needs_decideReason_alreadyDecided // "This was already decided."
+
+};
+
+// ---------------------------------------------------------------------------------------------
+// Tasks (management step B) — a hand-maintained mirror of `STATUS_CHOICES`, `PRIORITY_CHOICES` and
+// the refusal words in `backend/tasks/models.py` + `backend/tasks/rules.py`, both of which name
+// this file back (house rule 13: say it in BOTH files). Adding a status, a priority or a refusal
+// word there means adding a line here in the same change.
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, () => string> = {
+	todo: m.tasks_status_todo, // "To do"
+	in_progress: m.tasks_status_inProgress, // "In progress"
+	review: m.tasks_status_review, // "In review"
+	done: m.tasks_status_done, // "Done"
+	cancelled: m.tasks_status_cancelled // "Cancelled"
+};
+
+/** The button that MOVES a task into a status reads differently from the status itself: "Mark
+ *  done" is an instruction, "Done" is a state, and a button labelled with a state reads as a
+ *  filter. Two maps rather than one, for that reason alone. */
+export const TASK_MOVE_LABELS: Record<TaskStatus, () => string> = {
+	todo: m.tasks_move_todo, // "Reopen"
+	in_progress: m.tasks_move_inProgress, // "Start"
+	review: m.tasks_move_review, // "Send to review"
+	done: m.tasks_move_done, // "Mark done"
+	cancelled: m.tasks_move_cancelled // "Cancel it"
+};
+
+export const TASK_PRIORITIES: TaskPriority[] = [1, 2, 3, 4];
+
+export const TASK_PRIORITY_LABELS: Record<TaskPriority, () => string> = {
+	1: m.tasks_priority_1, // "Urgent"
+	2: m.tasks_priority_2, // "High"
+	3: m.tasks_priority_3, // "Normal"
+	4: m.tasks_priority_4 // "Low"
+};
+
+/** A refusal carries its reason (house rule 6), and a reason is only worth carrying if there is a
+ *  sentence for each one. */
+export const TASK_BLOCK_REASON_LABELS: Record<TaskBlockReason, () => string> = {
+	not_manager: m.tasks_reason_notManager, // "Only somebody who runs this can do that."
+	not_staff: m.tasks_reason_notStaff, // "That person is not on this team."
+	not_allowed: m.tasks_reason_notAllowed, // "This is not yours to change."
+	already_assigned: m.tasks_reason_alreadyAssigned, // "They are already on this task."
+	not_assigned: m.tasks_reason_notAssigned, // "They are not on this task."
+	nested: m.tasks_reason_nested, // "A step cannot have steps of its own."
+	has_subtasks: m.tasks_reason_hasSubtasks, // "Remove its steps first."
+	illegal_transition: m.tasks_reason_illegalTransition // "That is not the next step from here — reload and try again."
 };

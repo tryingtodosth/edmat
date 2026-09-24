@@ -20,6 +20,8 @@
 
 	import NeedsPanel from '$lib/components/needs/NeedsPanel.svelte';
 
+	import TasksPanel from '$lib/components/task/TasksPanel.svelte';
+
 	let { nodeKind, nodeId }: { nodeKind: NodeKind; nodeId: string } = $props();
 
 	let node = $state<NodeRef | null>(null);
@@ -52,6 +54,7 @@
 		<!-- management: organizations (A) -->
 
 		<!-- management: tasks (B) -->
+		<TasksPanel {node} />
 
 		<!-- management: needs (C) -->
 		<NeedsPanel {node} />
