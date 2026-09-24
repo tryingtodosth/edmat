@@ -295,3 +295,51 @@ legal section also in Polish. Mark observed practice, vendor claims and your inf
 separately. End with what you could not find.
 
 ---
+
+## Follow-up prompt — sample data for a demo conference
+
+`CONFERENCE-BRIEF.md` records that all seven steps (venues, preview, documents, tickets,
+shifts, cloakroom, exports) are built and merged. `manage.py seed_conference_personas` seeds
+seven accounts and one bare sandbox event for the permission matrix, but nothing that looks
+lived-in: no checklist instance with real items, no documents, no filled rota, no cloakroom
+activity, no real-shaped programme. Screenshots, QA and onboarding currently stare at empty
+tables or invented-sounding placeholder text. Paste the block below on its own.
+
+---
+
+I run EdMat, a non-commercial bilingual (Polish/English) education platform of a university
+physics faculty community in Warsaw: Django REST Framework, SvelteKit, SQLite, no payments
+ever, no outgoing email, adults and minors under 16 through guardian accounts. Its conference
+layer is now built: a venue with rooms and a checklist template it hands the organiser; event
+documents with four visibility tiers and an acknowledgement ledger; opaque-QR tickets scanned
+from a locally cached, batch-synced list; a rota of station → shift → assignment with
+self-claim and drop-to-pool; a cloakroom by anonymous bearer token; role-scoped CSV exports.
+
+I want to seed one realistic demo conference — 50 to 300 people, one to three days, at a
+real-shaped university venue in Warsaw — so the app has believable content to show rather than
+empty tables. Research and produce, favouring real observed examples over invented ones:
+
+1. A realistic **checklist** a Polish university building actually hands an event organiser
+   before a conference (fire safety sign-off, room capacity confirmation, AV check, catering
+   delivery window, accessibility walk-through) — item wording and typical T-minus offsets.
+2. Realistic **document titles and content shape** for the four visibility tiers (public /
+   registered / staff / organiser-only) at an academic conference — e.g. a volunteer safety
+   briefing, a speaker AV guide, a fire evacuation plan, a catering headcount memo.
+3. A realistic **rota**: station names (registration desk, room chair, AV, cloakroom,
+   information desk) for a 2-day, 150-person conference, shift lengths, how many volunteers per
+   station per hour, and what a filled shift versus a short-staffed one actually look like.
+4. Realistic **cloakroom** numbers for a conference this size: items checked in per hour at
+   peak, typical claim rate by closing, how many lost-token exceptions per event.
+5. A realistic **programme**: track names, session titles and lengths, speaker count, for a
+   50–300 person academic (physics or general STEM) conference — enough to seed a believable
+   `Track` / `Session` / `SessionSpeaker` set, Polish and English titles both welcome.
+6. Typical **registration numbers**: the RSVP vs. organiser-approval vs. waiting-list-with-offer
+   split, and the checked-in percentage by the end of day one.
+
+Deliver: a single Markdown table or list per item above, concrete enough to type directly into
+a Django fixture or a `seed_conference_demo` management command — not advice, not a survey of
+what other tools do. English, with Polish venue and session names where natural. Mark clearly
+what is observed or adapted from a real programme versus synthesised to be merely plausible.
+End with what you could not find a real example for.
+
+---
