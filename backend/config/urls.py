@@ -7,7 +7,7 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 
 from config.sitemaps import SITEMAPS
-from config.views import LocaleHintView
+from config.views import LocaleHintView, NodeRefView, NodeStaffView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -15,6 +15,11 @@ urlpatterns = [
     # app's urls.py because it belongs to no app — it is about the visitor's very first paint, not
     # about anything the platform stores.
     path('api/locale-hint/', LocaleHintView.as_view(), name='locale-hint'),
+    # The management node seam (MANAGEMENT-BRIEF.md §2, config/nodes.py): what a course, event,
+    # material or organisation is and where the caller stands on it, and its roster for a picker.
+    # Here rather than in any one of the six management apps because all six ask it.
+    path('api/nodes/<str:kind>/<int:pk>/', NodeRefView.as_view(), name='node-ref'),
+    path('api/nodes/<str:kind>/<int:pk>/staff/', NodeStaffView.as_view(), name='node-staff'),
     # Deliberately at the root, not under `/api/`: this is the URL a crawler is told to fetch, and
     # Apache rewrites exactly this path through to Django (everything else at the root is the
     # SvelteKit build served off disk). The URLs it emits are frontend routes — see config/sitemaps.py.
@@ -52,6 +57,15 @@ urlpatterns = [
     # (`events/<id>/stations/`), which the events router's own detail pattern declines because it
     # ends at the id. See shifts/urls.py.
     path('api/', include('shifts.urls')),
+    # The six management modules (MANAGEMENT-BRIEF.md §0), included EMPTY by the prep commit so that
+    # no step edits this file; each app's urls.py fills its own router and its nested
+    # `nodes/<kind>/<pk>/<thing>/` paths.
+    path('api/', include('organizations.urls')),
+    path('api/', include('tasks.urls')),
+    path('api/', include('needs.urls')),
+    path('api/', include('plans.urls')),
+    path('api/', include('decisions.urls')),
+    path('api/', include('work.urls')),
 ]
 
 if settings.DEBUG:

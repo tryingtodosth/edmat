@@ -65,3 +65,60 @@ class LocaleHintView(APIView):
         response = Response({'suggested_locale': suggested_locale(country), 'country': country})
         response['Cache-Control'] = 'no-store'
         return response
+
+
+# ---- the management node seam (MANAGEMENT-BRIEF.md §2) ------------------------------------------
+#
+# Two views that belong to no single management app, because all six ask them: "what is this node
+# and where do I stand on it" and "who is on its roster". Both dispatch to `config.nodes`, which is
+# the one place those answers live; neither holds a rule of its own.
+
+
+def _display_name(user) -> str:
+    profile = getattr(user, 'profile', None)
+    name = getattr(profile, 'display_name', '') if profile is not None else ''
+    return name or user.get_username()
+
+
+class NodeRefView(APIView):
+    """`GET /api/nodes/{kind}/{id}/` → `config.nodes.node_ref`.
+
+    404 for an unknown kind, a missing id, or a node this reader may not see (house rule 4: for
+    them it does not exist, and nothing hung on it does either). Anonymous readers get the ref
+    with every standing false, so a public course's panels can draw their read-only halves.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, kind, pk):
+        from django.http import Http404
+
+        from . import nodes
+
+        node = nodes.resolve_node(kind, pk)
+        if node is None or not nodes.can_view_node(request.user, node):
+            raise Http404
+        return Response(nodes.node_ref(node, request.user))
+
+
+class NodeStaffView(APIView):
+    """`GET /api/nodes/{kind}/{id}/staff/` → `[{id, display_name}]`, the roster for a picker.
+
+    Staff-only: a roster is not public information on any of these nodes (an event's attendee
+    never sees the staff list either), so anyone below staff gets the same 404 a stranger would.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, kind, pk):
+        from django.http import Http404
+
+        from . import nodes
+
+        node = nodes.resolve_node(kind, pk)
+        if node is None or not nodes.can_view_node(request.user, node):
+            raise Http404
+        if not nodes.is_node_staff(request.user, node):
+            raise Http404
+        users = nodes.node_staff_users(node).select_related('profile').order_by('pk')
+        return Response([{'id': u.pk, 'display_name': _display_name(u)} for u in users])

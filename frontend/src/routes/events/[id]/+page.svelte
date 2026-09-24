@@ -30,6 +30,7 @@
 	import ChecklistPanel from '$lib/components/venue/ChecklistPanel.svelte'; // conference step A
 	import DocumentsPanel from '$lib/components/event/DocumentsPanel.svelte';
 	import RotaPanel from '$lib/components/shift/RotaPanel.svelte';
+	import ManagementPanels from '$lib/components/management/ManagementPanels.svelte';
 	import EventPreview from '$lib/components/event/EventPreview.svelte';
 	import TicketLinks from '$lib/components/event/TicketLinks.svelte';
 	import {
@@ -609,6 +610,10 @@
 				<RotaPanel eventId={event.id} canOrganise={event.canOrganise} isStaff={event.canCheckIn} />
 
 				<CloakroomPanel {event} />
+
+				<!-- The management layer (MANAGEMENT-BRIEF.md §2): organisations, tasks, needs, plans and
+				     polls hung on this event, each behind its own switch. One component, mounted once. -->
+				<ManagementPanels nodeKind="event" nodeId={event.id} />
 			{/if}
 
 			<!-- While the preview is on, the organiser's own page is unmounted around it (see EventPreview). -->

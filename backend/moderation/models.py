@@ -357,6 +357,16 @@ FEATURE_FLAG_CHOICES = [
     ('shifts', 'Volunteer rota (shifts)'),
     ('cloakroom', 'Cloakroom desk'),
     ('role_preview', 'View an event as a visitor'),
+    # The six management surfaces (MANAGEMENT-BRIEF.md §0), seeded ON together by migration 0044 —
+    # none of them has a row anywhere the moment it runs, so turning them on removes nothing. Each is
+    # a plain kill switch owned by one app: organizations/, tasks/, needs/, plans/, decisions/ and
+    # work/ (the personal dashboard, which also goes quiet for every module whose own switch is off).
+    ('organizations', 'Organisations'),
+    ('tasks', 'Tasks on courses, events and materials'),
+    ('needs', 'Needs board (help wanted)'),
+    ('plans', 'Plans and roadmaps'),
+    ('decisions', 'Decisions and polls'),
+    ('work_dashboard', 'Personal work dashboard'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

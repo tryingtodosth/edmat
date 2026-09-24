@@ -87,6 +87,9 @@
 	// The `/venues` browse link is in the footer, not here.
 	let canVenues = $derived(can('venues'));
 	let runsAVenue = $derived(canVenues && venueStaffStore.runsSomething);
+	// Management flags (MANAGEMENT-BRIEF.md §4 rule 4): one `let can… = $derived(can('…'))` line per
+	// step, appended directly below this comment in step order (A organizations, B tasks, C needs,
+	// D plans, E decisions, F work_dashboard). Nothing else in this block is touched by a step.
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -337,6 +340,8 @@
 			<span class="nav-link__text">{m.nav_events()}</span>
 		</a>
 	{/if}
+	<!-- Management nav marker (MANAGEMENT-BRIEF.md §4 rule 4): step C appends its "Help wanted"
+	     link directly below this comment, behind its flag. No other step touches the nav. -->
 	{#if canTutoring}
 		<a
 			class="nav-link nav-link--services"
@@ -415,6 +420,8 @@
 			<!-- "Venues you run" -->
 		</a>
 	{/if}
+	<!-- Management Add… marker (MANAGEMENT-BRIEF.md §4 rule 4): step A appends "New organisation"
+	     directly below this comment, behind its flag and for adults only. -->
 {/snippet}
 
 {#snippet accountItems(itemClass: string, onclick: () => void)}
@@ -469,6 +476,9 @@
 			<!-- "Volunteering" -->
 		</a>
 	{/if}
+	<!-- Management account-menu marker (MANAGEMENT-BRIEF.md §4 rule 4): steps append directly below
+	     this comment, in step order — A "My organisations", B "My tasks", F "My work" — each behind
+	     its own flag. -->
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
 	{#if canIssues}
 		<button

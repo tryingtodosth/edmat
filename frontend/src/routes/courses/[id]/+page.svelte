@@ -55,6 +55,7 @@
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 
 	import CourseClaims from '$lib/components/course/CourseClaims.svelte';
+	import ManagementPanels from '$lib/components/management/ManagementPanels.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 	let course = $state<Course | null>(null);
 	let participants = $state<Enrollment[]>([]);
@@ -944,6 +945,11 @@
 					</section>
 				{/if}
 			{/if}
+
+			<!-- The management layer (MANAGEMENT-BRIEF.md §2): organisations, tasks, needs, plans and
+			     polls hung on this course, each behind its own switch. Below every tab, because it is
+			     about running the course rather than any one part of it. -->
+			<ManagementPanels nodeKind="course" nodeId={course.id} />
 		</div>
 	{/if}
 </div>
