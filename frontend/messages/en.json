@@ -3215,5 +3215,22 @@
 	"featureFlags_label_needs": "Needs board (help wanted)",
 	"featureFlags_label_plans": "Plans and roadmaps",
 	"featureFlags_label_decisions": "Decisions and polls",
-	"featureFlags_label_workDashboard": "Personal work dashboard"
+	"featureFlags_label_workDashboard": "Personal work dashboard",
+	"polls_loading": "Loading polls…",
+	"polls_empty": "No polls yet.",
+	"polls_create": "Create a poll",
+	"polls_cancel": "Cancel",
+	"polls_question": "Question",
+	"polls_description": "Description (optional)",
+	"polls_mode_single": "Single choice",
+	"polls_mode_multiple": "Multiple choices",
+	"polls_eligibility_members": "Members (staff and enrolled)",
+	"polls_eligibility_staff": "Staff only",
+	"polls_anonymous": "Anonymous (no one can see who voted for what)",
+	"polls_open": "Open for voting",
+	"polls_close": "Close and decide",
+	"polls_vote": "Vote",
+	"polls_results": "Results",
+	"polls_decision_note": "Decision note",
+	"polls_decision_note_placeholder": "The decision made based on this poll…"
 }

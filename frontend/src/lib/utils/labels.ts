@@ -727,3 +727,32 @@ export const TICKET_BLOCK_REASONS: Record<string, () => string> = {
 	not_registered: m.tickets_blocked_notRegistered, // "You have not registered for this event."
 	not_yours: m.tickets_blocked_notYours // "This is somebody else's ticket."
 };
+
+// Poll enums — mirrors backend/decisions/models.py
+export type PollMode = 'single' | 'multiple';
+export type PollStatus = 'draft' | 'open' | 'closed';
+export type PollEligibility = 'staff' | 'members';
+
+export const POLL_MODES: Record<PollMode, () => string> = {
+	single: m.polls_mode_single, // "Single choice"
+	multiple: m.polls_mode_multiple, // "Multiple choices"
+};
+
+export const POLL_STATUSES: Record<PollStatus, () => string> = {
+	draft: m.featureFlags_label_decisions, // Use a generic label; real status shown contextually
+	open: m.polls_vote, // "Vote"
+	closed: m.polls_results, // "Results"
+};
+
+export const POLL_ELIGIBILITIES: Record<PollEligibility, () => string> = {
+	staff: m.polls_eligibility_staff, // "Staff only"
+	members: m.polls_eligibility_members, // "Members (staff and enrolled)"
+};
+
+export const POLL_VOTE_BLOCK_REASONS: Record<string, () => string> = {
+	not_open: m.polls_vote, // "Poll is not open"
+	not_eligible: m.polls_eligibility_staff, // "You are not eligible to vote"
+	already_voted: () => 'You have already voted', // TODO: add message
+	too_many_choices: () => 'Too many choices for single-choice poll', // TODO: add message
+	unknown_option: () => 'Unknown option', // TODO: add message
+};
