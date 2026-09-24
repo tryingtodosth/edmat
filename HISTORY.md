@@ -10513,3 +10513,74 @@ integration"):
   integrator's call — left as it is: it grants nothing).
 - The `events` kill-switch nav/tab bug (pre-existing).
 - Each step's own list in §17BI.A–F.
+
+---
+
+## 17BJ. `school-management-demo`: a second product in the repo, filing into the first (2026-09-24)
+
+`/Projects/edmat-app-for-schools/prototype` — a single-school electronic-register prototype built
+on "the EdMat stack": one Node 18 process, **zero npm dependencies**, a JSON store, React 18 over
+UMD with no bundler, and the EdMat design system as a vendored bundle. It came into this repo as
+`school-management-demo/` (306 files) so that the thing shown to a school and the thing it reports
+bugs into are one checkout rather than two.
+
+**The join is `issues.Issue`, and it needed two columns.** The demo is one process serving a whole
+school system, so "the grade book is wrong" and "the site's exercise browser is wrong" are
+different queues answered by different people. `source` says which product — `'site'` is the
+default, so every row written before this existed, and every report the site's own modal files,
+reads as what it actually is without a data migration inventing anything. `area` says which part,
+and its choices mirror the demo's own module registry (`server/modules.js`), because that registry
+is already what the demo switches on and off per school, so its ids are the divisions somebody
+running a pilot actually thinks in. Mirrored rather than imported — the demo has no Python — and a
+test reads `modules.js` to catch the copy drifting. `kind` is untouched: it says what *sort* of
+problem, these two say *where*. Neither could live in `context`, which is prose for a human and is
+never queried; a category staff filter by is a column.
+
+**The browser never talks to the Django API.** The demo posts to its own process, which writes the
+row locally *first* and then forwards to `/api/issues/`. A direct call would need CORS on an
+endpoint open to guests, would put the API's address into the page, and would break the moment the
+demo is shown on a laptop that cannot reach it. Writing first is the pilot-in-a-school-hall case:
+the API being unreachable must not lose what somebody just typed. `forwarded`, `forwardError` and
+`remoteId` travel with the row and with the response, so a failed hand-off is reported as
+saved-but-not-sent — house rule 10 from the other side of the wire. The proxy is also the only
+thing that can honestly attach the reporter's *role*, which the client is never allowed to claim.
+
+**What the verification run found.** The suite was 549/560 when this was picked up, and the
+failures were not noise:
+
+- `tests/helpers.js` never loaded `report-issue.js`, though `public/index.html` does. Four tests
+  died on `A.reportIssue.Footer` being undefined. One line, in the same order as the real page.
+- `POST /api/report-issue` was `public: true` with **no `rateLimit: true`**. `public` is the right
+  call — somebody who cannot get past the login screen is the reporter with the most useful thing
+  to say — but it made this the only route in the product where a stranger writes a row *and*
+  makes the single process wait up to 6s on an outbound call. `tests/58-public-surface.test.js`
+  exists precisely to refuse a new public route nobody decided on, and it did its job.
+- The new top-bar button passed its label as a bare string, so the design system's phone rule
+  (`.ed-topbar-right .ed-btn > span`) could not collapse it to an icon and `.ed-topbar-right`
+  reached **564px inside a 390px window**. The label is a `<span>` now, with an explicit
+  `aria-label` so hiding it does not leave the button nameless, and below 560px the top bar's copy
+  is hidden outright — it is a *duplicate*, and the footer carries the same action on every page
+  including the login screen, so nothing becomes unreachable.
+- `tests/54-compliance.test.js` still read `../../checklist.md` after the checklist moved inside
+  with the prototype — `server/lib/compliance.js` already knew, the test did not.
+- `[3.9.1]` asserted the skip link in `shell.js`, where U3-29 had deliberately removed it as a dead
+  first tab; it lives in the design system's `TopBar`. **This one was already red upstream**, and
+  it is not cosmetic: `server/lib/compliance.js` builds the statutory accessibility declaration
+  from `checklist.md` as the record of a *green* run, so a red `[3.9.1]` meant the declaration
+  overstated what had been tested. The assertion follows the skip link rather than being deleted.
+
+**Verified:** demo `npm test` **561/561**; `manage.py test issues` 25/25; `manage.py check` and
+`makemigrations --check --dry-run` clean; `en.json`/`pl.json` key sets identical at 3592 each; the
+four changed `.ts` files typecheck clean under `tsc --noEmit`.
+
+**Left open:**
+- **`npm run check` was not run.** This machine has only Node 18 and the toolchain needs
+  `node:util.styleText` (Node 20+). `frontend/src/routes/issues/+page.svelte` has therefore had no
+  `svelte-check` pass, and no browser script was driven against the merged `/issues` page — house
+  rule 2 is satisfied for the demo (a real headless Chromium measured the top bar) and **not** for
+  the site's own issues page.
+- **The forward is fire-and-forget per report**, with no retry and no queue drain: a row that
+  failed to forward while the API was down stays `forwarded: false` until somebody exports the CSV.
+  `GET /api/report-issue` reports the pending count, which is the honest half of it.
+- **No `area` for site-filed reports**, deliberately (`SOURCE_AREAS`): the site's own navigation and
+  `context.path` answer the question better. A third source is a line in that dict.
