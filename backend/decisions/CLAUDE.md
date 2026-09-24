@@ -36,8 +36,15 @@ polls). Results are **recounted, never stored** (house rule 5): a vote count is
   mismatch shipped as a real bug (every poll silently `not_eligible`, `can_see_results` always
   `False`) until a finishing pass on 2026-09-24 fixed it by mapping through
   `config.nodes.NODE_KIND_OF_MODEL` instead.
-- `visible_polls(user, node)` — polls the user may see (visibility is a queryset filter; drafts
-  visible to managers only)
+- `visible_polls(user, node)` — polls the user may see (visibility is a queryset filter): drafts to
+  managers only, open and closed ones to **the people they were put to** — anyone eligible, plus
+  the node's staff. Checking only the WORD `eligibility='members'` and not whether this reader IS
+  one showed every members poll on a public course to every passer-by, anonymous included, until
+  the permission matrix found it (§17BI.H)
+- `can_view_poll(user, poll)` — the same rule for a poll addressed by id (house rule 4's other
+  half): asked by `retrieve` and by `results`. `vote` deliberately does NOT — it answers the
+  refusal word (`not_eligible`, `not_open`) rather than a 404, because somebody who was shown a
+  ballot and lost their place needs the sentence
 - `is_eligible(user, poll)` — whether they may vote (based on `eligibility` + node membership)
 - `vote_block_reason(user, poll, option_ids)` — why they cannot vote, or None
 - `can_see_results(user, poll)` — whether they may see results (managers always; others when closed)
@@ -57,7 +64,10 @@ sentence in `frontend/src/lib/utils/labels.ts` (`POLL_REFUSAL_LABELS`).
 - `GET|POST /api/nodes/<kind>/<pk>/polls/` — list/create on a node (NodePollsView)
 - `GET|PATCH|DELETE /api/polls/{id}/` — single poll (PollViewSet)
   - PATCH/DELETE → `409 not_draft` if not draft
-- `POST /api/polls/{id}/options/` — add option to draft
+- `POST /api/polls/{id}/options/` — add option to draft. `order` is optional and **appends** when
+  omitted: `(poll, order)` is unique and the model default is 0, so a body of just `{"text": …}`
+  raised IntegrityError — a 500 — on the second option until §17BI.H. A caller that names an
+  order still gets exactly that order.
 - `DELETE /api/poll-options/{id}/` — delete option from draft
 - `POST /api/polls/{id}/open/` — open for voting
 - `POST /api/polls/{id}/close/ {decision_note}` — close and record decision
@@ -122,3 +132,6 @@ dev `db.sqlite3`, which 500s the one endpoint that touches it while everything e
   `GET /api/polls/{id}/results/` directly.
 - No edit/delete UI for a draft poll or its options — the endpoints exist, but §3.E's frontend
   list only asks for a create form.
+- A caller that names an `order` an option already has still gets a 500 (`IntegrityError` on
+  `(poll, order)`). Only the omitted-order case was fixed; refusing a collision with a word
+  would be a new refusal vocabulary nothing asks for yet.

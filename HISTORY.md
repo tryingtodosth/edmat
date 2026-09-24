@@ -10279,3 +10279,126 @@ way, neither specific to polls but both blocking a genuinely clean run:
   `PATCH`/`DELETE /api/polls/{id}/`, `DELETE /api/poll-options/{id}/` — MANAGEMENT-BRIEF.md §3.E's
   frontend list only names a create form, so the panel does not surface them).
 
+
+### Matrix rows for the management layer
+
+MANAGEMENT-BRIEF.md §5's second bullet: "run the four `work_items` under the permission matrix's
+personas and add matrix rows for every new endpoint". Done on `mgmt/h-matrix`, against
+`ux-and-whiteboard` at e9db3b0 (all six management steps merged). **431 rows → 690**, and the new
+259 cover every endpoint `organizations`, `tasks`, `needs`, `plans`, `decisions` and `work` expose,
+plus the two shared node-seam views in `config/views.py` that all six hang off.
+
+**One persona was added, and to the matrix's own fixture rather than to `make_personas()`.**
+`participant` is enrolled on a course and on no staff list anywhere — the "in the room, runs
+nothing" tier that the demo seven simply do not have. An attendee is the nearest thing, and an
+attendee is a member of an *event*; the two questions only a course member can answer ("may they
+see the task board" — no; "may they vote in an `eligibility: members` poll" — yes) had no row
+without them. Kept out of `make_personas` for the reason `venue_admin` and `clerk` were:
+`seed_conference_personas`, its printed `CAPABILITY_TABLE` and the browser script that signs in as
+those accounts would otherwise grow a course and six more kill switches for a tier the event page
+never draws.
+
+**All four node kinds, because `config/nodes.py` answers each of them from a different roster.**
+The fixtures are a public course with that one participant, an unlisted course (the 404 column, as
+`draft` is for an event), a material with a co-authoring project (organiser as owner, reviewer as
+co-author, so "on the team" and "runs the team" are two different answers there too) and a bare
+material with no project at all — the case the seam answers with platform `is_staff`, which no
+persona here is. Then, per step: an organisation with exactly one owner, one plain member and a
+badge already on the Sandbox conference, plus a dissolved one; a task with a subtask, an assignee
+and a finished sibling; an open need with a pending application, a full one and a cancelled one,
+and a fourth on the draft event; an active plan with a done step, a pending step, a sub-step, a
+pending suggestion and a decided one, plus a draft plan; and five polls — draft, draft-with-no-
+options, open (members), open (staff) and closed-and-anonymous — with a ballot already cast on the
+open one.
+
+**The table now asserts the refusal *word*, not only the number.** A row's expectation may be a
+`(status, word)` pair, and `test_matrix` checks `response.data['detail']` when it is one. That is
+house rule 6 from the test side: `403` alone passes just as happily on the wrong reason, and this
+layer has twenty-five distinct refusal words. Every word MANAGEMENT-BRIEF.md §3 names has at least
+one row: `last_owner` `not_node_manager` `not_org_manager` `already_linked` `minor` `nested`
+`not_staff` `illegal_transition` `has_subtasks` `not_open` `own_node` `already_applied` `full`
+`already_decided` `not_active` `own_plan` `steps_pending` `not_draft` `no_options` `already_open`
+`already_closed` `not_eligible` `already_voted` `too_many_choices` `unknown_option` — plus
+`not_org_owner`, `already_member`, `no_such_user`, `not_manager`, `not_allowed`, `not_assigned`,
+`already_assigned`, `not_editor`, `not_own_suggestion` and `not_linkable`, which the apps answer
+and §3 does not list.
+
+**Three rows failed on a real bug and two on a wrong expectation.** Naming them in that order
+because the second kind is as much of a result as the first.
+
+1. **`PUT /api/needs/{id}/` skipped the authority check entirely** (`needs/views.py`). `NeedViewSet`
+   takes `UpdateModelMixin`, which binds *both* `PUT → update` and `PATCH → partial_update`; only
+   `partial_update` was overridden, so `PUT` ran DRF's own `update`, which asks `get_queryset()` —
+   here `rules.public_needs`, i.e. **visibility** — and never `rules.can_manage`. Any signed-in
+   reader of an open posting could rewrite its title, its status, anything on it. Exactly house
+   rule 4's sentence ("a queryset filter is not a permission check") arriving through the one verb
+   nobody wrote a test for. Fixed by moving the check into `update` and having `partial_update`
+   delegate to it, with `needs/tests.py: test_only_manager_can_put_either`.
+2. **Every `eligibility: members` poll was visible to everybody, anonymous included**
+   (`decisions/rules.py: visible_polls`). The filter checked the *word* `members` and never whether
+   the reader **was** one, so a passer-by on a public course saw the question of every poll that
+   course had running — and a poll's question ("shall we drop Tomek from the rota?") is as much of
+   the decision as its count is. The function's own docstring said "a stranger sees no open poll",
+   and §3.E says "open and closed: anyone eligible, plus node staff"; the code agreed with neither.
+   Fixed to ask `is_node_member`, with five tests in `decisions/tests.py:
+   VisibilityRegressionTests`. Two existing tests there were reading that leak without meaning to
+   (a voter who was never enrolled); both are about the serializer and the ballot list rather than
+   about visibility, so both got the `_enroll` line their own docstrings implied.
+3. **`GET /api/polls/{id}/results/` had the same hole, one level worse**, because that body carries
+   the option texts *and* the tally. It asked only `can_view_node`. Now it asks the new
+   `rules.can_view_poll`, which is `visible_polls` for a poll addressed by its id — house rule 4's
+   object-level half. `vote` deliberately does **not** get that gate: it keeps answering the word
+   (`not_eligible`, `not_open`), because somebody who was shown a ballot and lost their place
+   between loading it and clicking needs the sentence, not a page that vanished.
+4. **`POST /api/polls/{id}/options/` with no `order` was a 500.** `(poll, order)` is unique and the
+   model default is 0, so the second option a caller added by the documented body (`{"text": …}`)
+   raised `IntegrityError`. The frontend always sends an explicit `order`, which is why nothing had
+   noticed. Now it appends, the way `plans` does for a step; a caller that names an order still
+   gets that order.
+5. Two rows were simply wrong about which word comes back, and the apps were right. Deleting an
+   organisation answers `not_org_owner`, not `not_org_manager` — an administrator runs the roster,
+   only an owner decides the body is over. And `not_open` on a need turns out to be a refusal only
+   the node's own **staff** can ever reach: a cancelled posting is not in `public_needs` for
+   anybody else, so a stranger gets 404 at `get_object` long before `apply_block_reason` is asked.
+   That is house rule 4 working rather than a gap, and both rows now say so in a comment.
+
+**One more failure, in a suite rather than in a row.** `work.tests.ManagementIntegrationTests
+.test_management_providers_run_clean_for_a_fresh_user` asserted that a person with nothing waiting
+on them gets all six management sections back empty — but `providers.collect()` appends a section
+only `if items`, deliberately and documented (`work/CLAUDE.md`, and `test.md` from the page's side),
+so they get none. It had been red since the §5 wiring landed, and `git stash` confirmed it was red
+at `e9db3b0` before this branch touched anything. Corrected here to assert what §5 actually
+promises — `unavailable` is empty, meaning all six RAN — because a suite with one known failure in
+it is a suite nobody reads.
+
+Everything else passed first time — 259 rows across six apps written from the rule modules and the
+brief, with five surprises. That is worth stating as plainly as the conference pass stated its
+zero: the six branches were built in parallel against one seam and one brief, and they agree with
+each other about who may do what.
+
+**Verified.** `manage.py test events.test_permission_matrix` → `Ran 1 test in 11.097s … OK` (one
+test method, 690 subTests — the runner counts the method, not the rows, which is why the row count
+is quoted from `len(MATRIX)` rather than from that line).
+`manage.py test events config organizations tasks plans work decisions needs` → `Ran 481 tests in
+509.719s … OK`. `manage.py check` clean, `makemigrations --check --dry-run` → "No changes detected"
+(this step adds no migration). No frontend change, so nothing to build.
+
+**Left open.**
+
+- **`vote` still answers `not_open` for a *draft* poll** rather than 404, which confirms that a
+  poll exists at that id to somebody who may not see it. It is existence only — no question, no
+  options, no tally — and it is the price of keeping the refusal words honest at the write
+  endpoint; named here rather than fixed blind.
+- **A caller that names an `order` an option already has still gets a 500.** Only the omitted-order
+  case was fixed. Refusing the collision needs a refusal word nothing asks for yet.
+- **The matrix still does not declare `databases`**, so every row that walks the request-logging
+  middleware prints "Failed to write a request log row" to stderr. The suite passes and the rows are
+  unaffected (telemetry catches its own write), but 690 rows now make that noise 690 times. Adding
+  `set(all_log_shards()) | {'default'}`, as `tasks/tests.py` does, would silence it at the cost of
+  creating the shard test databases; left alone because it is not this step's file to slow down.
+- **No frontend change and no migration.** This step is one test file, three small backend fixes and
+  the tests that go with them.
+- The `work` dashboard has rows only for the endpoint (`GET /api/work/`, four personas). The four
+  management `work_items` providers are exercised through it — a provider that raised would land in
+  `unavailable` rather than failing a row — but the matrix does not read the body, so "the right
+  rows for the right person" is still only asserted in each app's own `WorkItemsTests`.

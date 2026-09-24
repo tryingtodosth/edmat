@@ -1,6 +1,6 @@
 """Poll endpoints: /api/nodes/<kind>/<pk>/polls/ and /api/polls/…"""
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -75,14 +75,7 @@ class PollViewSet(viewsets.GenericViewSet):
     def retrieve(self, request, pk=None):
         """GET /api/polls/{id}/"""
         poll = self.get_object()
-        node = rules.poll_node(poll)
-
-        # Check visibility
-        if not node or not can_view_node(request.user, node):
-            return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
-
-        visible = rules.visible_polls(request.user, node)
-        if poll not in visible:
+        if not rules.can_view_poll(request.user, poll):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
 
         return Response(PollSerializer(poll, context={'request': request}).data)
@@ -133,7 +126,15 @@ class PollViewSet(viewsets.GenericViewSet):
         serializer = PollOptionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        option = PollOption.objects.create(poll=poll, **serializer.validated_data)
+        fields = dict(serializer.validated_data)
+        if 'order' not in fields:
+            # `order` is part of a unique constraint with `poll`, and the model default is 0 — so a
+            # body that simply says `{"text": …}` (which is the whole of what §3.E's API line
+            # promises) used to hit `UNIQUE constraint failed` and 500 on the second option. Append
+            # instead, the way `plans` does for a step: a caller that names an order still gets it.
+            highest = poll.options.aggregate(models.Max('order'))['order__max']
+            fields['order'] = 0 if highest is None else highest + 1
+        option = PollOption.objects.create(poll=poll, **fields)
 
         return Response(PollOptionSerializer(option).data, status=status.HTTP_201_CREATED)
 
@@ -214,7 +215,10 @@ class PollViewSet(viewsets.GenericViewSet):
         poll = self.get_object()
         node = rules.poll_node(poll)
 
-        if not node or not can_view_node(request.user, node):
+        # The same visibility gate `retrieve` uses, and for a stronger reason: this body carries
+        # the option texts and the tally. Until §17BI.H it asked only `can_view_node`, so a reader
+        # of a public course could read the results of a poll the course had never put to them.
+        if not rules.can_view_poll(request.user, poll, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
 
         if not rules.can_see_results(request.user, poll):

@@ -295,6 +295,32 @@ class ApiTests(NeedsBaseTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.data['detail'], OWN_NODE)
 
+    def test_only_manager_can_put_either(self):
+        """The same rule through the other verb.
+
+        `NeedViewSet` takes `UpdateModelMixin`, which binds BOTH `PUT → update` and
+        `PATCH → partial_update`; only the second was overridden, so `PUT` ran DRF's own `update`,
+        which asks `get_queryset()` (= `public_needs`, *visibility*) and no authority question at
+        all. Any signed-in reader of an open posting could rewrite it. Found by
+        `events/test_permission_matrix.py` when the management rows landed (§17BI.H).
+        """
+        need = self._need()
+        self.client.force_authenticate(self.stranger)
+        response = self.client.put(
+            f'/api/needs/{need.pk}/', {'title': 'Mine now', 'kind': 'help'}, format='json'
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data['detail'], 'not_manager')
+        need.refresh_from_db()
+        self.assertEqual(need.title, 'Help with grading')
+
+        self.client.force_authenticate(self.manager)
+        response = self.client.put(
+            f'/api/needs/{need.pk}/', {'title': 'Renamed', 'kind': 'help'}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['title'], 'Renamed')
+
     def test_only_manager_can_patch(self):
         need = self._need()
         self.client.force_authenticate(self.stranger)
