@@ -1474,3 +1474,35 @@ under `data-theme="dark"`; English at 390px with a `scrollWidth` overflow check;
 `tutoring` flag flipped off through the API as kasia and the page reloaded as a stranger — its card
 must be gone and seven remain — and flipped back. Zero console/page errors. Four screenshots in
 `e2e/screens/about-*.png`, meant to be looked at: the light, dark and phone renders were.
+
+## Management step D — `plans`
+
+`backend/plans/tests.py` (MANAGEMENT-BRIEF.md §3.D, HISTORY.md §17BI.D) — 41 tests, refusals
+first: a stranger 404s on a draft plan's node-list entry and its detail (never 403 — for them it
+does not exist), a non-manager 403s creating a plan or transitioning one, every illegal status
+transition is `409 illegal_transition`, completing is blocked by `steps_pending` until every step
+is `done`/`skipped`, a second level of step nesting is `409 nested`, a reorder naming the wrong set
+of ids is `400`, a minor and an editor are both refused the suggestion box (`minor`/`own_plan`,
+403) while a stranger on a non-active plan simply cannot reach it (404) and the SAME reader on an
+active plan gets a clean `409 not_active`, accepting a suggestion creates a real `PlanStep` and
+records `created_step`, deciding twice is `409 already_decided`, only a suggestion's own author may
+withdraw it, `PlanStep.done_by`/`done_at` are set and cleared as `status` moves in and out of
+`done`, and `work_items()` returns steps due within 14 days and pending suggestions only for plans
+the caller may edit (never for a stranger). Run with
+`../.venv/bin/python3 manage.py test plans config` (76 with `config`'s own suite).
+
+`frontend/e2e/plans.mjs` (21 checks) drives the real pages against ports 8124/5224: Kasia opens a
+scratch course's Plans panel (mount point D), starts a draft plan, adds two steps, reorders them
+(read back from the DOM after the click, not just that it landed), activates it; Michał — no
+standing on the course at all — opens the SAME plan by its URL, is refused the suggestion queue by
+the API (403) and sees no editor controls in the browser, and sends a suggestion; Kasia's queue
+shows it and accepting it creates a real third step, cross-checked through the API
+(`created_step`); marking every step done lets the plan complete. Zero console/page errors — one
+pre-existing, worktree-only 403 pattern (a KaTeX font requested through Vite's `/@fs/…` because
+`frontend/node_modules` is a symlink to the repo root's shared install) is filtered by its exact,
+URL-free console text, documented in the script, while a real `/api/` 5xx is still caught by a
+separate `page.on('response')` listener. Two screenshots in `e2e/screens/plans-*.png`, looked at —
+the second one caught a real bug (a duplicate-text step from accepting a short suggestion) that no
+assertion would have.
+
+    cd frontend && E2E_BASE=http://localhost:5224 E2E_API=http://127.0.0.1:8124 node e2e/plans.mjs
