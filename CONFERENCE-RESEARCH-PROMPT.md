@@ -305,6 +305,11 @@ lived-in: no checklist instance with real items, no documents, no filled rota, n
 activity, no real-shaped programme. Screenshots, QA and onboarding currently stare at empty
 tables or invented-sounding placeholder text. Paste the block below on its own.
 
+The answer (2026-09-24) is saved as `CONFERENCE-RESEARCH-REPORT-DEMO.md`; it drifted into a generic
+enterprise-summit brief, and its header says what of it was usable. What it did not give was
+synthesised in `backend/testing/conference_demo.py` (`manage.py seed_conference_demo`, `HISTORY.md`
+§17BK).
+
 ---
 
 I run EdMat, a non-commercial bilingual (Polish/English) education platform of a university

@@ -1473,6 +1473,29 @@ of `tail`, not of Django, so a piped run says `EXIT=0` however many tests failed
 into a file and read the `OK` / `FAILED (…)` line out of that file. This was caught here after two
 suite runs had already been recorded as passing on nothing but a pipeline's exit code.
 
+## The demo conference — `seed_conference_demo` (HISTORY.md §17BK)
+
+`backend/events/test_conference_demo.py` (7 tests) exercises `testing/conference_demo.py`, the
+builder behind `../.venv/bin/python3 manage.py seed_conference_demo`. It freezes `timezone.now` at
+15:00 on a fixed day one, so that the door log, the lunch-time returns and the morning shifts have
+all happened and the event is not over, and then asserts the two things a seed can silently get
+wrong: a second run leaves one of everything, and the rows written directly agree with the rule
+modules that read them (`claim_block_reason` says `already_assigned` and nothing else for every
+live assignment, `coverage()` agrees on the short count, `briefing_block_reason` blocks exactly
+`persona.clerk` and the stale reader `conf.volunteer.09`, `can_operate` admits the desk clerks, a
+future day one has no scans and no coats). Content is not asserted.
+
+The command itself: run it against the real database whenever the conference pages need to look
+lived-in (screenshots, onboarding, QA). Idempotent; ~8 s. `--day-one` moves the conference,
+`--reset` removes it and its `conf.*` accounts; the personas stay. Everything the plan dates after
+*now* is left unapplied, so a run at 08:00 has an almost empty door log — re-run later, or pass
+yesterday. Accounts and the password are printed at the end.
+
+```sh
+cd backend && ../.venv/bin/python3 manage.py seed_conference_demo
+cd backend && ../.venv/bin/python3 manage.py test events.test_conference_demo
+```
+
 ## Conference step D — tickets, the door and the badge sheet
 
 `backend/events/test_tickets.py` (CONFERENCE-BRIEF.md §3.D) covers the ticket token, the scanner's

@@ -28,6 +28,12 @@ that a volunteer is a person at a place for an hour and not a badge; a **cloakro
 give catering counts and not people; and a way to **see the page as a stranger** and to prove the
 permission matrix rather than believe it.
 
+**Since 2026-09-24 there is also a lived-in demo**: `manage.py seed_conference_demo` builds "Dni
+Dydaktyki Fizyki 2026" on top of the personas — a venue with bookings and a checklist, documents
+in every tier, a programme, 146 registrations with tickets and a day-one door log, a rota with a
+minor on it, a cloakroom with coats on the racks. `HISTORY.md` §17BK; the research answer it was
+meant to come from is `CONFERENCE-RESEARCH-REPORT-DEMO.md`, which mostly did not.
+
 ## 1. The reports, reconciled
 
 Accepted, with the step that builds it:

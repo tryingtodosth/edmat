@@ -10584,3 +10584,94 @@ four changed `.ts` files typecheck clean under `tsc --noEmit`.
   `GET /api/report-issue` reports the pending count, which is the honest half of it.
 - **No `area` for site-filed reports**, deliberately (`SOURCE_AREAS`): the site's own navigation and
   `context.path` answer the question better. A third source is a line in that dict.
+
+## 17BK. `seed_conference_demo`: one lived-in conference, so the conference layer has something to show (2026-09-24)
+
+`CONFERENCE-RESEARCH-PROMPT.md` ended with a follow-up asking for **sample data**: all seven
+conference steps were merged, `seed_conference_personas` made seven accounts and a bare "Sandbox
+conference", and every conference page — the checklist, the documents, the rota, the scanner log,
+the desk — was being screenshotted over an empty table. Gemini's answer came back today and is
+filed as `CONFERENCE-RESEARCH-REPORT-DEMO.md`. **It answered a different question.** Asked for six
+concrete lists for a 50–300 person academic conference at a Warsaw university building, it wrote a
+generic enterprise-summit brief — a 1,200-delegate "Global Enterprise Systems Summit" with a
+EUR 450,000 budget, no programme, no Polish checklist, no registration split. The report's header
+says, item by item, what came back and what of it is usable: the document-tier scheme and its
+titles, the desk ratios (a registration lane per ~150 arrivals, a cloakroom attendant per ~80
+garments), the day-over-day fall-off in attendance, and the minor-volunteer rules — which are our
+own constants read back to us. Everything else in the seed is **synthesised** and labelled so.
+
+**What landed.** `manage.py seed_conference_demo [--day-one YYYY-MM-DD] [--password X] [--reset]`,
+a thin command over `testing/conference_demo.make_conference_demo()`, which calls
+`make_personas()` first and then builds "Dni Dydaktyki Fizyki 2026" on top of it:
+
+- a venue shaped like Pasteura 5 (`demo-pasteura-5`; room numbers and capacities illustrative),
+  six rooms, an administrator and a porter (`persona.venue_admin`, `persona.porter` — the matrix
+  fixture's two names, now real accounts), ten room bookings in all three states;
+- a checklist cut by `venues.services.instantiate` from the seeded two-day template, with items
+  done, done-and-signed-off by the building, in progress and overdue, and the two post-event ones
+  pending;
+- ten documents across the five tiers, seven of them real one-page PDFs generated in-process
+  (`_pdf()`, no new dependency), the volunteer briefing at **version 2 replacing version 1**, and an
+  acknowledgement ledger with three deliberate holes: `persona.clerk` never read anything,
+  `conf.child.02` neither, `conf.volunteer.09` read version 1 only;
+- a two-day programme, twenty sessions in four tracks, twenty-two speakers, two capped workshops
+  (one full), links, bookmarks, two posts, seven proposals in every state of the call;
+- 146 registrations: 130 going, 4 open seat offers, 6 waiting, 6 declined — **capacity 134, so the
+  event reads as full with a waiting list**, which is the interesting state; four form fields with
+  answers, a few accessibility notes; every seat holder ticketed through `ensure_ticket`;
+- a day-one door log written through `apply_batch` with deterministic nonces: 100 admitted, a
+  collision, four `already_in`, two unknown tokens, three lunch exits and two re-entries;
+- a rota of seven stations and twenty-eight shifts, forty-odd assignments including a no-show, a
+  drop, an offer not yet taken, a minor (`persona.child`, consent on file) on the information desk
+  beside an adult both days, a second minor with no consent, and five shifts left short;
+- a desk with 120 hooks, 62 coats deposited over the morning peak, nine returned at lunch, two
+  returned on a lost slip through `return_by_exception`;
+- two export-log rows.
+
+**Three decisions worth knowing.** *The clock:* day one is today in Warsaw, and everything the plan
+dates after *now* is left unapplied — a scan not yet made is not written, a shift still to come is
+`confirmed` rather than `done` — so the conference is in progress when you look at it, and a later
+run shows more of the day. `--day-one` moves it. The plan's hours are **Warsaw hours** although
+`TIME_ZONE` is UTC: the first rota screenshot drew 07:00 as 09:00, and a building in Warsaw looked
+at from Warsaw should read as written; the rota's rules run two hours earlier and every shift sits
+inside the day either way. *Idempotence by rebuild:* accounts, event, venue, rooms, programme and
+attendances are `update_or_create`d on stable keys; bookings, checklist, stations, shifts, scans,
+coats, posts and export logs are deleted and rebuilt each run, which is what lets the dates move.
+Document files are written once. *Nothing notifies:* the same reason as `make_personas` — a demo
+re-run must not ring anybody's bell — so decisions and assignments are written directly and only
+the minting and validating services are called. The rota plan is then checked against
+`shifts.rules`' own words before a row is written, so a hand-edited plan that puts one person in
+two rooms or a minor on a night shift fails the command instead of the coverage grid.
+
+**What the screenshots found** (house rule 2). The first run's rota drew every shift two hours
+late (the timezone decision above). The description was drawn as plain text, so its Markdown bold
+came out as literal asterisks. The random name pairing produced "Marta Olszewski" — Polish
+adjectival surnames are gendered, and a Polish reader spots that in a second; names are now a first
+name and the matching surname form. All three were invisible to the test.
+
+**Verified:** `events.test_conference_demo` (7, the clock frozen at 15:00 on a fixed day one — a
+second run leaves one of everything; every live assignment answers `already_assigned` to
+`claim_block_reason`, none `minor_*` or `overlap`; the coverage grid's short count matches; the
+second minor gets `minor_no_consent`; the briefing gate blocks exactly clerk and the stale reader;
+the desk clerks may operate; a future day one has nothing happened yet), plus
+`events.test_permission_matrix shifts cloakroom documents venues` — **193 tests OK**; `manage.py
+check` and `makemigrations --check --dry-run` clean; the command run three times against the real
+database (8 s each); a Playwright pass signed in as organiser, visitor, minor, volunteer, unread
+clerk, desk clerk, venue administrator and attendee over the event, rota, scanner, cloakroom, venue,
+badge sheet, ticket and edit pages — **zero console errors**, and the screenshots looked at.
+
+**Left open:**
+- **The registrations panel does not scale.** The organiser's event page is 58,000 pixels tall,
+  because the panel draws all 146 registrations as full cards with every answer. Real scale, first
+  seen today; a compact row with a fold, or a filter, belongs to the panel and not to the seed.
+- **The publish gate counts post-event items.** The checklist warns "cannot be published until
+  every mandatory item is at least in progress" while the two open items are the day-after
+  reconciliation and handover, which nobody can start before the event. `publish_block_reason`
+  should probably ignore items anchored after the end.
+- **"Open shifts" lists full ones** for the organiser (a 3-of-3 shift with a "take this shift"
+  button). Cosmetic, in the rota panel.
+- **The scanner page opens for an unread clerk**; the briefing gate is on the scan write (409),
+  as designed, so the refusal comes at the first scan rather than on entry. Worth a banner.
+- The report's own gaps stand: no real Polish venue checklist wording beyond what step A seeded
+  from the first report, no observed registration split — the numbers here are plausible, not
+  observed, and the docstring says which.

@@ -93,6 +93,13 @@ attendee, and prints who can do what. Idempotent; `--password` sets the one pass
 lives in `testing/personas.make_personas()`, which `test_permission_matrix.py` calls too: the table
 and the accounts a person signs in as are then the same seven.
 
+`manage.py seed_conference_demo` (`testing/conference_demo.py`, `HISTORY.md` §17BK) builds a lived-in
+two-day conference on top of those seven — venue, checklist, documents, tickets, a day-one scan log,
+a rota, a cloakroom — for screenshots and QA. Day one is today in Warsaw; anything the plan dates
+after now is left unapplied. It writes attendances and assignments directly (nothing notifies) and
+calls only the minting and validating services; the rota plan is checked against `shifts.rules`
+before a row is written.
+
 **There is no "log in as", and there is not going to be one.** The frontend's preview re-asks the
 API with the `Authorization` header omitted (`client.ts`'s `anonymous` option); no token for
 anybody else is ever minted, so there is nothing to audit and nothing to leak. The reasoning, and
