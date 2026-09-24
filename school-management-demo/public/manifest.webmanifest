@@ -1,0 +1,1 @@
+{ "name": "EdMat – dziennik elektroniczny", "short_name": "EdMat", "start_url": "/", "display": "standalone", "background_color": "#f6f5f1", "theme_color": "#24603f", "lang": "pl", "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }] }

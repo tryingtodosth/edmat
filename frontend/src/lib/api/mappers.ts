@@ -1080,6 +1080,8 @@ export function mapUser(json: RawProfile): User {
 export interface RawIssue {
 	id: number;
 	kind: Issue['kind'];
+	source: Issue['source'];
+	area: Issue['area'];
 	title: string;
 	body: string;
 	context: Record<string, string>;
@@ -1098,6 +1100,9 @@ export function mapIssue(json: RawIssue): Issue {
 	return {
 		id: String(json.id),
 		kind: json.kind,
+		// A row written before these two existed reads as what it is: a report from the site.
+		source: json.source ?? 'site',
+		area: json.area ?? '',
 		title: json.title,
 		body: json.body,
 		context: {
@@ -1105,7 +1110,8 @@ export function mapIssue(json: RawIssue): Issue {
 			pageTitle: json.context?.page_title,
 			locale: json.context?.locale,
 			viewport: json.context?.viewport,
-			userAgent: json.context?.user_agent
+			userAgent: json.context?.user_agent,
+			role: json.context?.role
 		},
 		reporterId: json.reporter !== null ? String(json.reporter) : undefined,
 		reporterDisplayName: json.reporter_display_name,

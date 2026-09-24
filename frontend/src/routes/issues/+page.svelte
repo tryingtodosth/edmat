@@ -7,20 +7,45 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { issueReportStore } from '$lib/state/issueReport.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
-	import type { Issue, IssueStatus } from '$lib/types/issue';
-	import { ISSUE_KIND_LABELS, ISSUE_STATUSES, ISSUE_STATUS_LABELS } from '$lib/utils/issueLabels';
+	import type { Issue, IssueArea, IssueSource, IssueStatus } from '$lib/types/issue';
+	import {
+		ISSUE_KIND_LABELS,
+		ISSUE_SOURCE_LABELS,
+		ISSUE_SOURCES,
+		ISSUE_STATUSES,
+		ISSUE_STATUS_LABELS,
+		SOURCE_AREAS,
+		issueAreaLabel
+	} from '$lib/utils/issueLabels';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let issues = $state<Issue[]>([]);
 	let loading = $state(true);
 	let statusFilter = $state<IssueStatus | ''>('');
+	// Since the school-management demo files into this same table (backend/issues/models.py), the
+	// list is two products' reports interleaved unless it can be cut back to one.
+	let sourceFilter = $state<IssueSource | ''>('');
+	let areaFilter = $state<IssueArea>('');
+	// The areas belong to the chosen source, so there is nothing to offer until one is chosen — and
+	// an area left over from a previous choice would filter to nothing, which reads as "no reports".
+	const areaOptions = $derived(sourceFilter ? SOURCE_AREAS[sourceFilter] : []);
 	let includePrivate = $state(false);
+
+	function chooseSource(next: IssueSource | '') {
+		sourceFilter = next;
+		areaFilter = '';
+	}
 
 	async function load() {
 		loading = true;
 		try {
-			issues = await getIssues({ status: statusFilter, all: includePrivate });
+			issues = await getIssues({
+				status: statusFilter,
+				source: sourceFilter,
+				area: areaFilter,
+				all: includePrivate
+			});
 		} catch {
 			issues = [];
 		}
@@ -31,6 +56,8 @@
 		// Re-run when either control changes; `authStore.isModerator` too, so a staff member who
 		// ticks "include private" before their session resolves is not shown the public list forever.
 		void statusFilter;
+		void sourceFilter;
+		void areaFilter;
 		void includePrivate;
 		// Not while the kill switch is off: the gate hides the page, and a request the API will only
 		// refuse is noise in the console for nothing.
@@ -78,6 +105,41 @@
 					</button>
 				{/each}
 			</div>
+			<div class="chips" role="group" aria-label={m.issues_filterSourceLabel()}>
+				<!-- "Filter by where it was reported from" -->
+				<button
+					type="button"
+					class="chip"
+					class:chip--on={sourceFilter === ''}
+					onclick={() => chooseSource('')}
+				>
+					{m.issues_filterAll()}
+					<!-- "All" -->
+				</button>
+				{#each ISSUE_SOURCES as source (source)}
+					<button
+						type="button"
+						class="chip"
+						class:chip--on={sourceFilter === source}
+						onclick={() => chooseSource(source)}
+					>
+						{ISSUE_SOURCE_LABELS[source]()}
+					</button>
+				{/each}
+			</div>
+			{#if areaOptions.length > 0}
+				<label class="check">
+					{m.issues_filterAreaLabel()}
+					<!-- "Part of the school demo" -->
+					<select bind:value={areaFilter}>
+						<option value="">{m.issues_filterAreaAll()}</option>
+						<!-- "Every part" -->
+						{#each areaOptions as area (area)}
+							<option value={area}>{issueAreaLabel(area)}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
 			{#if authStore.isModerator}
 				<label class="check">
 					<input type="checkbox" bind:checked={includePrivate} />
@@ -100,6 +162,12 @@
 						<span class="row__meta">
 							<span class="pill pill--{issue.status}">{ISSUE_STATUS_LABELS[issue.status]()}</span>
 							<span class="pill">{ISSUE_KIND_LABELS[issue.kind]()}</span>
+							{#if issue.source !== 'site'}
+								<span class="pill pill--source">{ISSUE_SOURCE_LABELS[issue.source]()}</span>
+								{#if issue.area}
+									<span class="pill">{issueAreaLabel(issue.area)}</span>
+								{/if}
+							{/if}
 							{#if !issue.isPublic}
 								<span class="pill pill--private">{m.issues_private()}</span>
 								<!-- "Private" -->
@@ -207,6 +275,11 @@
 	}
 	.pill--private {
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+	}
+	/* Info, not warning: a report from the school demo is not a worse report, only one answered by
+	   somebody else. The area pill beside it stays neutral so the pair reads as one label. */
+	.pill--source {
+		@include mix.status-pill(var(--status-info), var(--status-info-bg));
 	}
 	.button-primary {
 		@include mix.button-primary;

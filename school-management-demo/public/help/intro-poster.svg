@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-label="Plansza tytułowa filmu instruktażowego: Pierwsze kroki w dzienniku EdMat">
+  <rect width="960" height="540" fill="#24603f"/>
+  <rect x="48" y="48" width="864" height="444" fill="none" stroke="#f6f5f1" stroke-width="3"/>
+  <text x="96" y="230" font-family="IBM Plex Sans, Arial, sans-serif" font-size="56" font-weight="600" fill="#f6f5f1">Pierwsze kroki</text>
+  <text x="96" y="300" font-family="IBM Plex Sans, Arial, sans-serif" font-size="56" font-weight="600" fill="#f6f5f1">w dzienniku EdMat</text>
+  <text x="96" y="360" font-family="IBM Plex Sans, Arial, sans-serif" font-size="28" fill="#cfe3d6">Film z napisami (PL) i transkrypcją tekstową</text>
+  <g transform="translate(700 270)"><circle r="62" fill="#f6f5f1"/><path d="M-20 -32 L40 0 L-20 32 Z" fill="#24603f"/></g>
+</svg>

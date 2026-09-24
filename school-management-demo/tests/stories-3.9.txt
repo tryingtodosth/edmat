@@ -1,0 +1,10 @@
+3.9.1 As a Blind User, I want to navigate grades and test schedules via screen reader, ensuring proper semantic headers and ARIA labels.
+3.9.2 As a Visually Impaired User, I want high-contrast mode and 200% text magnification without interface distortion or horizontal scrolling.
+3.9.3 As a Motor-Impaired User, I want complete keyboard navigation for recording attendance and lesson topics with visible focus indicators.
+3.9.4 As a Hearing-Impaired User, I want instructional videos to feature accurate subtitles and text alternatives.
+3.9.5 As a Teacher entering data in class, I want session timeout warnings after 15 minutes of inactivity followed by auto-logout for data security.
+3.9.6 As a Data Administrator, I want all server connections encrypted via modern TLS with HSTS enforcement and secure session cookies.
+3.9.7 As a Teacher, I want to open the logbook and record attendance in under 2 seconds during peak morning login hours without server downtime.
+3.9.8 As a Mobile App User, I want assurance that software excludes commercial tracking libraries and third-party ad networks collecting telemetry on minors.
+3.9.9 As a Data Protection Officer, I want to verify that deleting test accounts permanently removes personal data per the right to be forgotten while preserving technical audit logs.
+3.9.10 As a User, I want a fully responsive web interface on mobile devices accessing 100% of platform features without paywalls encouraging native app purchases.

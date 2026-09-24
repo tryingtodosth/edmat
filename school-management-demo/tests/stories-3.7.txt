@@ -1,0 +1,15 @@
+3.7.1 As a Parent with children in different classes or schools, I want to log in with one email and seamlessly switch between children's profiles via Multi-account view.
+3.7.2 As a Parent, I want instant push notifications for first-period absences to immediately verify my child's safety.
+3.7.3 As a Parent, I want to submit electronic absence excuse requests with reasons via the mobile app without subscription fees.
+3.7.4 As a Parent, I want to track absence excuse request statuses with visible teacher comments in case of rejection.
+3.7.5 As a Parent, I want to report planned future absences, automatically notifying homeroom and subject teachers.
+3.7.6 As a Parent, I want permanent, free browser access to all grades, averages, comments, and attendance records of my child.
+3.7.7 As a Parent, I want to configure night quiet mode to mute logbook notifications except administration crisis alerts.
+3.7.8 As a Parent, I want to view class meetings and open days with appointment booking for teacher consultations.
+3.7.9 As a Parent, I want to pay for school lunches or Parent Council fees directly via electronic payments with instant receipts.
+3.7.10 As a Parent, I want to cancel same-day school lunch before morning cut-off, receiving automatic credit on next month's bill.
+3.7.11 As a Parent, I want to send confidential messages to the school counselor inaccessible to other staff members.
+3.7.12 As a Parent, I want to electronically sign field trip consent forms and regulations via mobile app authorization.
+3.7.13 As a Divorced Parent with full custody rights, I want a separate account ensuring the other parent cannot view my correspondence or contact info.
+3.7.14 As a Parent, I want formal failing grade warnings 30 days prior to classification with delivery receipt tracking.
+3.7.15 As a Parent, I want to export child grade and attendance history to PDF at year end for personal archiving.

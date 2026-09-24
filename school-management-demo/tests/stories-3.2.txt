@@ -1,0 +1,20 @@
+3.2.1 As a Homeroom Teacher, I want to access the class summary classification dashboard, presenting the status of all proposed and final grades across all subjects and warnings about predicted failing grades.
+3.2.2 As a Homeroom Teacher, I want to issue mid-year and annual behavior grades, taking into account the total positive and negative points, overall attendance percentage, and remarks from other teachers teaching the class.
+3.2.3 As a Homeroom Teacher, I want to verify the list of students at risk of not being promoted to the next grade due to over 50% unexcused absences in individual subjects.
+3.2.4 As a Homeroom Teacher, I want to receive electronic absence excuse requests submitted by parents, verify attached reasons, and bulk approve or reject excuses with reasons provided for rejections.
+3.2.5 As a Homeroom Teacher, I want to verify the correctness of grammatical declension of students' first names, last names, and places of birth in the locative case on the personal data sheet before generating certificates.
+3.2.6 As a Homeroom Teacher, I want to generate digital report cards for all students in the class, ensuring the system automatically transferred annual grades, notes on the Pedagogical Council resolution, and honors promotion clause.
+3.2.7 As a Homeroom Teacher, I want to enter grades earned by a student in previous years or at another school directly into the report card history view for a student transferred during the educational cycle.
+3.2.8 As a Homeroom Teacher, I want to do a test print of a promotional certificate on blank A4 paper, then hold the print against the light to the original MEN blank form to verify the precise alignment of text margins and signature lines.
+3.2.9 As a Homeroom Teacher, I want to batch export print-ready honors certificates to PDF for students meeting the requirement of a grade average of at least 4.75 and a very good or exemplary behavior grade.
+3.2.10 As a Homeroom Teacher, I want to record special achievements of a student and check the parameter allowing their official entry on the school certificate in accordance with applicable education law.
+3.2.11 As a Homeroom Teacher, I want to close the semester in the class logbook, locking subject teachers from making retroactive changes without formal consent from the administration.
+3.2.12 As a Homeroom Teacher, I want to generate a monthly class attendance report detailing excused absences, unexcused absences, tardiness, and early dismissals for the monthly staff meeting.
+3.2.13 As a Homeroom Teacher, I want to send a broadcast system message exclusively to members of the Class Parent Council with the agenda for the upcoming parent meeting attached.
+3.2.14 As a Homeroom Teacher, I want to check read receipts from parents regarding notifications of potential failing annual grades 30 days prior to the classification meeting.
+3.2.15 As a Homeroom Teacher, I want to assign roll call numbers to students at the beginning of the school year alphabetically, maintaining relational integrity if a new student joins during the school year.
+3.2.16 As a Homeroom Teacher, I want to record in the system the removal of a student from the class roster based on an administrative decision with date and resolution number, archiving their achievements without permanent deletion from the database.
+3.2.17 As a Homeroom Teacher, I want to print a complete logbook page with parent contact information in an emergency situation with an automatic GDPR confidentiality notice applied.
+3.2.18 As a Homeroom Teacher, I want to manage cross-class groups, assigning my students to proper activity groups created in other classes.
+3.2.19 As a Homeroom Teacher, I want to verify that for every conducted school day in the logbook, the correct number of lesson hours matching the approved curriculum plan has been recorded.
+3.2.20 As a Homeroom Teacher, I want to submit the complete, digitally closed class logbook for formal approval by the school principal after the end of annual teaching activities.

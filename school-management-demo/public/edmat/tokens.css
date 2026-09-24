@@ -1,0 +1,206 @@
+:root, [data-theme="light"] {
+  --surface: #f6f5f1;
+  --surface-raised: #ffffff;
+  --surface-sunken: #eceae3;
+  --surface-inverse: #1a2024;
+  --line: #d9d6cc;
+  --line-strong: #6b7178;
+  --ink: #1a2024;
+  --ink-muted: #565d63;
+  --ink-subtle: #646b72;
+  --ink-inverse: #f3f4f1;
+  --brand: #24603f;
+  --brand-strong: #194a30;
+  --brand-soft: #d6ebdd;
+  --on-brand: #ffffff;
+  --accent: #8a4b00;
+  --accent-soft: #fbe9cf;
+  --on-accent: #ffffff;
+  --link: var(--brand);
+  --success: #0e6b5e;
+  --success-soft: #d2efe9;
+  --danger: #b3261e;
+  --danger-soft: #fbe0dd;
+  --on-danger: #ffffff;
+  --info: #2857b8;
+  --info-soft: #dbe6fb;
+  --crisis: #7a1c16;
+  --att-present: var(--success);
+  --att-present-soft: var(--success-soft);
+  --att-absent: var(--danger);
+  --att-absent-soft: var(--danger-soft);
+  --att-late: var(--accent);
+  --att-late-soft: var(--accent-soft);
+  --att-excused: var(--info);
+  --att-excused-soft: var(--info-soft);
+  --att-justified: #6b3fb3;
+  --att-justified-soft: #e9dffb;
+  --att-school: var(--brand);
+  --cat-1: #f7d5d1;
+  --cat-2: #f6e2b5;
+  --cat-3: #e6efc0;
+  --cat-4: #cfeedb;
+  --cat-5: #cdeef0;
+  --cat-6: #d5e3fb;
+  --cat-7: #e3daf8;
+  --cat-8: #e6e4dd;
+  --focus: var(--brand);
+  --overlay: #1a2024a6;
+  --shadow-sm: 0 1px 2px #1a202414;
+  --shadow-md: 0 2px 6px #1a202414, 0 8px 20px -4px #1a202426;
+  --shadow-lg: 0 12px 32px -8px #1a202440;
+  --focus-ring: 0 0 0 2px #f6f5f1, 0 0 0 4px #24603f;
+}
+[data-theme="dark"] {
+  --surface: #15191c;
+  --surface-raised: #1e2428;
+  --surface-sunken: #0e1113;
+  --surface-inverse: #f3f4f1;
+  --line: #333b41;
+  --line-strong: #8b949c;
+  --ink: #eceeea;
+  --ink-muted: #a8b0b6;
+  --ink-subtle: #98a1a8;
+  --ink-inverse: #1a2024;
+  --brand: #7fd0a0;
+  --brand-strong: #a3e0bb;
+  --brand-soft: #1b3b2a;
+  --on-brand: #0c1a12;
+  --accent: #f0b25a;
+  --accent-soft: #3f2c0f;
+  --on-accent: #1f1607;
+  --link: var(--brand);
+  --success: #5fd3c0;
+  --success-soft: #0f3a34;
+  --danger: #ff8f85;
+  --danger-soft: #4a1815;
+  --on-danger: #1f0705;
+  --info: #8fb4ff;
+  --info-soft: #182d55;
+  --crisis: #ffb4ad;
+  --att-present: var(--success);
+  --att-present-soft: var(--success-soft);
+  --att-absent: var(--danger);
+  --att-absent-soft: var(--danger-soft);
+  --att-late: var(--accent);
+  --att-late-soft: var(--accent-soft);
+  --att-excused: var(--info);
+  --att-excused-soft: var(--info-soft);
+  --att-justified: #c9a8ff;
+  --att-justified-soft: #2f1f52;
+  --att-school: var(--brand);
+  --cat-1: #4a1f1c;
+  --cat-2: #4a3810;
+  --cat-3: #2f3a12;
+  --cat-4: #133d28;
+  --cat-5: #0f3a3d;
+  --cat-6: #172f5a;
+  --cat-7: #2d1f52;
+  --cat-8: #33393d;
+  --focus: var(--brand);
+  --overlay: #000000b3;
+  --shadow-sm: 0 1px 2px #00000080;
+  --shadow-md: 0 8px 20px -4px #000000b3;
+  --shadow-lg: 0 16px 40px -8px #000000e6;
+  --focus-ring: 0 0 0 2px #15191c, 0 0 0 4px #7fd0a0;
+}
+[data-theme="hc"] {
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f0f0f0;
+  --surface-inverse: #000000;
+  --line: #000000;
+  --line-strong: #000000;
+  --ink: #000000;
+  --ink-muted: #2b2b2b;
+  --ink-subtle: #3a3a3a;
+  --ink-inverse: #ffffff;
+  --brand: #0f4028;
+  --brand-strong: #062b18;
+  --brand-soft: #d6ebdd;
+  --on-brand: #ffffff;
+  --accent: #5c3200;
+  --accent-soft: #fbe9cf;
+  --on-accent: #ffffff;
+  --link: var(--brand);
+  --success: #004d42;
+  --success-soft: #d2efe9;
+  --danger: #8f0000;
+  --danger-soft: #fbe0dd;
+  --on-danger: #ffffff;
+  --info: #002d80;
+  --info-soft: #dbe6fb;
+  --crisis: #600000;
+  --att-present: var(--success);
+  --att-present-soft: var(--success-soft);
+  --att-absent: var(--danger);
+  --att-absent-soft: var(--danger-soft);
+  --att-late: var(--accent);
+  --att-late-soft: var(--accent-soft);
+  --att-excused: var(--info);
+  --att-excused-soft: var(--info-soft);
+  --att-justified: #4b0f9e;
+  --att-justified-soft: #e9dffb;
+  --att-school: var(--brand);
+  --cat-1: #f7d5d1;
+  --cat-2: #f6e2b5;
+  --cat-3: #e6efc0;
+  --cat-4: #cfeedb;
+  --cat-5: #cdeef0;
+  --cat-6: #d5e3fb;
+  --cat-7: #e3daf8;
+  --cat-8: #e6e4dd;
+  --focus: var(--brand);
+  --overlay: #000000cc;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --focus-ring: 0 0 0 2px #ffffff, 0 0 0 5px #000000;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+  --control: 40px;
+  --control-sm: 32px;
+  --touch: 44px;
+  --icon: 20px;
+  --border: 1px;
+  --border-hc: 2px;
+  --focus-width: 2px;
+  --grade-cell: 36px;
+  --content-max: 1200px;
+  --z-sticky: 10;
+  --z-bar: 20;
+  --z-popover: 30;
+  --z-dialog: 40;
+  --z-toast: 50;
+  --z-blocking: 60;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@font-face { font-family: "IBM Plex Sans"; src: url("/edmat/fonts/IBMPlexSans-400.woff") format("woff"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; src: url("/edmat/fonts/IBMPlexSans-500.woff") format("woff"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Sans"; src: url("/edmat/fonts/IBMPlexSans-600.woff") format("woff"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/edmat/fonts/IBMPlexMono-400.woff") format("woff"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/edmat/fonts/IBMPlexMono-500.woff") format("woff"); font-weight: 500; font-style: normal; font-display: swap; }
+.display { font-family: var(--font-sans); font-size: 2rem; line-height: 1.2; font-weight: 600; letter-spacing: -0.01em; }
+.title { font-family: var(--font-sans); font-size: 1.5rem; line-height: 1.25; font-weight: 600; letter-spacing: -0.005em; }
+.heading { font-family: var(--font-sans); font-size: 1.125rem; line-height: 1.35; font-weight: 600; }
+.subheading { font-family: var(--font-sans); font-size: 1rem; line-height: 1.4; font-weight: 500; }
+.body { font-family: var(--font-sans); font-size: 0.9375rem; line-height: 1.5; font-weight: 400; }
+.body-strong { font-family: var(--font-sans); font-size: 0.9375rem; line-height: 1.5; font-weight: 500; }
+.caption { font-family: var(--font-sans); font-size: 0.8125rem; line-height: 1.4; font-weight: 400; }
+.label { font-family: var(--font-sans); font-size: 0.75rem; line-height: 1.35; font-weight: 500; letter-spacing: 0.04em; }
+.grade { font-family: var(--font-sans); font-size: 1rem; line-height: 1.25; font-weight: 600; }
+.stat { font-family: var(--font-sans); font-size: 1.75rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.01em; }
+.code { font-family: var(--font-mono); font-size: 0.875rem; line-height: 1.5; font-weight: 400; }

@@ -1,0 +1,15 @@
+3.5.1 As a School Registrar, I want to enter a new student into the Student Register, recording PESEL or passport details, birth date and place, and parent metadata with automatic PESEL checksum validation.
+3.5.2 As a School Registrar, I want to generate and issue a digital student ID along with an authorization code for the government mObywatel app.
+3.5.3 As a School Registrar, I want to generate an XML data package compliant with SIO technical specifications for error-free import of class structures and student counts.
+3.5.4 As a School Administrator, I want to set up the new school year structure, defining terms, winter breaks, holiday breaks, and additional days off from classes.
+3.5.5 As a School Administrator, I want to import a timetable grid from external scheduling software, ensuring group splits, room allocations, and teacher assignments are transferred correctly.
+3.5.6 As a School Administrator, I want to reset a user password, forcing an immediate password change upon first login with complexity policy validation.
+3.5.7 As a School Administrator, I want to configure TOTP-based two-factor authentication for all school staff authorized to edit grades and attendance.
+3.5.8 As a School Registrar, I want to record a student transfer to another school, generating a report card transcript and closing their entry in the register with the departure date.
+3.5.9 As a School Administrator, I want to manage messaging permissions, defining whether parents can contact all teachers or only assigned homeroom and subject teachers.
+3.5.10 As a School Registrar, I want to batch print duplicate school certificates with annotations of duplicate issue date and administrative decision number.
+3.5.11 As a School Administrator, I want to generate one-time registration codes for parents of first-grade students for easy account creation.
+3.5.12 As a School Administrator, I want to configure network access rules and an IP whitelist for administrative logins.
+3.5.13 As a School Administrator, I want to run personal data anonymization mechanisms on database backups used in test environments.
+3.5.14 As a School Registrar, I want to register mandatory preschool preparation completion for local district children, verifying district register completeness.
+3.5.15 As a School Administrator, I want to define a system log retention policy, ensuring legally required storage duration and immutability.

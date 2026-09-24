@@ -170,3 +170,75 @@ class DiscussionTests(IssueTestCase):
     def test_a_private_issue_has_no_readable_thread(self):
         private = Issue.objects.create(title='P', is_public=False)
         self.assertEqual(self.anon.get(f'/api/issues/{private.pk}/comments/').status_code, 404)
+
+
+class CategoriesTests(IssueTestCase):
+    """`source` and `area` — the pair the school-management demo files under (models.py, fourth
+    decision). What is tested here is that the default keeps the site's own reports where they
+    were, that a mislabelled pair is refused rather than quietly blanked, and that the enum has
+    not drifted from the demo it mirrors."""
+
+    def test_a_report_is_from_the_site_with_no_area_unless_it_says_otherwise(self):
+        self.assertEqual(self.file(self.anon).status_code, 201)
+        issue = Issue.objects.get()
+        self.assertEqual(issue.source, 'site')
+        self.assertEqual(issue.area, '')
+
+    def test_the_demo_files_under_its_own_source_and_module(self):
+        res = self.file(self.anon, source='school_demo', area='grades')
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['source'], 'school_demo')
+        self.assertEqual(res.data['area'], 'grades')
+
+    def test_an_area_the_source_does_not_have_is_refused(self):
+        # The site has no areas at all, so this is the pair that must not be accepted and then
+        # shown under a filter that means something else.
+        res = self.file(self.anon, source='site', area='grades')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('area', res.data)
+        self.assertEqual(Issue.objects.count(), 0)
+
+    def test_an_unknown_source_or_area_is_refused(self):
+        self.assertEqual(self.file(self.anon, source='somebody_elses_app').status_code, 400)
+        self.assertEqual(self.file(self.anon, source='school_demo', area='nonesuch').status_code, 400)
+
+    def test_the_demo_persona_role_travels_in_context(self):
+        res = self.file(
+            self.anon,
+            source='school_demo',
+            area='logbook',
+            context={'path': '/frekwencja', 'role': 'teacher', 'nonsense': 'dropped'},
+        )
+        self.assertEqual(res.status_code, 201)
+        issue = Issue.objects.get()
+        self.assertEqual(issue.context.get('role'), 'teacher')
+        self.assertNotIn('nonsense', issue.context)
+
+    def test_staff_can_narrow_the_queue_to_one_product_and_one_part_of_it(self):
+        Issue.objects.create(title='site one', is_public=True)
+        Issue.objects.create(title='demo grades', source='school_demo', area='grades', is_public=True)
+        Issue.objects.create(title='demo logbook', source='school_demo', area='logbook', is_public=True)
+        client = self.as_(self.staff)
+
+        titles = lambda q: sorted(i['title'] for i in client.get(f'/api/issues/?all=1&{q}').data)
+        self.assertEqual(titles('source=school_demo'), ['demo grades', 'demo logbook'])
+        self.assertEqual(titles('source=site'), ['site one'])
+        self.assertEqual(titles('source=school_demo&area=grades'), ['demo grades'])
+        # An unknown value narrows to nothing rather than falling back to everything — see views.py.
+        self.assertEqual(titles('source=nonesuch'), [])
+
+    def test_area_choices_match_the_demo_module_registry(self):
+        """The demo is a Node process with no Python to import, so `ISSUE_AREA_CHOICES` is a copy
+        of its `MODULES` list. A copy needs a test that reads the original, or the two drift and a
+        report arrives under an area this table has never heard of."""
+        import re
+        from pathlib import Path
+
+        from .models import ISSUE_AREA_CHOICES
+
+        registry = Path(__file__).resolve().parents[2] / 'school-management-demo' / 'server' / 'modules.js'
+        self.assertTrue(registry.exists(), f'the demo moved: {registry}')
+        source = registry.read_text(encoding='utf-8')
+        block = source[source.index('const MODULES = ['):source.index('];', source.index('const MODULES = ['))]
+        demo_ids = re.findall(r"\{\s*id:\s*'([a-z]+)'", block)
+        self.assertEqual(sorted(demo_ids), sorted(key for key, _ in ISSUE_AREA_CHOICES))

@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<timetable ascttversion="2012.3.2" importtype="database" options="idprefix:ID,exportlicensename:SP nr 12 w Krakowie,exportlicensenumber:987654321" displayname="Plan lekcji 2026/2027 — zajęcia międzyoddziałowe i godzina 0" displaycountries="pl">
+<periods options="canadd,canremove,canupdate,silent" columns="period,name,short,starttime,endtime">
+<period name="0" short="0" period="0" starttime="7:10" endtime="7:55"/>
+<period name="1" short="1" period="1" starttime="8:00" endtime="8:45"/>
+<period name="2" short="2" period="2" starttime="8:55" endtime="9:40"/>
+<period name="3" short="3" period="3" starttime="9:50" endtime="10:35"/>
+<period name="4" short="4" period="4" starttime="10:45" endtime="11:30"/>
+<period name="5" short="5" period="5" starttime="11:45" endtime="12:30"/>
+<period name="6" short="6" period="6" starttime="12:45" endtime="13:30"/>
+</periods>
+<daysdefs options="canadd,canremove,canupdate,silent" columns="id,name,short,days">
+<daysdef id="*1" name="Poniedziałek" short="Po" days="10000"/>
+<daysdef id="*2" name="Wtorek" short="Wt" days="01000"/>
+<daysdef id="*3" name="Środa" short="Śr" days="00100"/>
+<daysdef id="*4" name="Czwartek" short="Cz" days="00010"/>
+<daysdef id="*5" name="Piątek" short="Pi" days="00001"/>
+<daysdef id="*6" name="Dowolny dzień" short="X" days="10000,01000,00100,00010,00001"/>
+</daysdefs>
+<weeksdefs options="canadd,canremove,canupdate,silent" columns="id,name,short,weeks">
+<weeksdef id="*7" name="Każdy tydzień" short="E" weeks="11"/>
+<weeksdef id="*8" name="Tydzień I" short="I" weeks="10"/>
+<weeksdef id="*9" name="Tydzień II" short="II" weeks="01"/>
+</weeksdefs>
+<termsdefs options="canadd,canremove,canupdate,silent" columns="id,name,short,terms">
+<termsdef id="*10" name="Cały rok" short="C" terms="1"/>
+</termsdefs>
+<subjects options="canadd,canremove,canupdate,silent" columns="id,name,short,partner_id">
+<subject id="*11" name="Religia" short="Rel" partner_id=""/>
+<subject id="*12" name="Wychowanie fizyczne" short="WF" partner_id=""/>
+<subject id="*13" name="Matematyka" short="Mat" partner_id=""/>
+<subject id="*14" name="Język angielski" short="J.ang" partner_id=""/>
+<subject id="*15" name="Informatyka" short="Inf" partner_id=""/>
+</subjects>
+<teachers options="canadd,canremove,canupdate,silent" columns="id,firstname,lastname,short,gender,partner_id">
+<teacher id="*16" firstname="Małgorzata" lastname="Żak" short="ŻM" gender="F" partner_id=""/>
+<teacher id="*17" firstname="Anna" lastname="Mazur" short="MA" gender="F" partner_id=""/>
+<teacher id="*18" firstname="Joanna" lastname="Nowak" short="NJ" gender="F" partner_id=""/>
+<teacher id="*19" firstname="Ewa" lastname="Król" short="KE" gender="F" partner_id=""/>
+</teachers>
+<classrooms options="canadd,canremove,canupdate,silent" columns="id,name,short,capacity,buildingid,partner_id">
+<classroom id="*20" name="Sala 11" short="11" capacity="*" buildingid="" partner_id=""/>
+<classroom id="*21" name="Sala gimnastyczna" short="sg" capacity="*" buildingid="" partner_id=""/>
+<classroom id="*22" name="Sala 12" short="12" capacity="*" buildingid="" partner_id=""/>
+<classroom id="*23" name="Sala 15" short="15" capacity="*" buildingid="" partner_id=""/>
+<classroom id="*24" name="Pracownia komputerowa" short="sk" capacity="*" buildingid="" partner_id=""/>
+</classrooms>
+<classes options="canadd,canremove,canupdate,silent" columns="id,name,short,teacherid,classroomids,partner_id">
+<class id="*25" name="7 A" short="7A" teacherid="*18" classroomids="*22" partner_id=""/>
+<class id="*26" name="7 B" short="7B" teacherid="*18" classroomids="*22" partner_id=""/>
+<class id="*27" name="8 A" short="8A" teacherid="*17" classroomids="*20" partner_id=""/>
+</classes>
+<groups options="canadd,canremove,canupdate,silent" columns="id,classid,name,entireclass,divisiontag,studentcount,partner_id">
+<group id="*28" classid="*25" name="Cała klasa" entireclass="1" divisiontag="0" studentcount="0" partner_id=""/>
+<group id="*29" classid="*25" name="Religia" entireclass="0" divisiontag="3" studentcount="0" partner_id=""/>
+<group id="*30" classid="*25" name="Chłopcy" entireclass="0" divisiontag="2" studentcount="0" partner_id=""/>
+<group id="*31" classid="*26" name="Cała klasa" entireclass="1" divisiontag="0" studentcount="0" partner_id=""/>
+<group id="*32" classid="*26" name="Religia" entireclass="0" divisiontag="3" studentcount="0" partner_id=""/>
+<group id="*33" classid="*26" name="Chłopcy" entireclass="0" divisiontag="2" studentcount="0" partner_id=""/>
+<group id="*34" classid="*27" name="Cała klasa" entireclass="1" divisiontag="0" studentcount="0" partner_id=""/>
+<group id="*35" classid="*27" name="Religia" entireclass="0" divisiontag="3" studentcount="0" partner_id=""/>
+<group id="*36" classid="*27" name="Chłopcy" entireclass="0" divisiontag="2" studentcount="0" partner_id=""/>
+</groups>
+<lessons options="canadd,canremove,canupdate,silent" columns="id,classids,subjectid,periodspercard,periodsperweek,teacherids,groupids,classroomids,seminargroup,termsdefid,weeksdefid,daysdefid,partner_id">
+<lesson id="*37" classids="*25,*26" subjectid="*11" periodspercard="1" periodsperweek="2" teacherids="*16" groupids="*29,*32" classroomids="*20" seminargroup="2" termsdefid="*10" weeksdefid="*7" daysdefid="*6" partner_id=""/>
+<lesson id="*38" classids="*26,*27" subjectid="*12" periodspercard="2" periodsperweek="2" teacherids="*17" groupids="*33,*36" classroomids="*21" seminargroup="2" termsdefid="*10" weeksdefid="*7" daysdefid="*6" partner_id=""/>
+<lesson id="*39" classids="*25" subjectid="*14" periodspercard="1" periodsperweek="1" teacherids="*19" groupids="*28" classroomids="*23" seminargroup="" termsdefid="*10" weeksdefid="*7" daysdefid="*6" partner_id=""/>
+<lesson id="*40" classids="*27" subjectid="*13" periodspercard="1" periodsperweek="1" teacherids="*18" groupids="*34" classroomids="*22" seminargroup="" termsdefid="*10" weeksdefid="*7" daysdefid="*6" partner_id=""/>
+<lesson id="*41" classids="*25" subjectid="*13" periodspercard="1" periodsperweek="2" teacherids="*18" groupids="*28" classroomids="*22" seminargroup="" termsdefid="*10" weeksdefid="*7" daysdefid="*6" partner_id=""/>
+<lesson id="*42" classids="*26" subjectid="*13" periodspercard="1" periodsperweek="2" teacherids="*18" groupids="*31" classroomids="*22" seminargroup="" termsdefid="*10" weeksdefid="*7" daysdefid="*6" partner_id=""/>
+<lesson id="*43" classids="*27" subjectid="*15" periodspercard="1" periodsperweek="1" teacherids="*19" groupids="*34" classroomids="*24" seminargroup="" termsdefid="*10" weeksdefid="*8" daysdefid="*6" partner_id=""/>
+</lessons>
+<cards options="canadd,canremove,canupdate,silent" columns="lessonid,period,days,weeks,terms,classroomids">
+<card lessonid="*37" period="3" days="10000" weeks="11" terms="1" classroomids="*20"/>
+<card lessonid="*37" period="3" days="00100" weeks="11" terms="1" classroomids="*20"/>
+<card lessonid="*38" period="4" days="01000" weeks="11" terms="1" classroomids="*21"/>
+<card lessonid="*39" period="0" days="00010" weeks="11" terms="1" classroomids="*23"/>
+<card lessonid="*40" period="0" days="00001" weeks="11" terms="1" classroomids="*22"/>
+<card lessonid="*41" period="1" days="10000" weeks="11" terms="1" classroomids="*22"/>
+<card lessonid="*41" period="1" days="00100" weeks="11" terms="1" classroomids="*22"/>
+<card lessonid="*42" period="2" days="10000" weeks="11" terms="1" classroomids="*22"/>
+<card lessonid="*42" period="2" days="00100" weeks="11" terms="1" classroomids="*22"/>
+<card lessonid="*43" period="1" days="01000" weeks="10" terms="1" classroomids="*24"/>
+</cards>
+</timetable>

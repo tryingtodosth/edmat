@@ -1,0 +1,105 @@
+/* App-level layout on top of the EdMat bundle. Tokens only. */
+[data-reduce-motion="1"] *, [data-reduce-motion="1"] *::before, [data-reduce-motion="1"] *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+.app-main { max-width: var(--content-max); margin: 0 auto; padding: var(--space-4) var(--space-4) var(--space-12); }
+@media (min-width: 720px) { .app-main { padding: var(--space-6) var(--space-6) var(--space-12); } }
+.app-title { margin: 0 0 var(--space-1); }
+.app-sub { color: var(--ink-muted); margin: 0 0 var(--space-6); font-size: 0.8125rem; }
+.card { background: var(--surface-raised); border: var(--border) solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); }
+.card h2, .card h3 { margin: 0 0 var(--space-3); }
+.card + .card { margin-top: var(--space-4); }
+.stack { display: flex; flex-direction: column; gap: var(--space-4); }
+.grid-2 { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); align-items: start; }
+.grid-3 { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.row-end { justify-content: flex-end; }
+.muted { color: var(--ink-muted); font-size: 0.8125rem; }
+.mt-2 { margin-top: var(--space-2); } .mt-4 { margin-top: var(--space-4); } .mb-4 { margin-bottom: var(--space-4); }
+[data-theme="hc"] .card { border-color: var(--ink); border-width: var(--border-hc); }
+.login { min-height: 100vh; display: grid; place-items: center; padding: var(--space-4); }
+.login .card { width: 100%; max-width: 420px; }
+.login .ed-wordmark { font-size: 2rem; margin-bottom: var(--space-4); }
+.app-fixed-toasts { position: fixed; right: var(--space-4); bottom: var(--space-4); left: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); z-index: var(--z-toast); pointer-events: none; }
+.app-fixed-toasts > * { pointer-events: auto; }
+.app-sync { position: sticky; top: 56px; z-index: var(--z-bar); }
+.app-nav-more { display: none; }
+@media (max-width: 720px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+@media print { .ed-topbar, .app-sync, .app-fixed-toasts, .no-print { display: none !important; } .app-main { padding: 0; max-width: none; } .card { border: 0; padding: 0; } }
+
+.ed-switcher-btn { white-space: nowrap; }
+.app-demo { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-4); background: var(--accent-soft); color: var(--accent); border-bottom: var(--border) solid var(--accent); font-size: 0.8125rem; }
+.ml-2 { margin-left: var(--space-2); }
+
+/* --- Review fixes ------------------------------------------------------------------------------
+   B1  the attendance roster clipped its own status chips on a phone (overflow:hidden on .ed-roster),
+       and its min-content width pushed the whole page into horizontal scroll.
+   B2  the top bar's nav shrank to ~1 character next to the right-hand group, so a phone had no navigation.
+   M6  the parent dashboard is nine stacked sections with no way to jump between them.               */
+
+/* Flex/grid children default to min-width:auto, so one wide table drags the whole page sideways. */
+.app-main, .stack > *, .grid-2 > *, .grid-3 > *, .row > *, .app-footer > *, .app-footer__links > * { min-width: 0; }
+
+@media (max-width: 720px) {
+  /* B2 — give the navigation its own full-width, scrollable row instead of a squeezed sliver. */
+  .ed-topbar { flex-wrap: wrap; overflow-x: visible; padding-bottom: var(--space-1); }
+  .ed-topbar nav { order: 3; flex: 1 0 100%; overflow-x: auto; scrollbar-width: thin; }
+  .ed-topbar-right { order: 2; }
+  .app-sync { top: auto; position: static; }
+
+  /* B1 — all seven statuses reachable without horizontal scrolling. */
+  .ed-roster { overflow-x: auto; }
+  .ed-roster .ed-att-group { flex-wrap: wrap; }
+  .ed-roster th, .ed-roster td { padding-left: var(--space-2); padding-right: var(--space-2); }
+}
+
+/* B2 — navigation links were 32 px high; pointers are coarse on the devices that need them most. */
+@media (pointer: coarse) {
+  .ed-topbar nav a, .ed-switcher-btn { min-height: var(--touch); }
+  .ed-roster .ed-late-min input { min-height: var(--touch); }
+}
+
+/* M6 — in-page jump bar for long single-page dashboards (parent). Sticky only where the top bar is a
+   single 56 px row; below 720 px the bar wraps to two rows, so a fixed offset would overlap it. */
+.app-jump { display: flex; flex-wrap: wrap; gap: var(--space-2); position: sticky; top: 56px; z-index: var(--z-bar);
+  padding: var(--space-2) 0; background: var(--surface); }
+@media (max-width: 720px) { .app-jump { position: static; } }
+.app-jump a { display: inline-flex; align-items: center; min-height: var(--touch); padding: 0 var(--space-3);
+  border: var(--border) solid var(--line); border-radius: var(--radius-full); background: var(--surface-raised);
+  color: var(--ink); text-decoration: none; font-size: 0.8125rem; }
+.app-jump a:hover { background: var(--surface-sunken); }
+
+/* U3-19 — a bare <a> falls back to the user agent's #0000ee, which on the dark card measures
+   1.67 : 1 against --surface-raised (WCAG needs 4.5 : 1); the accessibility-statement link under
+   the login form was the only unreadable thing on the page. The link takes the theme's own token
+   instead: 7.45 : 1 light, 8.54 : 1 dark, 11.77 : 1 high contrast. The padding is WCAG 2.5.8
+   (24 × 24 px target) — the link measured 141 × 18 px. */
+.app-link { color: var(--link); display: inline-block; padding-block: 4px; }
+.app-link:hover, .app-link:focus-visible { color: var(--link); }
+[data-theme="hc"] .app-jump a { border-color: var(--ink); border-width: var(--border-hc); }
+@media print { .app-jump { display: none !important; } }
+
+/* M5 — "back to the list" link that only matters once the two panes have stacked. */
+.app-backlink { display: none; }
+@media (max-width: 720px) { .app-backlink { display: inline-flex; } }
+
+/* m3 — the lesson currently open in the panel below; "now" in the DS means the clock, not the selection. */
+.app-lesson-open { outline: var(--border-hc) solid var(--brand); outline-offset: 2px; }
+
+/* The footer — the demo had none, and the "Zgłoś błąd" button needs the second standing place the
+   site gives it (top bar and footer). Not fixed: it sits after the content, so a long screen does
+   not lose a strip of itself to it, and .app-main's generous bottom padding keeps it off the last
+   row of a table. */
+.app-footer { border-top: var(--border) solid var(--line); margin-top: var(--space-8); padding: var(--space-4); max-width: var(--content-max); margin-inline: auto; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: baseline; justify-content: space-between; }
+.app-footer__links { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: baseline; }
+/* A button that reads as a link: it opens a dialog rather than going anywhere, so it must be a
+   <button> for the keyboard and the screen reader, and look like its neighbour for everyone else. */
+.app-linklike { background: none; border: 0; padding: 4px 0; font: inherit; color: var(--link); cursor: pointer; text-decoration: underline; }
+.app-linklike:hover, .app-linklike:focus-visible { color: var(--link); }
+.small { font-size: 0.8125rem; }
+
+/* On a phone the top bar's copy of the button goes away entirely, at the same 560px breakpoint the
+   design system already uses to collapse a top-bar button to its icon (bundle.css). Even icon-only
+   it did not fit beside the account menu at 200 % text — .ed-topbar-right reached 421px inside a
+   390px window — and a horizontal scrollbar on every screen is a worse price than losing a
+   DUPLICATE: the footer carries the same "Zgłoś błąd" on every page, login screen included, so
+   nothing becomes unreachable. Measured by [3.9.2] and [3.9.10] in tests/39-nonfunctional.test.js. */
+@media (max-width: 560px) { .app-report-topbar { display: none; } }

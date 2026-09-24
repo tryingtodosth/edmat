@@ -1,10 +1,20 @@
 from rest_framework import serializers
 
-from .models import ISSUE_KIND_CHOICES, ISSUE_STATUS_CHOICES, Issue
+from .models import (
+    ISSUE_AREA_CHOICES,
+    ISSUE_KIND_CHOICES,
+    ISSUE_SOURCE_CHOICES,
+    ISSUE_STATUS_CHOICES,
+    Issue,
+    area_is_valid_for,
+)
 
 # What the client may capture about where it was. An allowlist rather than "any JSON", so a
 # caller cannot stash arbitrary data on the record under the name of context.
-CONTEXT_KEYS = ('path', 'page_title', 'locale', 'viewport', 'user_agent')
+# `role` joined the list for the school demo: the same screen is a different product to a parent
+# and to a registrar, so "who was looking" is the first thing a reader of the report asks. It is
+# context rather than a column because nothing filters by it — unlike `source` and `area`, which do.
+CONTEXT_KEYS = ('path', 'page_title', 'locale', 'viewport', 'user_agent', 'role')
 
 
 class IssueSerializer(serializers.ModelSerializer):
@@ -22,6 +32,8 @@ class IssueSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'kind',
+            'source',
+            'area',
             'title',
             'body',
             'context',
@@ -53,12 +65,28 @@ class IssueSerializer(serializers.ModelSerializer):
 
 class IssueCreateSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=ISSUE_KIND_CHOICES, default='bug')
+    # Anyone may claim any source: this endpoint is open to guests by design, so a claimed source is
+    # a label the reporter's client attached, never an authorisation. What it buys is a queue that
+    # sorts itself; what it must not buy is trust, which is why nothing downstream reads it as
+    # provenance. The demo's server-side proxy is the only thing that sets it today.
+    source = serializers.ChoiceField(choices=ISSUE_SOURCE_CHOICES, default='site')
+    area = serializers.ChoiceField(choices=ISSUE_AREA_CHOICES, required=False, allow_blank=True, default='')
     title = serializers.CharField(max_length=200)
     body = serializers.CharField(required=False, allow_blank=True, default='')
     context = serializers.DictField(required=False, default=dict)
     anonymous = serializers.BooleanField(required=False, default=False)
     contact_email = serializers.EmailField(required=False, allow_blank=True, default='')
     is_public = serializers.BooleanField(required=False, default=False)
+
+    def validate(self, attrs):
+        # An area that does not belong to its source is a mislabelled report rather than a harmless
+        # extra: it would show up under a filter that means something else. Refuse it here rather
+        # than silently blanking it, so a client sending the wrong pair is told.
+        if not area_is_valid_for(attrs.get('source', 'site'), attrs.get('area', '')):
+            raise serializers.ValidationError(
+                {'area': [f"'{attrs.get('area')}' is not an area of '{attrs.get('source', 'site')}'."]}
+            )
+        return attrs
 
     def validate_context(self, value):
         cleaned = {}
