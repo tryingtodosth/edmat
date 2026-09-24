@@ -9482,3 +9482,84 @@ different format from the panel, and "1 versions" in the roster.
   never sees a contributor whose only work is a pending proposal — correct, and worth knowing.
 - **`ProjectPanel.svelte` is gone**; the project page (`/material-projects/[id]`) is unchanged and
   still the place for the catalogue and the editor.
+
+## 17BI.E. Polls & Decisions (✅ built, full stack)
+
+Formal decisions with eligibility rules, voting, and a written decision when closed. Built on the
+management infrastructure (GenericForeignKey polymorphic seam through `config.nodes`, feature
+gating with `decisions` kill switch, refusals as words per house rule 6).
+
+### The shape
+
+**Poll** — question, lifecycle (draft → open → closed), eligibility rule (staff or members), mode
+(single choice or multiple), optional open/close times, anonymous voting flag, and a decision note
+when closed. Hangs off a course, event, or material project through GenericForeignKey.
+
+**PollOption** — one answer text + order.
+
+**Ballot** — participation record (one per person per poll). For anonymous polls, no FK to user.
+
+**Vote** — one vote for an option, FK to ballot (null for anonymous). Results recounted, never
+stored (house rule 5).
+
+### Rules (in `rules.py`)
+
+- `visible_polls(user, node)` — drafts visible to managers only; others see open/closed if
+  eligible or staff
+- `is_eligible(user, poll)` — staff-only or members-only per eligibility field
+- `vote_block_reason(user, poll, option_ids)` — returns refusal word: `not_open`, `not_eligible`,
+  `already_voted`, `too_many_choices`, `unknown_option`; None if voting allowed
+- `can_see_results(user, poll)` — managers always; others only when closed
+- `open_block_reason(poll)` — must have ≥2 options, not already open/closed
+- `close_block_reason(poll)` — must not already be closed
+
+Every refusal is a word (house rule 6), with a sentence in `labels.ts`.
+
+### API
+
+All behind `feature_gate('decisions')`:
+- `GET|POST /api/nodes/<kind>/<pk>/polls/` — list/create on a node (NodePollsView)
+- `GET|PATCH|DELETE /api/polls/{id}/` — single poll
+- `POST /api/polls/{id}/options/`, `DELETE /api/poll-options/{id}/` — draft options
+- `POST /api/polls/{id}/open/`, `POST /api/polls/{id}/close/{decision_note}` — lifecycle
+- `POST /api/polls/{id}/vote/{options}` — cast a vote
+- `GET /api/polls/{id}/results/` — vote counts (ballots listed for managers only)
+
+Every refusal is 409 when the world moved (already voted) or 400 when the request is wrong
+(unknown option). 404 for anything the user cannot see (house rule 4).
+
+### Frontend
+
+- `lib/types/poll.ts`, `lib/services/polls.ts` — types and API calls
+- `lib/components/decisions/PollsPanel.svelte` — panel on event/course/material pages
+- `/polls/[id]` — full-page detail view
+- `lib/utils/labels.ts` — PollMode/PollStatus/PollEligibility enums and label maps
+- i18n: 25 `polls_*` keys in both en.json and pl.json (identical key sets verified)
+- `work.py` integration — open polls the user is eligible for, not yet voted, due soonest
+
+### work.py integration
+
+`work_items(user)` returns open polls the user is eligible for and has not voted in, due soonest.
+Each item is a dict: `kind: 'poll'`, `title`, `url: '/polls/{id}'`, `due_at`, `status: 'open'`,
+`urgency: 0|1|2|3`, `node`.
+
+### Verified
+
+Backend: `manage.py test decisions` — **Ran 24 tests in 22.189s … OK**; `manage.py check` clean;
+`makemigrations --check --dry-run` no changes. Frontend: `npm run check` 0/0. i18n: en.json and
+pl.json `polls_*` key sets identical (25 keys each).
+
+Browser e2e (`frontend/e2e/decisions.mjs`): creates a poll as manager, enrolls member, opens for
+voting, records a vote, closes poll, views results. All 8 checks pass; zero console errors.
+Screenshots: manager and member views on desktop/phone. Ran against real dev servers on
+ports 8125/5225.
+
+### Left open
+
+- No notification when a poll opens
+- Quorum rules or minimum vote counts
+- Ranked or weighted voting
+- Reminders before closing
+- Anonymous results do not expose vote distribution — honest (manager cannot cheat) but less
+  entertaining (nobody sees who won unless the manager decides to tell them in the decision note)
+

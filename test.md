@@ -305,6 +305,7 @@ node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
 node e2e/booking.mjs
 node e2e/schedule-editing.mjs
 node e2e/events-and-nav.mjs
+node e2e/decisions.mjs          # polls end to end; kasia creates, opens, adam votes, kasia closes and views results (§17BI.E)
 node e2e/known-issues.mjs
 node e2e/course-search.mjs
 node e2e/navbar-stages.mjs
@@ -473,6 +474,13 @@ the course as a participant, its use counted; revoked, it stays listed as Revoke
 fresh visitor. The four signed-in accounts are given Polish content through the API for the run and
 put back afterwards — a signed-in profile's own `content_locales` overwrite the localStorage extras
 once it loads, which is how the picker first came back empty.
+
+**`e2e/decisions.mjs` (8 checks)** — polls end to end (`HISTORY.md` §17BI.E). Kasia (staff/manager)
+creates a poll on her course with two options, Adam (a member, enrolled through the API) votes for
+the first option, kasia opens the poll for voting and closes it after recording a vote, views the
+results showing one vote. Checks: poll starts as draft, can be opened, has correct options count,
+vote is recorded, results show correct vote count, poll closes with a decision note, and no console
+errors. Takes screenshots of manager and member views. Ran against real dev servers.
 
 **`e2e/booking.mjs` (51 checks)** — three people in three contexts, because the entire feature is
 about the same grid of buttons meaning two different things. A tutor publishes one 14:00–17:00 Tuesday
