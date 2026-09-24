@@ -10030,3 +10030,73 @@ stays visible to).
 - **The e2e script leaves two tombstoned rows behind** on a real database, because there is no hard
   delete. This run's were removed through the ORM afterwards; a re-run leaves two more.
 - **Members are added by account id** — every roster in this layer waits on people search.
+
+## 17BI.F — work dashboard (2026-09-24, branch `mgmt/f-work`)
+
+Personal work aggregator: one page showing every work item waiting on me, aggregated from every
+module. No models, no migrations. Six built-in providers read what exists today (events I host or
+staff, events I'm attending, courses with pending requests, materials with pending versions, shifts
+in the next 14 days, tutoring bookings coming up), each behind its own feature flag. A provider
+registry lets steps B–E wire in their own rows at integration (MANAGEMENT-BRIEF.md §5) with a
+two-line registration. A provider that raises is caught, logged and reported as unavailable
+(house rule 10: flag it, don't fake it) — never fatal.
+
+The first pass (commits `2765c87`, `a56c7f3`) shipped with the shape right but the wiring wrong in
+enough places that nothing on the page actually worked end to end: 4 of 6 builtin providers used
+field/related-names that don't exist on the real models (`Course.staff` not `course_staff_roles`,
+`Event.staff` not `event_staff_roles`, `Assignment.user` not `volunteer`, `Shift.station.event` not
+`Shift.event`, `MaterialProject` has no `title` field), `collect()` only ever ran a provider whose
+key was already hardcoded into its own ordering list — so a provider registered under any other key
+(including the isolation test's own `failing_test`) silently never ran at all, the frontend page
+invented a `--color-*`/`--spacing-*`/`--border-radius` token vocabulary the stylesheet does not
+define (nothing rendered), `UrgencyDot` did the same with `--color-gray-300`/`--color-blue`/etc.,
+the service called `/api/api/work/` (a stray leading `/api/` on top of the client's own base URL),
+and a work item's node link built `/{node.kind}/{node.id}` against the backend's singular kind names
+where every route is plural — all four real bugs found only once `e2e/work.mjs` (which had never
+been run) actually drove a browser. This pass fixed all of it in place: the queries, `collect()`'s
+run-everything-registered semantics, both stylesheets rewritten against the real `_theme.scss`
+tokens (`--space-*`, `--text-*`, `--bg-*`, `--status-*`, `--accent`, `--border-color`), the doubled
+`/api/` prefix, the node-link route map, a `<button>`-containing-an-`<a>` HTML-validity bug found
+while fixing the link (the node link is now a sibling in a shared `.item-card`, not nested inside
+the item's button), a missing `databases` declaration on the API test class (benign noise, not a
+failure, but the same fix every other app's test file already carries), a real Polish grammar bug
+("Odpoczynaj" is not a word; "Odpoczywaj" is), and 24 `m.*()` call sites with no `// "Original
+text"` comment (house rule 1).
+
+### Verified
+
+Backend: `manage.py test work` → **Ran 10 tests in 4.453s — OK** (all 10, including the two that
+were silently vacuous before: the raising-provider isolation test and the off-flag test).
+`manage.py test work config` → **Ran 45 tests in 12.550s — OK**. `manage.py check` → no issues.
+`manage.py makemigrations --check --dry-run` → no changes. Frontend: `npm run check` → 0 errors, 0
+warnings. `npx eslint` and `npx prettier --check` clean on every touched file (`+page.svelte`,
+`UrgencyDot.svelte`, `work.ts`, `e2e/work.mjs`; `messages/pl.json`'s one-line fix is clean, the
+warning `prettier --check` gives on the whole file is pre-existing and present on `en.json` too,
+unrelated to this change). `npm run build` → succeeds. i18n: en/pl `work_*` key sets identical (30
+keys each, verified by a Python script), every `m.*()` call site in `+page.svelte` now carries its
+`// "Original text"` comment. Browser, real servers (API :8126, Vite :5226, `cachedata/` cleared
+first): **`e2e/work.mjs` 15/15** — Kasia logs in, an event she hosts in 7 days is created through
+the API, cross-checked directly against `GET /api/work/` (so a later browser-side failure is known
+to be a rendering bug and not a missing fixture), `/work` shows it in "Events I'm hosting" with a
+working urgency dot, a formatted due date and a working node link through to the real event page; a
+second account (probed through the API first for a genuinely empty `/api/work/`, never assumed)
+shows the whole-page "Nothing is waiting on you" state with zero sections; zero console/page errors
+throughout. Screenshots at `/tmp/work-dashboard-kasia.png` and `/tmp/work-dashboard-empty.png` —
+looked at both: cards, urgency-dot colours (amber "this week", blue "this month") and the empty
+state all draw correctly against the real theme tokens. Both dev servers killed by PID afterward.
+
+### Left open
+
+- **The per-SECTION empty state (`work_section_empty`) is unreachable through the real API.**
+  `providers.collect()` only ever appends a section when it has items (`if items: sections.append
+  (...)`), so `+page.svelte`'s `{#if section.items.length === 0}` branch is dead defensive code, not
+  a gap in `e2e/work.mjs`. Left as-is (harmless, and matches the brief's shape) rather than removed,
+  in case a future provider legitimately wants to announce "0 pending" instead of not appearing.
+- **No HISTORY or test.md entries from steps A–E yet.** Five branches are building in parallel; their
+  sections will land during integration.
+- **No per-section filtering or preferences.** The page is read-only; future work could add a
+  settings panel (which sections to show, sort order, etc.).
+- **`npm run check:a11y` was not re-run.** The one structural change (`<button>` no longer contains
+  an `<a>`) is a real accessibility fix, not a regression, but the full site-wide a11y sweep is
+  outside this step's scope and was not part of what was asked to verify here.
+

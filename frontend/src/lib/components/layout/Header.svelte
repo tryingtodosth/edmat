@@ -96,6 +96,8 @@
 
 	let canOrganizations = $derived(can('organizations'));
 
+	let canWork = $derived(can('work_dashboard'));
+
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
 	// The waiting-decisions count, loaded whenever a moderator's navigation is drawn. An effect
@@ -521,6 +523,12 @@
 		<a role="menuitem" class={itemClass} href={resolve('/organizations')} {onclick}>
 			{m.orgs_navMine()}
 			<!-- "My organisations" -->
+		</a>
+	{/if}
+	{#if canWork}
+		<a role="menuitem" class={itemClass} href={resolve('/work')} {onclick}>
+			{m.work_title()}
+			<!-- "My work" -->
 		</a>
 	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
