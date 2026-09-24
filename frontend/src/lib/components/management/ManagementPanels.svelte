@@ -22,6 +22,8 @@
 
 	import TasksPanel from '$lib/components/task/TasksPanel.svelte';
 
+	import OrganizationsPanel from '$lib/components/organization/OrganizationsPanel.svelte';
+
 	let { nodeKind, nodeId }: { nodeKind: NodeKind; nodeId: string } = $props();
 
 	let node = $state<NodeRef | null>(null);
@@ -52,6 +54,7 @@
 		     lines. F mounts nothing here (its surface is /work); its marker stays so the file has six. -->
 
 		<!-- management: organizations (A) -->
+		<OrganizationsPanel {node} />
 
 		<!-- management: tasks (B) -->
 		<TasksPanel {node} />

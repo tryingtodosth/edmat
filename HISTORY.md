@@ -9878,3 +9878,155 @@ argument of house rule 2:
   named as out of scope in §3.B.
 - **`tasks/work.py: work_items` is written but not registered.** `work/providers.py` is step F's
   file and nothing here imports it; the integrator wires it in two lines at §5.
+
+---
+
+## 17BI.A. Organisations: bodies, their rosters, and what they stand behind (✅ built, full stack, 2026-09-24)
+
+Management step A (`MANAGEMENT-BRIEF.md` §3.A), on `mgmt/a-organizations`, one of six branches built
+at the same time. Backend app `organizations` — three models, one rule module, one flag — plus the
+single shared-file edit the whole management layer allows: the `organization` line in
+`config/nodes.py`'s `NODE_KINDS`.
+
+### Why it is an app, and what it deliberately does NOT do
+
+A student circle outlives every course its members teach; a faculty stands behind forty of each.
+`Course.organization` would model the one case something is run once by one body, and would put the
+body's own roster nowhere. So the link is a **row** (`OrganizationLink`, a `GenericForeignKey`
+through `config.nodes`), the `venues.RoomBooking` shape — which is what keeps every other app's
+schema untouched (§4 rule 1) and what lets a faculty that hosts an event and a student circle that
+runs it both appear on it, which one nullable FK cannot express.
+
+The decision that shapes the rest is the one taken from 2donet and then narrowed. 2donet (§2.30)
+cascades permissions from an organisation down through teams to projects. **This does not.** Every
+node here already has its own roster and its own rule module, so a cascade would be a second answer
+to "who may edit this course", and two answers to one question is how two surfaces start disagreeing.
+A membership therefore grants **nothing** on what the body runs; the link is a badge and a list. The
+organisation page says so to the reader in a sentence, and
+`NodeSeamTests.test_the_seam_does_not_grant_anything_on_what_the_body_runs` is the proof.
+
+### The models and the invariants
+
+`Organization(name, slug unique, kind: university | faculty | school | student_circle | ngo |
+company | other, description, website, city, is_active, created_by, created_at)` —
+description sanitized in `save()` rather than in a serializer, which is what `config/sanitize.py`
+asks for (every write path, including the admin, is then covered). `is_active=False` is the
+tombstone: the page stays for its own roster, every badge comes off every public page, nothing is
+deleted (house rule 12).
+
+`OrganizationMember(organization, user, role: owner | admin | member, added_by, added_at)`, unique
+per pair. **At least one owner at all times**: removing *or demoting* the last one is `409
+last_owner`, recounted against the database every time (house rule 5). The demotion half is the
+point — a rule that only guarded `DELETE` would be walked around by a `PATCH`, and the end state is
+identical. Leaving is not being removed (anybody may take themselves off a roster), and the
+invariant still applies to it, because "I left and now nobody runs it" is the state it exists to
+prevent however it is reached. Only an owner rearranges the owners; an administrator runs the roster
+and the links and gets `403 not_org_owner` at an owner's row.
+
+`OrganizationLink(organization, content_type, object_id, kind: runs | supports, added_by, added_at)`.
+Creating one needs `can_manage` on the organisation **and** `can_manage_node` on the target — a badge
+saying "run by the Faculty of Physics" is a claim about two parties. Deleting one needs **either**:
+agreeing takes two, withdrawing takes one. `access.LINKABLE_KINDS` is `NODE_KINDS` minus
+`organization` itself (`400 not_linkable`) — a body inside a body is a hierarchy this step does not
+model, and a self-referential graph with no cycle rule is worse than no graph. `runs` and `supports`
+are two different claims rather than two settings of one, because a faculty that lends a lecture
+theatre and its name to somebody else's conference is supporting it, not running it, and a badge that
+could not tell them apart would be read as the stronger claim every time.
+
+A minor may not found one (`403 minor`, `accounts/minors.py`): founding means standing publicly
+behind a body and being the person a stranger writes to about it, the same reasoning that already
+closes event hosting and tutoring listings to an under-16. A minor may perfectly well be *on* a
+roster — somebody else put them there, and being listed opens no channel to anybody.
+
+**Platform `is_staff` is deliberately not a manager.** `venues.access.is_venue_admin` lets staff in
+because that is the only way a building gets its first administrator; an organisation is founded by
+the person who runs it, who is its first owner in the same transaction (`services.found`, one
+`atomic()` over two fast statements), so there is no bootstrap needing a back door. Staff still see
+every row in `visible_organizations`, so a moderator can find a body somebody reported after it went
+quiet.
+
+### The node seam
+
+`config/nodes.py` gained `'organization': ('organizations', 'organization')` — the one shared-file
+edit any of the six steps makes — and the four functions it dispatches to sit at the bottom of
+`access.py`. So **an organisation is itself a node**: the whole management panel stack mounts on its
+page, which is what will let a student circle keep its own tasks, needs, plans and polls without any
+of the other five steps knowing this app exists. `member` and `staff` are the same set here (a roster
+has no reader tier), and the seam answers `is_node_member` from `is_node_staff` for that reason. The
+kind's tests live in `organizations/tests.py` rather than in `config/test_nodes.py`, because a shared
+test file six branches append to is a merge conflict on every merge.
+
+`GET /api/nodes/{kind}/{id}/organizations/` is routed from **this** app under the shared `nodes/`
+prefix, so `config/urls.py` stays untouched. `GET /api/organizations/managed/` is a separate endpoint
+from `?mine=1` on purpose: the first answers "where am I listed", the second "where may I act", and a
+picker fed by the wrong one offers options the API then refuses — house rule 6 from the other side.
+
+`_readable_links` drops any link whose target the reader cannot see: a link is only as public as the
+*less* public of its two ends, so an organisation that runs a draft event does not advertise the
+draft event's title on its own public page.
+
+### The frontend
+
+`types/organization.ts`, `services/organizations.ts` (`OrganizationRefusedError` carrying the word,
+never a boolean), routes `/organizations` (browse + a Mine tab + search + kind filter), 
+`/organizations/new`, `/organizations/[slug]` (about, roster, what it stands behind, and
+`<ManagementPanels nodeKind="organization" nodeId={org.id} />`), `/organizations/[slug]/manage`
+(details, roster with role selects and account-id add, links, dissolve). `OrganizationsPanel` at
+mount point A in `ManagementPanels.svelte`; the header's Add… gets "New organisation" (adults only,
+the Events reasoning) and the account menu "My organisations" (not adults-only — a minor may be on a
+roster). The panel checks the flag **itself** rather than being wrapped in `FeatureGate`, the
+`VenuePanel` precedent: that component renders an "unavailable" notice, which is right for a route
+and wrong for a panel sitting mid-page on somebody else's course.
+
+### Verified
+
+Backend: `manage.py test organizations config` — **106 tests, OK** (70 in `organizations`,
+refusal-weighted); `manage.py check` clean; `makemigrations --check --dry-run` → "No changes
+detected". Frontend: `npm run check` **0 errors / 0 warnings** (5584 files), `npx eslint` and
+`npx prettier --check` clean on every touched file, `npm run build` clean, en/pl **3311 keys,
+identical sets** (94 of them `orgs_`). Browser: `frontend/e2e/organizations.mjs` **27/27 with zero
+console/page errors** against the real servers on 8121/5221, and five screenshots looked at.
+
+Three things were found by *running* rather than by reading:
+
+- **The work provider silently returned nothing.** `Organization.objects.filter(members__user=…,
+  members__role='owner').annotate(Count('members'))` reuses the same join, so the owner count and the
+  roster count both came back as 1 and no row ever qualified. It is a subquery now, with the reason
+  written above it.
+- **Half my CSS custom properties do not exist.** `--border`, `--surface`, `--danger` and `--space-8`
+  are not in `_theme.scss` (the real names are `--border-color`, `--bg-surface`, `--status-danger`,
+  and the space scale stops at 6), so every card on every new page rendered borderless and with the
+  bottom padding dropped. Visible in the first screenshot and in nothing else — `svelte-check`,
+  eslint and the build all passed on it. `venues/VenuePanel.svelte` has the same `var(--border)`,
+  which is presumably invisible there too.
+- **"1 members".** The same plural bug §17BH shipped as "1 versions". The counts now read label
+  first — "Members: 1 · Linked: 0" — which is correct in both languages without plural forms.
+
+Two smaller ones came out of the same looking: the panel on an organisation's *own* page offered to
+link it to itself (a refusal we can simply not offer — it draws nothing there now), and two e2e
+checks were wrong rather than the code (a count taken before the panel's two requests had landed, and
+a "has it left the public list" check asked as the owner, who is exactly the person a dissolved body
+stays visible to).
+
+### Left open
+
+- **No join requests and no invitations.** A body is joined by somebody already in it adding you by
+  account id. Both were out of scope in §3.A; `coauthoring`'s invite/join-request pair is the shape.
+- **No notification** on being added, on a role change or on a link — §4 rule 12 forbids a new
+  notification type while six branches are open. All three want `notifications.notify()`.
+- **`hasAnythingToAdd` in the header does not count this flag.** §4 rule 4 confines a step to the
+  four marker comments, and that derived value is not one of them, so with *every other* Add… entry
+  switched off the menu disappears and takes "New organisation" with it. One `|| canOrganizations`
+  for the integrator.
+- **`slugify` drops `ł`** — "Koło Naukowe Fizyków" becomes `koo-naukowe-fizykow`, because `ł` has no
+  NFKD decomposition. That is the answer `concepts.services.allocate_slug` already gives everywhere on
+  this platform, so it is named here rather than changed in one app; fixing it is a decision about
+  every slug on the site (and about the ones already issued).
+- **No verified-organisation badge, no "claim this university" flow**, so anybody may found a body
+  called anything. `moderation.Report`'s target registry is where impersonation would be handled.
+- **No `organization` entry in `community/targets.py`**, so a body has no discussion thread — §7 lists
+  that as one later change for all six management apps at once.
+- **A link carries no note**: "supports" cannot say how.
+- **The e2e script leaves two tombstoned rows behind** on a real database, because there is no hard
+  delete. This run's were removed through the ORM afterwards; a re-run leaves two more.
+- **Members are added by account id** — every roster in this layer waits on people search.
