@@ -16,6 +16,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	// Management imports (MANAGEMENT-BRIEF.md §4 rule 4): each step adds ONE import line directly
 	// below this comment, in step order, and touches nothing else in this script block.
+	import TasksPanel from '$lib/components/task/TasksPanel.svelte';
 
 	let { nodeKind, nodeId }: { nodeKind: NodeKind; nodeId: string } = $props();
 
@@ -49,6 +50,7 @@
 		<!-- management: organizations (A) -->
 
 		<!-- management: tasks (B) -->
+		<TasksPanel {node} />
 
 		<!-- management: needs (C) -->
 
