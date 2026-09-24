@@ -728,31 +728,59 @@ export const TICKET_BLOCK_REASONS: Record<string, () => string> = {
 	not_yours: m.tickets_blocked_notYours // "This is somebody else's ticket."
 };
 
-// Poll enums — mirrors backend/decisions/models.py
-export type PollMode = 'single' | 'multiple';
-export type PollStatus = 'draft' | 'open' | 'closed';
-export type PollEligibility = 'staff' | 'members';
+// Poll enums — a hand-maintained mirror of `decisions/models.py` and the refusal words
+// `decisions/rules.py` returns (house rule 13: say so in both files). The enum TYPES themselves
+// live in `$lib/types/poll.ts` and are imported, not redefined, here — only the label maps live
+// in this file, the same split every other app in this file uses.
+import { ApiError } from '$lib/api/client';
+import type { PollEligibility, PollMode, PollRefusalReason, PollStatus } from '$lib/types/poll';
 
 export const POLL_MODES: Record<PollMode, () => string> = {
 	single: m.polls_mode_single, // "Single choice"
-	multiple: m.polls_mode_multiple, // "Multiple choices"
+	multiple: m.polls_mode_multiple // "Multiple choices"
 };
 
 export const POLL_STATUSES: Record<PollStatus, () => string> = {
-	draft: m.featureFlags_label_decisions, // Use a generic label; real status shown contextually
-	open: m.polls_vote, // "Vote"
-	closed: m.polls_results, // "Results"
+	draft: m.polls_status_draft, // "Draft"
+	open: m.polls_status_open, // "Open"
+	closed: m.polls_status_closed // "Closed"
 };
 
 export const POLL_ELIGIBILITIES: Record<PollEligibility, () => string> = {
 	staff: m.polls_eligibility_staff, // "Staff only"
-	members: m.polls_eligibility_members, // "Members (staff and enrolled)"
+	members: m.polls_eligibility_members // "Members (staff and enrolled)"
 };
 
-export const POLL_VOTE_BLOCK_REASONS: Record<string, () => string> = {
-	not_open: m.polls_vote, // "Poll is not open"
-	not_eligible: m.polls_eligibility_staff, // "You are not eligible to vote"
-	already_voted: () => 'You have already voted', // TODO: add message
-	too_many_choices: () => 'Too many choices for single-choice poll', // TODO: add message
-	unknown_option: () => 'Unknown option', // TODO: add message
+// House rule 6, spelled out: every refusal a poll action can answer with has its own sentence.
+// `not_draft` is left out — the frontend never PATCHes or DELETEs a poll (MANAGEMENT-BRIEF.md
+// §3.E's frontend list has no edit/delete form), so no UI ever surfaces that word.
+export const POLL_REFUSAL_LABELS: Record<PollRefusalReason, () => string> = {
+	not_open: m.polls_reason_notOpen, // "This poll is not open for voting."
+	not_eligible: m.polls_reason_notEligible, // "You are not eligible to vote in this poll."
+	already_voted: m.polls_reason_alreadyVoted, // "You have already voted in this poll."
+	too_many_choices: m.polls_reason_tooManyChoices, // "This is a single-choice poll — pick only one option."
+	unknown_option: m.polls_reason_unknownOption, // "Pick an option before voting."
+	no_options: m.polls_reason_noOptions, // "Add at least two options before opening this poll."
+	already_open: m.polls_reason_alreadyOpen, // "This poll is already open."
+	already_closed: m.polls_reason_alreadyClosed // "This poll is already closed."
 };
+
+/** Reads a refusal word off a poll action's `ApiError` (`{detail: '<word>'}`) and returns its
+ * sentence; falls back to the error's own message (or `fallback`) for anything this map does not
+ * recognise, so a future refusal word still shows something rather than throwing. Shared between
+ * `PollsPanel` and `/polls/[id]` — both once carried their own copy of this exact check. */
+export function pollRefusalMessage(err: unknown, fallback: string): string {
+	if (err instanceof ApiError && err.body && typeof err.body === 'object') {
+		const detail = (err.body as Record<string, unknown>).detail;
+		if (typeof detail === 'string' && detail in POLL_REFUSAL_LABELS) {
+			return POLL_REFUSAL_LABELS[detail as PollRefusalReason]();
+		}
+	}
+	return err instanceof Error ? err.message : fallback;
+}
+
+/** Poll turnout text, shared between the panel and `/polls/[id]` — both render the same
+ * `eligible_count`/`ballots` pair `decisions/rules.py: eligible_count` answers. */
+export function pollTurnout(ballots: number, eligible: number): string {
+	return m.polls_turnout({ ballots, eligible }); // "{ballots} of {eligible} voted"
+}

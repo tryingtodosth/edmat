@@ -3248,6 +3248,6 @@
 	"polls_reason_noOptions": "Dodaj co najmniej dwie opcje, zanim otworzysz ankietę.",
 	"polls_reason_alreadyOpen": "Ta ankieta jest już otwarta.",
 	"polls_reason_alreadyClosed": "Ta ankieta jest już zamknięta.",
-	"polls_view_full": "Zobacz ankietę",
-	"polls_loadingResults": "Ładowanie wyników…"
+	"polls_loadingResults": "Ładowanie wyników…",
+	"polls_draft_notice": "Ta ankieta jest wciąż szkicem — głosowanie jeszcze się nie rozpoczęło."
 }

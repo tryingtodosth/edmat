@@ -1,52 +1,103 @@
 <script lang="ts">
 	/**
-	 * Poll detail page — /polls/[id]
-	 * Full-page view of a poll with results and voting interface
+	 * Poll detail page — /polls/[id] (MANAGEMENT-BRIEF.md §3.E)
+	 * The same poll the panel shows, at full size: an open poll's vote form, or a closed poll's
+	 * results and decision note. Manager actions (open/close) live on the panel, where a `NodeRef`
+	 * with `canManage` is already in hand — this page only has the poll itself.
 	 */
 
 	import { page } from '$app/stores';
-	import { getPoll, getPollResults } from '$lib/services/polls';
+	import { m } from '$lib/paraglide/messages.js';
+	import {
+		POLL_REFUSAL_LABELS,
+		POLL_STATUSES,
+		pollRefusalMessage,
+		pollTurnout
+	} from '$lib/utils/labels';
+	import { getPoll, getPollResults, vote } from '$lib/services/polls';
 	import type { Poll, PollResults } from '$lib/types/poll';
 
 	let poll = $state<Poll | null>(null);
 	let results = $state<PollResults | null>(null);
 	let loading = $state(true);
-	let error = $state<string | null>(null);
+	let loadError = $state<string | null>(null);
 
-	$effect(() => {
-		const pollId = $page.params.id;
-		if (!pollId) return;
+	let selection = $state<number[]>([]);
+	let voteBusy = $state(false);
+	let voteError = $state<string | null>(null);
+
+	async function load(pollId: number) {
 		loading = true;
-		error = null;
-
-		const pollNumId = parseInt(pollId);
-		Promise.all([getPoll(pollNumId), getPollResults(pollNumId)]).then(
-			([pollData, resultsData]) => {
-				poll = pollData;
-				results = resultsData;
-				loading = false;
-			},
-			(err) => {
-				error = err.message || 'Failed to load poll';
-				loading = false;
+		loadError = null;
+		try {
+			poll = await getPoll(pollId);
+			selection = [];
+			if (poll.status === 'closed') {
+				try {
+					results = await getPollResults(pollId);
+				} catch {
+					// Not eligible to see results even though the poll is closed — leave them unset;
+					// the template shows nothing rather than an error banner for that case.
+					results = null;
+				}
+			} else {
+				results = null;
 			}
-		);
+		} catch (err) {
+			loadError = err instanceof Error ? err.message : 'Failed to load poll';
+		} finally {
+			loading = false;
+		}
+	}
+
+	let loadedForId = $state('');
+	$effect(() => {
+		const id = $page.params.id;
+		if (!id || id === loadedForId) return;
+		loadedForId = id;
+		load(parseInt(id));
 	});
+
+	function toggleSingle(optionId: number) {
+		selection = [optionId];
+	}
+
+	function toggleMultiple(optionId: number, checked: boolean) {
+		selection = checked ? [...selection, optionId] : selection.filter((id) => id !== optionId);
+	}
+
+	async function submitVote() {
+		if (!poll || selection.length === 0) {
+			voteError = POLL_REFUSAL_LABELS.unknown_option();
+			return;
+		}
+		voteBusy = true;
+		voteError = null;
+		try {
+			await vote(poll.id, selection);
+			poll = await getPoll(poll.id);
+		} catch (err) {
+			voteError = pollRefusalMessage(err, 'Failed to vote');
+		} finally {
+			voteBusy = false;
+		}
+	}
 </script>
 
 {#if loading}
 	<div class="poll-page loading">
-		<p>Loading poll…</p>
+		<p>{m.polls_loading()}</p>
 	</div>
-{:else if error}
+{:else if loadError}
 	<div class="poll-page error">
-		<p>{error}</p>
+		<p>{loadError}</p>
 	</div>
 {:else if poll}
 	<div class="poll-page">
 		<div class="poll-container">
 			<div class="poll-header">
 				<h1>{poll.question}</h1>
+				<span class="poll-status-badge">{POLL_STATUSES[poll.status]()}</span>
 				{#if poll.description}
 					<p class="poll-description">{poll.description}</p>
 				{/if}
@@ -54,44 +105,54 @@
 
 			{#if poll.status === 'draft'}
 				<div class="poll-draft-notice">
-					<p>This poll is still in draft. It has not been opened for voting yet.</p>
+					<p>{m.polls_draft_notice()}</p>
 				</div>
 			{:else if poll.status === 'open'}
-				<div class="poll-voting">
-					<p>Vote in this poll:</p>
-					{#if poll.mode === 'single'}
-						<form>
+				{#if poll.has_voted}
+					<p class="poll-note">{POLL_REFUSAL_LABELS.already_voted()}</p>
+				{:else}
+					<div class="poll-voting">
+						<p>{m.polls_vote()}</p>
+						<form onsubmit={(e) => e.preventDefault()}>
 							{#each poll.options as option (option.id)}
 								<label class="vote-option">
-									<input type="radio" name="option_{poll.id}" value={option.id} />
+									{#if poll.mode === 'single'}
+										<input
+											type="radio"
+											name="option_{poll.id}"
+											checked={selection.includes(option.id)}
+											onchange={() => toggleSingle(option.id)}
+										/>
+									{:else}
+										<input
+											type="checkbox"
+											checked={selection.includes(option.id)}
+											onchange={(e) => toggleMultiple(option.id, e.currentTarget.checked)}
+										/>
+									{/if}
 									{option.text}
 								</label>
 							{/each}
-							<button type="button" class="btn-vote">Submit Vote</button>
+							<button type="button" class="btn-vote" disabled={voteBusy} onclick={submitVote}>
+								{m.polls_vote()}
+							</button>
 						</form>
-					{:else}
-						<form>
-							{#each poll.options as option (option.id)}
-								<label class="vote-option">
-									<input type="checkbox" name="option_{poll.id}" value={option.id} />
-									{option.text}
-								</label>
-							{/each}
-							<button type="button" class="btn-vote">Submit Vote</button>
-						</form>
-					{/if}
-				</div>
+						{#if voteError}
+							<p class="poll-action-error">{voteError}</p>
+						{/if}
+					</div>
+				{/if}
 			{:else if poll.status === 'closed'}
 				<div class="poll-closed">
 					{#if poll.decision_note}
 						<div class="decision-note">
-							<h2>Decision</h2>
+							<h2>{m.polls_decision_note()}</h2>
 							<p>{poll.decision_note}</p>
 						</div>
 					{/if}
 					{#if results}
 						<div class="poll-results">
-							<h2>Results</h2>
+							<h2>{m.polls_results()}</h2>
 							<div class="results-container">
 								{#each results.options as option (option.id)}
 									<div class="result-bar">
@@ -101,7 +162,7 @@
 								{/each}
 							</div>
 							<div class="results-summary">
-								<p>{results.ballots.length} of {results.eligible_count} voted</p>
+								<p>{pollTurnout(results.ballots.length, results.eligible_count)}</p>
 							</div>
 						</div>
 					{/if}
@@ -131,21 +192,35 @@
 				h1 {
 					margin: 0 0 0.5rem;
 					font-size: 2rem;
+					display: inline;
+				}
+
+				.poll-status-badge {
+					margin-left: 0.75rem;
+					font-size: 0.85rem;
+					color: var(--color-text-secondary);
+					text-transform: uppercase;
+					letter-spacing: 0.04em;
 				}
 
 				.poll-description {
-					margin: 0;
+					margin: 0.5rem 0 0;
 					color: var(--color-text-secondary);
 					font-size: 1.1rem;
 				}
 			}
 
+			.poll-note,
 			.poll-draft-notice,
 			.poll-closed {
 				padding: 1.5rem;
 				background: var(--color-bg-secondary);
 				border-radius: 0.5rem;
 				margin: 1.5rem 0;
+			}
+
+			.poll-action-error {
+				color: var(--color-error, #c0392b);
 			}
 
 			.poll-voting {
@@ -183,6 +258,11 @@
 
 						&:hover {
 							background: var(--color-primary-dark);
+						}
+
+						&:disabled {
+							opacity: 0.6;
+							cursor: not-allowed;
 						}
 					}
 				}

@@ -305,7 +305,7 @@ node e2e/profile-overhaul.mjs   # seed it first: manage.py seed_profile_showcase
 node e2e/booking.mjs
 node e2e/schedule-editing.mjs
 node e2e/events-and-nav.mjs
-node e2e/decisions.mjs          # polls end to end; kasia creates, opens, adam votes, kasia closes and views results (§17BI.E)
+E2E_BASE=http://localhost:5225 E2E_API=http://127.0.0.1:8125 node e2e/polls.mjs   # polls end to end (§17BI.E); kasia creates, opens, votes and closes a poll on her own event
 node e2e/known-issues.mjs
 node e2e/course-search.mjs
 node e2e/navbar-stages.mjs
@@ -475,12 +475,23 @@ fresh visitor. The four signed-in accounts are given Polish content through the 
 put back afterwards — a signed-in profile's own `content_locales` overwrite the localStorage extras
 once it loads, which is how the picker first came back empty.
 
-**`e2e/decisions.mjs` (8 checks)** — polls end to end (`HISTORY.md` §17BI.E). Kasia (staff/manager)
-creates a poll on her course with two options, Adam (a member, enrolled through the API) votes for
-the first option, kasia opens the poll for voting and closes it after recording a vote, views the
-results showing one vote. Checks: poll starts as draft, can be opened, has correct options count,
-vote is recorded, results show correct vote count, poll closes with a decision note, and no console
-errors. Takes screenshots of manager and member views. Ran against real dev servers.
+**`e2e/polls.mjs` (15 checks)** — polls end to end (`HISTORY.md` §17BI.E). Kasia hosts a scratch
+event (she is both its manager and, as staff, an eligible member), creates a two-option poll
+through the real create form, opens it, votes for the first option, closes it with a decision
+note, and reads the results back both on the `ManagementPanels` panel (mounted on the event page)
+and on the full-size `/polls/[id]` route. Checks: the panel mounts; the poll is created as a
+draft with exactly two options (verified through the API); opening flips it to `open`; voting
+records a ballot and is reflected as `has_voted` on reload; the vote is actually tallied for the
+chosen option (`GET /api/polls/{id}/results/`, read as the manager, since results are hidden from
+non-managers while a poll is open); closing flips it to `closed`; the decision note and a result
+bar showing one vote for "Sobota" render on the panel; a turnout line ("Zagłosowało 1 z 1")
+renders; the same decision note and results render on `/polls/[id]`; the scratch event is removed
+afterward; and no console/page errors. Ran against real dev servers on ports 8125/5225.
+The poll itself (and its options/ballot/vote rows) is left behind once the event is deleted — a
+`GenericForeignKey` has no cascade, and `DELETE /api/polls/{id}/` refuses anything past `draft`
+(`409 not_draft`) — the same "scratch data left behind" precedent as the claim scripts (trap 19).
+The dangling row is inert: `decisions/rules.py: poll_node` returns `None` for a missing node, so
+every endpoint 404s on it.
 
 **`e2e/booking.mjs` (51 checks)** — three people in three contexts, because the entire feature is
 about the same grid of buttons meaning two different things. A tutor publishes one 14:00–17:00 Tuesday

@@ -40,5 +40,17 @@ export default defineConfig({
 		katexFontDisplaySwap,
 		sveltekit(),
 		paraglideVitePlugin({ project: './project.inlang', outdir: './src/lib/paraglide' })
-	]
+	],
+	server: {
+		fs: {
+			// This worktree's `node_modules` is a symlink to the main checkout's copy (shared
+			// across git worktrees to save disk — 31 of them at last count), so its real path is
+			// outside this worktree's own directory tree. Vite's default `fs.allow` only covers
+			// the workspace root it can find by walking up from here, which does not include
+			// that target, so anything Vite serves straight off disk rather than bundling (KaTeX's
+			// woff2/woff/ttf files, `font-display: swap` fetches them directly) 403s — found live
+			// on the home page, whose title renders inline maths, during `frontend/e2e/polls.mjs`.
+			allow: ['..', '/Projects/edmat/frontend']
+		}
+	}
 });

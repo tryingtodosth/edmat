@@ -3248,6 +3248,6 @@
 	"polls_reason_noOptions": "Add at least two options before opening this poll.",
 	"polls_reason_alreadyOpen": "This poll is already open.",
 	"polls_reason_alreadyClosed": "This poll is already closed.",
-	"polls_view_full": "View poll",
-	"polls_loadingResults": "Loading results…"
+	"polls_loadingResults": "Loading results…",
+	"polls_draft_notice": "This poll is still a draft — it has not opened for voting yet."
 }
