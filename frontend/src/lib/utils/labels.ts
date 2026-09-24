@@ -383,6 +383,12 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	shifts: m.featureFlags_label_shifts, // "Volunteer rota (shifts)"
 	cloakroom: m.featureFlags_label_cloakroom, // "Cloakroom desk"
 	role_preview: m.featureFlags_label_rolePreview, // "View an event as a visitor"
+	organizations: m.featureFlags_label_organizations, // "Organisations"
+	tasks: m.featureFlags_label_tasks, // "Tasks on courses, events and materials"
+	needs: m.featureFlags_label_needs, // "Needs board (help wanted)"
+	plans: m.featureFlags_label_plans, // "Plans and roadmaps"
+	decisions: m.featureFlags_label_decisions, // "Decisions and polls"
+	work_dashboard: m.featureFlags_label_workDashboard, // "Personal work dashboard"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 

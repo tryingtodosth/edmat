@@ -1255,6 +1255,14 @@ class FeatureFlagTests(APITestCase):
                 'shifts',
                 'cloakroom',
                 'role_preview',
+                # The six management switches, seeded together by migration 0044
+                # (MANAGEMENT-BRIEF.md §0).
+                'organizations',
+                'tasks',
+                'needs',
+                'plans',
+                'decisions',
+                'work_dashboard',
                 'material_uploads_verified_only',
             },
         )

@@ -1,5 +1,5 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 21 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 27 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
 //
 // THIS UNION AND `FEATURE_FLAG_LABELS` (utils/labels.ts) BOTH MIRROR THE BACKEND'S OWN
@@ -76,6 +76,15 @@ export type FeatureFlagKey =
 	| 'shifts'
 	| 'cloakroom'
 	| 'role_preview'
+	// The six management surfaces (MANAGEMENT-BRIEF.md §0), seeded together by moderation migration
+	// 0044 so that the six parallel branches never each add a flag. Each closes its own app's
+	// endpoints to a non-staff caller and takes its own links, panels and menu items with it.
+	| 'organizations'
+	| 'tasks'
+	| 'needs'
+	| 'plans'
+	| 'decisions'
+	| 'work_dashboard'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

@@ -3209,5 +3209,11 @@
 	"coop_settings_policyLegend": "Who may change this material",
 	"coop_settings_noteLabel": "A note for people who want to help",
 	"coop_settings_notePlaceholder": "What this material needs next, how the team works, what a good proposal looks like…",
-	"coop_settings_saved": "Saved."
+	"coop_settings_saved": "Saved.",
+	"featureFlags_label_organizations": "Organisations",
+	"featureFlags_label_tasks": "Tasks on courses, events and materials",
+	"featureFlags_label_needs": "Needs board (help wanted)",
+	"featureFlags_label_plans": "Plans and roadmaps",
+	"featureFlags_label_decisions": "Decisions and polls",
+	"featureFlags_label_workDashboard": "Personal work dashboard"
 }

@@ -3209,5 +3209,11 @@
 	"coop_settings_policyLegend": "Kto może zmieniać ten materiał",
 	"coop_settings_noteLabel": "Notatka dla osób, które chcą pomóc",
 	"coop_settings_notePlaceholder": "Czego ten materiał potrzebuje, jak pracuje zespół, jak wygląda dobra propozycja…",
-	"coop_settings_saved": "Zapisano."
+	"coop_settings_saved": "Zapisano.",
+	"featureFlags_label_organizations": "Organizacje",
+	"featureFlags_label_tasks": "Zadania w kursach, wydarzeniach i materiałach",
+	"featureFlags_label_needs": "Tablica potrzeb (szukamy pomocy)",
+	"featureFlags_label_plans": "Plany i harmonogramy",
+	"featureFlags_label_decisions": "Decyzje i głosowania",
+	"featureFlags_label_workDashboard": "Osobisty pulpit pracy"
 }

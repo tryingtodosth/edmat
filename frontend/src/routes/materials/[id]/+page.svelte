@@ -55,6 +55,7 @@
 	import MaterialExercises from '$lib/components/material/MaterialExercises.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
 	import CoopPanel from '$lib/components/coop/CoopPanel.svelte';
+	import ManagementPanels from '$lib/components/management/ManagementPanels.svelte';
 	import LinkedConcepts from '$lib/components/concept/LinkedConcepts.svelte';
 	import ApplyToGovern from '$lib/components/governance/ApplyToGovern.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -353,6 +354,10 @@
 		     has no project. Its kebab switches between three designs; `/materials/[id]/coop` is
 		     the same overview at full size. -->
 		<CoopPanel materialId={material.id} />
+
+		<!-- The management layer (MANAGEMENT-BRIEF.md §2): work hung on this material's project —
+		     organisations, tasks, needs, plans and polls, each behind its own switch. -->
+		<ManagementPanels nodeKind="material" nodeId={material.id} />
 
 		<!-- What this material is ABOUT, as chips. Renders nothing at all when there is nothing
 		     linked and nothing this reader could do about it. -->

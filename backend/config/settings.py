@@ -192,6 +192,17 @@ INSTALLED_APPS = [
     # lifecycle and a set of minor-safeguarding invariants nothing else has any use for — see
     # shifts/models.py and CONFERENCE-BRIEF.md §3.E.
     'shifts',
+    # The six management modules (MANAGEMENT-BRIEF.md §0), registered EMPTY by the prep commit so
+    # that the six branches building them never each edit this list: organisations and what they
+    # run, tasks, needs (help wanted), plans, decisions (polls) and the personal work dashboard.
+    # Each hangs its rows off a node through config/nodes.py rather than adding a field to the
+    # course, event or material it is about.
+    'organizations',
+    'tasks',
+    'needs',
+    'plans',
+    'decisions',
+    'work',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
