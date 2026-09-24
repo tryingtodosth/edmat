@@ -14,6 +14,7 @@
 	import { getNodeRef } from '$lib/services/nodes';
 	import type { NodeKind, NodeRef } from '$lib/types/node';
 	import { authStore } from '$lib/state/auth.svelte';
+	import PollsPanel from '$lib/components/decisions/PollsPanel.svelte';
 	// Management imports (MANAGEMENT-BRIEF.md §4 rule 4): each step adds ONE import line directly
 	// below this comment, in step order, and touches nothing else in this script block.
 	import PlansPanel from '$lib/components/plans/PlansPanel.svelte';
@@ -66,6 +67,7 @@
 		<PlansPanel {node} />
 
 		<!-- management: polls (E) -->
+		<PollsPanel {node} />
 
 		<!-- management: work (F) — nothing is mounted here by design -->
 	</div>
