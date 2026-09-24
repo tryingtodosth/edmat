@@ -34,6 +34,14 @@ import type {
 	DropBlockReason,
 	StationKind
 } from '$lib/types/shift';
+// `plans` (MANAGEMENT-BRIEF.md §3.D), its own line for the same reason as the rota's above: six
+// management steps were built in parallel and a separate import line is one fewer merge conflict.
+import type {
+	PlanBlockReason,
+	PlanStatus,
+	PlanStepStatus,
+	PlanSuggestionStatus
+} from '$lib/types/plan';
 import { m } from '$lib/paraglide/messages.js';
 
 export const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard'];
@@ -726,4 +734,43 @@ export const TICKET_BLOCK_REASONS: Record<string, () => string> = {
 	not_going: m.tickets_blocked_notGoing, // "You said you are not coming to this."
 	not_registered: m.tickets_blocked_notRegistered, // "You have not registered for this event."
 	not_yours: m.tickets_blocked_notYours // "This is somebody else's ticket."
+};
+
+// `plans` — a hand-maintained mirror of `PLAN_STATUS_CHOICES`/`STEP_STATUS_CHOICES`/
+// `SUGGESTION_STATUS_CHOICES` in backend/plans/models.py, which names this file back
+// (house rule 13: say so in both files).
+
+export const PLAN_STATUS_LABELS: Record<PlanStatus, () => string> = {
+	draft: m.plans_status_draft, // "Draft"
+	active: m.plans_status_active, // "Active"
+	completed: m.plans_status_completed, // "Completed"
+	archived: m.plans_status_archived // "Archived"
+};
+
+export const PLAN_STEP_STATUS_LABELS: Record<PlanStepStatus, () => string> = {
+	pending: m.plans_stepStatus_pending, // "Pending"
+	in_progress: m.plans_stepStatus_inProgress, // "In progress"
+	done: m.plans_stepStatus_done, // "Done"
+	skipped: m.plans_stepStatus_skipped // "Skipped"
+};
+
+export const PLAN_SUGGESTION_STATUS_LABELS: Record<PlanSuggestionStatus, () => string> = {
+	pending: m.plans_suggestionStatus_pending, // "Pending"
+	accepted: m.plans_suggestionStatus_accepted, // "Accepted"
+	rejected: m.plans_suggestionStatus_rejected, // "Rejected"
+	withdrawn: m.plans_suggestionStatus_withdrawn // "Withdrawn"
+};
+
+// `plans/rules.py`'s refusal words — one sentence each (house rule 6).
+export const PLAN_BLOCK_REASON_LABELS: Record<PlanBlockReason, () => string> = {
+	not_editor: m.plans_reason_notEditor, // "Only this plan's editors can do that."
+	not_active: m.plans_reason_notActive, // "This plan is not active."
+	minor: m.plans_reason_minor, // "Under-16 accounts cannot suggest here — it's treated as messaging a stranger."
+	own_plan: m.plans_reason_ownPlan, // "You edit this plan directly — add a step instead of suggesting one."
+	steps_pending: m.plans_reason_stepsPending, // "Every step must be done or skipped before this plan can be marked complete."
+	already_decided: m.plans_reason_alreadyDecided, // "This has already been decided."
+	illegal_transition: m.plans_reason_illegalTransition, // "That change isn't allowed from here."
+	nested: m.plans_reason_nested, // "A step can only be nested one level deep."
+	not_draft: m.plans_reason_notDraft, // "Only a draft plan can be deleted — archive it instead."
+	not_own_suggestion: m.plans_reason_notOwnSuggestion // "This is somebody else's suggestion."
 };

@@ -9482,3 +9482,126 @@ different format from the panel, and "1 versions" in the roster.
   never sees a contributor whose only work is a pending proposal — correct, and worth knowing.
 - **`ProjectPanel.svelte` is gone**; the project page (`/material-projects/[id]`) is unchanged and
   still the place for the catalogue and the editor.
+
+## 17BI.D. `plans` — roadmaps with steps and suggestions (✅ built, full stack)
+
+Step D of `MANAGEMENT-BRIEF.md` (§3.D), one of six management apps built in parallel on
+`mgmt/d-plans` alongside `organizations`, `tasks`, `needs`, `decisions`, `work`. New app **`plans`**
+(the skeleton was registered empty by the prep commit — `INSTALLED_APPS`, `config/urls.py`, the
+`plans` FeatureFlag key, all landed on `ux-and-whiteboard` before this step started): `Plan`,
+`PlanStep`, `PlanSuggestion`, one migration, a rule module, eleven endpoints, a panel on the
+course/event/material page, a full `/plans/[id]` page, 76 message keys in both catalogues and a
+browser script.
+
+### The shape
+
+A `Plan` hangs off a node (`config/nodes.py` — a course, event or material) through a
+`GenericForeignKey`, exactly the `community.Comment`/`moderation.Report` registry shape. Its
+`status` is one field: `draft → {active, archived}`, `active → {completed, archived}`,
+`completed → archived`, `archived` terminal — claimed with a single WHERE-anchored `update()`
+(`transition_block_reason` + `PlanViewSet.transition`), never `select_for_update()`. `PlanStep`
+nests **exactly one level**: `parent` points at another step of the same plan, and attaching a step
+under a step that already has a `parent` is refused with `409 nested` *before* the row is written —
+which is what lets `PlanStepSerializer.get_substeps` recurse with no depth counter at all (a step
+with a `parent` provably has no `substeps`). `done_by`/`done_at` are kept separate from `status`
+itself, set when a step's status becomes `done` and cleared if it moves away again — the same
+reasoning `cloakroom`'s operator fields carry for a fact about a moment rather than folded into a
+state word.
+
+`PlanSuggestion` never edits the plan directly. Accepting one creates a `PlanStep` at the end of
+the top-level list and records `created_step` on the suggestion — the suggestion is a permanent
+record of what was proposed (house rule 12), independent of what later happens to the step it
+produced. **An editor does not suggest**: `suggest_block_reason` returns `own_plan` for anybody
+`rules.can_edit` already covers, checked *before* `own_plan` is even reached only once `not_active`
+has already cleared — so an editor looking at their own still-draft plan sees `not_active`, not
+`own_plan`, which is the more useful sentence at that point. A minor may not suggest
+(`accounts/minors.py`) — free text to a stranger the moment an editor reads it, the same line drawn
+for messaging and a need's application.
+
+### Visibility vs. authority
+
+`rules.visible_plans(user, node)` — the nested list's queryset — shows node staff every plan,
+draft included; everyone else who can already see the node sees only `active` plans. The SAME rule
+at object level (`can_view_plan`) gates `/api/plans/{id}/` and everything nested under it: a
+stranger on a draft gets 404 (house rule 4 — for them it does not exist). Authority
+(`rules.can_edit`: the node's manager, or the plan's own creator) is asked again by every mutating
+action and answers **403**, not a second 404, when the plan was genuinely visible but the actor was
+not the right one — the `cloakroom.can_operate`/`_operable` shape carried over from the conference
+layer into the management one. `PlanSerializer` embeds `can_edit` and `suggest_block_reason`
+computed server-side, so the frontend never re-derives either rule client-side.
+
+### API
+
+```
+GET|POST /api/nodes/{kind}/{id}/plans/         create: node manager only
+GET|PATCH|DELETE /api/plans/{id}/              DELETE only while draft, 409 not_draft otherwise
+POST /api/plans/{id}/transition/ {status}
+POST /api/plans/{id}/steps/ {title, description?, due_at?, parent?}
+PATCH|DELETE /api/plan-steps/{id}/
+POST /api/plans/{id}/reorder/ {ids, parent?}   parent omitted = the plan's top-level steps
+GET|POST /api/plans/{id}/suggestions/          GET is editor-only
+POST /api/plan-suggestions/{id}/decide/ {decision: accept|reject}
+POST /api/plan-suggestions/{id}/withdraw/      the suggestion's own author only
+```
+
+All behind `feature_gate('plans')`. `PlanViewSet`/`PlanStepViewSet`/`PlanSuggestionViewSet` define
+no `list`/`create` method, so DRF's router — which only binds a verb to a method that actually
+exists (`config/routers.py`) — never routes a bare `GET /api/plans/`, exactly like
+`cloakroom.CloakroomDeskViewSet`. The node-nested list/create is its own `APIView`
+(`NodePlansView`), not an `@action` on `courses`/`events`/`materials`, which this step never
+touches (§4 rule 1); `config/nodes.py` stayed read-only throughout.
+
+### The frontend
+
+`PlansPanel` at mount point D in `ManagementPanels.svelte` (one import line, one component line,
+nothing else in that file touched): a plan is a card with a progress bar and the next open step's
+title, a "New plan" form for a node manager, collapsing to nothing when there is nothing to show a
+reader who cannot manage the node. `/plans/[id]` is the whole roadmap: steps with sub-steps folded
+under their parent, a status `<select>` per step, up/down reorder (no drag-and-drop, §3.D), due
+dates via `datetime-local`, one form reused for both adding and editing a step, the suggestion box
+for a reader (or the refusal sentence, or a sign-in link) and the suggestion queue with accept/
+reject for an editor. Types in `types/plan.ts`, the seam in `services/plans.ts`, 76 keys prefixed
+`plans_` appended as one block at the end of both catalogues, `PLAN_STATUS_LABELS`/
+`PLAN_STEP_STATUS_LABELS`/`PLAN_SUGGESTION_STATUS_LABELS`/`PLAN_BLOCK_REASON_LABELS` appended to
+`labels.ts` under a comment naming `plans/models.py`/`plans/rules.py` back.
+
+A real bug was found only by looking at a screenshot (house rule 2): accepting a short suggestion
+produced a step whose title AND description repeated the exact same sentence — `views.py`'s accept
+path originally always copied the full suggestion text into `description` regardless of whether the
+200-character title had actually truncated anything. Fixed to carry the full text into
+`description` only when the title genuinely had to cut it off.
+
+### Verified
+
+Backend: `../.venv/bin/python3 manage.py test plans config` — 76 OK (41 in `plans` alone); `check`
+and `makemigrations --check --dry-run` clean. Frontend: `npm run check` 0 errors/0 warnings,
+`eslint`/`prettier` clean on every touched file, `npm run build` clean, en/pl 3283 keys identical.
+Browser: `e2e/plans.mjs`, 21/21 — Kasia opens a scratch course's Plans panel, starts a draft plan,
+adds two steps, reorders them (a real swap, checked by reading the DOM order after the click, not
+just that the click landed), activates it; Michał, who has no standing on the course at all, opens
+the plan by its URL, is refused the suggestion queue by the API (403) and sees no editor controls
+in the browser, and sends a suggestion; Kasia's queue shows it and accepting it creates a real third
+step (checked both in the browser and via `created_step` on the suggestion through the API);
+marking every step done lets the plan complete. Zero console/page errors (one pre-existing,
+worktree-only KaTeX-font-via-symlink 403 pattern is filtered by exact message text, documented in
+the script, and a genuine `/api/` 5xx would still be caught by a separate `page.on('response')`
+listener). Two screenshots looked at (`e2e/screens/plans-steps.png`, `plans-accepted.png`) — the
+reordered draft with its two steps, and the active plan with its three steps and the accepted
+suggestion in the queue, correctly free of the duplicate-text bug above.
+
+### Left open
+
+- **No thread on a plan or a step** — `community.Comment`'s target registry gains a line once the
+  shape settles across all six management apps (§7).
+- **No notification** on a new suggestion, a decision, or a step becoming due (§4 rule 12: no new
+  notification type this pass, six branches would collide on `notifications/`).
+- **Plan templates, dependencies between steps, a Gantt view, drag-and-drop** — explicitly out of
+  scope (§3.D "Not in D").
+- **`work_items`'s Python-side filter is an honest O(n) walk**, not indexed by editor — fine at
+  this project's scale, named in `plans/CLAUDE.md` as the first thing to revisit if it ever shows
+  up slow.
+- **A reader's "my suggestion" receipt is per-page-load only** — shown from the POST response, with
+  a Withdraw button while pending; there is no "my suggestions across every plan" endpoint, so
+  navigating away and back loses it.
+- **No people search** (a known, project-wide gap) affects nothing here directly — a suggester
+  needs no id, and an editor is whoever the node's own roster already says.
