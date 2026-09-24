@@ -171,3 +171,18 @@
 - [x] Jako Użytkownik aplikacji mobilnej chcę mieć pewność, że oprogramowanie nie zawiera komercyjnych bibliotek śledzących ani sieci reklamowych firm trzecich gromadzących telemetrię o osobach małoletnich1.
 - [x] Jako Inspektor Ochrony Danych chcę zweryfikować, czy usunięcie omyłkowo utworzonego konta testowego skutkuje trwałym skasowaniem danych osobowych z bazy operacyjnej zgodnie z procedurą prawa do bycia zapomnianym z zachowaniem integralności technicznych logów audytowych4.
 - [x] Jako Użytkownik chcę korzystać z responsywnej wersji webowej na dowolnym urządzeniu mobilnym, mając dostęp do 100% funkcji platformy bez żadnych sztucznych blokad zachęcających do zakupu aplikacji natywnej27.
+
+## 3.10 Wydarzenia Szkolne: Dni Otwarte, Festyny i Uroczystości (strona organizatora)
+
+- [x] Jako Organizator Wydarzenia chcę przygotować kartę wydarzenia z celem, miarą jego osiągnięcia i granicami nienegocjowalnymi, zanim zaplanuję sale i grafik.
+- [x] Jako Organizator Wydarzenia chcę zaplanować każdą salę według układu, tak aby pojemność użytkowa, zapas na dostępność i limit przeciwpożarowy zostały zestawione z przewidywaną frekwencją.
+- [x] Jako Organizator Wydarzenia chcę prowadzić grafik dyżurów na stanowiskach, który pokazuje, gdzie wciąż brakuje osób.
+- [x] Jako Uczeń Wolontariusz chcę móc zapisać się na dyżur dopiero wtedy, gdy w systemie jest zgoda opiekuna i potwierdzenie zapoznania się z instruktażem, żeby nikt nie zaczynał dyżuru nieprzygotowany.
+- [x] Jako Osoba Odpowiedzialna za Bezpieczeństwo chcę, aby dyżury wolontariuszy poniżej 16 lat były odrzucane, gdy przekraczają dobowy limit godzin, wpadają w godziny ciszy nocnej, nie zostawiają przerwy między dyżurami albo nie mają osoby dorosłej na tym samym dyżurze.
+- [x] Jako Organizator Wydarzenia chcę publikować dokumenty instruktażowe w warstwach, żeby rodzic, pomocnik i organizator widzieli tylko to, czego potrzebuje ich rola.
+- [x] Jako Wolontariusz na Wejściu chcę skanować wejściówki także wtedy, gdy hala nie ma sieci, a zakolejkowane skany mają się rozliczyć po jej powrocie.
+- [x] Jako Wolontariusz na Wejściu chcę, aby ponowny skan tej samej wejściówki zgłaszał „już w środku”, a ta sama wejściówka na dwóch wejściach — kolizję, zamiast po cichu wpuszczać dwa razy.
+- [x] Jako Osoba Odpowiedzialna za Catering chcę otrzymywać liczby posiłków i alergenów wyłącznie zbiorczo, żeby imienna lista diet nie opuszczała systemu.
+- [x] Jako Organizator Wydarzenia chcę, aby zatwierdzenie było niemożliwe, dopóki w rejestrze ryzyka zostaje pozycja w pasmie nieakceptowalnym.
+- [x] Jako Organizator Wydarzenia chcę wydrukować kartę przebiegu wydarzenia z harmonogramem, pojemnością sal, obsadą i ryzykiem resztkowym.
+- [x] Jako Inspektor Ochrony Danych chcę, aby wejściówki, skany i dane o dietach zostały usunięte 30 dni po wydarzeniu, a liczby zbiorcze pozostały.

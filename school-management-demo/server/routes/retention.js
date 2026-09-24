@@ -253,6 +253,22 @@ const DEFAULT_CLASSES = [
     note: 'Opinie zbiera wyłącznie tryb demo; zgłoszenia z przycisku „Zgłoś błąd” przyjmuje każdy tryb, bo osoba, która nie może się zalogować, ma najwięcej do powiedzenia. Jedno i drugie może nieść adres kontaktowy podany dobrowolnie — i jedno, i drugie nie jest dokumentacją szkoły. Kopia zgłoszenia trafia też do serwisu EdMat (server/routes/report-issue.js); brakowanie tutaj nie usuwa jej stamtąd.'
   },
   {
+    class: 'wydarzenia-szkolne', label: 'Wydarzenia szkolne: karty, dyżury, instruktaże, ryzyko, zgody', category: 'B5', years: 5,
+    clock: 'school-year-end', kind: 'archival', verified: false, erasure: 'anonymise',
+    collections: ['schoolEvents', 'eventShifts', 'eventBriefings', 'eventBriefingAcks', 'eventRisks', 'eventConsents'],
+    dateFields: ['date', 'at', 'createdAt'],
+    legalBasis: 'JRWA szkoły — organizacja imprez i uroczystości szkolnych; art. 6 ust. 1 lit. c i e RODO',
+    note: 'Karta wydarzenia z oceną ryzyka, grafikiem dyżurów i zgodami opiekunów na wolontariat to dowód, że szkoła dopełniła obowiązków organizatora — zostaje na wypadek zdarzenia ujawnionego później. Wejściówki, skany wejść i zgłoszenia żywieniowe mają własną, krótką klasę. ' + JRWA_NOTE
+  },
+  {
+    class: 'wydarzenia-dane-ulotne', label: 'Wejściówki, skany wejść i zgłoszenia żywieniowe przy wydarzeniach', category: 'Bc', days: 30,
+    clock: 'event', kind: 'operational', verified: true, erasure: 'delete',
+    collections: ['eventPasses', 'eventScans', 'eventDietary'],
+    dateFields: ['at', 'issuedAt'], configDays: 'eventDataRetentionDays',
+    legalBasis: 'RODO art. 5 ust. 1 lit. c i e (minimalizacja i ograniczenie przechowywania)',
+    note: 'Po wydarzeniu te wiersze nie mają już żadnej funkcji: wejściówka jest zużyta, skan wejścia był potrzebny tylko na bramce, a zgłoszenie żywieniowe — tylko kuchni w dniu imprezy. Zostają wyłącznie liczby zbiorcze przepisane do karty wydarzenia (`schoolEvents[].summary`). Okres bierze się z config.eventDataRetentionDays (domyślnie 30 dni).'
+  },
+  {
     class: 'konta-uzytkownikow', label: 'Konta użytkowników', category: 'B5', years: 5,
     clock: 'event', kind: 'reference', verified: false, erasure: 'anonymise',
     collections: ['users'], dateFields: ['closedAt', 'createdAt', 'at'],

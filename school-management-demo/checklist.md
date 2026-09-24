@@ -171,3 +171,18 @@
 - [x] As a Mobile App User, I want assurance that software excludes commercial tracking libraries and third-party ad networks collecting telemetry on minors.
 - [x] As a Data Protection Officer, I want to verify that deleting test accounts permanently removes personal data per the right to be forgotten while preserving technical audit logs.
 - [x] As a User, I want a fully responsive web interface on mobile devices accessing 100% of platform features without paywalls encouraging native app purchases.
+
+## 3.10 School Events: Open Days, Fêtes and Ceremonies (organiser side)
+
+- [x] As an Event Organiser, I want to draft an event brief with its objective, a measurable outcome and the non-negotiable constraints, before any room or rota is planned.
+- [x] As an Event Organiser, I want every event room planned by layout, so seated capacity, the accessibility buffer and the venue's fire limit are checked against the expected attendance.
+- [x] As an Event Organiser, I want a shift rota per station that shows which shifts are still short of helpers.
+- [x] As a Student Volunteer, I want to claim a shift only once my guardian's consent and the safety briefing are on record, so nobody starts a shift unprepared.
+- [x] As a Safeguarding Lead, I want shifts for volunteers under 16 refused when they exceed the daily hour cap, fall into curfew hours, leave no rest gap, or have no adult on the same shift.
+- [x] As an Event Organiser, I want briefing documents published in tiers, so parents, helpers and organisers each see only what their role needs.
+- [x] As a Gate Volunteer, I want to scan visitor passes while the hall has no network, and have the queued scans settle when it returns.
+- [x] As a Gate Volunteer, I want a re-scanned pass to report "already inside" and the same pass seen at two gates to report a collision, instead of silently admitting twice.
+- [x] As a Catering Lead, I want headcount and allergen totals as aggregates only, so no attendee-level dietary list leaves the system.
+- [x] As an Event Organiser, I want approval refused while any risk still scores in the unacceptable band of the register.
+- [x] As an Event Organiser, I want a printable run sheet carrying the schedule, room capacities, staffing and the residual risks.
+- [x] As a Data Protection Officer, I want event passes, scans and dietary records purged 30 days after the event while the aggregate counts survive.

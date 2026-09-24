@@ -13,7 +13,10 @@
    every story without evidence, with the reason) and nothing else, so CI can read it. */
 'use strict';
 const { spawnSync } = require('node:child_process'); const fs = require('node:fs'); const path = require('node:path');
-const root = path.join(__dirname, '..', '..');
+/* Listy kontrolne leżą w katalogu demo (school-management-demo/checklist*.md), nie w korzeniu
+   repozytorium — po przeniesieniu prototypu do edmat (881d80d) ścieżka o poziom za daleko sprawiała,
+   że narzędzie kończyło się ENOENT. */
+const root = path.join(__dirname, '..');
 const testsDir = path.join(__dirname, '..', 'tests');
 const ID_RE = /\[(3\.\d+\.\d+)\]/g;
 
