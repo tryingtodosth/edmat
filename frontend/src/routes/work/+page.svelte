@@ -3,9 +3,25 @@
 	import { m } from '$lib/paraglide/messages';
 	import { getWorkDashboard } from '$lib/services/work';
 	import type { WorkDashboard, WorkItem } from '$lib/types/work';
+	import type { NodeKind, NodeRef } from '$lib/types/node';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import UrgencyDot from '$lib/components/UrgencyDot.svelte';
 	import { formatDateTime } from '$lib/utils/datetime';
+
+	// `NodeRef.kind` is the backend's short word (`config/nodes.py: NODE_KINDS` — 'course', 'event',
+	// 'material', 'organization'), singular; every one of their frontend routes is plural. Building
+	// `/{node.kind}/{node.id}` directly 404s — found by `e2e/work.mjs` actually clicking the link,
+	// not by reading the code (house rule 2).
+	const NODE_ROUTE_PREFIX: Record<NodeKind, string> = {
+		course: '/courses',
+		event: '/events',
+		material: '/materials',
+		organization: '/organizations'
+	};
+
+	function nodeHref(node: NodeRef): string {
+		return `${NODE_ROUTE_PREFIX[node.kind]}/${node.id}`;
+	}
 
 	let dashboard = $state<WorkDashboard | null>(null);
 	let loading = $state(true);
@@ -13,40 +29,40 @@
 
 	// Map of section keys to label functions
 	const sectionLabels: Record<string, () => string> = {
-		event_hosting: () => m.work_section_event_hosting(),
-		event_attendance: () => m.work_section_event_attendance(),
-		course_request: () => m.work_section_course_request(),
-		proposal: () => m.work_section_proposal(),
-		shift: () => m.work_section_shift(),
-		booking: () => m.work_section_booking(),
-		task: () => m.work_section_task(),
-		need_application: () => m.work_section_need_application(),
-		need_decision: () => m.work_section_need_decision(),
-		plan_step: () => m.work_section_plan_step(),
-		plan_suggestion: () => m.work_section_plan_suggestion(),
-		poll: () => m.work_section_poll()
+		event_hosting: () => m.work_section_event_hosting(), // "Events I'm hosting"
+		event_attendance: () => m.work_section_event_attendance(), // "Events I'm attending"
+		course_request: () => m.work_section_course_request(), // "Courses with pending requests"
+		proposal: () => m.work_section_proposal(), // "Material proposals"
+		shift: () => m.work_section_shift(), // "Upcoming shifts"
+		booking: () => m.work_section_booking(), // "Tutoring bookings"
+		task: () => m.work_section_task(), // "Assigned tasks"
+		need_application: () => m.work_section_need_application(), // "My applications"
+		need_decision: () => m.work_section_need_decision(), // "Help wanted decisions"
+		plan_step: () => m.work_section_plan_step(), // "Plan steps due"
+		plan_suggestion: () => m.work_section_plan_suggestion(), // "Plan suggestions"
+		poll: () => m.work_section_poll() // "Open polls"
 	};
 
 	// Map of kind to label functions
 	const kindLabels: Record<string, () => string> = {
-		task: () => m.work_kind_task(),
-		need_application: () => m.work_kind_needApplication(),
-		need_decision: () => m.work_kind_needDecision(),
-		plan_step: () => m.work_kind_planStep(),
-		plan_suggestion: () => m.work_kind_planSuggestion(),
-		poll: () => m.work_kind_poll(),
-		event: () => m.work_kind_event(),
-		course_request: () => m.work_kind_courseRequest(),
-		proposal: () => m.work_kind_proposal(),
-		shift: () => m.work_kind_shift(),
-		booking: () => m.work_kind_booking()
+		task: () => m.work_kind_task(), // "Task"
+		need_application: () => m.work_kind_needApplication(), // "Help wanted application"
+		need_decision: () => m.work_kind_needDecision(), // "Help wanted decision"
+		plan_step: () => m.work_kind_planStep(), // "Plan step"
+		plan_suggestion: () => m.work_kind_planSuggestion(), // "Plan suggestion"
+		poll: () => m.work_kind_poll(), // "Poll"
+		event: () => m.work_kind_event(), // "Event"
+		course_request: () => m.work_kind_courseRequest(), // "Course request"
+		proposal: () => m.work_kind_proposal(), // "Material proposal"
+		shift: () => m.work_kind_shift(), // "Shift"
+		booking: () => m.work_kind_booking() // "Tutoring booking"
 	};
 
 	onMount(async () => {
 		try {
 			dashboard = await getWorkDashboard();
 		} catch {
-			error = m.work_error_loading();
+			error = m.work_error_loading(); // "Error loading work dashboard"
 		} finally {
 			loading = false;
 		}
@@ -96,33 +112,42 @@
 							<ul class="items">
 								{#each section.items as item (item.url)}
 									<li class="work-item">
-										<button type="button" class="item-button" onclick={() => handleItemClick(item)}>
-											<div class="item-header">
-												<UrgencyDot urgency={item.urgency} />
-												<h3 class="item-title">{item.title}</h3>
-											</div>
+										<div class="item-card">
+											<button
+												type="button"
+												class="item-button"
+												onclick={() => handleItemClick(item)}
+											>
+												<div class="item-header">
+													<UrgencyDot urgency={item.urgency} />
+													<h3 class="item-title">{item.title}</h3>
+												</div>
 
-											<div class="item-details">
-												<span class="item-kind">{getKindLabel(item.kind)}</span>
-												{#if item.due_at}
-													<span class="item-due-date">
-														{formatDateTime(item.due_at)}
-													</span>
-												{/if}
-												{#if item.status}
-													<span class="item-status">{item.status}</span>
-												{/if}
-											</div>
-
+												<div class="item-details">
+													<span class="item-kind">{getKindLabel(item.kind)}</span>
+													{#if item.due_at}
+														<span class="item-due-date">
+															{formatDateTime(item.due_at)}
+														</span>
+													{/if}
+													{#if item.status}
+														<span class="item-status">{item.status}</span>
+													{/if}
+												</div>
+											</button>
 											{#if item.node}
+												<!-- A sibling of the button, not nested inside it: a `<button>`'s content model
+												     forbids interactive content (an `<a>` here would be invalid HTML, and
+												     ambiguous for both a click and a screen reader — nested interactive
+												     controls, one of `check:a11y`'s own rules). -->
 												<div class="item-node">
 													<!-- eslint-disable svelte/no-navigation-without-resolve -- route built from dynamic variables -->
-													<a href="/{item.node.kind}/{item.node.id}" class="node-link">
+													<a href={nodeHref(item.node)} class="node-link">
 														{item.node.title}
 													</a>
 												</div>
 											{/if}
-										</button>
+										</div>
 									</li>
 								{/each}
 							</ul>
@@ -143,75 +168,80 @@
 	{/if}
 </div>
 
-<style>
+<style lang="scss">
+	@use '../../lib/styles/mixins' as mix;
+
+	// Every custom property below is one `_theme.scss` actually defines (--space-*, --radius-*,
+	// --text-*, --bg-*, --status-*, --accent, --border-color, --font-size-*) — the previous pass
+	// invented a `--color-*`/`--spacing-*`/`--border-radius` naming scheme that does not exist
+	// anywhere in the stylesheet, so none of it rendered.
+
 	.work-dashboard {
-		padding: var(--spacing-lg);
+		padding: var(--space-4);
 		max-width: 900px;
 		margin: 0 auto;
 	}
 
 	.work-header {
-		margin-bottom: var(--spacing-xl);
-		border-bottom: 1px solid var(--color-border);
-		padding-bottom: var(--spacing-lg);
+		margin-bottom: var(--space-5);
+		border-bottom: 1px solid var(--border-color);
+		padding-bottom: var(--space-4);
 	}
 
 	.work-header h1 {
-		font-size: 2rem;
+		font-size: var(--font-size-xl);
 		margin: 0;
 		font-weight: 700;
 	}
 
 	.subtitle {
-		color: var(--color-text-secondary);
-		margin: var(--spacing-sm) 0 0 0;
+		color: var(--text-secondary);
+		margin: var(--space-2) 0 0 0;
 	}
 
 	.loading,
 	.error {
-		padding: var(--spacing-lg);
+		padding: var(--space-4);
 		text-align: center;
-		font-size: 1.125rem;
+		font-size: var(--font-size-lg);
 	}
 
 	.error {
-		color: var(--color-error);
-		background: var(--color-error-light);
-		border-radius: var(--border-radius);
+		color: var(--status-danger);
+		background: var(--status-danger-bg);
+		border-radius: var(--radius-md);
 	}
 
 	.empty-state {
 		text-align: center;
-		padding: var(--spacing-3xl);
-		color: var(--color-text-secondary);
-		font-size: 1.125rem;
+		padding: var(--space-6);
+		color: var(--text-secondary);
+		font-size: var(--font-size-lg);
 	}
 
 	.sections {
 		display: flex;
 		flex-direction: column;
-		gap: var(--spacing-xl);
+		gap: var(--space-5);
 	}
 
 	.work-section {
-		border: 1px solid var(--color-border);
-		border-radius: var(--border-radius);
-		padding: var(--spacing-lg);
-		background: var(--color-surface);
+		@include mix.card-surface;
+		padding: var(--space-4);
 	}
 
 	.section-title {
-		font-size: 1.25rem;
+		font-size: var(--font-size-lg);
 		font-weight: 600;
-		margin: 0 0 var(--spacing-lg) 0;
-		padding-bottom: var(--spacing-md);
-		border-bottom: 2px solid var(--color-border-light);
+		margin: 0 0 var(--space-4) 0;
+		padding-bottom: var(--space-3);
+		border-bottom: 2px solid var(--border-color);
 	}
 
 	.empty-section {
-		color: var(--color-text-secondary);
+		color: var(--text-secondary);
 		font-style: italic;
-		padding: var(--spacing-md) 0;
+		padding: var(--space-3) 0;
 	}
 
 	.items {
@@ -220,7 +250,7 @@
 		margin: 0;
 		display: flex;
 		flex-direction: column;
-		gap: var(--spacing-md);
+		gap: var(--space-3);
 	}
 
 	.work-item {
@@ -228,50 +258,58 @@
 		margin: 0;
 	}
 
+	// The card is the visual unit (border, radius, background); the button inside it is
+	// borderless and transparent, so it and the sibling `.item-node` link below it read as one box
+	// without the button having to contain another interactive element (see the template comment).
+	.item-card {
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface-alt);
+		overflow: hidden; // clips the button's own radius/hover fill to the card's shape
+		transition: border-color 0.2s ease;
+
+		&:has(.item-button:hover) {
+			border-color: var(--accent);
+		}
+	}
+
 	.item-button {
+		@include mix.focus-ring;
 		width: 100%;
-		padding: var(--spacing-md);
-		border: 1px solid var(--color-border-light);
-		border-radius: var(--border-radius-sm);
-		background: var(--color-background);
+		padding: var(--space-3);
+		border: none;
+		border-radius: var(--radius-sm);
+		background: transparent;
 		cursor: pointer;
-		transition: all 0.2s ease;
+		transition: background-color 0.2s ease;
 		text-align: left;
 
 		&:hover {
-			background: var(--color-hover);
-			border-color: var(--color-border);
-			transform: translateY(-2px);
-			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-		}
-
-		&:focus-visible {
-			outline: 2px solid var(--color-focus);
-			outline-offset: 2px;
+			background: var(--bg-elevated);
 		}
 	}
 
 	.item-header {
 		display: flex;
 		align-items: center;
-		gap: var(--spacing-md);
-		margin-bottom: var(--spacing-sm);
+		gap: var(--space-3);
+		margin-bottom: var(--space-2);
 	}
 
 	.item-title {
-		font-size: 1.125rem;
+		font-size: var(--font-size-base);
 		font-weight: 600;
 		margin: 0;
-		color: var(--color-text-primary);
+		color: var(--text-primary);
 	}
 
 	.item-details {
 		display: flex;
-		gap: var(--spacing-md);
+		gap: var(--space-3);
 		flex-wrap: wrap;
-		color: var(--color-text-secondary);
-		font-size: 0.9rem;
-		margin-bottom: var(--spacing-sm);
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
+		margin-bottom: var(--space-2);
 	}
 
 	.item-kind,
@@ -279,22 +317,22 @@
 	.item-status {
 		display: inline-flex;
 		align-items: center;
-		padding: 2px 8px;
-		background: var(--color-badge);
-		border-radius: 4px;
-		font-size: 0.85rem;
+		padding: 2px var(--space-2);
+		background: var(--bg-surface);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		font-size: var(--font-size-xs);
 	}
 
 	.item-node {
-		margin-top: var(--spacing-sm);
-		padding-top: var(--spacing-sm);
-		border-top: 1px solid var(--color-border-light);
+		padding: var(--space-2) var(--space-3) var(--space-3);
+		border-top: 1px solid var(--border-color);
 	}
 
 	.node-link {
-		color: var(--color-link);
+		color: var(--accent);
 		text-decoration: none;
-		font-size: 0.95rem;
+		font-size: var(--font-size-sm);
 
 		&:hover {
 			text-decoration: underline;
@@ -302,13 +340,13 @@
 	}
 
 	.unavailable-notice {
-		margin-top: var(--spacing-xl);
-		padding: var(--spacing-lg);
-		background: var(--color-warning-light);
-		border-left: 4px solid var(--color-warning);
-		border-radius: var(--border-radius-sm);
-		color: var(--color-warning-text);
-		font-size: 0.95rem;
+		margin-top: var(--space-5);
+		padding: var(--space-4);
+		background: var(--status-warning-bg);
+		border-left: 4px solid var(--status-warning);
+		border-radius: var(--radius-sm);
+		color: var(--status-warning);
+		font-size: var(--font-size-sm);
 	}
 
 	.unavailable-notice p {
@@ -317,16 +355,16 @@
 
 	@media (max-width: 640px) {
 		.work-dashboard {
-			padding: var(--spacing-md);
+			padding: var(--space-3);
 		}
 
 		.work-header h1 {
-			font-size: 1.5rem;
+			font-size: var(--font-size-lg);
 		}
 
 		.item-details {
 			flex-direction: column;
-			gap: var(--spacing-xs);
+			gap: var(--space-1);
 		}
 	}
 </style>

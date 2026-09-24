@@ -34,7 +34,7 @@ MANAGEMENT-BRIEF.md §5.
 
 ## Provider ordering
 
-Sections appear in a fixed order, defined in `providers.collect()`:
+Sections appear in a fixed order, `providers._SECTION_ORDER`:
 
 1. `event_hosting` (events I host)
 2. `event_attendance` (events I'm going to)
@@ -43,6 +43,15 @@ Sections appear in a fixed order, defined in `providers.collect()`:
 5. `shift` (upcoming shifts)
 6. `booking` (upcoming tutoring bookings)
 7–12. The four management apps (tasks, needs, plans, decisions) — added by the integrator
+
+**This list is ordering ONLY, not a gate.** `collect()` runs every key actually in `_REGISTRY`,
+not just the ones named here — a key registered but not (yet) in `_SECTION_ORDER` still runs and
+is simply appended after the known ones. An earlier version of `collect()` iterated
+`_SECTION_ORDER` and skipped anything not in it, which silently dropped any provider registered
+under a key this list did not already know — including, in the isolation test, the raising
+provider itself, which meant the test only PASSED because the provider it registered never ran at
+all (`test_raising_provider_is_isolated`, fixed 2026-09-24). Keep new integration keys added to
+`_SECTION_ORDER` for their fixed position, but do not rely on that list to decide what runs.
 
 ## Built-in providers (this step)
 
@@ -87,4 +96,34 @@ The page shows a quiet line for it.
 - A provider behind an off flag is skipped silently
 - Each builtin provider returns sensible rows for small fixtures
 
-Run: `manage.py test work config`
+Run: `manage.py test work config` — 10/10 (`work`) + 45/45 (`work config`), `manage.py check`,
+`makemigrations --check --dry-run` all clean as of 2026-09-24.
+
+## Frontend: `/work`, `lib/services/work.ts`, `lib/types/work.ts`, `UrgencyDot.svelte`
+
+`getWorkDashboard()` calls `apiClient.get('/work/')` — **no leading `/api/`**: `apiClient` already
+prepends `PUBLIC_API_BASE_URL`, which itself ends in `/api` (`lib/services/nodes.ts` is the
+pattern to copy). A stray `/api/` prefix doubles into `/api/api/work/`, a 404 that a component
+swallows into the generic `work_error_loading` message — nothing in `svelte-check`, `eslint` or a
+static build catches this; only a real request does (house rule 2), which is what `e2e/work.mjs`
+found. A `WorkItem.node`'s URL is built from `node.kind` (`config/nodes.py: NODE_KINDS` — 'course',
+'event', 'material', singular) against the frontend's plural routes (`/courses`, `/events`,
+`/materials`); `+page.svelte`'s `NODE_ROUTE_PREFIX` map is the singular→plural translation — do not
+build a node link as `/{node.kind}/{node.id}` directly.
+
+The node link is a **sibling** of the item's `<button>`, not nested inside it — a `<button>` may
+not contain interactive content (an `<a>` would be invalid HTML and ambiguous to both a click and
+a screen reader), so the two share a `.item-card` wrapper for the visual border/background instead.
+
+## e2e
+
+`e2e/work.mjs`: kasia gets a real event created through the API within the 14-day window and sees
+it in "Events I'm hosting" (urgency dot, due date, working node link, cross-checked against
+`GET /api/work/` directly so a browser-side failure is known to be a rendering bug and not a
+missing fixture); a second account whose OWN `/api/work/` is probed empty (or, failing that, a
+freshly registered scratch account) sees the whole-page "Nothing is waiting on you" state. The
+per-SECTION empty state (`work_section_empty`) is NOT exercised — `collect()` never appends a
+section with zero items (`if items: sections.append(...)`), so that branch in `+page.svelte` is
+unreachable through the real API; documented as dead defensive code rather than a script gap.
+15/15 checks passing as of 2026-09-24 (`E2E_BASE=http://localhost:5226 E2E_API=http://127.0.0.1:8126
+node e2e/work.mjs`).

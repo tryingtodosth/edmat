@@ -7,6 +7,7 @@ from datetime import timedelta
 from rest_framework.test import APITestCase
 from rest_framework.authtoken.models import Token
 from moderation.models import FeatureFlag
+from telemetry.routers import all_log_shards
 from testing.factories import make_user, make_branch
 from . import providers
 
@@ -14,7 +15,14 @@ User = get_user_model()
 
 
 class WorkDashboardAuthTests(APITestCase):
-    """Refusal tests: the endpoint rejects unauthenticated requests."""
+    """Refusal tests: the endpoint rejects unauthenticated requests.
+
+    `databases` includes every log shard (backend/CLAUDE.md's `DATABASE_ROUTERS` note) because a
+    live request goes through `telemetry.middleware`, which writes a request-log row on its own
+    shard — the same declaration every other app's API test carries (`grep databases = */tests.py`).
+    """
+
+    databases = set(all_log_shards()) | {'default'}
 
     def test_anonymous_gets_401(self):
         """Anonymous request should get 401."""
@@ -148,17 +156,16 @@ class CourseProviderTests(TestCase):
 
     def setUp(self):
         """Create test data."""
-        from courses.models import Course, CourseStaffRole
+        from courses.models import Course
         self.user = make_user('course_test_user')
+        # `Course.instructor` is required, and `Course.save()` seats the instructor as an 'owner'
+        # `CourseStaff` row itself — courses/models.py — so the explicit `CourseStaff.create()
+        # below is redundant but harmless (it is what the course's OWN staff table is called;
+        # there is no separate `CourseStaffRole` model).
         self.course = Course.objects.create(
             title='Test Course',
-            created_by=self.user,
+            instructor=self.user,
             visibility='listed',
-        )
-        # Make user staff on the course
-        CourseStaffRole.objects.create(
-            course=self.course,
-            staff=self.user,
         )
 
     def test_course_with_pending_enrollment_appears(self):
@@ -189,26 +196,35 @@ class CoauthoringProviderTests(TestCase):
     """Tests for the coauthoring provider."""
 
     def setUp(self):
-        """Create test data."""
+        """Create test data. `MaterialProject` has no `title` of its own (coauthoring/models.py —
+        it is drafting-only catalogue fields plus `branch`; the title lives on its versions), and
+        `ProjectMember.role` is one of `owner`/`coauthor`, not `editor`."""
         from coauthoring.models import MaterialProject, ProjectMember
         self.user = make_user('coauth_test_user')
+        self.branch = make_branch()
         self.project = MaterialProject.objects.create(
-            title='Test Material Project',
+            branch=self.branch,
             created_by=self.user,
         )
-        # Make user a member
-        ProjectMember.objects.create(
+        # `MaterialProject.save()` already seats `created_by` as the 'owner' member; this is
+        # idempotent (`get_or_create`) so re-asserting it here is harmless and explicit.
+        ProjectMember.objects.get_or_create(
             project=self.project,
             user=self.user,
-            role='editor',
+            defaults={'role': 'owner'},
         )
 
     def test_project_with_pending_version_appears(self):
-        """A project with a pending version should appear."""
+        """A project with a pending version should appear, titled after that version."""
         from coauthoring.models import MaterialVersion
-        # Create a pending version
+        # Create a pending version. `number` is required (unique per project); `kind='body'` needs
+        # no file/url payload for a bare `.create()` (validated in `clean()`/the serializer, not a
+        # DB constraint — coauthoring/models.py).
         MaterialVersion.objects.create(
             project=self.project,
+            number=1,
+            kind='body',
+            body='Some content.',
             title='Pending Version',
             status='proposed',
             created_by=self.user,
@@ -220,7 +236,7 @@ class CoauthoringProviderTests(TestCase):
         found = False
         for section in result['sections']:
             for item in section['items']:
-                if 'Test Material Project' in item['title']:
+                if 'Pending Version' in item['title']:
                     found = True
                     self.assertEqual(item['kind'], 'proposal')
 
@@ -231,20 +247,14 @@ class ShiftProviderTests(TestCase):
     """Tests for the shifts provider."""
 
     def setUp(self):
-        """Create test data."""
-        from shifts.models import Shift, Assignment
-        from venues.models import Venue, Station
+        """Create test data. `Station` lives in `shifts/models.py`, not `venues` — a station hangs
+        off an `Event` directly, with no `Venue` in between (shifts/CLAUDE.md, shifts/models.py).
+        `Shift` has `starts_at`/`ends_at`, not `title`/`duration_minutes`; `Assignment.user`, not
+        `volunteer` (shifts/models.py)."""
+        from shifts.models import Shift, Station, Assignment
         from events.models import Event
 
         self.user = make_user('shift_test_user')
-        self.venue = Venue.objects.create(
-            name='Test Venue',
-            slug='test-venue',
-        )
-        self.station = Station.objects.create(
-            venue=self.venue,
-            name='Test Station',
-        )
         self.event = Event.objects.create(
             host=self.user,
             title='Shift Test Event',
@@ -253,17 +263,20 @@ class ShiftProviderTests(TestCase):
             starts_at=timezone.now() + timedelta(days=5),
             duration_minutes=60,
         )
+        self.station = Station.objects.create(
+            event=self.event,
+            name='Test Station',
+        )
+        starts_at = timezone.now() + timedelta(days=5)
         self.shift = Shift.objects.create(
             station=self.station,
-            event=self.event,
-            title='Test Shift',
-            starts_at=timezone.now() + timedelta(days=5),
-            duration_minutes=60,
+            starts_at=starts_at,
+            ends_at=starts_at + timedelta(hours=1),
         )
         # Assign user to shift
         Assignment.objects.create(
             shift=self.shift,
-            volunteer=self.user,
+            user=self.user,
             status='confirmed',
         )
 
@@ -271,11 +284,11 @@ class ShiftProviderTests(TestCase):
         """A shift the user is assigned to within 14 days should appear."""
         result = providers.collect(self.user)
 
-        # Find the shift in any section
+        # Find the shift in any section — titled '<event title> - <station name>'
         found = False
         for section in result['sections']:
             for item in section['items']:
-                if 'Test Shift' in item['title']:
+                if 'Test Station' in item['title']:
                     found = True
                     self.assertEqual(item['kind'], 'shift')
 
@@ -286,7 +299,9 @@ class TutoringProviderTests(TestCase):
     """Tests for the tutoring provider."""
 
     def setUp(self):
-        """Create test data."""
+        """Create test data. `Service` has no `kind`/`is_verified` field (services/models.py); a
+        `Booking` needs `tutor` (denormalized from `service.provider`, not derived) and `ends_at`
+        (both required, booking/models.py)."""
         from booking.models import Booking
         from services.models import Service
 
@@ -295,13 +310,14 @@ class TutoringProviderTests(TestCase):
         self.service = Service.objects.create(
             provider=self.user,
             title='Test Tutoring',
-            kind='tutoring',
-            is_verified=False,
         )
+        starts_at = timezone.now() + timedelta(days=5)
         Booking.objects.create(
             service=self.service,
+            tutor=self.user,
             student=self.student,
-            starts_at=timezone.now() + timedelta(days=5),
+            starts_at=starts_at,
+            ends_at=starts_at + timedelta(hours=1),
             status='confirmed',
         )
 

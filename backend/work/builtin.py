@@ -5,9 +5,9 @@ Do not import tasks, needs, plans or decisions — they do not exist on this bra
 The integrator registers their work_items at §5 of MANAGEMENT-BRIEF.md.
 """
 
-from datetime import timedelta, datetime
 from django.utils import timezone
-from django.db.models import Q, Exists, OuterRef
+from datetime import timedelta
+from django.db.models import Q
 from config.nodes import node_ref
 
 from . import providers
@@ -27,8 +27,7 @@ def _events_hosting_or_staffing(user):
     A provider that reads events with a start time within 14 days and where the
     user is the host or on the staff list.
     """
-    from events.models import Event, EventStaff, RESPONDABLE_STATUSES
-    from config.nodes import resolve_node
+    from events.models import Event, RESPONDABLE_STATUSES
 
     if not user or not user.is_authenticated:
         return []
@@ -36,9 +35,11 @@ def _events_hosting_or_staffing(user):
     now = timezone.now()
     within_14_days = _days_from_now(14)
 
-    # Events where user is host or staff, starting soon
+    # Events where user is host or staff, starting soon. `Event.staff` is the related_name from
+    # `EventStaff.event`; the host is denormalized onto `Event.host` (events/models.py), so both
+    # need their own `Q()` arm rather than one join.
     events = Event.objects.filter(
-        Q(host=user) | Q(event_staff_roles__staff_member=user),
+        Q(host=user) | Q(staff__user=user),
         status__in=RESPONDABLE_STATUSES,
         starts_at__gte=now,
         starts_at__lte=within_14_days,
@@ -107,14 +108,15 @@ def _events_attending(user):
 
 def _course_requests_waiting(user):
     """Courses I staff where enrolment requests are waiting."""
-    from courses.models import Course, Enrollment
+    from courses.models import Course
 
     if not user or not user.is_authenticated:
         return []
 
-    # Get courses where user is staff
+    # Get courses where user is staff. `Course.staff` is the related_name from
+    # `CourseStaff.course`; `CourseStaff.user` is the person (courses/models.py).
     courses = Course.objects.filter(
-        course_staff_roles__staff=user
+        staff__user=user
     ).distinct()
 
     items = []
@@ -143,7 +145,7 @@ def _course_requests_waiting(user):
 
 def _coauth_pending_versions(user):
     """Material projects I'm a member of with a pending version."""
-    from coauthoring.models import MaterialProject, MaterialVersion, ProjectMember
+    from coauthoring.models import MaterialProject
 
     if not user or not user.is_authenticated:
         return []
@@ -160,9 +162,16 @@ def _coauth_pending_versions(user):
         pending_versions = project.versions.filter(status='proposed').count()
 
         if pending_versions > 0:
+            # `MaterialProject` has no `title` of its own (coauthoring/models.py) — it is the
+            # material's title once published, and the head draft/proposed version's title before
+            # that. Falling back to the branch slug covers the (practically unreachable, since a
+            # pending version implies at least one version exists) case where `head_version` is
+            # still None.
+            head = project.head_version
+            title = head.title if head is not None else str(project.branch)
             items.append({
                 'kind': 'proposal',
-                'title': project.title,
+                'title': title,
                 'url': f'/material-projects/{project.pk}',
                 'due_at': None,
                 'status': f'{pending_versions} pending',
@@ -178,7 +187,7 @@ def _coauth_pending_versions(user):
 
 def _shifts_upcoming(user):
     """Shifts I hold in the next 14 days."""
-    from shifts.models import Assignment
+    from shifts.models import Assignment, LIVE_STATUSES
 
     if not user or not user.is_authenticated:
         return []
@@ -186,28 +195,28 @@ def _shifts_upcoming(user):
     now = timezone.now()
     within_14_days = _days_from_now(14)
 
-    # Active statuses: offered, claimed, confirmed (not dropped, no_show, done)
-    active_statuses = ['offered', 'claimed', 'confirmed']
-
-    # Get assignments for this user that are upcoming
+    # Get assignments for this user that are upcoming. `Assignment.user` is the field name
+    # (shifts/models.py); a shift has no `event` of its own — it belongs to a `Station`, which
+    # belongs to the `Event` — and no `title`, only a `station` and `note`.
     assignments = Assignment.objects.filter(
-        volunteer=user,
-        status__in=active_statuses,
+        user=user,
+        status__in=LIVE_STATUSES,
         shift__starts_at__gte=now,
         shift__starts_at__lte=within_14_days,
-    ).select_related('shift__event').order_by('shift__starts_at')
+    ).select_related('shift__station__event').order_by('shift__starts_at')
 
     items = []
 
     for assignment in assignments:
         shift = assignment.shift
-        event = shift.event
+        station = shift.station
+        event = station.event if station else None
         urgency = _calculate_urgency(shift.starts_at)
         node = node_ref(event, user) if event else None
 
         items.append({
             'kind': 'shift',
-            'title': f'{event.title} - {shift.title}' if event else shift.title,
+            'title': f'{event.title} - {station.name}' if event else station.name,
             'url': f'/events/{event.pk}' if event else '/',
             'due_at': shift.starts_at.isoformat() if shift.starts_at else None,
             'status': assignment.status,
@@ -234,9 +243,11 @@ def _tutoring_bookings(user):
     # Active statuses: requested, confirmed (not declined, cancelled, completed)
     active_statuses = ['requested', 'confirmed']
 
-    # Get bookings where user is the tutor (service provider)
+    # `Booking.tutor` is denormalized from `service.provider` and is the field every tutor-wide
+    # query in this app reads (booking/models.py's own doc comment) — filtering through
+    # `service__provider` instead is exactly the join that comment warns against.
     bookings = Booking.objects.filter(
-        service__provider=user,
+        tutor=user,
         status__in=active_statuses,
         starts_at__gte=now,
         starts_at__lte=within_14_days,

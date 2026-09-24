@@ -31,6 +31,27 @@ ITEM_KEYS = ('kind', 'title', 'url', 'due_at', 'status', 'urgency', 'node')
 # Registry: key -> (flag_key, provider_function)
 _REGISTRY = {}
 
+# Preferred order for sections (MANAGEMENT-BRIEF.md §3.F): events host/staff, events attend,
+# courses, coauthoring, shifts, tutoring, then tasks/needs/plans/decisions (added at integration,
+# §5). This is ordering ONLY — it does not gate whether a provider runs. A key registered here
+# that has not yet landed is simply never IN `_REGISTRY`, so it is skipped exactly like any other
+# unregistered key; a key registered that is NOT in this list still runs, appended after the known
+# ones, so a provider is never silently dropped for the crime of being new (see `collect()`).
+_SECTION_ORDER = [
+    'event_hosting',
+    'event_attendance',
+    'course_request',
+    'proposal',
+    'shift',
+    'booking',
+    'task',
+    'need_application',
+    'need_decision',
+    'plan_step',
+    'plan_suggestion',
+    'poll',
+]
+
 
 def register(key, flag_key, provider):
     """Register a provider for the work dashboard.
@@ -46,6 +67,11 @@ def register(key, flag_key, provider):
 def collect(user):
     """Collect work items from all registered providers.
 
+    Every key in `_REGISTRY` is attempted, regardless of whether it appears in `_SECTION_ORDER` —
+    an unlisted key (a provider registered by a test, or one integration has not yet given a fixed
+    slot) still runs and can still land in `unavailable`. `_SECTION_ORDER` only decides the order
+    the KNOWN keys come back in; anything else is appended after, in registration order.
+
     Returns:
         {
             'sections': [{'key': '...', 'items': [...]}, ...],
@@ -56,28 +82,10 @@ def collect(user):
     sections = []
     unavailable = []
 
-    # Fixed order for sections (as specified in MANAGEMENT-BRIEF.md §3.F)
-    # This order will be: events host/staff, events attend, courses, coauthoring,
-    # shifts, tutoring, then tasks/needs/plans/decisions (added at integration)
-    section_order = [
-        'event_hosting',
-        'event_attendance',
-        'course_request',
-        'proposal',
-        'shift',
-        'booking',
-        'task',
-        'need_application',
-        'need_decision',
-        'plan_step',
-        'plan_suggestion',
-        'poll',
-    ]
+    ordered_keys = [key for key in _SECTION_ORDER if key in _REGISTRY]
+    ordered_keys += [key for key in _REGISTRY if key not in _SECTION_ORDER]
 
-    for key in section_order:
-        if key not in _REGISTRY:
-            continue
-
+    for key in ordered_keys:
         flag_key, provider_func = _REGISTRY[key]
 
         # Skip if the feature flag is off

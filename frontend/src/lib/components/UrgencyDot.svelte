@@ -40,18 +40,18 @@
 	}
 
 	.urgency-none {
-		background-color: var(--color-gray-300);
+		background-color: var(--status-neutral);
 	}
 
 	.urgency-month {
-		background-color: var(--color-blue);
+		background-color: var(--status-info);
 	}
 
 	.urgency-week {
-		background-color: var(--color-orange);
+		background-color: var(--status-warning);
 	}
 
 	.urgency-urgent {
-		background-color: var(--color-red);
+		background-color: var(--status-danger);
 	}
 </style>
