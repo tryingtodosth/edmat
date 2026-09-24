@@ -1,1 +1,1 @@
-"""Serializers for `work` — filled in by the step's agent (MANAGEMENT-BRIEF.md §3)."""
+"""No serializers for the work app — the endpoint returns provider output directly."""

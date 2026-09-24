@@ -1562,3 +1562,38 @@ course page keeps working. It leaves two tombstoned organisations behind on a re
 dissolving is not a delete.
 
     cd frontend && E2E_BASE=http://localhost:5221 E2E_API=http://127.0.0.1:8121 node e2e/organizations.mjs
+
+## Management step F — the personal work dashboard (`work/`, MANAGEMENT-BRIEF.md §3.F)
+
+`backend/work/tests.py` — 10 tests, refusals first: anonymous gets 401, authenticated gets 200 with
+the `{sections, unavailable, generated_at}` shape, a provider that raises is caught and named in
+`unavailable` rather than failing the request, a provider behind an off flag is skipped and never
+even called, and each of the six built-in providers (events hosted/staffed, courses with pending
+enrolments, a material project with a pending version, an upcoming shift, an upcoming tutoring
+booking) appears with the right `kind` given a small real fixture. Run with
+`../.venv/bin/python3 manage.py test work config` from `backend/` — `work` alone exercises the app;
+`config` is included because `config/test_nodes.py` (the shared course/event/material node seam
+every management step reads) is the thing that endpoint actually depends on.
+
+`frontend/e2e/work.mjs` (15 checks) — Kasia signs in, an event she hosts starting in 7 days is
+created through the real API so there is something to see, and cross-checked directly against
+`GET /api/work/` before touching the browser at all (so a later failure is known to be a rendering
+bug, not a missing fixture). `/work` then shows it under "Events I'm hosting" with a working
+urgency dot, a formatted due date, and a node link that actually resolves to the real event page
+(`/events/{id}` — a node's `kind` from `config/nodes.py` is singular, the frontend routes are
+plural, and building the link directly from `kind` 404s). A second account — the first of Kasia's
+fellow seeded demo users whose OWN `/api/work/` genuinely comes back with zero sections, probed
+through the API rather than assumed, falling back to a freshly registered scratch account only if
+none of them are empty — then signs in and `/work` shows the whole-page "Nothing is waiting on you"
+state instead. Zero console/page errors is part of the pass condition. Two screenshots
+(`/tmp/work-dashboard-kasia.png`, `/tmp/work-dashboard-empty.png`), meant to be looked at.
+
+```sh
+cd backend && ../.venv/bin/python3 manage.py test work config
+cd frontend && E2E_BASE=http://localhost:5226 E2E_API=http://127.0.0.1:8126 node e2e/work.mjs
+```
+
+The per-SECTION empty state (`work_section_empty` in `+page.svelte`) is not exercised — the backend
+never returns a section with zero items in the first place (`work/providers.py: collect()` only
+appends a section `if items:`), so that branch is unreachable through the real API rather than a
+gap in the script.
