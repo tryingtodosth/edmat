@@ -5,7 +5,7 @@
 
 import { apiClient } from '$lib/api/client';
 import type { NodeKind } from '$lib/types/node';
-import type { Poll, PollResults } from '$lib/types/poll';
+import type { Poll, PollOption, PollResults } from '$lib/types/poll';
 
 // Get polls for a node
 export async function getNodePolls(nodeKind: NodeKind, nodeId: number): Promise<Poll[]> {
@@ -48,11 +48,8 @@ export async function deletePoll(pollId: number): Promise<void> {
 export async function addPollOption(
 	pollId: number,
 	data: { text: string; order?: number }
-): Promise<{ id: number; text: string; order: number; count: number }> {
-	return await apiClient.post<{ id: number; text: string; order: number; count: number }>(
-		`/polls/${pollId}/options/`,
-		data
-	);
+): Promise<PollOption> {
+	return await apiClient.post<PollOption>(`/polls/${pollId}/options/`, data);
 }
 
 // Delete an option from a draft poll

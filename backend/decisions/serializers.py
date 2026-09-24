@@ -3,27 +3,25 @@
 from rest_framework import serializers
 
 from config.sanitize import sanitize_content
-from .models import Ballot, Poll, PollOption, Vote
+from .models import Ballot, Poll, PollOption
 
 
 class PollOptionSerializer(serializers.ModelSerializer):
-    """A poll option with vote count."""
-
-    count = serializers.SerializerMethodField()
+    """A poll option — `poll`, `text`, `order`. No vote count here: counts are only ever answered
+    by `/api/polls/{id}/results/`, which is the one place `rules.can_see_results` is checked
+    (house rule 4 — results are hidden until close for non-managers; embedding a live tally in
+    the plain poll representation would leak it to anyone who can merely see the poll)."""
 
     class Meta:
         model = PollOption
-        fields = ['id', 'text', 'order', 'count']
-
-    def get_count(self, obj):
-        """Recount votes for this option (house rule 5)."""
-        return obj.votes.count()
+        fields = ['id', 'text', 'order']
 
 
 class PollSerializer(serializers.ModelSerializer):
-    """A poll with its options."""
+    """A poll with its options. `has_voted` needs `context={'request': request}`."""
 
     options = PollOptionSerializer(many=True, read_only=True)
+    has_voted = serializers.SerializerMethodField()
 
     class Meta:
         model = Poll
@@ -45,6 +43,7 @@ class PollSerializer(serializers.ModelSerializer):
             'options',
             'content_type_id',
             'object_id',
+            'has_voted',
         ]
         read_only_fields = [
             'id',
@@ -55,11 +54,22 @@ class PollSerializer(serializers.ModelSerializer):
             'created_at',
             'content_type_id',
             'object_id',
+            'has_voted',
         ]
 
     def validate_description(self, value):
         """Sanitize description on write."""
         return sanitize_content(value) if value else value
+
+    def get_has_voted(self, obj):
+        """Whether the requesting user has already cast a ballot — so a reload does not offer the
+        vote form again. False for an anonymous reader, never a leak of WHO (the ballot list stays
+        manager-only); this is "did *I* vote", not "who voted"."""
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        if not user or not user.is_authenticated:
+            return False
+        return obj.ballots.filter(user=user).exists()
 
 
 class PollCreateSerializer(serializers.ModelSerializer):
@@ -94,51 +104,12 @@ class PollOptionCreateSerializer(serializers.ModelSerializer):
         fields = ['text', 'order']
 
 
-class VoteSerializer(serializers.ModelSerializer):
-    """A vote (read-only from results endpoint)."""
-
-    class Meta:
-        model = Vote
-        fields = ['id', 'option_id']
-
-
 class BallotSerializer(serializers.ModelSerializer):
     """A ballot record (who voted) — visible only to managers."""
 
     class Meta:
         model = Ballot
         fields = ['id', 'user_id', 'cast_at']
-
-
-class PollResultsSerializer(serializers.Serializer):
-    """Results of a poll (readonly)."""
-
-    options = serializers.SerializerMethodField()
-    ballots = serializers.SerializerMethodField()
-    eligible_count = serializers.IntegerField()
-
-    def get_options(self, obj):
-        """Poll options with vote counts."""
-        poll = obj['poll']
-        return [
-            {'id': opt.id, 'text': opt.text, 'count': opt.votes.count()}
-            for opt in poll.options.all().order_by('order')
-        ]
-
-    def get_ballots(self, obj):
-        """List of who voted (ballots) — visible to managers only."""
-        request = self.context.get('request')
-        user = request.user if request else None
-        poll = obj['poll']
-
-        if not user or not poll.created_by or user.id != poll.created_by.id:
-            from config.nodes import can_manage_node, resolve_node
-
-            node = resolve_node(poll.content_type.app_label, poll.object_id)
-            if not (node and can_manage_node(user, node)):
-                return []
-
-        return BallotSerializer(poll.ballots.all().order_by('-cast_at'), many=True).data
 
 
 class PollVoteSerializer(serializers.Serializer):

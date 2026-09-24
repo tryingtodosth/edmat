@@ -3232,5 +3232,22 @@
 	"polls_vote": "Vote",
 	"polls_results": "Results",
 	"polls_decision_note": "Decision note",
-	"polls_decision_note_placeholder": "The decision made based on this poll…"
+	"polls_decision_note_placeholder": "The decision made based on this poll…",
+	"polls_status_draft": "Draft",
+	"polls_status_open": "Open",
+	"polls_status_closed": "Closed",
+	"polls_option_number": "Option {number}",
+	"polls_add_option": "Add another option",
+	"polls_remove_option": "Remove",
+	"polls_turnout": "{ballots} of {eligible} voted",
+	"polls_reason_notOpen": "This poll is not open for voting.",
+	"polls_reason_notEligible": "You are not eligible to vote in this poll.",
+	"polls_reason_alreadyVoted": "You have already voted in this poll.",
+	"polls_reason_tooManyChoices": "This is a single-choice poll — pick only one option.",
+	"polls_reason_unknownOption": "Pick an option before voting.",
+	"polls_reason_noOptions": "Add at least two options before opening this poll.",
+	"polls_reason_alreadyOpen": "This poll is already open.",
+	"polls_reason_alreadyClosed": "This poll is already closed.",
+	"polls_view_full": "View poll",
+	"polls_loadingResults": "Loading results…"
 }

@@ -1,7 +1,6 @@
 """Poll endpoints: /api/nodes/<kind>/<pk>/polls/ and /api/polls/…"""
 
 from django.db import transaction
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -9,7 +8,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from config.nodes import can_view_node, resolve_node, can_manage_node, node_content_type
-from config.routers import NUMERIC_PK_REGEX
 from moderation.permissions import feature_gate
 from . import rules
 from .models import Ballot, Poll, PollOption, Vote
@@ -17,6 +15,7 @@ from .serializers import (
     BallotSerializer,
     PollCreateSerializer,
     PollOptionCreateSerializer,
+    PollOptionSerializer,
     PollSerializer,
     PollUpdateSerializer,
     PollVoteSerializer,
@@ -37,7 +36,7 @@ class NodePollsView(APIView):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
 
         polls = rules.visible_polls(request.user, node)
-        serializer = PollSerializer(polls, many=True)
+        serializer = PollSerializer(polls, many=True, context={'request': request})
         return Response(serializer.data)
 
     def post(self, request, kind, pk):
@@ -60,7 +59,7 @@ class NodePollsView(APIView):
             **serializer.validated_data,
         )
 
-        return Response(PollSerializer(poll).data, status=status.HTTP_201_CREATED)
+        return Response(PollSerializer(poll, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
 class PollViewSet(viewsets.GenericViewSet):
@@ -76,7 +75,7 @@ class PollViewSet(viewsets.GenericViewSet):
     def retrieve(self, request, pk=None):
         """GET /api/polls/{id}/"""
         poll = self.get_object()
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         # Check visibility
         if not node or not can_view_node(request.user, node):
@@ -86,12 +85,12 @@ class PollViewSet(viewsets.GenericViewSet):
         if poll not in visible:
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response(PollSerializer(poll).data)
+        return Response(PollSerializer(poll, context={'request': request}).data)
 
     def partial_update(self, request, pk=None):
         """PATCH /api/polls/{id}/ — update a draft poll."""
         poll = self.get_object()
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         if not node or not can_manage_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
@@ -103,12 +102,12 @@ class PollViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        return Response(PollSerializer(poll).data)
+        return Response(PollSerializer(poll, context={'request': request}).data)
 
     def destroy(self, request, pk=None):
         """DELETE /api/polls/{id}/ — delete a draft poll."""
         poll = self.get_object()
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         if not node or not can_manage_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
@@ -123,7 +122,7 @@ class PollViewSet(viewsets.GenericViewSet):
     def options(self, request, pk=None):
         """POST /api/polls/{id}/options/ — add an option to a draft poll."""
         poll = self.get_object()
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         if not node or not can_manage_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
@@ -136,16 +135,13 @@ class PollViewSet(viewsets.GenericViewSet):
 
         option = PollOption.objects.create(poll=poll, **serializer.validated_data)
 
-        return Response(
-            {'id': option.id, 'text': option.text, 'order': option.order, 'count': 0},
-            status=status.HTTP_201_CREATED,
-        )
+        return Response(PollOptionSerializer(option).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, _PollsGate])
     def open(self, request, pk=None):
         """POST /api/polls/{id}/open/ — open a draft poll for voting."""
         poll = self.get_object()
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         if not node or not can_manage_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
@@ -159,13 +155,13 @@ class PollViewSet(viewsets.GenericViewSet):
             poll.opens_at = timezone.now()
         poll.save(update_fields=['status', 'opens_at'])
 
-        return Response(PollSerializer(poll).data)
+        return Response(PollSerializer(poll, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, _PollsGate])
     def close(self, request, pk=None):
         """POST /api/polls/{id}/close/ {decision_note} — close the poll and record the decision."""
         poll = self.get_object()
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         if not node or not can_manage_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
@@ -180,13 +176,13 @@ class PollViewSet(viewsets.GenericViewSet):
         poll.closed_at = timezone.now()
         poll.save(update_fields=['status', 'decision_note', 'closed_by', 'closed_at'])
 
-        return Response(PollSerializer(poll).data)
+        return Response(PollSerializer(poll, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, _PollsGate])
     def vote(self, request, pk=None):
         """POST /api/polls/{id}/vote/ {options: [ids]} — cast a vote."""
         poll = self.get_object()
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         if not node or not can_view_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
@@ -216,20 +212,13 @@ class PollViewSet(viewsets.GenericViewSet):
     def results(self, request, pk=None):
         """GET /api/polls/{id}/results/ — poll results (ballots only for managers)."""
         poll = self.get_object()
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         if not node or not can_view_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
 
         if not rules.can_see_results(request.user, poll):
             return Response({'detail': 'not_authorized'}, status=status.HTTP_403_FORBIDDEN)
-
-        # Count eligible voters for this poll
-        if rules.is_eligible(request.user, poll):
-            # A simplified count: would need actual implementation based on node membership
-            eligible_count = poll.ballots.count() + 10  # Placeholder
-        else:
-            eligible_count = poll.ballots.count()
 
         results = {
             'options': [
@@ -239,7 +228,7 @@ class PollViewSet(viewsets.GenericViewSet):
             'ballots': BallotSerializer(
                 poll.ballots.all().order_by('-cast_at'), many=True
             ).data if can_manage_node(request.user, node) else [],
-            'eligible_count': eligible_count,
+            'eligible_count': rules.eligible_count(poll, node),
         }
 
         return Response(results)
@@ -257,7 +246,7 @@ class PollOptionViewSet(viewsets.GenericViewSet):
         """DELETE /api/poll-options/{id}/ — delete an option from a draft poll."""
         option = self.get_object()
         poll = option.poll
-        node = resolve_node(poll.content_type.app_label, poll.object_id)
+        node = rules.poll_node(poll)
 
         if not node or not can_manage_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)

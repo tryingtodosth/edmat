@@ -7,7 +7,6 @@ export interface PollOption {
 	id: number;
 	text: string;
 	order: number;
-	count: number;
 }
 
 export type PollMode = 'single' | 'multiple';
@@ -32,6 +31,8 @@ export interface Poll {
 	options: PollOption[];
 	content_type_id: number;
 	object_id: number;
+	/** Whether the requesting user has already cast a ballot — false for an anonymous reader. */
+	has_voted: boolean;
 }
 
 export interface PollResults {
@@ -39,3 +40,16 @@ export interface PollResults {
 	ballots: Array<{ id: number; user_id: number; cast_at: string }>;
 	eligible_count: number;
 }
+
+/** Every refusal word a poll action can answer with (`decisions/rules.py`, house rule 6 — a
+ * refusal carries its reason). `not_draft` (PATCH/DELETE) is not surfaced here: the frontend
+ * never edits or deletes a poll, only creates, votes, opens and closes one. */
+export type PollRefusalReason =
+	| 'not_open'
+	| 'not_eligible'
+	| 'already_voted'
+	| 'too_many_choices'
+	| 'unknown_option'
+	| 'no_options'
+	| 'already_open'
+	| 'already_closed';

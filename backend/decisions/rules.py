@@ -6,7 +6,16 @@ the word, or None when the action is allowed.
 
 from django.utils import timezone
 
-from config.nodes import can_manage_node, is_node_member, is_node_staff, resolve_node
+from config.nodes import (
+    NODE_KIND_OF_MODEL,
+    can_manage_node,
+    is_node_member,
+    is_node_staff,
+    kind_of,
+    node_content_type,
+    node_staff_users,
+    resolve_node,
+)
 from .models import Ballot, Poll, Vote
 
 # Refusal words (kept as constants so views, tests and this module cannot drift on spelling)
@@ -30,8 +39,9 @@ def visible_polls(user, node):
     So a stranger sees no open poll. A member sees open polls they are eligible for.
     Node staff see all non-draft polls.
     """
+    ct = node_content_type(node)
     qs = Poll.objects.filter(
-        content_type_id=node.node_content_type.id,
+        content_type_id=ct.id,
         object_id=node.pk,
     )
 
@@ -52,12 +62,27 @@ def visible_polls(user, node):
     return qs.filter(eligibility='members')
 
 
+def poll_node(poll):
+    """The node a poll hangs off (course/event/material row), or None.
+
+    `poll.content_type` is the ContentType of that row — its `app_label` is the plural Django app
+    label ('courses', 'events', 'materials'), NOT the short `kind` word `resolve_node` takes
+    ('course', 'event', 'material'). `NODE_KIND_OF_MODEL` is the same map `config.nodes.kind_of`
+    uses, keyed by (app_label, model) instead of by an instance, so this works from a poll's
+    content_type without loading the node first.
+    """
+    kind = NODE_KIND_OF_MODEL.get((poll.content_type.app_label, poll.content_type.model))
+    if not kind:
+        return None
+    return resolve_node(kind, poll.object_id)
+
+
 def is_eligible(user, poll) -> bool:
     """Whether this user may vote in this poll."""
     if not (user and getattr(user, 'is_authenticated', False)):
         return False
 
-    node = resolve_node(poll.content_type.app_label, poll.object_id)
+    node = poll_node(poll)
     if not node:
         return False
 
@@ -122,10 +147,35 @@ def can_see_results(user, poll) -> bool:
     - Managers: always
     - Everyone else: only after the poll is closed
     """
-    node = resolve_node(poll.content_type.app_label, poll.object_id)
+    node = poll_node(poll)
     if not node:
         return False
     return can_manage_node(user, node) or poll.status == 'closed'
+
+
+def eligible_count(poll, node) -> int:
+    """How many people could vote — always a recount (house rule 5), never stored.
+
+    `eligibility='staff'` is exactly `node_staff_users` (the seam already answers this). For
+    `'members'` the seam's `is_node_member` is staff OR enrolled/going, but it does not expose an
+    enumeration — so this counts staff plus whoever is actually enrolled/attending, per node kind,
+    the same roster each node's own membership row already tracks.
+    """
+    if poll.eligibility == 'staff':
+        return node_staff_users(node).count()
+
+    kind = kind_of(node)
+    staff_ids = set(node_staff_users(node).values_list('id', flat=True))
+    if kind == 'course':
+        member_ids = set(node.enrollments.filter(status='active').values_list('participant_id', flat=True))
+    elif kind == 'event':
+        from events.models import SEAT_HOLDING_STATUSES
+
+        member_ids = set(node.attendances.filter(status__in=SEAT_HOLDING_STATUSES).values_list('attendee_id', flat=True))
+    else:
+        # A material's "members" are its project's members — the same set as its staff.
+        member_ids = set()
+    return len(staff_ids | member_ids)
 
 
 def open_block_reason(poll) -> str | None:

@@ -3232,5 +3232,22 @@
 	"polls_vote": "Zagłosuj",
 	"polls_results": "Wyniki",
 	"polls_decision_note": "Notatka decyzji",
-	"polls_decision_note_placeholder": "Decyzja podjęta na podstawie tej ankiety…"
+	"polls_decision_note_placeholder": "Decyzja podjęta na podstawie tej ankiety…",
+	"polls_status_draft": "Szkic",
+	"polls_status_open": "Otwarta",
+	"polls_status_closed": "Zamknięta",
+	"polls_option_number": "Opcja {number}",
+	"polls_add_option": "Dodaj kolejną opcję",
+	"polls_remove_option": "Usuń",
+	"polls_turnout": "Zagłosowało {ballots} z {eligible}",
+	"polls_reason_notOpen": "Ta ankieta nie jest otwarta do głosowania.",
+	"polls_reason_notEligible": "Nie możesz głosować w tej ankiecie.",
+	"polls_reason_alreadyVoted": "Już zagłosowałeś/aś w tej ankiecie.",
+	"polls_reason_tooManyChoices": "To ankieta jednokrotnego wyboru — wybierz tylko jedną opcję.",
+	"polls_reason_unknownOption": "Wybierz opcję przed głosowaniem.",
+	"polls_reason_noOptions": "Dodaj co najmniej dwie opcje, zanim otworzysz ankietę.",
+	"polls_reason_alreadyOpen": "Ta ankieta jest już otwarta.",
+	"polls_reason_alreadyClosed": "Ta ankieta jest już zamknięta.",
+	"polls_view_full": "Zobacz ankietę",
+	"polls_loadingResults": "Ładowanie wyników…"
 }
