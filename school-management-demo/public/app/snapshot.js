@@ -89,8 +89,18 @@
 
   async function forwardIssue(body) {
     try {
+      /* `credentials: 'omit'` is load-bearing, not tidiness.
+         This page is served from the site's own origin, so fetch's default (`same-origin`) attaches
+         the visitor's edmat `sessionid` cookie if they happen to be signed in. DRF then authenticates
+         them with `SessionAuthentication` and enforces CSRF — and this request carries no CSRF token,
+         so it comes back `403 CSRF Failed: CSRF cookie not set.` and the report is lost. The failure
+         is invisible to everyone who is NOT signed in, which is every automated check we have: the
+         deploy check runs server-side with no cookie, and a fresh browser profile has none either.
+         Reported from production by the one person who was logged in.
+         Omitting credentials also matches what the payload already says — these reports are
+         anonymous; the demo's own role travels in `context.role`, not in a session. */
       var res = await fetch('/api/issues/', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(issuePayload(body || {}))
       });
       var text = await res.text();
