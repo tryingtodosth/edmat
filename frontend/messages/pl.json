@@ -3595,5 +3595,11 @@
 	"polls_draft_notice": "Ta ankieta jest wciąż szkicem — głosowanie jeszcze się nie rozpoczęło.",
 	"featureFlags_label_schoolDemo": "Demo dziennika szkolnego",
 	"nav_schoolDemo": "Demo dziennika",
-	"footer_schoolDemo": "Demo dziennika szkolnego"
+	"footer_schoolDemo": "Demo dziennika szkolnego",
+	"conference_title": "Konferencja demonstracyjna",
+	"conference_intro": "Przykładowa konferencja: program, rejestracja, grafik dyżurów, szatnia.",
+	"conference_looking": "Szukam konferencji demonstracyjnej…",
+	"conference_missing": "Na tej stronie nie ma jeszcze konferencji demonstracyjnej.",
+	"conference_failed": "Nie udało się wczytać listy wydarzeń.",
+	"conference_browseEvents": "Zobacz wszystkie wydarzenia"
 }

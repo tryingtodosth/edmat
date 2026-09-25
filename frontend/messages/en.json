@@ -3595,5 +3595,11 @@
 	"polls_draft_notice": "This poll is still a draft — it has not opened for voting yet.",
 	"featureFlags_label_schoolDemo": "School-management demo",
 	"nav_schoolDemo": "School logbook demo",
-	"footer_schoolDemo": "School logbook demo"
+	"footer_schoolDemo": "School logbook demo",
+	"conference_title": "Demonstration conference",
+	"conference_intro": "A worked example of the conference tools — programme, registration, rota, cloakroom.",
+	"conference_looking": "Looking for the demonstration conference…",
+	"conference_missing": "There is no demonstration conference on this site yet.",
+	"conference_failed": "The event list could not be loaded.",
+	"conference_browseEvents": "Browse all events"
 }
