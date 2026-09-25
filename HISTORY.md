@@ -10798,3 +10798,52 @@ for `events` until now. `makemigrations --check --dry-run` clean, production fro
 gains a module, and only one of them (the backend) has a test that notices. A generated file, or a
 build step that reads `modules.js` and writes the TypeScript union, would remove the class of bug
 rather than this instance of it.
+
+---
+
+## 17BN. `node --test tests/` — the invocation that stopped working (2026-09-25)
+
+The demo's own suite reported **failed** on a machine running Node 26, while the same run's check
+that a report filed in the demo reaches `issues.Issue` **passed**. Both facts were true, and the
+failing one was not a failing test. The log had no failing test in it at all:
+
+```
+Error: Cannot find module '.../school-management-demo/tests'
+  code: 'MODULE_NOT_FOUND'
+# tests 1 / # pass 0 / # fail 1
+```
+
+`node --test tests/` — a bare directory — expanded to the test files inside it on Node 18 and is
+resolved as a **module entry point** by Node 26, which dies before running a single test. One
+"failure", zero tests executed, and an error that reads exactly like a broken suite.
+
+**This was a hole in the verification, not bad luck.** The suite had been run on Node 18 and passed
+573/573. A `node >= 18` assertion establishes a floor and says nothing about a ceiling — and the
+demo has no `engines` ceiling and no lockfile, so whichever Node a machine happens to have is the
+one it uses. A version check that only tests the floor keeps reporting OK while the thing underneath
+it stops working. Reproduced by fetching Node 26.5.0 to match the failing machine exactly.
+
+**The fix is the invocation.** `tests/*.test.js` is expanded by the shell, so Node is handed 41 real
+file paths and never has to interpret a directory:
+
+| | `node --test tests/` | `node --test tests/*.test.js` |
+|---|---|---|
+| Node 18.19.1 | 573 pass, 0 fail | **573 pass, 0 fail** |
+| Node 26.5.0 | `MODULE_NOT_FOUND`, 0 run | **573 pass, 0 fail** |
+
+`package.json`'s `test` script carried the same invocation, so **`npm test` in this repository was
+broken for anybody on a modern Node**, and had been since the demo landed. All 41 test files are
+flat in `tests/`, so the glob loses nothing and correctly skips `helpers.js` and the
+`stories-*.txt`.
+
+**A second bug, found while fixing the first.** The surrounding script counted assertions with
+`grep -c '^ok '` and excerpted failures with `grep '^not ok'` — both TAP, which is Node 18's default
+reporter. Node 26 defaults to `spec`, coloured symbols, so the count printed `0` and, far worse, **a
+genuinely failing suite would have printed a blank explanation**. Pinning `--test-reporter=tap`
+makes the output the same on every Node rather than the same on the one it was written against.
+
+### Left open
+
+- **Nothing pins the demo's Node.** An `engines` field would turn "this stopped working three majors
+  ago" into a refusal at install time. Not added here because `engine-strict` is already set for
+  this project and a ceiling needs a real decision about what the demo supports.
