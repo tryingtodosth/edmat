@@ -10958,3 +10958,59 @@ so the flag cannot hide it in one and leave it in the other.
   somebody runs, not a gate.
 - **Query-shaped routes are recorded as they were captured.** Anything the page asks for with a
   parameter it computes fresh — a date other than the frozen 2026-10-23 — will miss.
+
+## 17BP. `/conference`, and the bug that only a signed-in visitor could see (2026-09-25)
+
+Three commits after the §17BO publish, every one found by the owner using the live site rather than
+by anything automated. Replayed as `publish/2026-09-25f`, pushed (`99766ea..9ed4860`); bundle
+`FUW/UPDATE-20260925-f.tar.gz`.
+
+**`/conference` — a stable address (`e1ad302`).** `seed_conference_demo` gives the event whatever
+pk the database hands out, so `/events/130` is right on one installation and wrong everywhere else.
+The route finds the event by the `TEST=FAKE ` marker its title carries (`FAKE_PREFIX`, mirrored from
+`backend/testing/personas.py`) and forwards. Deliberately not prerendered — the answer depends on
+the database it is asked about.
+
+**It found the wrong conference (`986d6a7`).** `getEvents()` defaults to `when=upcoming`
+(`starts_at >= now`), and the demo conference is seeded with day one set to *today* so that it looks
+lived-in. It has therefore always already started, is in neither `upcoming` nor `past`, and never
+appeared. Two events carry the marker — the demo and the personas' near-empty Sandbox, which starts
+in a fortnight and so *does* appear — and the route forwarded to the Sandbox, convincingly. Fix:
+`when: 'all'` (the service now takes `'upcoming' | 'past' | 'all'`) plus a deliberate choice: of the
+marked events that have started, the one still running, else the latest started, else any. A query
+parameter's default is a decision the call site has to make; inheriting it is how the wrong row got
+picked.
+
+**`/dziennik` lost every report from anyone signed in to edmat (`3294696`).** The demo is served
+from the same origin as the site. A visitor with an edmat session had their `sessionid` cookie
+attached to the report POST by the browser's `credentials: 'same-origin'` default; DRF's
+`SessionAuthentication` then authenticated them and enforced CSRF, which the request carries no
+token for — `403 CSRF Failed: CSRF cookie not set.` The report was dropped; the static build has
+nowhere to save locally; `/admin/issues/issue/` showed nothing. Anonymous visitors were fine, which
+is exactly why every check passed: the deploy check runs server-side with no cookie,
+`verify-static.js` walks screens and never files a report, and every browser verification used a
+fresh profile. The only person who could see it was somebody logged in — the owner, on production,
+after it shipped. Fix: `credentials: 'omit'`. `lib/api/client.ts` already does this with a comment
+giving exactly this reasoning, and `config/settings.py` records an earlier CSRF bug from the same
+interaction: the rule was written in the one place that makes fetches, and the demo's `rawFetch` is a
+second seam in a second codebase that inherited none of it.
+
+**How it was reproduced.** A single-origin server (static demo at `/dziennik`, `/api` proxied to
+Django — production's topology) driven over CDP, first with a fresh profile (201, issues #30/#31),
+then with a session cookie set (403). The fix verified the same way:
+`{ok:true, forwarded:true, remoteId:"33"}` with the cookie present.
+
+### Left open
+
+- **Nothing files a report as a signed-in visitor**, which is the case that broke. A check that
+  sets a session cookie and submits one report would have caught it in seconds. On `todo.md`.
+- **`/conference` is a redirect, not a landing.** The owner asked for it to be developed further
+  as the session ended. The natural next step is the `/dziennik` shape: a page that says what the
+  demo conference contains (programme, venue, documents, tickets, rota, cloakroom), names the
+  seeded accounts a visitor can sign in as (`backend/testing/personas.py`, `DEFAULT_PASSWORD`,
+  all contained to the conference by `assert_contained`) and links each surface of
+  `/events/[id]/{rota,cloakroom,scan,ticket,badges}`. Whether the persona password may appear
+  on a public page is the owner's call — the accounts are contained, but public credentials on
+  production are still a decision. On `todo.md`.
+- The reports `/dziennik` files are `is_public=False`, so they reach the admin and not `/issues`
+  without "include private". Whether the demo should file publicly is undecided.
