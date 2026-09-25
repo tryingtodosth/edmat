@@ -10675,3 +10675,89 @@ badge sheet, ticket and edit pages — **zero console errors**, and the screensh
 - The report's own gaps stand: no real Polish venue checklist wording beyond what step A seeded
   from the first report, no observed registration split — the numbers here are plausible, not
   observed, and the docstring says which.
+
+---
+
+## 17BL. Seeding a conference onto a live database (2026-09-25)
+
+`seed_conference_demo` (§17BK) was written for a development box. Preparing to run it against a
+real deployment changes what it has to promise, and it now promises two things — both **enforced in
+the builder, inside its own transaction**, rather than written down somewhere and hoped for.
+
+### Every seeded event is marked
+
+`FAKE_PREFIX = 'TEST=FAKE '` lives in `testing/personas.py`; `testing/conference_demo.py` imports it
+rather than repeating the literal, because two seeders spelling the marker differently is exactly
+the drift that makes "is this conference real?" unanswerable.
+
+A demonstration conference and a real one sit in the same `events.Event` table and the same public
+`/events` list — the personas module rejected an `is_sandbox` column on purpose, so there is nothing
+else to tell them apart — which makes the title load-bearing. The marker is deliberately ugly,
+ASCII, and not a translated string: it has to survive a copied link, a screenshot and a Polish
+interface unchanged. Both titles are also lookup keys, so changing the marker changes how each
+seeder finds its own rows; an installation seeded before today keeps an unmarked `Sandbox
+conference` that `--reset` can no longer find, and has to be renamed by hand first.
+
+### No seeded account reaches outside the demo
+
+`assert_contained()` walks every `persona.*` and `conf.*` account and refuses the whole build over
+three kinds of reach:
+
+- **Platform-wide** — `is_staff` (which opens `/moderation` and every feature flag's staff bypass),
+  `is_superuser`, Django groups, per-user permissions.
+- **Another object of the same kind** — an `EventStaff` row on somebody else's event, a `VenueStaff`
+  row on a real building.
+- **A different surface entirely** — `CourseStaff`, `OrganizationMember`, `ProjectMember`,
+  `NodeGovernor`. The seeder creates none of these, so any row found means a demo username has
+  collided with somebody real.
+
+The membership test for events **is the marker itself**: a role is allowed only on an event whose
+title says it is fake. That ties the two guarantees together — widening containment now means
+marking another event as demonstration data, in public, which is a thing somebody has to mean.
+
+`CONTAINMENT_MODELS` is hand-maintained and a test asserts every entry still imports, because a
+renamed model would otherwise turn the whole check into a silent no-op at exactly the moment it
+mattered. A new way for an account to gain authority belongs in that tuple.
+
+Because the build runs inside one `transaction.atomic()`, a refusal leaves **no** conference rather
+than a half-privileged one.
+
+### The check earned its place on its first two runs
+
+Neither was predicted, and both were right.
+
+It refused the **test suite**: the personas hold roles on the Sandbox conference, which is seeded
+and marked but is not the event being built — so containment is "the marked conferences", plural,
+and the scope was widened to match.
+
+Then it refused the **real development database**, naming `EventStaff #139`: `persona.organiser`
+hosting `'Preview e2e — a draft nobody announced'`, left behind by a `frontend/e2e/` run. A box that
+has run the e2e scripts will keep failing this until those events are deleted; `test.md` says so,
+and the tidier long-term answer is for the e2e scripts to mark their own events too, so they are
+contained by construction rather than by cleanup.
+
+### Verified
+
+- `manage.py test events.test_conference_demo` — **17 tests OK** (7 before). The ten new ones assert
+  the marker over `Event.objects.all()` rather than over the two constants — the point is that
+  nothing the seeders create escapes it — and containment **including its refusals**, which is the
+  half that matters: a containment check nobody has watched refuse may only be an expensive way of
+  returning True.
+- `manage.py test events venues documents shifts cloakroom issues` — **434 tests, 530 s**, one
+  failure, which was a real bug and is §17BM.
+- `manage.py check` and `makemigrations --check --dry-run` clean.
+- Seeded against the real development database, and then both guarantees re-checked **independently
+  of the seeder's own code**: 167 accounts, 0 with `is_staff` or `is_superuser`, 0 in a group, 0
+  holding a direct permission, `EventStaff` rows only on marked events, `VenueStaff` only on the
+  demo venue, and 0 rows across `CourseStaff`, `OrganizationMember`, `ProjectMember` and
+  `NodeGovernor`.
+
+### Left open
+
+- **No browser pass on the seeded conference this time.** The guarantees are asserted in Python and
+  re-checked against the database; §17BK's own browser pass covered the pages, and this change
+  touches titles and permissions rather than rendering. The registrations-panel height problem
+  §17BK recorded is still there.
+- **The marker is only on events.** The venue, the accounts and the documents carry no equivalent,
+  because the event is what a reader lands on and what a link points at. If demo venues ever become
+  browsable in their own right, they will need the same treatment.

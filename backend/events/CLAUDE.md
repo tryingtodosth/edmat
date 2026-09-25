@@ -100,6 +100,27 @@ after now is left unapplied. It writes attendances and assignments directly (not
 calls only the minting and validating services; the rota plan is checked against `shifts.rules`
 before a row is written.
 
+**Both seeders now promise two things about themselves, because this seed runs on the live
+database** (`HISTORY.md` §17BL). Neither is documentation — both
+are enforced in `make_conference_demo`, inside its own transaction, so a build that cannot keep them
+leaves nothing behind:
+
+- **Every seeded event is titled `TEST=FAKE …`.** `FAKE_PREFIX` lives in `testing/personas.py`;
+  `conference_demo.py` imports it rather than repeating the literal. A demo conference and a real
+  one share the `Event` table and the public `/events` list — there is deliberately no `is_sandbox`
+  column — so the title is the only thing telling a reader which is which. Changing the marker
+  changes a lookup key: both titles are how the seeders find their own rows.
+- **No seeded account holds authority outside the demo** — `assert_contained()`, over every
+  `persona.*` and `conf.*` account. `is_staff`/`is_superuser`/groups/permissions: none. `EventStaff`:
+  only on a *marked* event. `VenueStaff`: only on the demo venue. `CourseStaff`,
+  `OrganizationMember`, `ProjectMember`, `NodeGovernor`: no rows at all. `CONTAINMENT_MODELS` is
+  hand-maintained — **a new way for an account to gain authority belongs in that tuple**, and a test
+  asserts every entry still imports so a rename cannot turn the check into a silent no-op.
+
+A dev box that has run `frontend/e2e/` **will** fail containment: the preview script leaves events
+hosted by `persona.organiser` behind, which is authority outside the demo. That is the check
+working; delete those events and seed again (`test.md` has the query).
+
 **There is no "log in as", and there is not going to be one.** The frontend's preview re-asks the
 API with the `Authorization` header omitted (`client.ts`'s `anonymous` option); no token for
 anybody else is ever minted, so there is nothing to audit and nothing to leak. The reasoning, and

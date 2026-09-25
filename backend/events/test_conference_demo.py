@@ -10,21 +10,32 @@ block the one person it is meant to block, a desk the desk rules would not let i
 from datetime import datetime, timedelta, timezone as dt_timezone
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.test import TestCase
 
 from cloakroom.rules import can_operate
 from documents.access import briefing_block_reason
-from events.models import EventAttendance, ScanEvent, Session
+from events.models import Event, EventAttendance, EventStaff, ScanEvent, Session
 from events.scanning import inside_count
 from shifts.models import Assignment, Shift, Station
 from shifts.rules import claim_block_reason, coverage
-from testing.conference_demo import DEMO_TITLE, make_conference_demo
-from venues.models import RoomBooking
+from testing.conference_demo import (
+    CONTAINMENT_MODELS,
+    DEMO_TITLE,
+    assert_contained,
+    make_conference_demo,
+    seeded_accounts,
+)
+from testing.personas import FAKE_PREFIX, SANDBOX_TITLE
+from venues.models import RoomBooking, VenueStaff
 
 #: Day one of the frozen conference, and the frozen instant: 15:00 on day one (`TIME_ZONE` is UTC),
 #: by which the door, the lunch-time returns and the lost-slip returns have all happened and the
 #: afternoon shifts have not. The builder reads the clock through `timezone.now()`, as does every
 #: rule module it is checked against, so one patch freezes them all together.
+User = get_user_model()
+
 DAY_ONE = datetime(2026, 10, 14, tzinfo=dt_timezone.utc).date()
 FROZEN_NOW = datetime(2026, 10, 14, 15, 0, tzinfo=dt_timezone.utc)
 
@@ -128,3 +139,113 @@ class ConferenceDemoTests(TestCase):
         self.assertEqual(report['coats_stored'], 0)
         self.assertEqual(report['shifts_done'], 0)
         self.assertFalse(Assignment.objects.filter(shift__station__event=built['event'], status='no_show').exists())
+
+
+class DemoIsMarkedAsFakeTests(TestCase):
+    """The marker exists for a reader, so it is asserted where a reader would meet it: the title.
+
+    The demo is seeded onto the production database, into the same `events.Event` table and the
+    same public `/events` list as real conferences. Nothing else distinguishes them — deliberately,
+    because the personas module rejected an `is_sandbox` column — so the title is load-bearing.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.built = make_conference_demo(day_one=DAY_ONE)
+
+    def test_every_seeded_event_title_starts_with_the_marker(self):
+        titles = list(Event.objects.values_list('title', flat=True))
+        self.assertTrue(titles, 'the seeder made no events at all')
+        for title in titles:
+            self.assertTrue(
+                title.startswith(FAKE_PREFIX),
+                f'seeded event {title!r} does not start with {FAKE_PREFIX!r} — it reads as a real conference',
+            )
+
+    def test_both_seeders_agree_on_one_marker(self):
+        # Two modules, one literal: `conference_demo` imports the prefix rather than repeating it.
+        self.assertTrue(DEMO_TITLE.startswith(FAKE_PREFIX))
+        self.assertTrue(SANDBOX_TITLE.startswith(FAKE_PREFIX))
+
+    def test_the_marker_survives_a_polish_interface(self):
+        # Not a translated string and not punctuation a locale rewrites: the same bytes everywhere.
+        self.assertEqual(FAKE_PREFIX, 'TEST=FAKE ')
+        self.assertTrue(FAKE_PREFIX.isascii())
+
+
+class DemoAccountsAreContainedTests(TestCase):
+    """No seeded account may reach anything outside its own conference.
+
+    `assert_contained` runs inside the seeder, so these tests are about the check itself: that it
+    passes on a clean build, and — the half that matters — that it actually fails when authority
+    leaks. A containment check nobody has watched refuse is a check that might only be an
+    expensive way of returning True.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.built = make_conference_demo(day_one=DAY_ONE)
+        cls.event = cls.built['event']
+        cls.venue = cls.built['venue']
+
+    def test_a_clean_build_is_contained(self):
+        summary = assert_contained(self.event, self.venue)
+        self.assertEqual(summary['accounts_checked'], seeded_accounts().count())
+        self.assertGreater(summary['accounts_checked'], 100, 'the attendees should be in scope too')
+
+    def test_no_seeded_account_is_platform_staff(self):
+        elevated = seeded_accounts().filter(Q(is_staff=True) | Q(is_superuser=True))
+        self.assertFalse(list(elevated), 'a demo account carries the is_staff moderation bypass')
+
+    def test_no_seeded_account_holds_a_group_or_a_direct_permission(self):
+        for user in seeded_accounts():
+            self.assertEqual(user.groups.count(), 0, f'{user.username} is in a group')
+            self.assertEqual(user.user_permissions.count(), 0, f'{user.username} holds a permission')
+
+    def test_event_and_venue_roles_point_only_at_marked_fake_events(self):
+        # Two events are seeded, not one: this conference and the personas' Sandbox. Both carry the
+        # marker, which is what makes them inside — the containment check trusts the title, so the
+        # test states the rule in those terms rather than naming the pks.
+        role_events = set(EventStaff.objects.filter(user__in=seeded_accounts()).values_list('event_id', flat=True))
+        marked = set(Event.objects.filter(title__startswith=FAKE_PREFIX).values_list('pk', flat=True))
+        self.assertIn(self.event.pk, role_events)
+        self.assertTrue(role_events <= marked, f'roles on unmarked event(s): {sorted(role_events - marked)}')
+        self.assertEqual(
+            set(VenueStaff.objects.filter(user__in=seeded_accounts()).values_list('venue_id', flat=True)),
+            {self.venue.pk},
+        )
+
+    def test_it_refuses_an_account_that_was_made_staff(self):
+        organiser = self.built['organiser']
+        organiser.is_staff = True
+        organiser.save(update_fields=['is_staff'])
+        with self.assertRaises(RuntimeError) as caught:
+            assert_contained(self.event, self.venue)
+        self.assertIn('is_staff', str(caught.exception))
+        self.assertIn(organiser.username, str(caught.exception))
+
+    def test_it_refuses_a_role_on_somebody_elses_event(self):
+        outsider = Event.objects.create(
+            host=User.objects.create_user('someone.real'),
+            title='A real conference nobody demoed',
+            starts_at=self.event.starts_at,
+        )
+        EventStaff.objects.update_or_create(
+            event=outsider, user=self.built['volunteer'], defaults={'role': 'volunteer'}
+        )
+        with self.assertRaises(RuntimeError) as caught:
+            assert_contained(self.event, self.venue)
+        self.assertIn('EventStaff row', str(caught.exception))
+
+    def test_every_authority_model_named_in_the_registry_is_importable(self):
+        # The registry is hand-maintained; a renamed model would otherwise turn the whole check
+        # into a silent no-op at exactly the moment it mattered.
+        from importlib import import_module
+
+        for label, path, scope_field in CONTAINMENT_MODELS:
+            module_path, _, class_name = path.rpartition('.')
+            model = getattr(import_module(module_path), class_name, None)
+            self.assertIsNotNone(model, f'{label}: {path} no longer exists')
+            self.assertTrue(hasattr(model, 'user'), f'{label} has no `user` field to filter on')
+            if scope_field is not None:
+                self.assertTrue(hasattr(model, scope_field), f'{label} has no `{scope_field}` field')

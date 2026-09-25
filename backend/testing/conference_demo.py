@@ -55,6 +55,7 @@ from zoneinfo import ZoneInfo
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.core.files.base import ContentFile
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.models import Guardianship
@@ -81,14 +82,16 @@ from events.models import (
 from events.scanning import apply_batch, ensure_ticket
 from shifts.models import Assignment, Shift, Station, VolunteerRecord
 from shifts.rules import MIN_GAP, touches_night
-from testing.personas import DEFAULT_PASSWORD, make_personas
+from testing.personas import DEFAULT_PASSWORD, FAKE_PREFIX, make_personas
 from venues.models import ChecklistInstance, ChecklistTemplate, Room, RoomBooking, Venue, VenueStaff
 from venues.services import instantiate
 
 User = get_user_model()
 
-#: The event's title is its key, as `SANDBOX_TITLE` is for the personas' event.
-DEMO_TITLE = 'Dni Dydaktyki Fizyki 2026'
+#: The event's title is its key, as `SANDBOX_TITLE` is for the personas' event. `FAKE_PREFIX` is
+#: imported rather than repeated: two seeders spelling the same marker differently is exactly the
+#: drift that makes "is this real?" unanswerable at a glance.
+DEMO_TITLE = FAKE_PREFIX + 'Dni Dydaktyki Fizyki 2026'
 DEMO_VENUE_SLUG = 'demo-pasteura-5'
 #: Every account this module creates beyond the personas. `seed_demo_content` owns `demo-`; this
 #: prefix is different on purpose, so neither command's `--reset` can delete the other's people.
@@ -1069,11 +1072,104 @@ def make_conference_demo(password: str = DEFAULT_PASSWORD, *, day_one: date | No
 
     report['day_one'] = clock.day_one.isoformat()
     report['in_progress'] = bool(clock.at(0, '08:00') <= clock.now <= ends)
+
+    # Last, so it sees the finished thing: every role this function handed out is in place by now,
+    # and the caller's `transaction.atomic()` means a refusal here leaves no conference at all.
+    report['containment'] = assert_contained(event, venue)
     return {
         **people, 'attendees': attendees, 'event': event, 'venue': venue, 'rooms': rooms, 'checklist': checklist,
         'sessions': sessions, 'tracks': tracks, 'stations': stations, 'shifts': shifts, 'desk': desk,
         'documents': doc_rows, 'password': password, 'report': report, 'clock': clock,
     }
+
+
+#: Every model in this project through which one account gains authority over something, as
+#: (label, model path, the field naming what the authority is *over*). A demo account is allowed a
+#: row here only when the thing it points at is this conference's own event or its own venue —
+#: anything else is authority that leaked out of the sandbox. Listed explicitly rather than
+#: discovered by walking `_meta`: a new authority model should have to be thought about here once,
+#: which is a deliberate reminder, not an oversight.
+CONTAINMENT_MODELS = (
+    ('EventStaff', 'events.models.EventStaff', 'event'),
+    ('VenueStaff', 'venues.models.VenueStaff', 'venue'),
+    ('CourseStaff', 'courses.models.CourseStaff', None),
+    ('OrganizationMember', 'organizations.models.OrganizationMember', None),
+    ('ProjectMember', 'coauthoring.models.ProjectMember', None),
+    ('NodeGovernor', 'moderation.models.NodeGovernor', None),
+)
+
+
+def seeded_accounts():
+    """Every account the two conference seeders own — the personas and this module's `conf.*`."""
+    return User.objects.filter(Q(username__startswith=PREFIX) | Q(username__startswith='persona.'))
+
+
+def assert_contained(event, venue) -> dict:
+    """Refuse to hand back a demo whose accounts can reach anything outside it.
+
+    A demonstration conference is seeded onto the *live* database, beside real events and real
+    people, so "these are only demo accounts" is a claim about permissions and not about intent.
+    Checked rather than assumed, and checked here rather than only in a test, because the test runs
+    on a machine where nothing is at stake and this runs on webek4 where everything is: the whole
+    build is inside one `transaction.atomic()`, so raising rolls the conference back rather than
+    leaving a half-privileged one behind.
+
+    Three kinds of reach, all of them real:
+
+    - **Platform-wide.** `is_staff` opens `/moderation`, every feature flag's `is_staff` bypass and
+      the Django admin; `is_superuser` needs no explanation. Groups and per-user permissions are the
+      quieter versions of the same thing.
+    - **Another object of the same kind.** An `EventStaff` row on somebody else's event, a
+      `VenueStaff` row on a real building.
+    - **A different surface entirely.** A course, an organisation, a co-authored material, or a
+      `NodeGovernor` row — none of which this seeder creates, so any row found is a collision with
+      a username that already existed and meant somebody real.
+    """
+    from importlib import import_module
+
+    accounts = list(seeded_accounts())
+    if not accounts:  # nothing seeded yet is not "nothing leaked"
+        raise RuntimeError('Containment check found no seeded accounts at all — the seeder did not run.')
+
+    leaks = []
+    for user in accounts:
+        if user.is_staff or user.is_superuser:
+            flags = ', '.join(n for n, v in (('is_staff', user.is_staff), ('is_superuser', user.is_superuser)) if v)
+            leaks.append(f'{user.username}: {flags}')
+        if user.groups.exists():
+            leaks.append(f'{user.username}: in group(s) {", ".join(user.groups.values_list("name", flat=True))}')
+        if user.user_permissions.exists():
+            leaks.append(f'{user.username}: {user.user_permissions.count()} direct permission(s)')
+
+    # Both seeders' events count as inside, and the membership test is the marker itself: a role is
+    # allowed only on an event whose title says it is fake. That ties the two guarantees together —
+    # widening containment now means marking another event as demonstration data, in public, which
+    # is a thing somebody has to mean. The first run of this check found exactly this case: the
+    # personas hold roles on the Sandbox conference, which is seeded and marked but is not the
+    # event being built here.
+    allowed = {
+        'event': set(Event.objects.filter(title__startswith=FAKE_PREFIX).values_list('pk', flat=True)),
+        'venue': {venue.pk},
+    }
+    if event.pk not in allowed['event']:  # belt and braces: the marker is what is being trusted
+        raise RuntimeError(f'The demo event {event.title!r} does not carry the {FAKE_PREFIX!r} marker.')
+    for label, path, scope_field in CONTAINMENT_MODELS:
+        module_path, _, class_name = path.rpartition('.')
+        model = getattr(import_module(module_path), class_name)
+        rows = model.objects.filter(user__in=accounts)
+        if scope_field is not None:
+            rows = rows.exclude(**{f'{scope_field}_id__in': allowed[scope_field]})
+        for row in rows.select_related('user')[:20]:
+            leaks.append(f'{row.user.username}: {label} row #{row.pk} outside this conference')
+
+    if leaks:
+        raise RuntimeError(
+            'The demo conference would have given its accounts authority outside itself, so it was '
+            'not created. Offending rows:\n  - ' + '\n  - '.join(leaks) + '\n'
+            'This almost always means a seeded username collided with a real account. Rename the '
+            'demo prefix, or remove the real account\u2019s row, and seed again.'
+        )
+    return {'accounts_checked': len(accounts), 'surfaces_checked': len(CONTAINMENT_MODELS) + 2}
 
 
 def remove_conference_demo() -> dict:

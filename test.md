@@ -1475,7 +1475,7 @@ suite runs had already been recorded as passing on nothing but a pipeline's exit
 
 ## The demo conference — `seed_conference_demo` (HISTORY.md §17BK)
 
-`backend/events/test_conference_demo.py` (7 tests) exercises `testing/conference_demo.py`, the
+`backend/events/test_conference_demo.py` (17 tests) exercises `testing/conference_demo.py`, the
 builder behind `../.venv/bin/python3 manage.py seed_conference_demo`. It freezes `timezone.now` at
 15:00 on a fixed day one, so that the door log, the lunch-time returns and the morning shifts have
 all happened and the event is not over, and then asserts the two things a seed can silently get
@@ -1495,6 +1495,36 @@ yesterday. Accounts and the password are printed at the end.
 cd backend && ../.venv/bin/python3 manage.py seed_conference_demo
 cd backend && ../.venv/bin/python3 manage.py test events.test_conference_demo
 ```
+
+### What the seed promises about itself (2026-09-25)
+
+Two guarantees, added when this seed became something to run on the **live** database rather than
+only on a dev box. Both are enforced in the builder, inside its own transaction, so a seed that
+cannot keep them leaves nothing behind — and both are covered by `DemoIsMarkedAsFakeTests` and
+`DemoAccountsAreContainedTests` in the same file.
+
+- **Every seeded event is titled `TEST=FAKE …`.** `FAKE_PREFIX` lives in `testing/personas.py` and
+  `conference_demo.py` imports it, so the two seeders cannot spell the marker differently. Asserted
+  over `Event.objects.all()` rather than over the two constants: the point is that nothing the
+  seeders create escapes the marker, and a third seeded event would otherwise slip through.
+- **No seeded account holds authority outside the demo** — `assert_contained()`. Platform-wide
+  (`is_staff`, `is_superuser`, groups, per-user permissions), another object of the same kind
+  (`EventStaff` only on a *marked* event, `VenueStaff` only on the demo venue), or a different
+  surface entirely (`CourseStaff`, `OrganizationMember`, `ProjectMember`, `NodeGovernor` — none at
+  all). The refusal half is tested too, which is the half that matters: a containment check nobody
+  has watched refuse may only be an expensive way of returning True.
+
+**A dev box that has run `frontend/e2e/` will fail the containment check**, and correctly so: the
+preview script leaves events hosted by `persona.organiser` behind, and those are authority outside
+the demo. Delete them and seed again —
+
+```sh
+# events a persona hosts that the seeders do not own (local leftovers; never on the server)
+Event.objects.filter(host__username__startswith='persona.').exclude(title__startswith='TEST=FAKE ')
+```
+
+An installation seeded **before** 2026-09-25 also holds a `Sandbox conference` row under the old,
+unmarked title that `--reset` can no longer find. Rename it to the marked title first, then reset.
 
 ## Conference step D — tickets, the door and the badge sheet
 
