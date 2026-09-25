@@ -25,11 +25,25 @@
 
 	onMount(async () => {
 		try {
-			const events = await getEvents();
-			/* The LAST marked event, not the first: the personas' small "Sandbox conference" is seeded
-			   before the full demo conference, and the full one is what somebody following this link
-			   wants to see. */
-			const demo = events.filter((e) => e.title.startsWith(FAKE_PREFIX)).at(-1);
+			/* `when: 'all'`, and this is the whole bug this route shipped with. The list defaults to
+			   `upcoming`, meaning `starts_at >= now` — and the demo conference is seeded with day one
+			   set to TODAY, deliberately, so that it looks lived-in. It has therefore always already
+			   started, is in neither `upcoming` nor `past`, and never appeared in the default list at
+			   all. The route then forwarded to the personas' near-empty "Sandbox conference", which
+			   starts in a fortnight and so does show up — the wrong event, convincingly. */
+			const events = await getEvents({ when: 'all' });
+			const marked = events.filter((e) => e.title.startsWith(FAKE_PREFIX));
+			/* Prefer the one running RIGHT NOW. Two events carry the marker — the full demo conference
+			   and the small sandbox the personas live on — and "in progress" is exactly what
+			   distinguishes the one somebody followed this link to see. Falling back to the most
+			   recently started keeps the link working on an installation seeded with `--day-one` in
+			   the past, where nothing is in progress any more. */
+			const now = Date.now();
+			const started = marked
+				.filter((e) => e.startsAt && Date.parse(e.startsAt) <= now)
+				.sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!));
+			const running = started.find((e) => !e.isPast);
+			const demo = running ?? started.at(-1) ?? marked.at(-1);
 			if (!demo) {
 				state = 'missing';
 				return;

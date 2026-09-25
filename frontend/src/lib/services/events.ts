@@ -153,8 +153,14 @@ function toBody(draft: Partial<EventDraft>): Record<string, unknown> {
 }
 
 export interface EventQuery {
-	/** Defaults to `upcoming` server-side — an events page opening on last month answers nothing. */
-	when?: 'upcoming' | 'past';
+	/** Defaults to `upcoming` server-side — an events page opening on last month answers nothing.
+	 *
+	 * `'all'` is anything the backend does not recognise as `upcoming` or `past`, which is how
+	 * `EventViewSet._filtered` is written: it applies a time filter for those two words and none
+	 * otherwise. Spelled out as a value rather than left to a magic string, because the case it
+	 * exists for is easy to get wrong — an event that has STARTED but not finished is in neither
+	 * `upcoming` (`starts_at >= now` is false) nor `past` as anybody reading the word would mean it. */
+	when?: 'upcoming' | 'past' | 'all';
 	mine?: 'hosting' | 'attending';
 	subject?: string;
 	field?: string;
