@@ -208,3 +208,25 @@ Owners add rows to their own collections; readers use the shapes above. If you m
 ## First-run wizard and blank installs
 
 `createApp({ blank: true })` / `EDMAT_SEED=blank` loads `server/lib/blank-seed.js` (an empty school with default config) instead of the demo seeds. Until an admin exists, every route except `/api/setup/*` and `/api/auth/policy` answers `503 setup_required`; the shell shows `public/app/screens/setup.js` instead of the login page. `server/routes/setup.js` owns school+admin creation, CSV imports (teachers, students+parents with registration codes) and `generateLessons(db, from, to)`. i18n key prefixes already taken: tl, tg, hr, pr, su (support), rg, ad, st, pa, ms, se, mo, co, me, sw (setup wizard), cu (curriculum), ev (school events) — pick a new one for a new screen.
+
+## Wersja publikowana na edmat.net/dziennik — bez serwera
+
+Prototyp jest publikowany jako **strona statyczna** (`HISTORY.md` §17BO w repozytorium nadrzędnym):
+żadnego procesu Node, żadnych sesji, żadnego logowania. Odpowiedzi API są **nagrane** i wbudowane
+w paczkę, a rolę wybiera się z paska u góry. Jedyne żądanie, które opuszcza przeglądarkę, to
+zgłoszenie błędu (`POST /api/issues/` na tym samym origin).
+
+Co to znaczy przy zmianach w kodzie:
+
+- **`public/app/core.js` ma dokładnie jeden `fetch`**, w `rawFetch`. To jest szew, na którym stoi
+  cała publikowana wersja. Nowe wywołanie sieciowe **poza** `rawFetch` psuje ją po cichu —
+  `build-static.js` liczy `fetch(` w publikowanych plikach i odmawia zbudowania paczki, jeśli nie
+  ma ich dokładnie tyle, ile wolno. Tak właśnie znalazł się `print.js`.
+- **Nowy ekran = ponowne nagranie.** `node scripts/record-snapshot.js` chodzi po nawigacji aplikacji,
+  więc ekran podlinkowany w menu nagra się sam; ekran dostępny tylko przez wpisanie adresu — nie.
+- **Zapisy są odrzucane** (`demo_read_only`). Nie udajemy zapisu i nie kolejkujemy go: nie ma dokąd.
+- Przed publikacją: `node scripts/verify-static.js` — przechodzi wszystkie role i wszystkie ekrany
+  po zbudowanych plikach, bez żadnego serwera. Zero problemów to próg.
+
+Pełny opis i pułapki (jednowątkowy `http.server`, `--virtual-time-budget`, który nigdy nie kończy)
+są w `test.md` w repozytorium nadrzędnym.

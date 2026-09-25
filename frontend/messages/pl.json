@@ -3592,5 +3592,8 @@
 	"polls_reason_alreadyOpen": "Ta ankieta jest już otwarta.",
 	"polls_reason_alreadyClosed": "Ta ankieta jest już zamknięta.",
 	"polls_loadingResults": "Ładowanie wyników…",
-	"polls_draft_notice": "Ta ankieta jest wciąż szkicem — głosowanie jeszcze się nie rozpoczęło."
+	"polls_draft_notice": "Ta ankieta jest wciąż szkicem — głosowanie jeszcze się nie rozpoczęło.",
+	"featureFlags_label_schoolDemo": "Demo dziennika szkolnego",
+	"nav_schoolDemo": "Demo dziennika",
+	"footer_schoolDemo": "Demo dziennika szkolnego"
 }

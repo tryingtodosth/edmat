@@ -83,6 +83,14 @@
 
   /* ---------- API ---------- */
   async function rawFetch(method, path, body) {
+    /* The one seam. Everything the app asks of its server goes through here, which is what makes a
+       serverless build of this demo possible at all: the published snapshot at edmat.net/dziennik
+       defines `window.EdSnapshot` and answers from a recorded file, so the page runs with no
+       backend behind it — nothing to sign in to, nothing to escalate into, and exactly one call
+       that leaves the browser (the issue report, which EdSnapshot forwards to the site's own
+       /api/issues/). When no snapshot is present this is unreachable and the demo behaves as it
+       always has. See scripts/record-snapshot.js and public/app/snapshot.js. */
+    if (window.EdSnapshot) return window.EdSnapshot.handle(method, path, body);
     var res = await fetch(BASE + path, { method: method, credentials: 'same-origin', headers: body != null ? { 'Content-Type': 'application/json' } : {}, body: body != null ? JSON.stringify(body) : undefined });
     var ct = res.headers.get('content-type') || ''; var data = null;
     if (ct.indexOf('application/json') >= 0) data = await res.json(); else data = await res.text();

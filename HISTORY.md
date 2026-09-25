@@ -10847,3 +10847,114 @@ makes the output the same on every Node rather than the same on the one it was w
 - **Nothing pins the demo's Node.** An `engines` field would turn "this stopped working three majors
   ago" into a refusal at install time. Not added here because `engine-strict` is already set for
   this project and a ceiling needs a real decision about what the demo supports.
+
+---
+
+## 17BO. `/dziennik`: the school demo as a page with no server behind it (2026-09-25)
+
+The owner's terms were narrow and they decided the whole design: publish the school-management demo
+on edmat.net, **hardcode the data**, run it as a subpage with **no risk of escalating privileges**,
+link it from the user menu and the footer, and allow it **one** outbound call — filing an issue.
+
+That ruled out the obvious answer. A reverse-proxied Node process keeps sessions, login and ~21,000
+lines of route logic reachable on the public site, which is precisely the surface the terms exclude.
+So the demo is published with **no backend at all**.
+
+### What made it possible
+
+`public/app/core.js` has exactly one `fetch`, inside `rawFetch` — the same discipline as this site's
+own `lib/api/client.ts`, and for once the payoff is not "we changed the base URL" but "we removed
+the network". Every one of the 20 screens asks its questions through that function, so replacing it
+replaces the whole backend.
+
+### Recorded answers, not reimplemented logic
+
+`scripts/record-snapshot.js` drives a real instance over the DevTools protocol, through a recording
+proxy, and keeps the JSON body of every successful API GET, keyed by role. `build-static.js` bakes
+the result in and `snapshot.js` answers `rawFetch` from it.
+
+**Completeness is defined by the app's own navigation, not by a list.** The first version reused
+`smoke.js`'s matrix, which pairs each screen with the user who owns it — right for a smoke test,
+wrong here, because the published page lets a visitor pick any role and click anything. Opening the
+logbook as the head teacher hit "not recorded", which is the first click a visitor makes. So the
+walk signs in as a role, reads back the hash links the app itself rendered, and visits each: the
+same definition of "what this role can reach" that the published page will use, so the two cannot
+disagree. 137 responses became **263**.
+
+### The page cannot reach the network, as a property of the file
+
+Not "guarded so it cannot be reached" — the build **removes** it. `core.js`'s `fetch` is replaced by
+a throw (EdSnapshot returns above it) and `print.js`, which probes `/api/pdf` *outside* `rawFetch`,
+is replaced wholesale by a stub that says printing needs the full version. The build then counts
+`fetch(` in everything it ships and **fails** unless the total is exactly one: `snapshot.js`'s
+forward to `/api/issues/`, same-origin because the page is served from edmat.net.
+
+That guard earned itself immediately: it found `print.js`, a second outbound call nobody had
+accounted for.
+
+Writes are refused locally with `demo_read_only`. There is no server to write to, and a demo that
+faked a save would be lying about the one thing a school most needs to trust; queueing it would mean
+holding invented pupil data in a stranger's browser for a sync that can never happen. The role is
+**chosen, not authenticated** — `/api/auth/session` is a recorded answer like any other — so there
+is no password to get wrong, no token to steal and no privilege to escalate. The worst a visitor can
+do is read a different part of a file that was public the moment it was published.
+
+The service worker is not shipped and any worker from an earlier visit is unregistered: it caches
+API responses, and a stale cache answering over the snapshot is a silent wrong answer.
+
+### Served without touching Apache
+
+Built into `frontend/build/dziennik/`, so the vhost that already serves the SPA serves this too — no
+Alias, no new env var, no `<Directory>` block, no server-side step at all. It works because the demo
+routes on the **hash** (`#/lekcja`), so every request under `/dziennik/` is a real file or the
+directory index, and the SPA's `FallbackResource` (scoped to its own `<Directory>`) never sees it.
+
+Polish by default, seeded into `localStorage` before `i18n.js` runs: the demo falls back to
+`navigator.language`, which is right for software a school installs and wrong for a page on a Polish
+site — a visitor with an English browser met a Polish school's logbook in English. `?lang=` and the
+in-app switcher still win.
+
+### In the site
+
+`school_demo` is the 27th `FeatureFlag`, seeded ON, and it is the first that guards **no endpoint**:
+the demo has no Django surface, so what it governs is the two links. Turning it off hides the
+entrance and does **not** take the page down — `/dziennik` is served by the vhost, and a saved URL
+keeps working. That honest limit is written in the model, the migration and the runbook, because a
+kill switch that does less than the others must say so. The menu entry is added to the
+`accountItems` snippet, which renders into the desktop popover and the phone drawer from one place,
+so the flag cannot hide it in one and leave it in the other.
+
+### Verified
+
+- **`scripts/verify-static.js` (new)** walks the BUILT files with no server running — for every
+  role, every route that role's own navigation offers — and fails on a snapshot miss, a console
+  error, an uncaught exception, a missing `<h1>`, or a literal `undefined`/`NaN`/`[object Object]`
+  in the rendered text. That is the regression test for the snapshot: a recording made correctly and
+  then built wrongly looks identical until somebody clicks. **All 11 roles pass** — 8 in the main
+  pass and the remaining 3 in a follow-up after the fixes below, not all 11 in one run.
+- **It found two real things and one bug in itself.** The student and the parent both "missed"
+  `/api/events`; asking the server directly returned **403** — they are genuinely not allowed to see
+  the staff events list, so the snapshot was right to hold nothing and the *replay* was wrong to
+  call it "not recorded". Refusals are now recorded and replayed with their real status, which is
+  also the more honest demo: a school should see that the product refuses a pupil. Separately the
+  verifier crashed nine roles in, because `/json/list` can answer before Chrome has a page target;
+  guarded and retried now, and `--roles=` lets one failure be re-checked without re-walking
+  everything (a full pass is ~15 minutes).
+- **`top-up-snapshot.js` (new)** heals one `role=path` gap in seconds instead of a 20-minute
+  re-record, by asking the server that one question. No browser: a miss is a known URL, and the
+  browser was only ever needed to DISCOVER which URLs a screen asks for.
+- The built bundle contains **one** `fetch(` in total.
+- `npm run check` 0 errors, 0 warnings; both catalogues 3597 keys, sets identical.
+- `manage.py makemigrations --check --dry-run` clean.
+
+### Left open
+
+- **The demo is read-only, and that is the trade.** Nothing saves. A school clicking "add a grade"
+  is told this is a recorded demo. The alternative — bundling the real server into the browser
+  behind `fs` and `crypto` shims — is a much larger job and was not what was asked for.
+- **A screen no navigation links to is not recorded**, because the walk follows links. Anything
+  reachable only by typing a hash, or behind a button that changes route, will miss.
+- **The verifier is slow** (~1–2 min per role) and is not wired into `pack.sh`, so it is a thing
+  somebody runs, not a gate.
+- **Query-shaped routes are recorded as they were captured.** Anything the page asks for with a
+  parameter it computes fresh — a date other than the frozen 2026-10-23 — will miss.

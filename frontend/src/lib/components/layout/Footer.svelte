@@ -11,6 +11,11 @@
 	// while an organiser looking for somewhere to hold something goes looking for it. The Add… menu
 	// carries the other half, for people who actually run a building.
 	const canVenues = $derived(featureFlagsStore.isEnabled('venues') || authStore.isModerator);
+	// The school-management demo (HISTORY.md §17BO). A plain <a>, not `resolve()`: /dziennik is not a
+	// SvelteKit route — it is a separate static bundle the vhost serves — so the router must not try
+	// to own it, and a client-side navigation would 404 inside this app. `rel="external"` for the
+	// same reason: this link leaves the SPA.
+	const canSchoolDemo = $derived(featureFlagsStore.isEnabled('school_demo') || authStore.isModerator);
 </script>
 
 <footer class="site-footer no-print">
@@ -35,6 +40,10 @@
 			{#if canVenues}
 				<a href={resolve('/venues')}>{m.venues_browseTitle()}</a>
 				<!-- "Venues" -->
+			{/if}
+			{#if canSchoolDemo}
+				<a href="/dziennik/" rel="external">{m.footer_schoolDemo()}</a>
+				<!-- "School logbook demo" -->
 			{/if}
 			{#if canIssues}
 				<a href={resolve('/issues')}>{m.footer_issues()}</a>

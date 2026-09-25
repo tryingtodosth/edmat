@@ -85,6 +85,7 @@ export type FeatureFlagKey =
 	| 'plans'
 	| 'decisions'
 	| 'work_dashboard'
+	| 'school_demo'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

@@ -3592,5 +3592,8 @@
 	"polls_reason_alreadyOpen": "This poll is already open.",
 	"polls_reason_alreadyClosed": "This poll is already closed.",
 	"polls_loadingResults": "Loading results…",
-	"polls_draft_notice": "This poll is still a draft — it has not opened for voting yet."
+	"polls_draft_notice": "This poll is still a draft — it has not opened for voting yet.",
+	"featureFlags_label_schoolDemo": "School-management demo",
+	"nav_schoolDemo": "School logbook demo",
+	"footer_schoolDemo": "School logbook demo"
 }

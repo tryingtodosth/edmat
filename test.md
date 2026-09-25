@@ -1473,6 +1473,42 @@ of `tail`, not of Django, so a piped run says `EXIT=0` however many tests failed
 into a file and read the `OK` / `FAILED (…)` line out of that file. This was caught here after two
 suite runs had already been recorded as passing on nothing but a pipeline's exit code.
 
+## The published school demo — `/dziennik` (HISTORY.md §17BO)
+
+Two scripts in `school-management-demo/scripts/`, and they answer different questions.
+
+**`record-snapshot.js`** drives a real instance over the DevTools protocol through a recording
+proxy and keeps every successful API GET, keyed by role. Completeness is defined by the app's own
+navigation: it signs in as a role, reads back the hash links the app rendered, and visits each. That
+is deliberately not `smoke.js`'s matrix — the matrix pairs each screen with the user who owns it,
+which is right for a smoke test and wrong for a page where a visitor picks any role and clicks
+anything. Chrome is driven over CDP rather than with `--screenshot`/`--dump-dom` because neither
+flag ever returns for this app: its screens keep timers running, so the page never reaches the quiet
+state they wait for.
+
+**`verify-static.js`** is the regression test, and the one to run before publishing. It serves the
+BUILT files with **no server running anywhere** and walks every role over every route that role's
+navigation offers, failing on a snapshot miss, a console error, an uncaught exception, a missing
+`<h1>`, or a literal `undefined`/`NaN`/`[object Object]` in the rendered text. A snapshot recorded
+correctly and then built wrongly looks identical until somebody clicks; this is what clicks.
+
+```sh
+cd school-management-demo
+EDMAT_CHROME=<path-to-chrome> node scripts/record-snapshot.js     # ~6 min, writes public/demo-snapshot.json
+node scripts/build-static.js --out dist-static --base /dziennik   # bakes it in; refuses a build that can still reach the network
+EDMAT_CHROME=<path-to-chrome> node scripts/verify-static.js       # ~15 min, 0 problems is the bar
+```
+
+`build-static.js` is itself a check: it counts `fetch(` in everything it ships and refuses unless
+the total is exactly **one** — `snapshot.js`'s forward to `/api/issues/`. That guard found
+`print.js`, a second outbound call (`/api/pdf?probe=1`) that bypasses `rawFetch` entirely.
+
+**Two traps worth knowing before debugging this.** `python3 -m http.server` is single-threaded, and
+a browser opens several connections at once, so the page never finishes loading behind it — serve
+the build with a threaded server (`verify-static.js` has one). And a headless run under
+`--virtual-time-budget` never terminates here, because the snapshot answers instantly and any poll
+timer re-schedules forever in virtual time; that is a testing artifact, not a bug in the page.
+
 ## The demo conference — `seed_conference_demo` (HISTORY.md §17BK)
 
 `backend/events/test_conference_demo.py` (17 tests) exercises `testing/conference_demo.py`, the

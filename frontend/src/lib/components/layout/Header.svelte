@@ -97,6 +97,7 @@
 	let canOrganizations = $derived(can('organizations'));
 
 	let canWork = $derived(can('work_dashboard'));
+	let canSchoolDemo = $derived(can('school_demo'));
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -529,6 +530,19 @@
 		<a role="menuitem" class={itemClass} href={resolve('/work')} {onclick}>
 			{m.work_title()}
 			<!-- "My work" -->
+		</a>
+	{/if}
+	{#if canSchoolDemo}
+		<!-- The school-management demo (HISTORY.md §17BO). A plain href with `rel="external"`, NOT
+		     `resolve()`: /dziennik is a separate static bundle served by the vhost, not a SvelteKit
+		     route, so the router must not try to own it — a client-side navigation would 404 inside
+		     this app. In `accountItems` rather than `browseLinks` because it is a thing to go and
+		     look at once, not part of browsing the corpus. Being a snippet, this renders into the
+		     desktop popover and the phone drawer from one place (frontend/CLAUDE.md), so the flag
+		     cannot hide it in one and leave it in the other. -->
+		<a role="menuitem" class={itemClass} href="/dziennik/" rel="external" {onclick}>
+			{m.nav_schoolDemo()}
+			<!-- "School logbook demo" -->
 		</a>
 	{/if}
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>

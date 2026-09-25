@@ -367,6 +367,15 @@ FEATURE_FLAG_CHOICES = [
     ('plans', 'Plans and roadmaps'),
     ('decisions', 'Decisions and polls'),
     ('work_dashboard', 'Personal work dashboard'),
+    # The school-management demo, published as a SERVERLESS page at /dziennik (HISTORY.md §17BO).
+    # Unlike every other switch here it guards no API of its own: the demo has no backend on this
+    # site, only recorded answers baked into a static bundle, so what this flag actually governs is
+    # the two LINKS that point at it (the user menu and the footer) and nothing else. Turning it off
+    # therefore hides the entrance but does not take the page down — `/dziennik` is served by the
+    # vhost, not by Django, and a saved URL keeps working. That is the honest limit of a kill switch
+    # over a static directory, and it is written here so nobody assumes otherwise: to remove the
+    # page as well, remove the Alias from the vhost.
+    ('school_demo', 'School-management demo (/dziennik)'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

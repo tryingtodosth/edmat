@@ -401,6 +401,7 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	plans: m.featureFlags_label_plans, // "Plans and roadmaps"
 	decisions: m.featureFlags_label_decisions, // "Decisions and polls"
 	work_dashboard: m.featureFlags_label_workDashboard, // "Personal work dashboard"
+	school_demo: m.featureFlags_label_schoolDemo, // "School-management demo"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 
