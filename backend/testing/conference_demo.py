@@ -1110,7 +1110,7 @@ def assert_contained(event, venue) -> dict:
     A demonstration conference is seeded onto the *live* database, beside real events and real
     people, so "these are only demo accounts" is a claim about permissions and not about intent.
     Checked rather than assumed, and checked here rather than only in a test, because the test runs
-    on a machine where nothing is at stake and this runs on webek4 where everything is: the whole
+    on a machine where nothing is at stake and this runs where everything is: the whole
     build is inside one `transaction.atomic()`, so raising rolls the conference back rather than
     leaving a half-privileged one behind.
 

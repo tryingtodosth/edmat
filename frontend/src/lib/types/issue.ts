@@ -24,6 +24,7 @@ export type IssueArea =
 	| 'parent'
 	| 'messages'
 	| 'school'
+	| 'events'
 	| 'courses'
 	| 'meetings'
 	| 'compliance'

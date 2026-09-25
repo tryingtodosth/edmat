@@ -10746,11 +10746,11 @@ contained by construction rather than by cleanup.
 - `manage.py test events venues documents shifts cloakroom issues` — **434 tests, 530 s**, one
   failure, which was a real bug and is §17BM.
 - `manage.py check` and `makemigrations --check --dry-run` clean.
-- Seeded against the real development database, and then both guarantees re-checked **independently
-  of the seeder's own code**: 167 accounts, 0 with `is_staff` or `is_superuser`, 0 in a group, 0
-  holding a direct permission, `EventStaff` rows only on marked events, `VenueStaff` only on the
-  demo venue, and 0 rows across `CourseStaff`, `OrganizationMember`, `ProjectMember` and
-  `NodeGovernor`.
+- Seeded against the real development database — 146 registrations, 20 sessions, 112 scans, 28
+  shifts, 51 coats — and then both guarantees re-checked **independently of the seeder's own code**:
+  167 accounts, 0 with `is_staff` or `is_superuser`, 0 in a group, 0 holding a direct permission,
+  `EventStaff` rows only on marked events, `VenueStaff` only on the demo venue, and 0 rows across
+  `CourseStaff`, `OrganizationMember`, `ProjectMember` and `NodeGovernor`.
 
 ### Left open
 
@@ -10761,3 +10761,40 @@ contained by construction rather than by cleanup.
 - **The marker is only on events.** The venue, the accounts and the documents carry no equivalent,
   because the event is what a reader lands on and what a link points at. If demo venues ever become
   browsable in their own right, they will need the same treatment.
+
+---
+
+## 17BM. The demo grew an Events module and the site never learned the word (2026-09-25)
+
+`issues.ISSUE_AREA_CHOICES` is a **copy** of the school demo's `MODULES` list — the demo is a Node
+process with no Python to import — and `issues.tests.CategoriesTests` exists because a copy needs a
+test that reads the original. It was failing.
+
+§17BJ's follow-up (the school-events module, 3.10) added `{ id: 'events' }` to
+`school-management-demo/server/modules.js` and stopped there. The demo builds its accepted `AREAS`
+**from that registry**, so every report filed from the new Events screen would have gone out as
+`area: 'events'` and come back `400 "events" is not a valid choice` — recorded by the forwarder as
+`http_400` and seen by nobody but whoever exported the demo's own list. Nothing would have been
+lost, because the demo writes the report locally *before* forwarding and says so (§17BJ: "failing to
+forward is not failing to report"), but nothing would have arrived either.
+
+Found by running the wider suite rather than the app's own, which is the whole argument for a drift
+test that reads the other language's file: both halves were internally consistent and only the pair
+was wrong.
+
+Fixed as the five-file change it is, in the demo registry's own order (`events` sits between
+`school` and `courses`): the backend choices, `issues.0003_alter_issue_area`,
+`frontend/src/lib/types/issue.ts`, `frontend/src/lib/utils/issueLabels.ts`, and **both** message
+catalogues in the same edit — house rule 1, 3594 keys, sets identical.
+
+**Verified by doing it.** With the fix applied, a report filed through the demo's own public route
+with `area: 'events'` forwarded and landed as a real `issues.Issue` row with `source='school_demo'`
+and `area='events'`; and an area genuinely absent from the registry still earns
+`400 {"area": ["\"nosuchmodule\" is not a valid choice."]}`, which is what the refusal looked like
+for `events` until now. `makemigrations --check --dry-run` clean, production frontend build clean,
+`npm run check` 0 errors and 0 warnings.
+
+**Left open:** the mirror is still a mirror. Three files now have to change together when the demo
+gains a module, and only one of them (the backend) has a test that notices. A generated file, or a
+build step that reads `modules.js` and writes the TypeScript union, would remove the class of bug
+rather than this instance of it.

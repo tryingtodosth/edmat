@@ -71,6 +71,7 @@ ISSUE_AREA_CHOICES = [
     ('parent', 'Parent account'),
     ('messages', 'Messages and notifications'),
     ('school', 'After-school care, cafeteria, trips, library, nurse'),
+    ('events', 'School events: open days, fetes, ceremonies'),
     ('courses', 'Courses and materials (LMS)'),
     ('meetings', 'Video meetings'),
     ('compliance', 'Compliance pack'),

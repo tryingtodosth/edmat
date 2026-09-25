@@ -58,8 +58,8 @@ FAKE_PREFIX = 'TEST=FAKE '
 #: The event's title is its key — `make_personas` finds it by (host, title), so the string is part
 #: of the contract and not decoration. Prefixed, which means an installation seeded before
 #: 2026-09-25 holds a row under the OLD title that this code can no longer find: reseeding leaves
-#: the unprefixed one behind, so delete it by hand there. On webek4 the demo is seeded for the
-#: first time, so there is nothing to strand.
+#: the unprefixed one behind, so delete it by hand there. A database that has never been seeded
+#: has nothing to strand.
 SANDBOX_TITLE = FAKE_PREFIX + 'Sandbox conference'
 
 #: username → (display name, event role in words). `persona.child` is absent: a minor is not made

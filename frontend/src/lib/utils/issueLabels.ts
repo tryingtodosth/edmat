@@ -43,6 +43,7 @@ export const ISSUE_AREA_LABELS: Record<Exclude<IssueArea, ''>, () => string> = {
 	parent: () => m.issue_area_parent(), // "Parent account"
 	messages: () => m.issue_area_messages(), // "Messages and notifications"
 	school: () => m.issue_area_school(), // "After-school care, cafeteria, library"
+	events: () => m.issue_area_events(), // "School events"
 	courses: () => m.issue_area_courses(), // "Courses and materials"
 	meetings: () => m.issue_area_meetings(), // "Video meetings"
 	compliance: () => m.issue_area_compliance(), // "Compliance (GDPR, accessibility)"
