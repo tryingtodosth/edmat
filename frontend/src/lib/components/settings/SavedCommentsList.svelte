@@ -41,7 +41,7 @@
 				return resolve('/exercises/[id]', { id: row.targetId }) + anchor;
 			case 'material':
 			case 'materialCoverage':
-				return resolve('/materials/[id]', { id: row.targetId }) + anchor;
+				return localizedPath(resolve('/materials/[id]', { id: row.targetId })) + anchor;
 			case 'service':
 				return localizedPath(resolve('/tutoring/[id]', { id: row.targetId })) + anchor;
 			case 'taughtCourse':

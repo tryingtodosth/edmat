@@ -3,6 +3,7 @@
 	// /notifications inbox page — the same "one card, two mount points" economy this app's own
 	// ReportButton/CoveragePopover already follow for their own shared pieces.
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { Notification } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -275,7 +276,7 @@
 								: notification.exerciseId
 									? resolve('/exercises/[id]', { id: notification.exerciseId })
 									: notification.materialId
-										? resolve('/materials/[id]', { id: notification.materialId })
+										? localizedPath(resolve('/materials/[id]', { id: notification.materialId }))
 										: notification.courseId
 											? resolve('/courses/[id]', { id: notification.courseId })
 											: // Last, and only ever reached by a co-authoring notification whose project has

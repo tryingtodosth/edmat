@@ -10,6 +10,7 @@
 	// things, and only the server does both).
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import {
@@ -160,7 +161,8 @@
 				<!-- The fallback is "Nothing has been written yet." -->
 				<p class="meta">
 					{#if project.materialId}
-						<a href={resolve('/materials/[id]', { id: project.materialId })}>
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+						<a href={localizedPath(resolve('/materials/[id]', { id: project.materialId }))}>
 							{m.coauth_project_materialLink()}
 							<!-- "The published material" -->
 						</a>

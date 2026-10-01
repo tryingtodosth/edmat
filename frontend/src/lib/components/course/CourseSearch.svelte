@@ -11,6 +11,7 @@
 	// silently never match a comment, which is exactly what "where did we talk about that" is asking
 	// for. Everything here is presentation over what the search endpoint already decided.
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { m } from '$lib/paraglide/messages.js';
 	import { searchCourse } from '$lib/services/course';
 	import type { Course, CourseSearchHit, CourseSearchKind } from '$lib/types/course';
@@ -166,7 +167,8 @@
 	function itemHref(hit: CourseSearchHit): string | null {
 		if (!hit.targetId) return null;
 		if (hit.itemKind === 'exercise') return resolve('/exercises/[id]', { id: hit.targetId });
-		if (hit.itemKind === 'material') return resolve('/materials/[id]', { id: hit.targetId });
+		if (hit.itemKind === 'material')
+			return localizedPath(resolve('/materials/[id]', { id: hit.targetId }));
 		if (hit.itemKind === 'event') return resolve('/events/[id]', { id: hit.targetId });
 		return resolve('/courses/[id]/attachments/[attachmentId]', {
 			id: course.id,

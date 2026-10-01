@@ -8,6 +8,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import type { ExerciseLinkRole, ExerciseMaterialLink, Material } from '$lib/types';
@@ -119,7 +120,8 @@
 				{#each links as link (link.id)}
 					<li>
 						{#if link.material}
-							<a href={resolve('/materials/[id]', { id: link.material.id })}
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+							<a href={localizedPath(resolve('/materials/[id]', { id: link.material.id }))}
 								>{link.material.title}</a
 							>
 						{/if}

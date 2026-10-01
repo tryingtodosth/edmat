@@ -15,7 +15,9 @@
 	// SvelteKit route — it is a separate static bundle the vhost serves — so the router must not try
 	// to own it, and a client-side navigation would 404 inside this app. `rel="external"` for the
 	// same reason: this link leaves the SPA.
-	const canSchoolDemo = $derived(featureFlagsStore.isEnabled('school_demo') || authStore.isModerator);
+	const canSchoolDemo = $derived(
+		featureFlagsStore.isEnabled('school_demo') || authStore.isModerator
+	);
 </script>
 
 <footer class="site-footer no-print">

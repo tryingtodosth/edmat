@@ -11,6 +11,7 @@
 	// Every `can*` here is the server's answer, never re-derived (house rule 4).
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { formatDate } from '$lib/utils/datetime';
@@ -210,7 +211,10 @@
 			<p class="empty">{m.material_notFound()}</p>
 		{:else}
 			<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
-				<a href={resolve('/materials/[id]', { id: material.id })}>{material.title}</a> ›
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+				<a href={localizedPath(resolve('/materials/[id]', { id: material.id }))}>{material.title}</a
+				>
+				›
 				<span>{m.coop_heading()}</span>
 				<!-- "Cooperation" -->
 			</nav>

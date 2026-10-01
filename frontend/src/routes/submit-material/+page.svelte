@@ -11,6 +11,7 @@
 	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { Branch, Discipline, MaterialType, Topic } from '$lib/types';
 	import type { MaterialProject, ProjectCoverageDraft } from '$lib/types/materialProject';
 	import { m } from '$lib/paraglide/messages.js';
@@ -801,7 +802,8 @@
 			{#if outcome.kind === 'published'}
 				{m.submitMaterial_successPublished()}
 				<!-- "Published! Your material is live now — thanks for contributing." -->
-				<a href={resolve('/materials/[id]', { id: outcome.materialId })}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+				<a href={localizedPath(resolve('/materials/[id]', { id: outcome.materialId }))}
 					>{m.submitMaterial_viewMaterial()}</a
 				>
 				<!-- "View material" -->

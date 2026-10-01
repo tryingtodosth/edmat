@@ -70,7 +70,9 @@
 	// happens inside a project afterwards. So the Add… entry below hangs off the first and the
 	// account entry off this one, and turning either off leaves the other's link exactly where it was.
 	let canCoauthoring = $derived(can('coauthoring'));
-	let canClassroom = $derived(can('courses'));
+	// The `courses` flag is no longer read here: the browse link and the "Add a course" item
+	// both left the header on 2026-10-01, so this file has nothing for it to govern. `/courses`
+	// and `/courses/new` are gated by `FeatureGate` on the routes themselves, as they always were.
 	// The `concepts` flag is deliberately NOT read here any more (2026-10-01). Both entries this
 	// header used to carry — the browse link and the "New concept" item — were removed by owner
 	// decision, so the header has nothing left for the flag to govern. `/concepts` and its hub's
@@ -120,7 +122,7 @@
 	// itself, and `canConcepts` with "New concept": a flag that governs no entry must not keep the
 	// menu alive, or somebody with only that switch on opens an empty popover.
 	let hasAnythingToAdd = $derived(
-		canSubmitExercise || canSubmitMaterial || canClassroom || canTutoring || canEvents || runsAVenue
+		canSubmitExercise || canSubmitMaterial || canTutoring || canEvents || runsAVenue
 	);
 
 	function logout() {
@@ -322,7 +324,7 @@
 		</a>
 	{/if}
 	{#if canTutoring}
-		<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting, and the href sits inside a multi-line tag where no HTML comment fits. See lib/utils/localizedPath.ts. -->
+		<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. The href is inside a multi-line tag, where a next-line comment cannot be placed. -->
 		<a
 			class="nav-link nav-link--services"
 			href={localizedPath(resolve('/tutoring'))}
@@ -373,28 +375,28 @@
 		<a role="menuitem" class={itemClass} href={resolve('/submit-material')} {onclick}>
 			{m.nav_submitMaterial()}
 		</a>
-		<!-- The same ability as the line above — making a material that does not exist yet — so the
-		     same flag, deliberately NOT `coauthoring`: that one gates collaborating on a material,
-		     and a project with a team of one is still somebody uploading a material. The two
-		     entries sit together because the question they answer is one question with two answers
-		     ("by myself" / "with other people"). -->
-		<a role="menuitem" class={itemClass} href={resolve('/material-projects/new')} {onclick}>
-			{m.nav_startMaterialProject()}
-			<!-- "Start a material with others" -->
-		</a>
+		<!-- "Start a material with others" used to sit on the line below this one, under the same
+		     flag — the two were one question with two answers ("by myself" / "with other people").
+		     The owner moved it out of this menu on 2026-10-01 and asked for it to live on
+		     `/materials` (and its Polish address `/materialy`) instead, which is where somebody
+		     already looking at materials is. `MaterialsAddBar` on that page carries BOTH answers
+		     now, so the pair stays together where it matters; this menu keeps only the plain one,
+		     because "submit a material" is the common act and the hub is one click away.
+		     The flag is still `material_submissions`, deliberately NOT `coauthoring`: that one
+		     gates collaborating on a material, and a project with a team of one is still somebody
+		     uploading a material. -->
 	{/if}
-	{#if canClassroom}
-		<a role="menuitem" class={itemClass} href={resolve('/courses/new')} {onclick}>
-			{m.nav_add_course()}
-		</a>
-	{/if}
+	<!-- "Add a course" also left this menu on 2026-10-01, by owner decision. `/courses/new` still
+	     works, the `courses` flag is untouched, and the courses hub still carries its own create
+	     control. Running a course is something you set out to do, not something you reach for from
+	     whatever page you happen to be on. -->
 	{#if canEvents && !isMinor}
 		<a role="menuitem" class={itemClass} href={resolve('/events/new')} {onclick}>
 			{m.nav_add_event()}
 		</a>
 	{/if}
 	{#if canTutoring}
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
 		<a role="menuitem" class={itemClass} href={localizedPath(resolve('/tutoring/new'))} {onclick}>
 			{m.nav_add_service()}
 		</a>
@@ -481,7 +483,6 @@
 			{m.nav_coauthoring()}
 			<!-- "Co-authoring" -->
 		</a>
-		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	{/if}
 	{#if can('shifts')}
 		<!-- The rota, from the volunteer's side (CONFERENCE-BRIEF.md §3.E): every event they have

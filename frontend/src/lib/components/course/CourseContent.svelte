@@ -373,7 +373,8 @@
 	let hasAnything = $derived(chapters.length > 0 || unfiled.length > 0);
 
 	function itemHref(item: CourseItem): string {
-		if (item.kind === 'material') return resolve('/materials/[id]', { id: item.material ?? '' });
+		if (item.kind === 'material')
+			return localizedPath(resolve('/materials/[id]', { id: item.material ?? '' }));
 		if (item.kind === 'exercise') return resolve('/exercises/[id]', { id: item.exercise ?? '' });
 		if (item.kind === 'attachment') {
 			// A course file has no page of its own outside the course — that is the whole point of an
@@ -400,7 +401,7 @@
 				return resolve('/exercises/[id]', { id }) + anchor;
 			case 'material':
 			case 'materialCoverage':
-				return resolve('/materials/[id]', { id }) + anchor;
+				return localizedPath(resolve('/materials/[id]', { id })) + anchor;
 			case 'service':
 				return localizedPath(resolve('/tutoring/[id]', { id })) + anchor;
 			case 'taughtCourse':

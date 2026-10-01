@@ -78,7 +78,7 @@
 	 * honest answer rather than a link that lands somewhere unrelated. */
 	function href(item: ActivityItem): string | undefined {
 		if (item.exerciseId) return resolve('/exercises/[id]', { id: item.exerciseId });
-		if (item.materialId) return resolve('/materials/[id]', { id: item.materialId });
+		if (item.materialId) return localizedPath(resolve('/materials/[id]', { id: item.materialId }));
 		if (item.serviceId) return localizedPath(resolve('/tutoring/[id]', { id: item.serviceId }));
 		if (item.setId) return resolve('/sets/[id]', { id: item.setId });
 		if (item.courseId) return resolve('/courses/[id]', { id: item.courseId });

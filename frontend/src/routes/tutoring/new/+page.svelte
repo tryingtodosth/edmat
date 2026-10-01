@@ -20,7 +20,7 @@
 
 	async function handleSubmit(draft: ServiceDraft) {
 		await createService(draft);
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts.
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts.
 		goto(localizedPath(resolve('/tutoring')));
 	}
 </script>

@@ -333,7 +333,6 @@
 					>
 						{m.profile_sendMessage()}
 					</a>
-					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 				{/if}
 			</div>
 		</section>
@@ -520,7 +519,6 @@
 								/>
 							</a>
 						{:else}
-							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
 							<a href={localizedPath(resolve('/tutoring/[id]', { id: row.review.serviceId }))}>
 								{m.profile_reviewOn({
 									title: serviceTitleById[row.review.serviceId] ?? row.review.serviceId

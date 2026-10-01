@@ -255,7 +255,7 @@
 					<!-- The watchlist used to be its own top-level nav item, which spent a slot in the
 					     main bar on something only a signed-in person who follows tutors ever opens. It
 					     belongs with tutoring, which is the only thing it watches. -->
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
 					<a class="watchlist-link" href={localizedPath(resolve('/tutoring/watchlist'))}>
 						{m.nav_watchlist()}
 					</a>

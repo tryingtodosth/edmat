@@ -39,7 +39,7 @@
 	<div class="service-card__heading">
 		<svelte:element this={`h${headingLevel}`} class="service-card__title">
 			{#if linkTitle}
-				<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting, and the href sits inside a multi-line tag where no HTML comment fits. See lib/utils/localizedPath.ts. -->
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. The href is inside a multi-line tag, where a next-line comment cannot be placed. -->
 				<a
 					class="service-card__title-link"
 					href={localizedPath(resolve('/tutoring/[id]', { id: service.id }))}

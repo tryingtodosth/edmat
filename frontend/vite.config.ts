@@ -42,10 +42,11 @@ export default defineConfig({
 		paraglideVitePlugin({
 			project: './project.inlang',
 			outdir: './src/lib/paraglide',
-			// The ONE localized address on this site (owner's call, 2026-10-01). The root CLAUDE.md
+			// The localized addresses on this site (owner's call, 2026-10-01). The root CLAUDE.md
 			// says URL segments are neutral English — `/branches/`, not `/przedmioty/` — and that rule
-			// still holds for every other route; tutoring is the deliberate exception, because "korki"
-			// is the word Polish readers search for and the address is the first thing they read.
+			// still holds for every other route; these two are the deliberate exceptions, because
+			// "korki" and "materiały" are the words Polish readers search for and the address is
+			// the first thing they read.
 			//
 			// Three things make this work together, and all three are needed:
 			//
@@ -70,6 +71,15 @@ export default defineConfig({
 					localized: [
 						['pl', '/korki/:rest(.*)?'],
 						['en', '/tutoring/:rest(.*)?']
+					]
+				},
+				{
+					// The second localized address, added with the materials pass on 2026-10-01 for
+					// the same reason as the first: the owner asked for the hub by both names.
+					pattern: '/materials/:rest(.*)?',
+					localized: [
+						['pl', '/materialy/:rest(.*)?'],
+						['en', '/materials/:rest(.*)?']
 					]
 				},
 				{

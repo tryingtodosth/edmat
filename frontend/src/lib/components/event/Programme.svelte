@@ -6,6 +6,7 @@
 	 * built while looking at it. */
 	import { m } from '$lib/paraglide/messages.js';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { onMount } from 'svelte';
 	import type { EdmatEvent, Session, SessionDraft, Track } from '$lib/types/event';
 	import {
@@ -93,7 +94,7 @@
 	}
 	function linkHref(l: Session['links'][number]): string {
 		if (l.kind === 'material' && l.materialId)
-			return resolve('/materials/[id]', { id: l.materialId });
+			return localizedPath(resolve('/materials/[id]', { id: l.materialId }));
 		if (l.kind === 'exercise' && l.exerciseId)
 			return resolve('/exercises/[id]', { id: l.exerciseId });
 		if (l.kind === 'set' && l.setSlug) return resolve('/sets/[id]', { id: l.setSlug });

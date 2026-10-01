@@ -45,7 +45,7 @@
 
 	function href(): string | null {
 		if (item.exerciseId) return resolve('/exercises/[id]', { id: item.exerciseId });
-		if (item.materialId) return resolve('/materials/[id]', { id: item.materialId });
+		if (item.materialId) return localizedPath(resolve('/materials/[id]', { id: item.materialId }));
 		if (item.courseId) return resolve('/courses/[id]', { id: item.courseId });
 		if (item.eventId) return resolve('/events/[id]', { id: item.eventId });
 		if (item.serviceId) return localizedPath(resolve('/tutoring/[id]', { id: item.serviceId }));

@@ -328,7 +328,8 @@
 			<section class="section">
 				<div class="section__head">
 					<h2>{m.home_materials_heading()}</h2>
-					<a href={resolve('/materials')}>{m.home_seeAll()}</a>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+					<a href={localizedPath(resolve('/materials'))}>{m.home_seeAll()}</a>
 				</div>
 				{#if materials.length === 0}
 					<p class="status">{m.home_noResults()}</p>
@@ -377,7 +378,7 @@
 			<section class="section">
 				<div class="section__head">
 					<h2>{m.home_tutoring_heading()}</h2>
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
 					<a href={localizedPath(resolve('/tutoring'))}>{m.home_seeAll()}</a>
 				</div>
 				{#if services.length === 0}

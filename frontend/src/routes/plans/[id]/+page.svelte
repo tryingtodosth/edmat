@@ -9,6 +9,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
@@ -73,7 +74,7 @@
 		if (!node) return resolve('/');
 		if (node.kind === 'course') return resolve('/courses/[id]', { id: node.id });
 		if (node.kind === 'event') return resolve('/events/[id]', { id: node.id });
-		if (node.kind === 'material') return resolve('/materials/[id]', { id: node.id });
+		if (node.kind === 'material') return localizedPath(resolve('/materials/[id]', { id: node.id }));
 		return resolve('/');
 	}
 

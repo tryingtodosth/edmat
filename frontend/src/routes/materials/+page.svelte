@@ -19,6 +19,13 @@
 	import StaleRow from '$lib/components/shared/StaleRow.svelte';
 	import { cachedList, type TrackedRow } from '$lib/state/cachedList.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import { resolve } from '$app/paths';
+	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+
+	let canAddMaterial = $derived(
+		featureFlagsStore.isEnabled('material_submissions') || authStore.isModerator
+	);
 
 	let fields = $state<Discipline[]>([]);
 	let materials = $state<TrackedRow<Material>[]>([]);
@@ -115,6 +122,26 @@
 		<h1>{m.materialsHub_heading()}</h1>
 		<HiddenLanguagesNotice path="/materials/" />
 		<p>{m.materialsHub_subtitle()}</p>
+		<!-- Making a material starts HERE, from 2026-10-01, by owner decision. "Start a material
+		     with others" left the "Add…" menu entirely and this is where it went; the plain submit
+		     link is repeated here beside it, because the two are one question with two answers
+		     ("by myself" / "with other people") and splitting them across two surfaces is how a
+		     reader stops knowing the second one exists.
+		     One flag for both, `material_submissions`, which is what gates STARTING a material
+		     either way — `coauthoring` gates what happens inside a project afterwards, and a
+		     project with a team of one is still somebody uploading a material. `|| isModerator`
+		     mirrors `FeatureGate` and the backend's own staff bypass. Signed-in only: an offer to
+		     create something that lands on a login wall is worse than no offer. -->
+		{#if authStore.isAuthenticated && canAddMaterial}
+			<div class="add-bar">
+				<a class="btn-primary" href={resolve('/submit-material')}>{m.nav_submitMaterial()}</a>
+				<!-- "Submit material" -->
+				<a class="btn-secondary" href={resolve('/material-projects/new')}>
+					{m.nav_startMaterialProject()}
+					<!-- "Start a material with others" -->
+				</a>
+			</div>
+		{/if}
 	</header>
 
 	<RecommendedMaterials />
@@ -149,6 +176,20 @@
 </div>
 
 <style lang="scss">
+	@use '../../lib/styles/mixins' as mix;
+	.add-bar {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin-top: var(--space-3);
+	}
+	.btn-primary {
+		@include mix.button-primary;
+	}
+	.btn-secondary {
+		@include mix.button-secondary;
+	}
+
 	.page {
 		max-width: 1100px;
 		margin: 0 auto;

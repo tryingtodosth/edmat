@@ -37,12 +37,12 @@ const config = {
 		// cached across visits. 8 KB rather than 5: the threshold is RAW bytes, and two ~6 KB component
 		// sheets (1.7 KB on the wire) were still being linked — PageSpeed's next run named them.
 		inlineStyleThreshold: 65536,
-		// `/korki` is the Polish address of the `tutoring` route (vite.config.ts `urlPatterns`). It is
+		// `/korki` and `/materialy` are the Polish addresses of the `tutoring` and `materials` routes (vite.config.ts `urlPatterns`). It is
 		// not a route directory, so `'*'` — every non-dynamic route, the default — does not reach it,
 		// and without this entry the default-locale reader lands on the SPA fallback for the one hub
-		// page the navbar links to. The prerenderer runs `hooks.ts`'s reroute, so it resolves the same
-		// page and writes `korki.html` beside `tutoring.html`.
-		prerender: { entries: ['*', '/korki'] }
+		// page the navbar links to. The prerenderer runs `hooks.ts`'s reroute, so each resolves the
+		// same page and writes `korki.html`/`materialy.html` beside their English twins.
+		prerender: { entries: ['*', '/korki', '/materialy'] }
 	}
 };
 

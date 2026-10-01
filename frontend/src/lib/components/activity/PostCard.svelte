@@ -5,6 +5,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { Comment, Post, User } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -139,9 +140,13 @@
 				>{m.post_refExercise({ title: post.refExerciseTitle ?? '' })}</a
 			>
 		{:else if post.refMaterialId}
-			<a class="post__ref" href={resolve('/materials/[id]', { id: post.refMaterialId })}
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. Prettier puts the href on its own line here, where a next-line comment cannot reach it. See lib/utils/localizedPath.ts. -->
+			<a
+				class="post__ref"
+				href={localizedPath(resolve('/materials/[id]', { id: post.refMaterialId }))}
 				>{m.post_refMaterial({ title: post.refMaterialTitle ?? '' })}</a
 			>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		{:else if post.refCourseId}
 			<a class="post__ref" href={resolve('/courses/[id]', { id: post.refCourseId })}
 				>{m.post_refCourse({ title: post.refCourseTitle ?? '' })}</a

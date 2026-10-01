@@ -6,6 +6,7 @@
 	// avoid, and the person who spent time offering something deserves a sentence back.
 	import { m } from '$lib/paraglide/messages.js';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { CourseItem } from '$lib/types/course';
 
 	let {
@@ -27,7 +28,7 @@
 
 	function href(item: CourseItem): string {
 		return item.kind === 'material'
-			? resolve('/materials/[id]', { id: item.material ?? '' })
+			? localizedPath(resolve('/materials/[id]', { id: item.material ?? '' }))
 			: resolve('/exercises/[id]', { id: item.exercise ?? '' });
 	}
 </script>

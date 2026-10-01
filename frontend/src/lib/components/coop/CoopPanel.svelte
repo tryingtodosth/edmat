@@ -11,6 +11,7 @@
 	// The design choice is a per-viewer convenience (localStorage, wrapped), never state anybody
 	// else needs; a private window simply gets the default every time.
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { m } from '$lib/paraglide/messages.js';
 	import { formatDate } from '$lib/utils/datetime';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -122,7 +123,8 @@
 		</div>
 
 		<div class="actions">
-			<a class="link" href={resolve('/materials/[id]/coop', { id: materialId })}>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+			<a class="link" href={localizedPath(resolve('/materials/[id]/coop', { id: materialId }))}>
 				{m.coop_panel_openPage()}
 				<!-- "Cooperation page" -->
 			</a>

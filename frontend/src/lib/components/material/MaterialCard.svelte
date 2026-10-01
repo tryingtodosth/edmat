@@ -14,6 +14,7 @@
 	// two votable groups — "Covers" and "Requires" — with a plain "+N more" count, never the full
 	// list; the full, sortable, votable list lives on the detail page.
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { Material, MaterialCoverage } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { claimsOfKind, coverageDepth } from '$lib/utils/coverage';
@@ -105,11 +106,16 @@
 <article class="material-card">
 	<div class="material-card__heading">
 		{#if linkTitle}
-			<a class="material-card__title-link" href={resolve('/materials/[id]', { id: material.id })}>
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. Prettier puts the href on its own line here, where a next-line comment cannot reach it. See lib/utils/localizedPath.ts. -->
+			<a
+				class="material-card__title-link"
+				href={localizedPath(resolve('/materials/[id]', { id: material.id }))}
+			>
 				<svelte:element this={`h${headingLevel}`} class="material-card__title"
 					><MathTitle text={material.title} /></svelte:element
 				>
 			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		{:else}
 			<svelte:element this={`h${headingLevel}`} class="material-card__title"
 				><MathTitle text={material.title} /></svelte:element
@@ -164,7 +170,8 @@
 			{/if}
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{#if showRead}
-				<a class="download" href={resolve('/materials/[id]', { id: material.id })}>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
+				<a class="download" href={localizedPath(resolve('/materials/[id]', { id: material.id }))}>
 					{m.material_read()}
 					<!-- "Read" -->
 				</a>
