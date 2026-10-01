@@ -11014,3 +11014,201 @@ then with a session cookie set (403). The fix verified the same way:
   production are still a decision. On `todo.md`.
 - The reports `/dziennik` files are `is_public=False`, so they reach the admin and not `/issues`
   without "include private". Whether the demo should file publicly is undecided.
+
+---
+
+## 17BQ. `manage.py import_exercises`: a way back into the corpus, and a skill that explains it (2026-10-01)
+
+**Why.** Adding exercises in bulk had no supported path. `/submit` is one exercise at a time through
+the moderation queue, by design. The only batch tool was `import_legacy_corpus`, and it had been dead
+since the taxonomy restructure (commit 420bf41) without anybody noticing — running it on 2026-10-01
+produced `FieldError: Cannot resolve keyword 'field'` on the first row. Three independent breakages:
+`DisciplineTranslation(field=…)` and `Branch(field=…)` (the FK is `discipline` now), a
+`Branch(university=…)` the model no longer has, and a glob over `content/branches/*/branch.yaml`
+when the corpus on disk is `content/courses/*/course.yaml`. It is kept, unrepaired, as provenance:
+its slugs are the pre-restructure shape (`uw-matematyka-am2` — a university's subject), so a
+"fixed" run would recreate exactly the conflation the restructure removed.
+
+**What was built.** `exercises/management/commands/import_exercises.py` — same file format (YAML front
+matter + `##` sections, Polish or English headings), current schema, any branch. Idempotent by
+`(branch, number)`, the exercise's own `unique_together`. A file with no `number:` gets one allocated
+from the branch's highest (stepping over numbers the batch claims explicitly) **and written back into
+the file**, because a batch whose numbers live only in the database duplicates itself on the second
+run — and there is no external-id column to key on instead. `--dry-run` validates and rolls back.
+
+Validation runs over the whole batch first and **one bad file imports nothing**, with every problem in
+every file listed in one report. What it refuses was chosen from what the schema actually punishes:
+unknown front-matter keys (a mistyped `tag:` would be silently dropped), `verified:` (derived from the
+solution pool — the error says so and says what to do instead), a `## heading` that is not one of the
+four (its text would vanish), unbalanced `\( \)` / `\[ \]`, two files claiming one number, a topic the
+branch does not have unless `--create-topics`.
+
+Deliberate asymmetries, each with the reason in the module docstring: topics are `.set()` from the
+file (structure the file is asserting), tags are `.add()`ed (a reader may have applied one, and
+`.set()` would undo that on every re-run); no activity row and no tag-follower notification; nothing
+sanitizes here because `ExerciseTranslation.save()` and `SolutionEntry.save()` already do, which is
+also why a `<script>` in a source file is dropped rather than refused; `recount_verified` is called
+per row instead of trusting the entry signals, so a row with no solution at all is still correct.
+
+**The skill.** `.claude/skills/import-exercises/SKILL.md` plus `reference/format.md` (every key,
+every section heading, every refusal) and `reference/alternatives.md` (the submission API, the
+translation route, why `import_legacy_corpus` is dead, and the four things a hand-written ORM script
+gets wrong). Written for an LLM that has never seen this repo: the first section is "one exercise is
+not one row". A row was added to the root `CLAUDE.md` doc table so it is reachable without
+`.claude/` ever being read.
+
+**Verified by running it.** The validation report on a deliberately broken file; a real import into
+the dev database (two rows, one numbered 9001, one allocated 389), the write-back, a second run
+reporting `0 created, 2 updated`, and the resulting rows inspected directly — `verified=True` on the
+one with a solution, `False` on the one without, `source.type='exam'` from `Egzamin`, the pinned
+entries published and authorless. Both demo rows were then removed again. `manage.py test exercises`
+is **131 tests, OK**; the eight new ones (`ImportExercisesCommandTests`) lock in each property the
+skill promises — including the one found while reviewing the first draft: an import must never move
+`published` back **up**, because an unpublished row is a moderator's removal or a report-driven
+auto-hide, and re-running the batch it came from is not an appeal.
+
+### Left open
+
+- **`npm run check:katex` could not be run**: only Node 18 is on this machine's `PATH` and `tsx`
+  needs 24+. The sweep is step 6 of the skill's own procedure; it has not been run against an
+  import yet.
+- **No figures.** An exercise whose statement needs a picture cannot be imported — attachments and
+  inline images are user-facing endpoints only. The skill says to wait rather than ship the row
+  with the picture missing.
+- Also not built, and named in the skill: `ExerciseMaterialLink`, `ExerciseRequirement`, subtopics,
+  a per-file author, any unpublish/delete path, and CSV/LaTeX input.
+
+---
+
+## §17BQ — the owner's 2026-10-01 list: a trimmed bar, a stated mission, two Polish addresses, and the other half of the needs board
+
+One checklist, given and then twice extended while the work was in flight. Branch
+`ux/mission-nav-tutoring-volunteering`, based on `e450276` — the tree `UPDATE-20260925-f` was
+packed from, which is what is on prod.
+
+Three decisions were taken with the owner before any code, because each would have changed the
+shape of the work: localized URLs as *real* localized paths rather than aliases; `/volunteering`
+for the public offers board (so the shifts rota's hours page moves under it); and the offers model
+in the `needs` app rather than as a `services.Service` kind or a new app.
+
+### The navbar carries the mission, and Events is a calendar
+
+The bar had grown to seven browse links and was saying that Materials, Courses and Concepts are as
+central as the exercises. They leave it: Exercises, Help wanted, Tutoring, About, and Events last
+as an icon at every width. Nothing is killed and no flag changed — Materials and Courses are still
+home-page tabs, all three are still `/about` cards, every route is untouched behind an untouched
+switch. What went away is the claim the bar was making.
+
+Because the item lists are snippets rendered into both the desktop popover and the phone drawer,
+removing a link removes it from both — which is the point. Events being an icon means its rule
+carries no media query, so stages 0, 1, 4 and 9 of the staged collapse went with the links they
+collapsed and About took the vacated stage-0 width.
+
+Four entries left the account menus in the same pass, all by owner decision and none killed: "New
+concept", "Add a course", "New organisation" and the school-logbook demo link. Each surface keeps
+its own create control; what stops is the site offering them from every page. Three flags lost
+their last reader in the header and are no longer read there at all.
+
+### `/about` says what EdMat is for
+
+Three numbered pillars under the hero, ordered because the order is the argument: people run
+courses here; materials are catalogued and reviewed rather than merely uploaded; **tutoring is the
+motivation**. The third says the quiet part — a tutor's listing is where standing earned here turns
+into students, which is a better answer to "why would anybody write all this down?" than altruism
+alone — and repeats, where somebody actually reads it, what `FINANCES.md` requires.
+
+### `/tutoring`, and `/korki` in Polish
+
+A deliberate exception to the neutral-English URL rule, taken with the owner, who was told the rule
+and chose it anyway. `/materials` ↔ `/materialy` followed an hour later, when the answer to "rename
+'Zacznij materiał z innymi' to what?" turned out to be "make this only available in /materials and
+/materialy" — so that entry moved to the materials hub rather than being renamed, and the hub now
+carries both ways to make a material side by side.
+
+Three pieces, all needed: `urlPatterns` in `vite.config.ts` (order matters, and the catch-all is
+not optional — without it Paraglide's default pattern starts emitting `/en/...`); the `hooks.ts`
+reroute that already existed; and `localizedPath()` at the call site. It is reactive, because
+`locale.svelte.ts` overwrites `getLocale` with a rune: the picker rewrites the address with no
+reload. Both Polish addresses are prerendered by name, because `pl` is the base locale.
+
+**One thing cost an afternoon and is written down so it is not repeated.**
+`svelte/no-navigation-without-resolve` accepts an href typed exactly `ResolvedPathname`, which
+`localizedPath` returns — so turning type-aware linting on (`projectService`, src only, no
+type-checked rule set) removed every disable comment, and the rule still caught a planted bare
+href. Then `npx eslint .` took 13 minutes and died with a heap out-of-memory core dump, against 19
+seconds without it. A verification command that cannot finish is worse than a comment. Eighteen
+comments, each naming the helper.
+
+### A solution can be a scan, a structure, a sketch or a PDF
+
+"Make adding solution as PDF, image, Chemistry, etc. work" — it did not, and the reason was narrow:
+the composer on the exercise page had a `RichEditor` and no `InsertStrip` beside it. Three of the
+four ways go into the body and cost nothing but mounting the strip. A PDF cannot, so
+`SolutionEntryAttachment` is `community.CommentAttachment` again — same limit, same
+`process_attachment`, same allowance, same random stored name. A failed upload does not lose the
+entry: the words are already saved, so failures are counted and said out loud.
+
+The same strip went onto all four content fields of `/submit` and onto the tutoring listing's
+description, which also started rendering (`MathContent`) — and therefore started being sanitized
+on write, in the same commit, with the seven refusal tests that widening owes.
+
+### Volunteering offers, in different languages
+
+`needs` now holds both sides. The shared vocabulary is why living in one app pays: an offer reuses
+`NEED_KIND_CHOICES` and `SKILL_LEVEL_CHOICES` verbatim.
+
+"In different languages" turned out to be two questions. `language` is what the offer is *written*
+in — the platform's existing content axis, so `?content_locales=` narrows the board and the hidden
+count rides back in the usual header. `spoken_languages` is what the volunteer can *help* in, which
+is a fact about the person and the one somebody searching usually means: an advert typed in Polish
+by somebody who also speaks Ukrainian is exactly the row a family looking for Ukrainian-speaking
+help needs to find. Collapsing the two would have lost whichever was collapsed away.
+
+`?speaks=` filters in Python, because `JSONField.__contains` raises `NotSupportedError` on SQLite.
+
+### One inbox, if you ask for it
+
+`Profile.combined_inbox`, default off — which is exactly what everybody already has, down to the
+two icons. On: the envelope leaves the header, the bell counts both, and the unread conversations
+appear above the notifications. It is deliberately not one of the notify-on-* switches it sits
+above: those decide whether a row is ever *created*; this only decides where two existing lists are
+drawn.
+
+### What the browser found that nothing else did
+
+Two selector mistakes in the verification script looked like product bugs and were not (the
+strip's picture and PDF controls are `<label>`s wrapping file inputs, not buttons; the settings
+page's first submit button is not the save button). One real bug was found by **looking at the
+screenshot**: the offer form had a 150px hole under its title box, because `flex: 1 1 12rem` on
+every `.field` is read as a *height* for the ones that are direct children of a column flex
+container. `svelte-check`, eslint and a production build all pass on it. House rule 2, again.
+
+### Verified
+
+`manage.py test` per app: `services` 76, `exercises community` 200, `needs` 44, `moderation` 119,
+`accounts` 128 — all OK. `npm run check` 0/0, `npx eslint src` clean, `npm run build` green with
+`korki.html` and `materialy.html` in the output. A real browser against real servers: an offer
+posted through the real form and found again by its spoken language, `/korki` ↔ `/tutoring`
+rewriting live as the picker moves, a real PDF attached to a real solution and opened in place, and
+the inbox preference turning the envelope off and back on. 31 checks, 0 failures, no console
+errors.
+
+### Left open
+
+- **`moderation.FeatureFlagTests` had been failing on this branch before any of this** —
+  `school_demo` was seeded on 2026-09-25 and never added to its expected set. Fixed here, with
+  `volunteering`, but it is worth noticing that a stale assertion sat green-adjacent for a week
+  because nobody ran that suite.
+- **`npm run lint` still fails on three files this work did not touch** (`e2e/decisions.mjs`,
+  `e2e/event-shifts.mjs` were already unformatted; `Footer.svelte` was too and picked up a
+  reformat in passing). `prettier --check` runs before eslint, so the whole command is red until
+  somebody formats them.
+- **The e2e scripts were edited but not run.** They need both servers and seeded demo users, and
+  the run belongs with a browser pass rather than with the edit; `node --check` passes on all
+  eight. The ad-hoc script that WAS run covers the same ground for the new surfaces.
+- **No merged inbox FEED** — the conversations are a strip above the notifications, not rows
+  interleaved by time, which would need one endpoint that can order two tables together.
+- **No way to answer a volunteering offer except to message the volunteer**, no matching between
+  the two boards, no `/wolontariat`, and no thread/report/activity row on an offer.
+- **The footer still links `/dziennik`.** The owner named the user menu; the footer is a different
+  surface, and widening the ask is not this pass's call.

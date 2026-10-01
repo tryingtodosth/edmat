@@ -121,3 +121,94 @@ Browser: `frontend/e2e/needs.mjs`.
   on the node — each need's own applications queue lives on its `/needs/{id}` page instead. Adding
   the badge would mean either an extra request per need in the panel or a new field on the list
   serializer; left for whoever needs the panel to say more before opening it.
+
+---
+
+# The supply side: `VolunteeringOffer` (2026-10-01)
+
+Added by owner request ("make it possible to add /volunteering offers, in different languages"),
+and placed in **this** app rather than a new one by the owner's own choice between three shapes.
+
+`Need` is the demand side — a course, an event or a material saying what it needs.
+`VolunteeringOffer` is the supply side — a person saying what they can do, attached to no node.
+
+## Why it lives here
+
+The shared vocabulary is the payoff. An offer reuses `NEED_KIND_CHOICES` and
+`SKILL_LEVEL_CHOICES` verbatim, so "expertise, advanced" means one thing on both boards and a
+future matcher has one vocabulary to join on rather than two that nearly agree.
+
+It is deliberately **not** a `services.Service` with a `kind` column, which was the other
+candidate: a Service carries a rate, a currency, a bookable calendar and a reviews table, every one
+of which is wrong here. `FINANCES.md` governs both, but a volunteering offer should not have a
+money field to leave empty — just as `Need.estimated_hours` is time, never a rate.
+
+## Two language fields, on purpose
+
+- **`language`** is what the offer is WRITTEN in. It is the platform's existing content axis, so
+  `config/content_locale.apply_content_locale_filter(qs, params, 'language')` narrows the board and
+  the hidden count rides back in `X-EdMat-Hidden-Languages`. Same field, same name, same job as
+  `services.Service.language`.
+- **`spoken_languages`** (a `JSONField` list) is what the volunteer can HELP in. That is a fact
+  about the person, not the text, and it is what somebody searching usually means: an advert typed
+  in Polish by somebody who also speaks Ukrainian is exactly the row a family looking for
+  Ukrainian-speaking help needs to find. Normalised in `save()` — lower-cased, de-duplicated,
+  capped at `MAX_SPOKEN_LANGUAGES` — so the admin and any importer get the same answer the API
+  does; the serializer refuses more than the cap rather than truncating silently.
+
+**`?speaks=` filters in Python, not SQL.** `JSONField.__contains` raises `NotSupportedError` on
+SQLite (`backend/CLAUDE.md`'s list). The list is bounded by construction like every list here, so
+walking it is honest; on PostgreSQL this could become one `contains`. The alternatives were a child
+table for two columns, or `icontains` against the raw JSON, which matches a substring of a code as
+happily as a code.
+
+## Shapes
+
+- **`status` is one field**: `open` → `paused` ("not right now, ask me later") → `closed`. Never a
+  pair of booleans.
+- **`public_offers(user)`** is the one visibility rule, read by the list AND by `get_object()`, so
+  a stranger reaching for a paused offer gets 404 rather than 403 (house rule 4). Staff see
+  everything, because a reported offer must be readable by whoever decides the report.
+- **Seeing is not editing.** `public_offers` shows staff every row, and staff are not the author —
+  so writes ask `_mine_or_404()` explicitly. `update` covers **PATCH and PUT** through one method,
+  the lesson `NeedViewSet.update` already records.
+- **DELETE really deletes**, unlike most things here (house rule 12 asks for a tombstone where a
+  thread or a link would break; nothing links to an offer, there are no applications and no
+  messages anchored to it, so there is nothing to orphan and nothing worth keeping).
+- **A minor may not publish one** (`rules.MINOR`, 403) — the same refusal a tutoring listing makes
+  and for the same reason: a public posting inviting strangers to make contact. They can still
+  volunteer at an event, where an organiser is accountable for them.
+- **The description is sanitized on write**, because it renders as content (`MathContent` on both
+  the card and the detail page): Markdown, literal LaTeX, links and an `<img data-chem>`.
+
+## Its own feature flag
+
+`volunteering`, not `needs`. Two boards, two questions, and the owner may want one without the
+other. A three-file change as always — `moderation` choices + migration 0046,
+`frontend/src/lib/types/featureFlag.ts`, `frontend/src/lib/utils/labels.ts`.
+
+## API
+
+```
+GET    /api/volunteering-offers/          the board: ?kind= ?remote=1 ?q= ?speaks= ?mine=true
+POST   /api/volunteering-offers/          signed-in adults
+GET    /api/volunteering-offers/{id}/     404 where public_offers() would omit it
+PATCH|PUT|DELETE /api/volunteering-offers/{id}/   the volunteer's own, else 404
+```
+
+Frontend: `lib/types/need.ts`, `lib/services/needs.ts` (same file as the demand side — same app,
+same vocabulary), `components/needs/OfferForm.svelte`, `/volunteering`, `/volunteering/new`,
+`/volunteering/mine`, `/volunteering/[id]`. **`/volunteering/hours` is NOT this feature** — it is
+the shifts rota's own page, behind `shifts`, which moved there when the board took the address.
+
+## Left open
+
+- **No way to answer an offer except to message the volunteer.** The demand side has applications
+  and a decision; there is nothing here to apply TO. A record-keeping "ask this person" flow is a
+  real feature and a bigger one than this step.
+- **No matching between the two boards**, which is the obvious next step now that they share a
+  vocabulary — the same shape as the profile-skills join already named above.
+- **No Polish address** (`/wolontariat`) the way `/korki` and `/materialy` have one. Not asked for;
+  the neutral-English rule is the default.
+- **No thread, no reports, no activity row** on an offer — `community`'s, `moderation`'s and
+  `activity`'s registries are each a deliberate allowlist, and widening one is its own decision.

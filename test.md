@@ -88,6 +88,7 @@ inherit from it rather than repeating the line.
 | `concepts` (92) | Wiki articles per audience built from blocks (`CONCEPTS-BRIEF.md`, root `HISTORY.md` §17BD) — weighted at refusals and races: a stranger gets **404** on a concept whose only article has only a pending revision while its author gets 200, a verified contributor's first revision is `published` and a plain user's `pending`, a minor verified contributor still queues, the article's author can decide a stranger's revision of it and a stranger cannot, a stale submit is **409 carrying the head** and a second decision is 409, exactly one `published` per article after two accepts (supersede-first), reject needs a note, withdraw and draft PATCH/DELETE by the author only, `draft_exists`, two articles on one page order pinned-first then newest head and `?article=` picks the other, `resolve_page`'s fallback order with its exact flags, the list narrowing by `content_locales` with the hidden count and `?audience=all` NOT narrowing, `?q=` finding a word inside a formula's source, `clean_blocks` refusing an unknown kind / an over-long body / a missing asset / an image asset in a pdf block and stripping a `<script>`, `expand_blocks` at two queries for any number of blocks, an asset upload re-encoding a PNG and refusing a PE named `.pdf`, the quota counting assets, the link circle (adder / staff / governor / stranger / minor), self-link, prerequisite on an exercise, duplicate 409, body links harvested across articles and re-synced when a mention goes while manual rows stay, `body_origin` refusal, the chip-row read listing only visible concepts and `[]` with the flag off, the queue section branch-scoped for a governor and unscoped for staff with a branch-less concept reaching staff only, the three notifications gated by preference and carrying `concept_slug`, a feed row on first publish and on a later one and none for a draft, report removal hiding the article and — when it was the last — the concept and its backlinks, tag apply with `kind='concept'`, and `seed_concepts` idempotent |
 | `materials` validators (7) | `materials/test_validators.py` — moved unchanged when `MaterialSubmission` was retired: a real PDF/PNG/LaTeX accepted, an executable renamed `.pdf` refused, an oversized file refused, a disallowed extension refused, and `scan_for_malware` degrading honestly with no daemon reachable |
 | `exercises` material links (39) | `exercises/test_material_links.py` (26) + `moderation/test_submission_material_links.py` (13) — exercises attached to materials (`HISTORY.md` §17BE): listing and linking, a duplicate pair 409, an unpublished exercise 404, the scoped PATCH/DELETE (creator, staff, the material's governor and its submitter may; a stranger gets 404), the `?material=` filter, the reverse listing, and a submission that names a material becoming a real link on approval — on the moderator's path and on the verified-contributor fast path alike |
+| `exercises` batch import (8) | `ImportExercisesCommandTests` in `exercises/tests.py` — `manage.py import_exercises` (root `HISTORY.md` §17BQ, `.claude/skills/import-exercises/SKILL.md`). One file becomes an Exercise + its one published translation + two **pinned** entries + a source row; `verified` is **derived** (true for the file with a `## Rozwiązanie`, false for the one without) and never read from front matter; a second run is `0 created, 2 updated` and a tag a reader applied in between **survives** it; a file with no `number:` gets one and has it written back, which is what makes the re-run an update; one bad file (unknown difficulty, `verified:`, an unknown `## heading`, unbalanced maths) imports **nothing**; an unknown topic is refused until `--create-topics`; a re-run **does not republish** a row somebody hid; `--dry-run` writes nothing |
 | `exercises`, `materials`, `community`, `study`, `services`, `messaging`, `notifications`, `telemetry`, `accounts` | Their own domains |
 
 #### `classroom` in more detail (the newest, and the most rule-heavy)
@@ -1738,3 +1739,46 @@ Two scripts were taught to wait for the element they check (`work.mjs`, `events-
 event page draws five management panels now, and a read the instant `goto` returns sees "Loading…".
 The first pass's 38 five-hundreds were `no such table: decisions_poll` — run `manage.py migrate` after
 merging a branch that adds a model, before starting the servers. `HISTORY.md` §17BI is the record.
+
+---
+
+## 2026-10-01 — the owner's list (`ux/mission-nav-tutoring-volunteering`, `HISTORY.md` §17BQ)
+
+**New backend suites.** `services.tests.ServiceDescriptionSanitizeTests` (7) — the refusal set that
+rendering a listing's description owes: a script tag, an event handler, a `javascript:` URI, a
+surviving plain link, untouched LaTeX delimiters, a chemistry drawing that keeps its `class`, and
+the PATCH path as well as the POST. `exercises.test_solution_entries.EntryAttachmentTests` (8) —
+the PDF round trip, a photographed page re-encoded to WebP under a random name, a disguised
+executable refused, a stranger refused, the fourth file a 409, a removed entry refusing, the
+shared upload allowance, and who may take one back. `needs.tests.VolunteeringOfferTests` (12) —
+who may post, the minor refusal, both kill switches, a paused offer's visibility, PUT as well as
+PATCH, and the two language axes (`?content_locales=` on what the offer is written in, `?speaks=`
+on what the volunteer can help in).
+
+Run: `manage.py test services exercises community needs moderation accounts`. All green at the
+time of writing — `services` 76, `exercises community` 200, `needs` 44, `moderation` 119,
+`accounts` 128.
+
+**`moderation.tests.FeatureFlagTests` was already failing on this branch** before this work:
+`school_demo` was seeded on 2026-09-25 and never added to its expected key set. It now lists both
+that and `volunteering`. A new flag means a line there as well as the three files the root
+`CLAUDE.md` names.
+
+**Browser scripts changed, and NOT run** (they need both servers and seeded demo users; `node
+--check` passes on all eight). `navbar-stages.mjs` needed real surgery — three of its stages went
+with the links they collapsed, About took stage 0, and Events is an icon at every width, so the
+widest-width check now makes an exception for it. `events-and-nav.mjs` no longer expects
+"Wydarzenia" as nav TEXT (it is an aria-label now) and pins the four removed Add-menu entries as
+absences. `about-page.mjs` matches `/tutoring` **or** `/korki` and counts eight cards.
+`booking`, `tutoring-modals`, `tutoring-cache`, `audience-bands`, `sorting-and-languages`: browser
+navigations move to `/tutoring`. **Their `api('/services/')` calls are untouched and correct** —
+the Django app is not renamed, only the frontend route. `scripts/check_accessibility.ts` likewise.
+
+**What was actually driven in a browser**, against `./run.sh` on 8000/5173, signed in as `kasia`:
+an offer posted through the real form and found again by its spoken language and not by one nobody
+speaks; `/korki` ↔ `/tutoring` rewriting live as the language picker moves, with no reload; the
+solution composer offering Markdown, LaTeX, JSON, Chemistry, Sketch, Picture and PDF; a real PDF
+attached to a real solution and opened in place; the inbox preference taking the envelope away and
+giving it back. 31 checks, 0 failures, no console errors, screenshots looked at — which is how the
+one real bug of the pass was found (a 150px hole in the offer form that every automated check
+passed).

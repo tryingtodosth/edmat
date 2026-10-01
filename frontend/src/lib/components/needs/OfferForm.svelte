@@ -201,6 +201,13 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.3rem;
+	}
+	// `flex: 1 1 12rem` belongs ONLY to a field inside a `.row`. Applied to every `.field`, the
+	// 12rem basis is read as a HEIGHT for the ones that are direct children of this column flex
+	// container — which painted a 150px hole under the title box. Found by looking at a
+	// screenshot, which is the only way it was ever going to be found: `svelte-check`, eslint and
+	// a production build all pass on it.
+	.row .field {
 		flex: 1 1 12rem;
 	}
 	.field span {

@@ -44,3 +44,28 @@ scales by 1/cos(latitude), clamped. Malformed `near=` degrades to unfiltered, ne
 
 `manage.py test services` + `test_location.py`. E2E: `tutoring-modals.mjs`,
 `tutoring-cache.mjs`.
+
+## The description renders (2026-10-01)
+
+Asked for as "allow adding chemistry, latex, having hrefs". `ServiceForm` now uses `RichEditor` +
+`InsertStrip` — the same input every other prose field on this site has — and `ServiceCard` draws
+the field through `MathContent` instead of printing it. Links came free: `<a href>` has always been
+in the bleach allowlist; what was missing was anything that RENDERED the field.
+
+Rendering it makes it an injection surface, so **`Service.save()` sanitizes `description`** in the
+same change (house rule 8 — the API is a second entry point no DOMPurify ever sees).
+`ServiceDescriptionSanitizeTests` is the refusal set that widening owes: a script tag, an event
+handler, a `javascript:` URI, a surviving plain link, untouched LaTeX delimiters, a chemistry
+drawing that keeps the `class` §17AV once lost silently, and the PATCH path as well as the POST.
+`title` is deliberately left alone — it still renders escaped, and sanitizing it would mangle an
+honest "a < b".
+
+`allowFiles` is off on the strip: a listing has no attachment table.
+
+## The route is `/tutoring`, and `/korki` in Polish (2026-10-01)
+
+Owner's call, and a deliberate exception to the root `CLAUDE.md` rule that URL segments are neutral
+English. **The Django app, its models and `/api/services/` are unchanged** — only the frontend route
+moved, from `routes/services/` to `routes/tutoring/`, with the Polish address coming from
+Paraglide `urlPatterns` in `frontend/vite.config.ts` and the existing `hooks.ts` reroute. A browser
+script calling `api('/services/')` is still correct; one calling `page.goto('/services')` is not.

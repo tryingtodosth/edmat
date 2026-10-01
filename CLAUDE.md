@@ -20,6 +20,7 @@ out on 2026-09-19:
 | `test.md` | Every test suite and browser script: what it covers and how to run it | Before writing or running a test |
 | `QA.md` | A standing quality assessment of the codebase | You want the honest state of things |
 | `AUDIENCE-BRIEF.md` | The lifelong-learning widening (steps 1–10) | You pick up one of its remaining steps |
+| `.claude/skills/import-exercises/SKILL.md` | How to import a batch of exercises (*zadania*): the file format, `manage.py import_exercises`, what it refuses | You are adding exercises in bulk rather than through `/submit` |
 | `backend/CLAUDE.md`, `frontend/CLAUDE.md`, `backend/<app>/CLAUDE.md`, `frontend/e2e/CLAUDE.md` | Scoped rules and traps for the half or app you are in | Always, for the part you are editing |
 
 When a scoped file and this one disagree, **the scoped file wins** — it is closer to the code.
@@ -136,13 +137,15 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Twenty-six exist today — `exercise_submissions` `material_submissions`
+  with an `is_staff` bypass. Twenty-eight exist today — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
   `venues` `event_documents` `tickets` `shifts` `cloakroom` `role_preview` (seeded together by
   moderation migration 0043, so that seven parallel branches never each added one) and the six
   management switches `organizations` `tasks` `needs` `plans` `decisions` `work_dashboard`
-  (migration 0044, for the same reason — `MANAGEMENT-BRIEF.md` §0) — and the
+  (migration 0044, for the same reason — `MANAGEMENT-BRIEF.md` §0), plus `school_demo` (0045) and
+  `volunteering` (0046, the offers board — its own switch and not a second use of `needs`, because
+  the two boards answer two questions) — and the
   `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
@@ -286,6 +289,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/courses/ /api/events/ /api/services/ /api/bookings/             user-run surfaces
 /api/material-projects/ /api/material-versions/ /api/project-invites/ co-authoring (COAUTHORING-BRIEF.md)
 /api/concepts/ /api/concept-articles/ /api/concept-revisions/ /api/concept-links/  concepts (CONCEPTS-BRIEF.md)
+/api/needs/ /api/volunteering-offers/                                 help wanted, and who is offering
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
@@ -310,18 +314,29 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /                     home — five content tabs + activity, ?tab= in the URL
 /disciplines /disciplines/[discipline] /branches/[branch]     taxonomy browse
 /exercises/[id] /materials/[id]                               content detail
-/courses … /events … /services … /bookings                    user-run surfaces
+/courses … /events … /tutoring … /bookings                    user-run surfaces
+/needs … /volunteering …                                      help wanted, and who is offering
 /material-projects … /project-invites/[token]                 co-authoring a material
 /concepts /concepts/[slug] … /articles/[id]/{edit,history}     concept wiki, articles per audience
 /messages … /notifications /activity /posts/[id]              inbox + feed
 /my-set /sets/[id] /submit /submit-material /search           study + contribute
 /settings /settings/profile /users/[id] /login /register      account
 /moderation /legal/queue /issues                              staff + reports
-/privacy /legal /levels                                       standing pages
+/privacy /about /legal /levels                                standing pages
 ```
 
 URL segments are neutral English (`/branches/`, not `/przedmioty/`) — the app is bilingual from day
 one, so its URLs should not encode one language as more native than the other.
+
+**Two deliberate exceptions, 2026-10-01, by owner decision:** `/tutoring` is `/korki` for a Polish
+reader and `/materials` is `/materialy`, because those are the words Polish readers search for and
+an address is the first thing they read. Everything else keeps the rule. The mechanism is
+Paraglide `urlPatterns` + the existing `hooks.ts` reroute + `lib/utils/localizedPath.ts` at the
+call site, and `frontend/CLAUDE.md` has the three things that must stay in step. **The backend is
+not renamed**: the Django app is still `services` and the API is still `/api/services/`.
+
+**`/volunteering` is the offers board; `/volunteering/hours` is the shifts rota's own page.** Two
+features that share a word and answer to two different flags (`volunteering` and `shifts`).
 
 ---
 

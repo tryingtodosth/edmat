@@ -80,7 +80,22 @@ identical — verify programmatically). Call sites carry a trailing `// "Origina
 After adding keys, paraglide must recompile (stale generated messages throw
 `m.x is not a function` at runtime). Long-form documents (`lib/content/privacy.ts`,
 `levels.ts`) are the deliberate exception — both locales in one file, reviewable as documents.
-**No URL locale strategy** — `/pl/...` is not a route; language is chosen via the picker.
+**No URL locale PREFIX** — `/pl/...` is not a route; language is chosen via the picker. But two
+routes do have a localized address (2026-10-01, owner's call, a deliberate exception to the root
+`CLAUDE.md` rule that URL segments are neutral English): **`/tutoring` ↔ `/korki`** and
+**`/materials` ↔ `/materialy`**. Three pieces make that work and all three are needed —
+`urlPatterns` in `vite.config.ts` (ORDER MATTERS: the catch-all would swallow `/korki`, and the
+catch-all itself is not optional, because without it Paraglide's default pattern starts emitting
+`/en/...` for every route); `hooks.ts`, which already reroutes through `deLocalizeUrl`; and
+`lib/utils/localizedPath.ts` at the call site, `localizedPath(resolve('/tutoring'))`. It is
+REACTIVE — `locale.svelte.ts` overwrites `getLocale` with a rune, so the picker rewrites the
+address with no reload. Both Polish addresses are prerendered by name (`svelte.config.js`
+`prerender.entries`, and `deploy/fuw/pack.sh` refuses a build missing them), because `pl` is the
+base locale and otherwise the default reader gets the SPA shell on a hub page.
+`svelte/no-navigation-without-resolve` cannot see through the wrapper without type-aware linting,
+so each call site carries a disable comment. **Do not "fix" that by turning `projectService` on**:
+it works, and `npx eslint .` then takes 13 minutes and dies with a heap OOM, against 19 seconds
+without it.
 **The base locale is `pl`** (2026-09-23): a fresh context paints Polish, `/api/locale-hint/` offers
 English once when the country is known and not Poland, and `edmat.localeChoice` marks an explicit pick
 (Paraglide's own cookie is written on the first visit, so a cookie is not a choice). e2e scripts that

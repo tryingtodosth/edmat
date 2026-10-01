@@ -62,6 +62,39 @@ reversible metadata, deliberately not moderation-gated).
 to published exercises. `community.targets` maps it to `exerciseClaim`. The free-text
 `ExerciseRequirement` API stays but has no UI any more (the exercise page renders `ClaimGroups`).
 
+## Getting exercises in
+
+Three ways, and they are not interchangeable: `/submit` → `POST /api/exercise-submissions/` → the
+queue (one contribution, reviewed, attributed); `manage.py import_exercises <dir> --branch <slug>`
+for a batch (idempotent by `(branch, number)`, `--dry-run` first — `.claude/skills/import-exercises/SKILL.md`
+is the whole procedure); and `import_legacy_corpus`, which is **dead** — it predates the
+Discipline/Branch restructure and crashes on its first row. Keep it as provenance, do not repair it.
+
+## A solution can carry a file (2026-10-01)
+
+`SolutionEntryAttachment` — a scan or a PDF hanging off one hint/solution, added for the owner's
+"make adding solution as PDF, image, Chemistry, etc. work".
+
+Three of the four ways that sentence names cost nothing but mounting `InsertStrip` beside the
+composer's `RichEditor`, because they all go INTO the body: a picture through `/inline-images/`, a
+chemistry structure through `/chem-drawings/`, a sketch through `/sketches/`. **A PDF has nothing
+to be embedded as**, which is the whole reason the row exists.
+
+It is `community.CommentAttachment` again, deliberately — same three-per-parent limit, same
+`process_attachment` (re-encode a picture, sniff-and-scan a PDF, house rule 7), same random stored
+name, same allowance. A separate TABLE rather than a generic target on the existing one, because
+`CommentAttachment.comment` is a real FK four call sites read. **`community.attachments.
+used_upload_bytes` counts these too** — its own docstring makes that the rule.
+
+- `POST /api/solution-entries/{id}/attachments/` (multipart, author only, 403/409/400 as
+  `CommentViewSet.attachments`), `DELETE …/attachments/{attachmentId}/` (author or staff).
+- The entry must exist first, as a comment must: the composer POSTs the text, then the files
+  against the id it gets back, which keeps every other entry endpoint JSON. **A failed upload does
+  not lose the entry** — the words are already saved; failures are counted and said out loud.
+- Unlike a comment attachment this does **not** hold the entry for review when a minor uploads a
+  picture: a non-verified author's entry already starts `pending`, so the hold is already there.
+- Pinned by `EntryAttachmentTests` (8).
+
 ## Verify
 
 `manage.py test exercises` — the `many=True` regression test lives here. E2E: exercise pages are
