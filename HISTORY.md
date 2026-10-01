@@ -11087,7 +11087,13 @@ auto-hide, and re-running the batch it came from is not an appeal.
 
 One checklist, given and then twice extended while the work was in flight. Branch
 `ux/mission-nav-tutoring-volunteering`, based on `e450276` — the tree `UPDATE-20260925-f` was
-packed from, which is what is on prod.
+packed from, which is what was on prod when this started.
+
+**Shipped the same day** as `FUW/UPDATE-20261001.tar.gz`, applied to webek4 by the owner and
+verified from the live site rather than assumed: `/tutoring`, `/korki` and `/materialy` answer as
+real prerendered pages on edmat.net, the trimmed bar is there with Events as an icon, an old
+`/services/new` link forwards to `/korki/new`, and `/volunteering` is live. Runbook:
+`deploy/UPDATE-2026-10-01.md`.
 
 Three decisions were taken with the owner before any code, because each would have changed the
 shape of the work: localized URLs as *real* localized paths rather than aliases; `/volunteering`
