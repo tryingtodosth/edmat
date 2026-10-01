@@ -401,6 +401,7 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	plans: m.featureFlags_label_plans, // "Plans and roadmaps"
 	decisions: m.featureFlags_label_decisions, // "Decisions and polls"
 	work_dashboard: m.featureFlags_label_workDashboard, // "Personal work dashboard"
+	volunteering: m.featureFlags_label_volunteering, // "Volunteering offers"
 	school_demo: m.featureFlags_label_schoolDemo, // "School-management demo"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
@@ -792,6 +793,7 @@ import type {
 	NeedApplicationStatus,
 	NeedKind,
 	NeedStatus,
+	OfferStatus,
 	SkillLevel
 } from '$lib/types/need';
 
@@ -809,6 +811,16 @@ export const NEED_STATUS_LABELS: Record<NeedStatus, () => string> = {
 	in_progress: m.needs_status_inProgress, // "In progress"
 	fulfilled: m.needs_status_fulfilled, // "Fulfilled"
 	cancelled: m.needs_status_cancelled // "Cancelled"
+};
+
+// The supply side's own lifecycle (backend `needs.OFFER_STATUS_CHOICES`, 2026-10-01) — one field,
+// never a pair of booleans, and mirrored here the way every backend enum in this file is: say so
+// in both places, because this is where drift creeps in.
+export const OFFER_STATUSES: OfferStatus[] = ['open', 'paused', 'closed'];
+export const OFFER_STATUS_LABELS: Record<OfferStatus, () => string> = {
+	open: m.offers_status_open, // "Open to being asked"
+	paused: m.offers_status_paused, // "Paused"
+	closed: m.offers_status_closed // "Closed"
 };
 
 export const SKILL_LEVELS: SkillLevel[] = ['none', 'beginner', 'intermediate', 'advanced'];

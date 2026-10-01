@@ -7,7 +7,7 @@ from courses.models import Course
 from moderation.models import FeatureFlag
 from testing.factories import make_user
 
-from .models import Need, NeedApplication
+from .models import Need, NeedApplication, VolunteeringOffer
 from .rules import (
     ALREADY_APPLIED,
     ALREADY_DECIDED,
@@ -364,3 +364,159 @@ class WorkItemsTests(NeedsBaseTestCase):
 
         NeedApplication.objects.create(need=self.need, user=self.applicant)
         self.assertEqual(work_items(self.stranger), [])
+
+
+class VolunteeringOfferTests(TestCase):
+    """The supply side (2026-10-01). Refusals first, as this file's header says, and then the one
+    thing the owner actually asked for by name: that an offer can be written and found in a
+    language other than the reader's."""
+
+    def setUp(self):
+        FeatureFlag.objects.update_or_create(key='volunteering', defaults={'is_enabled': True})
+        self.volunteer = make_user('offer-volunteer')
+        self.stranger = make_user('offer-stranger')
+        self.client = APIClient()
+
+    def _post(self, user, **overrides):
+        body = {'title': 'I can run a maths club', 'kind': 'expertise', 'language': 'pl'}
+        body.update(overrides)
+        client = APIClient()
+        client.force_authenticate(user)
+        return client.post('/api/volunteering-offers/', body, format='json')
+
+    # ---- who may post, and what is refused ----------------------------------------------------
+
+    def test_an_anonymous_visitor_may_read_the_board_but_not_post(self):
+        self._post(self.volunteer)
+
+        self.assertEqual(self.client.get('/api/volunteering-offers/').status_code, 200)
+        self.assertEqual(len(self.client.get('/api/volunteering-offers/').json()), 1)
+        self.assertEqual(
+            self.client.post('/api/volunteering-offers/', {'title': 'x'}, format='json').status_code,
+            401,
+        )
+
+    def test_a_minor_may_not_publish_an_offer(self):
+        """The same refusal a tutoring listing makes, for the same reason (accounts/minors.py):
+        a public posting inviting strangers to make contact. A minor may still volunteer through
+        an event's rota, where an organiser is accountable for them."""
+        minor = make_user('offer-minor')
+        minor.profile.is_minor = True
+        minor.profile.save(update_fields=['is_minor'])
+
+        response = self._post(minor)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['detail'], MINOR)
+
+    def test_the_flag_takes_the_whole_surface_away(self):
+        """403, and signed in — the same two things this file's `needs` kill-switch test pins.
+        `feature_gate` blocks every action, reads included, so a killed board genuinely vanishes
+        from the API rather than only from the nav that hides its own link."""
+        self._post(self.volunteer)
+        FeatureFlag.objects.filter(key='volunteering').update(is_enabled=False)
+        self.client.force_authenticate(self.stranger)
+
+        self.assertEqual(self.client.get('/api/volunteering-offers/').status_code, 403)
+
+    def test_the_flag_does_not_lock_staff_out(self):
+        self._post(self.volunteer)
+        FeatureFlag.objects.filter(key='volunteering').update(is_enabled=False)
+        self.client.force_authenticate(make_user('offer-staffer', is_staff=True))
+
+        self.assertEqual(self.client.get('/api/volunteering-offers/').status_code, 200)
+
+    def test_the_needs_flag_does_not_govern_offers(self):
+        """Two boards, two switches — turning the demand side off must not take the supply side
+        with it (house rule 3 read precisely)."""
+        FeatureFlag.objects.update_or_create(key='needs', defaults={'is_enabled': False})
+        self._post(self.volunteer)
+
+        self.assertEqual(self.client.get('/api/volunteering-offers/').status_code, 200)
+
+    # ---- visibility ---------------------------------------------------------------------------
+
+    def test_a_paused_offer_is_the_volunteers_own_business(self):
+        offer_id = self._post(self.volunteer).json()['id']
+        owner = APIClient()
+        owner.force_authenticate(self.volunteer)
+        owner.patch(f'/api/volunteering-offers/{offer_id}/', {'status': 'paused'}, format='json')
+
+        stranger = APIClient()
+        stranger.force_authenticate(self.stranger)
+        self.assertEqual(stranger.get(f'/api/volunteering-offers/{offer_id}/').status_code, 404)
+        self.assertEqual(len(stranger.get('/api/volunteering-offers/').json()), 0)
+
+        self.assertEqual(owner.get(f'/api/volunteering-offers/{offer_id}/').status_code, 200)
+        mine = owner.get('/api/volunteering-offers/?mine=true').json()
+        self.assertEqual([row['status'] for row in mine], ['paused'])
+
+    def test_somebody_elses_offer_is_not_yours_to_rewrite_by_either_verb(self):
+        """`UpdateModelMixin` binds PUT as well as PATCH — the exact hole `NeedViewSet.update`
+        records having shipped once."""
+        offer_id = self._post(self.volunteer).json()['id']
+        stranger = APIClient()
+        stranger.force_authenticate(self.stranger)
+
+        for method in (stranger.patch, stranger.put):
+            response = method(
+                f'/api/volunteering-offers/{offer_id}/',
+                {'title': 'mine now', 'kind': 'help'},
+                format='json',
+            )
+            self.assertEqual(response.status_code, 404, method)
+        self.assertEqual(stranger.delete(f'/api/volunteering-offers/{offer_id}/').status_code, 404)
+
+    # ---- "in different languages", which is what was asked for --------------------------------
+
+    def test_an_offer_declares_the_language_it_is_written_in_and_lists_narrow_by_it(self):
+        self._post(self.volunteer, title='Mogę poprowadzić kółko', language='pl')
+        self._post(self.volunteer, title='I can run a club', language='en')
+        self._post(self.volunteer, title='Можу вести гурток', language='uk')
+
+        response = self.client.get('/api/volunteering-offers/?content_locales=uk')
+
+        self.assertEqual([row['language'] for row in response.json()], ['uk'])
+        self.assertEqual(response['X-EdMat-Hidden-Languages'], '2')
+
+    def test_the_languages_somebody_can_help_in_are_a_separate_question(self):
+        """An offer typed in Polish by somebody who also speaks Ukrainian is exactly the row a
+        family looking for Ukrainian-speaking help needs to find, and filtering on the language
+        the advert happens to be written in would hide it."""
+        self._post(self.volunteer, language='pl', spoken_languages=['pl', 'uk'])
+        self._post(self.volunteer, language='pl', spoken_languages=['pl'])
+
+        found = self.client.get('/api/volunteering-offers/?speaks=uk').json()
+
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]['spoken_languages'], ['pl', 'uk'])
+
+    def test_spoken_languages_are_lower_cased_trimmed_and_de_duplicated(self):
+        response = self._post(self.volunteer, spoken_languages=['PL', ' pl ', 'En'])
+
+        self.assertEqual(response.json()['spoken_languages'], ['pl', 'en'])
+
+    def test_more_languages_than_the_cap_is_a_400_not_a_silent_truncation(self):
+        """A free-string list must not become an unbounded one through the API, and refusing is
+        honest where quietly dropping the thirteenth is not (house rule 10, read sideways)."""
+        response = self._post(self.volunteer, spoken_languages=[f'x{i}' for i in range(13)])
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_language_list_that_is_not_a_list_is_a_400(self):
+        response = self._post(self.volunteer, spoken_languages={'pl': True})
+
+        self.assertEqual(response.status_code, 400)
+
+    # ---- the description is content, so it is sanitized on write ------------------------------
+
+    def test_the_description_is_sanitized_but_keeps_links_and_latex(self):
+        response = self._post(
+            self.volunteer,
+            description='<script>alert(1)</script>See <a href="https://x.org">this</a> \\(x^2\\)',
+        )
+
+        saved = response.json()['description']
+        self.assertNotIn('<script', saved)
+        self.assertIn('<a href="https://x.org">this</a>', saved)
+        self.assertIn('\\(x^2\\)', saved)

@@ -98,6 +98,9 @@
 	let canTasks = $derived(can('tasks'));
 
 	let canOrganizations = $derived(can('organizations'));
+	// Volunteering OFFERS (needs.VolunteeringOffer) — not the shifts rota, which answers to
+	// `shifts` and whose own page is `/volunteering/hours`. Two features, one word, two switches.
+	let canOffers = $derived(can('volunteering'));
 
 	let canWork = $derived(can('work_dashboard'));
 
@@ -488,10 +491,23 @@
 		<!-- The rota, from the volunteer's side (CONFERENCE-BRIEF.md §3.E): every event they have
 		     helped run, the hours, and the certificate for each. With the bookings and the agenda
 		     rather than in Add…, for the same reason co-authoring is: it is a thing of theirs to come
-		     back to, not something to make. -->
-		<a role="menuitem" class={itemClass} href={resolve('/volunteering')} {onclick}>
+		     back to, not something to make.
+		     It moved to `/volunteering/hours` on 2026-10-01, when the public offers board took the
+		     `/volunteering` address (owner's call: the public noun gets the public address, and the
+		     personal record of what you have already done sits under it). Still `shifts`, not
+		     `volunteering` — these are two features that happen to share a word. -->
+		<a role="menuitem" class={itemClass} href={resolve('/volunteering/hours')} {onclick}>
 			{m.shifts_volunteeringTitle()}
 			<!-- "Volunteering" -->
+		</a>
+	{/if}
+	{#if canOffers}
+		<!-- The offers this person has posted (needs.VolunteeringOffer). Its own flag, because the
+		     board above answers to `shifts` and this to `volunteering`; a reader may well have one
+		     switched on and the other off. -->
+		<a role="menuitem" class={itemClass} href={resolve('/volunteering/mine')} {onclick}>
+			{m.offers_mineHeading()}
+			<!-- "My volunteering offers" -->
 		</a>
 	{/if}
 	<!-- Management account-menu marker (MANAGEMENT-BRIEF.md §4 rule 4): steps append directly below

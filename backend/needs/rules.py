@@ -9,6 +9,7 @@ misses a code path cannot leave the count wrong forever.
 """
 
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.minors import is_minor
@@ -159,3 +160,38 @@ def recount(need: Need) -> None:
             status=target, updated_at=timezone.now()
         )
         need.status = target
+
+
+# ---- the supply side: volunteering offers (2026-10-01) ---------------------------------------
+#
+# Deliberately much smaller than the demand side above, because an offer has no node, no roster
+# and no decision to make: there is nobody whose permission is in question except the volunteer's
+# own. What IS here is the one visibility rule, in one place, so the board and the detail page
+# cannot disagree about which offers a stranger may read.
+
+#: The refusal word for somebody under sixteen trying to publish an offer. Same word the tutoring
+#: listing uses (`services/views.py`), because it is the same refusal; `labels.ts` already has a
+#: sentence for it.
+MINOR = 'minor'
+
+
+def public_offers(user):
+    """Which volunteering offers this person may see.
+
+    `open` is public. `paused` and `closed` are the volunteer's own business — a paused offer is
+    "not right now", and showing it to a stranger invites exactly the ask it was paused to stop —
+    so they are visible only to the volunteer and to staff. Staff see everything because a
+    reported offer has to be readable by whoever is deciding the report.
+
+    One queryset, read by the list AND by `get_object()`, so a stranger asking for a paused
+    offer's id gets a 404 rather than a 403: for them it does not exist, which is the honest
+    answer as well as the safe one (house rule 4).
+    """
+    from .models import VolunteeringOffer
+
+    qs = VolunteeringOffer.objects.select_related('volunteer__profile')
+    if user is None or not user.is_authenticated:
+        return qs.filter(status='open')
+    if user.is_staff:
+        return qs
+    return qs.filter(Q(status='open') | Q(volunteer=user))

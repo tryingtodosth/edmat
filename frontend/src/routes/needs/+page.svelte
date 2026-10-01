@@ -8,9 +8,13 @@
 	import type { Need, NeedBoardFilters, NeedKind } from '$lib/types/need';
 	import { getNeeds } from '$lib/services/needs';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { NEED_KINDS, NEED_KIND_LABELS, NEED_STATUS_LABELS } from '$lib/utils/labels';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import { pageTitle } from '$lib/utils/pageTitle';
+
+	let offersOn = $derived(featureFlagsStore.isEnabled('volunteering') || authStore.isModerator);
 
 	let needs = $state<Need[]>([]);
 	let loading = $state(true);
@@ -59,6 +63,17 @@
 				<p class="lead">{m.needs_browseLead()}</p>
 			</div>
 		</header>
+
+		<!-- The other half of the same question (2026-10-01). Behind its own flag, because house
+		     rule 3 means a killed surface takes its links with it — and `volunteering` is a
+		     different switch from `needs`. -->
+		{#if offersOn}
+			<p class="crosslink">
+				{m.needs_crossToOffers()}
+				<!-- "Looking for the other side?" -->
+				<a href={resolve('/volunteering')}>{m.offers_browseHeading()}</a>
+			</p>
+		{/if}
 
 		<div class="filters">
 			<select bind:value={kind} onchange={load} aria-label={m.needs_formKindLabel()}>
@@ -138,6 +153,11 @@
 		color: var(--text-secondary);
 		max-width: 60ch;
 		margin: 0;
+	}
+	.crosslink {
+		margin: 0;
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
 	}
 	.filters {
 		display: flex;

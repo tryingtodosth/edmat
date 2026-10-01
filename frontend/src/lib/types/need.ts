@@ -69,3 +69,56 @@ export type NeedBoardFilters = {
 	q?: string;
 	nodeKind?: 'course' | 'event' | 'material';
 };
+
+// ---------------------------------------------------------------------------------------------
+// The supply side (backend `needs.VolunteeringOffer`, 2026-10-01). It shares `NeedKind` and
+// `SkillLevel` with the demand side above deliberately — the backend reuses the same two choice
+// lists, so "expertise, advanced" means one thing on both boards and a future matcher has one
+// vocabulary to join on.
+// ---------------------------------------------------------------------------------------------
+
+/** One field, never a pair of booleans (root CLAUDE.md): `paused` is "not right now, ask me
+ *  later" and keeps the row on the volunteer's own page; `closed` is "this is over". */
+export type OfferStatus = 'open' | 'paused' | 'closed';
+
+export interface VolunteeringOffer {
+	id: string;
+	volunteer: NeedPerson | null;
+	title: string;
+	description: string;
+	kind: NeedKind;
+	skillLevel: SkillLevel;
+	status: OfferStatus;
+	/** The language the offer is WRITTEN in — the platform's content axis, what
+	 *  `?content_locales=` narrows a list by. */
+	language: string;
+	/** The languages the volunteer can actually HELP in — a fact about the person, not the text,
+	 *  and the one a reader usually means by "in different languages". */
+	spokenLanguages: string[];
+	hoursPerWeek: number | null;
+	isRemote: boolean;
+	locationText: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface VolunteeringOfferDraft {
+	title: string;
+	description: string;
+	kind: NeedKind;
+	skillLevel: SkillLevel;
+	status: OfferStatus;
+	language: string;
+	spokenLanguages: string[];
+	hoursPerWeek: number | null;
+	isRemote: boolean;
+	locationText: string;
+}
+
+export type OfferBoardFilters = {
+	kind?: NeedKind;
+	remote?: boolean;
+	q?: string;
+	/** A language code the volunteer can help in — `?speaks=`, not `?content_locales=`. */
+	speaks?: string;
+};

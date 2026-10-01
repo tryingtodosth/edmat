@@ -1263,6 +1263,15 @@ class FeatureFlagTests(APITestCase):
                 'plans',
                 'decisions',
                 'work_dashboard',
+                # The supply side of the needs board, migration 0046 (2026-10-01). Its own switch
+                # rather than a second use of `needs`, so it is its own line here too.
+                'volunteering',
+                # The school-management demo at /dziennik, migration 0045 (HISTORY.md §17BO).
+                # This set had gone stale: `school_demo` was seeded on 2026-09-25 and never added
+                # here, so this test was already failing on this branch before `volunteering`
+                # arrived. Both are added in the same pass rather than only the one that was
+                # noticed.
+                'school_demo',
                 'material_uploads_verified_only',
             },
         )

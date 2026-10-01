@@ -1,5 +1,5 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 27 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 28 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
 //
 // THIS UNION AND `FEATURE_FLAG_LABELS` (utils/labels.ts) BOTH MIRROR THE BACKEND'S OWN
@@ -85,6 +85,13 @@ export type FeatureFlagKey =
 	| 'plans'
 	| 'decisions'
 	| 'work_dashboard'
+	// Volunteering OFFERS — the supply side of the needs board (backend needs.VolunteeringOffer).
+	// Its own switch rather than a second use of `needs`, because the two boards answer two
+	// questions: one is a course saying what it needs, the other a person saying what they can
+	// do. Off: /volunteering/* goes, the cross-link on /needs goes, the /about card goes, and the
+	// API refuses a non-staff caller outright (reads included) — `/volunteering/hours`, which is
+	// the shifts rota's own page and a different feature, keeps answering to `shifts`.
+	| 'volunteering'
 	| 'school_demo'
 	| 'material_uploads_verified_only';
 

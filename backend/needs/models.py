@@ -58,6 +58,9 @@ APPLICATION_STATUS_CHOICES = [
 
 DESCRIPTION_MAX_LENGTH = 4000
 MESSAGE_MAX_LENGTH = 2000
+#: How many languages one volunteer may claim. Not a judgement about polyglots — a bound, so a
+#: free-string list cannot become an unbounded one through the API.
+MAX_SPOKEN_LANGUAGES = 12
 
 
 class Need(models.Model):
@@ -136,4 +139,103 @@ class NeedApplication(models.Model):
 
     def save(self, *args, **kwargs):
         self.message = sanitize_content(self.message or '')[:MESSAGE_MAX_LENGTH]
+        super().save(*args, **kwargs)
+
+
+# ---------------------------------------------------------------------------------------------
+# The other half of the same question (2026-10-01, owner's "make it possible to add /volunteering
+# offers, in different languages"). `Need` is the demand side — a course, an event or a material
+# saying what it needs. `VolunteeringOffer` is the supply side: a person saying what they can do,
+# attached to nobody.
+#
+# It lives in THIS app rather than in a new one, by the owner's choice, and the shared vocabulary
+# is why that pays: an offer reuses `NEED_KIND_CHOICES` and `SKILL_LEVEL_CHOICES` verbatim, so
+# "expertise, advanced" means exactly the same thing on both sides and a future matcher has one
+# vocabulary to join on rather than two that nearly agree.
+#
+# It is deliberately NOT a `services.Service` with a `kind` column, which was the other candidate:
+# a Service carries a rate, a currency, a bookable calendar and a reviews table, every one of
+# which is wrong here. `FINANCES.md` governs both, but a volunteering offer should not have a
+# money field to leave empty.
+# ---------------------------------------------------------------------------------------------
+
+#: One field, never a pair of booleans (root `CLAUDE.md`): `paused but closed` is not a state.
+#: `paused` is "not right now, ask me later" and keeps the row on the volunteer's own page;
+#: `closed` is "this is over" and is kept rather than deleted (house rule 12) so a conversation
+#: that referred to it still has something to refer to.
+OFFER_STATUS_CHOICES = [
+    ('open', 'Open to being asked'),
+    ('paused', 'Paused'),
+    ('closed', 'Closed'),
+]
+
+
+class VolunteeringOffer(models.Model):
+    """"I can help with this" — a public, unpaid offer by one person.
+
+    **Never paid**, the same invariant `Need` carries and for the same reason (`FINANCES.md`):
+    `hours_per_week` is how much time somebody has, never a rate, and nothing here computes a cost.
+
+    **Two language fields, because they answer two different questions**, and collapsing them
+    would lose the one that matters most to a reader:
+
+    - `language` is the language the offer is WRITTEN in. It is the platform's existing content
+      axis — `config/content_locale.py` filters every list on exactly this shape, so an offer
+      written in Ukrainian is hidden from a reader who reads neither Ukrainian nor its
+      fallbacks, and the list says how many it left out. Same field, same name, same job as
+      `services.Service.language`.
+    - `spoken_languages` is the languages the volunteer can actually HELP in. That is a fact about
+      the person, not about the text, and it is the one somebody searching is looking for — "I
+      need a volunteer who can talk to a Ukrainian family" is not answered by what language the
+      advert happens to be typed in. A `JSONField` list of locale codes, the shape
+      `accounts.Profile.content_locales` already uses; free strings, not an enum, for the reason
+      the root `CLAUDE.md` gives about `locale` generally.
+    """
+
+    volunteer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='volunteering_offers', on_delete=models.CASCADE
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    kind = models.CharField(max_length=10, choices=NEED_KIND_CHOICES, default='help')
+    skill_level = models.CharField(max_length=12, choices=SKILL_LEVEL_CHOICES, default='none')
+    status = models.CharField(max_length=10, choices=OFFER_STATUS_CHOICES, default='open')
+
+    language = models.CharField(max_length=8, default='pl')
+    spoken_languages = models.JSONField(default=list, blank=True)
+
+    hours_per_week = models.PositiveSmallIntegerField(null=True, blank=True)
+    is_remote = models.BooleanField(default=True)
+    #: Free text on purpose, not a pin: an offer is "around Warsaw", not a point on a map. The
+    #: `services` app has coordinates because a student travels to a specific address; nobody
+    #: travels to a volunteer.
+    location_text = models.CharField(max_length=300, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['status', 'language'])]
+
+    def __str__(self) -> str:
+        return f'{self.title} (volunteer {self.volunteer_id})'
+
+    def save(self, *args, **kwargs):
+        """Sanitized on write, because the description renders as content — Markdown, literal
+        LaTeX and the `<img data-chem>` a drawing becomes, the same input every other prose field
+        on this site has (house rule 8; the API is a second entry point no DOMPurify ever sees).
+
+        `spoken_languages` is normalised here rather than in the serializer so that the admin and
+        any future importer get the same answer: lower-cased, de-duplicated, order kept, capped.
+        A free string is not an excuse for an unbounded one.
+        """
+        self.description = sanitize_content(self.description or '')[:DESCRIPTION_MAX_LENGTH]
+        seen, cleaned = set(), []
+        for raw in self.spoken_languages or []:
+            code = str(raw).strip().lower()[:8]
+            if code and code not in seen:
+                seen.add(code)
+                cleaned.append(code)
+        self.spoken_languages = cleaned[:MAX_SPOKEN_LANGUAGES]
         super().save(*args, **kwargs)

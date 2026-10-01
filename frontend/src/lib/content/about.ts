@@ -175,6 +175,13 @@ const EN: AboutDoc = {
 			flag: 'tutoring'
 		},
 		{
+			key: 'volunteering',
+			title: 'Volunteering',
+			body: 'Courses and events post what help they need; people post what they can help with, and in which languages. Nothing here is paid.',
+			href: '/volunteering',
+			flag: 'volunteering'
+		},
+		{
 			key: 'events',
 			title: 'Events',
 			body: 'Guest lectures, workshops, study sessions and conferences, with programmes, registration, tickets and a place for the organisers’ documents.',
@@ -327,6 +334,13 @@ const PL: AboutDoc = {
 			body: 'Korepetytorzy publikują przedmioty i dostępność; ty rezerwujesz prawdziwy termin. EdMat prowadzi kalendarz i nic więcej — nie przechodzi przez niego żadna płatność.',
 			href: '/tutoring',
 			flag: 'tutoring'
+		},
+		{
+			key: 'volunteering',
+			title: 'Wolontariat',
+			body: 'Kursy i wydarzenia piszą, jakiej pomocy potrzebują; ludzie piszą, w czym i w jakich językach mogą pomóc. Nic tutaj nie jest płatne.',
+			href: '/volunteering',
+			flag: 'volunteering'
 		},
 		{
 			key: 'events',

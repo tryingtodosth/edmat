@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from config import nodes as node_seam
 
-from .models import Need, NeedApplication
+from .models import MAX_SPOKEN_LANGUAGES, Need, NeedApplication, VolunteeringOffer
 
 
 def _display_name(user) -> str:
@@ -96,3 +96,44 @@ class ApplyDraftSerializer(serializers.Serializer):
 
 class DecideSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=['accept', 'decline'])
+
+
+class VolunteeringOfferSerializer(serializers.ModelSerializer):
+    """The supply side (`models.VolunteeringOffer`). `volunteer` is read-only and set from the
+    request, never from the body — the same rule `NeedSerializer.node` follows, for the same
+    reason: a client-chosen owner is somebody posting an offer in another person's name.
+    """
+
+    volunteer = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VolunteeringOffer
+        fields = [
+            'id', 'volunteer', 'title', 'description', 'kind', 'skill_level', 'status',
+            'language', 'spoken_languages', 'hours_per_week', 'is_remote', 'location_text',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'volunteer', 'created_at', 'updated_at']
+
+    def get_volunteer(self, offer: VolunteeringOffer) -> dict | None:
+        return _person(offer.volunteer)
+
+    def validate_spoken_languages(self, value):
+        """A list of short strings, and nothing else. The model normalises (lower-case,
+        de-duplicate, cap) — this only refuses what is not a list of strings at all, so a client
+        sending `{"pl": true}` gets a 400 and not a silently empty list."""
+        if not isinstance(value, list):
+            raise serializers.ValidationError('Expected a list of language codes.')
+        for item in value:
+            if not isinstance(item, str):
+                raise serializers.ValidationError('Every language must be a string.')
+            if len(item.strip()) > 8:
+                raise serializers.ValidationError('A language code is at most 8 characters.')
+        if len(value) > MAX_SPOKEN_LANGUAGES:
+            raise serializers.ValidationError(f'At most {MAX_SPOKEN_LANGUAGES} languages.')
+        return value
+
+    def validate_title(self, value: str) -> str:
+        if not value.strip():
+            raise serializers.ValidationError('A title is required.')
+        return value.strip()

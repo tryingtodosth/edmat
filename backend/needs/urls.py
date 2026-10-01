@@ -6,11 +6,19 @@ from django.urls import path
 
 from config.routers import NumericPkRouter
 
-from .views import NeedApplicationViewSet, NeedViewSet, NodeNeedsView
+from .views import (
+    NeedApplicationViewSet,
+    NeedViewSet,
+    NodeNeedsView,
+    VolunteeringOfferViewSet,
+)
 
 router = NumericPkRouter()
 router.register('needs', NeedViewSet, basename='need')
 router.register('need-applications', NeedApplicationViewSet, basename='need-application')
+# The supply side (2026-10-01). Its own prefix rather than a mode on `/api/needs/`: an
+# offer and a need share a vocabulary, not a shape — no node, no roster, no decision.
+router.register('volunteering-offers', VolunteeringOfferViewSet, basename='volunteering-offer')
 
 urlpatterns = router.urls + [
     path('nodes/<str:kind>/<int:pk>/needs/', NodeNeedsView.as_view(), name='node-needs'),

@@ -367,6 +367,12 @@ FEATURE_FLAG_CHOICES = [
     ('plans', 'Plans and roadmaps'),
     ('decisions', 'Decisions and polls'),
     ('work_dashboard', 'Personal work dashboard'),
+    # The supply side of the needs board (2026-10-01): `needs.VolunteeringOffer`, a person saying
+    # what they can help with, in whichever languages they can help in. Its own switch rather than
+    # a second use of `needs`, because the two boards answer two questions and the owner may want
+    # one without the other — and because house rule 3 means this one has to take away its own
+    # links (the `/needs` cross-link, the `/about` card, the account menu entry) and no others.
+    ('volunteering', 'Volunteering offers (people offering to help)'),
     # The school-management demo, published as a SERVERLESS page at /dziennik (HISTORY.md §17BO).
     # Unlike every other switch here it guards no API of its own: the demo has no backend on this
     # site, only recorded answers baked into a static bundle, so what this flag actually governs is

@@ -19,8 +19,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.minors import is_minor
 from config import nodes as node_seam
+from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from moderation.permissions import feature_gate
+from rest_framework.exceptions import PermissionDenied
 
 from . import rules
 from .models import Need, NeedApplication
@@ -29,9 +32,13 @@ from .serializers import (
     DecideSerializer,
     NeedApplicationSerializer,
     NeedSerializer,
+    VolunteeringOfferSerializer,
 )
 
 _NeedsGate = feature_gate('needs')
+#: Its own switch, not `needs`': the board of what is wanted and the board of who is offering are
+#: two surfaces, and turning one off must not take the other with it (house rule 3).
+_OffersGate = feature_gate('volunteering')
 
 #: `apply_block_reason` words that mean "the world moved" (409) rather than "who you are" (403) —
 #: root `CLAUDE.md`: do not conflate the two.
@@ -205,3 +212,105 @@ class NeedApplicationViewSet(viewsets.GenericViewSet):
         application.refresh_from_db()
         rules.recount(need)
         return Response(NeedApplicationSerializer(application).data)
+
+
+class VolunteeringOfferViewSet(viewsets.ModelViewSet):
+    """`/api/volunteering-offers/` — the supply side of the same board (2026-10-01).
+
+    House rule 4 in its ordinary shape: `get_queryset()` is `rules.public_offers`, so a stranger
+    reaching for somebody's paused offer gets a 404 through DRF's own `get_object()`; the
+    object-level check for a write is `volunteer == request.user`, asked explicitly in
+    `_mine_or_404` because a queryset that lets you SEE a row is not one that lets you edit it —
+    `public_offers` deliberately shows staff everything, and staff are not the author.
+
+    Behind its own `volunteering` flag, not `needs`: they are two surfaces answering two
+    questions, and the owner may well want one without the other (house rule 3 — the flag takes
+    the links away too, which `/needs` and `/about` both honour).
+    """
+
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, _OffersGate]
+    serializer_class = VolunteeringOfferSerializer
+
+    def get_queryset(self):
+        return rules.public_offers(self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        """`?mine=true` is the volunteer's own page and includes their paused and closed rows;
+        everything else is the public board. `?content_locales=` is applied by the shared helper
+        rather than by hand — every list on this site narrows the same way and says how many it
+        left out in the same header (`config/content_locale.py`), and a list that invented its own
+        rule here is how two surfaces start disagreeing about what "I read Polish" means."""
+        qs = self.get_queryset()
+        if request.query_params.get('mine') == 'true':
+            if not request.user.is_authenticated:
+                return Response([], status=status.HTTP_200_OK)
+            qs = qs.filter(volunteer=request.user)
+        else:
+            qs = qs.filter(status='open')
+        kind = request.query_params.get('kind')
+        if kind:
+            qs = qs.filter(kind=kind)
+        if request.query_params.get('remote') == '1':
+            qs = qs.filter(is_remote=True)
+        query = request.query_params.get('q', '').strip()
+        if query:
+            qs = qs.filter(Q(title__icontains=query) | Q(description__icontains=query))
+        qs, hidden = apply_content_locale_filter(qs, request.query_params, 'language')
+        rows = list(qs)
+        # The languages the VOLUNTEER can help in — a different question from the language the
+        # offer is WRITTEN in, which `content_locales` above answers, and the one somebody
+        # searching usually means.
+        #
+        # Filtered in Python, not in SQL, and that is a SQLite fact rather than a preference:
+        # `JSONField.__contains` raises `NotSupportedError: contains lookup is not supported on
+        # this database backend` here (`backend/CLAUDE.md`'s own list of things this database
+        # cannot do). The alternatives were a child table for two columns, or `icontains` against
+        # the raw JSON text, which matches a substring of a code as happily as a code. This list
+        # is bounded by construction like every list in this app (root `CLAUDE.md`: no global
+        # pagination), so walking it is honest; on PostgreSQL this could become one `contains`.
+        speaks = request.query_params.get('speaks', '').strip().lower()
+        if speaks:
+            rows = [row for row in rows if speaks in (row.spoken_languages or [])]
+        response = Response(self.get_serializer(rows, many=True).data)
+        response[HIDDEN_HEADER] = str(hidden)
+        return response
+
+    def perform_create(self, serializer):
+        if is_minor(self.request.user):
+            # The same refusal a tutoring listing makes (`services/views.py`), and the same
+            # reasoning: a public posting inviting strangers to make contact is closed to an
+            # under-16 (`accounts/minors.py`, LEGAL.md). A minor may still volunteer — through a
+            # shift rota on an event, where an organiser is accountable for them.
+            raise PermissionDenied(rules.MINOR)
+        serializer.save(volunteer=self.request.user)
+
+    def _mine_or_404(self):
+        offer = self.get_object()
+        if offer.volunteer_id != self.request.user.pk:
+            raise Http404
+        return offer
+
+    def update(self, request, *args, **kwargs):
+        """PATCH **and PUT** through one method — the lesson `NeedViewSet.update` records above:
+        `UpdateModelMixin` binds both verbs, and overriding only `partial_update` leaves PUT
+        running DRF's own, which asks the queryset (visibility) and never the authority check."""
+        offer = self._mine_or_404()
+        serializer = self.get_serializer(
+            offer, data=request.data, partial=kwargs.get('partial', False)
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        """Closing is offered in the UI and deleting is offered here, deliberately both: house
+        rule 12 says tombstone where a thread or a link would break, and nothing links to an
+        offer — there are no applications, no messages anchored to it, nothing to orphan. An
+        offer somebody wants gone is a small public advert they have withdrawn, not a decision
+        the platform has a reason to keep."""
+        self._mine_or_404()
+        return super().destroy(request, *args, **kwargs)
