@@ -79,7 +79,20 @@
 	let sourceUrl = $state('');
 	let locale = $state('pl');
 	let audience = $state<Audience | ''>('');
-	let file = $state<File | null>(null);
+	// **Several files at once (owner, 2026-10-01: "adding material form should allow multiple
+	// files").** They become several MATERIALS, one per file, not one material with several files
+	// — `coauthoring.MaterialVersion` holds exactly one payload, and that invariant is
+	// load-bearing (its own docstring says why it is not even a DB check constraint: a reclaimed
+	// file version has to stay a valid row). Somebody uploading five chapters as five PDFs wants
+	// five materials anyway; what they do not want is to fill this form in five times, and that
+	// is the part this fixes. Everything above — discipline, branch, topic, type, audience,
+	// language, author, requirements, coverage — is filled in once and applies to all of them.
+	//
+	// One file, or a link, behaves exactly as it did before: `titles[0]` is the Title field.
+	let files = $state<File[]>([]);
+	/** One title per file, seeded from the filename and then freely editable. Index 0 is the
+	 *  Title field itself, so the single-file case is unchanged. */
+	let titles = $state<string[]>([]);
 	let url = $state('');
 	// TaxonomyOptions is keyed by `id`; a material type is identified by its slug, which IS what
 	// the select must bind. Mapped here rather than widening that component, which is shared with
@@ -102,6 +115,9 @@
 		| { kind: 'queued'; projectId: string }
 		| { kind: 'draft'; projectId: string };
 	let outcome = $state<Outcome | null>(null);
+	/** How many MORE materials the same submit made, beyond the one `outcome` describes. Zero for
+	 *  every submit this form could make before 2026-10-01. */
+	let extraCount = $state(0);
 	let errorMessage = $state('');
 	/** The server's own message per refused field, drawn under that field (keyed by the API's field
 	 *  name). A file refusal is not in here: it gets one of the two sentences in `describeFailure`. */
@@ -220,18 +236,44 @@
 		});
 	});
 
+	/** Strip the extension, not the dots inside a name: "Analiza I — cz.2.pdf" keeps its "cz.2". */
+	function titleFromFilename(name: string): string {
+		const cut = name.lastIndexOf('.');
+		return (cut > 0 ? name.slice(0, cut) : name).trim();
+	}
+
 	function handleFileChange(event: Event) {
 		const input = event.currentTarget as HTMLInputElement;
-		file = input.files?.[0] ?? null;
+		files = Array.from(input.files ?? []);
+		// Seed a title per file from its filename, keeping anything already typed for a file that
+		// is still in the list — re-picking to ADD a sixth should not throw away five titles.
+		const previous = new Map(files.map((f, i) => [f.name, titles[i]]));
+		titles = files.map((f, i) => {
+			const kept = i === 0 ? title : previous.get(f.name);
+			return kept && kept.trim() ? kept : titleFromFilename(f.name);
+		});
+		if (titles.length > 0) title = titles[0];
 	}
+
+	// `titles[0]` and `title` are the same box in the single-file case; keep them in step so the
+	// multi-file list and the Title field never disagree about the first material's name.
+	$effect(() => {
+		if (titles.length > 0 && titles[0] !== title) titles[0] = title;
+	});
 
 	// A file OR a link — never neither, and never both: a version carries exactly one payload, and
 	// the server would keep the file and silently drop the link rather than refuse the pair. Checked
 	// here so the button is honest rather than the refusal (or the loss) arriving after a submit; the
 	// "one or the other" hint above the two fields turns into the warning it is while both are set.
-	let bothPayloads = $derived(Boolean(file) && Boolean(url.trim()));
+	let bothPayloads = $derived(files.length > 0 && Boolean(url.trim()));
+	/** Every file needs a name of its own; an untitled fourth material is not something to guess. */
+	let everyTitleGiven = $derived(
+		files.length > 1 ? titles.slice(0, files.length).every((t) => t.trim()) : Boolean(title.trim())
+	);
 	let canSubmit = $derived(
-		Boolean(branchId && title.trim() && (file || url.trim())) &&
+		Boolean(branchId) &&
+			everyTitleGiven &&
+			(files.length > 0 || Boolean(url.trim())) &&
 			!bothPayloads &&
 			(!isCustomDiscipline || Boolean(customDisciplineName.trim())) &&
 			(!isCustomBranch || Boolean(customBranchName.trim())) &&
@@ -340,7 +382,7 @@
 		return {
 			// Anything else — a proxy's own 413, a dropped connection — is most likely the upload
 			// when there was one, and honestly unknown when there was not.
-			message: file ? m.submitMaterial_uploadFailed() : m.common_error_generic(),
+			message: files.length > 0 ? m.submitMaterial_uploadFailed() : m.common_error_generic(),
 			fields: {}
 		};
 	}
@@ -364,43 +406,79 @@
 		if (!authStore.user || !canSubmit) return;
 		errorMessage = '';
 		fieldErrors = {};
+		extraCount = 0;
+		outcome = null;
 		submitting = true;
 		// Which half failed decides which sentence is true: a refused "Other…" proposal is not a file
 		// that could not be accepted.
 		let stage: 'taxonomy' | 'material' = 'taxonomy';
+		// Declared out here so the catch can say how many of several files actually landed.
+		let landed: MaterialProject[] = [];
+		let payloadCount = 1;
 		try {
 			const filedBranchId = await resolveBranch();
 			const filedType = await resolveMaterialType();
 			stage = 'material';
-			const project = await createProject(
-				{
-					branchId: filedBranchId,
-					locale,
-					type: filedType,
-					audience: audience as Audience,
-					author: author.trim() || undefined,
-					sourceUrl: normalizeUrl(sourceUrl),
-					requirements: requirements.length > 0 ? requirements : undefined,
-					coverage: coverage.length > 0 ? coverage : undefined,
-					priceAmount: priceAmount.trim() ? Number(priceAmount) : undefined,
-					priceCurrency: priceAmount.trim() ? priceCurrency.trim() || 'PLN' : undefined,
-					estimatedMinutes: estimatedMinutes.trim() ? Number(estimatedMinutes) : undefined,
-					// Version 1: the file when there is one, otherwise the link — `canSubmit` has
-					// already made sure it is exactly one of the two.
-					version: {
-						kind: file ? 'file' : 'link',
-						title: title.trim(),
-						description: description.trim(),
-						url: file ? undefined : normalizeUrl(url)
-					}
-				},
-				file,
-				{ publish: true }
-			);
-			outcome = outcomeOf(project);
+			// Everything above the payload is filled in once and shared by every material this
+			// submit makes; only the file and its title differ per row.
+			const shared = {
+				branchId: filedBranchId,
+				locale,
+				type: filedType,
+				audience: audience as Audience,
+				author: author.trim() || undefined,
+				sourceUrl: normalizeUrl(sourceUrl),
+				requirements: requirements.length > 0 ? requirements : undefined,
+				coverage: coverage.length > 0 ? coverage : undefined,
+				priceAmount: priceAmount.trim() ? Number(priceAmount) : undefined,
+				priceCurrency: priceAmount.trim() ? priceCurrency.trim() || 'PLN' : undefined,
+				estimatedMinutes: estimatedMinutes.trim() ? Number(estimatedMinutes) : undefined
+			};
+
+			// One request per material, in sequence rather than in parallel: each one allocates a
+			// number in a bounded retry loop server-side (`services.allocate_number`) against a
+			// single-writer SQLite, and firing five at once is how that loop starts earning its
+			// retries. Five uploads are slow because they are five uploads, not because of this.
+			//
+			// **A failure part-way through does not undo what already landed**, and must not
+			// pretend otherwise: three materials that exist are three materials, so the page says
+			// how many got in and which one stopped it, rather than one unqualified error over a
+			// partly-successful submit. There is no transaction to roll back across five HTTP
+			// requests, and inventing one by deleting the earlier projects would throw away work
+			// somebody can see in the queue.
+			payloadCount = Math.max(1, files.length);
+			const payloads =
+				files.length > 0
+					? files.map((f, i) => ({ f, t: (titles[i] ?? '').trim() || titleFromFilename(f.name) }))
+					: [{ f: null as File | null, t: title.trim() }];
+			landed = [];
+			for (const { f, t } of payloads) {
+				landed.push(
+					await createProject(
+						{
+							...shared,
+							// Version 1: the file when there is one, otherwise the link — `canSubmit`
+							// has already made sure it is exactly one of the two.
+							version: {
+								kind: f ? 'file' : 'link',
+								title: t,
+								// One description typed once, repeated on each — the alternative is a
+								// second textarea per file, and nobody writes five of those.
+								description: description.trim(),
+								url: f ? undefined : normalizeUrl(url)
+							}
+						},
+						f,
+						{ publish: true }
+					)
+				);
+			}
+			outcome = outcomeOf(landed[0]);
+			extraCount = landed.length - 1;
 			title = description = '';
 			author = sourceUrl = '';
-			file = null;
+			files = [];
+			titles = [];
 			url = '';
 			requirements = [];
 			requirementDraft = '';
@@ -415,8 +493,18 @@
 				errorMessage = m.common_error_generic(); // "Something went wrong."
 			} else {
 				const failure = describeFailure(e);
-				errorMessage = failure.message;
-				fieldErrors = failure.fields;
+				// Honest about a partly-successful batch: the ones that landed are real and are in
+				// the queue, and telling somebody "it failed" when four of five are already filed
+				// invites them to upload those four again.
+				errorMessage =
+					landed.length > 0
+						? m.submitMaterial_partialFailure({ done: landed.length, total: payloadCount })
+						: failure.message;
+				fieldErrors = landed.length > 0 ? {} : failure.fields;
+				if (landed.length > 0) {
+					outcome = outcomeOf(landed[0]);
+					extraCount = landed.length - 1;
+				}
 			}
 		} finally {
 			submitting = false;
@@ -601,17 +689,45 @@
 
 					<label class="field">
 						<span>{m.submitMaterial_field_file()} <em>({m.common_optional()})</em></span>
+						<!-- `multiple` since 2026-10-01. Several files become several MATERIALS, one
+						     per file — a version holds exactly one payload, and that invariant is
+						     load-bearing (coauthoring/models.py: MaterialVersion). Everything above
+						     is filled in once and shared. -->
 						<input
 							id="material-file-input"
 							type="file"
+							multiple
 							accept={ACCEPTED_EXTENSIONS}
 							onchange={handleFileChange}
 						/>
 						<span class="file-hint">{m.submitMaterial_fileHint()}</span>
-						{#if file}
-							<span class="file-picked">{file.name}</span>
+						<span class="file-hint">{m.submitMaterial_multiFileHint()}</span>
+						<!-- "Pick several and each one becomes its own material." -->
+						{#if files.length === 1}
+							<span class="file-picked">{files[0].name}</span>
 						{/if}
 					</label>
+
+					<!-- With more than one file the single Title box cannot name them all, so each
+					     gets its own, seeded from its filename and then freely editable. The first
+					     row IS the Title field above — they are kept in step — so the one-file case
+					     looks and behaves exactly as it always did. -->
+					{#if files.length > 1}
+						<fieldset class="field multi-files">
+							<legend>{m.submitMaterial_multiFileLegend({ count: files.length })}</legend>
+							{#each files as f, i (f.name + i)}
+								<label class="multi-files__row">
+									<span class="multi-files__name">{f.name}</span>
+									<input
+										type="text"
+										bind:value={titles[i]}
+										maxlength="200"
+										aria-label={m.submitMaterial_field_title()}
+									/>
+								</label>
+							{/each}
+						</fieldset>
+					{/if}
 
 					<label class="field">
 						<span>{m.submitMaterial_field_url()} <em>({m.common_optional()})</em></span>
@@ -824,6 +940,12 @@
 				{/if}
 			{/if}
 		</p>
+		<!-- The count line sits OUTSIDE `.success-body`, which is a `<p>`: a `<p>` inside a `<p>` is
+		     one the browser silently moves, and svelte-check says so. -->
+		{#if extraCount > 0}
+			<p class="outcome__extra">{m.submitMaterial_alsoMade({ count: extraCount })}</p>
+			<!-- "And {count} more, filed the same way." -->
+		{/if}
 		<button type="button" class="success-close" onclick={() => (outcome = null)}>
 			{m.common_close()}
 		</button>
@@ -832,6 +954,38 @@
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
+	.multi-files {
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: var(--space-3);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+	.multi-files legend {
+		font-weight: 600;
+		font-size: var(--font-size-sm);
+		padding: 0 var(--space-1);
+	}
+	.multi-files__row {
+		display: grid;
+		grid-template-columns: minmax(0, 14rem) 1fr;
+		gap: var(--space-2);
+		align-items: center;
+	}
+	.multi-files__name {
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
+		overflow-wrap: anywhere;
+	}
+	.outcome__extra {
+		color: var(--text-secondary);
+	}
+	@media (max-width: 640px) {
+		.multi-files__row {
+			grid-template-columns: 1fr;
+		}
+	}
 
 	.page {
 		max-width: 640px;
