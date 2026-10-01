@@ -78,7 +78,17 @@ async function withChrome(chromePath, fn) {
     try { targets = await deadline((await fetch(`http://127.0.0.1:${port}/json/list`)).json(), 5000, 'the target list'); break; } catch (e) { await sleep(200); }
   }
   if (!targets) { chrome.kill(); throw new Error('chrome devtools did not come up'); }
-  const ws = new WebSocket(targets.find((t) => t.type === 'page').webSocketDebuggerUrl);
+  /* Retry for a PAGE target, do not assume one is there. `/json/list` answering at all only means
+     the browser is up; on a machine that has just launched a dozen of them it can answer before the
+     first tab exists, and `targets.find(...)` is then undefined — which crashed a run nine roles in,
+     losing the two that had not been walked yet. */
+  let page = targets.find((t) => t.type === 'page');
+  for (let i = 0; i < 40 && !page; i++) {
+    await sleep(250);
+    try { page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === 'page'); } catch (e) {}
+  }
+  if (!page) { chrome.kill(); throw new Error('chrome exposed no page target'); }
+  const ws = new WebSocket(page.webSocketDebuggerUrl);
   let id = 0; const pending = new Map(); const problems = [];
   ws.addEventListener('message', (ev) => {
     const msg = JSON.parse(ev.data);
@@ -106,7 +116,14 @@ async function main() {
   const server = await serve();
   const origin = `http://127.0.0.1:${PORT}${BASE}`;
   const snap = JSON.parse(fs.readFileSync(path.join(ROOT, 'public', 'demo-snapshot.json'), 'utf8'));
-  const roles = snap.logins;
+  /* `--roles=a,b` re-checks just the ones that failed. A full pass is ~15 minutes, and being
+     unable to retry one role makes fixing the last one an hour's work. */
+  const only = arg('roles', '').split(',').map((r) => r.trim()).filter(Boolean);
+  const roles = only.length ? snap.logins.filter((r) => only.includes(r)) : snap.logins;
+  if (only.length && roles.length !== only.length) {
+    console.error('unknown role(s): ' + only.filter((r) => !snap.logins.includes(r)).join(', '));
+    process.exit(2);
+  }
   console.log(`verifying ${path.relative(ROOT, DIR)} — ${roles.length} roles, served at ${origin}`);
 
   let failures = 0, screens = 0;

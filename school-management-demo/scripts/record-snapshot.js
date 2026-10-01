@@ -169,7 +169,16 @@ async function withChrome(chromePath, fn) {
     try { targets = await deadline((await fetch(`http://127.0.0.1:${port}/json/list`)).json(), 5000, 'the target list'); break; } catch (e) { await sleep(200); }
   }
   if (!targets) { chrome.kill(); throw new Error('chrome devtools did not come up'); }
-  const page = targets.find((t) => t.type === 'page');
+  /* Retry for a PAGE target, do not assume one is there. `/json/list` answering at all only means
+     the browser is up; on a machine that has just launched a dozen of them it can answer before
+     the first tab exists, and `targets.find(...)` is then undefined — which crashed the run nine
+     roles in, losing the two that had not been walked yet. */
+  let page = targets.find((t) => t.type === 'page');
+  for (let i = 0; i < 40 && !page; i++) {
+    await sleep(250);
+    try { page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === 'page'); } catch (e) {}
+  }
+  if (!page) { chrome.kill(); throw new Error('chrome exposed no page target'); }
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   let id = 0;
   const pending = new Map();

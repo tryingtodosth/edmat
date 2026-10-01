@@ -35,6 +35,16 @@ const modules = require('../server/modules');
 const ROOT = path.join(__dirname, '..');
 const argv = process.argv.slice(2);
 const arg = (n, d) => { const a = argv.find((x) => x.startsWith('--' + n + '=')); return a ? a.split('=').slice(1).join('=') : d; };
+/* `--out foo` is not `--out=foo`, and the difference was silent: the flag was ignored, the default
+   was used, and the build landed somewhere nobody was looking. `pack.sh` then failed on its own
+   "did the demo build land?" guard, which is the only reason it was noticed at all. Refuse the
+   ambiguous form rather than quietly do the wrong thing. */
+for (let i = 0; i < argv.length; i++) {
+  if (/^--(out|base|snapshot)$/.test(argv[i])) {
+    console.error(`Use ${argv[i]}=<value>, not "${argv[i]} <value>" — this script only reads the = form.`);
+    process.exit(2);
+  }
+}
 const OUT = path.resolve(ROOT, arg('out', 'dist-static'));
 const BASE = arg('base', '/dziennik').replace(/\/+$/, '');
 const SNAPSHOT = path.resolve(ROOT, arg('snapshot', 'public/demo-snapshot.json'));

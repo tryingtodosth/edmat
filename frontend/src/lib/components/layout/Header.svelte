@@ -70,10 +70,10 @@
 	// account entry off this one, and turning either off leaves the other's link exactly where it was.
 	let canCoauthoring = $derived(can('coauthoring'));
 	let canClassroom = $derived(can('courses'));
-	// The concepts app (CONCEPTS-BRIEF.md §0). Both entries — the browse link and the "New
-	// concept" item — hang off this one flag, because they are one feature: there is nothing to
-	// write a concept INTO when the hub is gone.
-	let canConcepts = $derived(can('concepts'));
+	// The `concepts` flag is deliberately NOT read here any more (2026-10-01). Both entries this
+	// header used to carry — the browse link and the "New concept" item — were removed by owner
+	// decision, so the header has nothing left for the flag to govern. `/concepts` and its hub's
+	// own controls are still gated, by `FeatureGate` on the routes themselves.
 	// A minor's account may not host, list tutoring, or message (accounts/minors.py); the links go
 	// with the abilities, the kill-switch rule.
 	let isMinor = $derived(authStore.user?.isMinor ?? false);
@@ -121,7 +121,6 @@
 			canClassroom ||
 			canTutoring ||
 			canEvents ||
-			canConcepts ||
 			runsAVenue ||
 			canOrganizations
 	);
@@ -291,7 +290,15 @@
 	     than moving into the action row (that rearranging scheme was dropped by owner decision).
 	     Every anchor carries an aria-label so the accessible name survives the text hiding. The
 	     stage rules are all scoped under `.site-nav`, so in the drawer these render as plain text
-	     links (the icon spans are hidden by their base rule). -->
+	     links (the icon spans are hidden by their base rule).
+
+	     **Materials, Courses and Concepts left this bar on 2026-10-01**, by owner decision. Nothing
+	     about them was killed and no flag changed: each is still a tab on the home page, still a
+	     card on `/about`, and Courses is still in the "Add…" menu. What the bar carries now is the
+	     mission in four links — the exercises, the help wanted, the tutoring, and what this place
+	     is — with Events last and drawn as an icon. Taking them out of THIS snippet takes them out
+	     of the phone drawer as well, which is the point: the drawer is the phone's navbar, not a
+	     second surface that may disagree with it. -->
 	<a
 		class="nav-link nav-link--disciplines"
 		href={resolve('/disciplines')}
@@ -302,53 +309,6 @@
 		<span class="nav-link__icon" aria-hidden="true">{@render exerciseIcon()}</span>
 		<span class="nav-link__text">{m.nav_browse()}</span>
 	</a>
-	<a
-		class="nav-link nav-link--materials"
-		href={resolve('/materials')}
-		aria-label={m.nav_materials()}
-		title={m.nav_materials()}
-		{onclick}
-	>
-		<span class="nav-link__icon" aria-hidden="true">{@render bookIcon()}</span>
-		<span class="nav-link__text">{m.nav_materials()}</span>
-	</a>
-	{#if canConcepts}
-		<a
-			class="nav-link nav-link--concepts"
-			href={resolve('/concepts')}
-			aria-label={m.nav_concepts()}
-			title={m.nav_concepts()}
-			{onclick}
-		>
-			<span class="nav-link__icon" aria-hidden="true">{@render conceptIcon()}</span>
-			<span class="nav-link__text">{m.nav_concepts()}</span>
-			<!-- "Concepts" -->
-		</a>
-	{/if}
-	{#if canClassroom}
-		<a
-			class="nav-link nav-link--classroom"
-			href={resolve('/courses')}
-			aria-label={m.nav_classroom()}
-			title={m.nav_classroom()}
-			{onclick}
-		>
-			<span class="nav-link__icon" aria-hidden="true">{@render capIcon()}</span>
-			<span class="nav-link__text">{m.nav_classroom()}</span>
-		</a>
-	{/if}
-	{#if canEvents}
-		<a
-			class="nav-link nav-link--events"
-			href={resolve('/events')}
-			aria-label={m.nav_events()}
-			title={m.nav_events()}
-			{onclick}
-		>
-			<span class="nav-link__icon" aria-hidden="true">{@render calendarIcon()}</span>
-			<span class="nav-link__text">{m.nav_events()}</span>
-		</a>
-	{/if}
 	<!-- Management nav marker (MANAGEMENT-BRIEF.md §4 rule 4): step C appends its "Help wanted"
 	     link directly below this comment, behind its flag. No other step touches the nav. -->
 	{#if canNeeds}
@@ -373,6 +333,34 @@
 		>
 			<span class="nav-link__icon" aria-hidden="true">{@render moneyIcon()}</span>
 			<span class="nav-link__text">{m.nav_services()}</span>
+		</a>
+	{/if}
+	<a
+		class="nav-link nav-link--about"
+		href={resolve('/about')}
+		aria-label={m.nav_about()}
+		title={m.nav_about()}
+		{onclick}
+	>
+		<span class="nav-link__icon" aria-hidden="true">{@render infoIcon()}</span>
+		<span class="nav-link__text">{m.nav_about()}</span>
+		<!-- "About" -->
+	</a>
+	<!-- Events is LAST, and an icon at every width the bar exists at (owner's call, 2026-10-01): a
+	     dated happening is something a reader comes back for occasionally, not something they
+	     navigate by, so it keeps a place in the bar without spending a label on it. The drawer still
+	     renders it as a word — `.nav-link__icon`'s base rule hides the icon everywhere outside
+	     `.site-nav`, and the matching text rule below is scoped the same way. -->
+	{#if canEvents}
+		<a
+			class="nav-link nav-link--events"
+			href={resolve('/events')}
+			aria-label={m.nav_events()}
+			title={m.nav_events()}
+			{onclick}
+		>
+			<span class="nav-link__icon" aria-hidden="true">{@render calendarIcon()}</span>
+			<span class="nav-link__text">{m.nav_events()}</span>
 		</a>
 	{/if}
 {/snippet}
@@ -417,15 +405,13 @@
 			{m.nav_add_post()}
 		</a>
 	{/if}
-	{#if canConcepts}
-		<!-- Deliberately not gated on being an adult the way Events is: a minor may write a
-		     concept article, their revision simply always queues (CONCEPTS-BRIEF.md §0). Only
-		     LINKING is closed to them, and that is a control on the concept page, not here. -->
-		<a role="menuitem" class={itemClass} href={resolve('/concepts/new')} {onclick}>
-			{m.nav_add_concept()}
-			<!-- "New concept" -->
-		</a>
-	{/if}
+	<!-- "New concept" left this menu on 2026-10-01, by owner decision, the same pass that took
+	     Concepts out of the navbar. The surface is NOT killed — the `concepts` flag is untouched,
+	     `/concepts/new` still works and the hub still carries its own "New concept" control, which
+	     is where somebody who is already reading concepts makes one. What went away is the offer
+	     to start one from anywhere, which is a different claim about how central the feature is.
+	     (It is deliberately not gated on being an adult the way Events is: a minor may write a
+	     concept article, their revision simply always queues, CONCEPTS-BRIEF.md §0.) -->
 	{#if runsAVenue}
 		<!-- Conference step A. Not a "create" action like the rest of this menu, and deliberately
 		     placed last: it is the one entry here that only exists for the handful of people who run
@@ -630,42 +616,6 @@
 	</svg>
 {/snippet}
 
-{#snippet conceptIcon()}
-	<!-- Concepts: three nodes joined — an idea with the things around it, which is what a concept
-	     page is (its article, and the exercises, materials and other concepts linked to it). -->
-	<svg
-		class="icon"
-		viewBox="0 0 24 24"
-		fill="none"
-		stroke="currentColor"
-		stroke-width="1.8"
-		stroke-linecap="round"
-		stroke-linejoin="round"
-		aria-hidden="true"
-	>
-		<circle cx="12" cy="6" r="2.6" />
-		<circle cx="5.5" cy="17.5" r="2.6" />
-		<circle cx="18.5" cy="17.5" r="2.6" />
-		<path d="M10.4 8.1 7.1 15.4M13.6 8.1l3.3 7.3M8.1 17.5h7.8" />
-	</svg>
-{/snippet}
-
-{#snippet bookIcon()}
-	<svg
-		class="icon"
-		viewBox="0 0 24 24"
-		fill="none"
-		stroke="currentColor"
-		stroke-width="1.8"
-		stroke-linecap="round"
-		stroke-linejoin="round"
-		aria-hidden="true"
-	>
-		<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17.5H6.5A2.5 2.5 0 0 0 4 22z" />
-		<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-	</svg>
-{/snippet}
-
 {#snippet moneyIcon()}
 	<svg
 		class="icon"
@@ -705,8 +655,9 @@
 	</svg>
 {/snippet}
 
-{#snippet capIcon()}
-	<!-- Courses: a mortarboard — the thing a person runs and others join. -->
+{#snippet infoIcon()}
+	<!-- About: the information mark. The one link in the bar that describes the site rather than
+	     holding any of it, so it gets the generic sign rather than a picture of a thing. -->
 	<svg
 		class="icon"
 		viewBox="0 0 24 24"
@@ -717,8 +668,9 @@
 		stroke-linejoin="round"
 		aria-hidden="true"
 	>
-		<path d="m12 4 10 4.5-10 4.5L2 8.5z" />
-		<path d="M6.5 11v4.5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V11" />
+		<circle cx="12" cy="12" r="9" />
+		<path d="M12 11v5.5" />
+		<path d="M12 7.6h.01" />
 	</svg>
 {/snippet}
 
@@ -1375,24 +1327,24 @@
 		padding: var(--space-2) var(--space-3);
 	}
 
-	// Stage 0 — Concepts loses its label first. It is the newest link in the bar and the one a
-	// reader is least likely to be navigating to mid-task, so it is the cheapest label to spend;
-	// the icon keeps its place in the order rather than moving.
-	@media (max-width: 1240px) {
-		.site-nav .nav-link--concepts .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--concepts .nav-link__icon {
-			display: inline-flex;
-		}
+	// Events is an icon at every width, not at a stage (owner's call, 2026-10-01). It used to be
+	// stage 1 of the staged collapse; now the calendar is simply what Events looks like in the bar,
+	// so the rule carries no media query. Scoped under `.site-nav` like every other rule here, so
+	// the drawer's copy of the same anchor stays a word.
+	.site-nav .nav-link--events .nav-link__text {
+		display: none;
+	}
+	.site-nav .nav-link--events .nav-link__icon {
+		display: inline-flex;
 	}
 
-	// Stage 1 — Events loses its label and becomes a calendar icon, in place.
-	@media (max-width: 1180px) {
-		.site-nav .nav-link--events .nav-link__text {
+	// Stage 0 — About loses its label first. It is the one link in the bar that a reader goes to
+	// once and then never again, so it is the cheapest label to spend; the icon keeps its place.
+	@media (max-width: 1240px) {
+		.site-nav .nav-link--about .nav-link__text {
 			display: none;
 		}
-		.site-nav .nav-link--events .nav-link__icon {
+		.site-nav .nav-link--about .nav-link__icon {
 			display: inline-flex;
 		}
 	}
@@ -1410,16 +1362,6 @@
 	// (Stage 3, Watchlists → eye icon, is deliberately absent: Watchlists was already removed from
 	// the navbar — it lives on the Tutoring page — and the owner confirmed the spec line was written
 	// from an older memory of the bar, not as a request to re-add it.)
-
-	// Stage 4 — Materials becomes a book icon, in place (still between Disciplines and Courses).
-	@media (max-width: 1060px) {
-		.site-nav .nav-link--materials .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--materials .nav-link__icon {
-			display: inline-flex;
-		}
-	}
 
 	// Stage 4½ — Tutoring becomes a money icon, in place.
 	@media (max-width: 1000px) {
@@ -1473,17 +1415,6 @@
 		}
 		.menu-locale {
 			display: block;
-		}
-	}
-
-	// Stage 9 — Courses becomes a mortarboard icon, in place (previously it disappeared outright;
-	// keeping an icon costs almost nothing at this width now that every neighbour is one too).
-	@media (max-width: 760px) {
-		.site-nav .nav-link--classroom .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--classroom .nav-link__icon {
-			display: inline-flex;
 		}
 	}
 
