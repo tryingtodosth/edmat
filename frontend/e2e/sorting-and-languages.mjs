@@ -177,7 +177,7 @@ check(
 	JSON.stringify(me.content_locales) === '["pl"]',
 	JSON.stringify(me.content_locales)
 );
-await o.goto(`${BASE}/services/new`, { waitUntil: 'load' });
+await o.goto(`${BASE}/tutoring/new`, { waitUntil: 'load' });
 const langField = o
 	.locator('form select')
 	.filter({ has: o.locator('option[value="pl"]') })

@@ -111,8 +111,16 @@ await goto(guest, '/');
 const nav = (page, key) => page.locator(`.site-nav .nav-link--${key}`);
 const navText = (page, key) => page.locator(`.site-nav .nav-link--${key} .nav-link__text`);
 const navIcon = (page, key) => page.locator(`.site-nav .nav-link--${key} .nav-link__icon`);
-// The five links in the order the nav renders them — the in-place collapse must preserve it.
-const NAV_ORDER = ['disciplines', 'materials', 'classroom', 'events', 'services'];
+// The links in the order the nav renders them — the in-place collapse must preserve it.
+//
+// **Rewritten 2026-10-01.** Materials, Courses and Concepts left the bar by owner decision, so
+// their stages went with them; About arrived and took the vacated stage-0 width; Events is now an
+// icon at EVERY width rather than at a stage of its own, and sits last. `needs` is deliberately
+// not in this list — it is behind a flag this script does not turn on, and a list that assumed it
+// would fail on a database where the switch is off.
+const NAV_ORDER = ['disciplines', 'services', 'about', 'events'];
+// Everything in the bar except Events, which never shows its text there any more.
+const TEXT_LINKS = ['disciplines', 'services', 'about'];
 async function inNavOrder(page) {
 	let last = -Infinity;
 	for (const key of NAV_ORDER) {
@@ -125,10 +133,24 @@ async function inNavOrder(page) {
 
 // ---- the full bar, before any stage --------------------------------------------------------------
 console.log('[1] At 1280px nothing has collapsed');
-for (const key of NAV_ORDER) {
+for (const key of TEXT_LINKS) {
 	check(`the ${key} link is text`, await navText(signed, key).isVisible());
 	check(`the ${key} icon is hidden`, !(await navIcon(signed, key).isVisible()));
 }
+// Events is the exception, and at the widest width: its rule carries no media query at all.
+check('Events is an icon even at 1280px', await navIcon(signed, 'events').isVisible());
+check('and shows no text there', !(await navText(signed, 'events').isVisible()));
+check(
+	'while keeping an accessible name',
+	(await nav(signed, 'events').getAttribute('aria-label')) === 'Events'
+);
+check('Events is last in the bar', await inNavOrder(signed));
+check(
+	'Materials, Courses and Concepts are not in the bar at all',
+	(await signed.locator('.site-nav .nav-link--materials').count()) === 0 &&
+		(await signed.locator('.site-nav .nav-link--classroom').count()) === 0 &&
+		(await signed.locator('.site-nav .nav-link--concepts').count()) === 0
+);
 check('no row divider exists', (await signed.locator('.row-divider').count()) === 0);
 check(
 	'the account trigger is the name',
@@ -144,32 +166,23 @@ const hWide = await heightAt(signed);
 await shot(signed, 'stage0-1280');
 
 // ---- the stages, in order ------------------------------------------------------------------------
-console.log('[2] Stage 1 — Events becomes a calendar icon, in place');
-await width(signed, 1150);
-check('the Events text is gone', !(await navText(signed, 'events').isVisible()));
-check('the calendar icon appears', await navIcon(signed, 'events').isVisible());
+console.log('[2] Stage 0 — About loses its label first');
+await width(signed, 1200);
+check('the About text is gone', !(await navText(signed, 'about').isVisible()));
+check('the info icon appears', await navIcon(signed, 'about').isVisible());
 check(
 	'the link keeps an accessible name',
-	(await nav(signed, 'events').getAttribute('aria-label')) === 'Events'
+	(await nav(signed, 'about').getAttribute('aria-label')) === 'About'
 );
 check('and the nav keeps its order', await inNavOrder(signed));
+const avx = (await nav(signed, 'about').boundingBox()).x;
 const evx = (await nav(signed, 'events').boundingBox()).x;
-const svx = (await nav(signed, 'services').boundingBox()).x;
-check('the icon stays in the nav, left of Tutoring', evx < svx, `events ${evx} services ${svx}`);
+check('About stays left of Events, which is last', avx < evx, `about ${avx} events ${evx}`);
 
 console.log('[3] Stage 2 — the account trigger becomes an icon');
 await width(signed, 1100);
 check('the name is gone', !(await signed.locator('.account-trigger__name').isVisible()));
 check('an avatar/person icon shows', await signed.locator('.account-trigger__avatar').isVisible());
-
-console.log('[4] Stage 4 — Materials becomes a book icon, still between Disciplines and Courses');
-await width(signed, 1030);
-check('the Materials text is gone', !(await navText(signed, 'materials').isVisible()));
-check('the book icon appears', await navIcon(signed, 'materials').isVisible());
-const dx = (await nav(signed, 'disciplines').boundingBox()).x;
-const mx = (await nav(signed, 'materials').boundingBox()).x;
-const cx = (await nav(signed, 'classroom').boundingBox()).x;
-check('in place: disciplines < materials < courses', dx < mx && mx < cx, `${dx} ${mx} ${cx}`);
 
 console.log('[5] Stage 4½ — Tutoring becomes a money icon');
 await width(signed, 980);
@@ -214,11 +227,16 @@ check(
 	await guest.locator('.row-locale select').isVisible()
 );
 
-console.log('[11] Stage 9 — Courses becomes a mortarboard icon, in place');
+console.log('[11] At 740px every remaining link is an icon, in order');
+// What used to be stage 9 (Courses -> mortarboard) is gone with the Courses link itself. The
+// check that mattered about it survives: by the last width before the drawer, every link in the
+// bar has traded its label for its icon and none of them has moved.
 await width(signed, 740);
-check('the Courses text is gone', !(await navText(signed, 'classroom').isVisible()));
-check('the mortarboard icon appears', await navIcon(signed, 'classroom').isVisible());
-check('all five sit in the nav as icons, in order', await inNavOrder(signed));
+for (const key of NAV_ORDER) {
+	check(`the ${key} text is gone`, !(await navText(signed, key).isVisible()));
+	check(`the ${key} icon is there`, await navIcon(signed, key).isVisible());
+}
+check('and all of them sit in the nav in order', await inNavOrder(signed));
 
 console.log('[12] Stage 10 — the drawer, and the brand comes back for it');
 await width(signed, 700);

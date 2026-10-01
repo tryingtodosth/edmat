@@ -282,7 +282,7 @@ check(
 );
 
 console.log('\n[2] The same hours are captioned differently in the two modes');
-await goto(studentPage, `/services/${derivedId}`);
+await goto(studentPage, `/tutoring/${derivedId}`);
 const derivedNotice = await studentPage.locator('.mode-notice').innerText();
 check(
 	'a `derived` listing promises the times shown are really free',
@@ -290,7 +290,7 @@ check(
 	derivedNotice
 );
 
-await goto(studentPage, `/services/${declaredId}`);
+await goto(studentPage, `/tutoring/${declaredId}`);
 const declaredNotice = await studentPage.locator('.mode-notice').innerText();
 check(
 	'a `declared` listing says some may already be taken',
@@ -302,7 +302,7 @@ check('the two captions are genuinely different', derivedNotice !== declaredNoti
 console.log('\n[3] A student books an hour on the `derived` listing');
 studentPage = await renew(studentPage);
 await login(studentPage, STUDENT);
-await goto(studentPage, `/services/${derivedId}`);
+await goto(studentPage, `/tutoring/${derivedId}`);
 await pageToSlots(studentPage);
 const slotCount = await studentPage.locator('.slot').count();
 check('the published window became three bookable hours', slotCount === 3, String(slotCount));
@@ -323,7 +323,7 @@ check(
 
 console.log('\n[4] That hour disappears for the next student — and only in `derived` mode');
 await login(rivalPage, RIVAL);
-await goto(rivalPage, `/services/${derivedId}`);
+await goto(rivalPage, `/tutoring/${derivedId}`);
 await pageToSlots(rivalPage);
 const derivedSlots = await rivalPage.locator('.slot').allInnerTexts();
 check(
@@ -333,7 +333,7 @@ check(
 );
 
 rivalPage = await renew(rivalPage);
-await goto(rivalPage, `/services/${declaredId}`);
+await goto(rivalPage, `/tutoring/${declaredId}`);
 await pageToSlots(rivalPage);
 const declaredSlots = await rivalPage.locator('.slot').allInnerTexts();
 check(
@@ -462,7 +462,7 @@ check(
 
 console.log('\n[10] The same availability, seen as a week grid and a month');
 studentPage = await renew(studentPage);
-await goto(studentPage, `/services/${declaredId}`);
+await goto(studentPage, `/tutoring/${declaredId}`);
 await pageToSlots(studentPage);
 const listSlots = await studentPage.locator('.slot').count();
 

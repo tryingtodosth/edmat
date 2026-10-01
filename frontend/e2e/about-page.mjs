@@ -143,16 +143,23 @@ try {
 			await openAbout(page);
 			// The flags load after hydration; wait for the card to go rather than counting at once.
 			await page
-				.locator('.about__grid .about__card a[href$="/services"]')
+				.locator(
+					'.about__grid .about__card a[href$="/tutoring"], .about__grid .about__card a[href$="/korki"]'
+				)
 				.waitFor({ state: 'detached', timeout: 8000 })
 				.catch(() => {});
 			check(
 				'tutoring off: its card is gone',
-				(await page.locator('.about__grid .about__card a[href$="/services"]').count()) === 0
+				(await page
+					.locator(
+						'.about__grid .about__card a[href$="/tutoring"], .about__grid .about__card a[href$="/korki"]'
+					)
+					.count()) === 0
 			);
 			check(
 				'tutoring off: seven cards remain',
-				(await page.locator('.about__grid .about__card').count()) === 7
+				// Eight with the Volunteering card added on 2026-10-01, minus the tutoring one.
+				(await page.locator('.about__grid .about__card').count()) === 8
 			);
 			await shoot(page, 'en-desktop-tutoring-off');
 			await ctx.close();

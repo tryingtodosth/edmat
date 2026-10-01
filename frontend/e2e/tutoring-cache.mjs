@@ -67,7 +67,7 @@ const noticeText = async () => {
 // ---------------------------------------------------------------- 1. first visit is quiet
 
 console.log('\n1. A first visit announces nothing');
-await page.goto(`${BASE}/services`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/tutoring`, { waitUntil: 'networkidle' });
 await sleep(1800);
 const firstCards = await page.locator('.grid > *').count();
 check('rows render on a first visit', firstCards >= 2, `cards=${firstCards}`);
@@ -151,7 +151,7 @@ check(
 // ---------------------------------------------------------------- 5. the other two lists
 
 console.log('\n5. Watchlist and bookings render through the cache');
-await page.goto(`${BASE}/services/watchlist`, { waitUntil: 'networkidle' });
+await page.goto(`${BASE}/tutoring/watchlist`, { waitUntil: 'networkidle' });
 await sleep(1800);
 check('watchlist page renders', (await page.locator('body').innerText()).length > 200);
 await page.goto(`${BASE}/bookings`, { waitUntil: 'networkidle' });

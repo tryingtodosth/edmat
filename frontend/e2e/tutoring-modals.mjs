@@ -89,7 +89,7 @@ page.on('console', (m) => {
 });
 
 const openMine = async () => {
-	await page.goto(`${BASE}/services`, { waitUntil: 'networkidle' });
+	await page.goto(`${BASE}/tutoring`, { waitUntil: 'networkidle' });
 	await sleep(1500);
 	await page.locator('.tabs button').nth(1).click();
 	await sleep(1200);

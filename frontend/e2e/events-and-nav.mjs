@@ -219,11 +219,21 @@ check('it opens', (await addTrigger.getAttribute('aria-expanded')) === 'true');
 for (const [label, needle] of [
 	['submit exercise', /Submit exercise/i],
 	['submit material', /Submit material/i],
-	['create a course', /Create a course/i],
 	['host an event', /Host an event/i],
 	['offer tutoring', /Offer tutoring/i]
 ]) {
 	check(`the Add menu offers ${label}`, needle.test(addItems), addItems);
+}
+// Four entries left this menu on 2026-10-01, by owner decision — none of them killed, all of
+// them still reachable from the surface they belong to. Asserted as absences, because "we took
+// it out" is exactly the kind of change that half-lands (house rule 3 read in reverse).
+for (const [label, needle] of [
+	['create a course', /Create a course/i],
+	['new concept', /New concept/i],
+	['new organisation', /New organisation/i],
+	['start a material with others', /with others/i]
+]) {
+	check(`the Add menu no longer offers ${label}`, !needle.test(addItems), addItems);
 }
 // Escape closes it and hands focus back — the part that is easy to get wrong and the reason this
 // went through one shared primitive rather than three ad-hoc dropdowns.
@@ -679,8 +689,13 @@ check(
 		polishTabs.some((t) => t.trim() === 'Wydarzenia'),
 	JSON.stringify(polishTabs)
 );
-const polishNav = await guestPage.locator('header').innerText();
-check('and the nav', /Wydarzenia/.test(polishNav), polishNav.replace(/\n+/g, ' | '));
+// Events became an icon in the bar on 2026-10-01 (owner's call), so the WORD is no longer in the
+// header's text at any width — the accessible name carries it instead, which is what a Polish
+// reader's screen reader and tooltip get.
+const polishEventsLabel = await guestPage
+	.locator('header .site-nav .nav-link--events')
+	.getAttribute('aria-label');
+check('and the nav', polishEventsLabel === 'Wydarzenia', String(polishEventsLabel));
 
 console.log('\n[13] The navbar on a phone');
 // A dedicated context, because the viewport is the thing under test and resizing a page other checks

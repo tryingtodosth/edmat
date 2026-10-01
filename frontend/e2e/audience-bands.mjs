@@ -182,7 +182,7 @@ check(
 );
 
 // 3. Submit forms require a band.
-await page.goto(`${BASE}/services/new`, { waitUntil: 'load' });
+await page.goto(`${BASE}/tutoring/new`, { waitUntil: 'load' });
 await settle(2500);
 const sel = page
 	.locator('form select[required]')
