@@ -98,7 +98,6 @@
 	let canOrganizations = $derived(can('organizations'));
 
 	let canWork = $derived(can('work_dashboard'));
-	let canSchoolDemo = $derived(can('school_demo'));
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -116,14 +115,12 @@
 		venueStaffStore.ensureLoaded(canVenues ? (authStore.user?.id ?? null) : null);
 	});
 
+	// One flag per entry the Add… menu can still carry, so the trigger disappears when it would
+	// open on nothing. `canOrganizations` left this list on 2026-10-01 with "New organisation"
+	// itself, and `canConcepts` with "New concept": a flag that governs no entry must not keep the
+	// menu alive, or somebody with only that switch on opens an empty popover.
 	let hasAnythingToAdd = $derived(
-		canSubmitExercise ||
-			canSubmitMaterial ||
-			canClassroom ||
-			canTutoring ||
-			canEvents ||
-			runsAVenue ||
-			canOrganizations
+		canSubmitExercise || canSubmitMaterial || canClassroom || canTutoring || canEvents || runsAVenue
 	);
 
 	function logout() {
@@ -431,17 +428,17 @@
 			<!-- "Venues you run" -->
 		</a>
 	{/if}
-	<!-- Management Add… marker (MANAGEMENT-BRIEF.md §4 rule 4): step A appends "New organisation"
-	     directly below this comment, behind its flag and for adults only. -->
-	{#if canOrganizations && !isMinor}
-		<!-- Founding a body means standing publicly behind it, which `accounts/minors.py` closes to an
-		     under-16 exactly as it closes event hosting — the link goes with the ability (house rule 3
-		     read the same way the Events entry reads it). -->
-		<a role="menuitem" class={itemClass} href={resolve('/organizations/new')} {onclick}>
-			{m.orgs_navAdd()}
-			<!-- "New organisation" -->
-		</a>
-	{/if}
+	<!-- Management Add… marker (MANAGEMENT-BRIEF.md §4 rule 4): step A appended "New organisation"
+	     directly below this comment, behind its flag and for adults only.
+
+	     It left again on 2026-10-01, by owner decision, with "New concept" and the school-demo
+	     link — see the note on those. The surface is NOT killed: the `organizations` flag is
+	     untouched, "Organisations" is still in the account menu below, and `/organizations/new`
+	     still works and is still reachable from the hub. Founding a body is a rare act and a
+	     deliberate one; offering it from every page of the site said otherwise.
+	     (It was, and still is where it remains, closed to an under-16: founding a body means
+	     standing publicly behind it, which `accounts/minors.py` closes exactly as it closes event
+	     hosting.) -->
 {/snippet}
 
 {#snippet accountItems(itemClass: string, onclick: () => void)}
@@ -522,19 +519,14 @@
 			<!-- "My work" -->
 		</a>
 	{/if}
-	{#if canSchoolDemo}
-		<!-- The school-management demo (HISTORY.md §17BO). A plain href with `rel="external"`, NOT
-		     `resolve()`: /dziennik is a separate static bundle served by the vhost, not a SvelteKit
-		     route, so the router must not try to own it — a client-side navigation would 404 inside
-		     this app. In `accountItems` rather than `browseLinks` because it is a thing to go and
-		     look at once, not part of browsing the corpus. Being a snippet, this renders into the
-		     desktop popover and the phone drawer from one place (frontend/CLAUDE.md), so the flag
-		     cannot hide it in one and leave it in the other. -->
-		<a role="menuitem" class={itemClass} href="/dziennik/" rel="external" {onclick}>
-			{m.nav_schoolDemo()}
-			<!-- "School logbook demo" -->
-		</a>
-	{/if}
+	<!-- The school-management demo (HISTORY.md §17BO) was linked here until 2026-10-01, when the
+	     owner took it out of the menu. The demo itself is untouched and still served at /dziennik/
+	     by the vhost — it is a separate static bundle, not a SvelteKit route, which is why the link
+	     was a plain `href` with `rel="external"` rather than a `resolve()` (a client-side
+	     navigation would 404 inside this app). What changed is only that the site stops offering a
+	     different product from its own account menu; the address still works for anybody holding
+	     it, and the `school_demo` flag still governs nothing else, so it is now read nowhere in
+	     this file. -->
 	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
 	{#if canIssues}
 		<button
