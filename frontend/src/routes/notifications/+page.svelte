@@ -9,6 +9,8 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
+	import { messagesStore } from '$lib/state/messages.svelte';
+	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
 	import NotificationCard from '$lib/components/notification/NotificationCard.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
@@ -31,6 +33,25 @@
 		{/if}
 	</div>
 
+	<!-- One inbox or two (2026-10-01, a per-account preference, default split). With it on, the
+	     unread conversations sit above the notifications so there is one page to look at. It is a
+	     LINK, not the conversations themselves: this page reads `notificationStore`, and
+	     reproducing the thread list here would be a second messages page to keep in step with the
+	     real one. The header's envelope disappears at the same time, so this line is what replaces
+	     it — if it were not here, turning the preference on would simply hide an inbox. -->
+	{#if displayPrefs.combinedInbox && authStore.isAuthenticated}
+		<section class="messages-strip">
+			<h2>{m.inbox_messagesHeading()}</h2>
+			{#if messagesStore.unreadCount > 0}
+				<a href={resolve('/messages')}
+					>{m.inbox_unreadMessages({ count: messagesStore.unreadCount })}</a
+				>
+			{:else}
+				<a href={resolve('/messages')}>{m.inbox_openMessages()}</a>
+			{/if}
+		</section>
+	{/if}
+
 	{#if authStore.restoring}
 		<p class="session-restoring">{m.common_loading()}</p>
 	{:else if !authStore.isAuthenticated}
@@ -52,6 +73,23 @@
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
+	.messages-strip {
+		display: flex;
+		align-items: baseline;
+		gap: var(--space-3);
+		flex-wrap: wrap;
+		padding: var(--space-3);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-md);
+		background: var(--bg-surface);
+	}
+	.messages-strip h2 {
+		margin: 0;
+		font-size: var(--font-size-base);
+	}
+	.messages-strip a {
+		color: var(--accent);
+	}
 
 	.page {
 		max-width: 620px;

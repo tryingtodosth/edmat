@@ -5,6 +5,8 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { notificationStore } from '$lib/state/notifications.svelte';
+	import { messagesStore } from '$lib/state/messages.svelte';
+	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
 	import NotificationCard from '$lib/components/notification/NotificationCard.svelte';
 
 	let open = $state(false);
@@ -36,6 +38,15 @@
 	// The bell's own popover shows only the most recent handful — a deliberately short list, the
 	// full history lives at /notifications (this popover's own "view all" link).
 	let recent = $derived(notificationStore.items.slice(0, 8));
+
+	// One inbox or two (2026-10-01). With the preference on the bell speaks for both, so the badge
+	// has to count both — a bell that says 2 next to an envelope that is no longer there, while
+	// three conversations wait, is worse than the two icons it replaced. The two counts are simply
+	// added: they are counts of different things, and nothing is double-counted because a message
+	// never produces a notification row (notifications/services.py has no messaging type).
+	let unread = $derived(
+		notificationStore.unreadCount + (displayPrefs.combinedInbox ? messagesStore.unreadCount : 0)
+	);
 </script>
 
 <svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
@@ -49,8 +60,8 @@
 		aria-label={m.notification_inboxHeading()}
 	>
 		🔔
-		{#if notificationStore.unreadCount > 0}
-			<span class="badge">{notificationStore.unreadCount}</span>
+		{#if unread > 0}
+			<span class="badge">{unread}</span>
 		{/if}
 	</button>
 
@@ -64,6 +75,14 @@
 					</button>
 				{/if}
 			</div>
+			<!-- The unread conversations, above the notifications and only for somebody who asked
+			     for one inbox. A link per conversation rather than the message itself: this popover
+			     is a glance, and reading a message is `/messages/[id]`'s job. -->
+			{#if displayPrefs.combinedInbox && messagesStore.unreadCount > 0}
+				<a class="messages-line" href={resolve('/messages')} onclick={() => (open = false)}>
+					{m.inbox_unreadMessages({ count: messagesStore.unreadCount })}
+				</a>
+			{/if}
 			{#if !notificationStore.loaded}
 				<p class="empty">{m.common_loading()}</p>
 			{:else if recent.length === 0}
@@ -85,6 +104,13 @@
 <style lang="scss">
 	.notification-bell {
 		position: relative;
+	}
+	.messages-line {
+		display: block;
+		padding: var(--space-2) var(--space-3);
+		border-bottom: 1px solid var(--border-color);
+		color: var(--accent);
+		font-size: var(--font-size-sm);
 	}
 	.notification-bell__toggle {
 		position: relative;

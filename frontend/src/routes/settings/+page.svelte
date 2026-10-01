@@ -35,6 +35,7 @@
 	let timeFormat = $state<'24h' | '12h'>('24h');
 	let weekStartsOn = $state<'monday' | 'sunday'>('monday');
 	let saveMenuLayout = $state<'beside' | 'above'>('beside');
+	let combinedInbox = $state(false);
 	let audienceFilter = new SvelteSet<Audience>();
 	let contentExtras = new SvelteSet<string>();
 	// A writable $derived: follows the header's "Aa" button (the same setting) until the select
@@ -105,6 +106,7 @@
 		timeFormat = authStore.user.timeFormat ?? '24h';
 		weekStartsOn = authStore.user.weekStartsOn ?? 'monday';
 		saveMenuLayout = authStore.user.saveMenuLayout ?? 'beside';
+		combinedInbox = authStore.user.combinedInbox ?? false;
 		textSize = authStore.user.textSize ?? 'normal';
 		highContrast = authStore.user.highContrast ?? false;
 		contentExtras.clear();
@@ -139,6 +141,7 @@
 			timeFormat,
 			weekStartsOn,
 			saveMenuLayout,
+			combinedInbox,
 			audienceFilter: Array.from(audienceFilter),
 			contentLocales: Array.from(contentExtras),
 			textSize,
@@ -414,6 +417,17 @@
 
 			<section class="field-group">
 				<h2>{m.settings_notificationsHeading()}</h2>
+				<!-- One inbox or two. FIRST in this section because it decides what the rest of it
+				     is drawn next to, and it is the only control here that changes the header. It is
+				     NOT one of the notify-on-* switches below it, and the difference matters: those
+				     decide whether a row is ever CREATED (notifications/services.py gates on them),
+				     while this one only decides where two existing lists are shown. Off is the
+				     default and is exactly today's behaviour, down to the two icons. -->
+				<label class="checkbox">
+					<input type="checkbox" bind:checked={combinedInbox} />
+					<span>{m.settings_combinedInbox()}</span>
+				</label>
+				<p class="field-hint">{m.settings_combinedInboxHint()}</p>
 				<label class="checkbox">
 					<input type="checkbox" bind:checked={notifyOnCommentReply} />
 					<span>{m.settings_notifyOnCommentReply()}</span>

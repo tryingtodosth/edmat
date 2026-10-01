@@ -1014,6 +1014,7 @@ export interface RawProfile {
 	time_format?: string;
 	week_starts_on?: string;
 	save_menu_layout?: string;
+	combined_inbox?: boolean;
 	audience_filter?: string[];
 	content_locales?: string[];
 	editor_mode?: string;
@@ -1084,6 +1085,7 @@ export function mapUser(json: RawProfile): User {
 		timeFormat: json.time_format === '12h' ? '12h' : '24h',
 		weekStartsOn: json.week_starts_on === 'sunday' ? 'sunday' : 'monday',
 		saveMenuLayout: json.save_menu_layout === 'above' ? 'above' : 'beside',
+		combinedInbox: json.combined_inbox ?? false,
 		audienceFilter: (json.audience_filter ?? []) as User['audienceFilter'],
 		contentLocales: json.content_locales ?? [],
 		editorMode: json.editor_mode === 'rich' ? 'rich' : 'source',

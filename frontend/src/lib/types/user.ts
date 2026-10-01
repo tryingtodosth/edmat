@@ -66,6 +66,12 @@ export interface User {
 	 * defensible answers, and which reads better depends on the screen and on how often somebody
 	 * files things into courses — so it is a setting rather than one decision for everybody. */
 	saveMenuLayout?: 'beside' | 'above';
+	/** One inbox or two. Off (the default, and what everybody already has) keeps messages and
+	 * notifications apart: two icons in the header, two pages. On draws the unread conversations
+	 * at the top of `/notifications` and folds their count into the bell, so there is one place
+	 * to look. A preference, because both answers are right for different people — see
+	 * `accounts.Profile.combined_inbox` for the longer version. */
+	combinedInbox?: boolean;
 	notifyOnCommentReply?: boolean;
 	notifyOnModerationDecision?: boolean;
 	notifyOnContentAction?: boolean;

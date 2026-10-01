@@ -59,6 +59,24 @@ class Profile(models.Model):
         max_length=8, choices=SAVE_MENU_LAYOUT_CHOICES, default='beside'
     )
 
+    # One inbox or two (owner's call, 2026-10-01: "make it personal option of a user to turn this
+    # off, default: split").
+    #
+    # Messages and notifications are two inboxes with two icons, two badges and two pages, and
+    # that is a real complaint — for somebody who gets three things a week it is two places to
+    # check for the same reason. It is equally a real preference the other way: somebody who runs
+    # a course wants a person writing to them to look nothing like a vote on a solution.
+    #
+    # So it is a setting, and the DEFAULT IS SPLIT, which is what everybody already has. A
+    # preference that changes what the header looks like must not change it for people who never
+    # asked; off means today's behaviour exactly, down to the two icons.
+    #
+    # Deliberately NOT a notification preference (`_PREFERENCE_FIELD_FOR_TYPE` and friends): those
+    # decide whether a row is CREATED. This decides where two existing lists are drawn, creates
+    # nothing, suppresses nothing, and loses nothing if it is ignored by a client that has not
+    # been updated.
+    combined_inbox = models.BooleanField(default=False)
+
     # A short self-description. Always public when set — like `display_name`, it is something the
     # account holder actively wrote to be read, so `show_profile_publicly` (which withholds info a
     # visitor never chose to publish, e.g. the joined date) does not gate it.

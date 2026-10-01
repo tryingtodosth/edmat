@@ -39,6 +39,7 @@
 	import { localizedPath } from '$lib/utils/localizedPath';
 	import { page } from '$app/state';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
@@ -787,7 +788,14 @@
 					</a>
 				{/if}
 
-				{#if authStore.isAuthenticated && canMessaging}
+				<!-- The envelope, unless this person has asked for one inbox (2026-10-01, owner:
+				     "make it personal option of a user to turn this off, default: split"). With the
+				     preference on, the bell carries both counts and `/notifications` lists the
+				     unread conversations above the notifications, so a second icon pointing at half
+				     of what the first one now shows is exactly the duplication they turned off.
+				     `/messages` is NOT gated by the preference — it is still a real page, still in
+				     the drawer, and every conversation row still links to it. -->
+				{#if authStore.isAuthenticated && canMessaging && !displayPrefs.combinedInbox}
 					<a class="icon-button" href={resolve('/messages')} aria-label={m.nav_messages()}>
 						{@render messagesIcon()}
 						{#if messagesStore.unreadCount > 0}

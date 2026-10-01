@@ -204,6 +204,7 @@ export const authStore = {
 			timeFormat: '24h' | '12h';
 			weekStartsOn: 'monday' | 'sunday';
 			saveMenuLayout: 'beside' | 'above';
+			combinedInbox: boolean;
 			audienceFilter: Audience[];
 			contentLocales: string[];
 			editorMode: 'rich' | 'source';
@@ -229,6 +230,7 @@ export const authStore = {
 		if (patch.timeFormat !== undefined) body.time_format = patch.timeFormat;
 		if (patch.weekStartsOn !== undefined) body.week_starts_on = patch.weekStartsOn;
 		if (patch.saveMenuLayout !== undefined) body.save_menu_layout = patch.saveMenuLayout;
+		if (patch.combinedInbox !== undefined) body.combined_inbox = patch.combinedInbox;
 		if (patch.audienceFilter !== undefined) body.audience_filter = patch.audienceFilter;
 		if (patch.contentLocales !== undefined) body.content_locales = patch.contentLocales;
 		if (patch.editorMode !== undefined) body.editor_mode = patch.editorMode;

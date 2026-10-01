@@ -53,6 +53,13 @@ class DisplayPrefsStore {
 	/** Where the save menu puts the "add to a course" half. `beside` for a guest, who has neither
 	 * saved sets nor courses and so never sees the second half at all — the default matters only
 	 * once somebody signs in and has said nothing. */
+	/** One inbox or two. Read by the header (which icons and which badge) and by
+	 * `/notifications` (whether to draw the unread conversations above the notifications). A
+	 * signed-out visitor has neither inbox, so the default never shows. */
+	get combinedInbox(): boolean {
+		return authStore.user?.combinedInbox ?? false;
+	}
+
 	get saveMenuLayout(): SaveMenuLayout {
 		return authStore.user?.saveMenuLayout ?? DEFAULT_SAVE_MENU_LAYOUT;
 	}
