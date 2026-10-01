@@ -522,6 +522,9 @@
 		flex-direction: column;
 		gap: var(--space-3);
 	}
+	// `SolutionEntryCard` draws the same attachment row — a picture inline, a PDF behind a chip
+	// that opens `PdfViewer` in place — because the row it draws is `CommentAttachment`'s twin.
+	// Flagged in both files (house rule 13); a third site earns the extraction.
 	.comment__attachments {
 		list-style: none;
 		padding: 0;

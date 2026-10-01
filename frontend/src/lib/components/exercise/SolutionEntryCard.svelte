@@ -23,6 +23,7 @@
 	import { getCommentsForTarget, submitComment } from '$lib/services/comments';
 	import { getUserById } from '$lib/services/users';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
+	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 
@@ -40,6 +41,8 @@
 
 	let busy = $state(false);
 	let error = $state<string | null>(null);
+	// Which attached PDF is open, if any — one at a time, the same as a comment's.
+	let openPdf = $state<string | null>(null);
 
 	let isOwn = $derived(
 		!!authStore.user && !!entry.authorId && entry.authorId === authStore.user.id
@@ -293,6 +296,36 @@
 
 		<MathContent source={entry.body} />
 
+		<!-- Scans and PDFs hanging off the entry (2026-10-01). The same two shapes `CommentNode`
+		     draws, for the same two kinds, because the row is `CommentAttachment`'s twin: a
+		     picture inline and clickable, a PDF behind a chip that opens the viewer in place.
+		     `PdfViewer` is dynamically imported inside itself (~420 KB of pdf.js plus a worker),
+		     so a reader who never opens one never downloads it — house rule 11. -->
+		{#if entry.attachments.length > 0}
+			<ul class="entry__attachments">
+				{#each entry.attachments as a (a.id)}
+					<li>
+						<!-- eslint-disable svelte/no-navigation-without-resolve -- a media file, not a route -->
+						{#if a.kind === 'image'}
+							<a href={a.url} target="_blank" rel="noopener"
+								><img src={a.url} alt={a.originalName} loading="lazy" /></a
+							>
+						{:else}
+							<button
+								type="button"
+								class="pdf-chip"
+								aria-expanded={openPdf === a.id}
+								onclick={() => (openPdf = openPdf === a.id ? null : a.id)}
+								>📄 {a.originalName || 'PDF'} · {Math.round(a.sizeBytes / 1024)} kB</button
+							>
+						{/if}
+						<!-- eslint-enable svelte/no-navigation-without-resolve -->
+						{#if openPdf === a.id}<div class="entry__pdf"><PdfViewer url={a.url} /></div>{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
 		{#if entry.status === 'rejected' && entry.reviewNote}
 			<p class="entry__review-note">{m.entry_reviewNote({ note: entry.reviewNote })}</p>
 		{/if}
@@ -424,6 +457,37 @@
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
+
+	// The attachment row, drawn exactly as `CommentNode` draws its own — flagged in both files
+	// (house rule 13: the third one earns the extraction, this is the second).
+	.entry__attachments {
+		list-style: none;
+		padding: 0;
+		margin: 0.4rem 0 0;
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.entry__attachments img {
+		max-height: 160px;
+		max-width: 240px;
+		border-radius: 6px;
+		border: 1px solid var(--border-color);
+		display: block;
+	}
+	.pdf-chip {
+		min-height: 44px;
+		padding: 0 0.7rem;
+		border-radius: 999px;
+		border: 1px solid var(--border-color);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		cursor: pointer;
+	}
+	.entry__pdf {
+		margin-top: var(--space-2);
+		width: 100%;
+	}
 
 	.entry {
 		display: flex;

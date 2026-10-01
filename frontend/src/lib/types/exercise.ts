@@ -65,6 +65,26 @@ export type SolutionEntryKind = 'hint' | 'solution';
  * (its own comment thread) and reportable. `pinned` floats the corpus originals (and anything a
  * moderator/governor pins) above the vote ordering.
  */
+/**
+ * A scan or a PDF hanging off one hint/solution (backend `exercises.SolutionEntryAttachment`).
+ *
+ * Field-for-field the same shape as `CommentAttachment` in `types/comment.ts`, because the
+ * backend model and serializer are that one's twin — the two must stay in step, and they are
+ * flagged in each other's comments rather than merged, so that a reader of an entry is never
+ * told they are reading a comment.
+ *
+ * Most ways of putting something in a solution do not need this: a picture, a chemistry
+ * structure and a freehand sketch all go INTO the body through the insert strip. A PDF has
+ * nothing to be embedded as, which is the whole reason the row exists.
+ */
+export interface SolutionEntryAttachment {
+	id: string;
+	kind: 'image' | 'pdf';
+	url: string;
+	originalName: string;
+	sizeBytes: number;
+}
+
 export interface SolutionEntry {
 	id: string;
 	exerciseId: string;
@@ -81,6 +101,7 @@ export interface SolutionEntry {
 	reviewNote: string;
 	voteSummary: CoverageVoteSummary;
 	commentCount: number;
+	attachments: SolutionEntryAttachment[];
 	createdAt: string;
 }
 

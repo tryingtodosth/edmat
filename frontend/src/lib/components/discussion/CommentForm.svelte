@@ -96,6 +96,9 @@
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// `SolutionEntrySection`'s composer draws the same pending-file row with the same two classes
+	// (house rule 13: this is strike two, so the pair is flagged in both files rather than
+	// extracted). A third one earns a shared component.
 	.comment-form__files {
 		display: flex;
 		gap: 0.4rem;

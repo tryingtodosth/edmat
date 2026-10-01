@@ -23,6 +23,7 @@ from .models import (
     ExerciseSourceTranslation,
     ExerciseTranslation,
     SolutionEntry,
+    SolutionEntryAttachment,
     Tag,
     TagFollow,
 )
@@ -60,6 +61,24 @@ class ExerciseRequirementSerializer(serializers.ModelSerializer):
         return build_vote_summary(votes, self.context.get('request'))
 
 
+class SolutionEntryAttachmentSerializer(serializers.ModelSerializer):
+    """`community.CommentAttachmentSerializer`'s twin, for the same reason the model is its
+    twin — the client renders both through one component and a different field spelling would
+    make that impossible."""
+
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SolutionEntryAttachment
+        fields = ['id', 'kind', 'url', 'original_name', 'size_bytes']
+
+    def get_url(self, a) -> str:
+        if not a.file:
+            return ''
+        request = self.context.get('request')
+        return request.build_absolute_uri(a.file.url) if request else a.file.url
+
+
 class SolutionEntrySerializer(serializers.ModelSerializer):
     """One hint/solution in the pool (models.SolutionEntry). `vote_summary` is the same shared
     weighted math every claim/requirement vote already reads (materials/services.py);
@@ -69,6 +88,7 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
     author_display_name = serializers.SerializerMethodField()
     vote_summary = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
+    attachments = SolutionEntryAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = SolutionEntry
@@ -88,6 +108,7 @@ class SolutionEntrySerializer(serializers.ModelSerializer):
             'review_note',
             'vote_summary',
             'comment_count',
+            'attachments',
             'created_at',
         ]
         read_only_fields = [

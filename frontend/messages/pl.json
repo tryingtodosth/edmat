@@ -2166,6 +2166,7 @@
 	"sort_views": "Najczęściej czytane",
 	"sort_recent": "Najnowsze",
 	"comment_attach": "Dodaj obrazek lub PDF",
+	"entry_attachmentFailed": "Nie udało się dołączyć niektórych plików ({count}). Sam tekst został zapisany.",
 	"comment_fileTooBig": "Do 5 MB na plik.",
 	"comment_filesNotAdded": "Komentarz został dodany, ale plików nie udało się dołączyć.",
 	"editor_toolbar": "Narzędzia edytora",

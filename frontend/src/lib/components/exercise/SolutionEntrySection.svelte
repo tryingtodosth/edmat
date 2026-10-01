@@ -6,10 +6,11 @@
      exactly where you've just read the existing solutions. -->
 <script lang="ts">
 	import RichEditor from '$lib/components/editor/RichEditor.svelte';
+	import InsertStrip from '$lib/components/editor/InsertStrip.svelte';
 	import type { SolutionEntry, SolutionEntryKind } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
-	import { submitSolutionEntry } from '$lib/services/exercises';
+	import { submitSolutionEntry, uploadEntryAttachment } from '$lib/services/exercises';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import SolutionEntryCard from './SolutionEntryCard.svelte';
 
@@ -40,6 +41,26 @@
 	let composerBusy = $state(false);
 	let composerError = $state<string | null>(null);
 	let composerNotice = $state<'published' | 'pending' | null>(null);
+	// The insert strip and the editor it inserts into. Everything the strip offers EXCEPT a PDF
+	// goes straight into the body — a picture through `/inline-images/`, a chemistry structure
+	// through `/chem-drawings/`, a sketch through `/sketches/`, LaTeX as a real maths node. A PDF
+	// has nothing to be embedded as, so it is held here and uploaded against the entry once the
+	// entry exists, exactly as a comment's attachments are (`DiscussionThread.svelte`).
+	let editorRef = $state<RichEditor | null>(null);
+	let strip = $state<InsertStrip | null>(null);
+	let composerFiles = $state<File[]>([]);
+	let fileError = $state('');
+	const MAX_ENTRY_FILES = 3; // mirrors MAX_ATTACHMENTS_PER_COMMENT, which the endpoint enforces
+	const MAX_ENTRY_FILE_BYTES = 5 * 1024 * 1024; // mirrors MAX_ATTACHMENT_BYTES
+
+	function addFiles(chosen: File[]) {
+		fileError = '';
+		if (chosen.some((f) => f.size > MAX_ENTRY_FILE_BYTES)) fileError = m.comment_fileTooBig();
+		composerFiles = [
+			...composerFiles,
+			...chosen.filter((f) => f.size <= MAX_ENTRY_FILE_BYTES)
+		].slice(0, MAX_ENTRY_FILES);
+	}
 
 	// The reviewer circle, coarsely — the server is the real gate; this only decides whether the
 	// accept/deny affordances render at all (same split every moderation surface here uses).
@@ -71,9 +92,23 @@
 				locale: (composerLocale || contentLocale).trim(),
 				body: composerBody
 			});
-			onCreated(entry);
+			// The files go up one at a time against the entry that now exists. A failed upload must
+			// NOT lose the entry — the words are the valuable part and they are already saved — so
+			// each failure is collected and said out loud instead of throwing the whole submit away.
+			const attached = [];
+			let failed = 0;
+			for (const file of composerFiles) {
+				try {
+					attached.push(await uploadEntryAttachment(entry.id, file));
+				} catch {
+					failed += 1;
+				}
+			}
+			onCreated({ ...entry, attachments: [...entry.attachments, ...attached] });
 			composerNotice = entry.status === 'published' ? 'published' : 'pending';
+			fileError = failed > 0 ? m.entry_attachmentFailed({ count: failed }) : '';
 			composerBody = '';
+			composerFiles = [];
 			showComposer = false;
 			revealed = true;
 		} catch {
@@ -120,10 +155,34 @@
 					<input type="text" bind:value={composerLocale} maxlength="8" />
 				</label>
 				<RichEditor
+					bind:this={editorRef}
 					bind:value={composerBody}
 					placeholder={m.entry_composerPlaceholder()}
 					rows={6}
+					onChemEdit={(id) => strip?.editChem(id)}
+					onSketchEdit={(id) => strip?.editSketch(id)}
 				/>
+				<InsertStrip
+					bind:this={strip}
+					editor={editorRef}
+					allowFiles={composerFiles.length < MAX_ENTRY_FILES}
+					onFiles={addFiles}
+				/>
+				{#if composerFiles.length > 0 || fileError}
+					<div class="composer__files">
+						{#each composerFiles as f, i (i)}
+							<span class="file-chip"
+								>{f.name}<button
+									type="button"
+									aria-label={m.common_remove()}
+									onclick={() => (composerFiles = composerFiles.filter((_, j) => j !== i))}
+									>×</button
+								></span
+							>
+						{/each}
+						{#if fileError}<span class="error">{fileError}</span>{/if}
+					</div>
+				{/if}
 				<div class="composer__actions">
 					<button
 						type="button"
@@ -229,6 +288,31 @@
 			background: var(--bg-surface);
 			color: var(--text-primary);
 		}
+	}
+	// The pending-file row, the same shape `CommentForm` draws — three strikes before extracting a
+	// shared utility (house rule 13); this is the second, so the two are flagged in each other's
+	// comments instead. If a third composer grows one, extract it then.
+	.composer__files {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+		flex-wrap: wrap;
+		margin: 0.3rem 0;
+		font-size: 0.85rem;
+	}
+	.file-chip {
+		display: inline-flex;
+		gap: 0.3rem;
+		align-items: center;
+		padding: 0.15rem 0.5rem;
+		border-radius: 999px;
+		background: var(--bg-surface-alt);
+	}
+	.file-chip button {
+		border: 0;
+		background: none;
+		cursor: pointer;
+		color: var(--text-secondary);
 	}
 	.composer__actions {
 		display: flex;

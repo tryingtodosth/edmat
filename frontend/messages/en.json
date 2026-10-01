@@ -2166,6 +2166,7 @@
 	"sort_views": "Most read",
 	"sort_recent": "Newest",
 	"comment_attach": "Add a picture or PDF",
+	"entry_attachmentFailed": "Some files could not be attached ({count}). The text itself was saved.",
 	"comment_fileTooBig": "Up to 5 MB per file.",
 	"comment_filesNotAdded": "The comment was posted, but the files could not be added.",
 	"editor_toolbar": "Editor tools",

@@ -50,6 +50,7 @@ import type {
 	ScheduleEvent,
 	Service,
 	SolutionEntry,
+	SolutionEntryAttachment,
 	ServiceAvailability,
 	ServiceReview,
 	ServiceWatch,
@@ -240,7 +241,28 @@ export interface RawSolutionEntry {
 	review_note: string;
 	vote_summary: RawCoverageVoteSummary;
 	comment_count: number;
+	attachments?: RawSolutionEntryAttachment[];
 	created_at: string;
+}
+
+export interface RawSolutionEntryAttachment {
+	id: number;
+	kind: 'image' | 'pdf';
+	url: string;
+	original_name: string;
+	size_bytes: number;
+}
+
+export function mapSolutionEntryAttachment(
+	json: RawSolutionEntryAttachment
+): SolutionEntryAttachment {
+	return {
+		id: String(json.id),
+		kind: json.kind,
+		url: json.url,
+		originalName: json.original_name,
+		sizeBytes: json.size_bytes
+	};
 }
 
 export function mapSolutionEntry(json: RawSolutionEntry): SolutionEntry {
@@ -260,6 +282,7 @@ export function mapSolutionEntry(json: RawSolutionEntry): SolutionEntry {
 		reviewNote: json.review_note,
 		voteSummary: mapVoteSummary(json.vote_summary),
 		commentCount: json.comment_count,
+		attachments: (json.attachments ?? []).map(mapSolutionEntryAttachment),
 		createdAt: json.created_at
 	};
 }

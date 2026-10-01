@@ -8,14 +8,24 @@ import json
 import random
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Avg, Count, Max, Q
 from config.audience import apply_audience_filter
 from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
+# The attachment pipeline is `community`'s, used as-is rather than copied: one
+# `process_attachment` decides what a file may be, so a solution's scan is refused exactly the way
+# a comment's is (see `SolutionEntryViewSet.attachments`).
+from community.attachments import (
+    MAX_ATTACHMENTS_PER_COMMENT,
+    process_attachment,
+    used_upload_bytes,
+)
 from community.models import Comment, Review
 from community.serializers import CommentSerializer, ReviewSerializer
 from community.views import reply_counts_for
@@ -36,9 +46,11 @@ from .models import (
     ExerciseRequirement,
     ExerciseRequirementVote,
     SolutionEntry,
+    SolutionEntryAttachment,
     SolutionEntryVote,
     Tag,
     TagFollow,
+    entry_attachment_upload_path,
 )
 from .serializers import (
     ExerciseDetailSerializer,
@@ -48,6 +60,7 @@ from .serializers import (
     ExerciseRequirementSerializer,
     ExerciseTranslationSerializer,
     MaterialLinkForExerciseSerializer,
+    SolutionEntryAttachmentSerializer,
     SolutionEntryCreateSerializer,
     SolutionEntrySerializer,
     TagFollowSerializer,
@@ -985,6 +998,74 @@ class SolutionEntryViewSet(viewsets.GenericViewSet):
                 entry=entry, voter=request.user, defaults={'value': value}
             )
         return self._serialized(entry, request)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='attachments',
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def attachments(self, request, pk=None):
+        """Hang one picture or PDF off your own hint/solution — at most three, within your upload
+        allowance.
+
+        `community.CommentViewSet.attachments` line for line, and that is the point: one
+        `process_attachment` decides what a file is allowed to be, so a 6 MB scan is refused the
+        same way wherever it is offered. The entry must exist first, exactly as a comment must —
+        the composer POSTs the text, then the files against the id it gets back, which keeps every
+        other entry endpoint JSON.
+
+        Unlike a comment attachment this does NOT hold the entry for review when a minor uploads a
+        picture: an entry by anybody who is not a verified contributor already starts `pending`
+        (`entries.can_autopublish_entry`), so the hold is already there and a second one would be
+        a second `status` field in all but name.
+        """
+        entry = self.get_object()
+        if entry.author_id != request.user.pk:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        if entry.is_removed:
+            return Response({'detail': 'removed'}, status=status.HTTP_409_CONFLICT)
+        if entry.attachments.count() >= MAX_ATTACHMENTS_PER_COMMENT:
+            return Response({'detail': 'too_many'}, status=status.HTTP_409_CONFLICT)
+        upload = request.FILES.get('file')
+        if upload is None:
+            return Response({'file': ['A file is required.']}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            kind, content, name, size = process_attachment(upload)
+        except DjangoValidationError as e:
+            body = e.message_dict if hasattr(e, 'message_dict') else {'file': e.messages}
+            return Response(body, status=status.HTTP_400_BAD_REQUEST)
+        quota = request.user.profile.material_upload_quota_bytes
+        if quota and used_upload_bytes(request.user) + size > quota:
+            return Response({'detail': 'quota'}, status=status.HTTP_409_CONFLICT)
+        row = SolutionEntryAttachment(
+            entry=entry,
+            kind=kind,
+            original_name=name,
+            size_bytes=size,
+            order=entry.attachments.count(),
+        )
+        row.file.save(entry_attachment_upload_path(row, name), content, save=True)
+        return Response(
+            SolutionEntryAttachmentSerializer(row, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['delete'], url_path='attachments/(?P<attachment_id>[^/.]+)')
+    def attachment_delete(self, request, pk=None, attachment_id=None):
+        """The author takes one back, or staff does. The file goes with the row here — unlike the
+        entry itself, which is tombstoned (house rule 12), an attachment has no thread hanging off
+        it and nothing links to it, so there is no record to keep and a kept file is only a kept
+        file."""
+        entry = self.get_object()
+        if not (entry.author_id == request.user.pk or request.user.is_staff):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        row = entry.attachments.filter(pk=attachment_id).first()
+        if row is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        row.file.delete(save=False)
+        row.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=['post'])
     def pin(self, request, pk=None):

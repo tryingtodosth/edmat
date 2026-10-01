@@ -8,16 +8,20 @@ auto-hide wiring. Its own module (not `tests.py`) purely for size, the same spli
 """
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
+from community.attachments import used_upload_bytes
 from community.models import Comment
+from community.test_attachments import MINIMAL_PDF, png_bytes
 from telemetry.routers import all_log_shards
 from moderation.models import ContentView, EditSuggestion, Report
 from notifications.models import Notification
 from testing.factories import make_branch, make_exercise, make_user, make_viewer
 
-from .models import Exercise, SolutionEntry, SolutionEntryVote
+from .models import Exercise, SolutionEntry, SolutionEntryAttachment, SolutionEntryVote
 
 
 def make_entry(exercise, *, kind='solution', locale='pl', body='<p>Because \\(x=2\\).</p>',
@@ -506,3 +510,111 @@ class SiteActivityTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         kinds = {item['kind'] for item in response.data}
         self.assertIn('solution_entry', kinds)
+
+
+class EntryAttachmentTests(APITestCase):
+    """A scan or a PDF hanging off a hint/solution (2026-10-01, the owner's "make adding solution
+    as PDF, image, Chemistry, etc. work"). The pipeline is `community`'s, so what is pinned here
+    is the wiring, the ownership rules and the shared allowance — not `process_attachment` itself,
+    which `community/test_attachments.py` already covers file by file."""
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        self.branch = make_branch(slug='pool-attach')
+        self.exercise = make_exercise(self.branch, 1)
+        self.author = make_user('entry-attach-author')
+        self.other = make_user('entry-attach-other')
+        self.entry = make_entry(self.exercise, author=self.author)
+
+    def url(self, entry=None):
+        return reverse('solution-entry-attachments', args=[(entry or self.entry).pk])
+
+    def upload(self, user, name, data, content_type):
+        client = APIClient()
+        client.force_authenticate(user)
+        return client.post(
+            self.url(),
+            {'file': SimpleUploadedFile(name, data, content_type=content_type)},
+            format='multipart',
+        )
+
+    def test_the_author_can_attach_a_pdf_and_it_comes_back_on_the_entry(self):
+        response = self.upload(self.author, 'working.pdf', MINIMAL_PDF, 'application/pdf')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
+        self.assertEqual(response.json()['kind'], 'pdf')
+        self.assertEqual(response.json()['original_name'], 'working.pdf')
+
+        shown = self.client.get(reverse('exercise-detail', args=[self.exercise.pk])).json()
+        entry = next(e for e in shown['entries'] if e['id'] == self.entry.pk)
+        self.assertEqual(len(entry['attachments']), 1)
+        self.assertTrue(entry['attachments'][0]['url'])
+
+    def test_a_photographed_page_is_re_encoded_rather_than_stored_as_sent(self):
+        """House rule 7, inherited whole from `process_attachment` — asserted here because this
+        endpoint is a second door to it and a door that skipped the pipeline would pass every
+        test in `community`."""
+        response = self.upload(self.author, 'page1.png', png_bytes(2400, 1200), 'image/png')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.content)
+        row = SolutionEntryAttachment.objects.get(pk=response.json()['id'])
+        self.assertEqual(row.kind, 'image')
+        self.assertTrue(row.file.name.endswith('.webp'))
+        self.assertNotIn('page1', row.file.name)
+
+    def test_a_disguised_executable_is_refused(self):
+        response = self.upload(self.author, 'solution.pdf', b'MZ\x90\x00' + b'\x00' * 64, 'application/pdf')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.entry.attachments.count(), 0)
+
+    def test_somebody_else_may_not_attach_to_your_solution(self):
+        response = self.upload(self.other, 'mine.pdf', MINIMAL_PDF, 'application/pdf')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_three_is_the_limit_the_fourth_is_a_409(self):
+        for _ in range(3):
+            self.assertEqual(
+                self.upload(self.author, 'p.pdf', MINIMAL_PDF, 'application/pdf').status_code,
+                status.HTTP_201_CREATED,
+            )
+
+        fourth = self.upload(self.author, 'p.pdf', MINIMAL_PDF, 'application/pdf')
+
+        self.assertEqual(fourth.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(fourth.json()['detail'], 'too_many')
+
+    def test_a_removed_entry_takes_no_more_files(self):
+        self.entry.is_removed = True
+        self.entry.save(update_fields=['is_removed'])
+
+        response = self.upload(self.author, 'p.pdf', MINIMAL_PDF, 'application/pdf')
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_it_counts_against_the_same_allowance_as_a_comment_attachment(self):
+        """`community.attachments.used_upload_bytes` is the one answer to "how much have they
+        used", and its own docstring says why: an endpoint that counted only the older kinds
+        would hand out storage the others still think they are guarding."""
+        before = used_upload_bytes(self.author)
+
+        self.upload(self.author, 'working.pdf', MINIMAL_PDF, 'application/pdf')
+
+        self.assertEqual(
+            used_upload_bytes(self.author), before + SolutionEntryAttachment.objects.get().size_bytes
+        )
+
+    def test_the_author_can_take_one_back_and_a_stranger_cannot(self):
+        created = self.upload(self.author, 'working.pdf', MINIMAL_PDF, 'application/pdf').json()
+        delete_url = reverse('solution-entry-attachment-delete', args=[self.entry.pk, created['id']])
+
+        stranger = APIClient()
+        stranger.force_authenticate(self.other)
+        self.assertEqual(stranger.delete(delete_url).status_code, status.HTTP_403_FORBIDDEN)
+
+        owner = APIClient()
+        owner.force_authenticate(self.author)
+        self.assertEqual(owner.delete(delete_url).status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(SolutionEntryAttachment.objects.count(), 0)

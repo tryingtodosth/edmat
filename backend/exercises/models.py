@@ -360,6 +360,55 @@ class SolutionEntry(models.Model):
         return self.status == 'published' and not self.is_removed and self.auto_hidden_at is None
 
 
+def entry_attachment_upload_path(instance, filename: str) -> str:
+    """A random stored name, the uploader's own name kept only for display (house rule 7). The
+    extension comes from what the file was decided to BE, never from what it was called."""
+    import uuid
+
+    ext = '.webp' if instance.kind == 'image' else '.pdf'
+    return f'entry-attachments/{uuid.uuid4().hex}{ext}'
+
+
+class SolutionEntryAttachment(models.Model):
+    """A scan or a PDF hanging off one hint/solution — the owner's "make adding solution as PDF,
+    image, Chemistry, etc. work" (2026-10-01).
+
+    Three of the four ways that sentence names already worked once the insert strip was put on the
+    composer, because they all go INTO the body: a picture through `/inline-images/`, a chemistry
+    structure through `/chem-drawings/`, a freehand sketch through `/sketches/`. A PDF cannot go
+    into a body — there is nothing to embed it as — so it needs a row, and this is it.
+
+    It is `community.CommentAttachment` again, deliberately: same three-per-parent limit, same
+    `process_attachment` (re-encode a picture, sniff-and-scan a PDF, house rule 7), same random
+    stored name, same upload allowance. A second shape for the same thing is how two surfaces
+    start disagreeing about what a 6 MB upload should do. It is a separate TABLE rather than a
+    generic target on the existing one because `CommentAttachment.comment` is a real FK that four
+    call sites read; widening it to a `GenericForeignKey` would be a migration on a live table to
+    save one model definition.
+
+    A picture may be attached as well as embedded. Embedding is better — it sits in the sentence
+    it belongs to — but a phone photo of four pages of working is a stack of pictures, not an
+    illustration, and making somebody place each one in the text is the kind of friction that ends
+    with the solution not being written at all.
+    """
+
+    KIND_CHOICES = [('image', 'Picture'), ('pdf', 'PDF')]
+
+    entry = models.ForeignKey(SolutionEntry, related_name='attachments', on_delete=models.CASCADE)
+    kind = models.CharField(max_length=5, choices=KIND_CHOICES)
+    file = models.FileField(upload_to=entry_attachment_upload_path)
+    original_name = models.CharField(max_length=120, blank=True)
+    size_bytes = models.PositiveIntegerField(default=0)
+    order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'id']
+
+    def __str__(self) -> str:
+        return f'{self.kind} on entry #{self.entry_id}'
+
+
 class SolutionEntryVote(models.Model):
     """One ▲/▼ per user per entry — "is this correct and helpful", a single axis on purpose (the
     claims system's separate accuracy/importance votes answer two genuinely different questions; a

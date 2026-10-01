@@ -4,6 +4,7 @@ import type {
 	ExerciseRequirement,
 	ResolvedExercise,
 	SolutionEntry,
+	SolutionEntryAttachment,
 	SolutionEntryKind,
 	SourceType
 } from '$lib/types';
@@ -13,10 +14,12 @@ import {
 	mapResolvedExerciseDetail,
 	mapResolvedExerciseList,
 	mapSolutionEntry,
+	mapSolutionEntryAttachment,
 	type RawExerciseCommon,
 	type RawExerciseDetail,
 	type RawExerciseRequirement,
-	type RawSolutionEntry
+	type RawSolutionEntry,
+	type RawSolutionEntryAttachment
 } from '$lib/api/mappers';
 import { getTopicsForBranch } from './taxonomy';
 
@@ -316,6 +319,28 @@ export async function submitSolutionEntry(
 		draft
 	);
 	return mapSolutionEntry(raw);
+}
+
+/** A scan or a PDF onto a hint/solution you have just written — `uploadCommentAttachment`'s twin
+ * against the entry endpoint, because the backend route is that one's twin. `postForm` must not
+ * set a Content-Type: the browser generates the multipart boundary itself. */
+export async function uploadEntryAttachment(
+	entryId: string,
+	file: File
+): Promise<SolutionEntryAttachment> {
+	const form = new FormData();
+	form.set('file', file);
+	const raw = await apiClient.postForm<RawSolutionEntryAttachment>(
+		`/solution-entries/${encodeURIComponent(entryId)}/attachments/`,
+		form
+	);
+	return mapSolutionEntryAttachment(raw);
+}
+
+export async function deleteEntryAttachment(entryId: string, attachmentId: string): Promise<void> {
+	await apiClient.delete(
+		`/solution-entries/${encodeURIComponent(entryId)}/attachments/${encodeURIComponent(attachmentId)}/`
+	);
 }
 
 /** One accept publishes, one deny (note required) rejects — reviewer circle: verified

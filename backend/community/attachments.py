@@ -70,6 +70,7 @@ def used_upload_bytes(user) -> int:
     the body, an endpoint that still counted only attachments would have handed out storage the
     other one thought it was still guarding."""
     from concepts.models import ConceptAsset
+    from exercises.models import SolutionEntryAttachment
 
     from .models import CommentAttachment, InlineImage
 
@@ -84,4 +85,20 @@ def used_upload_bytes(user) -> int:
     concept_assets = sum(
         ConceptAsset.objects.filter(uploaded_by=user).values_list('size_bytes', flat=True)
     )
-    return user.profile.material_upload_bytes + attachments + inline + concept_assets
+    # A scan or a PDF hanging off a hint/solution (exercises/, 2026-10-01). Same reasoning as the
+    # line above and as this function's own docstring: it goes through the same
+    # `process_attachment` and must therefore be weighed against the same allowance, or the entry
+    # endpoint hands out storage the comment endpoint still thinks it is guarding. A local import
+    # — `exercises.views` imports THIS module.
+    entry_attachments = sum(
+        SolutionEntryAttachment.objects.filter(entry__author=user).values_list(
+            'size_bytes', flat=True
+        )
+    )
+    return (
+        user.profile.material_upload_bytes
+        + attachments
+        + inline
+        + concept_assets
+        + entry_attachments
+    )

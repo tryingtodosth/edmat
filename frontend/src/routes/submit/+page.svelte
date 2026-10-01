@@ -1,5 +1,6 @@
 <script lang="ts">
 	import RichEditor from '$lib/components/editor/RichEditor.svelte';
+	import InsertStrip from '$lib/components/editor/InsertStrip.svelte';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
@@ -63,6 +64,20 @@
 	let hint = $state('');
 	let answer = $state('');
 	let solution = $state('');
+	// One insert strip per content field, from 2026-10-01 — the owner's "make adding solution as
+	// PDF, image, Chemistry, etc. work". Four strips rather than one shared with a notion of the
+	// focused editor, because a strip inserts INTO the editor instance it is handed and there is
+	// no honest way to guess which of four that is. `allowFiles` is off on all of them: a
+	// submission has no attachment table (the solution POOL does — see SolutionEntrySection), so
+	// a PDF picker here would offer something that could not be saved.
+	let statementEditor = $state<RichEditor | null>(null);
+	let statementStrip = $state<InsertStrip | null>(null);
+	let hintEditor = $state<RichEditor | null>(null);
+	let hintStrip = $state<InsertStrip | null>(null);
+	let answerEditor = $state<RichEditor | null>(null);
+	let answerStrip = $state<InsertStrip | null>(null);
+	let solutionEditor = $state<RichEditor | null>(null);
+	let solutionStrip = $state<InsertStrip | null>(null);
 	let locale = $state('pl');
 	let tagsInput = $state('');
 	// Free-text prerequisite/"skill tag" chips — same add-one-at-a-time interaction
@@ -468,20 +483,49 @@
 
 				<label class="field">
 					<span>{m.submit_field_statement()}</span>
-					<RichEditor bind:value={statement} rows={4} required={true} />
+					<RichEditor
+						bind:this={statementEditor}
+						bind:value={statement}
+						rows={4}
+						required={true}
+						onChemEdit={(id) => statementStrip?.editChem(id)}
+						onSketchEdit={(id) => statementStrip?.editSketch(id)}
+					/>
 				</label>
+				<InsertStrip bind:this={statementStrip} editor={statementEditor} allowFiles={false} />
 				<label class="field">
 					<span>{m.submit_field_hint()} <em>({m.common_optional()})</em></span>
-					<RichEditor bind:value={hint} rows={2} />
+					<RichEditor
+						bind:this={hintEditor}
+						bind:value={hint}
+						rows={2}
+						onChemEdit={(id) => hintStrip?.editChem(id)}
+						onSketchEdit={(id) => hintStrip?.editSketch(id)}
+					/>
 				</label>
+				<InsertStrip bind:this={hintStrip} editor={hintEditor} allowFiles={false} />
 				<label class="field">
 					<span>{m.submit_field_answer()} <em>({m.common_optional()})</em></span>
-					<RichEditor bind:value={answer} rows={2} />
+					<RichEditor
+						bind:this={answerEditor}
+						bind:value={answer}
+						rows={2}
+						onChemEdit={(id) => answerStrip?.editChem(id)}
+						onSketchEdit={(id) => answerStrip?.editSketch(id)}
+					/>
 				</label>
+				<InsertStrip bind:this={answerStrip} editor={answerEditor} allowFiles={false} />
 				<label class="field">
 					<span>{m.submit_field_solution()} <em>({m.common_optional()})</em></span>
-					<RichEditor bind:value={solution} rows={4} />
+					<RichEditor
+						bind:this={solutionEditor}
+						bind:value={solution}
+						rows={4}
+						onChemEdit={(id) => solutionStrip?.editChem(id)}
+						onSketchEdit={(id) => solutionStrip?.editSketch(id)}
+					/>
 				</label>
+				<InsertStrip bind:this={solutionStrip} editor={solutionEditor} allowFiles={false} />
 
 				<p class="markdown-hint">{m.submit_markdownHint()}</p>
 
