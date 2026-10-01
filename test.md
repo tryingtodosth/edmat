@@ -1779,6 +1779,7 @@ an offer posted through the real form and found again by its spoken language and
 speaks; `/korki` ↔ `/tutoring` rewriting live as the language picker moves, with no reload; the
 solution composer offering Markdown, LaTeX, JSON, Chemistry, Sketch, Picture and PDF; a real PDF
 attached to a real solution and opened in place; the inbox preference taking the envelope away and
-giving it back. 31 checks, 0 failures, no console errors, screenshots looked at — which is how the
+giving it back; and three PDFs picked at once on `/submit-material` becoming three material
+projects, with the third renamed in its own title row and keeping that name. 40 checks, 0 failures, no console errors, screenshots looked at — which is how the
 one real bug of the pass was found (a 150px hole in the offer form that every automated check
 passed).

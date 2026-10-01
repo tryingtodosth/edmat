@@ -11069,9 +11069,12 @@ auto-hide, and re-running the batch it came from is not an appeal.
 
 ### Left open
 
-- **`npm run check:katex` could not be run**: only Node 18 is on this machine's `PATH` and `tsx`
-  needs 24+. The sweep is step 6 of the skill's own procedure; it has not been run against an
-  import yet.
+- The content sweep **was** run against a real import, which is step 6 of the skill's own
+  procedure: `dump_text_fields` + `check:katex` over 2 255 rows including the two imported ones,
+  **0 issues**. Two traps worth the line it took to find them, now in the skill: the system Node is
+  18 and cannot run `tsx` at all (Node 24 lives at `~/.cache/edmat-tools/node24/bin`), and invoking
+  the script directly instead of through `npm run` loses `--max-old-space-size=8192`, which the
+  full corpus needs — it dies in a V8 heap dump that looks nothing like a content problem.
 - **No figures.** An exercise whose statement needs a picture cannot be imported — attachments and
   inline images are user-facing endpoints only. The skill says to wait rather than ship the row
   with the picture missing.
@@ -11152,6 +11155,19 @@ The same strip went onto all four content fields of `/submit` and onto the tutor
 description, which also started rendering (`MathContent`) — and therefore started being sanitized
 on write, in the same commit, with the seven refusal tests that widening owes.
 
+### Several files, several materials
+
+"Adding material form should allow multiple files" cannot mean several files on one material:
+`coauthoring.MaterialVersion` holds exactly one payload, and that invariant is load-bearing enough
+that its own docstring explains why it is not even a DB check constraint. So several files become
+several *materials*, which is what somebody uploading five chapters as five PDFs wanted anyway;
+what they did not want was to fill the form in five times. Everything above the payload is chosen
+once. With more than one file each gets its own title row, seeded from its filename.
+
+One request per material, in sequence — each allocates a number in a bounded retry loop against a
+single-writer SQLite. A failure part-way through does not undo what landed, and the page says how
+many got in rather than calling a partly-successful submit a failure.
+
 ### Volunteering offers, in different languages
 
 `needs` now holds both sides. The shared vocabulary is why living in one app pays: an offer reuses
@@ -11190,7 +11206,8 @@ container. `svelte-check`, eslint and a production build all pass on it. House r
 `korki.html` and `materialy.html` in the output. A real browser against real servers: an offer
 posted through the real form and found again by its spoken language, `/korki` ↔ `/tutoring`
 rewriting live as the picker moves, a real PDF attached to a real solution and opened in place, and
-the inbox preference turning the envelope off and back on. 31 checks, 0 failures, no console
+the inbox preference turning the envelope off and back on, and three PDFs picked at once becoming
+three materials with the renamed one keeping its new name. 40 checks, 0 failures, no console
 errors.
 
 ### Left open
