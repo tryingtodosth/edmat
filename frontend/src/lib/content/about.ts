@@ -38,6 +38,14 @@ export interface AboutSection {
 	bullets?: string[];
 }
 
+/** One of the three things this site is for. Named, because the mission is three things. */
+export interface AboutPillar {
+	/** Stable key for `{#each}`. */
+	key: string;
+	title: string;
+	body: string;
+}
+
 export interface AboutDoc {
 	title: string;
 	eyebrow: string;
@@ -51,6 +59,8 @@ export interface AboutDoc {
 	/** An exercise's anatomy: the four fields a corpus row can carry, statement first. */
 	fields: { label: string; note: string }[];
 	anatomyLabel: string;
+	/** Why this exists, in three parts — the band directly under the hero. */
+	mission: { heading: string; body: string[]; pillars: AboutPillar[] };
 	origin: AboutSection;
 	featuresHeading: string;
 	featuresIntro: string;
@@ -73,7 +83,7 @@ const EN: AboutDoc = {
 	title: 'About EdMat',
 	eyebrow: 'What this is',
 	lead: [
-		'EdMat is a community database of exercises and teaching materials, grown into a place to learn together: worked solutions you can question, materials you can improve, courses people run, tutors you can actually book, and events you can sign up for.',
+		'EdMat is a community database of exercises and teaching materials, and a place to teach from it: people run courses here, the materials are catalogued and reviewed rather than merely uploaded, and tutoring is what makes that work worth somebody’s evening.',
 		'It started as one department’s exercise collection and is becoming a lifelong-learning portal — for school, for university, and for everyone learning on their own, at any age.'
 	],
 	ctaBrowse: 'Browse disciplines',
@@ -88,6 +98,29 @@ const EN: AboutDoc = {
 		{ label: 'Solution', note: 'The full working. Reviewed, it earns the “verified” badge.' }
 	],
 	anatomyLabel: 'What an exercise contains',
+	mission: {
+		heading: 'What EdMat is for',
+		body: [
+			'Three things, and the third is what keeps the first two alive. A database of exercises is easy to start and hard to keep going; a place where good teaching is visible, and leads somewhere, is a place people come back to.'
+		],
+		pillars: [
+			{
+				key: 'courses',
+				title: 'People run courses here',
+				body: 'A teacher, a doctoral student, a sixth-former who is good at one thing — anybody can open a course, build its chapters out of exercises and materials that already exist, and teach whoever joins. The course is the unit of teaching on this site, not the single lesson and not the uploaded file.'
+			},
+			{
+				key: 'catalogue',
+				title: 'Materials are catalogued and reviewed',
+				body: 'Everything is filed where it can be found again — discipline, subject, topic — and nothing is published merely because somebody uploaded it. A submission is read by another person first, a solution earns “verified” only once it has been reviewed, and a coverage claim says what a material actually teaches rather than what its title suggests.'
+			},
+			{
+				key: 'tutoring',
+				title: 'Tutoring is the motivation',
+				body: 'Teaching well here is visible, and a tutor’s listing is where that visibility turns into students. That is the honest answer to “why would anybody write all of this down?” — not altruism on its own. No payment ever passes through EdMat; it carries the standing and the calendar, and the arrangement is between the two people.'
+			}
+		]
+	},
 	origin: {
 		heading: 'Where it comes from',
 		body: [
@@ -204,7 +237,7 @@ const PL: AboutDoc = {
 	title: 'O EdMacie',
 	eyebrow: 'Co to jest',
 	lead: [
-		'EdMat to społecznościowa baza zadań i materiałów dydaktycznych, która wyrosła w miejsce do wspólnej nauki: rozwiązania, o które można pytać, materiały, które można poprawiać, kursy prowadzone przez użytkowników, korepetytorzy, u których naprawdę można się umówić, i wydarzenia, na które można się zapisać.',
+		'EdMat to społecznościowa baza zadań i materiałów dydaktycznych — i miejsce, z którego się uczy: użytkownicy prowadzą tu kursy, materiały są katalogowane i recenzowane, a nie tylko wgrywane, a korepetycje są tym, dla czego komuś chce się to wszystko spisać.',
 		'Zaczęło się od zbioru zadań jednego wydziału, a staje się portalem do uczenia się przez całe życie — dla szkoły, dla studiów i dla każdego, kto uczy się sam, w każdym wieku.'
 	],
 	ctaBrowse: 'Przeglądaj dziedziny',
@@ -219,6 +252,29 @@ const PL: AboutDoc = {
 		{ label: 'Rozwiązanie', note: 'Pełny tok. Sprawdzone, daje odznakę „zweryfikowane”.' }
 	],
 	anatomyLabel: 'Z czego składa się zadanie',
+	mission: {
+		heading: 'Po co jest EdMat',
+		body: [
+			'Trzy rzeczy, a trzecia utrzymuje przy życiu dwie pierwsze. Bazę zadań łatwo założyć i trudno prowadzić dalej; miejsce, w którym dobre uczenie widać i w którym do czegoś prowadzi, jest miejscem, do którego się wraca.'
+		],
+		pillars: [
+			{
+				key: 'courses',
+				title: 'Tu prowadzi się kursy',
+				body: 'Nauczyciel, doktorant, licealista, który jest w czymś dobry — każdy może otworzyć kurs, ułożyć jego rozdziały z zadań i materiałów, które już są, i uczyć tych, którzy dołączą. Jednostką nauczania jest tutaj kurs, a nie pojedyncza lekcja ani wgrany plik.'
+			},
+			{
+				key: 'catalogue',
+				title: 'Materiały są katalogowane i recenzowane',
+				body: 'Wszystko trafia tam, gdzie da się to potem znaleźć — dziedzina, przedmiot, temat — i nic nie jest publikowane tylko dlatego, że ktoś to wgrał. Zgłoszenie czyta najpierw druga osoba, rozwiązanie dostaje „zweryfikowane” dopiero po recenzji, a deklaracja zakresu mówi, czego materiał naprawdę uczy, a nie co sugeruje jego tytuł.'
+			},
+			{
+				key: 'tutoring',
+				title: 'Korepetycje są motywacją',
+				body: 'Dobre uczenie tutaj widać, a ogłoszenie korepetytora jest miejscem, w którym ta widoczność zamienia się w uczniów. To jest uczciwa odpowiedź na pytanie „po co ktoś miałby to wszystko spisywać?” — nie sam altruizm. Przez EdMat nie przechodzi żadna płatność; prowadzi on reputację i kalendarz, a umowa jest między dwiema osobami.'
+			}
+		]
+	},
 	origin: {
 		heading: 'Skąd się wziął',
 		body: [

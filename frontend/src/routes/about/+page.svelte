@@ -75,6 +75,25 @@
 		</ol>
 	</header>
 
+	<!-- The mission, directly under the hero and before anything historical: three things this site
+	     is for, numbered because the third depends on the first two. A band rather than a card grid
+	     — none of the three is a link, and making them look like the feature cards below would
+	     promise a page behind each one. -->
+	<section class="about__section about__mission">
+		<h2>{doc.mission.heading}</h2>
+		{#each doc.mission.body as paragraph (paragraph)}
+			<p class="about__intro">{paragraph}</p>
+		{/each}
+		<ol class="about__pillars">
+			{#each doc.mission.pillars as pillar (pillar.key)}
+				<li class="about__pillar">
+					<h3>{pillar.title}</h3>
+					<p>{pillar.body}</p>
+				</li>
+			{/each}
+		</ol>
+	</section>
+
 	<section class="about__section about__origin">
 		<div class="about__prose">
 			<h2>{doc.origin.heading}</h2>
@@ -334,6 +353,43 @@
 		}
 		&:hover h3 {
 			color: var(--accent);
+		}
+	}
+
+	// ---- the mission ----------------------------------------------------------------------------
+	// An ordered list because the order carries meaning (the third pillar is why the first two keep
+	// happening), with the marker drawn by hand so the number can sit in the gutter at a weight
+	// that reads as a label rather than as list furniture.
+	.about__pillars {
+		list-style: none;
+		counter-reset: pillar;
+		margin: var(--space-4) 0 0;
+		padding: 0;
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+		gap: var(--space-4);
+	}
+	.about__pillar {
+		counter-increment: pillar;
+		border-top: 2px solid var(--accent);
+		padding-top: var(--space-3);
+
+		h3 {
+			font-size: var(--font-size-base);
+			margin: 0 0 var(--space-2);
+		}
+		h3::before {
+			content: counter(pillar);
+			display: block;
+			font-size: var(--font-size-sm);
+			font-weight: 700;
+			color: var(--accent);
+			margin-bottom: var(--space-1);
+		}
+		p {
+			margin: 0;
+			color: var(--text-secondary);
+			font-size: var(--font-size-sm);
 		}
 	}
 
