@@ -36,6 +36,7 @@
 	// buttons on the page does not hide a feature, it only moves where the error appears.
 	import { onMount, tick, untrack } from 'svelte';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { page } from '$app/state';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
@@ -324,9 +325,10 @@
 		</a>
 	{/if}
 	{#if canTutoring}
+		<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting, and the href sits inside a multi-line tag where no HTML comment fits. See lib/utils/localizedPath.ts. -->
 		<a
 			class="nav-link nav-link--services"
-			href={resolve('/services')}
+			href={localizedPath(resolve('/tutoring'))}
 			aria-label={m.nav_services()}
 			title={m.nav_services()}
 			{onclick}
@@ -334,6 +336,7 @@
 			<span class="nav-link__icon" aria-hidden="true">{@render moneyIcon()}</span>
 			<span class="nav-link__text">{m.nav_services()}</span>
 		</a>
+		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	{/if}
 	<a
 		class="nav-link nav-link--about"
@@ -394,7 +397,8 @@
 		</a>
 	{/if}
 	{#if canTutoring}
-		<a role="menuitem" class={itemClass} href={resolve('/services/new')} {onclick}>
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+		<a role="menuitem" class={itemClass} href={localizedPath(resolve('/tutoring/new'))} {onclick}>
 			{m.nav_add_service()}
 		</a>
 	{/if}

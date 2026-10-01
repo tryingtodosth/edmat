@@ -11,6 +11,7 @@
 	// decided what this viewer may see (`CourseItem.is_visible_to`), so nothing is filtered again
 	// here. A client that re-derived that would be a client that could get it wrong.
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { m } from '$lib/paraglide/messages.js';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
@@ -401,7 +402,7 @@
 			case 'materialCoverage':
 				return resolve('/materials/[id]', { id }) + anchor;
 			case 'service':
-				return resolve('/services/[id]', { id }) + anchor;
+				return localizedPath(resolve('/tutoring/[id]', { id })) + anchor;
 			case 'taughtCourse':
 			case 'courseLesson':
 			case 'courseChapter':

@@ -17,6 +17,8 @@
 	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import LocationPicker from './LocationPicker.svelte';
+	import RichEditor from '$lib/components/editor/RichEditor.svelte';
+	import InsertStrip from '$lib/components/editor/InsertStrip.svelte';
 	import { splitByStatus } from '$lib/utils/taxonomy';
 
 	let {
@@ -39,6 +41,10 @@
 	// that starts from server state but is then locally, freely editable.
 	let title = $state(untrack(() => initial?.title ?? ''));
 	let description = $state(untrack(() => initial?.description ?? ''));
+	// The editor instance and the strip that inserts into it — the strip never touches storage,
+	// it only ever calls into this editor (lib/components/editor/InsertStrip.svelte).
+	let editorRef = $state<RichEditor | null>(null);
+	let strip = $state<InsertStrip | null>(null);
 	// SvelteSet, not a plain Set in $state() — this project's own eslint config
 	// (svelte/prefer-svelte-reactivity) flags calling .add()/.delete() on a bare Set; SvelteSet is
 	// reactive to in-place mutation directly, matching routes/settings/+page.svelte's own
@@ -130,10 +136,29 @@
 		<input type="text" bind:value={title} required maxlength="200" />
 	</label>
 
+	<!-- The description is the one field on a listing that is prose, so it gets the same input
+	     every other prose field on this site has: the rich editor plus the insert strip, which is
+	     where LaTeX, a chemistry structure, a freehand sketch and a picture come from. Asked for
+	     as "allow adding chemistry, latex, having hrefs" (2026-10-01) — a maths tutor writing
+	     \(\int\) and a chemistry tutor drawing a reaction were both typing into a plain textarea
+	     that rendered their work as literal characters.
+	     Storage does not change: the field is still Markdown + raw HTML + literal LaTeX
+	     delimiters, exactly as the exercise corpus is, and `services.Service.save()` sanitizes it
+	     on the way in (house rule 8). Links come free with that — `<a href>` has always been in
+	     the bleach allowlist; what was missing was anything that RENDERED the field.
+	     `allowFiles` is off: a listing has no attachment table for a PDF to hang off, so offering
+	     the picker would be offering something that cannot be saved. -->
 	<label class="field">
 		<span>{m.services_field_description()} <em>({m.common_optional()})</em></span>
-		<textarea rows="3" bind:value={description}></textarea>
+		<RichEditor
+			bind:this={editorRef}
+			bind:value={description}
+			rows={3}
+			onChemEdit={(id) => strip?.editChem(id)}
+			onSketchEdit={(id) => strip?.editSketch(id)}
+		/>
 	</label>
+	<InsertStrip bind:this={strip} editor={editorRef} allowFiles={false} />
 
 	{#if branches.length > 0}
 		<fieldset class="field">
@@ -347,9 +372,11 @@
 		grid-template-columns: 1fr 120px;
 		gap: var(--space-2);
 	}
+	// `textarea` left this rule when the description became a RichEditor — the editor styles
+	// itself, and the last textarea on the form went with it. Svelte flags an unused selector as a
+	// warning, and this file is held at the 0-warning bar.
 	input,
-	select,
-	textarea {
+	select {
 		@include mix.focus-ring;
 		padding: var(--space-2);
 		border: 1px solid var(--border-color);
@@ -357,7 +384,6 @@
 		background: var(--bg-page);
 		color: var(--text-primary);
 		font-family: inherit;
-		resize: vertical;
 	}
 	.branch-list {
 		display: flex;

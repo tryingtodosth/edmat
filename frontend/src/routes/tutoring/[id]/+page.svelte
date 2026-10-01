@@ -8,6 +8,7 @@
 	// Material), rather than re-rendering any of that by hand here.
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { Comment, Branch, Service, ServiceReview, User } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import {
@@ -162,7 +163,8 @@
 	{:else}
 		<nav class="breadcrumb" aria-label={m.nav_breadcrumb()}>
 			<a href={resolve('/disciplines')}>{m.common_home()}</a> ›
-			<a href={resolve('/services')}>{m.services_heading()}</a>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+			<a href={localizedPath(resolve('/tutoring'))}>{m.services_heading()}</a>
 		</nav>
 
 		<!-- headingLevel={1}: same as /materials/[id] — the card is this page's header, so its title

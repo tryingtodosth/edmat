@@ -18,6 +18,7 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { formatDate, formatRelativeDate } from '$lib/utils/format';
 	import { getUserById, getUserEducation } from '$lib/services/users';
 	import { getUserActivity, getUserExtras } from '$lib/services/profileExtras';
@@ -519,7 +520,8 @@
 								/>
 							</a>
 						{:else}
-							<a href={resolve('/services/[id]', { id: row.review.serviceId })}>
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+							<a href={localizedPath(resolve('/tutoring/[id]', { id: row.review.serviceId }))}>
 								{m.profile_reviewOn({
 									title: serviceTitleById[row.review.serviceId] ?? row.review.serviceId
 								})}

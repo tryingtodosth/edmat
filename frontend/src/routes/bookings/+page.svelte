@@ -22,6 +22,7 @@
 	} from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import {
 		applyWeeks,
 		BookingConflictError,
@@ -790,7 +791,8 @@
 			{#if mine.length === 0}
 				<p class="muted">
 					{m.booking_noneOfMine()}
-					<a href={resolve('/services')}>{m.booking_findATutor()}</a>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+					<a href={localizedPath(resolve('/tutoring'))}>{m.booking_findATutor()}</a>
 				</p>
 			{:else}
 				<NewSinceNotice count={newMine} />

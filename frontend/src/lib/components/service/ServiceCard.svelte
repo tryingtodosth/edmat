@@ -1,10 +1,12 @@
 <script lang="ts">
+	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import AudienceBadge from '$lib/components/shared/AudienceBadge.svelte';
 	// The public browse page's own listing card — read-only, matching MaterialCard's own economy
 	// (one component, reused wherever a listing renders). "My listings" management (edit/pause/
 	// delete) lives inline on routes/services/+page.svelte itself instead of being folded into this
 	// same component, since that needs a full ServiceForm, not just a few extra buttons.
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { Service } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -37,9 +39,14 @@
 	<div class="service-card__heading">
 		<svelte:element this={`h${headingLevel}`} class="service-card__title">
 			{#if linkTitle}
-				<a class="service-card__title-link" href={resolve('/services/[id]', { id: service.id })}>
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting, and the href sits inside a multi-line tag where no HTML comment fits. See lib/utils/localizedPath.ts. -->
+				<a
+					class="service-card__title-link"
+					href={localizedPath(resolve('/tutoring/[id]', { id: service.id }))}
+				>
 					{service.title}
 				</a>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{:else}
 				{service.title}
 			{/if}
@@ -76,8 +83,14 @@
 		</p>
 	{/if}
 
+	<!-- Rendered rather than printed (2026-10-01): a listing's description is Markdown + literal
+	     LaTeX + the `<img data-chem>`/`<img data-sketch>` a drawing becomes, the same storage shape
+	     every other prose field here has, and until this it was being shown as the characters it
+	     is made of. `MathContent` is the one sanctioned `{@html}` sink and loads the renderer on
+	     demand, so nothing is added to the entry bundle (house rule 11) — the card simply typesets
+	     once the chunk the page already wanted has arrived. -->
 	{#if service.description}
-		<p class="description">{service.description}</p>
+		<div class="description"><MathContent source={service.description} /></div>
 	{/if}
 
 	{#if branchNames.length > 0}

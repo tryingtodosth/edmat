@@ -137,6 +137,25 @@ class Service(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+    def save(self, *args, **kwargs):
+        """Sanitize the one field that renders as content.
+
+        `description` was safe for as long as the frontend printed it through Svelte's escaping
+        braces — nothing could leave a text node. As of 2026-10-01 `ServiceCard` renders it through
+        `MathContent` (Markdown + literal LaTeX + an `<img data-chem>` a drawing becomes), which
+        turns it into an injection surface, so the server-side pass lands in the same change as the
+        rendering rather than after it — house rule 8, sanitize on write AND on read, because this
+        API is a second entry point that no browser's DOMPurify ever sees.
+
+        `title` is deliberately left alone, the same call `courses.Lesson.save` makes and for the
+        same reason: it still renders escaped, and running it through the sanitizer would mangle an
+        honest "a < b" for no gain.
+        """
+        from config.sanitize import sanitize_content
+
+        self.description = sanitize_content(self.description)
+        return super().save(*args, **kwargs)
+
     def __str__(self) -> str:
         return f'{self.title} ({self.provider})'
 

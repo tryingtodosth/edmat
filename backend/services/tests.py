@@ -575,3 +575,86 @@ class ServiceWatchlistTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(ServiceWatch.objects.filter(pk=watch['id']).exists())
+
+
+class ServiceDescriptionSanitizeTests(APITestCase):
+    """The description became renderable content on 2026-10-01 (`ServiceCard` draws it through
+    `MathContent`), so it has to be sanitized on the way IN as well — house rule 8. These are the
+    refusal tests that go with that widening: the API is a second entry point, and a moderator
+    reading a reported listing is already rendering somebody else's HTML.
+    """
+
+    def setUp(self):
+        self.branch = make_course(slug='uw-services-sanitize')
+        self.provider = make_user('provider-sanitize')
+        self.client.force_authenticate(self.provider)
+
+    def _create(self, description):
+        response = self.client.post(
+            reverse('service-list'),
+            {
+                'title': 'Chemistry, school and matura',
+                'description': description,
+                'branch_slugs': [self.branch.slug],
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        return Service.objects.get(pk=response.data['id'])
+
+    def test_a_script_tag_does_not_survive_the_write(self):
+        service = self._create('Hello <script>alert(1)</script> there')
+
+        self.assertNotIn('<script', service.description)
+        # bleach runs with `strip=True`, so the TAG goes and its text stays behind as ordinary
+        # words. That is the safe outcome, not a half-done one: what is left is a text node that
+        # renders as the characters `alert(1)` and executes nothing.
+        self.assertEqual(service.description, 'Hello alert(1) there')
+
+    def test_an_event_handler_attribute_is_stripped(self):
+        service = self._create('<a href="https://example.org" onclick="steal()">my notes</a>')
+
+        self.assertNotIn('onclick', service.description)
+        self.assertIn('href="https://example.org"', service.description)
+
+    def test_a_javascript_uri_link_loses_its_href(self):
+        service = self._create('<a href="javascript:alert(1)">tap</a>')
+
+        self.assertNotIn('javascript:', service.description)
+
+    def test_a_plain_link_survives_because_links_are_the_point(self):
+        """"having hrefs" was half of what the owner asked for here."""
+        service = self._create('See <a href="https://uw.edu.pl/syllabus">the syllabus</a>.')
+
+        self.assertIn('<a href="https://uw.edu.pl/syllabus">the syllabus</a>', service.description)
+
+    def test_latex_delimiters_are_left_exactly_as_written(self):
+        """The sanitizer stashes math behind placeholders before bleach runs, so a backslash in
+        `\\(` is not escaped and a `<` inside an inequality is not turned into an entity. A tutor
+        writing an integral into their listing is the reason this field renders at all."""
+        source = r'I teach \(\int_a^b f(x)\,dx\) and \[a < b \implies f(a) < f(b)\]'
+        service = self._create(source)
+
+        self.assertEqual(service.description, source)
+
+    def test_a_chemistry_drawing_keeps_the_attributes_that_make_it_one(self):
+        """`<img data-chem>` plus `class="chem-drawing"` is what `renderContent.ts` reopens on a
+        click; losing `class` silently once already (§17AV) is why this is pinned here."""
+        source = '<img data-chem="12" class="chem-drawing" src="/media/chem/abc.svg" alt="ester" />'
+        service = self._create(source)
+
+        self.assertIn('data-chem="12"', service.description)
+        self.assertIn('chem-drawing', service.description)
+
+    def test_an_edit_is_sanitized_too_not_only_the_create(self):
+        service = self._create('clean')
+
+        response = self.client.patch(
+            reverse('service-detail', args=[service.pk]),
+            {'description': '<img src=x onerror=alert(1)>'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        service.refresh_from_db()
+        self.assertNotIn('onerror', service.description)

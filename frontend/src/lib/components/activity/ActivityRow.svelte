@@ -5,6 +5,7 @@
 	import type { FeedItem } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { formatRelativeDate } from '$lib/utils/format';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import PostCard from './PostCard.svelte';
@@ -47,7 +48,7 @@
 		if (item.materialId) return resolve('/materials/[id]', { id: item.materialId });
 		if (item.courseId) return resolve('/courses/[id]', { id: item.courseId });
 		if (item.eventId) return resolve('/events/[id]', { id: item.eventId });
-		if (item.serviceId) return resolve('/services/[id]', { id: item.serviceId });
+		if (item.serviceId) return localizedPath(resolve('/tutoring/[id]', { id: item.serviceId }));
 		if (item.postId) return resolve('/posts/[id]', { id: item.postId });
 		// The concept page, which is where the article, its pool and its history are reachable from.
 		// Without a slug the hub is the honest fallback rather than a row that does not move.

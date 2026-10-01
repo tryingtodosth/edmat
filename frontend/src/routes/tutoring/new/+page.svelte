@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { Branch, ServiceDraft } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -19,7 +20,8 @@
 
 	async function handleSubmit(draft: ServiceDraft) {
 		await createService(draft);
-		goto(resolve('/services'));
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts.
+		goto(localizedPath(resolve('/tutoring')));
 	}
 </script>
 

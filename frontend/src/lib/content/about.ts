@@ -171,7 +171,7 @@ const EN: AboutDoc = {
 			key: 'tutoring',
 			title: 'Tutoring you can book',
 			body: 'Tutors publish their subjects and availability; you book a real slot. EdMat handles the calendar and nothing else — no payment passes through it.',
-			href: '/services',
+			href: '/tutoring',
 			flag: 'tutoring'
 		},
 		{
@@ -325,7 +325,7 @@ const PL: AboutDoc = {
 			key: 'tutoring',
 			title: 'Korepetycje z rezerwacją',
 			body: 'Korepetytorzy publikują przedmioty i dostępność; ty rezerwujesz prawdziwy termin. EdMat prowadzi kalendarz i nic więcej — nie przechodzi przez niego żadna płatność.',
-			href: '/services',
+			href: '/tutoring',
 			flag: 'tutoring'
 		},
 		{

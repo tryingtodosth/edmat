@@ -140,7 +140,7 @@ async function main() {
 		// programme, the activity feed.
 		{ name: 'Materials hub', url: '/materials' },
 		{ name: 'Events hub', url: '/events' },
-		{ name: 'Tutoring hub', url: '/services' },
+		{ name: 'Tutoring hub', url: '/tutoring' },
 		{ name: 'Courses hub', url: '/courses' },
 		{ name: 'Activity feed', url: '/activity' },
 		// Co-authoring (HISTORY.md §17BC): the public half — projects looking for people.
@@ -168,7 +168,7 @@ async function main() {
 		{ name: 'Start a material with others', url: '/material-projects/new' },
 		{ name: 'My agenda', url: '/events/agenda' },
 		{ name: 'Host an event', url: '/events/new' },
-		{ name: 'Offer tutoring', url: '/services/new' },
+		{ name: 'Offer tutoring', url: '/tutoring/new' },
 		{ name: 'Start a concept', url: '/concepts/new' },
 		...(conceptSlug
 			? [{ name: 'Write a concept article', url: `/concepts/${conceptSlug}/write?audience=adult` }]

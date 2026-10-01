@@ -17,6 +17,7 @@
 	// than assumed — that button lives only on `/submit` and `/submit-material`. If tutoring ever
 	// gains the propose-a-branch affordance those two have, this is the constraint to solve first.
 	import { resolve } from '$app/paths';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import type { Branch, Service, ServiceDraft } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { ApiError } from '$lib/api/client';
@@ -254,7 +255,8 @@
 					<!-- The watchlist used to be its own top-level nav item, which spent a slot in the
 					     main bar on something only a signed-in person who follows tutors ever opens. It
 					     belongs with tutoring, which is the only thing it watches. -->
-					<a class="watchlist-link" href={resolve('/services/watchlist')}>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+					<a class="watchlist-link" href={localizedPath(resolve('/tutoring/watchlist'))}>
 						{m.nav_watchlist()}
 					</a>
 					<button type="button" class="new-listing" onclick={() => (creating = true)}>

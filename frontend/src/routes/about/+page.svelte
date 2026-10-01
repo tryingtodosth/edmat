@@ -14,7 +14,7 @@
 	// loaded the store fails open, so the prerendered HTML carries every card and a killed one
 	// disappears on hydration — the same trade the header's nav makes.
 	import { resolve } from '$app/paths';
-	import { getLocale } from '$lib/paraglide/runtime.js';
+	import { getLocale, localizeHref } from '$lib/paraglide/runtime.js';
 	import { m } from '$lib/paraglide/messages.js';
 	import { aboutDocFor, type AboutFeature } from '$lib/content/about';
 	import { AUDIENCES, AUDIENCE_LABELS } from '$lib/utils/labels';
@@ -120,7 +120,7 @@
 			{#each features as feature (feature.key)}
 				<li class="about__card">
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the hrefs are the fixed route paths listed in lib/content/about.ts -->
-					<a href={feature.href} class="about__card-link">
+					<a href={localizeHref(feature.href)} class="about__card-link">
 						<h3>{feature.title}</h3>
 						<p>{feature.body}</p>
 					</a>

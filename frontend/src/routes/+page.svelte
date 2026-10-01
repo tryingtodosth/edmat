@@ -33,6 +33,7 @@
 	import type { EdmatEvent } from '$lib/types/event';
 	import { m } from '$lib/paraglide/messages.js';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { getRecentExercises, getTopRatedExercises } from '$lib/services/exercises';
 	import { browseMaterials } from '$lib/services/materials';
 	import { getCourses } from '$lib/services/course';
@@ -376,7 +377,8 @@
 			<section class="section">
 				<div class="section__head">
 					<h2>{m.home_tutoring_heading()}</h2>
-					<a href={resolve('/services')}>{m.home_seeAll()}</a>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call; the rule only recognises a bare one without type-aware linting. See lib/utils/localizedPath.ts. -->
+					<a href={localizedPath(resolve('/tutoring'))}>{m.home_seeAll()}</a>
 				</div>
 				{#if services.length === 0}
 					<p class="status">{m.home_noResults()}</p>

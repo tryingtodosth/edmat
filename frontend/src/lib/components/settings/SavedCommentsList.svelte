@@ -12,6 +12,7 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { localizedPath } from '$lib/utils/localizedPath';
 	import { commentAnchorId } from '$lib/utils/contentLinks';
 	import { getSavedComments, unsaveComment, type SavedComment } from '$lib/services/comments';
 
@@ -42,7 +43,7 @@
 			case 'materialCoverage':
 				return resolve('/materials/[id]', { id: row.targetId }) + anchor;
 			case 'service':
-				return resolve('/services/[id]', { id: row.targetId }) + anchor;
+				return localizedPath(resolve('/tutoring/[id]', { id: row.targetId })) + anchor;
 			case 'taughtCourse':
 				return resolve('/courses/[id]', { id: row.targetId }) + anchor;
 			default:
