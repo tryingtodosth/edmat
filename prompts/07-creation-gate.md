@@ -6,7 +6,7 @@
 | **Branch** | `learn/f-gate` |
 | **Worktree** | `/Projects/edmat/.claude/worktrees/learn-f-gate/` |
 | **Ports** | API `8136`, Vite `5236` |
-| **Prep commit** | see `prompts/README.md` §3 |
+| **Prep commit** | `f90e221` (`prompts/README.md` §3; the worktree is on it) |
 | **Boards** | `/Projects/edmat-boards/` — your `doing.md` entry is already written |
 | **Node 24** | `export PATH=/home/bob/.cache/edmat-tools/node24/bin:$PATH` |
 

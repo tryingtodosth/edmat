@@ -6,7 +6,7 @@
 | **Branch** | `learn/b-record` |
 | **Worktree** | `/Projects/edmat/.claude/worktrees/learn-b-record/` |
 | **Ports** | API `8132`, Vite `5232` |
-| **Prep commit** | see `prompts/README.md` §3 |
+| **Prep commit** | `f90e221` (`prompts/README.md` §3; the worktree is on it) |
 | **Boards** | `/Projects/edmat-boards/` — your `doing.md` entry is already written |
 | **Node 24** | `export PATH=/home/bob/.cache/edmat-tools/node24/bin:$PATH` |
 
