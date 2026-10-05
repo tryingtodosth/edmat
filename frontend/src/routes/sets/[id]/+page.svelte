@@ -99,7 +99,21 @@
 	{:else}
 		<header>
 			<h1><MathTitle text={set.name} /></h1>
-			{#if set.ownerDisplayName}
+			<!-- A minor's set carries no name at all: `accounts/minors.py` is explicit that a minor's
+			     account has no public profile, and `retrieve` on this set is the one AllowAny action in
+			     the app — so this line is where a child's display name reached every link-holder until
+			     2026-10-05. The backend withholds it and says that it did (`owner_anonymous`); this
+			     prints the neutral word instead, and nothing anywhere on this page links to the owner's
+			     profile, for a minor or anybody else. -->
+			{#if set.ownerAnonymous}
+				<!-- A WHOLE sentence, not a name fed into `sharedSet_sharedBy`'s `{name}` slot. That slot
+				     holds a proper noun, which does not decline — but Polish `przez` governs the
+				     accusative, so "Udostępnione przez" + "Osoba ucząca się" came out ungrammatical, and
+				     in English the stand-in started a capital letter mid-sentence. Caught by looking at
+				     the screenshot, which is the only place either of them was visible. -->
+				<p class="shared-by">{m.study_anonymousOwner()}</p>
+				<!-- "Shared by a learner on EdMat" -->
+			{:else if set.ownerDisplayName}
 				<p class="shared-by">{m.sharedSet_sharedBy({ name: set.ownerDisplayName })}</p>
 			{/if}
 			{#if !set.isPublic && authStore.user?.id === set.ownerId}

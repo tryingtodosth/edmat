@@ -218,3 +218,63 @@ class ExerciseSetSharingTests(APITestCase):
         response = self.client.get(reverse('exercise-set-detail', kwargs={'slug': 'does-not-exist'}))
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class MinorSharedSetTests(APITestCase):
+    """A minor's shared set must not carry their name (prompts/03-learning-record.md).
+
+    `accounts/minors.py` is explicit that a minor's account has **no public profile**, and
+    `retrieve` here is the one `AllowAny` action in the app — so a shared set was the one surface
+    where a stranger holding a link read a child's display name. The sharing feature predates the
+    minors regime, which is exactly why nothing caught it.
+    """
+
+    def setUp(self):
+        self.branch = make_course()
+        self.exercise = make_exercise(self.branch, 1)
+
+        self.child = make_user('minor-sharer')
+        self.child.profile.display_name = 'Zosia'
+        self.child.profile.is_minor = True
+        self.child.profile.save(update_fields=['display_name', 'is_minor'])
+
+        self.adult = make_user('adult-sharer')
+        self.adult.profile.display_name = 'Kasia'
+        self.adult.profile.save(update_fields=['display_name'])
+
+    def _public_set(self, owner, name):
+        exercise_set = ExerciseSet.objects.create(owner=owner, name=name, is_public=True)
+        ExerciseSetItem.objects.create(exercise_set=exercise_set, exercise=self.exercise, order=0)
+        return reverse('exercise-set-detail', kwargs={'slug': exercise_set.slug})
+
+    def test_a_minors_shared_set_withholds_the_name_and_says_that_it_did(self):
+        response = self.client.get(self._public_set(self.child, 'Powtórka'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['owner_display_name'], '')
+        self.assertTrue(response.data['owner_anonymous'])
+        # Nothing identifying anywhere else in the body either — a blank name beside a username
+        # would be no fix at all.
+        self.assertNotIn('Zosia', str(response.data))
+
+    def test_an_adults_shared_set_still_reads_as_theirs(self):
+        response = self.client.get(self._public_set(self.adult, 'Powtórka'))
+
+        self.assertEqual(response.data['owner_display_name'], 'Kasia')
+        self.assertFalse(response.data['owner_anonymous'])
+
+    def test_the_name_is_withheld_from_the_minor_themselves_too(self):
+        """One answer, not a per-viewer one: a set's owner already knows whose it is, and a second
+        code path is one more place for a cache or an export to leak the name."""
+        url = self._public_set(self.child, 'Powtórka')
+        self.client.force_authenticate(self.child)
+
+        self.assertEqual(self.client.get(url).data['owner_display_name'], '')
+
+    def test_the_owner_id_is_unchanged_so_the_private_notice_still_works(self):
+        """`owner` is what the set page compares against the signed-in account to show "this is
+        still private" — withholding the NAME must not break that."""
+        url = self._public_set(self.child, 'Powtórka')
+        self.client.force_authenticate(self.child)
+
+        self.assertEqual(self.client.get(url).data['owner'], self.child.pk)

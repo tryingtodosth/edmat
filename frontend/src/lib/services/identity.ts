@@ -10,11 +10,14 @@
 import type {
 	EducationSnapshot,
 	GradeYear,
+	LearningRecord,
+	LearningRecordActivityRow,
+	LearningRecordGradeRow,
 	ProviderState,
 	PublicEducation,
 	School
 } from '$lib/types/identity';
-import { apiClient } from '$lib/api/client';
+import { apiClient, ApiError } from '$lib/api/client';
 
 interface RawProviderState {
 	id: string;
@@ -109,6 +112,7 @@ function mapSnapshot(raw: any): EducationSnapshot {
 			shareSchool: e.share_school,
 			shareDiploma: e.share_diploma,
 			shareGrades: e.share_grades,
+			shareActivity: e.share_activity,
 			diplomas: (e.diplomas ?? []).map((d: any) => ({
 				id: d.id,
 				title: d.title,
@@ -211,6 +215,7 @@ export async function updateEducation(patch: {
 	shareSchool?: boolean;
 	shareDiploma?: boolean;
 	shareGrades?: boolean;
+	shareActivity?: boolean;
 }): Promise<EducationSnapshot> {
 	const body: Record<string, unknown> = {};
 	if (patch.school !== undefined) body.school = patch.school;
@@ -219,6 +224,7 @@ export async function updateEducation(patch: {
 	if (patch.shareSchool !== undefined) body.share_school = patch.shareSchool;
 	if (patch.shareDiploma !== undefined) body.share_diploma = patch.shareDiploma;
 	if (patch.shareGrades !== undefined) body.share_grades = patch.shareGrades;
+	if (patch.shareActivity !== undefined) body.share_activity = patch.shareActivity;
 	return mapSnapshot(await apiClient.patch('/education/me/', body));
 }
 
@@ -271,3 +277,71 @@ export async function removeImportedGrades(year?: string): Promise<EducationSnap
 	const query = year ? `?year=${encodeURIComponent(year)}` : '';
 	return mapSnapshot(await apiClient.delete(`/education/grades/${query}`));
 }
+
+/** The learning record on a public profile — the two blocks of `backend/identity/record.py`.
+ *
+ * Its own request rather than another field on `GET /users/{id}/`, matching the backend's own
+ * split: that response backs every byline in the app, and a display-name lookup has no business
+ * computing a per-branch aggregate over somebody's sets and course progress.
+ *
+ * `null` means there is nothing this reader may see — either no consent, or an account the minors
+ * rule withholds entirely — and the caller renders no section at all rather than an empty heading
+ * that implies something is being hidden. A 404 (that id is nobody) and the kill switch's own
+ * refusal are `null` here for the same reason: the page's job in every one of those cases is to
+ * draw nothing. The switch answers 403 to a signed-in reader and **401 to an anonymous one**
+ * (`TokenAuthentication` supplies a `WWW-Authenticate` header, so DRF reads the refusal as "you did
+ * not say who you are"), which is why both are caught — catching only 403 left a signed-out visitor
+ * with an unhandled error on a killed feature.
+ */
+export async function getLearningRecord(
+	id: string,
+	locale: string
+): Promise<LearningRecord | null> {
+	try {
+		const raw = await apiClient.get<Record<string, unknown> | null>(
+			`/users/${encodeURIComponent(id)}/learning-record/?lang=${encodeURIComponent(locale)}`
+		);
+		return mapLearningRecord(raw);
+	} catch (e) {
+		if (e instanceof ApiError && [401, 403, 404].includes(e.status)) return null;
+		throw e;
+	}
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function mapLearningRecord(raw: any): LearningRecord | null {
+	if (!raw) return null;
+	return {
+		isOwner: Boolean(raw.is_owner),
+		withheldReason: raw.withheld_reason ?? null,
+		grades: raw.grades
+			? raw.grades.map((row: any): LearningRecordGradeRow => ({
+					branch: { slug: row.branch?.slug ?? '', title: row.branch?.title ?? '' },
+					average: row.average ?? null,
+					count: row.count ?? 0
+				}))
+			: null,
+		activity: raw.activity ? raw.activity.map(mapActivityRow) : null
+	};
+}
+
+/** The three declared metrics by name, and anything else a provider answered with kept in `extra`.
+ *
+ * Keeping the unknown keys rather than dropping them is deliberate: `identity/record.py` lets a
+ * later app register a metric this cycle never named, and a mapper that quietly discarded it would
+ * make that app's column vanish with nothing to debug. */
+function mapActivityRow(row: any): LearningRecordActivityRow {
+	const known = new Set(['branch', 'sets', 'lessons_done', 'cards_reviewed']);
+	const extra: Record<string, number> = {};
+	for (const [key, value] of Object.entries(row ?? {})) {
+		if (!known.has(key) && typeof value === 'number') extra[key] = value;
+	}
+	return {
+		branch: { slug: row.branch?.slug ?? '', title: row.branch?.title ?? '' },
+		sets: row.sets ?? 0,
+		lessonsDone: row.lessons_done ?? 0,
+		cardsReviewed: row.cards_reviewed ?? 0,
+		extra
+	};
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */

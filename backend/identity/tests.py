@@ -16,8 +16,12 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
+from courses.models import Chapter, Course, Lesson, LessonProgress
+from moderation.models import FeatureFlag
+from study.models import ExerciseSet, ExerciseSetItem
 from taxonomy.models import Branch, BranchTranslation, Discipline
 from telemetry.routers import all_log_shards
+from testing.factories import make_exercise
 
 from .models import (
     CourseGrade,
@@ -28,10 +32,36 @@ from .models import (
     academic_year_of,
     grades_by_year,
 )
+from .record import ACTIVITY_PROVIDERS, register_activity_provider, sets_by_branch
 from .standing import ceiling_for, public_view
 from . import usos
 
 USOS_MOCK = override_settings(EDMAT_USOS_MOCK=True)
+
+
+def make_exercise_set(owner, name, exercises):
+    """A study set with its items, for `record.sets_by_branch`.
+
+    Local to this module rather than added to `testing/factories.py`: one suite needs it, and this
+    project's own three-strikes convention says a shared helper is earned by a third caller."""
+    exercise_set = ExerciseSet.objects.create(owner=owner, name=name)
+    for order, exercise in enumerate(exercises):
+        ExerciseSetItem.objects.create(exercise_set=exercise_set, exercise=exercise, order=order)
+    return exercise_set
+
+
+def make_course_with_lessons(instructor, branch, titles):
+    """A course, one chapter, and a lesson per title — the Chapter -> Lesson path
+    `record.lessons_done_by_branch` walks. `branch=None` builds the real state of a course with no
+    taxonomy link at all."""
+    course = Course.objects.create(title=f'Kurs {titles[0]}', instructor=instructor)
+    if branch is not None:
+        course.subjects.add(branch)
+    chapter = Chapter.objects.create(course=course, title='Program')
+    return [
+        Lesson.objects.create(chapter=chapter, title=title, order=order)
+        for order, title in enumerate(titles)
+    ]
 
 
 class ApiTestCase(TestCase):
@@ -172,7 +202,9 @@ class EducationClaimTests(ApiTestCase):
 
     def test_consents_all_start_off(self):
         res = self.client.get('/api/education/me/')
-        for flag in ('share_school', 'share_diploma', 'share_grades'):
+        # `share_activity` (identity/record.py) is the fourth, and it starts off for the same reason
+        # the other three do: nothing about having an account publishes anything about it.
+        for flag in ('share_school', 'share_diploma', 'share_grades', 'share_activity'):
             self.assertFalse(res.data['education'][flag], flag)
 
     def test_usos_is_refused_when_unconfigured_and_explains_why(self):
@@ -601,3 +633,305 @@ class MultiYearTranscriptTests(ApiTestCase):
         self.client.patch('/api/education/me/', {'share_school': True}, format='json')
         public = APIClient().get(f'/api/users/{self.user.pk}/').data['education']
         self.assertEqual(public['grade_years'], [])
+
+
+class LearningRecordTests(ApiTestCase):
+    """The learning record (`identity/record.py`, prompts/03-learning-record.md).
+
+    What is worth pinning here is almost entirely about what the record does NOT say: nothing
+    without consent, nothing for a minor whatever the consents say, nothing about an unmatched
+    result, and never an EdMat count folded into a grade. The counts themselves are the easy half.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user('record-owner', 'rec@example.com', 'pw12345!')
+        self.stranger = APIClient()
+
+        self.discipline, _ = Discipline.objects.get_or_create(slug='matematyka')
+        self.analysis = self._branch('analiza', 'Analiza matematyczna')
+        self.probability = self._branch('prawdopodobienstwo', 'Rachunek prawdopodobieństwa')
+
+        self.profile, _ = EducationProfile.objects.get_or_create(user=self.user)
+        self.profile.school = School.objects.get(slug='uw')
+        self.profile.save()
+
+    def _branch(self, slug, name):
+        branch, _ = Branch.objects.get_or_create(slug=slug, defaults={'discipline': self.discipline})
+        BranchTranslation.objects.get_or_create(branch=branch, locale='pl', defaults={'name': name})
+        return branch
+
+    def _grade(self, name, value, ects, branch, *, term='2023Z'):
+        return CourseGrade.objects.create(
+            profile=self.profile,
+            name=name,
+            term=term,
+            ects=ects,
+            value=value,
+            scale='polish_2_5',
+            matched_course=branch,
+        )
+
+    def _share(self, **flags):
+        for key, value in flags.items():
+            setattr(self.profile, key, value)
+        self.profile.save()
+
+    def url(self, user=None):
+        return f'/api/users/{(user or self.user).pk}/learning-record/'
+
+    # -- nothing shared -----------------------------------------------------------------------
+
+    def test_an_unshared_record_is_null_and_not_a_404(self):
+        """The profile exists; it is the record that is withheld, and those are different answers."""
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        res = self.stranger.get(self.url())
+        self.assertEqual(res.status_code, 200)
+        self.assertIsNone(res.data)
+
+    def test_an_id_that_is_nobody_is_a_404(self):
+        self.assertEqual(self.stranger.get('/api/users/999999/learning-record/').status_code, 404)
+
+    def test_an_account_with_no_education_row_answers_null(self):
+        other = User.objects.create_user('no-education')
+        self.assertIsNone(self.stranger.get(self.url(other)).data)
+
+    # -- the grades block ---------------------------------------------------------------------
+
+    def test_grades_are_grouped_per_branch_with_their_own_weighted_average(self):
+        self._grade('Analiza I', '3.0', 10, self.analysis)
+        self._grade('Analiza II', '5.0', 10, self.analysis)
+        self._grade('Rachunek', '4.0', 5, self.probability)
+        self._share(share_school=True, share_grades=True)
+
+        rows = self.stranger.get(self.url()).data['grades']
+        by_slug = {row['branch']['slug']: row for row in rows}
+        self.assertEqual(set(by_slug), {'analiza', 'prawdopodobienstwo'})
+        self.assertEqual(by_slug['analiza']['average'], 4.0)
+        self.assertEqual(by_slug['analiza']['count'], 2)
+        self.assertEqual(by_slug['analiza']['branch']['title'], 'Analiza matematyczna')
+        self.assertEqual(by_slug['prawdopodobienstwo']['count'], 1)
+
+    def test_a_result_the_site_could_not_place_is_left_out_rather_than_guessed(self):
+        """The same conservative rule `skill_seeds_for` follows: unmatched is real, just not placeable."""
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        self._grade('Wstęp do programowania', '5.0', 6, None)
+        self._share(share_school=True, share_grades=True)
+
+        rows = self.stranger.get(self.url()).data['grades']
+        self.assertEqual([row['branch']['slug'] for row in rows], ['analiza'])
+
+    def test_grades_need_the_school_consent_too(self):
+        """A mark with no institution attached is not a claim about anything."""
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        self._share(share_grades=True)
+        self.assertIsNone(self.stranger.get(self.url()).data)
+
+    def test_a_branch_mixing_grade_scales_reports_no_average_rather_than_inventing_one(self):
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        CourseGrade.objects.create(
+            profile=self.profile,
+            name='Analysis (exchange)',
+            ects=6,
+            value='B',
+            scale='ects_letter',
+            matched_course=self.analysis,
+        )
+        self._share(share_school=True, share_grades=True)
+        row = self.stranger.get(self.url()).data['grades'][0]
+        self.assertIsNone(row['average'])
+        self.assertEqual(row['count'], 2)
+
+    # -- the activity block -------------------------------------------------------------------
+
+    def test_activity_is_withheld_until_its_own_consent_is_given(self):
+        make_exercise_set(self.user, 'Powtórka', [make_exercise(self.analysis, 9001)])
+        self._share(share_school=True, share_grades=True)
+        self.assertIsNone(self.stranger.get(self.url()).data['activity'])
+
+    def test_activity_counts_sets_per_branch_and_fills_every_metric(self):
+        a1 = make_exercise(self.analysis, 9101)
+        a2 = make_exercise(self.analysis, 9102)
+        p1 = make_exercise(self.probability, 9103)
+        make_exercise_set(self.user, 'Jeden', [a1, a2])
+        make_exercise_set(self.user, 'Dwa', [a1, p1])
+        self._share(share_activity=True)
+
+        rows = self.stranger.get(self.url()).data['activity']
+        by_slug = {row['branch']['slug']: row for row in rows}
+        # Two sets touch analysis, one touches probability — a set spanning two branches counts in
+        # both and never as two sets in one.
+        self.assertEqual(by_slug['analiza']['sets'], 2)
+        self.assertEqual(by_slug['prawdopodobienstwo']['sets'], 1)
+        # Every metric this cycle declares is present as a zero rather than absent, so the table has
+        # one set of columns.
+        for row in rows:
+            self.assertEqual(row['lessons_done'], 0)
+            self.assertEqual(row['cards_reviewed'], 0)
+
+    def test_a_set_with_many_exercises_in_one_branch_is_still_one_set(self):
+        """A real bug: `ExerciseSetItem.Meta.ordering` is pulled into a `distinct()`'s SELECT, so the
+        first version counted one set once per item and read 21 sets for an account with five."""
+        exercises = [make_exercise(self.analysis, 9200 + n) for n in range(6)]
+        make_exercise_set(self.user, 'Sześć zadań', exercises)
+        self._share(share_activity=True)
+        self.assertEqual(self.stranger.get(self.url()).data['activity'][0]['sets'], 1)
+
+    def test_only_lessons_somebody_said_they_finished_are_counted(self):
+        done, stuck = make_course_with_lessons(self.user, self.probability, ['Jedna', 'Druga'])
+        LessonProgress.objects.create(lesson=done, participant=self.user, status='done')
+        LessonProgress.objects.create(lesson=stuck, participant=self.user, status='stuck')
+        self._share(share_activity=True)
+
+        rows = self.stranger.get(self.url()).data['activity']
+        self.assertEqual(rows[0]['branch']['slug'], 'prawdopodobienstwo')
+        self.assertEqual(rows[0]['lessons_done'], 1)
+
+    def test_a_lesson_in_a_course_with_no_subject_is_filed_under_no_branch(self):
+        done, _ = make_course_with_lessons(self.user, None, ['Jedna', 'Druga'])
+        LessonProgress.objects.create(lesson=done, participant=self.user, status='done')
+        self._share(share_activity=True)
+        self.assertEqual(self.stranger.get(self.url()).data['activity'], [])
+
+    def test_a_registered_provider_contributes_its_own_metric(self):
+        """What `flashcards` will do at integration, exercised here against a fake one."""
+        branch_id = self.analysis.pk
+
+        def provider(_user):
+            return {branch_id: {'cards_reviewed': 41, 'own_metric': 2}}
+
+        register_activity_provider(provider)
+        try:
+            self._share(share_activity=True)
+            row = self.stranger.get(self.url()).data['activity'][0]
+            self.assertEqual(row['cards_reviewed'], 41)
+            self.assertEqual(row['own_metric'], 2)
+            self.assertEqual(row['sets'], 0)
+        finally:
+            ACTIVITY_PROVIDERS.remove(provider)
+
+    def test_registering_the_same_provider_twice_does_not_double_its_counts(self):
+        before = len(ACTIVITY_PROVIDERS)
+        register_activity_provider(sets_by_branch)
+        self.assertEqual(len(ACTIVITY_PROVIDERS), before)
+
+    # -- the two blocks never mix -------------------------------------------------------------
+
+    def test_the_two_blocks_are_separate_lists_and_neither_carries_the_other_s_keys(self):
+        """prompts/00-DESIGN.md §1 rule 3: an EdMat count is never drawn beside a grade as if it
+        were one. At this layer that means the shapes have nothing in common but the branch."""
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        make_exercise_set(self.user, 'Powtórka', [make_exercise(self.analysis, 9301)])
+        self._share(share_school=True, share_grades=True, share_activity=True)
+
+        data = self.stranger.get(self.url()).data
+        self.assertEqual(set(data['grades'][0]) - {'branch'}, {'average', 'count'})
+        self.assertNotIn('average', data['activity'][0])
+        self.assertNotIn('sets', data['grades'][0])
+
+    # -- the viewer ---------------------------------------------------------------------------
+
+    def test_the_owner_gets_the_record_back_even_when_nothing_is_shared(self):
+        """So the one person who needs to know their consents are off is not shown nothing at all."""
+        self.client.force_authenticate(self.user)
+        data = self.client.get(self.url()).data
+        self.assertTrue(data['is_owner'])
+        self.assertIsNone(data['grades'])
+        self.assertIsNone(data['activity'])
+
+    def test_the_viewer_never_widens_what_is_shown(self):
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        make_exercise_set(self.user, 'Powtórka', [make_exercise(self.analysis, 9401)])
+        self.client.force_authenticate(self.user)
+        owner = self.client.get(self.url()).data
+        self.assertIsNone(owner['grades'])
+        self.assertIsNone(owner['activity'])
+
+    def test_another_signed_in_account_is_not_the_owner(self):
+        other = APIClient()
+        other.force_authenticate(User.objects.create_user('nosy'))
+        self.assertIsNone(other.get(self.url()).data)
+
+    # -- minors -------------------------------------------------------------------------------
+
+    def test_a_minor_s_record_is_never_public_whatever_the_consents_say(self):
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        self._share(share_school=True, share_grades=True, share_activity=True)
+        self.user.profile.is_minor = True
+        self.user.profile.save(update_fields=['is_minor'])
+
+        self.assertIsNone(self.stranger.get(self.url()).data)
+
+    def test_a_minor_reading_their_own_record_is_told_why_it_is_empty(self):
+        self._share(share_school=True, share_grades=True)
+        self.user.profile.is_minor = True
+        self.user.profile.save(update_fields=['is_minor'])
+
+        self.client.force_authenticate(self.user)
+        data = self.client.get(self.url()).data
+        self.assertEqual(data['withheld_reason'], 'minor')
+        self.assertIsNone(data['grades'])
+
+    def test_withholding_a_minor_s_record_does_not_rewrite_their_consents(self):
+        """A guardian may have set them, and un-ticking somebody's consent behind their back would
+        be its own small dishonesty."""
+        self._share(share_school=True, share_grades=True)
+        self.user.profile.is_minor = True
+        self.user.profile.save(update_fields=['is_minor'])
+
+        self.stranger.get(self.url())
+        self.profile.refresh_from_db()
+        self.assertTrue(self.profile.share_grades)
+
+    # -- the kill switch ----------------------------------------------------------------------
+
+    def test_the_kill_switch_closes_the_endpoint_to_an_ordinary_caller(self):
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        self._share(share_school=True, share_grades=True)
+        FeatureFlag.objects.update_or_create(key='learning_record', defaults={'is_enabled': False})
+
+        # 403 is the refusal a real reader with an account sees, and the one worth pinning. An
+        # ANONYMOUS caller gets 401 from the same gate — `TokenAuthentication` supplies a
+        # `WWW-Authenticate` header, so DRF reads the refusal as "you did not say who you are" —
+        # which `concepts.tests` already records for the same reason. Either way it is closed.
+        self.assertEqual(self.stranger.get(self.url()).status_code, 401)
+        self.client.force_authenticate(self.user)
+        self.assertEqual(self.client.get(self.url()).status_code, 403)
+
+    def test_a_moderator_keeps_their_own_tools_with_the_switch_off(self):
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        self._share(share_school=True, share_grades=True)
+        FeatureFlag.objects.update_or_create(key='learning_record', defaults={'is_enabled': False})
+
+        staff = APIClient()
+        staff.force_authenticate(User.objects.create_user('mod', 'mod@example.com', 'pw', is_staff=True))
+        self.assertEqual(staff.get(self.url()).status_code, 200)
+
+    def test_the_neighbouring_profile_endpoint_keeps_working_with_the_switch_off(self):
+        """House rule 3: a killed feature stops answering for itself and takes nothing else down."""
+        FeatureFlag.objects.update_or_create(key='learning_record', defaults={'is_enabled': False})
+        self.assertEqual(self.stranger.get(f'/api/users/{self.user.pk}/').status_code, 200)
+
+    # -- the consent flag itself --------------------------------------------------------------
+
+    def test_the_fourth_consent_is_settable_through_the_existing_endpoint(self):
+        self.client.force_authenticate(self.user)
+        res = self.client.patch('/api/education/me/', {'share_activity': True}, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['education']['share_activity'])
+        self.profile.refresh_from_db()
+        self.assertTrue(self.profile.share_activity)
+
+    def test_the_locale_the_reader_asked_for_names_the_branch(self):
+        BranchTranslation.objects.create(branch=self.analysis, locale='en', name='Real analysis')
+        self._grade('Analiza I', '4.0', 10, self.analysis)
+        self._share(share_school=True, share_grades=True)
+
+        self.assertEqual(
+            self.stranger.get(self.url() + '?lang=en').data['grades'][0]['branch']['title'],
+            'Real analysis',
+        )
+        self.assertEqual(
+            self.stranger.get(self.url()).data['grades'][0]['branch']['title'],
+            'Analiza matematyczna',
+        )

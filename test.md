@@ -75,7 +75,8 @@ inherit from it rather than repeating the line.
 | `classroom` (86) | Courses run by users: visibility, enrolment, lessons, discussion, notifications, settings, staff roles, contributions, chapters, invite links |
 | `booking` (137) | Availability arithmetic, the two availability modes against each other, what a hosted event does to them, the booking lifecycle, notifications, listing deletion, the tutor's own calendar, and (`test_week_schedules.py`, 64) weeks that replace the repeating pattern: precedence, merging, what a copy carries forward, bulk apply |
 | `events` (60) | Visibility and drafts, authoring and location validation, attendance and capacity, the private roster, notifications (including the deliberate silences), the kill switch, and the schedule integration |
-| `identity` (36) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing |
+| `identity` (83) | Sign-in provider drafts, schools, the USOS seam, consent gating, standing, and (§17BR.B) the **learning record**: the two blocks gated separately, `null` rather than 404 when nothing is shared, a minor's record withheld with its reason whatever the consents say, the owner getting `is_owner` back with both blocks empty, `viewer` widening nothing for a stranger, the provider registry idempotent and the metric union zero-filled, an unknown metric key kept rather than dropped, and the two `distinct()` ordering traps pinned by exact counts |
+| `study` (21) | Study sets, and (§17BR.B) the minors fix: a minor's shared set answers an empty `owner_display_name` with `owner_anonymous` true, for **every** reader including the owner, while an adult's still reads as theirs and `owner` is untouched so the private-set notice keeps working |
 | `accounts` profile extras (21) | Experience, skills, the derived activity feed, the demo-content seed, and the clock/week-start display preferences |
 | `config` (16) | The Unicode-aware `ucontains` lookup and the Polish-diacritics bug it fixes, driven through the two browse `?q=` paths as well as the queryset — see `config/test_dbsearch.py` |
 | `moderation` | Reports, auto-hide, the queue, node governors, feature-flag kill switches |
@@ -280,6 +281,7 @@ E2E_USER=<id> E2E_PUBLISHED=55 E2E_PRIVATE=2 node e2e/profile-exercise-counts.mj
 node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs in as ola + kasia, toggles the `issues` flag and restores it
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
+node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/about-page.mjs               # the /about landing page: both locales, both themes, phone width, the tutoring kill switch hiding its card; signs in kasia through the API only to flip the flag and restore it
 node e2e/showcase.mjs                 # the seven design-showcase pages under /about/<feature>; signs nobody in and needs no backend data (set E2E_NO_BACKEND=1 to run with the API down)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
@@ -1593,6 +1595,39 @@ bundle assertion — `jsqr` and `qrcode` absent from `build/_app/immutable/entry
 a loud skip line rather than passing when no build is lying beside the source.
 
     cd frontend && E2E_BASE=http://localhost:5204 E2E_API=http://127.0.0.1:8104 node e2e/event-tickets.mjs
+
+**`e2e/learning-record.mjs` (52 checks)** — the learning record on a public profile
+(§17BR.B, 2026-10-05). Needs `seed_demo_users` + `seed_profile_showcase`, and signs in through the
+API as kasia (staff, for the flag and her own consent) and as ola (non-staff, the guardian half and
+the kill switch — `feature_gate` lets real staff through every switch, so kasia can prove nothing
+about one being off: trap 10).
+
+With both consents on it reads the record ANONYMOUSLY and pins the rule the feature exists for on
+the wire, not just in the layout: no activity row carries an `average`, no grades row carries a
+metric, so the two blocks cannot be concatenated into one table. Then it **recounts the `sets`
+column itself** from her sets and those exercises' own branches and requires it to match row for
+row — the check that caught `sets_by_branch` reading 21 for an account with five (`Meta.ordering`
+pulled into a `distinct()`). `cards_reviewed` must be 0 everywhere until step A registers its
+provider, asserted rather than skipped. In the browser: the row, its summary naming both blocks and
+totalling neither, exactly two `section.block`s, an Average column in the first and none in the
+second, and row counts equal to the API's. Consent withdrawn leaves the grades table untouched and
+the EdMat block with **no table at all** and the words "Not shared". The owner gets `is_owner` back
+with both blocks still withheld.
+
+Then a real minor: ola creates a child through `/api/auth/children/`, the child makes a public set,
+and an anonymous reader gets an empty `owner_display_name`, `owner_anonymous: true`, the child's
+name nowhere in the body, the neutral sentence on the page and no link to the child's profile.
+Finally the kill switch, off: 401/403 anonymously and 403 for a signed-in non-staff caller while
+staff keep their tools, the profile row gone and the page still rendering, and the consent toggle
+gone from `/settings` and back when the switch is. Everything it created is deleted and confirmed
+gone through an AUTHENTICATED request (trap 12), and the flag and consent are put back as found.
+
+Zero console/page errors, with the worktree KaTeX-font 403s filtered by URL and **counted out
+loud** (trap 26). Three screenshots in `e2e/screens/record-*.png`, looked at — the Polish
+"Udostępnione przez osobę uczącą się na EdMat" was only ever wrong (`przez` takes the accusative;
+a name-shaped `{name}` slot cannot decline) in a screenshot.
+
+    cd frontend && E2E_BASE=http://localhost:5232 E2E_API=http://127.0.0.1:8132/api node e2e/learning-record.mjs
 
 **`e2e/about-page.mjs` (15 checks)** — the landing page at `/about` (2026-09-24). Polish desktop
 (the base locale): the h1, eight feature cards, seven audience bands, seven sections, exactly one

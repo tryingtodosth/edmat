@@ -151,11 +151,22 @@ class EducationProfile(models.Model):
     usos_scopes = models.JSONField(default=list, blank=True)
 
     # --- consent ---------------------------------------------------------------------------
-    # Three independent flags, all starting False. Nothing about connecting an account, and nothing
+    # Four independent flags, all starting False. Nothing about connecting an account, and nothing
     # about importing a record, turns any of them on.
     share_school = models.BooleanField(default=False)
     share_diploma = models.BooleanField(default=False)
     share_grades = models.BooleanField(default=False)
+    #: The fourth consent (prompts/00-DESIGN.md §1 rule 3, 2026-10-05): publish what this account has
+    #: DONE on EdMat — sets built, lessons it said it finished, cards reviewed — as counts per
+    #: `taxonomy.Branch` and never per item. Read only by `identity/record.py`, which is deliberately
+    #: not `standing.public_view`: an EdMat count is not an institutional claim, and the two must not
+    #: be drawn as if they were one.
+    #
+    #: It does NOT hang off `share_school` the way `share_grades` does, and that asymmetry is the
+    #: point. A grade is a statement the institution made, so publishing one without saying which
+    #: institution is incoherent; "41 cards reviewed in Analiza Matematyczna" is this site's own
+    #: record of its own user and makes sense with no school attached at all.
+    share_activity = models.BooleanField(default=False)
 
     updated_at = models.DateTimeField(auto_now=True)
 

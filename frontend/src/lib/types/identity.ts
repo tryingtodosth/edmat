@@ -94,6 +94,10 @@ export interface EducationProfile {
 	shareSchool: boolean;
 	shareDiploma: boolean;
 	shareGrades: boolean;
+	/** The learning record's own consent — what this account has DONE on EdMat, as counts per
+	 * branch. Its own flag rather than a fourth meaning for `shareGrades`, because an EdMat count
+	 * and an institutional mark are two different kinds of fact (`backend/identity/record.py`). */
+	shareActivity: boolean;
 	diplomas: Diploma[];
 	grades: CourseGrade[];
 	gradeYears: GradeYear[];
@@ -153,4 +157,51 @@ export interface PublicEducation {
 	}[];
 	gradeYears: GradeYear[];
 	average: number | null;
+}
+
+/** One branch of the learning record, in either block. The slug is the id `/branches/[branch]`
+ * takes; the title is already resolved for the locale that was asked for, so nothing here resolves
+ * a translation a second time. */
+export interface LearningRecordBranch {
+	slug: string;
+	title: string;
+}
+
+/** A shared institutional result, grouped per branch. `average` is `null` for a branch that mixes
+ * grading scales — there is no honest way to fold an ECTS letter into the Polish 2–5 scale, and the
+ * backend refuses rather than inventing one. */
+export interface LearningRecordGradeRow {
+	branch: LearningRecordBranch;
+	average: number | null;
+	count: number;
+}
+
+/** What somebody did on EdMat in one branch. Counts only, never items: `sets` is how many of their
+ * sets involve this branch, `lessonsDone` how many lessons they SAID they finished, `cardsReviewed`
+ * how many flashcard reviews they logged. `extra` carries any metric a provider registered that
+ * this cycle did not declare (`identity/record.py: METRIC_KEYS`), so a later app's column renders
+ * rather than silently disappearing. */
+export interface LearningRecordActivityRow {
+	branch: LearningRecordBranch;
+	sets: number;
+	lessonsDone: number;
+	cardsReviewed: number;
+	extra: Record<string, number>;
+}
+
+/** The two blocks, and they are never merged.
+ *
+ * `prompts/00-DESIGN.md` §1 rule 3: an EdMat activity count is never drawn beside an institutional
+ * grade as if it were one. Two lists, two headings, two consents — a single list with a nullable
+ * `average` column would have read as one measurement with gaps in it.
+ *
+ * `null` for a block means "not shared" and renders nothing. `isOwner` is true only when the reader
+ * is the account holder, and exists so their own profile can tell them what everyone else sees;
+ * it never widens the data. `withheldReason` is `'minor'` when the record is withheld because the
+ * account belongs to a minor, whatever the consents say (`accounts/minors.py`). */
+export interface LearningRecord {
+	isOwner: boolean;
+	withheldReason: 'minor' | null;
+	grades: LearningRecordGradeRow[] | null;
+	activity: LearningRecordActivityRow[] | null;
 }

@@ -361,6 +361,32 @@ class AnonymousReadCacheTests(TestCase):
         rows = {row['key']: row['is_enabled'] for row in self.client.get('/api/feature-flags/').json()}
         self.assertFalse(rows['tutoring'])
 
+    def test_the_learning_record_is_never_cached(self):
+        """A consent-gated body under a cached prefix (`prompts/03-learning-record.md`, 2026-10-05).
+
+        `/api/users/` is on the allowlist because a public profile is content, but
+        `/api/users/{id}/learning-record/` is decided entirely by `share_activity`/`share_grades`
+        and by the `learning_record` kill switch — so a cached copy outlives the consent that
+        produced it. A real browser run caught it: the switch was turned off and the anonymous
+        caller was still served a 200 record while a signed-in one was correctly refused.
+
+        Pinned for the same reason the feature-flag case above is: removing the carve-out breaks no
+        other test, and the symptom is a lag rather than an error.
+        """
+        from django.core.cache import cache
+
+        from config.cachemw import cache_key
+
+        user = User.objects.create_user('cache-record', password='pw12345!')
+        path = f'/api/users/{user.pk}/learning-record/'
+        for _ in range(4):
+            response = self.client.get(path)
+            self.assertNotIn('X-EdMat-Cache', response)
+        self.assertIsNone(cache.get(cache_key(path)))
+        # The profile itself keeps its cache — the carve-out is this one path, not the prefix.
+        self.client.get(f'/api/users/{user.pk}/')
+        self.assertEqual(self.client.get(f'/api/users/{user.pk}/')['X-EdMat-Cache'], 'stored')
+
     def test_an_authorization_header_disqualifies_the_request_entirely(self):
         """The security gate: any credential means no shared cache, in either direction — the
         response is neither served from it nor stored into it, no matter how often it repeats."""

@@ -1108,4 +1108,26 @@ export function completionRefusalMessage(err: unknown, fallback: string): string
 		}
 	}
 	return err instanceof Error ? err.message : fallback;
+
+// The learning record's metric columns — a hand-maintained mirror of `backend/identity/record.py`'s
+// `METRIC_KEYS` (house rule 13: said in both files). One label and one hint per metric, because a
+// column headed "Lessons finished" over a number somebody TYPED about themselves needs the sentence
+// that says so — `courses.LessonProgress` is a statement, not a measurement.
+//
+// A provider may answer with a key this map does not know (`identity/record.py` keeps it rather than
+// dropping it), so the lookup falls back to the raw key: an ugly column beats a disappeared one.
+export const LEARNING_RECORD_METRICS: Record<string, () => string> = {
+	sets: m.record_metric_sets, // "Sets"
+	lessons_done: m.record_metric_lessonsDone, // "Lessons finished"
+	cards_reviewed: m.record_metric_cardsReviewed // "Cards reviewed"
+};
+
+export const LEARNING_RECORD_METRIC_HINTS: Record<string, () => string> = {
+	sets: m.record_metricHint_sets, // "Study sets that include an exercise from this subject."
+	lessons_done: m.record_metricHint_lessonsDone, // "Lessons on a course about this subject that they said they had finished."
+	cards_reviewed: m.record_metricHint_cardsReviewed // "Flashcard reviews logged on cards about this subject."
+};
+
+export function learningRecordMetricLabel(key: string): () => string {
+	return LEARNING_RECORD_METRICS[key] ?? (() => key);
 }

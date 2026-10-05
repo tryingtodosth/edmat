@@ -145,8 +145,15 @@ SETS = [
     ('Do przemyślenia (prywatne)', False, 4),
 ]
 
+#: `subjects` is the course's own taxonomy link (`courses.Course.subjects` -> `taxonomy.Branch`), and
+#: it is set here because the learning record counts "lessons they said they finished" PER BRANCH and
+#: gets the branch from exactly this field (`identity/record.py: lessons_done_by_branch`). A seeded
+#: course with no subject is a real state the record handles — it contributes to no branch — and the
+#: wrong one to demonstrate the record with, the same reasoning this file already applies to the
+#: showcase school.
 TAUGHT_COURSE = {
     'title': 'Analiza I — ćwiczenia dodatkowe',
+    'subjects': ['analiza-matematyczna'],
     'summary': 'Cotygodniowe spotkania dla pierwszego roku, przed każdym kolokwium.',
     'description': 'Czwartki 18:00, sala 2180. Zadania wysyłam dzień wcześniej.',
     'lessons': [
@@ -161,6 +168,7 @@ TAUGHT_COURSE = {
 #: no use for that: `LessonProgress` is a participant's statement, and staff never write one.
 JOINED_COURSE = {
     'title': 'Rachunek prawdopodobieństwa — grupa zadaniowa',
+    'subjects': ['rachunek-prawdopodobienstwa'],
     'summary': 'Rozwiązujemy listy razem, dwa razy w tygodniu.',
     'lessons': [
         ('Przestrzeń probabilistyczna', 'Aksjomaty, prawdopodobieństwo warunkowe.'),
@@ -460,6 +468,7 @@ class Command(BaseCommand):
             },
         )
         self._fill_course(taught, TAUGHT_COURSE['lessons'])
+        self._set_subjects(taught, TAUGHT_COURSE['subjects'])
 
         if other is None:
             self.stdout.write(
@@ -483,6 +492,7 @@ class Command(BaseCommand):
             },
         )
         lessons = self._fill_course(joined, JOINED_COURSE['lessons'])
+        self._set_subjects(joined, JOINED_COURSE['subjects'])
         Enrollment.objects.update_or_create(
             course=joined, participant=user, defaults={'status': 'active'}
         )
@@ -491,6 +501,19 @@ class Command(BaseCommand):
                 lesson=lesson, participant=user, defaults={'status': 'done'}
             )
         return 2
+
+    @staticmethod
+    def _set_subjects(course, slugs) -> None:
+        """Point the course at the branches it is about, skipping any slug this database has not got.
+
+        `set()` rather than `add()`: re-running the command must leave the same links rather than
+        accumulating them, and a branch somebody attached by hand to a SEEDED course is this
+        command's own row to replace — unlike the hand-written reviews elsewhere in this file, which
+        is why those are matched by constant instead.
+        """
+        branches = list(Branch.objects.filter(slug__in=slugs))
+        if branches:
+            course.subjects.set(branches)
 
     @staticmethod
     def _fill_course(course, lessons) -> list:

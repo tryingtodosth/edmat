@@ -39,6 +39,11 @@ class ExerciseSetSerializer(serializers.ModelSerializer):
     # readable as "Kasia's set" than a bare numeric owner id, which is all a plain FK field would
     # otherwise serialize to.
     owner_display_name = serializers.SerializerMethodField()
+    # House rule 6, and the reason the name above can come back empty: a blank display name is a
+    # WITHHELD name, not a missing one, and the page that draws "shared by …" needs to know the
+    # difference. True means `accounts/minors.py` withheld it, and the frontend prints the neutral
+    # whole neutral sentence from its own catalogue (`study_anonymousOwner`) in its place.
+    owner_anonymous = serializers.SerializerMethodField()
 
     class Meta:
         model = ExerciseSet
@@ -47,6 +52,7 @@ class ExerciseSetSerializer(serializers.ModelSerializer):
             'slug',
             'owner',
             'owner_display_name',
+            'owner_anonymous',
             'name',
             'audience',
             'items',
@@ -61,7 +67,30 @@ class ExerciseSetSerializer(serializers.ModelSerializer):
         read_only_fields = ['owner', 'slug']
 
     def get_owner_display_name(self, obj):
+        """The owner's name, unless the owner is a minor — then nothing at all.
+
+        `retrieve` on this viewset is the one `AllowAny` action in the app (that IS the sharing
+        feature), so a shared set is the one surface where a minor's set is read by a stranger. And
+        `accounts/minors.py` is explicit that a minor's account has **no public profile** — a line
+        reading "shared by <a 12-year-old's display name>" on a page any link-holder can open is
+        exactly the thing that rule exists to prevent, and it shipped unnoticed because the sharing
+        feature predates the minors regime.
+
+        Withheld for EVERY reader, including the owner and their guardian, rather than resolved per
+        viewer: one answer means there is no second code path for a cache, a copy or a future export
+        to get wrong, and the owner of a set already knows whose it is. `owner` (the numeric id) is
+        unchanged, so the owner's own "this set is still private" notice keeps working.
+        """
+        from accounts.minors import is_minor
+
+        if is_minor(obj.owner):
+            return ''
         return getattr(obj.owner.profile, 'display_name', '') or obj.owner.username
+
+    def get_owner_anonymous(self, obj) -> bool:
+        from accounts.minors import is_minor
+
+        return is_minor(obj.owner)
 
     def _apply_item_options(self, exercise_set, item_options):
         """Applies each `{exercise, include_hint, include_answer, include_solution}` entry onto

@@ -11991,3 +11991,172 @@ Three things, none of which any assertion caught, and two of which were in my ow
   scripts (`course-claims`, `galleries-and-applications`, `login-return`,
   `material-open-and-titles`, `prerender-check`) carry six eslint errors. All pre-existing on the
   prep commit; `prettier --check` runs first, so the whole command is red regardless of this step.
+
+---
+
+## 17BR.B. The learning record: what somebody shared, and what they did here (2026-10-05)
+
+Learning step B of the eight-branch learning cycle (`prompts/03-learning-record.md`, from prep
+`f90e221`). One new section on a public profile, and the one rule that shapes all of it is
+`prompts/00-DESIGN.md` §1 rule 3: **an EdMat activity count is never drawn beside an institutional
+grade as if it were one.** EdMat does not assess anybody, and a table with a "score" column holding
+both "3.5 in Analiza Matematyczna" and "5 sets built in Analiza Matematyczna" would quietly claim
+that it does.
+
+So the record is two blocks that cannot be concatenated by accident — computed separately, gated
+separately, and handed to the frontend as two lists with no column in common.
+
+### The shape
+
+`backend/identity/record.py`, a new rule module beside `identity/standing.py` rather than inside it.
+`standing.public_view` answers "how much of this person's *institutional* record may a stranger
+see", and it is the three education consents itemised; a count of flashcard reviews is not an
+institutional record and must not inherit that function's shape, its caller or its gate.
+
+```
+learning_record(profile_user, viewer, *, locale) -> None | {
+    is_owner, withheld_reason,
+    grades:   None | [{branch: {slug, title}, average, count}]     # share_school AND share_grades
+    activity: None | [{branch: {slug, title}, sets, lessons_done, cards_reviewed}]  # share_activity
+}
+```
+
+`taxonomy.Branch` is the hub that makes one per-branch table honest: two different *kinds* of fact
+about the same corner of the curriculum, in two blocks, under one subject name.
+
+- **`share_activity`** — the fourth consent of the shape `share_school`/`share_diploma`/
+  `share_grades` already established, default `False`, migration `identity/0003_share_activity.py`.
+  It joins the other three in `EducationView.patch`'s own loop rather than getting an endpoint of
+  its own; they are edited on one screen.
+- **A provider registry.** `ACTIVITY_PROVIDERS` + `register_activity_provider(fn)`, each provider
+  `Callable[[User], dict[int, dict[str, int]]]` — branch id to metric to count. `sets_by_branch`
+  and `lessons_done_by_branch` live in this module because `study` and `courses` had nothing to
+  hand and this step owns neither app's schema; anything that measures its own app registers
+  itself at app-ready time, so `identity` imports no app that might not be installed. The union of
+  metric keys is filled with zeros so one table has one set of columns, and a key no provider
+  declared is **added** rather than dropped — silently discarding somebody's measurement is worse
+  than an unlabelled column. `register_activity_provider` is idempotent because `ready()` can run
+  twice in one process and a provider counted twice is a wrong number that looks like real data.
+- **Counts are recounted on every read** (house rule 5), with the honest limit stated in the
+  module: nothing caches, so a profile with thousands of rows pays for them on every view.
+- **`GET /api/users/{id}/learning-record/`** behind `feature_gate('learning_record')` — a sibling
+  path in `identity/urls.py`, not another field on `accounts.UserPublicView`. That response backs
+  every byline in the app, and a display-name lookup has no business computing a per-branch
+  aggregate over somebody's sets and course progress. It answers **`null`, not 404**, when nothing
+  is shared: the account exists and its profile renders, and 404 would say the person does not.
+- **`viewer` never widens anything.** Every gate reads the profile owner's own consent. The
+  argument exists so the account holder gets the record back with `is_owner` set even when both
+  blocks are withheld, and can be told *this is what other people see* — which for an unshared
+  record is "nothing". Without it, the one person who needs to know their consents are off would be
+  the one person shown no section.
+- **A minor's record is never public, whatever the consents say.** `accounts/minors.py` says a
+  minor has no public profile; a learning record is a public profile section. The flags are not
+  silently rewritten — a guardian may have set them and the account may stop being a minor's — so
+  `withheld_reason: 'minor'` says why instead (house rule 6).
+
+### The frontend
+
+`LearningRecordView.svelte` draws two `section.block`s with a rule between them, two headings and
+two leads saying what each block is *and is not* — never one table with an average column that
+happens to be empty for the EdMat rows, which would read as one measurement with gaps in it. Every
+number arrives computed, averages included: they follow rules (ECTS-weighted, and no number at all
+for a branch mixing grading scales) that already live in Python, and re-deriving them in the
+component is how this figure and `TranscriptView`'s own start disagreeing on one screen.
+
+The row + modal sit at the `learning: learning record (B)` marker on `routes/users/[id]/+page.svelte`,
+and the row's summary is built from the two blocks separately — a total would be the one number this
+feature exists not to produce. The settings toggle is the fourth checkbox in `EducationPanel.svelte`'s
+consent block. **The brief named `EducationModal.svelte`; the three consents actually live in
+`EducationPanel.svelte`**, and the modal renders that same component with `embedded` — so the
+fourth toggle went where the other three are and appears on both surfaces from one definition.
+
+### The minors fix in `study`
+
+`retrieve` on `ExerciseSetViewSet` is the one `AllowAny` action in `study` — that *is* the "send a
+set to a friend" feature — so a shared set was the one surface where a stranger holding a link read
+a child's display name, in flat contradiction of `accounts/minors.py`. It shipped unnoticed because
+the sharing feature predates the minors regime. `owner_display_name` is now `''` for a minor and
+`owner_anonymous` says that it was withheld rather than missing (house rule 6), and the set page
+prints `study_anonymousOwner` ("A learner on EdMat") instead and links to no profile. Withheld for
+**every** reader including the owner and their guardian: one answer means no second code path for a
+cache or an export to get wrong, and the owner of a set already knows whose it is. `owner` (the
+numeric id) is untouched, so the owner's own "this set is still private" notice keeps working.
+
+### Two bugs the run found, neither visible to any check
+
+1. **`sets_by_branch` counted a set once per *item* in it.** `ExerciseSetItem.Meta.ordering` is
+   `['order']`, and Django adds every ordering column to the SELECT list of a `distinct()` query —
+   so the DISTINCT was over (set, branch, **order**). It read 21 sets for an account with five.
+   `.order_by()` with no arguments is the fix and is load-bearing, not tidying; `lessons_done_by_branch`
+   needed the same for `['-updated_at']`. Caught by asserting an exact number, not a populated-looking
+   table (e2e trap 8).
+2. **The record was being served from the anonymous read cache.** `/api/users/` is on
+   `config/cachemw.py`'s `PUBLIC_PREFIXES` because a public profile is content — but this body is
+   decided entirely by a consent and a kill switch, which makes it the control plane in exactly the
+   sense `/api/feature-flags/` is, and worse: what goes stale is somebody's decision to stop
+   publishing their results. The browser run caught it as an anonymous caller still being served a
+   200 record with the switch off while a signed-in one was correctly refused. Excluded by regex
+   rather than invalidated on write, for the reason that module's own `/api/feature-flags/`
+   paragraph gives — `?lang=` makes one logical record several cached URLs. Pinned by
+   `telemetry.tests.AnonymousReadCacheTests.test_the_learning_record_is_never_cached`.
+
+3. **A killed feature went on asking.** `featureFlagsStore.isEnabled` fails OPEN until the first
+   `/api/feature-flags/` response lands — right for drawing a link, wrong for firing a request the
+   API will refuse — and the record was requested from inside the profile's `load()`, which raced
+   that boot request. With the switch off every profile view logged a 403. House rule 3 means a
+   killed feature stops *asking*, not merely stops linking, so the request moved into its own
+   `$effect` keyed on `isLoaded` with the usual id guard (frontend trap 2), which is the shape
+   `routes/tasks/` and `RotaPanel` already use and which the store's own comment asks for.
+4. **"Udostępnione przez Osoba ucząca się na EdMat."** The minors fix first fed a neutral stand-in
+   into `sharedSet_sharedBy`'s `{name}` slot. That slot holds a proper noun, which does not
+   decline — but Polish `przez` governs the accusative, and in English the stand-in started a
+   capital letter mid-sentence. `study_anonymousOwner` is now the **whole line** in both
+   catalogues. Nothing asserted it; it was visible only in the screenshot.
+
+### Verified
+
+`manage.py test identity study config telemetry --keepdb` — **169 tests, OK** (`identity` 83, up
+from 36; `study` 21; `config` 16; `telemetry` the rest, including the cache carve-out's own
+`AnonymousReadCacheTests`, 9).
+`manage.py check` clean, `makemigrations --check --dry-run` "No changes detected". `npm run check`
+**0 errors, 0 warnings** over 6008 files, `npx eslint src` clean, `npm run build` green. Catalogue
+key sets identical at 3684 keys each.
+
+`frontend/e2e/learning-record.mjs` against both real servers on `8132`/`5232`, as an anonymous
+reader and as a non-staff account: both blocks shared, the `sets` column **recounted
+independently** from her sets and those exercises' branches and matching row for row, the two
+blocks' row shapes having no column in common, consent withdrawn leaving grades untouched and
+activity `null`, a real guardian-created minor's public set showing no name and no profile link,
+and the kill switch refusing an anonymous and a non-staff caller while staff keep their tools and
+the profile page still renders. **52 checks, 0 failures**, zero console errors. Screenshots in
+`e2e/screens/record-*.png`, looked at — which is the only reason bug 4 above was ever found.
+
+### Left open
+
+- **`cards_reviewed` reads 0 everywhere** until step A's `flashcards.record.activity_by_branch` is
+  registered. The metric is declared now so the shape is stable before the app exists, and the e2e
+  asserts the zeros rather than skipping the column.
+- **No time window** ("this term"), no per-course record, and no record on a course roster for
+  staff — step C's school mode may want one, and the seam for it is a provider plus a `node`
+  argument that `learning_record` does not currently take.
+- **Nothing caches the counts**, and `lessons_done_by_branch` reads `courses` on every profile view.
+  Stated in the module rather than pre-optimised.
+- **No notifications** of any kind on the record.
+- **`Course.progress_visibility` is deliberately not consulted** by `lessons_done_by_branch`: that
+  setting decides who sees one course's roster progress, while this is the person's own statement
+  about themselves, published by their own consent and aggregated to a branch. Worth re-reading if
+  step C changes what that field means.
+- **KaTeX's webfonts 403 in every learn/* worktree** — `frontend/node_modules` is a symlink, so
+  Vite serves them from outside `server.fs.allow`. Dev-server only, reproducible on content that
+  predates this branch, and now `frontend/e2e/CLAUDE.md` trap 26; this script filters them by URL
+  and prints the count rather than hiding it.
+- **The telemetry log shards needed migrating by hand** in this worktree (the prep recipe copied
+  `db.sqlite3` but not `backend/logdata/*`), or any write recording an `AuditEvent` 500s *after*
+  writing its row. Not caused here and not fixed here beyond the local database — the prep recipe
+  is the right place.
+- **`npm run lint` is still red on four files this branch never touched** — `e2e/decisions.mjs`,
+  `e2e/event-shifts.mjs` and the two generated `project.inlang/` files, all unformatted before this
+  branch existed. `prettier --check` runs first, so the whole command fails on them. `npx eslint .`
+  separately reports six errors, all in e2e scripts that predate this work (`course-claims`,
+  `galleries-and-applications`, `login-return`, `material-open-and-titles`, `prerender-check`);
+  nothing this step added appears in either list.

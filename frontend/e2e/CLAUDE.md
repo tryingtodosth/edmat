@@ -105,6 +105,21 @@ test-runner suite.
     layout's own boot request instead of a fixed timeout:
     `page.waitForResponse((r) => r.url().includes('/feature-flags/'))`, registered BEFORE `goto`.
 
+26. **In a WORKTREE, KaTeX's webfonts 403 and the maths renders in fallback glyphs.**
+    `frontend/node_modules` is a symlink to the main checkout, so Vite serves the fonts from
+    `/@fs/…/node_modules/katex/dist/fonts/*.woff2`, which is outside `server.fs.allow` and refused.
+    Four to ten console errors per page with maths on it, and a script whose pass condition is
+    "zero console errors" fails for a reason that has nothing to do with it. It is the dev server
+    only — a production build serves the fonts itself — and it reproduces on content that predates
+    whatever branch you are on, which is how to tell it apart from your own work in one step. Found
+    by learning step G; `learning-record.mjs` filters it by URL (never by message: the console line
+    for a refused request carries no URL in its text, so it has to be matched on the `response`
+    event) and prints how many it ignored, so the suppression is never silent.
+
+    Related and separate: `MathContent` fetches the ~380 KB renderer on demand, so statements are
+    **raw LaTeX for a moment** after a page's header appears. A screenshot taken too early shows
+    `\int_{-\infty}` as source and looks like a rendering bug. Wait for `.katex` before shooting.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

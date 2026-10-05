@@ -23,6 +23,12 @@ export interface ExerciseSet {
 	// present on every response, but only actually USED by `/sets/[id]`'s own shared-view page
 	// ("Kasia's set: ..."), the one real place seeing whose set this is matters.
 	ownerDisplayName?: string;
+	// True when the backend WITHHELD the name above rather than having none: the owner is a minor,
+	// and `accounts/minors.py` says a minor's account has no public profile. The page then prints the
+	// neutral word from the catalogue (`record_anonymousOwner`) and draws no link to a profile. An
+	// empty name alone could not tell "withheld" from "missing", and those read very differently to
+	// whoever is holding the link.
+	ownerAnonymous?: boolean;
 	name: string;
 	exerciseIds: string[];
 	// Keyed by exercise id (a string, matching this app's own opaque-id convention) — every id in

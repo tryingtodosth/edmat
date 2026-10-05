@@ -846,6 +846,10 @@ export interface RawExerciseSet {
 	slug: string;
 	owner: number;
 	owner_display_name: string;
+	// Optional because it was added later (the minors fix, 2026-10-05) and a cached or hand-built
+	// payload may not carry it; absent reads as false, which is the right default — a name that is
+	// present was never withheld.
+	owner_anonymous?: boolean;
 	name: string;
 	items: {
 		id: number;
@@ -874,6 +878,7 @@ export function mapExerciseSet(json: RawExerciseSet): ExerciseSet {
 		id: json.slug,
 		ownerId: String(json.owner),
 		ownerDisplayName: json.owner_display_name,
+		ownerAnonymous: Boolean(json.owner_anonymous),
 		name: json.name,
 		exerciseIds: sortedItems.map((i) => String(i.exercise)),
 		itemOptions,

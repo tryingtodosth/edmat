@@ -21,6 +21,7 @@
 	import { localizedPath } from '$lib/utils/localizedPath';
 	import { formatDate, formatRelativeDate } from '$lib/utils/format';
 	import { getUserById, getUserEducation } from '$lib/services/users';
+	import { getLearningRecord } from '$lib/services/identity';
 	import { getUserActivity, getUserExtras } from '$lib/services/profileExtras';
 	import { getReviewsByUser } from '$lib/services/reviews';
 	import { getExercisesByIds } from '$lib/services/exercises';
@@ -33,7 +34,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import type { Review, Service, ServiceReview, User } from '$lib/types';
-	import type { PublicEducation } from '$lib/types/identity';
+	import type { LearningRecord, PublicEducation } from '$lib/types/identity';
 	import type {
 		ActivityFeed,
 		ActivityKind,
@@ -50,6 +51,7 @@
 	import ExperienceList from '$lib/components/profile/ExperienceList.svelte';
 	import SkillsList from '$lib/components/profile/SkillsList.svelte';
 	import TranscriptView from '$lib/components/profile/TranscriptView.svelte';
+	import LearningRecordView from '$lib/components/profile/LearningRecordView.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let user = $state<User | undefined>(undefined);
@@ -61,6 +63,10 @@
 	let certificates = $state<Certificate[]>([]);
 	let feed = $state<ActivityFeed>({ items: [], tags: [], kinds: [], counts: {} });
 	let education = $state<PublicEducation | null>(null);
+	/** The learning record (`backend/identity/record.py`) — null whenever there is nothing this
+	 * reader may see, which includes the kill switch being off, so one value covers every reason the
+	 * section should not be drawn. */
+	let learningRecord = $state<LearningRecord | null>(null);
 	let exerciseReviews = $state<Review[]>([]);
 	let serviceReviews = $state<ServiceReview[]>([]);
 	let exerciseTitleById = $state<Record<string, string>>({});
@@ -74,6 +80,7 @@
 	type Modal =
 		| 'activity'
 		| 'education'
+		| 'record'
 		| 'experience'
 		| 'skills'
 		| 'certificates'
@@ -144,6 +151,20 @@
 			count: feed.counts[kind] ?? 0
 		}))
 	);
+
+	/** The record row's one-line summary: how many subjects each block covers, and nothing about what
+	 * is in them. Built from the two blocks separately rather than from a total, because a total
+	 * would be the one number this feature exists not to produce — the whole point is that an EdMat
+	 * count and an institutional mark are not addable. */
+	const recordSummary = $derived.by(() => {
+		if (!learningRecord) return '';
+		const parts: string[] = [];
+		if (learningRecord.grades)
+			parts.push(m.record_rowSummaryGrades({ count: learningRecord.grades.length })); // "{count} with results"
+		if (learningRecord.activity)
+			parts.push(m.record_rowSummaryActivity({ count: learningRecord.activity.length })); // "{count} with activity"
+		return parts.length > 0 ? parts.join(' · ') : m.record_rowNothing(); // "Nothing shared"
+	});
 
 	/** Both kinds of review in one list, newest first. They are two backend resources (an exercise
 	 * review and a tutoring-listing review) and one question to a reader. */
@@ -246,7 +267,32 @@
 		const id = page.params.id!;
 		if (id === loadedForId) return;
 		loadedForId = id;
+		recordLoadedForId = undefined;
+		learningRecord = null;
 		load(id);
+	});
+
+	/** The learning record, in its own effect rather than inside `load()` above, for one reason:
+	 * `featureFlagsStore.isEnabled` fails OPEN until the first `/api/feature-flags/` response has
+	 * landed (the store says so itself), which is right for drawing a link and wrong for firing a
+	 * request the API will refuse. Asked from inside `load()` it raced the boot request and a killed
+	 * feature logged a 403 on every profile view — house rule 3 means a killed feature stops ASKING,
+	 * and a browser run is what showed it was not. So: `isLoaded` first, then the switch, with the
+	 * usual id-keyed guard (frontend/CLAUDE.md trap 2 — an `$effect` re-fires with no navigation). */
+	let recordLoadedForId = $state<string | undefined>(undefined);
+	$effect(() => {
+		if (!featureFlagsStore.isLoaded) return;
+		const id = page.params.id!;
+		if (id === recordLoadedForId) return;
+		recordLoadedForId = id;
+		if (!featureFlagsStore.isEnabled('learning_record')) {
+			learningRecord = null;
+			return;
+		}
+		// A failure here must never take the whole profile down over one optional section.
+		getLearningRecord(id, getLocale())
+			.then((res) => (learningRecord = res))
+			.catch(() => (learningRecord = null));
 	});
 </script>
 
@@ -368,6 +414,14 @@
 			<!-- learning: learning record (B) — the consent-gated record row (shared grades per Branch in
 			     one block, EdMat activity counts per Branch in a second, behind `learning_record`),
 			     mounted directly below this comment as its own row + modal. -->
+			{#if learningRecord}
+				<button type="button" class="row" onclick={() => (modal = 'record')}>
+					<span class="row__label">{m.record_heading()}</span>
+					<!-- "Learning record" -->
+					<span class="row__value">{recordSummary}</span>
+					<span class="row__go" aria-hidden="true">›</span>
+				</button>
+			{/if}
 			{#if education}
 				<button type="button" class="row" onclick={() => (modal = 'education')}>
 					<span class="row__label">{m.education_publicHeading()}</span>
@@ -492,6 +546,10 @@
 				<TranscriptView years={education.gradeYears} grades={education.grades} />
 			</div>
 		{/if}
+	</ModalShell>
+{:else if modal === 'record' && learningRecord}
+	<ModalShell title={m.record_heading()} onClose={() => (modal = null)}>
+		<LearningRecordView record={learningRecord} />
 	</ModalShell>
 {:else if modal === 'experience'}
 	<ModalShell title={m.profile_experienceHeading()} onClose={() => (modal = null)}>

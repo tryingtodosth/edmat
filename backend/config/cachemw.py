@@ -81,6 +81,20 @@ import re
 
 EXCLUDE = (
     re.compile(r'^/api/exercises/\d+/$'),
+    # The learning record (`identity/record.py`, 2026-10-05) lives under `/api/users/`, which is on
+    # the allowlist above because a public profile is content. This one is not: its whole body is
+    # decided by a CONSENT (`share_activity`, `share_grades`) and a kill switch, so it is the
+    # control plane in the same sense `/api/feature-flags/` is — and worse, because what goes stale
+    # is somebody's decision to stop publishing their results, not a content edit. Un-ticking the
+    # box and still being visible to every logged-out reader for another minute is not a lag a
+    # person would accept as "eventually consistent".
+    #
+    # Found by a browser run, not by reading: the e2e script turned the kill switch off and the
+    # anonymous caller was still served a 200 record while a signed-in one was correctly refused.
+    # Excluded rather than invalidated on write, for the reason the `/api/feature-flags/` paragraph
+    # above gives — `?lang=` makes one logical record several cached URLs, so a targeted delete
+    # would miss the ones that mattered.
+    re.compile(r'/learning-record/$'),
     re.compile(r'/random/'),
     re.compile(r'/bulk/'),
     re.compile(r'/stream/'),

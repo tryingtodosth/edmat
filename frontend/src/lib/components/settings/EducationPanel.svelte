@@ -17,6 +17,7 @@
 		UsosUnavailableError
 	} from '$lib/services/identity';
 	import TranscriptView from '$lib/components/profile/TranscriptView.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import type { EducationSnapshot, School } from '$lib/types/identity';
 
 	// `embedded` drops this component's own heading and lead paragraph, for the one caller that already
@@ -322,6 +323,30 @@
 				/>
 				<span>{m.education_consentGrades()}</span>
 			</label>
+			<!-- The learning record's own consent (backend/identity/record.py). Inside the same block as
+			     the other three because it is the same kind of decision, and LAST because it is the one
+			     that publishes nothing institutional — the order reads from "who I am" to "what I have
+			     done here".
+			
+			     Behind `learning_record`: with the switch off the section it governs does not exist, and
+			     a toggle for a feature nobody can see is house rule 3's exact failure — a control that
+			     has not been hidden, only made to do nothing useful. -->
+			{#if featureFlagsStore.isEnabled('learning_record')}
+				<label class="check">
+					<input
+						type="checkbox"
+						checked={education.shareActivity}
+						disabled={busy}
+						onchange={(e) => run(() => updateEducation({ shareActivity: e.currentTarget.checked }))}
+					/>
+					<span>{m.record_consentActivity()}</span>
+					<!-- "Show what I have done on EdMat, as counts per subject" -->
+				</label>
+				<p class="muted small">{m.record_consentActivityHint()}</p>
+				<!-- "Numbers only: how many sets you built, how many lessons you said you finished, how
+				     many cards you reviewed — per subject, never a single item. Your marks stay under
+				     their own consent above." -->
+			{/if}
 		</div>
 
 		<!-- Standing ---------------------------------------------------------------------------- -->

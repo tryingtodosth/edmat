@@ -59,6 +59,9 @@ class EducationProfileSerializer(serializers.ModelSerializer):
             'share_school',
             'share_diploma',
             'share_grades',
+            # The learning record's own consent (identity/record.py). Writable through
+            # `EducationView.patch` like the other three; the owner's own read shows it regardless.
+            'share_activity',
             'diplomas',
             'grades',
         ]

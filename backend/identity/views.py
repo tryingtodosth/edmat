@@ -12,12 +12,18 @@ are drafts, and a draft that quietly authenticated people would be a considerabl
 an honest button. Real sign-in stays where it already is — `accounts.LoginView`.
 """
 
+from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
+from moderation.permissions import feature_gate
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.i18n_utils import DEFAULT_FALLBACK_LOCALE
+
 from . import providers, services, usos
 from .models import EducationProfile, School, Verification, academic_year_of
+from .record import learning_record
 from .serializers import EducationProfileSerializer, SchoolSerializer
 from .standing import ceiling_for
 
@@ -99,7 +105,11 @@ class EducationView(APIView):
         if 'programme' in data:
             profile.programme = (data.get('programme') or '').strip()[:200]
 
-        for flag in ('share_school', 'share_diploma', 'share_grades'):
+        # `share_activity` joins the three here rather than getting an endpoint of its own: they are
+        # edited on one screen, and a fourth round trip to answer one question would be a worse API
+        # for no gain in clarity. It is the one of the four that governs nothing institutional — see
+        # the field's own comment in models.py.
+        for flag in ('share_school', 'share_diploma', 'share_grades', 'share_activity'):
             if flag in data:
                 setattr(profile, flag, bool(data[flag]))
 
@@ -130,6 +140,35 @@ class EducationView(APIView):
                 profile.school and profile.school.matches_email(request.user.email or '')
             ),
         }
+
+
+class LearningRecordView(APIView):
+    """GET /api/users/{id}/learning-record/ — one account's learning record, as far as consent goes.
+
+    A sibling path to `accounts.UserPublicView` rather than another field on it, deliberately. That
+    response is fetched by every component that needs a display name, and a profile read should not
+    pull a per-branch aggregate over somebody's sets and course progress along with it — the same
+    reasoning that keeps `EducationProfile` out of `accounts.Profile` in the first place.
+
+    **`null`, not 404, when nothing is shared.** The account exists and its profile renders; what is
+    missing is permission to show this one section, and answering 404 would tell a reader the person
+    does not exist. 404 is reserved for an id that genuinely resolves to nobody.
+
+    **`AllowAny` plus the kill switch.** Reads are public where consent made them public, which is
+    this API's standing convention. With `learning_record` switched off the gate 403s every non-staff
+    caller — reads included — and the frontend takes the section and the settings toggle away with
+    it (house rule 3), so nothing is left pointing at an endpoint that refuses.
+    """
+
+    permission_classes = [permissions.AllowAny, feature_gate('learning_record')]
+
+    def get(self, request, pk):
+        # Resolved against the user table, not `EducationProfile`: most accounts have no education
+        # row at all, and "no education row" must answer `null` like any other unshared record rather
+        # than 404.
+        user = get_object_or_404(get_user_model(), pk=pk)
+        locale = request.query_params.get('lang', DEFAULT_FALLBACK_LOCALE)
+        return Response(learning_record(user, request.user, locale=locale))
 
 
 class UsosStateView(APIView):
