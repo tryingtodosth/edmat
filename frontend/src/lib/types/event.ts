@@ -295,6 +295,19 @@ export interface Session {
 	/** Only meaningful for a capped session (capacity > 0). */
 	registeredCount: number;
 	isRegistered: boolean;
+	/** How many exercises "Take home" would collect — this session's direct exercise links plus the
+	 *  members of every set it links, published only. Resolved server-side by
+	 *  `backend/events/takehome.py`, which is also what `…/sessions/{id}/exercises/` answers with,
+	 *  so the button and the list can never disagree about whether there is anything to take. */
+	takehomeCount: number;
+}
+
+/** One row of `GET /api/events/{id}/sessions/{sid}/exercises/` — the ids a take-home deck is made
+ *  from, with the title the programme already showed, and nothing else: the deck's own review
+ *  screen loads the statements through `/api/exercises/bulk/`. */
+export interface SessionExercise {
+	id: string;
+	title: string;
 }
 
 export interface SessionSpeakerDraft {

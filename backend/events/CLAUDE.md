@@ -214,3 +214,40 @@ were allowed (§4 rule 1).
 `manage.py test events` (refusal-weighted; `test_tickets.py` is the door's own suite) + the
 availability half in `booking/tests.py`. E2E: `events-and-nav.mjs`, `event-tickets.mjs`,
 `known-issues.mjs`.
+
+## Take home, and event ↔ course (learning step E, `prompts/06-event-takeaways.md`)
+
+Two reads added by the learning cycle, no model and no migration — this app's schema is untouched
+(§4 rule 1 again).
+
+`takehome.py` answers **one** question — *which exercises does this session point at?* — and two
+surfaces ask it: `GET /api/events/{id}/sessions/{session_id}/exercises/` (`[{id, title}]`, on
+`ProgrammeMixin`, so the event's own visibility layer gives a stranger 404 for free) and
+`SessionSerializer.takehome_count`, which is what the frontend reads to decide whether to draw the
+"Take home" button. Counting links in the serializer and resolving set membership in the endpoint
+would be two answers to one question — a button on a session whose only exercise has since been
+hidden, producing an empty deck. Direct exercise links **plus the members of linked sets**,
+programme order, deduplicated, `published=True` only.
+
+**A linked set is read through the session even when the set is private.** `ExerciseSetViewSet`
+still refuses a stranger the set itself; an organiser who put it on a published programme published
+its *membership* to that room. `_session_queryset()` carries the extra
+`links__exercise_set__exercisesetitem_set__exercise` prefetch so a forty-session programme pays two
+queries, not two per link.
+
+`related.py` + `learning_views.LearningMixin` answer `GET /api/events/{id}/related-courses/`: the
+event's `OrganizationLink` rows → the organisations, through `organizations.access.can_view` →
+their `runs` links of kind course → through `courses.views._visible_courses`. There is **no
+event↔course FK**, on purpose (`00-DESIGN.md` §1 rule 1 — a new link goes through a hub first), and
+neither narrowing is decoration: a link is only as public as the less public of its two ends.
+
+Two things that look wrong and are not. It answers **`[]` rather than 403 when `organizations` is
+off** — the whole-surface refusal belongs on `/api/organizations/…`, and a neighbouring endpoint
+must keep working while returning nothing for a killed feature (house rule 3; the `my-schedule`
+precedent). And it serialises with **`courses.serializers.CourseSerializer`**, the shape
+`/api/courses/` already answers with, because a second course shape here would be a second set of
+decisions about what a course discloses, kept in step by hand, over rows that are the same rows
+under the same rule.
+
+Verify: `manage.py test events organizations config --keepdb` (`events/test_takehome.py` is 24 of
+them). E2E: `frontend/e2e/take-home.mjs`, which mocks step A's `POST /api/decks/`.

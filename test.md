@@ -1783,3 +1783,24 @@ giving it back; and three PDFs picked at once on `/submit-material` becoming thr
 projects, with the third renamed in its own title row and keeping that name. 40 checks, 0 failures, no console errors, screenshots looked at — which is how the
 one real bug of the pass was found (a 150px hole in the offer form that every automated check
 passed).
+
+**Learning step E — take-home decks and event ↔ course** (`learn/e-events`, 2026-10-05).
+`backend/events/test_takehome.py` is 24 tests in five classes, refusal-weighted: who gets 404 on an
+unannounced event's session, what a **private** linked set contributes through the session (and that
+the set itself stays 404 to the same reader), that an unpublished exercise is dropped from both the
+list and `takehome_count`, that the two surfaces agree, and — for `GET /api/events/{id}/
+related-courses/` — that an unlisted course is absent for a stranger and present for its own staff,
+that a dissolved organisation takes its courses off the panel, that `organizations` off answers
+`[]` with a 200 while the event itself still answers 200, and that `events` off still 403s. Run it
+with `../.venv/bin/python3 manage.py test events organizations config --keepdb` from `backend/`
+(354 tests with its neighbours, ~5½ min on a warm `--keepdb`). The browser half is
+`frontend/e2e/take-home.mjs` — 53 checks against both real servers on this branch's ports:
+`rm -rf backend/cachedata/*; E2E_BASE=http://localhost:5235 E2E_API=http://127.0.0.1:8135/api node
+e2e/take-home.mjs`. It builds its own event, session, private set, organisation and two courses
+through the real API and deletes them again, so it needs no seeder beyond `seed_demo_users`
+(`kasia`, `ola`, `michal`, password `password123`). **It mocks `POST /api/decks/` with
+`page.route`** — that endpoint is learning step A's and does not exist on this branch — and asserts
+what the request carried rather than what came back; the real call is verified at integration. Its
+four screenshots land in `e2e/screens/take-home-*.png`. If a count check fails, suspect the script
+before the app: the first run failed three on counting before the panel's own fetches had landed
+(`e2e/CLAUDE.md` trap 8), which is why every count is now behind a wait for real text.

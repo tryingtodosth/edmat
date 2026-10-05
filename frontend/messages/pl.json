@@ -3654,5 +3654,16 @@
 	"conference_browseEvents": "Zobacz wszystkie wydarzenia",
 	"featureFlags_label_flashcards": "Fiszki: talie i powtórki w odstępach",
 	"featureFlags_label_learningRecord": "Historia nauki na profilu publicznym",
-	"featureFlags_label_creationRequiresVerification": "Zakładanie kursów, wydarzeń, ogłoszeń i organizacji: tylko zweryfikowani"
+	"featureFlags_label_creationRequiresVerification": "Zakładanie kursów, wydarzeń, ogłoszeń i organizacji: tylko zweryfikowani",
+	"takehome_button": "Zabierz do domu ({count})",
+	"takehome_busy": "Tworzę talię…",
+	"takehome_deckName": "{title} — do domu",
+	"takehome_made": "Talia gotowa: {name}. Znajdziesz ją w swoich taliach.",
+	"takehome_madeOnEvent": "Talia gotowa: {name}. Jest przy tym wydarzeniu, więc każdy tutaj może się z niej uczyć.",
+	"takehome_nothing": "Nie ma już czego zabrać — zadania, do których odsyła ta sesja, nie są opublikowane.",
+	"takehome_failed": "Nie udało się utworzyć talii. Spróbuj jeszcze raz za chwilę.",
+	"takehome_relatedHeading": "Kursy tych samych organizacji",
+	"takehome_relatedRunBy": "Prowadzi",
+	"takehome_relatedSupportedBy": "Wspiera",
+	"takehome_relatedNote": "To wydarzenie i te kursy łączy organizacja, która stoi za jednym i drugim — nie ma między nimi bezpośredniego powiązania."
 }

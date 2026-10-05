@@ -48,6 +48,10 @@ def _session_queryset():
         'links__material__translations',
         'links__exercise__translations',
         'links__exercise_set',
+        # The members of a linked set, for `takehome.session_exercises` — two more queries per
+        # request rather than two per linked set, which is what a programme of forty sessions
+        # would otherwise pay to draw forty "Take home" buttons (`takehome.py`).
+        'links__exercise_set__exercisesetitem_set__exercise',
         Prefetch('bookmarks', queryset=SessionBookmark.objects.all(), to_attr='bookmark_rows'),
     )
 
@@ -232,6 +236,42 @@ class ProgrammeMixin:
         if parent is not None and parent.author_id != request.user.pk:
             notify(parent.author, 'comment_reply', actor=request.user, target_label=session.title, event=event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    # ---- take home (prompts/06-event-takeaways.md) -------------------------------------------
+    @action(detail=True, methods=['get'], url_path=f'sessions/(?P<session_id>{NUMERIC_PK_REGEX})/exercises', permission_classes=[permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate])
+    def session_exercises(self, request, pk=None, session_id=None):
+        """`[{id, title}]` — every exercise this session points at, so the "Take home" button can
+        hand the ids to `POST /api/decks/` in one call rather than one per link.
+
+        Visibility comes for free from `self.get_object()`, which reads `EventViewSet`'s own
+        queryset: a stranger poking at an unannounced event's session gets **404**, because for
+        them the event does not exist (house rule 4) — and that is the only gate this read needs,
+        because a published programme is public. The *exercise* half of the rule lives in
+        `takehome.py`, which also answers `SessionSerializer.takehome_count`; this action does not
+        decide what counts.
+
+        The title is resolved the same way the session's own link titles already are
+        (`SessionLinkSerializer.get_title` — `?lang=`, then the fallback locale), so the deck is
+        named with the words the reader just saw on the programme rather than a second,
+        differently-resolved copy of them.
+        """
+        from config.i18n_utils import request_locale, resolve_translation
+
+        from .takehome import session_exercises
+
+        event = self.get_object()
+        session = _session_queryset().filter(event=event, pk=session_id).first()
+        if session is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        locale = request_locale({'request': request})
+        rows = []
+        for exercise in session_exercises(session):
+            translation = resolve_translation(exercise.translations.filter(status='published'), locale)
+            rows.append({
+                'id': exercise.pk,
+                'title': translation.title if translation else f'#{exercise.number}',
+            })
+        return Response(rows)
 
     # ---- export -----------------------------------------------------------------------------
     @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny, _EventsFeatureGate])

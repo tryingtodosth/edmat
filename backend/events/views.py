@@ -60,13 +60,15 @@ from .registration import demote_over_capacity, expire_promotions, mask_name, re
 from .registration_views import RegistrationMixin
 from .contribution_views import ContributionMixin
 from .exports import ExportMixin
+from .learning_views import LearningMixin
 
 
 from .ticket_views import TicketMixin
 
 
 class EventViewSet(
-    ProgrammeMixin, RegistrationMixin, ContributionMixin, ExportMixin, TicketMixin, viewsets.ModelViewSet
+    ProgrammeMixin, RegistrationMixin, ContributionMixin, ExportMixin, TicketMixin, LearningMixin,
+    viewsets.ModelViewSet
 ):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, _EventsFeatureGate]
 

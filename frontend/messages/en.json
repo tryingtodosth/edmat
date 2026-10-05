@@ -3654,5 +3654,16 @@
 	"conference_browseEvents": "Browse all events",
 	"featureFlags_label_flashcards": "Flashcards: decks and spaced review",
 	"featureFlags_label_learningRecord": "Learning record on public profiles",
-	"featureFlags_label_creationRequiresVerification": "Creating courses, events, listings and organisations: verified contributors only"
+	"featureFlags_label_creationRequiresVerification": "Creating courses, events, listings and organisations: verified contributors only",
+	"takehome_button": "Take home ({count})",
+	"takehome_busy": "Making a deck…",
+	"takehome_deckName": "{title} — take home",
+	"takehome_made": "Deck made: {name}. It is in your decks.",
+	"takehome_madeOnEvent": "Deck made: {name}. It is on this event, so everybody here can study it.",
+	"takehome_nothing": "Nothing left to take home — the exercises this session links are no longer published.",
+	"takehome_failed": "The deck could not be made. Try again in a moment.",
+	"takehome_relatedHeading": "Courses from the same organisations",
+	"takehome_relatedRunBy": "Run by",
+	"takehome_relatedSupportedBy": "Supported by",
+	"takehome_relatedNote": "This event and these courses are connected through the body that stands behind both — there is no direct link between them."
 }

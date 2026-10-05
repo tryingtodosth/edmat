@@ -14,6 +14,11 @@ import type {
 	EventSummary
 } from '$lib/types/event';
 import { apiClient, type RequestOptions } from '$lib/api/client';
+// The learning cycle's event panels (prompts/06-event-takeaways.md): a session's take-home list and
+// the courses behind the same organisation. `mapCourse` is `services/course.ts`'s own mapper —
+// `/api/events/{id}/related-courses/` answers with the courses API's shape, not a second one.
+import { mapCourse } from '$lib/services/course';
+import type { Course } from '$lib/types/course';
 import type {
 	Contribution,
 	ContributionDraft,
@@ -28,6 +33,7 @@ import type {
 	MyAgenda,
 	Session,
 	SessionDraft,
+	SessionExercise,
 	Track
 } from '$lib/types/event';
 
@@ -413,7 +419,8 @@ export function mapSession(raw: any): Session {
 		bookmarkCount: raw.bookmark_count ?? 0,
 		isBookmarked: raw.is_bookmarked ?? false,
 		registeredCount: raw.registered_count ?? 0,
-		isRegistered: raw.is_registered ?? false
+		isRegistered: raw.is_registered ?? false,
+		takehomeCount: raw.takehome_count ?? 0
 	};
 }
 
@@ -507,6 +514,29 @@ export async function setSessionBookmark(
 ): Promise<Session> {
 	const path = `/events/${eventId}/sessions/${sessionId}/bookmark/`;
 	return mapSession(on ? await apiClient.post<any>(path) : await apiClient.delete<any>(path));
+}
+
+/** The exercises one programme session points at — direct exercise links plus the members of every
+ *  set it links, published only, in programme order (`backend/events/takehome.py`). What the
+ *  "Take home" button hands to `createDeckFromExercises` in ONE call: a deck made from a session
+ *  is a membership snapshot of live references (`00-DESIGN.md` §1 rule 2), so the ids are the
+ *  whole payload and nothing is copied. 404 if the event is not visible to this reader. */
+export async function getSessionExercises(
+	eventId: string,
+	sessionId: string
+): Promise<SessionExercise[]> {
+	const raw = await apiClient.get<any[]>(`/events/${eventId}/sessions/${sessionId}/exercises/`);
+	return raw.map((row) => ({ id: String(row.id), title: row.title ?? '' }));
+}
+
+/** The courses run by the organisations that run (or support) this event — "this conference's
+ *  workshops became these courses". There is deliberately no event↔course FK: the link goes
+ *  through the organisation hub (`00-DESIGN.md` §1 rule 1), and the backend filters by each
+ *  course's OWN visibility rule. Answers `[]` — never 403 — when `organizations` is off, because
+ *  one feature's kill switch must not take the event page down with it (house rule 3). */
+export async function getRelatedCourses(eventId: string): Promise<Course[]> {
+	const raw = await apiClient.get<any[]>(`/events/${eventId}/related-courses/`);
+	return raw.map(mapCourse);
 }
 
 /** The reverse listing: every visible session that links this material / exercise / set. */

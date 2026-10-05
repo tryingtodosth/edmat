@@ -208,7 +208,11 @@ function mapInvite(raw: any): CourseInvite {
 	};
 }
 
-function mapCourse(raw: any): Course {
+/** Exported so `services/events.ts` can map `GET /api/events/{id}/related-courses/`, which answers
+ *  with exactly this shape — the backend reuses `CourseSerializer` there on purpose
+ *  (`backend/events/learning_views.py`) so there is one course shape, one mapper and one
+ *  `CourseCard`, rather than a second summary kept in step with this one by hand. */
+export function mapCourse(raw: any): Course {
 	return {
 		id: String(raw.id),
 		instructor: {

@@ -124,13 +124,15 @@ class SessionSerializer(serializers.ModelSerializer):
     is_bookmarked = serializers.SerializerMethodField()
     registered_count = serializers.SerializerMethodField()
     is_registered = serializers.SerializerMethodField()
+    takehome_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Session
         fields = [
             'id', 'event', 'track', 'kind', 'title', 'abstract', 'starts_at', 'duration_minutes',
             'ends_at', 'location_text', 'online_url', 'capacity', 'order', 'speakers', 'links',
-            'bookmark_count', 'is_bookmarked', 'registered_count', 'is_registered', 'updated_at',
+            'bookmark_count', 'is_bookmarked', 'registered_count', 'is_registered',
+            'takehome_count', 'updated_at',
         ]
         read_only_fields = ['id', 'event', 'updated_at']
 
@@ -157,6 +159,17 @@ class SessionSerializer(serializers.ModelSerializer):
         if not (user and user.is_authenticated) or not session.capacity:
             return False
         return session.registrations.filter(attendance__attendee=user).exists()
+
+    def get_takehome_count(self, session) -> int:
+        """How many exercises "Take home" would collect — direct exercise links plus the members
+        of every linked set, published only. Read by `Programme.svelte` to decide whether the
+        button means anything for this session: a session whose one exercise link points at a
+        since-hidden exercise gets no button, rather than a button that produces an empty deck.
+        Counted by `takehome.py`, the one place that decides what counts (the endpoint asks the
+        same function)."""
+        from .takehome import session_exercise_count
+
+        return session_exercise_count(session)
 
     def validate(self, attrs):
         event = self.context['event']

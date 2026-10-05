@@ -15,12 +15,15 @@
 		deleteSession,
 		deleteTrack,
 		getEventIcs,
+		getSessionExercises,
 		getSessions,
 		getTracks,
 		setSessionBookmark,
 		setSessionSeat,
 		updateSession
 	} from '$lib/services/events';
+	import { createDeckFromExercises } from '$lib/services/flashcards';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { formatDate, formatTimeOfDay } from '$lib/utils/datetime';
@@ -105,6 +108,62 @@
 	}
 	function addToSet(s: Session) {
 		added = { ...added, [s.id]: guestSetStore.addMany(exerciseIds(s)) };
+	}
+
+	// ---- "Take home" (prompts/06-event-takeaways.md) ------------------------------------------
+	//
+	// One deck per session, made from the exercises the session points at: its direct exercise
+	// links AND the members of every set it links. The count comes from the server
+	// (`backend/events/takehome.py`, `Session.takehome_count`) rather than from `s.links`, so a
+	// session whose one exercise link points at a since-unpublished exercise gets no button at all
+	// instead of a button that makes an empty deck.
+	//
+	// The ids are fetched on the click, not with the programme: a reader who never presses this
+	// should never pay for the list, and the ids are only interesting at the moment a deck is made.
+	// Two calls, not one per link — `createDeckFromExercises` takes the whole list.
+	//
+	// `flashcards` is checked here rather than through `FeatureGate`, which renders an "unavailable"
+	// notice: right for a route, wrong for a button inside somebody else's programme. `isModerator`
+	// mirrors the backend's own `is_staff` bypass in `feature_gate`.
+	let flashcardsOn = $derived(featureFlagsStore.isEnabled('flashcards') || authStore.isModerator);
+	let takeHomeBusy = $state<Record<string, boolean>>({});
+	let takeHomeDone = $state<Record<string, string>>({});
+	let takeHomeError = $state<Record<string, string>>({});
+
+	async function takeHome(s: Session) {
+		if (takeHomeBusy[s.id]) return;
+		takeHomeBusy = { ...takeHomeBusy, [s.id]: true };
+		takeHomeError = { ...takeHomeError, [s.id]: '' };
+		takeHomeDone = { ...takeHomeDone, [s.id]: '' };
+		try {
+			const rows = await getSessionExercises(event.id, s.id);
+			if (rows.length === 0) {
+				// Honest rather than silent: the links are still on the programme, but nothing behind
+				// them is published any more.
+				takeHomeError = { ...takeHomeError, [s.id]: m.takehome_nothing() };
+				return;
+			}
+			const deck = await createDeckFromExercises({
+				name: m.takehome_deckName({ title: s.title }),
+				exerciseIds: rows.map((row) => row.id),
+				source: { kind: 'session', id: s.id },
+				// An organiser's deck is PLACED on the event, so everybody who can see the event can
+				// study it (`prompts/README.md` §9: placement is this cycle's sharing). A visitor's
+				// deck is simply their own — placing it is not theirs to do, and asking would be
+				// offering a refusal (house rule 6 from the other side).
+				...(event.canOrganise ? { placement: { kind: 'event' as const, id: event.id } } : {})
+			});
+			takeHomeDone = {
+				...takeHomeDone,
+				[s.id]: event.canOrganise
+					? m.takehome_madeOnEvent({ name: deck.name })
+					: m.takehome_made({ name: deck.name })
+			};
+		} catch {
+			takeHomeError = { ...takeHomeError, [s.id]: m.takehome_failed() };
+		} finally {
+			takeHomeBusy = { ...takeHomeBusy, [s.id]: false };
+		}
 	}
 	let seatError = $state<Record<string, string>>({});
 	async function toggleSeat(s: Session) {
@@ -346,6 +405,23 @@
 												: m.events_addToSet({ count: exerciseIds(s).length })}
 										</button>
 									{/if}
+									<!-- Take home (E): one deck from everything this session points at. -->
+									{#if flashcardsOn && authStore.isAuthenticated && s.takehomeCount > 0}
+										<button
+											type="button"
+											class="take-home"
+											disabled={takeHomeBusy[s.id]}
+											onclick={() => takeHome(s)}
+										>
+											{takeHomeBusy[s.id]
+												? m.takehome_busy()
+												: m.takehome_button({ count: s.takehomeCount })}
+										</button>
+									{/if}
+									{#if takeHomeDone[s.id]}<span class="take-home-done">{takeHomeDone[s.id]}</span
+										>{/if}
+									{#if takeHomeError[s.id]}<span class="seat-error">{takeHomeError[s.id]}</span
+										>{/if}
 									<button
 										type="button"
 										onclick={() => (openQA = { ...openQA, [s.id]: !openQA[s.id] })}
@@ -522,6 +598,12 @@
 	}
 	.seats {
 		font-size: 0.85rem;
+		align-self: center;
+	}
+	.take-home-done {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--accent);
 		align-self: center;
 	}
 	.seat-error {

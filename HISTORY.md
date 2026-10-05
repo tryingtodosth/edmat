@@ -11235,3 +11235,135 @@ errors.
   the two boards, no `/wolontariat`, and no thread/report/activity row on an offer.
 - **The footer still links `/dziennik`.** The owner named the user menu; the footer is a different
   surface, and widening the ask is not this pass's call.
+
+## 17BR.E — Events: take-home decks from a session, and event ↔ course through the organisation (2026-10-05)
+
+Learning step E (`prompts/06-event-takeaways.md`, branch `learn/e-events`, from prep `f90e221`).
+Two panels on an event, both small, both the same shape of idea: **what a reader takes away from a
+session**, and **what else the people who ran it are running**.
+
+### Take home
+
+A programme session already points at the corpus — `SessionLink` is material XOR exercise XOR set
+XOR url (AUDIENCE-BRIEF §3.2). What was missing was the one thing a person actually wants at the
+end of a workshop: everything it pointed at, in one place, to study later. `backend/events/
+takehome.py` is that one question, and **two surfaces ask it**:
+
+- `GET /api/events/{id}/sessions/{session_id}/exercises/` → `[{id, title}]`, the list the "Take
+  home" button hands to `POST /api/decks/` in one call;
+- `SessionSerializer.takehome_count`, the number `Programme.svelte` reads to decide whether to draw
+  the button at all.
+
+Keeping them one function is not tidiness. A serializer that counted `links` itself would draw a
+button on a session whose only exercise link points at something a moderator has since hidden, and
+the button would then produce an empty deck — the exact "two surfaces disagreeing" the root
+`CLAUDE.md`'s boundary 2 exists to stop. The count is the length of the list, deliberately, not a
+cheaper `COUNT` (house rule 5: recount, never track — and the rows are already in memory).
+
+Three decisions inside it, each written in the module rather than inferred:
+
+- **A linked set is read THROUGH the session even when the set is private.** `study.ExerciseSet` is
+  private by default and `ExerciseSetViewSet.retrieve` still refuses a stranger — but an organiser
+  who puts a set on a published programme has published its *membership* to that room, which is
+  what the link is for. So `takehome.py` reads `ExerciseSetItem` directly and never consults
+  `is_public`. Nothing is copied: the ids are live references (`00-DESIGN.md` §1 rule 2); the
+  snapshot happens later, in the deck.
+- **Order is the programme's order** (`SessionLink.Meta.ordering`, then each set's own
+  `ExerciseSetItem.Meta.ordering`), first occurrence wins, so an exercise that is both linked
+  directly and inside a set makes one card, not two.
+- **Unpublished exercises are dropped**, matching `/api/exercises/bulk/`, which is what the review
+  screen will load them with. A link to a since-hidden exercise is honestly absent rather than a
+  card with no front.
+
+On the frontend the button sits beside "Add these to My Set" in `Programme.svelte`, behind
+`flashcards`, for a signed-in reader only (a deck belongs to a person). **An organiser's deck is
+PLACED on the event** — `prompts/README.md` §9: placement is this cycle's sharing, so everybody who
+can see the event can study it — and a visitor's deck is simply theirs. Not asking a visitor
+whether to place it is house rule 6 from the other side: do not offer a refusal.
+
+### Event ↔ course, through the organisation
+
+`00-DESIGN.md` §1 rule 1: a new link between two surfaces goes **through a hub** first. So there is
+no `Event.course` and no `Course.event`. A conference and the courses that came out of it are
+related because one body ran both, and the body outlives either — which is also the only shape that
+can say "a faculty hosted it and a student circle ran it", as `organizations/CLAUDE.md` already
+argues against a nullable FK.
+
+`GET /api/events/{id}/related-courses/` walks it: the event's `OrganizationLink` rows → those
+organisations, narrowed by `organizations.access.can_view` → their `runs` links whose target is a
+course → narrowed by `courses.views._visible_courses`, **asked, never re-implemented**. Both
+narrowings are load-bearing and `_readable_links` already makes the point from the other side: a
+link is a claim about two things, so it is only as public as the less public of them. A circle that
+ran this event and also runs an unlisted course must not advertise that course's title here.
+
+Two further choices worth naming:
+
+- **It answers `[]` when `organizations` is off, not 403.** The whole-surface refusal belongs on
+  `/api/organizations/…`, which `feature_gate` already gates; this endpoint is the *event page's*,
+  and a neighbouring endpoint must keep working while returning nothing for the killed feature
+  (house rule 3, the `my-schedule` precedent). The staff bypass is spelled exactly as `feature_gate`
+  spells it, so the panel and the API agree about who still sees data.
+- **It serialises with `courses.serializers.CourseSerializer`**, the shape `/api/courses/` already
+  answers with, rather than a narrower summary of its own. The rows are the same rows under the same
+  visibility rule, so there is nothing a second shape could narrow — and the frontend reuses
+  `mapCourse` and `CourseCard` unchanged. `mapCourse` gained one word (`export`) and a comment
+  saying why.
+
+`RelatedCoursesPanel.svelte` sits at the `learning: event ↔ course (E)` marker, names the body
+before it lists the courses (a list of courses on an event page with no stated reason is a
+connection the reader has to guess at), and **draws nothing when there are no courses** — the
+organisation badges are already on the page one marker up, so a "Run by" line with nothing under it
+would repeat them. It checks `organizations` itself rather than being wrapped in `FeatureGate`,
+which renders an "unavailable" notice: right for a route, wrong for a panel mid-page on somebody
+else's event (the `VenuePanel` / `OrganizationsPanel` precedent, found both times by looking at a
+screenshot).
+
+### Verified
+
+From the worktree, Node 24 on `PATH`, ports 8135 / 5235.
+
+- `manage.py test events organizations config --keepdb` — **354 tests, OK** (336 s). Of those, the
+  new `events/test_takehome.py` is **24**, run alone first and again inside the suite.
+- `manage.py check` — 0 issues. `makemigrations --check --dry-run` — **no changes detected** (this
+  step adds no migration and no model).
+- `npm run check` — **0 errors, 0 warnings**, 5991 files. `npm run build` — built in 2 m 44 s,
+  adapter-static wrote `build/`.
+- `npx eslint .` — **6 errors, all pre-existing, all in e2e scripts this step did not touch**
+  (`course-claims`, `galleries-and-applications`, `login-return`, `material-open-and-titles`,
+  `prerender-check`); 0 in `src/`. `prettier --check .` likewise fails on four files this step did
+  not touch — see "Left open".
+- `e2e/take-home.mjs`, both real servers, seeded demo users — **53 checks, 0 failures, 0 console or
+  page errors**, four screenshots looked at.
+- Catalogues: 3667 keys each, symmetric difference empty, eleven new `takehome_*` keys.
+
+**The first e2e run failed three checks and all three were the script, not the app**: it counted
+`.course-card` and the Take home button before the panel's two fetches and the programme's own fetch
+had landed. That is `e2e/CLAUDE.md` trap 8 in both directions — an absent panel "passes" before it
+could have appeared, and a present one "fails" because the count ran first. The script now waits for
+the programme's session title and for the panel's own text before any count, including before the
+two kill-switch *absence* checks, which were otherwise vacuous.
+
+**`POST /api/decks/` does not exist on this branch** — it is step A's — so the e2e intercepts it with
+`page.route` and answers the §API read shape, and asserts what the request carried: one call, three
+ids, `source: {kind: 'session'}`, and `placement: {kind: 'event'}` for the organiser and none for the
+visitor. The real call is verified at integration, after A merges (`prompts/README.md` §9).
+
+### Left open
+
+- **No link from the "deck made" confirmation to the deck.** `/flashcards/[id]` is step A's route
+  and does not exist here, so `resolve()` would not type-check; the confirmation names the deck and
+  stops. One line for the integrator once A is merged.
+- **Take-home of materials.** A deck holds exercises and concepts, not files, so a session's
+  material links contribute nothing. Named in the brief as out of scope.
+- **No deck per track, and no deck for a whole event** — the unit is the session, because that is
+  the thing a person sat through.
+- **No notification** when a take-home deck is placed on an event. §4 rule 12 forbids a new
+  notification type while eight branches are open; `event_posted` is the nearest shape.
+- **A course page does not list the events its organisation ran.** Step C has "run by" only; this is
+  the mirror of the panel built here, and belongs on the course page, which is C's file.
+- **An organisation that only *supports* a course is not listed**, by the brief's own walk
+  (`runs` links of kind course). Whether "supports" should appear with its own label is a design
+  call, not an oversight — the test that pins it says so.
+- **`npm run lint` is red on four files this step did not touch** (`e2e/decisions.mjs`,
+  `e2e/event-shifts.mjs`, `project.inlang/.meta.json`, `project.inlang/README.md`). `prettier
+  --check` runs before eslint, so the whole command fails; §17BQ left the first two the same way.

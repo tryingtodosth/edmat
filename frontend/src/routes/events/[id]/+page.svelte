@@ -31,6 +31,7 @@
 	import DocumentsPanel from '$lib/components/event/DocumentsPanel.svelte';
 	import RotaPanel from '$lib/components/shift/RotaPanel.svelte';
 	import ManagementPanels from '$lib/components/management/ManagementPanels.svelte';
+	import RelatedCoursesPanel from '$lib/components/event/RelatedCoursesPanel.svelte'; // learning step E
 	import EventPreview from '$lib/components/event/EventPreview.svelte';
 	import TicketLinks from '$lib/components/event/TicketLinks.svelte';
 	import {
@@ -619,6 +620,7 @@
 				<!-- learning: event ↔ course (E) — the cross-link panel through the organisation ("this
 				     event's workshops became these courses"), mounted directly below this comment behind
 				     `organizations`. The take-home button is E's, inside Programme.svelte. -->
+				<RelatedCoursesPanel eventId={event.id} />
 			{/if}
 
 			<!-- While the preview is on, the organiser's own page is unmounted around it (see EventPreview). -->
