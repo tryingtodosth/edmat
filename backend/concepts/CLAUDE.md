@@ -51,6 +51,15 @@ endpoint), the shapes are deliberately identical.
   link by hand is refused with `body_origin`: the sentence is what says it.
 - **A concept is not a governable node.** Scope flows from `Concept.branches`; there is no
   `GOVERNABLE_NODE_MODELS` entry and no `NodeGovernor` target here.
+- **The prerequisite closure is a pure walk, and visibility is asked afterwards.** `paths.py`
+  (§17BR.D) walks `ConceptLink(relation='prerequisite')` breadth-first to depth ≤ 4 and ≤ 20
+  concepts, cutting cycles by never revisiting and by starting with the seeds already "seen". It
+  takes no user: the walk is one fact about the graph, and *who may see each rung* is
+  `access.visible_concepts`, applied by `views._closure_payload` over the result. The cost of that
+  split is stated rather than hidden — an invisible concept can be a HOP while being dropped from
+  the answer, so two readers of one page are told the same distances. Order is `(distance, slug)`,
+  because a concept has no title to sort by; the title is resolved per reader afterwards and the
+  order is NOT recomputed from it.
 - **Sanitize in `save()`, validate in the serializer.** `ConceptRevision.save()` runs
   `blocks.sanitize_blocks` (no queries, never raises) and derives `search_text` from the result;
   `blocks.clean_blocks` does the full validation — unknown kind, lengths, referenced rows, asset kind
@@ -62,9 +71,13 @@ endpoint), the shapes are deliberately identical.
   allowance via that module's `used_upload_bytes`. There is no DELETE: a block inside a published
   revision must keep resolving (the `InlineImage` / `ChemDrawing` reasoning).
 - **The kill switch removes the surface, and the chip row survives it.** `concepts` gates every
-  endpoint (staff bypass), except `GET /api/concept-links/?target_type=…`, which answers `[]` — it is
-  read by an exercise's and a material's own page, and house rule 3 requires those to keep working
-  while returning nothing.
+  endpoint (staff bypass), except `GET /api/concept-links/?target_type=…` **and
+  `GET /api/concept-links/learn-first/`**, which answer `[]` — both are read by an exercise's and a
+  material's own page, and house rule 3 requires those to keep working while returning nothing. The
+  two must keep the SAME posture: they sit two lines apart on one page, and one refusing while the
+  other answers is how a reader gets half a row. `/api/concepts/{slug}/{prerequisites,exercises}/`
+  are NOT in the carve-out — they are read by the concept's own page, which the switch takes away
+  whole, so there is nothing left to keep working.
 - **The feed gets `concept` for the FIRST publication anywhere under a concept and
   `concept_revision` for every later one**, never for a draft and never for a queued revision.
   `ConceptArticle` and `ConceptRevision` are registered for `post_delete` in this app's own
@@ -82,6 +95,10 @@ endpoint), the shapes are deliberately identical.
   governor. Never collapse the two.
 - The slug is allocated once and is immutable through the API. Renaming and merging are left open
   (CONCEPTS-BRIEF.md §9).
+- **`serializers._resolved_head` is the one way to name a concept**, and `_target_title` went
+  through a whole release naming a concept TARGET by "the first published revision" instead. It
+  showed on one screen in §17BR.D: a prerequisite chip said "Pochodna — po ludzku" two lines above a
+  prerequisite path saying "Derivative". Anything that renders a concept's name asks that function.
 - `notify_tag_followers` is deliberately NOT widened to concepts — it builds its row with
   `exercise=`/`material=`, and a notification a reader cannot click is worse than none.
 - Tests declare `databases = set(all_log_shards()) | {'default'}`: every publish and decision writes
@@ -92,4 +109,11 @@ endpoint), the shapes are deliberately identical.
 `manage.py test concepts`, plus `manage.py test moderation` (the queue section, the report kind) and
 `manage.py test community exercises notifications activity` (the cross-cutting rows).
 `manage.py seed_concepts` twice — it is idempotent by slug and seeds every block kind.
-E2E: `frontend/e2e/concepts.mjs`.
+E2E: `frontend/e2e/concepts.mjs`, and `frontend/e2e/concept-paths.mjs` for the closure, the
+"before this, know…" row and the deck button.
+
+**A worktree needs its LOG SHARDS migrated too**, not just `default`: a copied `db.sqlite3` leaves
+`logdata/logs_*.sqlite3` empty, and every write that records an `AuditEvent` — adding a link,
+removing one — then answers **500 after creating the row**. The symptom is maximally misleading: the
+data is right and the UI shows an error. `for a in logs_0 … logs_anon; do manage.py migrate
+--database=$a; done`.

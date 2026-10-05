@@ -24,8 +24,10 @@ import {
 	mapConceptArticleSummary,
 	mapConceptAsset,
 	mapConceptBacklink,
+	mapConceptExerciseRef,
 	mapConceptLink,
 	mapConceptListRow,
+	mapConceptPrerequisite,
 	mapConceptRevision,
 	mapConceptRevisionSummary,
 	toRawConceptBlocks,
@@ -34,8 +36,10 @@ import {
 	type RawConceptArticleSummary,
 	type RawConceptAsset,
 	type RawConceptBacklink,
+	type RawConceptExerciseRef,
 	type RawConceptLink,
 	type RawConceptListRow,
+	type RawConceptPrerequisite,
 	type RawConceptRevision,
 	type RawConceptRevisionSummary
 } from '$lib/api/mappers';
@@ -47,9 +51,11 @@ import type {
 	ConceptAsset,
 	ConceptBacklink,
 	ConceptDraft,
+	ConceptExerciseRef,
 	ConceptLink,
 	ConceptLinkTargetType,
 	ConceptListRow,
+	ConceptPrerequisite,
 	ConceptRelation,
 	ConceptRevision,
 	ConceptRevisionDraft,
@@ -497,6 +503,63 @@ export async function getConceptsForTarget(
 			`/concept-links/?target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}`
 		);
 		return rows.map(mapConceptBacklink);
+	} catch (e) {
+		if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return [];
+		throw e;
+	}
+}
+
+/* --- paths: "before this, know…" and the exercises a deck is made of -------------------------- */
+
+/**
+ * The bounded prerequisite closure of one concept, nearest first — `backend/concepts/paths.py`.
+ *
+ * `[]` is a real answer and so is a refusal: this is read inside the concepts surface, which the
+ * kill switch takes away whole, and a 403 while the flags are still in flight must not throw at a
+ * page that is otherwise fine (`getConceptsForTarget` makes the same trade for the same reason).
+ */
+export async function getPrerequisites(slug: string): Promise<ConceptPrerequisite[]> {
+	try {
+		const rows = await apiClient.get<RawConceptPrerequisite[]>(
+			`/concepts/${encodeURIComponent(slug)}/prerequisites/`
+		);
+		return rows.map(mapConceptPrerequisite);
+	} catch (e) {
+		if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return [];
+		throw e;
+	}
+}
+
+/**
+ * The same closure for everything an exercise or a material is ABOUT — the union, nearest first.
+ *
+ * The endpoint answers `[]` rather than 403 while `concepts` is off, on purpose and for the same
+ * reason as the chip row beside it (house rule 3's documented carve-out), so a killed feature
+ * leaves the exercise page working and silent rather than failing somewhere less useful.
+ */
+export async function getLearnFirst(
+	targetType: 'exercise' | 'material',
+	targetId: string
+): Promise<ConceptPrerequisite[]> {
+	try {
+		const rows = await apiClient.get<RawConceptPrerequisite[]>(
+			`/concept-links/learn-first/?target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}`
+		);
+		return rows.map(mapConceptPrerequisite);
+	} catch (e) {
+		if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return [];
+		throw e;
+	}
+}
+
+/** The exercises linked to a concept that this reader may see — what "make a deck from this
+ *  concept" is made of, and what decides whether that button is there at all. */
+export async function getConceptExercises(slug: string): Promise<ConceptExerciseRef[]> {
+	try {
+		const rows = await apiClient.get<RawConceptExerciseRef[]>(
+			`/concepts/${encodeURIComponent(slug)}/exercises/`
+		);
+		return rows.map(mapConceptExerciseRef);
 	} catch (e) {
 		if (e instanceof ApiError && (e.status === 403 || e.status === 404)) return [];
 		throw e;

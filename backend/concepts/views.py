@@ -53,9 +53,11 @@ from .serializers import (
     ConceptCreateSerializer,
     ConceptDetailSerializer,
     ConceptDraftUpdateSerializer,
+    ConceptExerciseRowSerializer,
     ConceptLinkSerializer,
     ConceptListRowSerializer,
     ConceptMetadataSerializer,
+    ConceptPrerequisiteSerializer,
     ConceptRevisionCreateSerializer,
     ConceptRevisionSerializer,
     ConceptRevisionSummarySerializer,
@@ -169,6 +171,40 @@ def _list_context(request):
         'audiences': _requested_audiences(request.query_params),
         'locales': _requested_locales(request.query_params),
     }
+
+
+def _closure_payload(seeds, request):
+    """`paths.prerequisite_closure`, filtered to what this caller may see and named for them.
+
+    The two halves of house rule 4, in the order they have to happen. The walk is pure over the
+    graph (`concepts/paths.py` says why), so the visibility question is asked here — once, as a
+    queryset filter over the result, which is also what prefetches the articles and revisions
+    `resolve_page` then reads for each rung's title. Resolving per rung without that prefetch is the
+    N+1 this app's own `expand_blocks` note warns about, one table over.
+
+    A concept the caller cannot see is dropped from the answer but still counted as a hop, so two
+    readers of one page are told the same distances; `concepts/paths.py`'s docstring records that
+    trade rather than hiding it.
+    """
+    from .paths import prerequisite_closure
+
+    rows = prerequisite_closure(seeds)
+    if not rows:
+        return []
+    distance_by_pk = {concept.pk: distance for concept, distance in rows}
+    found = (
+        visible_concepts(request.user)
+        .filter(pk__in=list(distance_by_pk))
+        .prefetch_related('articles__revisions')
+    )
+    # Back into the walk's own order — distance, then slug — which the database cannot express and
+    # which is the whole promise of the answer: nearest first.
+    ordered = sorted(found, key=lambda concept: (distance_by_pk[concept.pk], concept.slug))
+    return ConceptPrerequisiteSerializer(
+        [(concept, distance_by_pk[concept.pk]) for concept in ordered],
+        many=True,
+        context=_list_context(request),
+    ).data
 
 
 class ConceptViewSet(viewsets.GenericViewSet):
@@ -505,6 +541,57 @@ class ConceptViewSet(viewsets.GenericViewSet):
             'backlinks': ConceptBacklinkSerializer(backlinks, many=True, context=context).data,
         }
 
+    # --- paths ---------------------------------------------------------------------------------------
+
+    @action(detail=True, methods=['get'])
+    def prerequisites(self, request, slug=None):
+        """`GET /api/concepts/{slug}/prerequisites/` — the bounded closure, nearest first.
+
+        Not folded into the detail payload, although the detail payload already carries the one-hop
+        links: the closure is a walk whose cost does not belong on the one read every `[[mention]]`
+        and every chip resolution goes through, and the component that draws it mounts on an exercise
+        page too, where there is no concept detail call at all.
+        """
+        concept = self._concept(slug)
+        if concept is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(_closure_payload([concept], request))
+
+    @action(detail=True, methods=['get'])
+    def exercises(self, request, slug=None):
+        """`GET /api/concepts/{slug}/exercises/` — the linked exercises this caller may see.
+
+        What "make a deck from this concept" is made of. `published=True` is the whole of exercise
+        visibility (`exercises/models.py`'s own note: an auto-hidden exercise is an unpublished one,
+        there is no second flag), and this asks it the way `ExerciseViewSet`'s own queryset does
+        rather than keeping a second idea of what a reader may see.
+
+        Deliberately NOT narrowed by the reader's band or languages, although `client.ts` appends
+        both to every list-shaped GET: this is the input to "every exercise linked here", and an
+        exercise silently missing from a deck because its statement has no English translation would
+        be a deck that disagrees with the chip row above it. The page that lists these exercises for
+        reading (`ConceptLinks`) does narrow, through the exercise endpoints it already calls.
+        """
+        from django.contrib.contenttypes.models import ContentType
+
+        from exercises.models import Exercise
+
+        concept = self._concept(slug)
+        if concept is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        linked = concept.links.filter(
+            content_type=ContentType.objects.get_for_model(Exercise)
+        ).values_list('object_id', flat=True)
+        rows = (
+            Exercise.objects.filter(pk__in=list(linked), published=True)
+            .select_related('branch')
+            .prefetch_related('translations')
+            .order_by('branch__slug', 'number')
+        )
+        return Response(
+            ConceptExerciseRowSerializer(rows, many=True, context=_list_context(request)).data
+        )
+
 
 class ConceptArticleViewSet(viewsets.GenericViewSet):
     """One article: reading it, pinning it, its revisions, and the talk about it."""
@@ -763,7 +850,9 @@ class ConceptLinkViewSet(viewsets.GenericViewSet):
     throttle_classes = [ScopedRateThrottle]
 
     def get_permissions(self):
-        if self.action == 'list':
+        # `learn_first` joins `list` on the open side for exactly the same reason: it is read by an
+        # exercise's own page, which must keep working — and answer nothing — while `concepts` is off.
+        if self.action in ('list', 'learn_first'):
             return [permissions.AllowAny()]
         return [_ConceptsGate(), permissions.IsAuthenticated()]
 
@@ -785,6 +874,33 @@ class ConceptLinkViewSet(viewsets.GenericViewSet):
         return Response(
             ConceptBacklinkSerializer(rows, many=True, context=_list_context(request)).data
         )
+
+    @action(detail=False, methods=['get'], url_path='learn-first')
+    def learn_first(self, request):
+        """`GET /api/concept-links/learn-first/?target_type=exercise&target_id=5` — the union
+        closure of everything this exercise (or material) is about.
+
+        "Before this, know…" on a page that is not a concept page. It sits here rather than on
+        `/api/exercises/{id}/` because the question is about the concept graph and because the
+        answer has to behave exactly like the chip row beside it: a GET an exercise page makes on
+        every load, answering **`[]` rather than 403** while `concepts` is off. That is the one
+        documented carve-out of house rule 3 this app already has (`ConceptLinkViewSet`'s own
+        docstring), and a second surface on the exercise page with a different posture would make
+        one of the two wrong.
+
+        A union rather than one closure per concept: an exercise about three things needs one list
+        of what to read first, and two concepts sharing a prerequisite share one rung. The distance
+        is to the NEAREST of them, which falls out of the walk being seeded with all of them at once.
+        """
+        target_type = (request.query_params.get('target_type') or '').strip()
+        target_id = request.query_params.get('target_id')
+        if not is_feature_enabled('concepts') and not (
+            request.user.is_authenticated and request.user.is_staff
+        ):
+            return Response([])
+        rows = links_for_target(target_type, target_id, request.user)
+        seeds = [link.concept for link in rows]
+        return Response(_closure_payload(seeds, request))
 
     @_translates_service_errors
     def destroy(self, request, pk=None):

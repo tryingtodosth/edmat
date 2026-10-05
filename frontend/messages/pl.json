@@ -3699,5 +3699,15 @@
 	"showcase_pathDistance": "kroków wstecz: {n}",
 	"showcase_pathLegend": "Liczba przy każdym wierszu mówi, ile kroków wstecz od {start} znajduje się dane pojęcie.",
 	"showcase_consentOn": "Udostępnione",
-	"showcase_consentOff": "Nieudostępnione"
+	"showcase_consentOff": "Nieudostępnione",
+	"paths_learnFirst_heading": "Zanim to — poznaj…",
+	"paths_learnFirst_direct": "bezpośrednio wcześniej",
+	"paths_learnFirst_further": "dalej w łańcuchu",
+	"paths_path_heading": "Kolejność czytania",
+	"paths_path_hint": "Każde kolejne opiera się na poprzednim.",
+	"paths_deck_make": "Zrób talię z tego pojęcia",
+	"paths_deck_working": "Tworzę talię…",
+	"paths_deck_made": "Talia gotowa: {name}",
+	"paths_deck_failed": "Nie udało się utworzyć talii.",
+	"paths_deck_name": "Fiszki: {title}"
 }

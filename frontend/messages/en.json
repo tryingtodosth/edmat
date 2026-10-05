@@ -3699,5 +3699,15 @@
 	"showcase_pathDistance": "steps back: {n}",
 	"showcase_pathLegend": "The number on each row is how many steps back from {start} that concept is.",
 	"showcase_consentOn": "Shared",
-	"showcase_consentOff": "Not shared"
+	"showcase_consentOff": "Not shared",
+	"paths_learnFirst_heading": "Before this, know…",
+	"paths_learnFirst_direct": "directly before this",
+	"paths_learnFirst_further": "further back in the chain",
+	"paths_path_heading": "The order to read them in",
+	"paths_path_hint": "Each one builds on the one before it.",
+	"paths_deck_make": "Make a deck from this concept",
+	"paths_deck_working": "Making the deck…",
+	"paths_deck_made": "Deck made: {name}",
+	"paths_deck_failed": "The deck could not be made.",
+	"paths_deck_name": "Flashcards: {title}"
 }

@@ -1846,3 +1846,43 @@ log shards.
 anonymous list (anonymous by definition — the whole point of these pages is what somebody who has
 never signed in can see). `npm run check:a11y -- --base http://localhost:5237 --api
 http://127.0.0.1:8137`: **0 violations on all seven**.
+
+## 2026-10-05 — concept paths (learning cycle, step D)
+
+**`backend/concepts/tests.py: PathTests`** (19 tests, inside the file's existing 146-test
+`concepts` suite): `concepts/paths.py` and the three endpoints over it. Weighted at the three
+bounds, because the bounds are what the feature IS — a chain walked past one hop, a chain longer
+than four hops stopping, a cycle cut rather than looped (asserted both from the start of the cycle
+and from inside it, which is where an unbounded walk spins). Plus: `depth`/`limit` clamped rather
+than trusted, a shared prerequisite appearing once at its NEAREST distance, a `related` link not
+counting as a prerequisite, and a query-count bound (≤ 10 for a five-deep chain) so the cost cannot
+start depending on the size of the graph. Then the endpoints: `{slug, title, distance}` with the
+title resolved for the caller's own band (a second article for a different audience must change the
+name on the rung), a concept nobody can see dropped from the answer but visible to staff, 404 for a
+concept that is not there, the union closure on `learn-first`, and the two different kill-switch
+postures — `learn-first` answers `[]` (house rule 3's documented carve-out, the sibling
+`?target_type=` list's posture), while `prerequisites` and `exercises` answer 403 because the page
+that reads them is gone anyway. Run: `../.venv/bin/python3 manage.py test concepts config --keepdb`.
+
+**`frontend/e2e/concept-paths.mjs`** (30 checks). Builds a real prerequisite chain through the
+real picker on the seeded concepts — the relation select, the search, the Add button — and
+deliberately closes it into a CYCLE, then reads it back in three places: the bounded closure from
+the API, the path on the concept page (farthest first, ending where the reader is), and the flat
+"before this, know…" row on an exercise linked from its own page. Also: an exercise with no
+concepts renders nothing at all; an exercise about *every* concept in the chain honestly has
+nothing left to learn first; the deck button posts every linked exercise in order with the concept
+as its source; `flashcards` off takes the button and leaves the page; `concepts` off takes the row
+and leaves the exercise page, with the endpoint answering `[]` rather than 403 to a reader who was
+never signed in. **`POST /api/decks/` is mocked** — step A owns it and it 404s on this branch
+(`prompts/README.md` §9). Scratch links are removed through the real API at the START as well as
+the end, because a crashed run leaves them and `add_link` then answers 409 `already_linked` while
+every later check passes against the previous run's data — a green closure over a red button.
+Run: `rm -rf backend/cachedata/*; E2E_BASE=http://localhost:5234
+E2E_API=http://127.0.0.1:8134/api node e2e/concept-paths.mjs`.
+
+**Two environment traps this script found**, both worth knowing before reading a failure here as a
+code bug. A git worktree made by copying `db.sqlite3` has **unmigrated log shards**, so every write
+that records an `AuditEvent` (adding or removing a link) answers 500 *after* creating the row —
+`for a in logs_0 … logs_anon; do manage.py migrate --database=$a; done`. And `node_modules` in a
+worktree is a symlink outside Vite's `fs.allow` root, so every KaTeX font 403s on the dev server
+only.

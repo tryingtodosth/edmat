@@ -23,15 +23,19 @@
 	import type { Material, ResolvedExercise } from '$lib/types';
 	import type { ConceptBacklink, ConceptLink, ConceptLinkBlockReason } from '$lib/types/concept';
 	import { LINK_BLOCK_LABELS, messageForError } from './labels';
+	import LearnFirst from './LearnFirst.svelte';
 	import LinkPicker from './LinkPicker.svelte';
 
 	let {
 		slug,
+		title = '',
 		links = $bindable([]),
 		backlinks = [],
 		blockReason = null
 	}: {
 		slug: string;
+		/** The concept's resolved title — the last rung of the prerequisite path below. */
+		title?: string;
 		links: ConceptLink[];
 		backlinks?: ConceptBacklink[];
 		/** Why this person may not add one. `null` means they may. */
@@ -133,6 +137,11 @@
 		<h3>{m.concept_links_prerequisites()}</h3>
 		<!-- "Know this first" -->
 		{@render conceptRows(prerequisites)}
+		<!-- The chips above are the ONE hop somebody filed from this page, each removable. The path
+		     below is the same thing walked out — what to read, in the order to read it, ending here
+		     (`backend/concepts/paths.py`). Two readings of one set of edges: the chips are the
+		     editable fact, the path is the answer a reader wanted. -->
+		<LearnFirst {slug} {title} variant="path" />
 	{/if}
 
 	{#if relatedConcepts.length > 0}

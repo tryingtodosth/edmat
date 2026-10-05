@@ -32,6 +32,8 @@
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
 	import TagChip from '$lib/components/shared/TagChip.svelte';
 	import LinkedConcepts from '$lib/components/concept/LinkedConcepts.svelte';
+	// learning: learn first (D)
+	import LearnFirst from '$lib/components/concept/LearnFirst.svelte';
 	import ClaimGroups from '$lib/components/material/ClaimGroups.svelte';
 	import SolutionEntrySection from '$lib/components/exercise/SolutionEntrySection.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
@@ -418,6 +420,7 @@
 			<LinkedConcepts exerciseId={exercise.id} />
 			<!-- learning: learn first (D) — the bounded prerequisite closure of this exercise's concepts,
 			     "before this, know…", mounted directly below this comment behind `concepts`. -->
+			<LearnFirst exerciseId={exercise.id} />
 			<!-- learning: add to deck (A) — A's "add to a deck" control goes through the existing
 			     save-targets store on the exercise card, NOT here; the marker records that decision. -->
 

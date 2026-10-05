@@ -11498,3 +11498,123 @@ removes list markers.
   which Paraglide generates and `frontend/project.inlang/.gitignore` ignores — a nested `.gitignore`
   that Prettier's default ignore path does not read. Together with `e2e/decisions.mjs` and
   `e2e/event-shifts.mjs` (§17BQ's own "left open"), `npm run lint` is red before eslint ever runs.
+
+## 17BR.D — Concept paths: the prerequisite closure, "before this, know…", and a deck from a concept (2026-10-05)
+
+Step D of the learning cycle (`prompts/00-DESIGN.md`, `prompts/05-concept-paths.md`), on
+`learn/d-concepts` from the prep commit `f90e221`. Two things, both inside `concepts`, both built on
+an edge that already existed and that nothing had ever walked.
+
+**The edge.** `ConceptLink(relation='prerequisite')` has said "know this first" since §17BD, one hop
+at a time, drawn as a row of chips on a concept's own page. One hop is not the answer a reader
+wants. Somebody stuck on an eigenvalue exercise is not helped by being told "eigenvalue"; they are
+helped by "linear map, and before that vector space". That is a graph walk, which a chip row cannot
+grow into by itself.
+
+**`concepts/paths.py`** is that walk and nothing else: `prerequisite_closure(concepts, *, depth=4,
+limit=20) -> [(concept, distance)]`, breadth-first, **pure over `ConceptLink`** — no request, no
+user, no visibility. Three bounds, each of them the point rather than a safety net. Depth ≤ 4,
+because past four hops the answer stops being a hint and becomes a syllabus (a reader who needs six
+prerequisites needs a course, which is step C). ≤ 20 concepts, truncating the FAR end because
+breadth-first reaches the near rungs first and they are the ones that matter to somebody stuck now.
+And cycles cut, by never revisiting and by starting with the seeds already marked seen — the data
+really can contain one, because two people each filing the same pair from their own end is an
+honest disagreement about which comes first, not something to refuse at write time.
+
+The purity is a decision with a cost, and the cost is written in the module: an invisible concept
+can sit in the MIDDLE of a chain and be counted as a hop while being dropped from the answer. The
+alternative — passing a visible pool into the walk — would make the distances depend on who is
+reading, so two people would be told different numbers about the same graph. Visibility is asked
+once, afterwards, by `views._closure_payload`, which is also where the prefetch for resolving each
+rung's title lives.
+
+**Three endpoints.** `GET /api/concepts/{slug}/prerequisites/` and `GET /api/concepts/{slug}/
+exercises/` are behind the `concepts` gate like everything else on that page.
+`GET /api/concept-links/learn-first/?target_type=&target_id=` is **not**: it answers `[]` rather
+than 403 when the switch is off, joining the one carve-out this app already has, because it is read
+by an exercise's own page on every load and sits two lines from the chip row that already behaves
+that way. One of the two refusing while the other answers is how a reader gets half a row.
+
+**The union matters.** `learn-first` seeds the walk with ALL the concepts a target is about, so an
+exercise about three things gets one list and a shared prerequisite is one rung at its nearest
+distance. It also means an exercise about *every* concept in a chain honestly has nothing left to
+learn first — which `seed_concepts` produces, since it links the same two exercises to every concept
+of a branch. The e2e pins that answer rather than treating it as a gap.
+
+**Two renderings of one set of rows.** `LearnFirst.svelte` draws a flat chip row on the exercise
+page, nearest first, a rung more than one hop back marked with a dashed border rather than a number
+(a count would need a plural rule in two languages to say something the shape already says). On the
+concept page the same component draws a **path**: farthest first, arrows between, ending at the
+concept being read — "Limit → Integral → Derivative → **Mechanika kwantowa**". A list and an order
+are different answers to the same data, and on a concept page the order is the one worth having. It
+renders nothing at all when there is nothing: no heading, no empty state, the `LinkedConcepts`
+precedent.
+
+**The deck button.** `DeckFromConcept.svelte` on `/concepts/[slug]`, behind `flashcards`, hidden
+when the concept has no exercises a reader may see — a button that always fails is worse than no
+button. It calls step A's one pre-agreed shape, `createDeckFromExercises` with `source: {kind:
+'concept'}`. There is deliberately no link to the deck that comes back: `/flashcards/[id]` is step
+A's route and does not exist on this branch, and a link to a route that is not there is exactly the
+bug house rule 2 records finding in a browser.
+
+**One bug found by looking at a screenshot**, which is the only way it could have been found.
+`serializers._target_title` named a concept TARGET by walking to its first published revision — so
+the prerequisite CHIP read "Pochodna — po ludzku" (somebody's secondary-school article, first in the
+table) two lines above the prerequisite PATH reading "Derivative". One screen, one concept, two
+names. It had been wrong since §17BD and nothing had put the two namings side by side before. Fixed
+by routing it through `_resolved_head`, which is the third caller of the resolve-for-this-reader
+logic and therefore the one that earned the extraction (house rule 13).
+
+### Verified
+
+`manage.py test concepts config --keepdb` — **146 tests, OK** (19 of them the new `PathTests`:
+the walk, the cycle, the depth and limit clamps, a shared prerequisite at its nearest distance, a
+`related` link that is not a prerequisite, a query-count bound, and the three endpoints including
+both kill-switch postures). `manage.py check` — no issues. `makemigrations --check --dry-run` — no
+changes (this step adds no model and no migration). `npm run check` — **0 errors, 0 warnings**, run
+twice (before and after the serializer fix). `npm run build` — green, run twice. `npx eslint` and
+`prettier --check` on every file this step added or touched — clean. Both catalogues **3666 keys each, key sets identical**, ten new
+`paths_*` keys.
+
+`frontend/e2e/concept-paths.mjs` against real servers on 8134/5234, signed in through the real form
+as `michal`: a prerequisite chain built in the real picker, closed into a deliberate cycle, then
+read back three ways — **30 checks, 0 failures, 0 console errors**. Screenshots looked at, and the
+`_target_title` bug above came out of one of them.
+
+### Left open
+
+- **`LearnFirst` does not refresh when a concept is linked beside it.** It fetches once per
+  (target, session); linking a concept from the exercise page updates the chip row and leaves the
+  "before this, know…" line stale until a reload. A shared store for "what this target is about"
+  would fix both; one more fetch on every link would not be worth it.
+- **No truncation notice.** When the walk hits depth 4 or 20 concepts it simply stops, and the
+  reader is not told there was more. The honest version needs the walk to report that it cut, which
+  is a shape change to a function three endpoints share.
+- **A deck from a concept's PREREQUISITES**, a depth preference, and a "learning path" a reader can
+  follow and tick — all named in the brief as out of scope; the third is a course.
+- **`POST /api/decks/` was MOCKED in the e2e** (`prompts/README.md` §9): step A owns that endpoint
+  and it answers 404 on this branch. The button, the ids it collects and the confirmation are real;
+  the deck is not. The integrator verifies the real call after A merges, and adds the link to
+  `/flashcards/[id]` that this step deliberately did not write.
+- **`/api/concepts/{slug}/exercises/` does not narrow by band or language**, although `client.ts`
+  appends both to every list-shaped GET. It is the input to "every exercise linked here", and one
+  silently missing from a deck because its statement has no English translation would be a deck that
+  disagrees with the chip row above it. Stated here rather than discovered later.
+- **`prerequisite_closure` has no `pool` parameter**, so a concept nobody can see still costs a hop.
+  Named in `paths.py` itself; it would change the fixed signature the brief froze.
+
+### Found outside this step's scope, not fixed
+
+- **A worktree's LOG SHARDS are not migrated by copying `db.sqlite3`.** Every write that records an
+  `AuditEvent` — adding a link, removing one — answered **500 after creating the row**, with
+  `no such table: telemetry_auditevent`. The data was right and the UI showed an error, which is
+  about as misleading as a symptom gets, and it cost two e2e runs to tell apart from a code bug.
+  Fixed for this worktree by migrating the nine `logs_*` aliases; `prompts/README.md` §3's
+  worktree recipe does not mention them and every parallel branch of this cycle has the same hole.
+- **`npm run lint` fails on four files this step did not touch** (`e2e/decisions.mjs`,
+  `e2e/event-shifts.mjs`, `project.inlang/.meta.json`, `project.inlang/README.md`); `prettier
+  --check` runs before eslint, so the whole command is red until somebody formats them. Noted in
+  §17BQ's "Left open" too, and still true.
+- **KaTeX fonts 403 on the dev server in a worktree**, because `node_modules` is a symlink to the
+  main checkout and therefore outside Vite's `fs.allow` root. A build is unaffected; the e2e
+  forgives them by name.

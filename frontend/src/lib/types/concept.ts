@@ -383,3 +383,27 @@ export interface ConceptArticleDraft extends ConceptRevisionDraft {
 	audience: Audience;
 	locale: string;
 }
+
+/* --- paths: the prerequisite closure (backend `concepts/paths.py`) ----------------------------- */
+
+/**
+ * One rung of "before this, know…": a concept, how many `prerequisite` hops away it is, and what
+ * THIS reader's own band and language call it.
+ *
+ * `distance` is 1 for "directly before this" and never more than 4 — the walk is bounded in
+ * `backend/concepts/paths.py`, which also explains why (past four hops the answer is a syllabus,
+ * not a hint). The same concept can be one hop from one exercise and three from another, which is
+ * why the distance travels beside the concept rather than on it.
+ */
+export interface ConceptPrerequisite {
+	slug: string;
+	title: string;
+	distance: number;
+}
+
+/** An exercise linked to a concept, as the "make a deck from this concept" button needs it: an id
+ *  to send and a title to show. Not a `ResolvedExercise` — nothing here renders a statement. */
+export interface ConceptExerciseRef {
+	id: string;
+	title: string;
+}

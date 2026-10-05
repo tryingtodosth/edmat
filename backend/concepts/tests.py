@@ -1360,3 +1360,295 @@ class SeedCommandTests(ConceptBase):
         for revision in ConceptRevision.objects.filter(status='published'):
             kinds |= {block['kind'] for block in revision.blocks}
         self.assertEqual(kinds, {'markdown', 'latex', 'chem', 'pdf', 'image'})
+
+
+# --- paths: the prerequisite closure, "before this, know…", a deck from a concept ------------------
+
+
+class PathTests(ConceptBase):
+    """`concepts/paths.py` and the three endpoints over it (HISTORY §17BR.D).
+
+    Weighted at the three things most likely to be wrong, which are the three bounds: a cycle must
+    be cut rather than looped, a chain longer than four hops must stop, and more than twenty
+    concepts must be truncated from the FAR end rather than the near one. The resolution of each
+    rung's title is the fourth, and is checked against a reader whose own band is not the one the
+    article was written for — the case where a flat "first article" lookup would name it wrongly.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.concepts = {}
+
+    def _concept(self, title, **overrides):
+        """A published concept whose slug is predictable — the walk orders by slug, so a test about
+        order has to know what the slugs are."""
+        concept = self.published_concept(title=title, **overrides)
+        self.concepts[concept.slug] = concept
+        return concept
+
+    def _prerequisite(self, source, target, user=None):
+        """`source` needs `target` first — filed through the real service, so a test cannot build an
+        edge the API would have refused.
+
+        `user` matters: `add_link` refuses a target the adder cannot SEE (404), so an edge pointing
+        at an article still waiting for review has to be filed by somebody who can see it.
+        """
+        from concepts.services import add_link
+
+        return add_link(
+            source, user or self.verified, target_type='concept', target_id=target.pk,
+            relation='prerequisite',
+        )
+
+    def _chain(self, length):
+        """`c0 → c1 → c2 → …`, each one the prerequisite of the one before it."""
+        rows = [self._concept(f'Chain {index}') for index in range(length)]
+        for before, after in zip(rows, rows[1:]):
+            self._prerequisite(before, after)
+        return rows
+
+    # --- the walk itself ------------------------------------------------------------------------
+
+    def test_the_closure_walks_further_than_one_hop(self):
+        from concepts.paths import prerequisite_closure
+
+        rows = self._chain(4)
+        found = prerequisite_closure([rows[0]])
+        self.assertEqual([(c.slug, d) for c, d in found],
+                         [(rows[1].slug, 1), (rows[2].slug, 2), (rows[3].slug, 3)])
+
+    def test_a_cycle_is_cut_rather_than_looped(self):
+        from concepts.paths import prerequisite_closure
+
+        a, b, c = self._chain(3)
+        self._prerequisite(c, a)  # straight back to the start
+        found = prerequisite_closure([a])
+        self.assertEqual([(row.slug, d) for row, d in found], [(b.slug, 1), (c.slug, 2)])
+        # And from the middle of the cycle, which is where an unbounded walk would spin.
+        self.assertEqual(
+            [(row.slug, d) for row, d in prerequisite_closure([b])], [(c.slug, 1), (a.slug, 2)]
+        )
+
+    def test_depth_stops_at_four_hops(self):
+        from concepts.paths import prerequisite_closure
+
+        rows = self._chain(7)
+        found = prerequisite_closure([rows[0]])
+        self.assertEqual([d for _c, d in found], [1, 2, 3, 4])
+        self.assertNotIn(rows[5].slug, [c.slug for c, _d in found])
+
+    def test_depth_and_limit_are_clamped_not_trusted(self):
+        from concepts.paths import prerequisite_closure
+
+        rows = self._chain(7)
+        self.assertEqual(len(prerequisite_closure([rows[0]], depth=99)), 4)
+        self.assertEqual(len(prerequisite_closure([rows[0]], depth=2)), 2)
+        self.assertEqual(prerequisite_closure([rows[0]], depth=0), [])
+        self.assertEqual(prerequisite_closure([rows[0]], limit=0), [])
+        self.assertEqual(prerequisite_closure([], depth=4), [])
+
+    def test_the_limit_drops_the_farthest_rungs(self):
+        from concepts.paths import prerequisite_closure
+
+        start = self._concept('Hub')
+        near = [self._concept(f'Near {index}') for index in range(3)]
+        for row in near:
+            self._prerequisite(start, row)
+        far = self._concept('Far away')
+        self._prerequisite(near[0], far)
+
+        found = prerequisite_closure([start], limit=3)
+        self.assertEqual(len(found), 3)
+        self.assertEqual({d for _c, d in found}, {1})
+        self.assertNotIn(far.slug, [c.slug for c, _d in found])
+
+    def test_a_shared_prerequisite_is_one_rung_at_its_nearest_distance(self):
+        from concepts.paths import prerequisite_closure
+
+        shared = self._concept('Shared')
+        one = self._concept('One')
+        two = self._concept('Two')
+        self._prerequisite(one, shared)
+        self._prerequisite(two, one)  # `shared` is two hops from `two`, one from `one`
+        found = prerequisite_closure([one, two])
+        self.assertEqual([(c.slug, d) for c, d in found], [(shared.slug, 1)])
+
+    def test_a_related_link_is_not_a_prerequisite(self):
+        from concepts.paths import prerequisite_closure
+        from concepts.services import add_link
+
+        a = self._concept('Alpha')
+        b = self._concept('Beta')
+        add_link(a, self.verified, target_type='concept', target_id=b.pk, relation='related')
+        self.assertEqual(prerequisite_closure([a]), [])
+
+    def test_the_walk_is_bounded_in_queries(self):
+        """Two queries per level and nothing per concept — the cost must not depend on the size of
+        the graph, which is the only reason this can sit on an exercise page's first load."""
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        from concepts.paths import prerequisite_closure
+
+        rows = self._chain(5)
+        with CaptureQueriesContext(connection) as captured:
+            prerequisite_closure([rows[0]])
+        self.assertLessEqual(len(captured.captured_queries), 10, captured.captured_queries)
+
+    # --- GET /api/concepts/{slug}/prerequisites/ -------------------------------------------------
+
+    def test_the_prerequisites_endpoint_answers_slug_title_and_distance(self):
+        a, b, c = self._chain(3)
+        response = self.as_(self.stranger).get(reverse('concept-prerequisites', args=[a.slug]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [dict(row) for row in response.data],
+            [
+                {'slug': b.slug, 'title': 'Chain 1', 'distance': 1},
+                {'slug': c.slug, 'title': 'Chain 2', 'distance': 2},
+            ],
+        )
+
+    def test_a_rung_is_named_by_the_article_this_reader_would_land_on(self):
+        """The title is resolved, not "the first article" — the invariant this app is built on."""
+        a = self._concept('Chain 0')
+        b = self._concept('Chain 1')
+        self._prerequisite(a, b)
+        # A second article of `b`, for a different band, published outright by a verified author.
+        made = self.as_(self.verified).post(
+            reverse('concept-articles', args=[b.slug]),
+            {
+                'audience': 'primary',
+                'locale': 'pl',
+                'title': 'Dla dzieci',
+                'summary': '',
+                'blocks': [md('Prosto.')],
+                'submit': True,
+            },
+            format='json',
+        )
+        self.assertEqual(made.status_code, status.HTTP_201_CREATED, made.data)
+        response = self.as_(self.stranger).get(
+            reverse('concept-prerequisites', args=[a.slug]), {'audience': 'primary'}
+        )
+        self.assertEqual([row['title'] for row in response.data], ['Dla dzieci'])
+
+    def test_a_concept_nobody_can_see_is_not_a_rung(self):
+        a = self._concept('Chain 0')
+        waiting = self.published_concept(user=self.author, title='Still waiting')  # pending
+        self._prerequisite(a, waiting, user=self.author)
+        response = self.as_(self.stranger).get(reverse('concept-prerequisites', args=[a.slug]))
+        self.assertEqual(response.data, [])
+        staff_view = self.as_(self.staff).get(reverse('concept-prerequisites', args=[a.slug]))
+        self.assertEqual([row['slug'] for row in staff_view.data], [waiting.slug])
+
+    def test_a_concept_that_does_not_exist_is_a_404(self):
+        response = self.as_(self.stranger).get(reverse('concept-prerequisites', args=['nope']))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # --- GET /api/concept-links/learn-first/ -----------------------------------------------------
+
+    def _exercise_about(self, concept):
+        exercise = make_exercise(self.branch, 1)
+        exercise.published = True
+        exercise.save(update_fields=['published'])
+        from concepts.services import add_link
+
+        add_link(concept, self.verified, target_type='exercise', target_id=exercise.pk)
+        return exercise
+
+    def test_learn_first_is_the_union_closure_of_the_targets_concepts(self):
+        a, b, c = self._chain(3)
+        exercise = self._exercise_about(a)
+        response = self.as_(self.stranger).get(
+            reverse('concept-link-learn-first'),
+            {'target_type': 'exercise', 'target_id': exercise.pk},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [(row['slug'], row['distance']) for row in response.data],
+            [(b.slug, 1), (c.slug, 2)],
+        )
+        # The concept the exercise is ABOUT is not one of its own prerequisites.
+        self.assertNotIn(a.slug, [row['slug'] for row in response.data])
+
+    def test_learn_first_answers_nothing_for_an_unknown_target(self):
+        response = self.as_(self.stranger).get(
+            reverse('concept-link-learn-first'), {'target_type': 'nonsense', 'target_id': '9'}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_learn_first_answers_an_empty_list_rather_than_403_with_the_flag_off(self):
+        """The sibling `?target_type=` list's own posture, and for the same reason: this is read by
+        the exercise page on every load (house rule 3's documented carve-out)."""
+        a, _b, _c = self._chain(3)
+        exercise = self._exercise_about(a)
+        FeatureFlag.objects.update_or_create(key='concepts', defaults={'is_enabled': False})
+        self.client.force_authenticate(None)
+        response = self.client.get(
+            reverse('concept-link-learn-first'),
+            {'target_type': 'exercise', 'target_id': exercise.pk},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+        # And the signed-in ordinary reader gets the same nothing, not a refusal.
+        signed_in = self.as_(self.stranger).get(
+            reverse('concept-link-learn-first'),
+            {'target_type': 'exercise', 'target_id': exercise.pk},
+        )
+        self.assertEqual(signed_in.status_code, status.HTTP_200_OK)
+        self.assertEqual(signed_in.data, [])
+
+    def test_a_moderator_still_sees_the_closure_with_the_flag_off(self):
+        a, b, _c = self._chain(3)
+        exercise = self._exercise_about(a)
+        FeatureFlag.objects.update_or_create(key='concepts', defaults={'is_enabled': False})
+        response = self.as_(self.staff).get(
+            reverse('concept-link-learn-first'),
+            {'target_type': 'exercise', 'target_id': exercise.pk},
+        )
+        self.assertEqual([row['slug'] for row in response.data][:1], [b.slug])
+
+    # --- GET /api/concepts/{slug}/exercises/ -----------------------------------------------------
+
+    def test_the_exercises_endpoint_lists_the_linked_exercises_a_reader_may_see(self):
+        concept = self._concept('Deck source')
+        visible = self._exercise_about(concept)
+        # Linked while it was published, then hidden — the real sequence, because `add_link` refuses
+        # a target the adder cannot see (404) and so an unpublished exercise can only get here by
+        # being taken down AFTER the link was filed. Which is exactly the case worth covering: a
+        # deck must not be made of an exercise a moderator has since removed.
+        hidden = make_exercise(self.branch, 2)
+        hidden.published = True
+        hidden.save(update_fields=['published'])
+        from concepts.services import add_link
+
+        add_link(concept, self.verified, target_type='exercise', target_id=hidden.pk)
+        hidden.published = False
+        hidden.save(update_fields=['published'])
+
+        response = self.as_(self.stranger).get(reverse('concept-exercises', args=[concept.slug]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row['id'] for row in response.data], [visible.pk])
+        self.assertTrue(response.data[0]['title'])
+
+    def test_the_exercises_endpoint_is_empty_for_a_concept_with_no_exercises(self):
+        concept = self._concept('Nothing linked')
+        response = self.as_(self.stranger).get(reverse('concept-exercises', args=[concept.slug]))
+        self.assertEqual(response.data, [])
+
+    def test_the_exercises_endpoint_closes_with_the_flag(self):
+        """Unlike `learn-first`, this one is behind the gate: it is read by the concept's OWN page,
+        which is gone when the feature is off, so there is nothing to keep working."""
+        concept = self._concept('Deck source')
+        self._exercise_about(concept)
+        FeatureFlag.objects.update_or_create(key='concepts', defaults={'is_enabled': False})
+        response = self.as_(self.stranger).get(reverse('concept-exercises', args=[concept.slug]))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            self.as_(self.stranger).get(
+                reverse('concept-prerequisites', args=[concept.slug])
+            ).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )

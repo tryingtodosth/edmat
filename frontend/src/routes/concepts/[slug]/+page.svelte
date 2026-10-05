@@ -27,6 +27,7 @@
 	import ArticlePool from '$lib/components/concept/ArticlePool.svelte';
 	import BlockRenderer from '$lib/components/concept/BlockRenderer.svelte';
 	import ConceptLinks from '$lib/components/concept/ConceptLinks.svelte';
+	import DeckFromConcept from '$lib/components/concept/DeckFromConcept.svelte';
 	import PageSwitcher from '$lib/components/concept/PageSwitcher.svelte';
 	import {
 		CONCEPTS_FLAG,
@@ -220,6 +221,9 @@
 							<!-- "History" -->
 						</a>
 						<ReportButton kind={REPORT_KIND} objectId={article.id} />
+						<!-- "Make a deck from this concept" — behind `flashcards`, and gone when the
+						     concept has no exercises a deck could be made of. -->
+						<DeckFromConcept slug={concept.slug} conceptId={concept.id} title={head.title} />
 					</div>
 				</article>
 
@@ -278,6 +282,7 @@
 
 			<ConceptLinks
 				slug={concept.slug}
+				title={head?.title ?? concept.slug}
 				bind:links
 				backlinks={concept.backlinks}
 				blockReason={concept.linkBlockReason}

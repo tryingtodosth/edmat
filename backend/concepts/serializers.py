@@ -388,6 +388,27 @@ class ConceptArticleSerializer(ConceptArticleSummarySerializer):
 # --- reading: links -------------------------------------------------------------------------------
 
 
+def _resolved_head(concept, context):
+    """The head of the article THIS reader would land on for this concept, or None.
+
+    Extracted on the third caller (house rule 13): `ConceptBacklinkSerializer` wanted it for a chip,
+    `ConceptListRowSerializer` wants it plus the exactness flags for a card, and the prerequisite
+    closure wants it for every rung of a path. All three must name a concept the same way the
+    concept's own page would, or a reader is told two different titles for one idea on one screen.
+    """
+    user = _user(context)
+    key, _flags = resolve.resolve_page(
+        concept,
+        audiences=context.get('audiences'),
+        locales=context.get('locales') or [],
+        user=user,
+    )
+    if key is None:
+        return None
+    rows = resolve.pool_with_heads(concept, key[0], key[1], user)
+    return rows[0][1] if rows else None
+
+
 def _target_title(target, context) -> str:
     """A human name for whatever a link points at, resolved the way that thing's own page resolves
     it — never a slug where a title exists, and never a second, differently-resolved copy."""
@@ -404,11 +425,14 @@ def _target_title(target, context) -> str:
         translation = resolve_translation(target.translations, locale)
         return translation.title if translation else target.slug
     if model_name == 'concept':
-        for article in target.articles.all():
-            for revision in article.revisions.all():
-                if revision.status == 'published':
-                    return revision.title
-        return target.slug
+        # Resolved for THIS reader, not "the first published revision" — which is the invariant this
+        # app is built on (`concepts/CLAUDE.md`: a concept has no title) and which this function used
+        # to break for a concept target. It showed: the prerequisite CHIP said "Pochodna — po ludzku"
+        # (somebody's secondary-school article, first in the table) two lines above the prerequisite
+        # PATH saying "Derivative" — one screen, one concept, two names. Found by looking at a
+        # screenshot during §17BR.D, which is the only way it could have been found.
+        head = _resolved_head(target, context)
+        return head.title if head is not None else target.slug
     return str(target)
 
 
@@ -470,18 +494,7 @@ class ConceptBacklinkSerializer(serializers.Serializer):
     origin = serializers.CharField()
 
     def _lead(self, obj):
-        user = _user(self.context)
-        concept = obj.concept
-        key, _flags = resolve.resolve_page(
-            concept,
-            audiences=self.context.get('audiences'),
-            locales=self.context.get('locales') or [],
-            user=user,
-        )
-        if key is None:
-            return None
-        rows = resolve.pool_with_heads(concept, key[0], key[1], user)
-        return rows[0][1] if rows else None
+        return _resolved_head(obj.concept, self.context)
 
     def get_title(self, obj) -> str:
         head = self._lead(obj)
@@ -490,6 +503,51 @@ class ConceptBacklinkSerializer(serializers.Serializer):
     def get_summary(self, obj) -> str:
         head = self._lead(obj)
         return head.summary if head is not None else ''
+
+
+# --- reading: the prerequisite closure ("before this, know…") ---------------------------------------
+
+
+class ConceptPrerequisiteSerializer(serializers.Serializer):
+    """One rung of `paths.prerequisite_closure`: `{slug, title, distance}`.
+
+    Takes a `(concept, distance)` pair rather than a model instance, because the distance is not a
+    property of the concept — it is how far this concept is from whatever the reader is looking at,
+    and the same concept is one hop from one exercise and three from another.
+
+    `title` resolves through `_resolved_head`, so a rung is named exactly what the concept's own page
+    would call it for this reader — the whole value of the line is that it reads as sentences in the
+    reader's own language and band, not as a row of slugs.
+    """
+
+    slug = serializers.SerializerMethodField()
+    title = serializers.SerializerMethodField()
+    distance = serializers.SerializerMethodField()
+
+    def get_slug(self, obj) -> str:
+        return obj[0].slug
+
+    def get_title(self, obj) -> str:
+        head = _resolved_head(obj[0], self.context)
+        return head.title if head is not None else obj[0].slug
+
+    def get_distance(self, obj) -> int:
+        return obj[1]
+
+
+class ConceptExerciseRowSerializer(serializers.Serializer):
+    """`{id, title}` for one exercise linked to a concept — the input to "make a deck from this".
+
+    Deliberately not the list or detail shape of an exercise: the only caller needs an id to send to
+    `POST /api/decks/` and a title to show in the confirmation, and serializing the whole exercise
+    would make a button's enabled/disabled state cost the same as a browse page.
+    """
+
+    id = serializers.IntegerField()
+    title = serializers.SerializerMethodField()
+
+    def get_title(self, obj) -> str:
+        return _target_title(obj, self.context)
 
 
 # --- reading: the concept itself --------------------------------------------------------------------

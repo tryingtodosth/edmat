@@ -2211,6 +2211,7 @@ import type {
 	ConceptAssetKind,
 	ConceptBacklink,
 	ConceptBlock,
+	ConceptExerciseRef,
 	ConceptLink,
 	ConceptLinkBlockReason,
 	ConceptLinkOrigin,
@@ -2219,6 +2220,7 @@ import type {
 	ConceptOpenRevision,
 	ConceptPage,
 	ConceptPageRef,
+	ConceptPrerequisite,
 	ConceptQueueRow,
 	ConceptRelation,
 	ConceptRevision,
@@ -2856,4 +2858,31 @@ export function mapCoopOverview(json: RawCoopOverview): CoopOverview {
 		stats: mapCoopStats(json.stats),
 		timeline: (json.timeline ?? []).map(mapCoopTimelineEvent)
 	};
+}
+
+/* --- concepts: the prerequisite closure (backend `concepts/paths.py`) -------------------------- */
+
+export interface RawConceptPrerequisite {
+	slug: string;
+	title?: string;
+	distance?: number;
+}
+
+export function mapConceptPrerequisite(json: RawConceptPrerequisite): ConceptPrerequisite {
+	return {
+		slug: json.slug,
+		// The server resolves the title for this reader; the slug is the honest floor, and is what
+		// the backend itself falls back to for a concept whose article nobody can read yet.
+		title: json.title ?? '',
+		distance: json.distance ?? 1
+	};
+}
+
+export interface RawConceptExerciseRef {
+	id: number;
+	title?: string;
+}
+
+export function mapConceptExerciseRef(json: RawConceptExerciseRef): ConceptExerciseRef {
+	return { id: String(json.id), title: json.title ?? '' };
 }
