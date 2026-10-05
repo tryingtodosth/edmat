@@ -61,6 +61,9 @@ export interface CoursesShowcase extends ShowcaseDoc {
 function courseBase(): Omit<Course, 'title' | 'summary' | 'instructor' | 'language'> {
 	return {
 		id: '9100',
+		// `school` arrived with learning step C (a course a school runs is a class); the sample is a
+		// society's course, so none. Added at integration, 2026-10-05.
+		school: null,
 		description: '',
 		subjectSlugs: ['uw-mat-analiza-i'],
 		fieldSlug: 'uw-matematyka',

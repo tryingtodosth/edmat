@@ -155,6 +155,7 @@ const EN: EventsShowcase = {
 	runBy: ['Students’ Mathematical Society', 'Faculty of Mathematics, Informatics and Mechanics'],
 	relatedCourse: {
 		id: '9100',
+		school: null, // learning step C's field; added at integration, 2026-10-05
 		instructor: { id: '501', displayName: 'Dr Anna Lewandowska' },
 		title: 'Analysis I, spring group',
 		summary:
@@ -319,6 +320,7 @@ const PL: EventsShowcase = {
 	runBy: ['Koło Naukowe Matematyków', 'Wydział Matematyki, Informatyki i Mechaniki'],
 	relatedCourse: {
 		id: '9100',
+		school: null, // learning step C's field; added at integration, 2026-10-05
 		instructor: { id: '501', displayName: 'dr Anna Lewandowska' },
 		title: 'Analiza I, grupa wiosenna',
 		summary:
