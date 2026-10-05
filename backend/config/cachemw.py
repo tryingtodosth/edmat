@@ -84,6 +84,10 @@ EXCLUDE = (
     re.compile(r'/random/'),
     re.compile(r'/bulk/'),
     re.compile(r'/stream/'),
+    # `GET /api/events/{id}/related-courses/` (events/related.py, learning step E) answers `[]`
+    # while the `organizations` switch is off — the `/api/concept-links/` reasoning above: a cached
+    # body would serve the switch's previous answer for a minute. Excluded at integration, 2026-10-05.
+    re.compile(r'^/api/events/\d+/related-courses/$'),
 )
 
 
