@@ -4,6 +4,11 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { createCourse } from '$lib/services/course';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): somebody can still reach this address by typing it or
+	// following an old link, so the page says WHY rather than showing a form the server would
+	// refuse — the `REFUSAL[reason]()` idiom, in a component because eight surfaces need it.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import type { TaughtCourseDraft } from '$lib/types/course';
 	import CourseForm from '$lib/components/course/CourseForm.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -37,6 +42,10 @@
 	{:else if !authStore.isAuthenticated}
 		<p data-session-hidden class="status">{m.course_refusal_signIn()}</p>
 		<a href={resolve('/login')}>{m.nav_login()}</a>
+	{:else if creationStore.reasonFor('course') !== null}
+		<CreationGateNote kind="course" />
+	{:else if !creationStore.allows('course')}
+		<p class="status">{m.common_loading()}</p>
 	{:else}
 		<p class="lead">{m.course_newLead()}</p>
 		<CourseForm submitLabel={m.course_create()} {submitting} {error} onsubmit={submit} />

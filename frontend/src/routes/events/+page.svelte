@@ -7,6 +7,10 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getEvents } from '$lib/services/events';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): hosting an event is one of the four founding acts
+	// `config/creation.py` governs.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import type { EdmatEvent } from '$lib/types/event';
 	import EventCard from '$lib/components/event/EventCard.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
@@ -85,10 +89,12 @@
 				<HiddenLanguagesNotice path="/events/" />
 				<p class="lead">{m.events_browseLead()}</p>
 			</div>
-			{#if authStore.isAuthenticated}
+			{#if authStore.isAuthenticated && creationStore.allows('event')}
 				<a class="primary" href={resolve('/events/new')}>{m.events_hostAnEvent()}</a>
 			{/if}
 		</header>
+
+		<CreationGateNote kind="event" />
 
 		<!-- Plain buttons rather than tabs: these four are filters over one list, and the homepage's
 		     own tablist is a genuinely different thing (five separate kinds of content). Calling both

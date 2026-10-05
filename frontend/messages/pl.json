@@ -3709,5 +3709,14 @@
 	"paths_deck_working": "Tworzę talię…",
 	"paths_deck_made": "Talia gotowa: {name}",
 	"paths_deck_failed": "Nie udało się utworzyć talii.",
-	"paths_deck_name": "Fiszki: {title}"
+	"paths_deck_name": "Fiszki: {title}",
+	"gate_reason_anonymous": "Zaloguj się, aby coś tu założyć.",
+	"gate_reason_minor": "Aby coś tu założyć, trzeba mieć ukończone 16 lat.",
+	"gate_reason_verificationRequired": "Dopóki nie ma logowania uniwersyteckiego, zakładać nowe rzeczy mogą zweryfikowani współtwórcy. Napisz do moderatora.",
+	"gate_hub_course": "Dopóki nie ma logowania uniwersyteckiego, nowe kursy zakładają zweryfikowani współtwórcy. Napisz do moderatora.",
+	"gate_hub_event": "Dopóki nie ma logowania uniwersyteckiego, nowe wydarzenia organizują zweryfikowani współtwórcy. Napisz do moderatora.",
+	"gate_hub_service": "Dopóki nie ma logowania uniwersyteckiego, nowe ogłoszenia o korepetycjach dodają zweryfikowani współtwórcy. Napisz do moderatora.",
+	"gate_hub_organization": "Dopóki nie ma logowania uniwersyteckiego, nowe organizacje zakładają zweryfikowani współtwórcy. Napisz do moderatora.",
+	"gate_whatIsVerified": "Kim jest zweryfikowany współtwórca",
+	"gate_askAboutVerification": "Zapytaj o weryfikację"
 }

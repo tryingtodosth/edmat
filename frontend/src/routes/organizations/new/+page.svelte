@@ -13,6 +13,11 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): somebody can still reach this address by typing it or
+	// following an old link, so the page says WHY rather than showing a form the server would
+	// refuse — the `REFUSAL[reason]()` idiom, in a component because eight surfaces need it.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import { createOrganization, OrganizationRefusedError } from '$lib/services/organizations';
 	import type { OrganizationKind } from '$lib/types/organization';
 	import { ORGANIZATION_KIND_LABELS, organizationBlockLabel } from '$lib/utils/labels';
@@ -77,6 +82,10 @@
 		{#if !authStore.isAuthenticated}
 			<p class="status">{m.orgs_signInToCreate()}</p>
 			<!-- "Sign in to found an organisation." -->
+		{:else if creationStore.reasonFor('organization') !== null}
+			<CreationGateNote kind="organization" />
+		{:else if !creationStore.allows('organization')}
+			<p class="status">{m.common_loading()}</p>
 		{:else}
 			<form class="edit-form" onsubmit={submit}>
 				<label class="field">

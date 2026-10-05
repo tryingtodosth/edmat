@@ -11618,3 +11618,121 @@ read back three ways — **30 checks, 0 failures, 0 console errors**. Screenshot
 - **KaTeX fonts 403 on the dev server in a worktree**, because `node_modules` is a symlink to the
   main checkout and therefore outside Vite's `fs.allow` root. A build is unaffected; the e2e
   forgives them by name.
+
+## 17BR.F. The creation gate: founding is for verified contributors until USOS (2026-10-05)
+
+Learning cycle, step F (`prompts/07-creation-gate.md`, design `prompts/00-DESIGN.md` §2 row
+"creation → verification"). Branch `learn/f-gate` from the prep commit `f90e221`.
+
+**The problem.** Until the USOS connection exists (`LAUNCHCHECKLIST.md` §3a — an OAuth 1.0a client
+and a consumer key from the university, neither of which engineering can unblock alone), this site
+has no way to tell a real person from a fresh account. Reading, joining, enrolling, attending and
+booking are all reversible and already moderated. **Founding** is not: a course, an event, a
+tutoring listing and an organisation each put a name in front of strangers, carry a roster, and
+invite other people to turn up somewhere.
+
+So those four create paths — and nothing else — now ask one rule module, and the owner's decision
+(00-DESIGN.md §4.6) is that it refuses anybody who is not staff and not a verified contributor.
+
+### `config/creation.py` — one module, four answers, and the order is the design
+
+The prep commit shipped the shape and wired it into the four views and `GET /api/creation/`; this
+step wrote the body. `creation_block_reason(user, kind)` answers, in this order:
+
+1. **`anonymous`** — the only useful thing to say to somebody with no account, and every answer
+   below it needs a profile to read. In practice all four viewsets are `IsAuthenticatedOrReadOnly`,
+   so an anonymous POST is a 401 before this module is reached; the word exists for
+   `GET /api/creation/`, which is `AllowAny` so a signed-out header draws the same menu logic.
+2. **staff pass** — `feature_gate`'s own `is_staff` bypass, for its own reason: a moderator has to
+   be able to found something in order to see what the restriction does before deciding to flip it.
+3. **`minor`** — the older, narrower rule, which answers to no flag at all.
+4. **`verification_required`** — last, because it is the only one a moderator can turn off and the
+   only one USOS will retire.
+
+`creation_requires_verification` is **inverted** (`is_enabled=True` means the restriction is on)
+and is read with plain `is_feature_enabled`, not `feature_gate` — it removes a *rule* from four
+endpoints everybody must still reach, which is the shape `age_verification` already has on
+registration and `material_uploads_verified_only` on a material version. It fails OPEN, which for
+an inverted flag means the restriction HOLDS when the row is missing: the safe direction for an
+anti-abuse gate, and a test pins it. `Profile.is_verified_contributor` is the only signal;
+`identity/standing.py: ceiling_for` is a different axis and is deliberately not imported here
+(standing is a ceiling, never authority).
+
+**One deliberate widening, named rather than slipped in.** `courses` had no minors check at all —
+`events`, `services` and `organizations` each did. Because the rule module answers `minor` for every
+kind, founding a course is now closed to an under-16 the way hosting an event and listing tutoring
+already were. That is a product decision and it is one line to delete if the owner wants it back.
+
+### The frontend: three states, not two
+
+`GET /api/creation/` is asked once per signed-in session by `Header.svelte`, which is mounted for
+the whole app, so every page — including a `…/new` page opened directly — reads one answer without
+asking again. `lib/state/creation.svelte.ts` keeps **three** states on purpose: allowed, refused
+because X, and not-told-yet. Collapsing the third into either of the other two produces a lie on
+screen — a "Run a course" button that answers 403 when pressed, or the sentence "new courses are
+started by verified contributors" shown to a verified contributor for as long as the request takes.
+So before the answer arrives the hub draws neither the button nor the sentence. A signed-OUT reader
+is the one exception (`allows()` is true for them): the refusal they would meet is `anonymous`, and
+the four `…/new` pages already answer that with a sign-in prompt, which is a better destination than
+a missing menu entry.
+
+Surfaces, all of them because house rule 3 is about links rather than pages: the Add… menu's "New
+event" and "New listing" (and `hasAnythingToAdd`, so the trigger itself goes when nothing is left),
+the four hubs, the four `…/new` pages, and two more found by grep rather than named in the brief —
+`/courses/mine`'s own "Run a course" and `CourseContribute`'s "create an event instead". One
+component, `CreationGateNote.svelte`, draws the sentence at all eight; it renders nothing unless
+there is a real refusal to explain, which is what lets the hubs drop their `isAuthenticated`
+wrappers.
+
+### What this cost the existing suites, and why that is in this section
+
+Six suites founded things through the API as ordinary accounts and started answering 403. Each one
+now makes its fixture a verified contributor with a comment pointing at `config/creation.py`
+(`courses/tests.py`, `events/tests.py`, `services/tests.py`, `services/test_location.py`,
+`organizations/tests.py`, one test in `exercises/test_sorting_locale.py`), and
+`events/test_permission_matrix.py` has two rows whose answer genuinely changed — `stranger POST
+/events/` and `attendee POST /organizations/` go from `201` to `(403, 'verification_required')`.
+Writing that down matters more than the edits do: if a seventh suite starts failing with that word,
+it is this rule and not a regression in the app under test.
+
+### Verified
+
+`manage.py test config courses events services organizations exercises --keepdb` — **907 tests, OK**.
+The first run, before the test edits above, was `config courses events services organizations` →
+783 tests, 8 failures and 2 errors, and every single one of the ten was the gate meeting a suite
+that founded something through the API; `config services events.test_permission_matrix` went 139
+tests OK once they were fixed. `manage.py check` clean, `makemigrations --check --dry-run` → "No
+changes detected".
+`npm run check` 0 errors / 0 warnings, `npx eslint src e2e/creation-gate.mjs` clean, `npm run build`
+green, message key sets identical at 3665 each.
+
+`frontend/e2e/creation-gate.mjs` against real servers on 8136/5236: **57 checks, 0 failures, no
+console errors**, run four times — the last against a database whose telemetry log shards had
+finally been migrated, because the cycle's worktree recipe copies `db.sqlite3` but not
+`backend/logdata/*`, so until then every `AuditEvent` write answered 500 *after* creating its row.
+The checks: the endpoint's four callers; ola (ordinary) losing both Add… entries, all four
+hub controls and the `/courses/new` form while getting a sentence and a `/levels` link in their
+place; kasia (staff) keeping everything with no sentence anywhere; the flag flipped off through the
+real API giving ola every control back; and, with the two submission switches off as well, the Add…
+trigger itself disappearing. Screenshots looked at, and one change came out of looking: the
+organisations hub drew the refusal above its own introduction, so the reader met "you may not" before
+"what this is".
+
+### Left open
+
+- **The "request verification" button is a link to `/issues`**, not a flow. There is no "ask to be
+  verified" object, so the sentence points at the issue reporter, which is what somebody would use
+  today anyway. Named in the brief as left open; it stays left open.
+- **No per-kind flag and no grace list.** One switch governs all four kinds. `creation_status`
+  deliberately asks the rule per kind rather than fanning one answer out, so the first per-kind rule
+  is a change in one module and not a second implementation in the menu.
+- **`course_browseEmpty` still says "You could be the first."** on a hub whose create button the
+  gate has just removed. The sentence directly above it explains why, but the copy is now slightly
+  wrong for a refused reader and the key belongs to `courses`.
+- **`hasAnythingToAdd` does not count `canPosts`** — pre-existing, not introduced here: with only
+  the `posts` switch on, the Add… trigger disappears while "Write a post" would still be inside it.
+  Left alone because fixing it is a behaviour change outside this step's scope.
+- **The gate is not shown on `/users/[id]`, `/settings` or anywhere else that merely MENTIONS
+  founding.** Only the eight surfaces that offer it carry the sentence.
+- **Nothing tells a verified contributor that they are one.** `/levels` explains the idea; the
+  profile has no badge for it.

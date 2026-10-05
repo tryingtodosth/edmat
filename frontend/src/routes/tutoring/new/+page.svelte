@@ -5,6 +5,11 @@
 	import type { Branch, ServiceDraft } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): somebody can still reach this address by typing it or
+	// following an old link, so the page says WHY rather than showing a form the server would
+	// refuse — the `REFUSAL[reason]()` idiom, in a component because eight surfaces need it.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import { getAllBranches } from '$lib/services/taxonomy';
 	import { createService } from '$lib/services/tutoring';
 	import ServiceForm from '$lib/components/service/ServiceForm.svelte';
@@ -40,6 +45,10 @@
 			<p data-session-hidden class="login-prompt">
 				<a href={resolve('/login')}>{m.services_loginRequired()}</a>
 			</p>
+		{:else if creationStore.reasonFor('service') !== null}
+			<CreationGateNote kind="service" />
+		{:else if !creationStore.allows('service')}
+			<p class="subtitle">{m.common_loading()}</p>
 		{:else}
 			<ServiceForm {branches} onSubmit={handleSubmit} />
 		{/if}

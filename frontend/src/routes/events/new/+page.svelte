@@ -4,6 +4,11 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { createEvent } from '$lib/services/events';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): somebody can still reach this address by typing it or
+	// following an old link, so the page says WHY rather than showing a form the server would
+	// refuse — the `REFUSAL[reason]()` idiom, in a component because eight surfaces need it.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import type { EventDraft } from '$lib/types/event';
 	import EventForm from '$lib/components/event/EventForm.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
@@ -38,6 +43,10 @@
 		{:else if !authStore.isAuthenticated}
 			<p data-session-hidden class="status">{m.events_block_sign_in()}</p>
 			<a href={resolve('/login')}>{m.nav_login()}</a>
+		{:else if creationStore.reasonFor('event') !== null}
+			<CreationGateNote kind="event" />
+		{:else if !creationStore.allows('event')}
+			<p class="status">{m.common_loading()}</p>
 		{:else}
 			<p class="lead">{m.events_newLead()}</p>
 			<EventForm submitLabel={m.events_create()} {submitting} {error} onsubmit={submit} />

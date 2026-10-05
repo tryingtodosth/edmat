@@ -22,6 +22,12 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): a tutoring listing is one of the four founding acts
+	// `config/creation.py` governs. The control here opens a dialog rather than navigating, which
+	// is exactly why it has to be gated here too — the server's refusal would otherwise arrive
+	// only after somebody had filled the whole form in.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import { getAllBranches } from '$lib/services/taxonomy';
 	import {
 		createService,
@@ -259,12 +265,16 @@
 					<a class="watchlist-link" href={localizedPath(resolve('/tutoring/watchlist'))}>
 						{m.nav_watchlist()}
 					</a>
-					<button type="button" class="new-listing" onclick={() => (creating = true)}>
-						{m.services_newListing()}
-					</button>
+					{#if creationStore.allows('service')}
+						<button type="button" class="new-listing" onclick={() => (creating = true)}>
+							{m.services_newListing()}
+						</button>
+					{/if}
 				</div>
 			{/if}
 		</div>
+
+		<CreationGateNote kind="service" />
 
 		{#if authStore.isAuthenticated}
 			<div class="tabs" role="tablist">

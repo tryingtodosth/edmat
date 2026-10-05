@@ -1886,3 +1886,51 @@ that records an `AuditEvent` (adding or removing a link) answers 500 *after* cre
 `for a in logs_0 … logs_anon; do manage.py migrate --database=$a; done`. And `node_modules` in a
 worktree is a symlink outside Vite's `fs.allow` root, so every KaTeX font 403s on the dev server
 only.
+
+## 2026-10-05 — the creation gate (learning step F, `HISTORY.md` §17BR.F)
+
+**`backend/config/test_creation.py`** (new, three classes). `CreationGateTableTests` walks the rule
+itself with no HTTP in the way: five callers (anonymous as both `AnonymousUser` and a bare `None`,
+minor, ordinary, verified contributor, staff) × the flag on and off × **all four kinds every time**,
+because the rule is kind-independent today and the table should be what fails the day it stops
+being. It also pins the two things that are easy to get wrong — a MISSING flag row keeps the
+restriction on (`is_feature_enabled` fails open, and this flag is inverted), and
+`Profile.is_verified_contributor` is the only signal. `CreationGateRequestTests` proves the word
+arrives: `403 {"detail": "verification_required"}` at `POST /api/courses/`, `/api/events/`,
+`/api/services/` and `/api/organizations/`, each paired with the 201 the flag turned off restores,
+plus staff founding all four, a minor hearing `minor` at all four, an anonymous create still being
+a 401 rather than this refusal, and reading/joining/enrolling untouched.
+`CreationStatusEndpointTests` does the same for `GET /api/creation/`, which has to agree with the
+four create paths or the Add… menu offers a button the server refuses. Run it with
+`manage.py test config` (it needs `databases` for the log shards, like `config/test_nodes.py`).
+
+**Six existing suites moved, and this is the paragraph to read if one of them fails.** The gate is
+seeded ON, so every fixture that founded a course, an event, a listing or an organisation through
+the API started answering 403. `courses/tests.py`, `events/tests.py`, `services/tests.py`,
+`services/test_location.py`, `organizations/tests.py` and one test in
+`exercises/test_sorting_locale.py` now make their acting user a verified contributor, each with a
+comment naming `config/creation.py`; and `events/test_permission_matrix.py` carries two rows whose
+answer genuinely changed — `stranger POST /events/` and `attendee POST /organizations/` are now
+`(403, 'verification_required')`. **A suite failing with that word is this rule, not a regression in
+the app under test** — give its fixture `is_verified_contributor=True` (or flip the flag off in
+`setUp`) and say which you did.
+
+**`frontend/e2e/creation-gate.mjs`** (new). Six sections, 57 checks: the endpoint for four callers
+(signed out, ola, michal, kasia — the demo seed already has an ordinary account, a verified one and
+staff); ola losing both Add… entries, all four hub create controls and the `/courses/new` form while
+getting a sentence and a `/levels` link in their place; kasia keeping everything with no sentence
+anywhere; the flag flipped off through the real API giving ola every control back; the Add… trigger
+itself disappearing once the two submission switches are off as well; and a final section asserting
+every switch it touched is back where it was. Absence is only ever asserted after something positive
+has landed on the same page (trap 8). Run it with `rm -rf backend/cachedata/*` first:
+
+```
+E2E_BASE=http://localhost:5236 E2E_API=http://127.0.0.1:8136/api node e2e/creation-gate.mjs
+```
+
+Screenshots land in `e2e/screens/gate-*.png`. **Looking at them changed the code once**: the
+organisations hub drew the refusal above its own introduction, so a reader met "you may not" before
+"what this is". The script also re-learned trap 25 the hard way — filling and submitting the login
+form before hydration performs a NATIVE form submission and lands on `/login?` with the fields
+cleared, which reads exactly like a broken page; `signedIn()` now waits for the layout's own boot
+request and retries the submit rather than believing the first attempt.

@@ -6,6 +6,10 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getMyParticipation, getMyTeaching } from '$lib/services/course';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): the same "Run a course" button the hub carries, so the
+	// same rule — house rule 3 is about every LINK to a surface, not the main one.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import type { Course } from '$lib/types/course';
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -36,10 +40,12 @@
 <div class="page">
 	<header class="head">
 		<h1>{m.course_myCourses()}</h1>
-		{#if authStore.isAuthenticated}
+		{#if authStore.isAuthenticated && creationStore.allows('course')}
 			<a class="primary" href={resolve('/courses/new')}>{m.course_runACourse()}</a>
 		{/if}
 	</header>
+
+	<CreationGateNote kind="course" />
 
 	{#if authStore.restoring}
 		<p class="session-restoring">{m.common_loading()}</p>

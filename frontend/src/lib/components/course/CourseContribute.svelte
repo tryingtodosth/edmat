@@ -18,6 +18,7 @@
 	// upload a new one right in this form via the same `uploadAttachment` the Files tab already uses.
 	import { untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
+	import { creationStore } from '$lib/state/creation.svelte'; // learning step F
 	import { resolve } from '$app/paths';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import type { Attachment, Course, CourseItemKind } from '$lib/types/course';
@@ -311,10 +312,16 @@
 					{/if}
 				{/if}
 			</label>
-			<p class="add-panel__hint">
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built by a $derived that calls resolve() itself; the rule only sees the attribute -->
-				<a href={createHref}>{createLabel}</a>
-			</p>
+			{#if kind !== 'event' || creationStore.allows('event')}
+				<!-- The creation gate (learning step F): "create an event instead" leads to a form
+				     `POST /api/events/` would refuse for an account that may not host one, so the
+				     offer goes with the ability (house rule 3). The material and exercise branches
+				     are untouched — submitting is not founding. -->
+				<p class="add-panel__hint">
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built by a $derived that calls resolve() itself; the rule only sees the attribute -->
+					<a href={createHref}>{createLabel}</a>
+				</p>
+			{/if}
 		{/if}
 
 		{#if course.canCurate && course.chapters.length > 0}

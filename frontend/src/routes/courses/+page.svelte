@@ -6,6 +6,11 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { getCourses } from '$lib/services/course';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): "Run a course" is one of the four founding acts
+	// `config/creation.py` governs, so the button is drawn only when the server says this account
+	// may use it — and the sentence saying why it is missing is drawn when it may not.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import type { Course } from '$lib/types/course';
 	import CourseCard from '$lib/components/course/CourseCard.svelte';
 	import NewSinceNotice from '$lib/components/shared/NewSinceNotice.svelte';
@@ -79,10 +84,14 @@
 		{#if authStore.isAuthenticated}
 			<div class="actions">
 				<a class="secondary" href={resolve('/courses/mine')}>{m.course_myCourses()}</a>
-				<a class="primary" href={resolve('/courses/new')}>{m.course_runACourse()}</a>
+				{#if creationStore.allows('course')}
+					<a class="primary" href={resolve('/courses/new')}>{m.course_runACourse()}</a>
+				{/if}
 			</div>
 		{/if}
 	</header>
+
+	<CreationGateNote kind="course" />
 
 	<label class="filter">
 		<input type="checkbox" bind:checked={openOnly} />
@@ -97,7 +106,9 @@
 		<div class="empty">
 			<p class="status">{m.course_browseEmpty()}</p>
 			{#if authStore.isAuthenticated}
-				<a class="primary" href={resolve('/courses/new')}>{m.course_runACourse()}</a>
+				{#if creationStore.allows('course')}
+					<a class="primary" href={resolve('/courses/new')}>{m.course_runACourse()}</a>
+				{/if}
 			{:else}
 				<a class="primary" href={resolve('/register')}>{m.courses_emptySignUpCta()}</a>
 			{/if}

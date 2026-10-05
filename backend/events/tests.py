@@ -52,6 +52,14 @@ class ApiTestCase(TestCase):
         self.host = User.objects.create_user('kasia', 'kasia@x.example', 'pw12345!')
         self.goer = User.objects.create_user('michal', 'michal@x.example', 'pw12345!')
         self.other = User.objects.create_user('ola', 'ola@x.example', 'pw12345!')
+        # The creation gate (`config/creation.py`, learning step F) is seeded ON, so hosting an
+        # event through `POST /api/events/` is for staff and verified contributors until the USOS
+        # connection lands. Nothing in THIS suite is about that rule — `config/test_creation.py`
+        # owns it, including the refusal at this exact endpoint — so the fixtures that host an
+        # event here are verified contributors and the suite goes on asking its own questions.
+        for user in (self.host, self.goer, self.other):
+            user.profile.is_verified_contributor = True
+            user.profile.save(update_fields=['is_verified_contributor'])
         self.discipline = Discipline.objects.create(slug='matematyka')
         self.subject = Branch.objects.create(slug='analiza-2', discipline=self.discipline)
         self.client = APIClient()

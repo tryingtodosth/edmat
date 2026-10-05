@@ -19,7 +19,11 @@ from testing.factories import make_course, make_user
 class ServiceCreationTests(APITestCase):
     def setUp(self):
         self.branch = make_course(slug='uw-services-am2')
-        self.provider = make_user('provider-one')
+        # The creation gate (`config/creation.py`, learning step F) is seeded ON, so a new
+        # listing is for staff and verified contributors until the USOS connection lands.
+        # `config/test_creation.py` owns that rule, including the refusal at this exact
+        # endpoint; this suite is about the listing itself, so its provider is verified.
+        self.provider = make_user('provider-one', is_verified_contributor=True)
 
     def test_authenticated_user_can_create_a_course_scoped_listing(self):
         self.client.force_authenticate(self.provider)
@@ -586,7 +590,11 @@ class ServiceDescriptionSanitizeTests(APITestCase):
 
     def setUp(self):
         self.branch = make_course(slug='uw-services-sanitize')
-        self.provider = make_user('provider-sanitize')
+        # The creation gate (`config/creation.py`, learning step F) is seeded ON, so a new
+        # listing is for staff and verified contributors until the USOS connection lands.
+        # `config/test_creation.py` owns that rule, including the refusal at this exact
+        # endpoint; this suite is about the listing itself, so its provider is verified.
+        self.provider = make_user('provider-sanitize', is_verified_contributor=True)
         self.client.force_authenticate(self.provider)
 
     def _create(self, description):

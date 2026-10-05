@@ -789,7 +789,12 @@ MATRIX = [
 
     ('anonymous', 'POST', '/events/', _NEW_EVENT, 401, 'a write needs a sign-in'),
     ('child', 'POST', '/events/', _NEW_EVENT, 403, 'a minor may not host (accounts/minors.py)'),
-    ('stranger', 'POST', '/events/', _NEW_EVENT, 201, 'anybody of age may run something'),
+    # Was `201, 'anybody of age may run something'` until the creation gate landed (learning step
+    # F, `config/creation.py`): until the USOS connection exists, hosting is for staff and verified
+    # contributors, and none of this file's personas is either. The 201 for an account that MAY
+    # host is covered in `config/test_creation.py`, which also owns the flag's two directions.
+    ('stranger', 'POST', '/events/', _NEW_EVENT, (403, 'verification_required'),
+     'founding is gated until USOS (config/creation.py) — the minor rule above still wins for a child'),
 
     ('anonymous', 'GET', '/events/{event}/ics/', None, 200, 'the calendar is as public as the page'),
 
@@ -1389,7 +1394,9 @@ MATRIX = [
     ('anonymous', 'POST', '/organizations/', _NEW_ORGANIZATION, 401, 'a write needs a sign-in'),
     ('child', 'POST', '/organizations/', _NEW_ORGANIZATION, (403, 'minor'),
      'founding one means being the person a stranger writes to about it'),
-    ('attendee', 'POST', '/organizations/', _NEW_ORGANIZATION, 201, 'any adult may found one'),
+    # Was `201, 'any adult may found one'` — same change, same reason as `POST /events/` above.
+    ('attendee', 'POST', '/organizations/', _NEW_ORGANIZATION, (403, 'verification_required'),
+     'founding is gated until USOS (config/creation.py)'),
     ('anonymous', 'PATCH', '/organizations/{org}/', {'city': 'Warszawa'}, 401, 'a write needs a sign-in'),
     ('stranger', 'PATCH', '/organizations/{org}/', {'city': 'Warszawa'}, (403, 'not_org_manager'),
      'the page is visible, so 403 rather than 404 — a real thing, wrong party'),

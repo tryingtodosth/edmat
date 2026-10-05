@@ -47,6 +47,7 @@
 	import { venueStaffStore } from '$lib/state/venueStaff.svelte'; // conference step A
 	import { saveTargetsStore } from '$lib/state/saveTargets.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import { creationStore } from '$lib/state/creation.svelte'; // learning step F
 	import { issueReportStore } from '$lib/state/issueReport.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 	import Popover from '$lib/components/shared/Popover.svelte';
@@ -109,6 +110,19 @@
 	// F the creation gate — F reads `GET /api/creation/`, not a flag). Nothing else in this block
 	// is touched by a step.
 
+	// Step F, the creation gate (prompts/07-creation-gate.md). NOT a flag read: the flag
+	// (`creation_requires_verification`) is read server-side, because the answer also depends on
+	// `Profile.is_verified_contributor` and on being 16, and a client that assembled the rule from
+	// three pieces would be a second implementation of it — the one thing `config/creation.py`
+	// exists to prevent. So the header asks the server, once, and these two lines AND the server's
+	// own four create paths are then saying the same thing by construction.
+	//
+	// Each `can…` below keeps the switch it always had: a kill switch and the creation gate are
+	// different questions ("does this feature exist here?" and "may you found one?"), and either
+	// one alone must still take the entry away.
+	let canCreateEvent = $derived(canEvents && !isMinor && creationStore.allows('event'));
+	let canCreateService = $derived(canTutoring && creationStore.allows('service'));
+
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
 	// The waiting-decisions count, loaded whenever a moderator's navigation is drawn. An effect
@@ -125,18 +139,32 @@
 		venueStaffStore.ensureLoaded(canVenues ? (authStore.user?.id ?? null) : null);
 	});
 
+	// The creation gate's one request (learning step F). Same shape and the same reason as the two
+	// above: signing in later in the same session never re-runs `onMount`. `null` is passed while
+	// signed out, which is what tells the store it is a visitor rather than an account it has not
+	// asked about yet — the two are different answers (lib/state/creation.svelte.ts).
+	$effect(() => {
+		creationStore.ensureLoaded(authStore.user?.id ?? null);
+	});
+
 	// One flag per entry the Add… menu can still carry, so the trigger disappears when it would
 	// open on nothing. `canOrganizations` left this list on 2026-10-01 with "New organisation"
 	// itself, and `canConcepts` with "New concept": a flag that governs no entry must not keep the
 	// menu alive, or somebody with only that switch on opens an empty popover.
+	// Learning step F: the two create entries are counted through their GATED flags, not their raw
+	// ones, so an account the server would refuse at both does not open a popover holding nothing
+	// it may use. `canSubmitExercise`/`canSubmitMaterial` are untouched — submitting an exercise or
+	// a material is not founding anything and the gate says nothing about them.
 	let hasAnythingToAdd = $derived(
-		canSubmitExercise || canSubmitMaterial || canTutoring || canEvents || runsAVenue
+		canSubmitExercise || canSubmitMaterial || canCreateService || canCreateEvent || runsAVenue
 	);
 
 	function logout() {
 		authStore.logout();
 		notificationStore.clear();
 		messagesStore.clear();
+		// Learning step F: whose turn it is to be refused changes with who is signed in.
+		creationStore.clear();
 		// The save menu's cached sets and courses belong to whoever was signed in. `saveTargets`
 		// keys its cache by owner and so would refetch anyway, but leaving one person's set names
 		// in memory after they sign out is not something to rely on a later check to undo.
@@ -401,12 +429,12 @@
 	     works, the `courses` flag is untouched, and the courses hub still carries its own create
 	     control. Running a course is something you set out to do, not something you reach for from
 	     whatever page you happen to be on. -->
-	{#if canEvents && !isMinor}
+	{#if canCreateEvent}
 		<a role="menuitem" class={itemClass} href={resolve('/events/new')} {onclick}>
 			{m.nav_add_event()}
 		</a>
 	{/if}
-	{#if canTutoring}
+	{#if canCreateService}
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. -->
 		<a role="menuitem" class={itemClass} href={localizedPath(resolve('/tutoring/new'))} {onclick}>
 			{m.nav_add_service()}

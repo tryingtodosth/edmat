@@ -170,6 +170,12 @@ class GeocodeApiTests(APITestCase):
 class ServiceDeliveryModeTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user('tutor', 'tutor@example.com', 'pw-for-test')
+        # The creation gate (`config/creation.py`, learning step F) is seeded ON, so a new listing
+        # is for staff and verified contributors until the USOS connection lands. These tests are
+        # about delivery mode and coordinates, not about who may post a listing — that rule has its
+        # own suite, `config/test_creation.py`, including the refusal at this exact endpoint.
+        self.user.profile.is_verified_contributor = True
+        self.user.profile.save(update_fields=['is_verified_contributor'])
         self.client.force_authenticate(self.user)
         self.url = '/api/services/'
 

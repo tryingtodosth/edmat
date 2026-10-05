@@ -56,7 +56,11 @@ def make_course(instructor, **kwargs):
 
 class FoundingTests(OrganizationTestCase):
     def setUp(self):
-        self.adult = make_user('ola')
+        # The creation gate (`config/creation.py`, learning step F) is seeded ON, so founding a
+        # body is for staff and verified contributors until the USOS connection lands.
+        # `config/test_creation.py` owns that rule, including the refusal at this exact
+        # endpoint; these tests are about founding itself, so the founder is verified.
+        self.adult = make_user('ola', is_verified_contributor=True)
 
     def test_an_anonymous_visitor_cannot_found_one(self):
         res = self.client.post('/api/organizations/', {'name': 'X'}, format='json')

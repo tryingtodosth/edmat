@@ -135,7 +135,9 @@ class ContentLocaleTests(APITestCase):
         self.assertEqual(self.client.patch('/api/auth/me/', {'content_locales': ['x']}, format='json').status_code, 400)
 
     def test_a_listing_and_a_post_carry_a_language(self):
-        user = make_user('loc-writer')
+        # Verified, because the creation gate (`config/creation.py`) is seeded ON and this test
+        # is about the `language` field on a listing, not about who may found one.
+        user = make_user('loc-writer', is_verified_contributor=True)
         self.client.force_authenticate(user)
         r = self.client.post(reverse('service-list'), {'title': 'Help', 'audience': 'adult', 'language': 'en'}, format='json')
         self.assertEqual(r.status_code, 201, r.content)

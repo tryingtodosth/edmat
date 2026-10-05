@@ -1037,3 +1037,44 @@ export function pollRefusalMessage(err: unknown, fallback: string): string {
 export function pollTurnout(ballots: number, eligible: number): string {
 	return m.polls_turnout({ ballots, eligible }); // "{ballots} of {eligible} voted"
 }
+
+// ---- the creation gate (learning step F) -------------------------------------------------------
+//
+// A hand-maintained mirror of the three refusal words `backend/config/creation.py:
+// creation_block_reason` answers with, plus one sentence per kind for the hub that no longer draws
+// its create button. House rule 13: `CREATION_KINDS` in that module names both this file and
+// `lib/types/creation.ts`, so neither half of the mirror is a surprise to the other.
+//
+// Two maps rather than one, because they answer two different questions. `GATE_REASON_LABELS` says
+// what is true of the PERSON ("you have to be 16") and is the same wherever it is drawn.
+// `GATE_HUB_SENTENCES` says what is true of the THING, in the words of the page it is on ("new
+// courses are started by verified contributors") — a reader on `/organizations` should not be told
+// about courses, and one generic sentence would have to be vague enough to be about neither.
+import type { CreationKind } from '$lib/types/creation';
+
+export const GATE_REASON_LABELS: Record<string, () => string> = {
+	anonymous: m.gate_reason_anonymous, // "Sign in to start something new here."
+	minor: m.gate_reason_minor, // "You have to be 16 or over to start something new here."
+	verification_required: m.gate_reason_verificationRequired // "Until the university sign-in exists, starting something new is for verified contributors. Ask a moderator."
+};
+
+/** A refusal word → its sentence. Falls back to the generic error line, the same way
+ *  `REFUSAL[...]?.() ?? m.common_error_generic()` already does on the course page: a word this
+ *  build has never heard of still gets something readable rather than a blank line. */
+export function gateReasonLabel(reason: string): string {
+	return (GATE_REASON_LABELS[reason] ?? m.common_error_generic)(); // "Something went wrong."
+}
+
+export const GATE_HUB_SENTENCES: Record<CreationKind, () => string> = {
+	course: m.gate_hub_course, // "Until the university sign-in exists, new courses are started by verified contributors. Ask a moderator."
+	event: m.gate_hub_event, // "Until the university sign-in exists, new events are hosted by verified contributors. Ask a moderator."
+	service: m.gate_hub_service, // "Until the university sign-in exists, new tutoring listings are posted by verified contributors. Ask a moderator."
+	organization: m.gate_hub_organization // "Until the university sign-in exists, new organisations are founded by verified contributors. Ask a moderator."
+};
+
+/** The sentence for one kind. The map above is typed `Record<CreationKind, …>`, so a fifth kind
+ *  added to the mirror in `lib/types/creation.ts` is a type error here rather than a blank line on
+ *  somebody's hub. */
+export function gateHubSentence(kind: CreationKind): string {
+	return GATE_HUB_SENTENCES[kind]();
+}

@@ -3709,5 +3709,14 @@
 	"paths_deck_working": "Making the deck…",
 	"paths_deck_made": "Deck made: {name}",
 	"paths_deck_failed": "The deck could not be made.",
-	"paths_deck_name": "Flashcards: {title}"
+	"paths_deck_name": "Flashcards: {title}",
+	"gate_reason_anonymous": "Sign in to start something new here.",
+	"gate_reason_minor": "You have to be 16 or over to start something new here.",
+	"gate_reason_verificationRequired": "Until the university sign-in exists, starting something new is for verified contributors. Ask a moderator.",
+	"gate_hub_course": "Until the university sign-in exists, new courses are started by verified contributors. Ask a moderator.",
+	"gate_hub_event": "Until the university sign-in exists, new events are hosted by verified contributors. Ask a moderator.",
+	"gate_hub_service": "Until the university sign-in exists, new tutoring listings are posted by verified contributors. Ask a moderator.",
+	"gate_hub_organization": "Until the university sign-in exists, new organisations are founded by verified contributors. Ask a moderator.",
+	"gate_whatIsVerified": "What a verified contributor is",
+	"gate_askAboutVerification": "Ask about verification"
 }

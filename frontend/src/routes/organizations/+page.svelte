@@ -16,6 +16,10 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
+	// The creation gate (learning step F): founding a body is one of the four founding acts
+	// `config/creation.py` governs.
+	import { creationStore } from '$lib/state/creation.svelte';
+	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
 	import { getOrganizations } from '$lib/services/organizations';
 	import type { OrganizationKind, OrganizationSummary } from '$lib/types/organization';
 	import { ORGANIZATION_KIND_LABELS } from '$lib/utils/labels';
@@ -73,7 +77,7 @@
 		<header class="head">
 			<h1>{m.orgs_browseTitle()}</h1>
 			<!-- "Organisations" -->
-			{#if authStore.isAuthenticated}
+			{#if authStore.isAuthenticated && creationStore.allows('organization')}
 				<a class="new" href={resolve('/organizations/new')}>
 					{m.orgs_newTitle()}
 					<!-- "New organisation" -->
@@ -82,6 +86,9 @@
 		</header>
 		<p class="intro">{m.orgs_browseIntro()}</p>
 		<!-- "Bodies that stand behind what happens here — faculties, schools, student circles and the rest." -->
+		<!-- Below the page's own introduction, not above it: looking at the screenshot, the refusal
+		     was arriving before the reader had been told what organisations are. -->
+		<CreationGateNote kind="organization" />
 
 		<div class="tabs" role="tablist">
 			<button
