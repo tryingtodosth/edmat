@@ -21,6 +21,9 @@ import type {
 	Enrollment,
 	EnrollmentStatus,
 	InvitePreview,
+	CompletionBlockReason,
+	CourseCompletion,
+	CourseSchool,
 	Lesson,
 	LessonDraft,
 	LessonExerciseSet,
@@ -59,6 +62,9 @@ function mapLesson(raw: any): Lesson {
 export function mapLessonProgress(raw: any): LessonProgress {
 	return {
 		mode: raw?.mode ?? 'off',
+		// Defaults false, like every other permission-shaped field here: a response that did not say
+		// must not be read as "you are allowed more than the mode says".
+		schoolMode: raw?.school_mode ?? false,
 		mine: raw?.mine ?? null,
 		canRecord: raw?.can_record ?? false,
 		summary: raw?.summary
@@ -129,6 +135,36 @@ function mapLessonExerciseSet(raw: any): LessonExerciseSet {
 		sourceExists: raw.source_exists ?? false,
 		hasDrifted: raw.has_drifted ?? false,
 		hiddenExerciseCount: raw.hidden_exercise_count ?? 0
+	};
+}
+
+/** A thin organisation summary — the school on a course, and the body on a certificate. */
+function mapCourseSchool(raw: any): CourseSchool | null {
+	if (!raw) return null;
+	return {
+		id: String(raw.id),
+		name: raw.name ?? '',
+		slug: raw.slug ?? '',
+		kind: raw.kind ?? 'other'
+	};
+}
+
+function mapCompletion(raw: any): CourseCompletion {
+	return {
+		id: String(raw.id),
+		courseId: String(raw.course_id),
+		courseTitle: raw.course_title ?? '',
+		courseStartsOn: raw.course_starts_on ?? null,
+		courseEndsOn: raw.course_ends_on ?? null,
+		instructor: mapParticipant(raw.instructor),
+		organization: mapCourseSchool(raw.organization),
+		participant: mapParticipant(raw.participant),
+		issuedBy: raw.issued_by ? mapParticipant(raw.issued_by) : null,
+		issuedAt: raw.issued_at ?? '',
+		note: raw.note ?? '',
+		revokedAt: raw.revoked_at ?? null,
+		isRevoked: raw.is_revoked ?? false,
+		lessonsTotal: raw.lessons_total ?? 0
 	};
 }
 
@@ -256,6 +292,7 @@ export function mapCourse(raw: any): Course {
 		canCurate: raw.can_curate ?? false,
 		canContribute: raw.can_contribute ?? false,
 		contributionNeedsApproval: raw.contribution_needs_approval ?? false,
+		school: mapCourseSchool(raw.school),
 		chapters: (raw.chapters ?? []).map(mapChapter),
 		unfiledItems: (raw.unfiled_items ?? []).map(mapItem),
 		pendingContributionCount: raw.pending_contribution_count ?? 0
@@ -275,7 +312,12 @@ function mapEnrollment(raw: any): Enrollment {
 		requestNote: raw.request_note ?? '',
 		notify: raw.notify ?? true,
 		requestedAt: raw.requested_at,
-		decidedAt: raw.decided_at
+		decidedAt: raw.decided_at,
+		// `[]` and `false` for everybody the server does not answer these to — school mode
+		// (`backend/courses/rules.staff_sees_guardians`). A stable shape, so the roster never
+		// branches on whether a key exists.
+		guardians: (raw.guardians ?? []).map(mapParticipant),
+		isMinor: raw.is_minor ?? false
 	};
 }
 
@@ -1132,4 +1174,108 @@ export async function proposeCourseClaim(
 		if (e instanceof ApiError && e.status === 409) throw new DuplicateCoverageError(e.message);
 		throw e;
 	}
+}
+
+// ---- completion certificates ------------------------------------------------------------------
+//
+// Issued by hand by course staff to a participant whose own progress statements say every lesson is
+// done. No grade, no mark, no rank (`prompts/00-DESIGN.md` §4.5). The refusal words come back as
+// `{detail: '<word>'}` and `COMPLETION_BLOCK_LABELS` in `lib/utils/labels.ts` has a sentence for
+// each — house rule 6 from the client's side.
+
+/** Thrown with the server's own word, so a caller branches on WHICH refusal rather than on a
+ *  status code. The same shape `EnrolmentRefused` already uses in this file. */
+export class CompletionRefused extends Error {
+	constructor(public reason: CompletionBlockReason) {
+		super(reason);
+		this.name = 'CompletionRefused';
+	}
+}
+
+function completionRefusal(error: unknown): never {
+	if (error instanceof ApiError && error.body && typeof error.body === 'object') {
+		const detail = (error.body as Record<string, unknown>).detail;
+		if (typeof detail === 'string') throw new CompletionRefused(detail as CompletionBlockReason);
+	}
+	throw error;
+}
+
+/** Staff get every certificate on the course; anybody else gets their own and nothing else. Scoped
+ *  server-side, not refused — an empty list for somebody who has none leaks neither the existence
+ *  of other people's certificates nor the size of the roster. */
+export async function getCompletions(courseId: string): Promise<CourseCompletion[]> {
+	const rows = await apiClient.get<unknown[]>(
+		`/courses/${encodeURIComponent(courseId)}/completions/`
+	);
+	return rows.map(mapCompletion);
+}
+
+export async function issueCompletion(
+	courseId: string,
+	participantId: string,
+	note = ''
+): Promise<CourseCompletion> {
+	try {
+		return mapCompletion(
+			await apiClient.post(`/courses/${encodeURIComponent(courseId)}/completions/`, {
+				participant: Number(participantId),
+				note
+			})
+		);
+	} catch (error) {
+		return completionRefusal(error);
+	}
+}
+
+/** Withdrawn, never deleted (house rule 12): the row stays, so a holder who printed the sheet finds
+ *  the page saying so rather than a 404. */
+export async function revokeCompletion(completionId: string): Promise<CourseCompletion> {
+	try {
+		return mapCompletion(
+			await apiClient.post(`/course-completions/${encodeURIComponent(completionId)}/revoke/`)
+		);
+	} catch (error) {
+		return completionRefusal(error);
+	}
+}
+
+/** One certificate by its own id — what the printable sheet reads. Undefined for a 404, which is
+ *  what a stranger gets: a 403 would confirm that somebody finished a course, which is the fact the
+ *  page exists to carry. */
+export async function getCompletion(completionId: string): Promise<CourseCompletion | undefined> {
+	try {
+		return mapCompletion(
+			await apiClient.get(`/course-completions/${encodeURIComponent(completionId)}/`)
+		);
+	} catch (error) {
+		if (error instanceof ApiError && error.status === 404) return undefined;
+		throw error;
+	}
+}
+
+// ---- lesson -> deck ---------------------------------------------------------------------------
+
+/** Every exercise this week points at, in the order it is drawn, deduplicated.
+ *
+ * The lesson's own exercise items first, then every linked set's visible exercises — which is the
+ * order the page itself draws them in, so the deck a person gets back is in the order they were
+ * looking at. Deduplicated because a set and a direct item may legitimately name the same exercise
+ * and a deck with the same card twice is nobody's intention.
+ *
+ * Read off the course payload the page already has rather than fetched: the server has already
+ * decided what this viewer may see (`CourseItem.is_visible_to`, `LessonExerciseSet.visible_exercises`
+ * drops anything a moderator unpublished), and a client that asked again would be a client that
+ * could ask with the wrong scope.
+ */
+export function lessonExerciseIds(lesson: Lesson): string[] {
+	const ids: string[] = [];
+	const seen = new Set<string>();
+	const add = (id: string | null) => {
+		if (!id || seen.has(id)) return;
+		seen.add(id);
+		ids.push(id);
+	};
+	for (const item of lesson.items) if (item.kind === 'exercise') add(item.exercise);
+	for (const link of lesson.exerciseSets) for (const row of link.exercises) add(row.exercise);
+	return ids;
 }

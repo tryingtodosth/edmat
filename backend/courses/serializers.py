@@ -15,6 +15,7 @@ from .models import (
     Chapter,
     ChapterReview,
     LessonReview,
+    CourseCompletion,
     CourseInvite,
     CourseItem,
     CourseNote,
@@ -195,7 +196,7 @@ def active_participants(course) -> dict:
     }
 
 
-def lesson_progress_payload(lesson, course, viewer, *, roster=None) -> dict:
+def lesson_progress_payload(lesson, course, viewer, *, roster=None, school_mode=None) -> dict:
     """What this viewer may know about how far people have got on this lesson.
 
     Always the same shape, whatever the mode and whoever is asking — `mine`, `summary` and `people`
@@ -205,12 +206,29 @@ def lesson_progress_payload(lesson, course, viewer, *, roster=None) -> dict:
 
     The four gates are `Course`'s, not re-derived here: this function decides what to put in the
     envelope, and the course decides who is allowed each part of it.
+
+    **School mode is the one widening** (`courses/rules.py`). In a course an organisation of kind
+    `school` runs, somebody who may curate it reads every participant's statements by name whatever
+    `progress_visibility` says — a teacher who cannot see whether a twelve-year-old did the reading
+    is not running a class. It widens nothing for a participant, and it does not make `off` writable:
+    `can_record` is still `Course.progress_writable_by`, so a pupil in a class with tracking off has
+    nothing to press, and the panel then shows the teacher a roster of `not_started` rows, which is
+    the truthful thing to show. `school_mode` is passed in already resolved (one organisations query
+    per response rather than one per lesson) and recomputed only when a caller does not say.
     """
+    from . import rules
+
     mode = course.progress_visibility
+    if school_mode is None:
+        school_mode = rules.staff_sees_all_progress(viewer, course)
     payload = {
         'mode': mode,
         'mine': None,
         'can_record': course.progress_writable_by(viewer),
+        # Said out loud rather than left for the client to infer from "the names are here although
+        # the mode says anonymous": the panel has a line explaining WHY a teacher is seeing this,
+        # which is also what tells them their pupils know (the course page says so to everybody).
+        'school_mode': bool(school_mode),
         'summary': None,
         'people': None,
         'withheld_reason': None,
@@ -218,7 +236,7 @@ def lesson_progress_payload(lesson, course, viewer, *, roster=None) -> dict:
 
     # `off`, or somebody who is not in the course at all. Note this covers staff under `off` too:
     # rows still exist in the database and none of them are described here.
-    if not course.progress_visible_to(viewer):
+    if not (school_mode or course.progress_visible_to(viewer)):
         return payload
 
     viewer_id = getattr(viewer, 'pk', None)
@@ -228,12 +246,12 @@ def lesson_progress_payload(lesson, course, viewer, *, roster=None) -> dict:
             payload['mine'] = row.status
             break
 
-    if not course.progress_peers_visible_to(viewer):
+    if not (school_mode or course.progress_peers_visible_to(viewer)):
         return payload
 
     if roster is None:
         roster = active_participants(course)
-    named = course.progress_names_visible_to(viewer)
+    named = bool(school_mode) or course.progress_names_visible_to(viewer)
 
     if not named and len(roster) - (1 if viewer_id in roster else 0) < MIN_PEERS_FOR_ANONYMOUS_COUNTS:
         # Anonymity that a count gives away is not anonymity. Say so rather than showing an empty
@@ -303,9 +321,10 @@ class LessonSerializer(serializers.ModelSerializer):
     def get_progress(self, lesson) -> dict:
         """How far people have got, as much of it as this viewer is allowed.
 
-        `course` and `progress_roster` come through the context because both are facts about the
-        course rather than the lesson: reading `lesson.chapter.course` here would be a query per
-        lesson for a row the caller already had in its hand.
+        `course`, `progress_roster` and `school_mode` come through the context because all three are
+        facts about the course rather than the lesson: reading `lesson.chapter.course` here would be
+        a query per lesson for a row the caller already had in its hand, and resolving school mode
+        here would be an organisations query per session on a twelve-week course.
         """
         request = self.context.get('request')
         course = self.context.get('course') or lesson.chapter.course
@@ -314,6 +333,7 @@ class LessonSerializer(serializers.ModelSerializer):
             course,
             getattr(request, 'user', None),
             roster=self.context.get('progress_roster'),
+            school_mode=self.context.get('school_mode'),
         )
 
     def get_reviews(self, lesson) -> dict:
@@ -399,6 +419,13 @@ class CourseSerializer(serializers.ModelSerializer):
     can_curate = serializers.SerializerMethodField()
     can_contribute = serializers.SerializerMethodField()
     contribution_needs_approval = serializers.SerializerMethodField()
+    # The organisation of kind `school` that runs this course, if there is one — what makes the
+    # course a *class* (`courses/rules.py`). A thin summary rather than the whole organisation: the
+    # page draws a name and a link, and `/api/organizations/{id}/` is where more belongs. Null for
+    # every ordinary course, which is almost all of them; the "run by <organisation>" line is a
+    # different and wider question (ANY `runs` link, any kind of body) and is read from
+    # `/api/nodes/course/{id}/organizations/`, which `organizations` already owns.
+    school = serializers.SerializerMethodField()
     chapters = serializers.SerializerMethodField()
     unfiled_items = serializers.SerializerMethodField()
     pending_contribution_count = serializers.SerializerMethodField()
@@ -450,6 +477,7 @@ class CourseSerializer(serializers.ModelSerializer):
             'can_curate',
             'can_contribute',
             'contribution_needs_approval',
+            'school',
             'chapters',
             'unfiled_items',
             'pending_contribution_count',
@@ -559,18 +587,51 @@ class CourseSerializer(serializers.ModelSerializer):
     def get_contribution_needs_approval(self, course) -> bool:
         return course.contribution_needs_approval(self._user())
 
+    def _schools_map(self) -> dict:
+        """`{course_id: Organization}` for every class on the platform, resolved ONCE per request.
+
+        Stashed on the serializer context, which DRF shares between a `ListSerializer` and all of
+        its children, so a directory of fifty courses asks the organisations table once rather than
+        fifty times. The honest limit is `rules.schools_running_courses`'s: the map is loaded whole.
+        """
+        cache = self.context.get('_schools_map')
+        if cache is None:
+            from . import rules
+
+            cache = rules.schools_running_courses()
+            self.context['_schools_map'] = cache
+        return cache
+
+    def _school(self, course):
+        return self._schools_map().get(course.pk)
+
+    def get_school(self, course) -> dict | None:
+        school = self._school(course)
+        if school is None:
+            return None
+        return {
+            'id': str(school.pk),
+            'name': school.name,
+            'slug': school.slug,
+            'kind': school.kind,
+        }
+
     def _lesson_context(self, course) -> dict:
         """The extra context every lesson needs, resolved once per course.
 
-        `is_participant` was already shared this way; `course` and `progress_roster` join it for the
-        same reason — both are per-course facts, and resolving them inside `LessonSerializer` would
-        cost a query per session on a page that renders all of them.
+        `is_participant` was already shared this way; `course`, `progress_roster` and `school_mode`
+        join it for the same reason — all are per-course facts, and resolving them inside
+        `LessonSerializer` would cost a query per session on a page that renders all of them.
         """
+        from . import rules
+
+        school = self._school(course)
         return {
             **self.context,
             'is_participant': self._is_participant(course),
             'course': course,
             'progress_roster': active_participants(course),
+            'school_mode': rules.staff_sees_all_progress(self._user(), course, school=school),
         }
 
     def get_chapters(self, course):
@@ -668,10 +729,43 @@ class CourseWriteSerializer(serializers.ModelSerializer):
         return attrs
 
 
+def guardians_for(user_ids) -> dict:
+    """`{child_id: [guardian, ...]}` for a set of accounts — the roster's guardian column.
+
+    Two queries for the whole roster rather than two per pupil, and built here rather than in the
+    serializer so `participants` and anything else that grows a guardian column share the one
+    definition. Revoked guardianships are left out: a guardian who withdrew consent is not who a
+    teacher writes to, and the record of their consent (`accounts.Guardianship.revoked_at`, kept
+    rather than deleted) is the accounts app's business and not a course's.
+    """
+    from accounts.models import Guardianship
+
+    rows = Guardianship.objects.filter(
+        child_id__in=list(user_ids), revoked_at__isnull=True
+    ).select_related('guardian__profile')
+    out: dict = {}
+    for row in rows:
+        out.setdefault(row.child_id, []).append(row.guardian)
+    return out
+
+
 class EnrollmentSerializer(serializers.ModelSerializer):
     participant = ParticipantSerializer(read_only=True)
     course_id = serializers.IntegerField(source='course.pk', read_only=True)
     course_title = serializers.CharField(source='course.title', read_only=True)
+    # School mode (`courses/rules.py`): in a course an organisation of kind `school` runs, staff see
+    # who answers for each pupil. **Always present, always a list** — `[]` rather than a missing key
+    # for everybody else, the same reasoning `lesson_progress_payload` nulls rather than omits and
+    # `get_participant_notes` blanks rather than omits: a client branches on a value, never on
+    # whether a field exists. Filled only when the view puts `guardian_map` in the context, which it
+    # does only after asking `rules.staff_sees_guardians`.
+    guardians = serializers.SerializerMethodField()
+    # Whether this participant is under 16 (`accounts/minors.py`). Sent beside the guardians rather
+    # than inferred from "the list is empty", because those are two different facts: an adult has no
+    # guardian, and so does a minor whose guardian revoked consent — and the second is the row a
+    # teacher needs to chase. Only to the same viewers as `guardians`, for the same reason: a child's
+    # age band is personal data, and a course roster is not where a stranger learns it.
+    is_minor = serializers.SerializerMethodField()
 
     class Meta:
         model = Enrollment
@@ -685,7 +779,23 @@ class EnrollmentSerializer(serializers.ModelSerializer):
             'notify',
             'requested_at',
             'decided_at',
+            'guardians',
+            'is_minor',
         ]
+
+    def get_guardians(self, enrollment):
+        guardian_map = self.context.get('guardian_map')
+        if not guardian_map:
+            return []
+        return ParticipantSerializer(
+            guardian_map.get(enrollment.participant_id, []), many=True
+        ).data
+
+    def get_is_minor(self, enrollment) -> bool:
+        if self.context.get('guardian_map') is None:
+            return False
+        profile = getattr(enrollment.participant, 'profile', None)
+        return bool(profile and profile.is_minor)
 
 
 class CourseStaffSerializer(serializers.ModelSerializer):
@@ -1184,3 +1294,102 @@ class CourseClaimCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourseClaim
         fields = ['id', 'kind', 'topic', 'subtopic', 'level']
+
+
+class CourseCompletionSerializer(serializers.ModelSerializer):
+    """One completion certificate, carrying everything the printed sheet needs.
+
+    Denormalized on purpose — the course title, its dates, the organisation behind it and the
+    issuer's name all ride on the row's representation rather than being fetched by the page from
+    four endpoints. The sheet is one request away from a URL somebody was handed, and a document
+    that paints in four stages while the reader waits to press Print is a worse document.
+
+    `note` is the basis, frozen at issue time (`CourseCompletion`'s docstring). `organization` is
+    read live, because it is the one fact on the sheet that genuinely should follow a rename: a
+    school that changed its name has the same identity, and the certificate is a claim about that
+    body rather than about the string it used to be called.
+    """
+
+    participant = ParticipantSerializer(read_only=True)
+    issued_by = ParticipantSerializer(read_only=True)
+    course_id = serializers.IntegerField(source='course.pk', read_only=True)
+    course_title = serializers.CharField(source='course.title', read_only=True)
+    course_starts_on = serializers.DateField(source='course.starts_on', read_only=True)
+    course_ends_on = serializers.DateField(source='course.ends_on', read_only=True)
+    # The person the course names as running it, as a fallback for a certificate whose issuer has
+    # since deleted their account (`issued_by` is SET_NULL). Always sent, so the sheet never has to
+    # make a second request to say who stood behind a document it is already drawing.
+    instructor = ParticipantSerializer(source='course.instructor', read_only=True)
+    organization = serializers.SerializerMethodField()
+    is_revoked = serializers.BooleanField(read_only=True)
+    lessons_total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CourseCompletion
+        fields = [
+            'id',
+            'course_id',
+            'course_title',
+            'course_starts_on',
+            'course_ends_on',
+            'instructor',
+            'organization',
+            'participant',
+            'issued_by',
+            'issued_at',
+            'note',
+            'revoked_at',
+            'is_revoked',
+            'lessons_total',
+        ]
+
+    def get_organization(self, completion) -> dict | None:
+        """The body behind the course — ANY organisation with a `runs` link, not only a school.
+
+        Wider than `courses/rules.is_school_course` on purpose: §4.5 says the certificate carries
+        "the organisation if any", and a student circle that runs a reading group is as much the
+        answer to "who ran this" as a school is. School mode is a question about guardians and
+        progress; this is a question about whose name goes on a document.
+        """
+        from django.contrib.contenttypes.models import ContentType
+
+        from organizations.models import OrganizationLink
+
+        cache = self.context.setdefault('_completion_org_cache', {})
+        course_id = completion.course_id
+        if course_id not in cache:
+            link = (
+                OrganizationLink.objects.filter(
+                    content_type=ContentType.objects.get_for_model(Course),
+                    object_id=course_id,
+                    kind='runs',
+                    organization__is_active=True,
+                )
+                .select_related('organization')
+                .first()
+            )
+            cache[course_id] = (
+                None
+                if link is None
+                else {
+                    'id': str(link.organization.pk),
+                    'name': link.organization.name,
+                    'slug': link.organization.slug,
+                    'kind': link.organization.kind,
+                }
+            )
+        return cache[course_id]
+
+    def get_lessons_total(self, completion) -> int:
+        """How many lessons the course has NOW — deliberately beside `note`, not instead of it.
+
+        The note says what was true when the certificate was issued; this says what is true today.
+        Both, because the honest thing for a reader who notices they differ is to be able to see
+        that they differ, rather than to be shown one number dressed up as the other.
+        """
+        from . import rules
+
+        cache = self.context.setdefault('_completion_lesson_total_cache', {})
+        if completion.course_id not in cache:
+            cache[completion.course_id] = rules.lesson_count(completion.course)
+        return cache[completion.course_id]

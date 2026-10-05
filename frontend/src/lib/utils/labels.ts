@@ -1078,3 +1078,34 @@ export const GATE_HUB_SENTENCES: Record<CreationKind, () => string> = {
 export function gateHubSentence(kind: CreationKind): string {
 	return GATE_HUB_SENTENCES[kind]();
 }
+
+import type { CompletionBlockReason } from '$lib/types/course';
+
+// Course completion certificates — mirrors `backend/courses/rules.py`'s refusal words
+// (`completion_block_reason`, `revoke_block_reason`), which names this file back (house rule 13).
+// House rule 6 from the client's side: every word the server can answer with has its own sentence,
+// because "they are not finished yet" and "somebody already issued one" are the same 4xx to a
+// boolean and completely different to a person.
+//
+// `not_staff` is in the map although the API answers it as a 404 rather than as a word: the
+// frontend never shows the issue form to somebody who does not run the course, so the sentence is
+// the honest fallback for the one case where the two could disagree.
+export const COMPLETION_BLOCK_LABELS: Record<CompletionBlockReason, () => string> = {
+	not_staff: m.school_reason_notStaff, // "Only the people running this course can issue a certificate."
+	not_participant: m.school_reason_notParticipant, // "That person is not on this course's roster."
+	not_done: m.school_reason_notDone, // "Their own progress statements do not yet say every lesson is done."
+	already_issued: m.school_reason_alreadyIssued, // "This participant already has a certificate for this course."
+	already_revoked: m.school_reason_alreadyRevoked // "This certificate has already been withdrawn."
+};
+
+/** The sentence for a `CompletionRefused`, falling back to the error's own message so a future
+ *  refusal word still shows something rather than throwing. */
+export function completionRefusalMessage(err: unknown, fallback: string): string {
+	if (err instanceof Error && err.name === 'CompletionRefused') {
+		const reason = (err as Error & { reason?: string }).reason;
+		if (reason && reason in COMPLETION_BLOCK_LABELS) {
+			return COMPLETION_BLOCK_LABELS[reason as CompletionBlockReason]();
+		}
+	}
+	return err instanceof Error ? err.message : fallback;
+}

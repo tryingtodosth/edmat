@@ -1934,3 +1934,41 @@ organisations hub drew the refusal above its own introduction, so a reader met "
 form before hydration performs a NATIVE form submission and lands on `/login?` with the fields
 cleared, which reads exactly like a broken page; `signedIn()` now waits for the layout's own boot
 request and retries the submit rather than believing the first attempt.
+
+## 2026-10-05 — learning step C (courses: school mode, the completion certificate)
+
+**`backend/courses/test_school_mode.py` (new, 58 tests)** is the suite for school mode, the
+`CourseCompletion` certificate, `courses/record.py` and `seed_school_demo`. Its own file rather than
+four hundred more lines in `courses/tests.py`, following the app's existing `test_claims.py` /
+`test_content_links.py` precedent, and refusal-weighted like the rest of this backend: each of the
+five refusal words with its own status code, a stranger **and** a classmate both getting 404 on a
+certificate (never 403 — a 403 confirms somebody finished a course), revoking twice, `off` and
+`supports` and a university and a dissolved school all answering "not a class", a revoked
+guardianship reporting an absence rather than nothing, and the seeder's containment check refusing
+both an outside `CourseStaff` row and an `is_staff` flag. **Two of its tests found real things**:
+the control for the progress widening passes only if it asserts the response *contents* (a
+status-code-only control passed against a response that named every participant, because staff are
+members under `private`), and the certificate queryset was scoped so that a pupil who leaves a
+private class — which is what a school runs — lost their own certificate. Run it with
+`../.venv/bin/python3 manage.py test courses organizations config --keepdb` from `backend/`.
+
+**`frontend/e2e/school-mode.mjs` (new)** drives the seeded school on ports 8133/5233 and needs
+`manage.py seed_school_demo` run against the backend it drives first — otherwise every check fails
+at a sign-in rather than on anything under test. Seven sections: the teacher's view of a class (the
+"run by" line, the class notice, the register although `progress_visibility` is `private`, the roster
+with its guardian column and under-16 badges), a scratch control course no school runs (made and
+removed through the real API, which is what proves the widening is the *link* and not the role),
+issuing a certificate and being refused one with the word, the holder's own view plus the print
+preview under `emulateMedia({ media: 'print' })` and at phone width, a stranger's 404s, the
+lesson→deck button, and both kill switches as a non-staff account. **`POST /api/decks/` is mocked
+with `page.route`** — learning step A owns that endpoint and it 404s on this branch — and the script
+says so twice in its own output; `/flashcards/[id]` is A's route and is asserted to exist rather than
+followed. It signs in by writing the token into `localStorage` the way `token.svelte.ts` keeps it,
+so no run touches the register throttle (trap 1), and every scratch row is removed through the real
+API and confirmed with an authenticated re-query (trap 12).
+
+**`manage.py seed_school_demo`** is itself worth running as a check: it asks
+`completion_block_reason` before writing its certificate and `progress_writable_by` before each
+progress statement, so a hand-edited plan fails the command rather than seeding data the API would
+refuse, and `assert_contained()` runs inside the build's transaction over its own
+`CONTAINMENT_MODELS`. Run it, run it again, `--reset`, run it again: one of everything each time.

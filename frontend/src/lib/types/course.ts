@@ -58,6 +58,53 @@ export interface Participant {
 	displayName: string;
 }
 
+/** The organisation of kind `school` that runs a course — what makes the course a *class*
+ *  (`backend/courses/rules.py`). There is no `SchoolClass` model and no `Course.is_class` column:
+ *  a class is a course a school has a `runs` link to, which `organizations` already expresses
+ *  (`prompts/00-DESIGN.md` §1 rule 1). Null on every ordinary course.
+ *
+ *  Narrower than the "run by <organisation>" line on the course page, which shows ANY `runs` link
+ *  from ANY kind of body and is read from `/api/nodes/course/{id}/organizations/`. */
+export interface CourseSchool {
+	id: string;
+	name: string;
+	slug: string;
+	kind: string;
+}
+
+/** A completion certificate. Issued by hand by course staff to a participant whose own progress
+ *  statements say every lesson is done; **no grade, no mark, no rank** (`00-DESIGN.md` §4.5 — there
+ *  is no field for one on the backend model either, and a test asserts so).
+ *
+ *  `note` is the basis frozen at issue time ("12 of 12 lessons, by the participant's own
+ *  statements"), so the sheet carries its own grounds; `lessonsTotal` is what the course holds
+ *  *now*, sent beside it rather than instead of it so a reader who notices the two differ can see
+ *  that they differ. */
+export interface CourseCompletion {
+	id: string;
+	courseId: string;
+	courseTitle: string;
+	courseStartsOn: string | null;
+	courseEndsOn: string | null;
+	/** Who the course names as running it — the fallback byline for a certificate whose issuer has
+	 * since deleted their account (`issued_by` is SET_NULL server-side). */
+	instructor: Participant;
+	/** The body behind the course, any kind, or null. */
+	organization: CourseSchool | null;
+	participant: Participant;
+	issuedBy: Participant | null;
+	issuedAt: string;
+	note: string;
+	revokedAt: string | null;
+	isRevoked: boolean;
+	lessonsTotal: number;
+}
+
+/** Why a certificate cannot be issued or withdrawn. Resolved server-side (`courses/rules.py`);
+ *  `lib/utils/labels.ts` has a sentence for each, and says it mirrors that module. */
+export type CompletionBlockReason =
+	'not_staff' | 'not_participant' | 'not_done' | 'already_issued' | 'already_revoked';
+
 export interface CourseStaffMember {
 	id: string;
 	user: Participant;
@@ -254,6 +301,11 @@ export interface LessonProgressSummary {
 
 export interface LessonProgress {
 	mode: ProgressVisibility;
+	/** Whether this viewer is being shown more than `mode` alone would allow, because a school runs
+	 * the course and they run the class (`backend/courses/rules.py`). Said out loud rather than left
+	 * for the client to infer from "the names are here although the mode says anonymous": the panel
+	 * has a line explaining why, which is also what reminds a teacher their pupils were told. */
+	schoolMode: boolean;
 	/** This viewer's own answer, or null if they have not given one — and also null whenever the
 	 * mode hides it from them, `off` included. */
 	mine: LessonProgressStatus | null;
@@ -353,6 +405,8 @@ export interface Course {
 	/** Whether what THIS viewer adds would wait for review. False for staff, who never queue behind
 	 * themselves. */
 	contributionNeedsApproval: boolean;
+	/** The school running this course, or null. See `CourseSchool`. */
+	school: CourseSchool | null;
 	chapters: Chapter[];
 	/** Content in the course but filed in no chapter — where a submission lands before anybody
 	 * decides which week it belongs to, and where everything lives in a course using no chapters. */
@@ -371,6 +425,15 @@ export interface Enrollment {
 	notify: boolean;
 	requestedAt: string;
 	decidedAt: string | null;
+	/** Who answers for this pupil. **Always an array** — empty for everybody the server does not
+	 * answer this to, never a missing key, so nothing branches on whether a field exists. Filled
+	 * only for staff of a course a school runs (`backend/courses/rules.staff_sees_guardians`). */
+	guardians: Participant[];
+	/** Whether this participant is under 16. Sent beside `guardians` rather than inferred from an
+	 * empty list, because an adult has no guardian and so does a minor whose guardian revoked
+	 * consent — and the second is the row a teacher has to chase. False for every viewer who does
+	 * not get `guardians`. */
+	isMinor: boolean;
 }
 
 export interface TaughtCourseDraft {

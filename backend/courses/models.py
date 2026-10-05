@@ -1598,6 +1598,73 @@ class LessonProgress(models.Model):
         return f'{self.participant} — {self.lesson.title}: {self.status}'
 
 
+class CourseCompletion(models.Model):
+    """One participant finished one course, and a member of its staff says so.
+
+    **Issued by hand, never derived.** "All lessons done" is checked at issue time from
+    `LessonProgress` and written into `note` as the count — "12 of 12 lessons, by the participant's
+    own statements" — so the document carries its own basis and a course that grows a thirteenth
+    week next term does not retroactively make an issued certificate a lie. A row that appeared on
+    its own the moment somebody pressed the last "done" button would be EdMat certifying a stranger
+    on the strength of their own clicks, which is precisely the claim it has no standing to make;
+    what a member of staff puts their name to is a different and honest thing.
+
+    **No grade, no mark, no rank** (`00-DESIGN.md` §4.5 and §5). There is no field for one here and
+    there is deliberately no gradebook anywhere in this project: a mark is an institution's
+    judgement about a person, this platform is not an institution, and the one place a reader can
+    see real marks is `identity.CourseGrade`, which they imported themselves and consented to share.
+    The certificate says the course was finished, who ran it, when, and on whose say-so. That is all
+    the rota's own certificate says about volunteer hours (`shifts.VolunteerRecord`), for the same
+    reason, and it is the posture the printed sheet repeats in words: unsigned, from the record the
+    course kept.
+
+    **`revoked_at` rather than a delete** (house rule 12). A certificate withdrawn is a decision
+    somebody took, and the record of it is part of the trust model: a holder who printed the sheet
+    before it was withdrawn should find the page saying so rather than 404ing, and staff should be
+    able to see that it was issued at all. Which is also why the unique constraint is over
+    `(course, participant)` with no condition — a revoked row still occupies the pair, and issuing
+    a second one is refused with `already_issued` rather than quietly stacking two documents whose
+    holder cannot tell which is current.
+    """
+
+    course = models.ForeignKey(Course, related_name='completions', on_delete=models.CASCADE)
+    participant = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='course_completions', on_delete=models.CASCADE
+    )
+    # SET_NULL, not CASCADE: a teacher deleting their account must not take away the certificates
+    # they issued, because the people holding them did nothing. The sheet falls back to the course's
+    # instructor name, and says so.
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name='course_completions_issued',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    issued_at = models.DateTimeField(auto_now_add=True)
+    # The basis, in words, frozen at issue time — see the class docstring. Staff may extend it with
+    # their own sentence; `courses/rules.completion_note` writes the count and the serializer
+    # appends anything the issuer typed.
+    note = models.CharField(max_length=500, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-issued_at', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['course', 'participant'], name='unique_completion_per_participant'
+            )
+        ]
+
+    def __str__(self) -> str:
+        state = ' (revoked)' if self.revoked_at else ''
+        return f'{self.participant} completed {self.course}{state}'
+
+    @property
+    def is_revoked(self) -> bool:
+        return self.revoked_at is not None
+
+
 # --- covers / requires claims -------------------------------------------------------------------
 #
 # The same claims a material carries (`materials.ClaimBase`): "this course teaches topic X to

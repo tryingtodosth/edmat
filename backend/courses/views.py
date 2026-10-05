@@ -27,9 +27,11 @@ from moderation.permissions import feature_gate
 from notifications.services import notify, notify_comment_reply, notify_course_participants
 from study.models import ExerciseSet
 
+from . import rules
 from .history import record_content_change
 from .reports import pending_reports_in_course
 from .models import (
+    CourseCompletion,
     ACTIVE_ENROLLMENT_STATUSES,
     LESSON_PROGRESS_STATUS_CHOICES,
     PROGRESS_NOT_STARTED,
@@ -53,6 +55,8 @@ from .models import (
 )
 from .serializers import (
     AttachmentReviewSerializer,
+    CourseCompletionSerializer,
+    guardians_for,
     AttachmentSerializer,
     AttachmentWriteSerializer,
     ChapterReviewSerializer,
@@ -77,6 +81,34 @@ from .serializers import (
 )
 
 _CoursesFeatureGate = feature_gate('courses')
+
+#: Refusal word -> HTTP status for the completion endpoints (house rule 6; the reasoning for each
+#: choice is in `courses/rules.py`'s docstrings, which is where somebody adding a word will be).
+#: `not_staff` is 404 rather than 403, matching every other staff action in this app: for somebody
+#: who does not run a course, its staff surface does not exist. 409 is "the world is not what you
+#: thought" — already issued, already revoked, not finished yet; 400 is "the request named the
+#: wrong person", which no amount of waiting fixes.
+_COMPLETION_REFUSAL_STATUS = {
+    'not_staff': status.HTTP_404_NOT_FOUND,
+    'not_participant': status.HTTP_400_BAD_REQUEST,
+    'not_done': status.HTTP_409_CONFLICT,
+    'already_issued': status.HTTP_409_CONFLICT,
+    'already_revoked': status.HTTP_409_CONFLICT,
+}
+
+
+def _user_or_none(raw):
+    """An account from whatever the client sent as `participant`, or None.
+
+    None rather than a 400 on a malformed id, because `completion_block_reason` already has the
+    right word for "that is not somebody on this roster" and an unparseable id means exactly that.
+    One answer rather than two for one mistake.
+    """
+    try:
+        pk = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return get_user_model().objects.filter(pk=pk).first()
 
 
 def notify_course_comment_reply(course, comment, *, where=''):
@@ -359,7 +391,14 @@ class CourseViewSet(viewsets.ModelViewSet):
         rows = course.enrollments.filter(status__in=statuses).select_related(
             'participant', 'participant__profile'
         )
-        return Response(EnrollmentSerializer(rows, many=True).data)
+        # School mode (`courses/rules.py`): in a class, the people who run it see who answers for
+        # each pupil. Resolved ONCE for the roster and passed as a map, so a class of thirty costs
+        # two queries rather than sixty; absent from the context for everybody else, which is what
+        # makes `guardians` come back `[]` and `is_minor` false rather than leaking either.
+        context = {'request': request}
+        if rules.staff_sees_guardians(request.user, course):
+            context['guardian_map'] = guardians_for(row.participant_id for row in rows)
+        return Response(EnrollmentSerializer(rows, many=True, context=context).data)
 
     @action(
         detail=True,
@@ -1055,12 +1094,83 @@ class CourseViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        if not course.progress_visible_to(request.user):
+        # School mode widens what STAFF are shown, never what a participant may record or see about
+        # anybody else — resolved once here and handed to the payload, which is also where the same
+        # widening has to reach the 403 below: a teacher in a class with tracking `off` still reads
+        # the register, so refusing them here would make the widening a thing the course page shows
+        # and this endpoint denies.
+        school_mode = rules.staff_sees_all_progress(request.user, course)
+        if not (school_mode or course.progress_visible_to(request.user)):
             # After the write, not before: somebody may legitimately record progress in a mode where
             # they are then shown nothing back. That combination does not exist today — `off` refuses
             # both — but ordering it this way means a future mode cannot silently swallow a write.
             return Response(status=status.HTTP_403_FORBIDDEN)
-        return Response(lesson_progress_payload(lesson, course, request.user))
+        return Response(
+            lesson_progress_payload(lesson, course, request.user, school_mode=school_mode)
+        )
+
+    # --- completion certificates ----------------------------------------------------------------
+    #
+    # `prompts/04-courses-school-mode.md` §3 and `00-DESIGN.md` §4.5. Issued by hand by course
+    # staff, to a participant whose OWN statements say every lesson is done. No grade, no mark, no
+    # rank — see `CourseCompletion`'s docstring for why there is no field for one.
+
+    @action(
+        detail=True,
+        methods=['get', 'post'],
+        permission_classes=[permissions.IsAuthenticated, _CoursesFeatureGate],
+    )
+    def completions(self, request, pk=None):
+        """The certificates issued on this course, and the staff action that issues one.
+
+        **GET is scoped, not refused.** Staff get every row; anybody else gets their own and nothing
+        else — an empty list for somebody who has none, which is the honest answer and leaks neither
+        the existence of other people's certificates nor the size of the roster. A reader who cannot
+        see the course at all never reaches this: `get_object()` 404s first (house rule 4).
+
+        **POST asks `rules.completion_block_reason` before writing anything**, and answers with the
+        word it returns (house rule 6). The status codes are the module's own documented mapping:
+        `not_staff` is 404, because for somebody who does not run this course its staff surface does
+        not exist — the same answer `decide` and `staff_detail` already give.
+        """
+        course = self.get_object()
+        is_staff_here = course.can_curate(request.user)
+
+        if request.method == 'GET':
+            rows = course.completions.select_related(
+                'participant__profile', 'issued_by__profile', 'course__instructor__profile'
+            )
+            if not is_staff_here:
+                rows = rows.filter(participant=request.user)
+            return Response(
+                CourseCompletionSerializer(rows, many=True, context={'request': request}).data
+            )
+
+        participant = _user_or_none(request.data.get('participant'))
+        reason = rules.completion_block_reason(request.user, course, participant)
+        if reason is not None:
+            return Response({'detail': reason}, status=_COMPLETION_REFUSAL_STATUS[reason])
+
+        # The basis in words first, then anything the issuer wanted to add. One field rather than
+        # two: the note is printed as one paragraph, and a reader does not care which half of it the
+        # server wrote — what matters is that the count is in there and was computed at issue time.
+        note = rules.completion_note(course, participant)
+        extra = str(request.data.get('note') or '').strip()[:300]
+        if extra:
+            note = f'{note}. {extra}'
+        try:
+            completion = CourseCompletion.objects.create(
+                course=course, participant=participant, issued_by=request.user, note=note
+            )
+        except IntegrityError:
+            # The unique constraint, not the pre-check: two staff pressing the button at the same
+            # moment both passed `already_issued` and one of them loses. 409, because the world
+            # moved — the certificate they wanted exists.
+            return Response({'detail': 'already_issued'}, status=status.HTTP_409_CONFLICT)
+        return Response(
+            CourseCompletionSerializer(completion, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     # --- attachments --------------------------------------------------------------------------
 
@@ -1946,4 +2056,87 @@ class CourseClaimViewSet(viewsets.GenericViewSet):
             on_created=lambda comment: notify_comment_reply(
                 comment, target_label=f'{claim.course.title} — {claim.topic.slug}'
             ),
+        )
+
+
+class CourseCompletionViewSet(viewsets.GenericViewSet):
+    """`/api/course-completions/{id}/` and its one action — the certificate, by its own id.
+
+    Addressed by id rather than nested under the course on purpose, and for the same reason the
+    volunteer certificate is: the sheet is a URL somebody keeps and hands to a third party, and a
+    path that also names the course would make that URL change if the course were ever renumbered.
+    The holder, the issuer and the course's staff may read it; **everybody else gets 404**, because
+    for them this document does not exist (house rule 4) — and a 403 would confirm that somebody
+    finished a course, which is exactly the fact the page exists to carry.
+
+    `get_queryset` is the filter half and `can_read_completion` the authority half — both,
+    deliberately, because a queryset filter never runs for an id in a URL (house rule 4).
+    """
+
+    serializer_class = CourseCompletionSerializer
+    permission_classes = [permissions.IsAuthenticated, _CoursesFeatureGate]
+
+    def get_queryset(self):
+        """Certificates on a course the caller can see, **plus their own and the ones they issued**.
+
+        The last two clauses are not belt and braces; without them the document goes away from the
+        two people it is most about. `_visible_courses` is "listed, or run by you, or enrolled in by
+        you" — so a pupil who has left a private class is outside it, and a private class is exactly
+        what a school runs. Scoped by that alone, a school leaver's own certificate 404s on them the
+        moment their enrolment ends, which is the one moment they are most likely to want to show it
+        to somebody. The same reasoning covers the issuer: a teacher who signed one and has since
+        been taken off the course's staff must still be able to see what they put their name to.
+
+        That does not widen who may READ one — `can_read_completion` is asked for every id-addressed
+        action, and it answers the same three people either way.
+        """
+        user = self.request.user
+        return (
+            CourseCompletion.objects.filter(
+                Q(course__in=_visible_courses(user))
+                | Q(participant=user)
+                | Q(issued_by=user)
+            )
+            .select_related(
+                'course__instructor__profile', 'participant__profile', 'issued_by__profile'
+            )
+            .distinct()
+        )
+
+    def _readable_or_none(self):
+        completion = self.get_object()
+        if not rules.can_read_completion(self.request.user, completion):
+            return None
+        return completion
+
+    def retrieve(self, request, pk=None):
+        completion = self._readable_or_none()
+        if completion is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            CourseCompletionSerializer(completion, context={'request': request}).data
+        )
+
+    @action(detail=True, methods=['post'])
+    def revoke(self, request, pk=None):
+        """Withdraw it. A timestamp, never a delete (house rule 12).
+
+        The row stays so that a holder who printed the sheet finds the page saying it was withdrawn
+        rather than a 404, and so that staff can see it was issued at all. One WHERE-anchored
+        `update()` rather than a read-modify-write, which is this project's standing answer to a
+        status claim under SQLite (`backend/CLAUDE.md` rule 1): the loser sees 0 rows and gets the
+        409 that `revoke_block_reason` would have given it a moment earlier.
+        """
+        completion = self.get_object()
+        reason = rules.revoke_block_reason(request.user, completion)
+        if reason is not None:
+            return Response({'detail': reason}, status=_COMPLETION_REFUSAL_STATUS[reason])
+        claimed = CourseCompletion.objects.filter(pk=completion.pk, revoked_at__isnull=True).update(
+            revoked_at=timezone.now()
+        )
+        if not claimed:
+            return Response({'detail': 'already_revoked'}, status=status.HTTP_409_CONFLICT)
+        completion.refresh_from_db()
+        return Response(
+            CourseCompletionSerializer(completion, context={'request': request}).data
         )

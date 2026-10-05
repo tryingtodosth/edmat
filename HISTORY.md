@@ -11736,3 +11736,258 @@ organisations hub drew the refusal above its own introduction, so the reader met
   founding.** Only the eight surfaces that offer it carry the sentence.
 - **Nothing tells a verified contributor that they are one.** `/levels` explains the idea; the
   profile has no badge for it.
+
+---
+
+## 17BR.C. Learning step C — a class is a course a school runs, and a certificate that carries its own basis (2026-10-05)
+
+Branch `learn/c-courses`, from prep `f90e221`; brief `prompts/04-courses-school-mode.md`. Four
+things on `courses`, the largest app, and the first of them turned out to need no schema at all.
+
+### School mode is a question asked of `organizations`, not a model
+
+The brief's own instruction ("no new model for 'class' — it is a course run by a school") is
+`00-DESIGN.md` §1 rule 1 applied: a link between two surfaces goes through a hub first, and
+`organizations.Organization` is the hub that answers *who runs this*. `Organization.kind='school'`
+has existed since the management layer and nothing had ever used it. So `courses/rules.py`
+asks one question — is there a **`runs`** link from an **active** organisation of kind **`school`**
+to this course — and school mode is whatever that answer changes.
+
+It changes exactly two things, both about **staff**, and both `can_curate` rather than
+`is_staff_member` (an assistant marks the register):
+
+1. `staff_sees_all_progress` — the register, whatever `progress_visibility` narrows it to;
+2. `staff_sees_guardians` — the roster names each pupil's guardians.
+
+A participant's own view is byte-identical in a class and out of one, and neither widening lets
+staff *write* a `LessonProgress` row: that is still the participant speaking about themselves, and
+a class does not put words in a child's mouth. `supports` deliberately does not count — a faculty
+lending its name has not taken responsibility for a roster — and nor does a *university* running a
+course, which is the common case and must not acquire a guardian column.
+
+**Three decisions inside that are worth the words they cost.**
+
+*`progress_visibility='off'` is not widened.* The brief says "regardless of `progress_visibility`",
+and taken literally that would have included `off`. It should not: the other three modes are
+*narrowings* — there is a tracker, and this is who reads how much of it — so a class lifting the
+narrowing for its own staff takes nothing from anybody. `off` is different in kind. The field's own
+comment in `models.py` says it "blinds staff too… an instructor who turns tracking off has told
+their participants nobody is watching", and a school override would quietly make that untrue, for
+children, after the fact. A class that wants the register turns tracking on, which is one setting,
+already an administrator's to set, and visible to the participants. Written at length in
+`staff_sees_all_progress` because it is a deliberate narrowing of the brief.
+
+*The two widenings are one decision but not one rule.* The first draft had `staff_sees_guardians`
+call `staff_sees_all_progress`, which was three lines shorter and wrong: a guardian is who a teacher
+writes to about a child, which has nothing to do with whether the course keeps a tracker, so a class
+with tracking off lost its guardian column for no reason anybody could have explained. They share a
+private `_school_staff` helper instead, and a test pins the difference.
+
+*The `organizations` kill switch does not reach school mode.* Turning the organisations surface off
+takes away the directory, the panel and the new "run by" line — links as well as pages, house rule
+3 — and must not un-school a class in the middle of a term, which would change what a teacher is
+shown about a child and what the roster says about them. The flag governs a *surface*; the link is a
+fact about the course either way. Said out loud in the module, in `backend/courses/CLAUDE.md` and in
+a test, because it is the one place in this step where a flag does less than a reader would expect.
+
+### Performance: one query for every class on the platform
+
+`CourseSerializer` now reports the school on every row, including a fifty-row directory, so
+`schools_running_courses()` returns the whole `{course_id: Organization}` map in one query and the
+serializer stashes it on the DRF context, which a `ListSerializer` shares with all of its children.
+`is_school_course()` is the single-object form for the paths that hold one course. Both read one
+`_school_link_queryset()`, because two spellings of "is this a class" is how the roster and the
+register would start disagreeing about one child. The honest limit is that the map is loaded whole;
+it is bounded by the number of classes every school runs, and the fix the day it is not is a
+narrowed query rather than a cache.
+
+### `CourseCompletion` — issued by hand, and carrying its own grounds
+
+One model, one migration (`courses` 0020), `(course, participant)` unique, `revoked_at` rather than
+a delete (house rule 12), `issued_by` SET_NULL so a teacher closing their account does not take away
+certificates other people are holding.
+
+**It is never derived.** `completion_block_reason` checks "every lesson done" at issue time from
+`LessonProgress`, and `completion_note` freezes the count into the row as words — *"6 of 6 lessons,
+by the participant's own statements"*. That sentence is the whole honesty of the document: the course
+did not measure anybody, the participant said so, and a member of staff put their name to it. It is
+also why the count is stored rather than recomputed when the sheet is drawn: a week added next term
+must not retroactively turn an issued certificate into a lie, and a lesson deleted must not turn it
+into "13 of 11". `lessons_total` is sent beside it, live, so a reader who notices the two differ can
+see that they differ rather than being shown one number dressed as the other.
+
+**No grade, no mark, no rank** (§4.5 and §5). There is no field for one, and a test asserts that a
+client sending `grade`/`mark`/`rank` gets them back in nothing — so adding such a field becomes a
+visible decision rather than a quiet one.
+
+Two cases the rules answer that nobody asked about: a course with **no lessons** answers `not_done`
+("0 of 0" is vacuously complete and would certify turning up to an empty course), and
+`already_issued` counts a **revoked** row, because re-issuing is `revoke`'s inverse and this step
+does not build it.
+
+Refusal → status, all five words: `not_staff` **404** (this app's own convention for a staff action —
+`decide`, `update` and `staff_detail` all answer that way), `not_participant` **400** (the request
+named the wrong person and no waiting fixes it), `not_done` / `already_issued` / `already_revoked`
+**409** (the world is not what the caller thought). `views._COMPLETION_REFUSAL_STATUS` is the one
+map; `frontend/src/lib/utils/labels.ts` has a sentence for each and names `rules.py` back.
+
+**The bug a test found, and would not have been found by reading.** `CourseCompletionViewSet` first
+scoped its queryset by `_visible_courses` alone — "listed, or run by you, or enrolled in by you".
+A test written to prove the issuer keeps reading what they signed failed with a 404, and the same
+hole was worse one step over: a private class is exactly what a school runs, so a **pupil who leaves
+a class lost their own certificate** the moment their enrolment ended — at the one moment they are
+most likely to want to show it to somebody. `get_queryset` now admits the caller's own rows and the
+ones they issued as well, and `can_read_completion` is still the object-level half that decides who
+may read one (house rule 4 wants both, and here the filter was the half that was wrong).
+
+The printed sheet is the volunteer certificate's posture, copied deliberately and in full: bilingual
+**on one sheet** (the holder may hand it to a Polish school office while reading the English
+interface), the browser makes the PDF, and it says in both languages that it is unsigned, that EdMat
+has no standing to certify anybody, and that it carries no grade. A withdrawn certificate still
+resolves — that is what the tombstone is for — and says so, outside the sheet and inside it.
+
+### Lesson → deck, against a mocked endpoint
+
+"Make a deck from this week" sits beside each session's heading, behind `flashcards`, for **staff and
+participants alike**: a deck made from this week's exercises is a study aid and whoever is studying
+should be able to make one. What differs is the *placement* — only staff attempt to hang the deck on
+the course, because placing something on a course is a curatorial act the API refuses for anybody
+else with its own word, and a participant getting a private deck is the honest outcome.
+`lessonExerciseIds` reads the course payload the page already holds (the lesson's exercise items,
+then every linked set's visible rows, deduplicated, in the order drawn) rather than asking again:
+the server has already decided what this viewer may see, and an unpublished exercise is already gone
+from it. The flag is read from the store rather than wrapped in `FeatureGate`, which renders an
+"unavailable" notice — right for a route, wrong for a control inside somebody else's lesson (the
+`VenuePanel` precedent).
+
+`POST /api/decks/` belongs to learning step A and **404s on this branch**, so `e2e/school-mode.mjs`
+mocks it with `page.route` and says so twice in its own output, per `prompts/README.md` §9. What that
+verifies is C's half — that the button is there behind the flag, that it sends the lesson as `source`,
+the course as `placement` and exactly the lesson's exercise ids in order — and the call itself is
+verified at integration. The `/flashcards/[id]` link the result offers is A's route too; it is
+asserted to exist and deliberately not followed.
+
+### `seed_school_demo` — one lived-in school
+
+`testing/school_demo.py` plus a thin command, `seed_conference_demo`'s shape down to both of the
+promises that module makes about itself, because this seed can run on the live database and the
+reasoning is identical: every seeded course and the school carry `FAKE_PREFIX` (imported, never
+re-spelled — two seeders writing the marker differently is what makes "is this real?" unanswerable),
+and `assert_contained()` runs **inside the build's transaction** over its own hand-maintained
+`CONTAINMENT_MODELS`, so a build that cannot keep the promise leaves nothing behind.
+
+What it builds: a school, a head teacher who owns the body and a teacher who administers it (two
+people, because an organisation with one owner is the single point of failure `organizations/work.py`
+reports — a demo producing that warning row demonstrates the warning rather than the school), two
+classes with **different `progress_visibility` on purpose** so the widening can be compared side by
+side, twelve pupils, eleven of them minors made the way the guardian flow makes one, nine families
+including a sibling pair sharing a guardian and one pupil with two, **one pupil who has turned
+sixteen and therefore has no guardianship at all** — the row that proves the roster reports an
+absence rather than drawing nothing — forty-four progress statements, twenty exercises filed from
+whatever the corpus holds, and one certificate.
+
+It **checks what it is about to write against the real rules**, which is `conference_demo`'s habit
+with its rota: `completion_block_reason` before the certificate and `progress_writable_by` before
+each statement, so a hand-edited plan fails the command rather than seeding data the API would have
+refused. Idempotent by rebuild (accounts, school, classes and enrolments `update_or_create`d;
+chapters, lessons, filed items, statements and the certificate deleted and rebuilt) — and the items
+are deleted *before* the chapters, because `CourseItem.lesson` is SET_NULL and deleting the chapters
+alone leaves a loose pile of unfiled exercises behind on every re-run. `remove_school_demo` deletes
+the organisation links by hand, because a `GenericForeignKey` has no cascade and a link row pointing
+at a deleted course would be dropped silently by `_readable_links` on every page — a tidy-looking
+leak rather than a visible one.
+
+### Also
+
+**"Run by &lt;organisation&gt;"** is now on the course page, for every course with a `runs` or
+`supports` link from any kind of body. `getNodeOrganizations` has existed since the management layer
+and was wired nowhere; the line distinguishes the two kinds, because a badge that could not tell
+"this is ours" from "we are behind it" would be read as the stronger claim every time.
+
+**`courses/record.py: activity_by_branch(user)`** → `{branch_id: {'lessons_done': n}}`, the shape
+step B's registry consumes; the integrator registers it and this app never imports `identity/`.
+Counts only, grouped by `Course.subjects`, and a lesson counts once per branch its course claims —
+picking one branch per course would be the server inventing a primary subject the course never
+declared.
+
+### Verified
+
+From the worktree, on ports 8133/5233:
+
+- `manage.py test courses organizations config --keepdb` — see the board entry for the count; the
+  new file is `courses/test_school_mode.py` (**58 tests**, refusal-weighted: the two widenings and
+  their controls, `off` and `supports` and a university and a dissolved school all answering no,
+  the guardian column reaching staff of a class and nobody else, a revoked guardianship reporting
+  an absence, every one of the five refusal words with its own status, a stranger and a classmate
+  both getting 404 on a certificate, revoking twice, a school leaver keeping their own, the branch
+  record, and the seeder — built twice, containment refusing both an outside `CourseStaff` row and
+  an `is_staff` flag, and `--reset`).
+- `manage.py check` clean; `makemigrations --check --dry-run` — no changes detected.
+- `seed_school_demo`, then again, then `--reset`, then again: idempotent, one of everything, the
+  password printed, containment reporting 25 accounts over 8 authority surfaces.
+- `npm run check` — **6022 files, 0 errors, 0 warnings**; `npm run build` clean (adapter-static).
+- `npm run lint` — my files formatted and eslint-clean; the pre-existing failures are below.
+- `e2e/school-mode.mjs` against both real servers, screenshots looked at.
+
+### What the screenshots found (house rule 2)
+
+Three things, none of which any assertion caught, and two of which were in my own work:
+
+1. **The certificate printed a BLANK PAGE.** `lib/styles/_print.scss` is imported by `global.scss`
+   and is therefore site-wide: `@media print { body * { visibility: hidden } .print-area,
+   .print-area * { visibility: visible } }`. Anything not inside a `.print-area` simply is not
+   there on paper. The e2e's "print: the controls are hidden" check passed — correctly — against a
+   sheet that printed nothing at all, because the controls *were* hidden and the text *was* in the
+   DOM. Fixed with the class, plus two checks that assert the sheet is still visible and its
+   heading still has a box, so it cannot come back quietly.
+2. **The course header said "Run by" twice, one line apart, meaning two different things.**
+   `course_byInstructorPrefix` is "Run by" / "Prowadzi" and names the PERSON; my new line was
+   worded identically in both catalogues and named the ORGANISATION, so the page read "Run by
+   Barbara Nowakowska / Run by TEST=FAKE Szkoła Podstawowa nr 148". Now "Organised by" /
+   "Organizator:", with an e2e check that both lines are present and different.
+3. **The seeded classes had no dates**, so the certificate's "Termin / Dates" row was absent and
+   the sheet read as undated. `TERM_STARTS_ON`/`TERM_ENDS_ON` are a fixed Polish school year rather
+   than "now ± n months", because a demo whose term slides cannot be screenshotted twice and give
+   the same picture; `conference_demo`'s moving clock exists because a conference *in progress* is
+   the interesting state, and a class in progress is not.
+
+### Found outside this step's scope — NOT fixed here
+
+- **Four other printable pages print a blank sheet, for the same reason**, and have since they were
+  written: `routes/events/[id]/certificate/` (the volunteer certificate this one's posture was
+  copied from), `routes/events/[id]/badges/`, `routes/events/[id]/rota/` and
+  `routes/events/[id]/ticket/`. Each has a careful `@media print` block that hides its own chrome,
+  and none carries `.print-area`, so the global rule hides the whole body including the thing being
+  printed. Only `my-set` and `CloakroomSlip` have the class. The fix is one class per page and the
+  check that goes with it; it is four other steps' files and this one did not touch them.
+- **Another agent in this cycle killed every `vite` process by pattern**
+  (`for pid in $(ps aux | grep -E "vite" ...)`), which took this worktree's dev server down
+  mid-run. `prompts/README.md` §5 rule 11 already says to kill by PID; worth restating where
+  agents will read it.
+- **`npm run lint` is red on the prep commit** — see the last item below.
+
+### Left open
+
+- **`POST /api/decks/` and `/flashcards/[id]` are learning step A's and were mocked / not followed.**
+  The integrator verifies the real call and the real link after A merges (`prompts/README.md` §9).
+- **No notification when a certificate is issued or withdrawn.** §5 rule 12 forbids a new
+  notification type while eight branches are open. It wants two: `course_completion_issued` to the
+  holder and `course_completion_revoked` to the holder, both in the `courses` preference category.
+- **No re-issue after a revoke.** `already_issued` counts a revoked row, so a certificate withdrawn
+  by mistake cannot be replaced without a shell. The right shape is probably an `unrevoke` action
+  rather than a second row, since the pair is unique and the holder could not tell two apart.
+- **No guardian sign-off on a certificate**, no class timetable, no gradebook — all three named out
+  of scope by the brief, the last of them permanently (`00-DESIGN.md` §5).
+- **The `/dziennik` demo is still not linked at the data level**, by owner decision. The connection
+  this step makes is by example: `seed_school_demo` builds what a school looks like *here*.
+- **`seed_school_demo` picks its subject branch from whatever the corpus holds** (preferring a slug
+  mentioning physics), so on this dev database two physics classes sit under
+  `analiza-matematyczna`. The command prints which branch it chose rather than hiding it.
+- **A guardian sees nothing of their child's class.** They are named on the roster to staff and can
+  be messaged, but there is no guardian view of a class, which is the obvious next step and is a
+  whole surface rather than a field.
+- **`npm run lint` still fails on files this work did not touch** — `e2e/decisions.mjs`,
+  `e2e/event-shifts.mjs` and `project.inlang/{.meta.json,README.md}` are unformatted, and five e2e
+  scripts (`course-claims`, `galleries-and-applications`, `login-return`,
+  `material-open-and-titles`, `prerender-check`) carry six eslint errors. All pre-existing on the
+  prep commit; `prettier --check` runs first, so the whole command is red regardless of this step.

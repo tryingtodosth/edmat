@@ -19,6 +19,9 @@
 	import LessonProgressPanel from '$lib/components/course/LessonProgressPanel.svelte';
 	import LinkedContentEditor from '$lib/components/course/LinkedContentEditor.svelte';
 	import { getSetsForUser } from '$lib/services/exerciseSets';
+	import { lessonExerciseIds } from '$lib/services/course';
+	import { createDeckFromExercises } from '$lib/services/flashcards';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { commentAnchorId, type ParsedContentRef } from '$lib/utils/contentLinks';
 	import type { ExerciseSet } from '$lib/types';
 	import type { Chapter, CourseItem, Course, Lesson, LessonExerciseSet } from '$lib/types/course';
@@ -135,6 +138,59 @@
 	) {
 		if (ref.kind === 'set') onlinkset?.(parentKind, parentId, ref.slug);
 		else onlinkcontent?.(parentKind, parentId, ref, note);
+	}
+
+	// --- "make a deck from this week" ------------------------------------------------------------
+	//
+	// `prompts/00-DESIGN.md` §2 row "lesson → deck". Every exercise the session points at — its own
+	// exercise items and every linked set's visible rows — snapshotted into one flashcard deck, in
+	// the order the page draws them. `lessonExerciseIds` reads the course payload the page already
+	// has rather than fetching: the server decided what this viewer may see, and an unpublished
+	// exercise is already gone from it (`LessonExerciseSet.visible_exercises`).
+	//
+	// **Offered to staff and participants alike**, because a deck made from this week's exercises is
+	// a study aid and whoever is studying should be able to make one. What differs is the
+	// *placement*: only staff attempt to hang the deck on the course, because placing something on a
+	// course is a curatorial act and the API refuses it for anybody else with its own word. A
+	// participant gets a private deck of their own, which is the honest thing for them to get.
+	//
+	// **Behind `flashcards`** (house rule 3: the switch takes the button away, not just the page).
+	// The flag is read from the store rather than wrapping this in `FeatureGate`, which renders an
+	// "unavailable" notice — right for a route and wrong for a control sitting inside somebody
+	// else's lesson. That is the `VenuePanel` precedent, found by looking at an e2e screenshot.
+	const decksOn = $derived(featureFlagsStore.isEnabled('flashcards'));
+
+	/** Which lesson's deck is being made, so the button disables only itself — a shared boolean
+	 * would grey out all thirty of them. */
+	let deckBusyFor = $state<string | null>(null);
+	/** Per-lesson outcome, keyed the same way and for the same reason. `null` is "nothing said yet". */
+	let deckResult = $state<Record<string, { id: string; name: string } | null>>({});
+	let deckError = $state<Record<string, string>>({});
+
+	async function makeDeck(lesson: Lesson) {
+		if (deckBusyFor) return;
+		const exerciseIds = lessonExerciseIds(lesson);
+		if (exerciseIds.length === 0) {
+			deckError = { ...deckError, [lesson.id]: m.school_deckEmpty() }; // "This session points at no exercises, so there is nothing to make a deck from."
+			return;
+		}
+		deckBusyFor = lesson.id;
+		deckError = { ...deckError, [lesson.id]: '' };
+		try {
+			const deck = await createDeckFromExercises({
+				name: m.school_deckName({ lesson: lesson.title }), // "{lesson} — flashcards"
+				exerciseIds,
+				source: { kind: 'lesson', id: lesson.id },
+				// Staff only — see above. `undefined` rather than a conditional object spread so the
+				// service omits the key entirely and the API never sees an empty placement.
+				placement: course.canCurate ? { kind: 'course', id: course.id } : undefined
+			});
+			deckResult = { ...deckResult, [lesson.id]: { id: deck.id, name: deck.name } };
+		} catch {
+			deckError = { ...deckError, [lesson.id]: m.school_deckFailed() }; // "The deck could not be made."
+		} finally {
+			deckBusyFor = null;
+		}
 	}
 
 	// --- drag and drop, staff only ---------------------------------------------------------------
@@ -647,8 +703,23 @@
 										<span class="when">{when(lesson.scheduledAt)}</span>
 									{/if}
 								</div>
-								{#if (course.canCurate && oneditlesson) || (course.canCurate && ondeletelesson)}
+								{#if decksOn || (course.canCurate && (oneditlesson || ondeletelesson))}
 									<div class="lesson__actions">
+										{#if decksOn}
+											<!-- Beside the session's heading, because it is about this session.
+											     Offered to participants as well as staff — see `makeDeck`. -->
+											<button
+												type="button"
+												class="link"
+												disabled={deckBusyFor === lesson.id}
+												onclick={() => makeDeck(lesson)}
+											>
+												{deckBusyFor === lesson.id
+													? m.school_deckWorking()
+													: m.school_deckFromLesson()}
+												<!-- "Making the deck…" / "Make a deck from this week" -->
+											</button>
+										{/if}
 										{#if course.canCurate && oneditlesson}
 											<button type="button" class="link" onclick={() => beginLessonEdit(lesson)}>
 												{m.course_edit_edit()}
@@ -666,6 +737,18 @@
 									</div>
 								{/if}
 							</div>
+							{#if deckResult[lesson.id]}
+								<p class="deck-note">
+									{m.school_deckReady({ name: deckResult[lesson.id]!.name })}
+									<!-- "Deck made: {name}" -->
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `/flashcards/[id]` is learning step A's route and does not exist on this branch; the integrator verifies the link once A is merged (HISTORY §17BR.C, "Left open") -->
+									<a href={`/flashcards/${deckResult[lesson.id]!.id}`}>{m.school_deckOpen()}</a>
+									<!-- "Open it" -->
+								</p>
+							{/if}
+							{#if deckError[lesson.id]}
+								<p class="deck-note deck-note--error" role="alert">{deckError[lesson.id]}</p>
+							{/if}
 							{#if lesson.description}
 								<div class="description"><MathContent source={lesson.description} /></div>
 							{/if}
@@ -1427,6 +1510,17 @@
 	}
 	.lesson__head h4 {
 		font-weight: 600;
+	}
+	.deck-note {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+		margin: var(--space-1) 0 0;
+		display: flex;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+	.deck-note--error {
+		color: var(--status-danger);
 	}
 	.lesson__head .when {
 		font-size: var(--font-size-sm);

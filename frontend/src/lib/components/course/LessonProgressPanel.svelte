@@ -139,6 +139,14 @@
 			<!-- Said rather than silently shown as nothing: an empty panel reads as "nobody has done
 			     anything", which is the opposite of the truth. -->
 			<p class="muted">{m.course_progress_smallCohort()}</p>
+		{:else if live.schoolMode}
+			<!-- School mode (`backend/courses/rules.py`): this viewer runs a class a school runs, so
+			     they are being shown every pupil's statements although the mode narrows them for
+			     everybody else. Checked BEFORE `mode === 'private'`, which would otherwise print
+			     "only you see your own" to the one person for whom that is now untrue — and it says
+			     the pupils were told, because a teacher reading a register ought to know that. -->
+			<p class="muted">{m.school_progressSchoolNotice()}</p>
+			<!-- "You are seeing every participant's statements because a school runs this class. They were told." -->
 		{:else if live.mode === 'private'}
 			<p class="muted">{m.course_progress_privateNote()}</p>
 		{/if}

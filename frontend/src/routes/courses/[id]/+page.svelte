@@ -55,10 +55,19 @@
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 
 	import CourseClaims from '$lib/components/course/CourseClaims.svelte';
+	import CourseCompletions from '$lib/components/course/CourseCompletions.svelte';
 	import ManagementPanels from '$lib/components/management/ManagementPanels.svelte';
+	import { getNodeOrganizations } from '$lib/services/organizations';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import type { OrganizationLink } from '$lib/types/organization';
 	import { pageTitle } from '$lib/utils/pageTitle';
 	let course = $state<Course | null>(null);
 	let participants = $state<Enrollment[]>([]);
+	// Who stands behind this course — ANY organisation with a `runs` or `supports` link, of any kind
+	// (`prompts/04-courses-school-mode.md`: "the line that is missing today"). `getNodeOrganizations`
+	// has existed since the management layer and was wired nowhere; the panel below it draws the
+	// management surfaces, and this one line is what a reader actually wants above the fold.
+	let runBy = $state<OrganizationLink[]>([]);
 	let loading = $state(true);
 	let notFound = $state(false);
 	let busy = $state(false);
@@ -176,6 +185,22 @@
 			}
 		} else {
 			participants = [];
+		}
+
+		// Who runs it. Behind `organizations` — the flag is asked BEFORE the request rather than
+		// after a 403, because house rule 6 read from the other side says do not fire a call the API
+		// is going to refuse; and `isLoaded` is waited for because `isEnabled` fails open before the
+		// first flag fetch resolves, which is right for drawing a link and wrong for making a call.
+		if (featureFlagsStore.isLoaded && !featureFlagsStore.isEnabled('organizations')) {
+			runBy = [];
+		} else {
+			try {
+				runBy = await getNodeOrganizations('course', id);
+			} catch {
+				// The flag off for a non-staff reader, or the node unreadable — either way the line
+				// simply does not appear. Not an error worth a banner on somebody's course page.
+				runBy = [];
+			}
 		}
 
 		// The staff list and the invite links moved to /courses/[id]/manage along with everything
@@ -459,6 +484,41 @@
 				{#if course.startsOn}· {course.startsOn}{/if}
 				{#if course.price}· {course.price} {course.currency}{/if}
 			</p>
+			{#if runBy.length > 0}
+				<!-- "Run by <organisation>". The body behind the course, which until now appeared
+				     nowhere on this page although `organizations` has recorded it since the management
+				     layer. Each link resolves its own `kind`, because `runs` ("this is ours") and
+				     `supports` ("we are behind it") are two different claims and a line that could not
+				     tell them apart would be read as the stronger one every time. Behind the
+				     `organizations` switch, which is enforced by `runBy` being empty — the flag is
+				     asked in `load`. -->
+				<p class="meta run-by">
+					{#each runBy as link (link.id)}
+						<span>
+							{link.kind === 'runs' ? m.school_runByPrefix() : m.school_runBySupports()}
+							<!-- "Organised by" / "Supported by" — deliberately NOT "Run by", which is
+							     `course_byInstructorPrefix` one line above and names the PERSON. The two
+							     read identically in both catalogues until a screenshot showed them
+							     stacked: "Run by Barbara Nowakowska / Run by TEST=FAKE Szkoła…". -->
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal route with a dynamic slug segment -->
+							<a href={`${resolve('/organizations')}/${link.organization.slug}`}>
+								{link.organization.name}
+							</a>
+						</span>
+					{/each}
+				</p>
+			{/if}
+			{#if course.school}
+				<!-- A class, and it says so to EVERYBODY rather than only to staff. That is the point:
+				     the people who run it see every participant's statements and the guardians on the
+				     roster (`backend/courses/rules.py`), and the participants are entitled to know
+				     that before they look at the progress buttons. -->
+				<p class="meta class-notice">
+					{m.school_classNotice({ name: course.school.name })}
+					<!-- "This is a class run by {name}. The people running it see every participant's
+					     progress statements and the guardians on the roster." -->
+				</p>
+			{/if}
 			{#if course.summary}<p class="summary">{course.summary}</p>{/if}
 		</header>
 
@@ -896,6 +956,34 @@
 										<a href={`${resolve('/users')}/${row.participant.id}`}
 											>{row.participant.displayName}</a
 										>
+										{#if row.isMinor}
+											<span class="badge">{m.school_minorBadge()}</span>
+											<!-- "under 16" -->
+										{/if}
+										{#if row.isMinor || row.guardians.length > 0}
+											<!-- School mode's guardian column. Drawn off the ROW rather than off
+											     `course.school`, because the server is the only thing that knows
+											     whether this viewer was answered these fields — a client deciding
+											     for itself would draw an empty column for a pupil's classmate.
+											     `guardians: []` with `isMinor: true` is a real and important state:
+											     a child with nobody on file, which is the row a teacher chases. -->
+											<span class="guardians">
+												{m.school_guardiansHeading()}:
+												<!-- "Guardian" -->
+												{#if row.guardians.length === 0}
+													<em>{m.school_guardianNone()}</em>
+													<!-- "nobody on file" -->
+												{:else}
+													{#each row.guardians as guardian, i (guardian.id)}
+														{#if i > 0},{/if}
+														<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- internal route with a dynamic id segment -->
+														<a href={`${resolve('/users')}/${guardian.id}`}>
+															{guardian.displayName}
+														</a>
+													{/each}
+												{/if}
+											</span>
+										{/if}
 										{#if course.isInstructor}
 											<button
 												type="button"
@@ -949,6 +1037,12 @@
 			<!-- The management layer (MANAGEMENT-BRIEF.md §2): organisations, tasks, needs, plans and
 			     polls hung on this course, each behind its own switch. Below every tab, because it is
 			     about running the course rather than any one part of it. -->
+			<!-- Completion certificates. Below the tabs like the management panels, because a
+			     certificate is about the course as a whole rather than about any one part of it — and
+			     above them, because it is the one of these that a participant has a reason to look
+			     for. It renders nothing at all when there is nothing to say. -->
+			<CourseCompletions courseId={course.id} canCurate={course.canCurate} {participants} />
+
 			<ManagementPanels nodeKind="course" nodeId={course.id} />
 			<!-- learning: deck placements (A) — the decks placed on this course (flashcards.DeckPlacement),
 			     mounted directly below this comment behind `flashcards`. -->
@@ -987,6 +1081,24 @@
 	}
 	.description {
 		white-space: pre-wrap;
+	}
+	.run-by {
+		display: flex;
+		gap: var(--space-3);
+		flex-wrap: wrap;
+	}
+	.class-notice {
+		max-width: 60ch;
+	}
+	.badge {
+		font-size: var(--font-size-xs);
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		padding: 0 0.5em;
+	}
+	.guardians {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
 	}
 	.mute {
 		display: flex;
