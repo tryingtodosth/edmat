@@ -78,7 +78,16 @@ cp backend/db.sqlite3 "$W/backend/db.sqlite3"            # migrated main DB, a c
 ln -s /Projects/edmat/frontend/node_modules "$W/frontend/node_modules"
 ln -s /Projects/edmat/.venv "$W/.venv"
 printf 'PUBLIC_API_BASE_URL=http://127.0.0.1:8131/api\n' > "$W/frontend/.env"
+# The telemetry log shards are separate files the copy above does NOT bring (found by step D,
+# 2026-10-05): without this, every write that records an AuditEvent answers 500 AFTER creating
+# the row — "no such table: telemetry_auditevent" — which looks exactly like a code bug.
+(cd "$W/backend" && for a in logs_0 logs_1 logs_2 logs_3 logs_4 logs_5 logs_6 logs_7 logs_anon; do ../.venv/bin/python3 manage.py migrate --database=$a; done)
 ```
+
+Two more worktree-only symptoms, so nobody chases them as bugs: the dev server answers **403 for
+KaTeX's fonts** (`node_modules` is a symlink outside Vite's `server.fs.allow`; the build bundles
+them, so production is unaffected — step H carries the `vite.config.ts` fix), and the backend
+logs `no such table: telemetry_requestlog` per request until the shards are migrated.
 
 Each agent runs its own servers on its own ports (brief §Verify), with Node 24 first on `PATH`:
 `export PATH=/home/bob/.cache/edmat-tools/node24/bin:$PATH`.
