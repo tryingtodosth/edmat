@@ -950,6 +950,10 @@
 			     polls hung on this course, each behind its own switch. Below every tab, because it is
 			     about running the course rather than any one part of it. -->
 			<ManagementPanels nodeKind="course" nodeId={course.id} />
+			<!-- learning: deck placements (A) — the decks placed on this course (flashcards.DeckPlacement),
+			     mounted directly below this comment behind `flashcards`. -->
+			<!-- learning: completion (C) — the completion-certificate controls and the "run by" line are
+			     C's, in C's own sections above; this marker records that nothing of C's mounts here. -->
 		</div>
 	{/if}
 </div>

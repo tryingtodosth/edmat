@@ -17,6 +17,7 @@ The permission posture is the project's standard one (root `CLAUDE.md`, "API con
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
 from django.http import Http404
+from config.creation import creation_block_reason
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -98,7 +99,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return OrganizationSummarySerializer if self.action == 'list' else OrganizationSerializer
 
     def create(self, request, *args, **kwargs):
-        reason = found_block_reason(request.user)
+        reason = found_block_reason(request.user) or creation_block_reason(request.user, 'organization')
         if reason:
             return _forbidden(reason)
         write = OrganizationWriteSerializer(data=request.data)

@@ -13,6 +13,7 @@ from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from accounts.minors import guardian_of, is_minor
 from config.audience import apply_audience_filter
+from config.creation import creation_block_reason
 from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -211,6 +212,11 @@ class EventViewSet(
         """
         if is_minor(request.user):
             return Response({'detail': 'minor'}, status=status.HTTP_403_FORBIDDEN)  # no hosting
+        # The creation gate (config/creation.py, learning step F) — after the minors rule, which is
+        # the older and narrower refusal, so its word still wins for an under-16.
+        reason = creation_block_reason(request.user, 'event')
+        if reason:
+            return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
         write = self.get_serializer(data=request.data)
         write.is_valid(raise_exception=True)
         event = write.save(host=request.user)

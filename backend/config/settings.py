@@ -203,6 +203,9 @@ INSTALLED_APPS = [
     'plans',
     'decisions',
     'work',
+    # The learning cycle (prompts/00-DESIGN.md), registered EMPTY by the prep commit for the same
+    # reason: flashcards — decks, cards, spaced review, and placements on a course or an event.
+    'flashcards',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting

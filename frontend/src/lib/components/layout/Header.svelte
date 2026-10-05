@@ -104,6 +104,10 @@
 	let canOffers = $derived(can('volunteering'));
 
 	let canWork = $derived(can('work_dashboard'));
+	// Learning-cycle flags (prompts/README.md §5 rule 4): one `let can… = $derived(can('…'))` line
+	// per step, appended directly below this comment in step order (A flashcards, B learning_record,
+	// F the creation gate — F reads `GET /api/creation/`, not a flag). Nothing else in this block
+	// is touched by a step.
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -315,6 +319,9 @@
 	</a>
 	<!-- Management nav marker (MANAGEMENT-BRIEF.md §4 rule 4): step C appends its "Help wanted"
 	     link directly below this comment, behind its flag. No other step touches the nav. -->
+	<!-- Learning nav marker (prompts/README.md §5 rule 4): NO learning step appends a main-bar link —
+	     the bar was trimmed by owner decision on 2026-10-01 and stays trimmed. Decks live in the
+	     account menu (marker below). The marker exists so that the question is answered here. -->
 	{#if canNeeds}
 		<a
 			class="nav-link nav-link--needs"
@@ -445,6 +452,11 @@
 	     (It was, and still is where it remains, closed to an under-16: founding a body means
 	     standing publicly behind it, which `accounts/minors.py` closes exactly as it closes event
 	     hosting.) -->
+	<!-- Learning Add… marker (prompts/README.md §5 rule 4): step F hides the "New event" and "New
+	     listing" entries above for an account `GET /api/creation/` refuses (courses and organisations
+	     left this menu on 2026-10-01 and are founded from their hubs, which F gates the same way),
+	     by appending its `creation` state in the script block and wrapping nothing but those two
+	     `{#if}`s. No learning step ADDS an entry here. -->
 {/snippet}
 
 {#snippet accountItems(itemClass: string, onclick: () => void)}
@@ -514,6 +526,9 @@
 	<!-- Management account-menu marker (MANAGEMENT-BRIEF.md §4 rule 4): steps append directly below
 	     this comment, in step order — A "My organisations", B "My tasks", F "My work" — each behind
 	     its own flag. -->
+	<!-- Learning account-menu marker (prompts/README.md §5 rule 4): step A appends "My decks"
+	     (→ /flashcards, behind `flashcards`) directly below this comment. No other learning step
+	     touches the account menu. -->
 	{#if canTasks}
 		<!-- Everything waiting on this person across every course, event and material they help run
 		     (MANAGEMENT-BRIEF.md §3.B). Here rather than in Add… for the same reason Volunteering is:

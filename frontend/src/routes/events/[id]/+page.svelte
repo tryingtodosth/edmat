@@ -614,6 +614,11 @@
 				<!-- The management layer (MANAGEMENT-BRIEF.md §2): organisations, tasks, needs, plans and
 				     polls hung on this event, each behind its own switch. One component, mounted once. -->
 				<ManagementPanels nodeKind="event" nodeId={event.id} />
+				<!-- learning: deck placements (A) — the decks placed on this event (flashcards.DeckPlacement),
+				     mounted directly below this comment behind `flashcards`. -->
+				<!-- learning: event ↔ course (E) — the cross-link panel through the organisation ("this
+				     event's workshops became these courses"), mounted directly below this comment behind
+				     `organizations`. The take-home button is E's, inside Programme.svelte. -->
 			{/if}
 
 			<!-- While the preview is on, the organiser's own page is unmounted around it (see EventPreview). -->

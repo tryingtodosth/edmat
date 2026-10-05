@@ -3651,5 +3651,8 @@
 	"conference_looking": "Looking for the demonstration conference…",
 	"conference_missing": "There is no demonstration conference on this site yet.",
 	"conference_failed": "The event list could not be loaded.",
-	"conference_browseEvents": "Browse all events"
+	"conference_browseEvents": "Browse all events",
+	"featureFlags_label_flashcards": "Flashcards: decks and spaced review",
+	"featureFlags_label_learningRecord": "Learning record on public profiles",
+	"featureFlags_label_creationRequiresVerification": "Creating courses, events, listings and organisations: verified contributors only"
 }

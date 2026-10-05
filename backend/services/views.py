@@ -7,6 +7,7 @@ from accounts.minors import is_minor
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import mixins, permissions, status, viewsets
 from config.audience import apply_audience_filter
+from config.creation import creation_block_reason
 from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -256,6 +257,11 @@ class ServiceViewSet(viewsets.ModelViewSet):
         )
 
     def create(self, request, *args, **kwargs):
+        # The creation gate (config/creation.py, learning step F): a tutoring listing is one of the
+        # four things an account founds here. A stub until F lands; the shape is fixed.
+        reason = creation_block_reason(request.user, 'service')
+        if reason:
+            return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)

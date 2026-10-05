@@ -42,7 +42,15 @@ const config = {
 		// and without this entry the default-locale reader lands on the SPA fallback for the one hub
 		// page the navbar links to. The prerenderer runs `hooks.ts`'s reroute, so each resolves the
 		// same page and writes `korki.html`/`materialy.html` beside their English twins.
-		prerender: { entries: ['*', '/korki', '/materialy'] }
+		prerender: {
+			entries: [
+				'*',
+				'/korki',
+				'/materialy'
+				// learning: showcase (G) appends its /about/<feature> pages here, one per line.
+				// learning: guide (H) appends its /about/guide/** pages here, after G's.
+			]
+		}
 	}
 };
 

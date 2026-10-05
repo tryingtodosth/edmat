@@ -3651,5 +3651,8 @@
 	"conference_looking": "Szukam konferencji demonstracyjnej…",
 	"conference_missing": "Na tej stronie nie ma jeszcze konferencji demonstracyjnej.",
 	"conference_failed": "Nie udało się wczytać listy wydarzeń.",
-	"conference_browseEvents": "Zobacz wszystkie wydarzenia"
+	"conference_browseEvents": "Zobacz wszystkie wydarzenia",
+	"featureFlags_label_flashcards": "Fiszki: talie i powtórki w odstępach",
+	"featureFlags_label_learningRecord": "Historia nauki na profilu publicznym",
+	"featureFlags_label_creationRequiresVerification": "Zakładanie kursów, wydarzeń, ogłoszeń i organizacji: tylko zweryfikowani"
 }

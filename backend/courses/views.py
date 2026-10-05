@@ -13,6 +13,7 @@ from django.db.models import Prefetch, Q
 from django.utils import timezone
 from rest_framework import permissions, status, viewsets
 from config.audience import apply_audience_filter
+from config.creation import creation_block_reason
 from config.content_locale import HIDDEN_HEADER, apply_content_locale_filter
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -272,6 +273,11 @@ class CourseViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
+        # The creation gate (config/creation.py, learning step F): one rule module, asked here and
+        # at the other three "found something" paths. A stub until F lands; the shape is fixed.
+        reason = creation_block_reason(request.user, 'course')
+        if reason:
+            return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
         write = self.get_serializer(data=request.data)
         write.is_valid(raise_exception=True)
         self.perform_create(write)

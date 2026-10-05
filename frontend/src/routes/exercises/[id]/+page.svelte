@@ -416,6 +416,10 @@
 			     neighbouring questions ("filed under" and "about"). Renders nothing at all when there
 			     is nothing linked and nothing this reader could do about it. -->
 			<LinkedConcepts exerciseId={exercise.id} />
+			<!-- learning: learn first (D) — the bounded prerequisite closure of this exercise's concepts,
+			     "before this, know…", mounted directly below this comment behind `concepts`. -->
+			<!-- learning: add to deck (A) — A's "add to a deck" control goes through the existing
+			     save-targets store on the exercise card, NOT here; the marker records that decision. -->
 
 			<section class="content-section">
 				<h2>{m.exercise_statement()}</h2>

@@ -382,6 +382,21 @@ FEATURE_FLAG_CHOICES = [
     # over a static directory, and it is written here so nobody assumes otherwise: to remove the
     # page as well, remove the Alias from the vhost.
     ('school_demo', 'School-management demo (/dziennik)'),
+    # The learning cycle (prompts/00-DESIGN.md, 2026-10-05), seeded together by migration 0047 so
+    # that the eight parallel branches never each add a flag. Two plain kill switches:
+    # `flashcards` (backend flashcards/: decks, cards, spaced review, placements on a course or an
+    # event) and `learning_record` (the consent-gated learning-record section on a public profile,
+    # identity/record.py). Each closes its own endpoints to a non-staff caller and takes its own
+    # links, panels and menu items with it (house rule 3).
+    ('flashcards', 'Flashcards: decks and spaced review'),
+    ('learning_record', 'Learning record on public profiles'),
+    # INVERTED like `material_uploads_verified_only` below: is_enabled=True means "the RESTRICTION
+    # is on" — creating a course, an event, a tutoring listing or an organisation is refused to an
+    # account that is neither staff nor a verified contributor (config/creation.py says why and
+    # with which word). Seeded ON by owner decision (00-DESIGN.md §4.6): until the USOS connection
+    # exists, founding things is for people the site can vouch for. Reads, joining and everything
+    # already created are untouched. The day USOS lands, a moderator flips this off.
+    ('creation_requires_verification', 'Creating courses, events, listings and organisations: verified contributors only'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

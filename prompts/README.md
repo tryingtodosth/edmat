@@ -1,0 +1,199 @@
+# prompts/ — the agents about to be launched, and how to launch them
+
+This directory holds one brief per agent for the **learning cycle** (`00-DESIGN.md`): the design
+they share, the context each one needs and where it is, which model and worktree each gets, and
+what the integrator does after they land. A brief is pasted as the agent's prompt, whole, after
+the header block from `_template.md` has been filled in. It is the third time this project builds
+many branches at once; `CONFERENCE-BRIEF.md` §4 and `MANAGEMENT-BRIEF.md` §4–5 are the two
+previous runs and this file is their rules, kept, plus what they taught.
+
+The briefs are tracked in git on purpose (they are design, like the `*-BRIEF.md` files). The
+boards are not, and stay at `/Projects/edmat-boards/` (or `/home/alojzy/Wymiana_VM/edmat-boards/`
+on the other machine) — a brief says *what*, a board says *who is on it right now*.
+
+---
+
+## 1. The pattern
+
+```
+prep commit (integrator)  →  N branches at once, one app each  →  integration (integrator)
+```
+
+The prep commit lands every **shared** edit before anyone starts: feature flags (one migration),
+marker comments in the shared Svelte files, empty registered apps, stub rule modules. After that
+the only shared-file edits a step makes are appending at its own marker. Every merge conflict is
+then a "both appended" conflict, resolved mechanically (`resolve_union.py` beside the
+management-build memory; watch for identical trailing lines folded into context, run Prettier and
+`fix_labels_seams.py` after each merge).
+
+## 2. Who — model per step
+
+| Step | Brief | Model | Why this model |
+|---|---|---|---|
+| prep | `01-prep.md` | the orchestrating session (Fable 5.1) | touches shared files; must know all nine briefs |
+| A flashcards | `02-flashcards.md` | **Opus 5** | new app, new algorithm, the one others build against |
+| B learning record | `03-learning-record.md` | **Opus 5** | one rule module, one profile section, one consent flag, a minors fix |
+| C courses | `04-courses-school-mode.md` | **Opus 5** | `courses` is the largest app (1 600+ lines of models) with the most invariants |
+| D concept paths | `05-concept-paths.md` | **Opus 5** | a bounded graph walk and two buttons |
+| E events | `06-event-takeaways.md` | **Opus 5** | two panels against documented shapes |
+| F creation gate | `07-creation-gate.md` | **Opus 5** | one rule module, four call sites already wired, one menu, four hubs |
+| G /about showcase | `08-about-showcase.md` | **Opus 5** | design judgement across every surface; must read all briefs |
+| H manual | `09-manual.md` | **Opus 5**, with the browser harness | drives the real app, writes, screenshots, iterates |
+| integration | `10-integration.md` | the orchestrating session | merges, wires, runs everything |
+
+**Every step runs on Opus 5 — owner decision, 2026-10-05** ("Agents should be using Opus 5"),
+replacing the Opus/Sonnet split this table first proposed. The reason the split existed is
+below and still true of Haiku.
+
+**Do not give a step to Haiku.** On 2026-09-24 both Haiku steps reported checks they had not run
+and did not converge when sent back; Sonnet takeovers found real bugs underneath. Re-run every
+agent's "Verified" numbers before merging regardless of model.
+
+## 3. Where — worktrees, branches, ports
+
+Branch `learn/<letter>-<app>`, worktree `/Projects/edmat/.claude/worktrees/learn-<letter>-<app>/`,
+both created from the prep commit on `ux/mission-nav-tutoring-volunteering` (the branch production
+was packed from; `origin/main` is behind it and the publish rule in `CLAUDE.md` still applies).
+
+| Step | API port | Vite port |
+|---|---|---|
+| A | 8131 | 5231 |
+| B | 8132 | 5232 |
+| C | 8133 | 5233 |
+| D | 8134 | 5234 |
+| E | 8135 | 5235 |
+| F | 8136 | 5236 |
+| G | 8137 | 5237 |
+| H | 8138 | 5238 |
+
+(810x/520x were the conference build, 812x/522x the management build; those worktrees still exist
+under `.claude/worktrees/mgmt-*` — leave them.)
+
+Making one worktree, from the repo root, after the prep commit `<PREP>`:
+
+```bash
+W=/Projects/edmat/.claude/worktrees/learn-a-flashcards
+git worktree add -b learn/a-flashcards "$W" <PREP>
+cp backend/db.sqlite3 "$W/backend/db.sqlite3"            # migrated main DB, a copy per worktree
+ln -s /Projects/edmat/frontend/node_modules "$W/frontend/node_modules"
+ln -s /Projects/edmat/.venv "$W/.venv"
+printf 'PUBLIC_API_BASE_URL=http://127.0.0.1:8131/api\n' > "$W/frontend/.env"
+```
+
+Each agent runs its own servers on its own ports (brief §Verify), with Node 24 first on `PATH`:
+`export PATH=/home/bob/.cache/edmat-tools/node24/bin:$PATH`.
+
+## 4. What context, and where to get it
+
+Three layers. The first is the same for every agent and is listed once here; the brief lists the
+second; the third is how an agent answers a question nobody anticipated.
+
+**Always, before the first line** (in this order):
+1. `CLAUDE.md` (root) — the contract, house rules 1–14, the flag three-file rule.
+2. `backend/CLAUDE.md` and `frontend/CLAUDE.md` — the half-specific traps (SQLite, Svelte 5).
+3. `frontend/e2e/CLAUDE.md` — the browser-script traps, before writing or running one.
+4. `prompts/00-DESIGN.md` — the design this step is a piece of.
+5. `prompts/README.md` §5 — the rules.
+6. The three boards.
+7. `backend/<app>/CLAUDE.md` for every app named in the brief.
+
+**Per step**: the "Context" section of the brief, each entry a path and the reason it is there.
+Line numbers are from 2026-10-05 and may drift; the file is the pointer, the line a hint.
+
+**When stuck**: `CLAUDE_MAP.md` for where something lives; `HISTORY.md` for why (grep the §
+named in the brief); `test.md` §5 for how to add a test; `QA.md` for what is known to be weak.
+The previous briefs are worked examples of every shape used here: `MANAGEMENT-BRIEF.md` §2 (a
+shared seam), `CONFERENCE-BRIEF.md` §3.E (a step with a printable certificate), `CONCEPTS-BRIEF.md`
+(an app modelled on another app on purpose).
+
+## 5. Rules for building eight branches at once
+
+1. **One app per step, and no migration outside your app.** A field you want on `Course`,
+   `Event`, `Exercise` or `Profile` is a row in your app pointing at it. If you truly need a
+   shared schema change, stop and write it on the board.
+2. **Feature flags are already seeded** by the prep (`moderation` migration 0047, both frontend
+   files, both catalogues). Do not add a key; do not touch `moderation/migrations`.
+3. **`config/nodes.py` and `config/creation.py` are read-only** for everyone but F (creation).
+   Every "may this person" question goes through them.
+4. **Mount points**: replace your own marker line only, in the file the brief names; your import
+   goes right after the marker comment in the script block. Do not reorder anything.
+5. **i18n keys are prefixed by step** (`decks_*`, `record_*`, `school_*`, `paths_*`, `takehome_*`,
+   `gate_*`, `showcase_*`, `guide_*`), one contiguous block at the end of **both** catalogues,
+   identical key sets, every `m.*()` call with its `// "Original text"` comment. Recompile
+   Paraglide after editing. A key outside your prefix is a merge conflict you caused.
+6. **`labels.ts`**: append at the end under a comment naming your backend module; say in
+   `models.py` that `labels.ts` mirrors it.
+7. **`HISTORY.md`**: append `## 17BR.<letter> …` at the very end with "Verified" (what you ran,
+   with numbers) and "Left open". `test.md` gets one paragraph at the end. Root `CLAUDE.md`,
+   `CLAUDE_MAP.md` and the app list are the integrator's. Write `backend/<app>/CLAUDE.md`.
+8. **Boards**: your `doing.md` entry exists before you start, with your branch and worktree. On
+   finishing, move it to the top of `done.md` with the commit hash and what you ran; re-read the
+   file immediately before editing and write it in one process. Anything left open goes to
+   `todo.md` under "Learning step <letter>".
+9. **Verify by running**, from your worktree, on your own ports: `manage.py test <yourapp> config`
+   (`--keepdb`; test-DB creation takes ~9 minutes on this tree), `manage.py check`,
+   `makemigrations --check --dry-run`, `npm run check` (0/0), `npm run lint`, `npm run build`,
+   and your e2e script `frontend/e2e/<name>.mjs` against real servers. Clear
+   `backend/cachedata/*` before each e2e run (the login throttle lives in the file cache); never
+   run e2e while editing files; never alongside the full backend suite. **Look at the
+   screenshot.** Say in the board entry exactly what you ran and the numbers.
+10. **Commit on your branch, never push, never merge, never rebase.**
+11. **Absolute paths always**; `git -C <worktree>`; `pkill` by PID, never by a pattern that
+    appears in your own command line.
+12. **No new notification types**; name the ones you wanted in "Left open".
+13. **Do not edit another step's app.** A hook another step must wire goes in *your* app as a
+    small module the brief names (`<app>/record.py`, `<app>/work.py`), and the integrator registers it.
+14. Refusals carry a word (house rule 6); a stranger gets 404 (rule 4); one status field; counts
+    recounted; sanitize on write with `config/sanitize.py`; render through the existing renderer;
+    lazy-load anything heavy; both catalogues, always.
+
+## 6. Launching
+
+Two ways, both used before:
+
+- **A separate Claude Code session per worktree** (the conference and management builds): open the
+  worktree, paste the filled-in brief as the first message. The agent reads the boards itself.
+- **The Agent tool from the orchestrating session**: `subagent_type: general-purpose`, the model
+  from §2, the brief as the prompt, and the worktree path in the header so every command is
+  absolute. The agent's final report is not shown to the owner; relay it. **This is how the
+  2026-10-05 launch was done**, from session `d1b7fac5` (the one that respawned the cycle after
+  the session that wrote `00-DESIGN.md` ended before writing a brief).
+
+Launch order: A first (others reference its API shapes but do not wait for it), then B–G in one
+go, then H (its exercises chapter starts at once; its flashcards chapter after A is merged).
+
+## 7. Integration (`10-integration.md`)
+
+Merge order H, G, F, E, D, C, B, A into `ux/mission-nav-tutoring-volunteering`, migrate the main
+database **before** any e2e, register the record and work providers, add permission-matrix rows,
+update `CLAUDE.md` (apps 34 → 35, flags 28 → 31), `CLAUDE_MAP.md`, `test.md`, run the whole
+suite, the e2e scripts, `check:a11y`, write the `HISTORY.md` §17BR preamble, then the replay onto
+`origin/main` per the publish rule. Ask before any push.
+
+## 8. What the previous two runs taught (so nobody relearns it)
+
+- Pre-registering the apps and putting the shared rule in one module **in the prep** is what
+  reduced shared edits to one line; keep doing it.
+- Migrate the main DB after merging any branch with a new model before e2e, or 500s look like
+  regressions.
+- The union resolver drops a line when both sides end with the same text; Prettier after merge.
+- The register endpoint is throttled per process; sign in as seeded users (`password123`).
+- `waitUntil: 'networkidle'` never fires on an authenticated page (the SSE stream).
+- An agent that says "verified" without numbers has not verified.
+
+## 9. Decisions taken at launch (2026-10-05, the integrator) — the briefs are written to these
+
+- **A placed deck is studyable by everyone who can view the node** it is placed on; `is_public`
+  (world-readable) stays off and a minor cannot set it. `00-DESIGN.md` §4.1 said "private only";
+  read literally it would have made the lesson/session/concept buttons produce decks nobody but
+  their maker could open. Placement is this cycle's sharing; a public deck library is the next.
+- **Decks are addressed by numeric id** (`/flashcards/[id]`), like every non-taxonomy object
+  (`CLAUDE.md` API conventions); the random slug in the first analysis was for a share link that
+  this cycle does not have.
+- **`creation_requires_verification` is a `FeatureFlag` row, inverted, seeded ON** — a moderator
+  flips it, not a deploy. `is_feature_enabled` fails open, which for an inverted flag is the safe
+  direction (the restriction holds if the row is somehow missing).
+- **The Add… menu holds only events and listings now**; courses and organisations are founded
+  from their hubs (owner decision 2026-10-01), so F gates the hubs' buttons the same way.
+- **C, D and E verify their "make a deck" buttons against a mocked `POST /api/decks/`** and say
+  so; the real call is verified at integration, after A merges.

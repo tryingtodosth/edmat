@@ -16,6 +16,8 @@ from rest_framework.views import APIView
 
 from telemetry.middleware import client_ip
 
+from .creation import CREATION_KINDS, creation_status
+
 from .geo import country_for_ip
 
 # The interface catalogue is `en` + `pl` (root CLAUDE.md, "i18n — two separate axes"). A third
@@ -122,3 +124,22 @@ class NodeStaffView(APIView):
             raise Http404
         users = nodes.node_staff_users(node).select_related('profile').order_by('pk')
         return Response([{'id': u.pk, 'display_name': _display_name(u)} for u in users])
+
+
+class CreationStatusView(APIView):
+    """`GET /api/creation/` → `{kind: reason-or-null}` for every kind in `config.creation.CREATION_KINDS`.
+
+    The Add… menu's side of the creation gate (prompts/07-creation-gate.md): the Header asks once,
+    for the signed-in account, which of the four "found something" entries it may draw, so that a
+    refused account never sees a button it would be refused at (house rule 3). Anonymous callers
+    get every kind refused with `anonymous`; the real refusal words come from the rule module,
+    never from here. The prep commit ships the rule as a stub, so until step F lands this answers
+    `null` for every kind of a signed-in account.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response({kind: 'anonymous' for kind in CREATION_KINDS})
+        return Response(creation_status(request.user))

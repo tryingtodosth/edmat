@@ -1,5 +1,5 @@
 // Platform-wide moderator "kill switches" (backend moderation/models.py's FeatureFlag) — a fixed,
-// curated set of 28 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
+// curated set of 31 keys, not a user-creatable list; see moderation/permissions.py's feature_gate
 // for how each one actually blocks the feature it names, not just hides its own UI.
 //
 // THIS UNION AND `FEATURE_FLAG_LABELS` (utils/labels.ts) BOTH MIRROR THE BACKEND'S OWN
@@ -93,6 +93,18 @@ export type FeatureFlagKey =
 	// the shifts rota's own page and a different feature, keeps answering to `shifts`.
 	| 'volunteering'
 	| 'school_demo'
+	// The learning cycle (prompts/00-DESIGN.md, 2026-10-05), seeded together by moderation migration
+	// 0047 so that eight parallel branches never each add a flag. `flashcards`: decks, cards, spaced
+	// review and placements on a course or an event — off, the routes, the account-menu item, the
+	// "make a deck" buttons and the placement panels all go. `learning_record`: the consent-gated
+	// learning-record section on a public profile — off, the section and its settings toggle go.
+	| 'flashcards'
+	| 'learning_record'
+	// INVERTED like `material_uploads_verified_only` below: on means the RESTRICTION is on —
+	// founding a course, an event, a tutoring listing or an organisation needs a verified
+	// contributor (backend config/creation.py). The Add… menu reads `GET /api/creation/` rather
+	// than this flag, because the answer is per account, not per site.
+	| 'creation_requires_verification'
 	| 'material_uploads_verified_only';
 
 export interface FeatureFlag {

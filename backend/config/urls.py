@@ -7,7 +7,7 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 
 from config.sitemaps import SITEMAPS
-from config.views import LocaleHintView, NodeRefView, NodeStaffView
+from config.views import CreationStatusView, LocaleHintView, NodeRefView, NodeStaffView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -20,6 +20,9 @@ urlpatterns = [
     # Here rather than in any one of the six management apps because all six ask it.
     path('api/nodes/<str:kind>/<int:pk>/', NodeRefView.as_view(), name='node-ref'),
     path('api/nodes/<str:kind>/<int:pk>/staff/', NodeStaffView.as_view(), name='node-staff'),
+    # The creation gate's read side (config/creation.py, learning step F): what the Add… menu may
+    # draw for this account. Here because the rule belongs to no one app and four apps ask it.
+    path('api/creation/', CreationStatusView.as_view(), name='creation-status'),
     # Deliberately at the root, not under `/api/`: this is the URL a crawler is told to fetch, and
     # Apache rewrites exactly this path through to Django (everything else at the root is the
     # SvelteKit build served off disk). The URLs it emits are frontend routes — see config/sitemaps.py.
@@ -66,6 +69,8 @@ urlpatterns = [
     path('api/', include('plans.urls')),
     path('api/', include('decisions.urls')),
     path('api/', include('work.urls')),
+    # The learning cycle (prompts/00-DESIGN.md §3), included EMPTY by the prep commit.
+    path('api/', include('flashcards.urls')),
 ]
 
 if settings.DEBUG:

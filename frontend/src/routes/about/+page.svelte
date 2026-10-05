@@ -113,6 +113,10 @@
 		</aside>
 	</section>
 
+	<!-- learning: showcase (G) — the index of the design showcase pages under /about/<feature>, built
+	     from sample data in lib/content/showcase/, mounted directly below this comment. -->
+	<!-- learning: guide (H) — the one link into the manual at /about/guide, mounted directly below
+	     this comment (after G's block). -->
 	<section class="about__section">
 		<h2>{doc.featuresHeading}</h2>
 		<p class="about__intro">{doc.featuresIntro}</p>

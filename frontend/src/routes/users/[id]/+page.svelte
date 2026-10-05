@@ -365,6 +365,9 @@
 		<section class="rows">
 			<h2>{m.profile_aboutHeading()}</h2>
 			<!-- "About" -->
+			<!-- learning: learning record (B) — the consent-gated record row (shared grades per Branch in
+			     one block, EdMat activity counts per Branch in a second, behind `learning_record`),
+			     mounted directly below this comment as its own row + modal. -->
 			{#if education}
 				<button type="button" class="row" onclick={() => (modal = 'education')}>
 					<span class="row__label">{m.education_publicHeading()}</span>

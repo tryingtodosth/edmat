@@ -403,6 +403,10 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	work_dashboard: m.featureFlags_label_workDashboard, // "Personal work dashboard"
 	volunteering: m.featureFlags_label_volunteering, // "Volunteering offers"
 	school_demo: m.featureFlags_label_schoolDemo, // "School-management demo"
+	// The learning cycle (prompts/00-DESIGN.md): mirrors moderation/models.py's three 0047 keys.
+	flashcards: m.featureFlags_label_flashcards, // "Flashcards: decks and spaced review"
+	learning_record: m.featureFlags_label_learningRecord, // "Learning record on public profiles"
+	creation_requires_verification: m.featureFlags_label_creationRequiresVerification, // "Creating courses, events, listings and organisations: verified contributors only"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 
