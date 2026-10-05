@@ -153,7 +153,18 @@ async function main() {
 		{ name: 'My Set (guest)', url: '/my-set' },
 		{ name: 'Login', url: '/login' },
 		{ name: 'Register', url: '/register' },
-		{ name: 'Public profile', url: `/users/${kasiaUserId}` }
+		{ name: 'Public profile', url: `/users/${kasiaUserId}` },
+		// The design showcase under /about (prompts/08-about-showcase.md, step G). Seven prerendered
+		// pages built from sample data in lib/content/showcase/ — anonymous by definition, since the
+		// whole point of them is what somebody who has never signed in can see. Appended as one
+		// contiguous block so a merge of several parallel branches is a "both appended" conflict.
+		{ name: 'Showcase: exercises', url: '/about/exercises' },
+		{ name: 'Showcase: flashcards', url: '/about/flashcards' },
+		{ name: 'Showcase: learning record', url: '/about/learning-record' },
+		{ name: 'Showcase: courses', url: '/about/courses' },
+		{ name: 'Showcase: schools', url: '/about/schools' },
+		{ name: 'Showcase: concepts', url: '/about/concepts' },
+		{ name: 'Showcase: events', url: '/about/events' }
 	];
 
 	// Authenticated pages — a real moderator session (broadest surface: sees the moderation queue,

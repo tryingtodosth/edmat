@@ -11367,3 +11367,134 @@ visitor. The real call is verified at integration, after A merges (`prompts/READ
 - **`npm run lint` is red on four files this step did not touch** (`e2e/decisions.mjs`,
   `e2e/event-shifts.mjs`, `project.inlang/.meta.json`, `project.inlang/README.md`). `prettier
   --check` runs before eslint, so the whole command fails; §17BQ left the first two the same way.
+
+## 17BR.G. The design showcase under `/about/<feature>` (✅ built, frontend only, 2026-10-05)
+
+Step G of the learning cycle (`prompts/00-DESIGN.md`, `prompts/08-about-showcase.md`), built on
+`learn/g-about` from the prep commit `f90e221` beside the seven features it describes.
+
+**The problem.** This cycle adds flashcards, a learning record, school mode, a completion
+certificate, concept paths and event take-home decks. A visitor who has never signed in can read
+`/about` and learn that EdMat has courses and materials; they cannot see what a course with a deck
+placed on it looks like, what a learning record says, or what a school on EdMat is. Every obvious
+answer to that — seed a demonstration account, mock an API, take screenshots — has a cost: demo rows
+in production tables, a second code path, or pictures that go stale the first time a card is
+restyled.
+
+**What was built.** Seven prerendered pages, `/about/{exercises,flashcards,learning-record,courses,
+schools,concepts,events}`, each drawn with the **real components** fed **sample objects of the real
+TypeScript types** from `lib/content/showcase/*.ts`. `ExerciseCard`, `CourseCard`, `EventCard`,
+`ConceptCard`, `MaterialCard`, `EducationCard` and `TranscriptView` are the app's own; a thin twin
+in `lib/components/showcase/` stands in only where the real thing fetches (`DeckTile`,
+`RecordBlocks`, `CertificateSample`, `PathSteps`, `SampleRows`). Nothing is seeded, nothing is
+fetched, and the pages render with the API down — which is the `/dziennik` posture of §17BO applied
+one page at a time rather than to a whole second product.
+
+Because the samples are components rather than images, they cannot go stale: a restyled card
+restyles the showcase in the same commit.
+
+**The decision that shaped everything else: `inert`.** Drawing a real `ExerciseCard` means its title
+is a real `<a>` to `/exercises/9001` — an id that exists in a content file and in no database. Live,
+every card on these pages would be a dead end. So `SampleFrame` wraps each sample in an `inert`
+container: not clickable, not focusable, and out of the accessibility tree — which is the honest
+description of what it is. That makes the `<figcaption>` load-bearing rather than decorative (it is
+what a screen reader gets), so every caption in `lib/content/showcase/` names what the picture
+actually shows. The e2e proves the attribute is doing work rather than sitting there: it clicks a
+sample card with `force` and asserts the URL did not move.
+
+**One sample is deliberately live** — the flashcard on `/about/flashcards` turns over, reveals its
+hint and takes a grade, and the line under the buttons says "Nothing was saved" every time, because
+there is no deck behind it. The brief drew that line (a flip is fine, a grade that stores nothing is
+fine, an API call is not) and the e2e holds it: it counts requests to the API base after the page
+has settled and asserts that operating the sample adds none.
+
+**The text lives in `lib/content/`, not the catalogues**, the exception `about.ts`/`privacy.ts`/
+`levels.ts` already opened: one piece of writing in both languages in one file, so a reviewer can
+see whether the Polish still says what the English does. Only the chrome — the "Sample" badge, the
+grade words, the back-link — is in the catalogues, under the `showcase_` prefix (34 keys, both
+catalogues, 3690 each, key sets identical, and none of the 34 unused).
+
+**Honesty about what is not on.** A showcase page is a *description*, so it renders whether or not
+its feature is switched on; what it does is say so, in a warning band, when the flag is off
+(`flashcards`, `learning_record`, `courses`, `organizations`, `concepts`, `events` — each page
+answers to the one it describes, with the usual `|| isModerator` bypass). The index on `/about` is
+deliberately **not** flag-gated, unlike the feature cards a few sections below it: hiding the
+explanation of a killed feature leaves a reader with no way to find out what the site does.
+
+**The school is invented.** A first draft named a real Warsaw secondary school and then put named
+pupils and named guardians on its roster. Inside a sample frame, on a page that says nothing is
+live — and still the wrong thing to do, so the school is `Hilbert Secondary School` /
+`Liceum Ogólnokształcące im. Davida Hilberta`. The university on `/about/learning-record` stays
+real, because it is this site's own provenance and `content/about.ts` already names it.
+
+**Three things a screenshot found that nothing else did.** A deck tile read `made from a set
+·private to its owner` — Svelte had eaten the space after a separator interleaved into the template,
+so the two labels are joined in JavaScript now. The learning record's four-column activity table had
+its last column cut mid-digit at 390px, which reads as broken data rather than as a table that
+scrolls; it has a `min-width` so the overflow is real and the figures whole. And the demonstration's
+limits on `/about/schools` rendered as an indented block with no bullets, because the global reset
+removes list markers.
+
+### Verified
+
+- `npm run check` — **0 errors, 0 warnings** (2368 files on the final run; the first run counted
+  6055, because `svelte-kit sync` had just regenerated the Paraglide output alongside it).
+- `npx eslint src e2e/showcase.mjs scripts/check_accessibility.ts svelte.config.js` — **clean**;
+  `prettier --check` clean on every file this step touched.
+- `npm run build` — green, and `build/about/` holds **all seven** `<feature>.html`.
+- `e2e/showcase.mjs` (new) against real servers on 5237/8137 — **119 checks, 0 failures**: all
+  seven pages in both interface languages (`<h1>`, one `<title>`, the notice, the expected number of
+  sample frames, the six sibling links), every followable link on the allowlist, nothing asked of
+  the API beyond the root layout's own three boot requests, the inert click that does not navigate,
+  the live flashcard flipping and grading and costing nothing, three pages at 390px with no
+  horizontal overflow, the dark theme, and the server-rendered HTML carrying typeset KaTeX.
+- `npm run check:a11y` (the seven appended to its anonymous list) — **0 violations on all seven**;
+  the three the run flags as "page-load problem" are the worktree artefact below, and the three real
+  findings (`/events`, `/tutoring` heading order, `/material-projects` contrast) are pre-existing on
+  other pages.
+- Every screenshot looked at, twice: `e2e/screens/showcase-*.png`, thirteen of them. They are not
+  committed — 6.6 MB would nearly double that directory's tracked weight, and one command with no
+  seeded data regenerates the lot.
+
+### Left open
+
+- **The pages describe designs that had not landed when they were written.** They were built beside
+  steps A–F, from the briefs, so each must be re-read against the merged code at integration. Three
+  things to check in particular: SM-2's real first intervals against the example numbers on
+  `/about/flashcards`, the exact wording of the completion certificate against step C's print page,
+  and whether `learning-record`'s activity metrics are still `sets` / `lessons_done` /
+  `cards_reviewed`.
+- **No link to `/flashcards`, `/users/{id}` or any other surface these pages describe**, because
+  those routes do not exist on this branch. One line per page for the integrator to add.
+- **The deck tile says the same words step A's own deck list will say**, under `showcase_*` instead
+  of `decks_*`. Two prefixes for one vocabulary; worth reconciling once A has landed.
+- **The index is mounted above the feature grid**, where the prep put the marker. Below it may read
+  better ("what you can do here", then "see how each part works"); moving it is one line.
+- **`ExerciseCard` still asks for a signed-in reader's own saved sets** on `/about/exercises`,
+  because `SaveToSetButton`'s effect runs inside the inert region. One request, for the reader's own
+  data, which the sample does not use. A guest triggers nothing.
+- **Interactive demos beyond the one flashcard** — a review session you can play through, a deck you
+  can build — were ruled out by the brief and stay out.
+- **No screenshots of the real app** anywhere in this step; that is step H's, and these pages are
+  what H's chapters link to for the designs that have no screen yet.
+
+### Found broken outside this step, and not fixed
+
+- **`e2e/about-page.mjs` asserts seven `<h2>` on `/about` and the page already had eight** before
+  this work (the mission band of §17BQ added one and the script was edited but never run). The
+  showcase index adds a ninth; step H's link will decide the tenth. The integrator should set that
+  number once, after both have merged.
+- **In a worktree the dev server answers 403 for KaTeX's own font files.** `frontend/node_modules`
+  is a symlink to the main checkout, which is outside Vite's `server.fs.allow` root, so every
+  `/@fs/…/katex/dist/fonts/…` request is refused and every page with maths logs console errors —
+  which `check_accessibility.ts` reads as "this page failed to load". It affects the existing
+  `/exercises/{id}`, `/branches/{slug}` and `/concepts/{slug}` audits exactly as much as the new
+  pages. Production bundles the fonts; the main checkout does not hit it.
+- **`backend/cachedata` aside, a worktree's backend logs `no such table: telemetry_requestlog` on
+  every request**, because the log shards are separate database files that copying `db.sqlite3` does
+  not bring. The middleware catches its own write, so nothing is affected — but it buries real
+  messages in the server log.
+- **`prettier --check .` fails on `project.inlang/.meta.json` and `project.inlang/README.md`**,
+  which Paraglide generates and `frontend/project.inlang/.gitignore` ignores — a nested `.gitignore`
+  that Prettier's default ignore path does not read. Together with `e2e/decisions.mjs` and
+  `e2e/event-shifts.mjs` (§17BQ's own "left open"), `npm run lint` is red before eslint ever runs.

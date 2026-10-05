@@ -21,6 +21,10 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+	// learning: showcase (G) — the index of the seven /about/<feature> pages. Deliberately not
+	// flag-gated: a showcase page is a DESCRIPTION of a design and reads correctly whether or not
+	// the surface it describes is switched on (each page says so itself when it is off).
+	import ShowcaseIndex from '$lib/components/showcase/ShowcaseIndex.svelte';
 
 	const doc = $derived(aboutDocFor(getLocale()));
 
@@ -115,6 +119,7 @@
 
 	<!-- learning: showcase (G) — the index of the design showcase pages under /about/<feature>, built
 	     from sample data in lib/content/showcase/, mounted directly below this comment. -->
+	<ShowcaseIndex />
 	<!-- learning: guide (H) — the one link into the manual at /about/guide, mounted directly below
 	     this comment (after G's block). -->
 	<section class="about__section">

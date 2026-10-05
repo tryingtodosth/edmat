@@ -281,6 +281,7 @@ node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
 node e2e/about-page.mjs               # the /about landing page: both locales, both themes, phone width, the tutoring kill switch hiding its card; signs in kasia through the API only to flip the flag and restore it
+node e2e/showcase.mjs                 # the seven design-showcase pages under /about/<feature>; signs nobody in and needs no backend data (set E2E_NO_BACKEND=1 to run with the API down)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRANCH=<slug>, default analiza-matematyczna; signs nobody in, saves to the guest working set only
 node e2e/taxonomy-other.mjs           # creates e2e-other-* nodes + one submission; delete them after
@@ -1804,3 +1805,44 @@ what the request carried rather than what came back; the real call is verified a
 four screenshots land in `e2e/screens/take-home-*.png`. If a count check fails, suspect the script
 before the app: the first run failed three on counting before the panel's own fetches had landed
 (`e2e/CLAUDE.md` trap 8), which is why every count is now behind a wait for real text.
+
+## Learning step G — the design showcase under `/about/<feature>`
+
+**`e2e/showcase.mjs` (119 checks, new 2026-10-05, HISTORY.md §17BR.G)** — the seven prerendered
+pages that show this cycle's designs with sample data. It opens each in **both** interface languages
+and checks the `<h1>`, exactly one `<title>`, the "nothing here is live" notice, the expected number
+of sample frames and the six links to its siblings; it collects every link a reader can actually
+follow (excluding the ones inside an `inert` sample, which are part of a picture) **by resolved
+pathname, not by `href` attribute** — SvelteKit's relative paths emit `../about` and the raw
+attribute differs by page depth — and refuses anything outside an allowlist of routes that really
+exist. It then proves the three claims these pages make about themselves: that they need no backend
+(the set of API paths requested must not exceed the root layout's own three boot requests), that an
+`inert` sample cannot be clicked through (it clicks a sample `ExerciseCard` with `force` and asserts
+the URL did not move), and that the one live sample — the flashcard — flips, reveals its hint, takes
+a grade and costs nothing. Finally three pages at 390px with a `scrollWidth` overflow check, the
+dark theme, and a plain `fetch` of `/about/exercises` asserting the server-rendered HTML carries
+typeset KaTeX (≥ 4 `.katex` nodes) and its `figcaption`s rather than just the shell.
+
+    cd frontend && E2E_BASE=http://localhost:5237 E2E_API=http://127.0.0.1:8137/api node e2e/showcase.mjs
+
+Thirteen screenshots in `e2e/screens/showcase-*.png`, meant to be looked at — three real defects in
+this step were found that way and by nothing else (a lost space in a deck tile, a table column cut
+mid-digit at phone width, a bullet list with no bullets). **They are deliberately not committed**,
+unlike the 46 older ones beside them: thirteen full-page renders are 6.6 MB, which would nearly
+double the tracked weight of that directory just as step H starts adding a manual's worth, and this
+script regenerates all thirteen in one command against nothing but the two dev servers — no seeded
+data, no account. Run it and look.
+
+**Two traps, both specific to running this in a WORKTREE.** `frontend/node_modules` is a symlink to
+the main checkout, which is outside Vite's `server.fs.allow` root, so the dev server answers **403**
+for KaTeX's own font files and every page with maths logs console errors; the script allows exactly
+those by name rather than widening its check, and `check_accessibility.ts` reads them as "this page
+failed to load" on `/about/exercises`, `/about/flashcards`, `/about/concepts` and on the existing
+`/exercises/{id}` and `/concepts/{slug}` audits alike. Separately, the backend logs
+`no such table: telemetry_requestlog` per request, because a copied `db.sqlite3` does not bring the
+log shards.
+
+**`scripts/check_accessibility.ts` grew the seven pages** as one contiguous block at the end of its
+anonymous list (anonymous by definition — the whole point of these pages is what somebody who has
+never signed in can see). `npm run check:a11y -- --base http://localhost:5237 --api
+http://127.0.0.1:8137`: **0 violations on all seven**.

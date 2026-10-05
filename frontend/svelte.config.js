@@ -46,8 +46,19 @@ const config = {
 			entries: [
 				'*',
 				'/korki',
-				'/materialy'
-				// learning: showcase (G) appends its /about/<feature> pages here, one per line.
+				'/materialy',
+				// learning: showcase (G) — the seven design-showcase pages. `'*'` DOES already cover
+				// them (they are non-dynamic routes), but they are named here for the same reason
+				// `deploy/fuw/pack.sh` names its pages: a build that silently stopped emitting one of
+				// them should fail a list somebody can read, not go unnoticed. Step H appends its
+				// `/about/guide/**` pages below, which means putting a comma on the last line here.
+				'/about/exercises',
+				'/about/flashcards',
+				'/about/learning-record',
+				'/about/courses',
+				'/about/schools',
+				'/about/concepts',
+				'/about/events'
 				// learning: guide (H) appends its /about/guide/** pages here, after G's.
 			]
 		}
