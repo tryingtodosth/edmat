@@ -459,6 +459,29 @@ material proposals, shifts, bookings); `work/integrations.py` registers the six 
 filtered by `kind` — the only file that knows both sides. `GET /api/work/` behind `work_dashboard`. Frontend: `/work`,
 account "My work".
 
+### `flashcards` — decks, cards, SM-2 review, and where a deck is placed (2026-10-05)
+The learning cycle's one new app (`prompts/02-flashcards.md`, `backend/flashcards/CLAUDE.md`). `Deck` (owner, nullable
+`source_set`, `source_kind`, `is_public` off by default and refused to a minor), `Card` (exercise XOR concept XOR free text,
+one `CheckConstraint`), `ReviewState` (one person's schedule for one card, unique per pair), `ReviewLog` (append-only; every
+count is a recount over it), `DeckPlacement` (GenericFK to a `course` or `event` node through `config/nodes.py`).
+`scheduling.py` is pure SM-2 with four grades, no queries. `rules.py`: `can_study` (owner, public, or a placement on a node the
+reader can view — **placement is this cycle's sharing**, `prompts/README.md` §9), `can_edit` (owner), the refusal words.
+Thirteen endpoints behind `flashcards` (`/api/decks/…`, `/api/cards/{id}/grade/`, `/api/flashcards/due/`,
+`/api/nodes/{kind}/{pk}/decks/`). Two hooks the integrator registers: `work.py: work_items` (the `cards_due` section of
+`/work`) and `record.py: activity_by_branch` (the learning record's `cards_reviewed`). Frontend: `/flashcards`,
+`/flashcards/[id]`, `/flashcards/[id]/review`, `DeckPlacementsPanel` on the course and event pages, a deck as one more
+save target on exercise cards, "My decks" in the account menu.
+
+**The rest of the learning cycle, inside existing apps:** `config/creation.py` (the creation gate — founding a course, an
+event, a listing or an organisation asks it; `GET /api/creation/` is the Add… menu's side; flag
+`creation_requires_verification`, inverted, seeded ON); `identity/record.py` (the consent-gated learning record,
+`share_activity`, a provider registry summed per `taxonomy.Branch`, `GET /api/users/{id}/learning-record/`);
+`courses/rules.py` + `CourseCompletion` (school mode — a course a `school` organisation runs — and the printable completion
+certificate, `seed_school_demo`); `concepts/paths.py` (the bounded prerequisite closure, "before this, know…");
+`events/takehome.py` + `events/related.py` (a session's take-home exercises, courses related through the organisation).
+Frontend: the showcase under `/about/<feature>` from `lib/content/showcase/` and the manual under `/about/guide` from
+`lib/content/guide/` with real screenshots in `static/guide/`, both prerendered.
+
 ### `telemetry` — request logging and audit
 `RequestLog`, `AuditEvent`, `middleware.py`, `routers.py` (`LogShardRouter`), `checks.py`. Logs are written to **separate SQLite
 databases** (`logs_*` shards under `backend/logdata/`, sized by `EDMAT_LOG_SHARD_SIZE`/`COUNT`), with an anonymous shard

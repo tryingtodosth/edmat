@@ -87,20 +87,25 @@ taxonomy. An untracked `backend/classroom/` directory may still exist on disk �
 frontend/  SvelteKit 2 + Svelte 5 runes + TS, adapter-static (SPA fallback), Paraglide i18n
              routes/ + components  →  lib/services/*.ts  →  lib/api/client.ts  →  HTTP
                    (never fetch)         (the only seam)      (the only fetch())
-backend/   Django 5.2 + DRF, SQLite, 34 local apps + config/ + testing/ + imaging.py
+backend/   Django 5.2 + DRF, SQLite, 35 local apps + config/ + testing/ + imaging.py
              views  →  <app>/services.py or a rule module  →  models
 deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 34 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 35 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
 `courses` `booking` `activity` `events` `coauthoring` `materials_coop` `concepts` `sketches` `venues` `documents`
-`shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
+`shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `flashcards`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
 (`CONFERENCE-BRIEF.md`, 2026-09-23), each hung off `events.Event` by a row of its own so that
 `events` kept its schema while seven branches were built at once. The last six — `organizations` `tasks` `needs` `plans` `decisions` `work` — are the
 management layer (`MANAGEMENT-BRIEF.md`, 2026-09-24), each hanging its rows off a course, an event, a
 material or an organisation through `config/nodes.py` rather than adding a field to any of them.
+`flashcards` is the learning cycle's one new app (`prompts/00-DESIGN.md`, 2026-10-05): decks, cards,
+a per-person SM-2 schedule, and placements on a course or an event through the same `config/nodes.py`.
+The rest of that cycle lives inside existing apps — the learning record in `identity/record.py`, school
+mode and completion certificates in `courses`, prerequisite paths in `concepts/paths.py`, take-home decks
+in `events/takehome.py`, and the creation gate in `config/creation.py` — all briefed in `prompts/`.
 
 **Two boundaries are load-bearing and everything else follows from them:**
 
@@ -108,13 +113,14 @@ material or an organisation through `config/nodes.py` rather than adding a field
    `lib/api/client.ts` is the only `fetch()`. This is what let the entire mocked Phase-1 frontend be
    pointed at a real backend without touching a single route file, and it still pays off.
 2. **A rule that more than one endpoint needs lives in one module, and the endpoints ask it.**
-   `accounts/minors.py`, `exercises/entries.py`, `config/audience.py`, `galleries/visibility.py`,
+   `accounts/minors.py`, `exercises/entries.py`, `config/audience.py`, `config/creation.py`, `galleries/visibility.py`,
    `moderation/services.py`, `booking/availability.py` are all this shape. An endpoint that
    re-implements the rule is how two surfaces start disagreeing.
 
 `adapter-static` is a **deliberate non-change**, not an oversight: every request originates
-client-side against a separate-origin API, so nothing needs SSR. Thirteen hub and standing pages are
-prerendered for first paint, and `deploy/fuw/pack.sh` refuses a build that is missing one.
+client-side against a separate-origin API, so nothing needs SSR. The hub and standing pages, the seven
+`/about/<feature>` showcase pages and the twelve manual pages are prerendered for first paint, and
+`deploy/fuw/pack.sh` refuses a build that is missing one.
 
 ---
 
@@ -137,7 +143,7 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Twenty-eight exist today — `exercise_submissions` `material_submissions`
+  with an `is_staff` bypass. Thirty-one exist today — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
   `venues` `event_documents` `tickets` `shifts` `cloakroom` `role_preview` (seeded together by
@@ -145,7 +151,10 @@ Learn these five and most of the schema reads itself.
   management switches `organizations` `tasks` `needs` `plans` `decisions` `work_dashboard`
   (migration 0044, for the same reason — `MANAGEMENT-BRIEF.md` §0), plus `school_demo` (0045) and
   `volunteering` (0046, the offers board — its own switch and not a second use of `needs`, because
-  the two boards answer two questions) — and the
+  the two boards answer two questions) and the learning cycle's three (0047, `prompts/01-prep.md`):
+  `flashcards`, `learning_record`, and `creation_requires_verification`, which is INVERTED like
+  `material_uploads_verified_only` (on = founding a course, an event, a listing or an organisation
+  needs a verified contributor; `config/creation.py`) and seeded ON by owner decision — and the
   `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
@@ -290,6 +299,8 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/material-projects/ /api/material-versions/ /api/project-invites/ co-authoring (COAUTHORING-BRIEF.md)
 /api/concepts/ /api/concept-articles/ /api/concept-revisions/ /api/concept-links/  concepts (CONCEPTS-BRIEF.md)
 /api/needs/ /api/volunteering-offers/                                 help wanted, and who is offering
+/api/decks/ /api/cards/ /api/flashcards/due/ /api/nodes/{kind}/{id}/decks/  flashcards (prompts/02-flashcards.md)
+/api/creation/ /api/users/{id}/learning-record/ /api/courses/{id}/completions/  the creation gate, the learning record, certificates
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
@@ -316,6 +327,8 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /exercises/[id] /materials/[id]                               content detail
 /courses … /events … /tutoring … /bookings                    user-run surfaces
 /needs … /volunteering …                                      help wanted, and who is offering
+/flashcards /flashcards/[id] /flashcards/[id]/review            decks and spaced review
+/courses/[id]/certificate/[completionId]                       a completion certificate, printed by the browser
 /material-projects … /project-invites/[token]                 co-authoring a material
 /concepts /concepts/[slug] … /articles/[id]/{edit,history}     concept wiki, articles per audience
 /messages … /notifications /activity /posts/[id]              inbox + feed
@@ -323,6 +336,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /settings /settings/profile /users/[id] /login /register      account
 /moderation /legal/queue /issues                              staff + reports
 /privacy /about /legal /levels                                standing pages
+/about/<feature> /about/guide /about/guide/[chapter]          the design showcase (sample data) and the manual
 ```
 
 URL segments are neutral English (`/branches/`, not `/przedmioty/`) — the app is bilingual from day
