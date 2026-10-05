@@ -1108,6 +1108,7 @@ export function completionRefusalMessage(err: unknown, fallback: string): string
 		}
 	}
 	return err instanceof Error ? err.message : fallback;
+}
 
 // The learning record's metric columns — a hand-maintained mirror of `backend/identity/record.py`'s
 // `METRIC_KEYS` (house rule 13: said in both files). One label and one hint per metric, because a
