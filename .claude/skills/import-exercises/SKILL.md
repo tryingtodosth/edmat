@@ -1,0 +1,139 @@
+---
+name: import-exercises
+description: Import exercises (zadania) into EdMat in bulk — the file format, the idempotent management command, what it refuses and what to check afterwards. Use when adding exercises from a problem sheet, a PDF, a TA's set, another database or a generated batch, instead of the one-at-a-time /submit form; also use before writing any ad-hoc ORM script that creates Exercise rows.
+---
+
+# Importing exercises (zadania)
+
+You are putting exercises into a live database that readers browse. One exercise is **not one row**,
+`verified` is **not yours to set**, and the same import has to be runnable twice. This file is the
+whole procedure; the two files under `reference/` are the details.
+
+Read `backend/exercises/CLAUDE.md` as well — it owns the invariants this import has to respect.
+
+## 1. What one exercise actually becomes
+
+```
+Exercise                  structure only: branch, number, topics, difficulty, audience, tags,
+                          published, original_locale, submitted_by      (never `verified` — derived)
+ └─ ExerciseTranslation    title + statement + answer, one row per (locale, status);
+                           the ORIGINAL is a row too (locale='pl', status='published')
+ └─ SolutionEntry ×0..2    the hint and the solution, as pinned published entries in the peer pool
+ └─ ExerciseSource         where it came from: exam/midterm/exercises/other, collection, pages
+ └─ topics[]  tags[]       m2m into taxonomy.Topic (must exist) and exercises.Tag (created freely)
+```
+
+`(branch, number)` is the exercise's natural key and its `unique_together`. That pair is what makes
+an import idempotent, which is why the importer insists on having it.
+
+## 2. The command
+
+```bash
+cd backend
+../.venv/bin/python3 manage.py import_exercises <dir> --branch <branch-slug> --dry-run   # always first
+../.venv/bin/python3 manage.py import_exercises <dir> --branch <branch-slug>
+```
+
+| Flag | Meaning |
+|---|---|
+| `--branch <slug>` | target branch; or put `branch:` in `<dir>/batch.yaml`. A missing branch is an error that lists the real ones — **never create a branch to make an import fit** |
+| `--dry-run` | parse, validate, write, roll back. Changes nothing, prints exactly what a real run would do |
+| `--create-topics` | create the topic rows the files reference and the branch lacks (approved, named from `batch.yaml`'s `topic_names:`) |
+| `--locale`, `--audience` | defaults for files that do not say; `pl` and `university` |
+| `--author <username>` | credit a real account as submitter and solution author. Omit for corpus-style content nobody here wrote |
+| `--no-write-back` | do not write allocated `number:` values back into the source files (then a re-run duplicates — see §4) |
+
+It is **idempotent by `(branch, number)`**: a file carrying `number:` only ever updates its row.
+
+## 3. Procedure
+
+1. **Find the branch.** `GET /api/branches/` or `Branch.objects.values_list('slug', flat=True)`.
+   A branch is subject matter (`analiza-matematyczna`), never a university's course — that is
+   `courses.Course`. If the right branch does not exist, stop and ask; proposing taxonomy is a
+   separate, reviewed act.
+2. **Map the topics.** Every `topics:` slug must be a `Topic` of that branch. Prefer existing slugs;
+   only reach for `--create-topics` when the topic genuinely is missing, and give it a Polish name.
+3. **Write one `.md` file per exercise** in the format in `reference/format.md`. Polish or English
+   section headings both work. Keep the maths exactly as `\( … \)` / `\[ … \]`.
+4. **`--dry-run` until it is silent.** One bad file aborts the whole batch on purpose; the report
+   names every problem in every file, so fix them in one pass.
+5. **Run it for real**, then look at what it printed: created vs updated, and whether it wrote any
+   `number:` back.
+6. **Sweep the content pipeline** — this is the check that catches broken maths. It renders every
+   row in the database through the real `renderContent.ts` logic and reports anything KaTeX chokes on
+   or any delimiter left unprocessed:
+   ```bash
+   cd backend && ../.venv/bin/python3 manage.py dump_text_fields --out /tmp/edmat_text_fields.json
+   cd ../frontend && npm run check:katex      # expect "Found 0 field(s) with a real rendering issue"
+   ```
+   It needs **Node 24+** (the system Node here is 18, which cannot run `tsx`); this machine keeps one
+   at `~/.cache/edmat-tools/node24/bin`, so `PATH=~/.cache/edmat-tools/node24/bin:$PATH npm run
+   check:katex`. Running the script directly instead of through `npm run` drops
+   `NODE_OPTIONS=--max-old-space-size=8192` and it dies of heap exhaustion on the full corpus.
+7. **Look at a page.** `./run.sh`, then `/branches/<slug>` and the new exercise's own page. House
+   rule 2: a passing command has shipped a blank statement before.
+8. **Write it down.** The board (`/Projects/edmat-boards/`) and `HISTORY.md`: which branch, how many
+   rows, where the content came from, and its licence (`LEGAL.md` — a scanned textbook is not ours
+   to publish).
+
+## 4. The rules that bite
+
+- **`verified` is derived, never imported.** It means "a published solution that is pinned, reviewed,
+  or by a verified contributor" (`exercises/signals.py:recount_verified`). A `verified:` key in front
+  matter is a hard error. Want a verified row? Give it a `## Rozwiązanie`.
+- **A number is forever.** A file with no `number:` gets one allocated *and written back into the
+  file*. If you throw that file away, or pass `--no-write-back`, the next run creates a second
+  exercise with the same content — the one failure mode this format cannot detect for you.
+- **One published translation per locale**, enforced by a partial unique constraint; pending and
+  rejected rows for the same locale are legal and must survive. The importer upserts only the
+  published row. Never delete a translation to "clean up".
+- **Topics are replaced, tags are added.** Readers apply tags, so a file cannot remove one. Dropping
+  a tag from a file does not drop it from the exercise.
+- **The original locale is the language it was written in.** Importing a Polish sheet translated into
+  English as `locale: en` lies about the corpus. Import the Polish, then add the translation
+  (`reference/alternatives.md` §2).
+- **Maths stays literal.** `\(x^2\)`, not `$x^2$`, not `\\(x^2\\)`, not KaTeX HTML. The renderer
+  extracts those delimiters *before* Markdown runs (root CLAUDE.md, "Content pipeline"); `$…$` is not
+  recognised and would render as dollar signs. Unbalanced delimiters are a validation error.
+- **Bodies are sanitized by the models, not by the importer** (`ExerciseTranslation.save()`,
+  `SolutionEntry.save()` → `config/sanitize.py`). A `<script>` in your file is dropped silently, and
+  `\(p<\infty\)` survives — the sanitizer stashes maths before bleach sees it.
+- **`audience` is required by meaning, not by syntax.** It defaults to `university`, which is a
+  factual claim about who the exercise is for (`AUDIENCE-BRIEF.md`). A school sheet imported as
+  `university` is mis-filed in every list and filter.
+- **An import never republishes.** If the row is unpublished — a moderator removed it, or reports
+  auto-hid it — a re-run leaves it hidden and says so. A file *can* hide a row (`published: false`).
+- **Flags are not remembered.** The file is the source of truth and `update_or_create` overwrites, so
+  re-running without `--author` sets `submitted_by` back to nobody. Re-run a batch with the flags you
+  ran it with.
+- **No feed, no mail.** An import records no activity row and notifies no tag follower. That is
+  deliberate; do not add it in a one-off script.
+- **Do not touch `import_legacy_corpus`.** It is the 2026 one-time corpus migration and it no longer
+  runs at all (three separate schema breakages — `reference/alternatives.md` §3). It is provenance.
+
+## 5. Converting source material into the format
+
+- A LaTeX sheet: `$…$` → `\(…\)`, `$$…$$` → `\[…\]`, `\begin{equation}` → `\[ … \]`, keep every other
+  macro verbatim and let `check:katex` tell you what KaTeX cannot render.
+- `\begin{enumerate}` of sub-problems: one file per exercise, sub-points as a Markdown list inside
+  the statement. Do not split a) b) c) into separate exercises unless they stand alone.
+- Figures: **not importable yet.** `SolutionEntryAttachment` and the inline-image endpoints exist for
+  users, not for this command. An exercise whose statement needs a picture should wait, not ship with
+  the picture silently missing.
+- An answer and a solution are different things (`Odpowiedź` is the result, `Rozwiązanie` is the
+  working). Do not duplicate one into the other to fill a section.
+
+## 6. What this command does not do
+
+Named so the next person does not rediscover it: no figures or attachments, no `ExerciseMaterialLink`
+(the "comes from this material" link), no `ExerciseRequirement`, no subtopics, no per-file `--author`
+override, no unpublish/delete path (do that in the moderation UI), no CSV/JSON/LaTeX input, and no
+chapter mapping (`mapa_rozdzialow.yaml` is corpus-only). It also will not create a branch.
+
+## 7. Verify, and say what you ran
+
+```bash
+cd backend && ../.venv/bin/python3 manage.py test exercises      # includes the importer's own tests
+../.venv/bin/python3 manage.py check
+../.venv/bin/python3 manage.py makemigrations --check --dry-run   # an import needs no migration
+```

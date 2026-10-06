@@ -7,12 +7,22 @@ regression test for the shared-serializer-instance bug the moderation-queue load
 permanent regression test here rather than staying only a documented, one-time finding.
 """
 
+import shutil
+import tempfile
+from io import StringIO
+from pathlib import Path
+from textwrap import dedent
+
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from exercises.models import ExerciseTranslation
-from testing.factories import make_course, make_exercise, make_user
+from exercises.models import Exercise, ExerciseTranslation, Tag
+from taxonomy.models import Topic
+from testing.factories import make_course, make_exercise, make_topic, make_user
 
 
 class ExerciseListingTests(APITestCase):
@@ -209,3 +219,184 @@ class ContentSanitizationTests(APITestCase):
         t = self._translate(title='<img src=x onerror=alert(1)>Evil title')
         self.assertNotIn('onerror', t.title)
         self.assertIn('Evil title', t.title)
+
+
+class ImportExercisesCommandTests(TestCase):
+    """`manage.py import_exercises` — the batch-import path documented in
+    `.claude/skills/import-exercises/SKILL.md`. Every assertion here is a property the skill
+    promises an LLM it can rely on: idempotency by `(branch, number)`, derived `verified`, community
+    tags surviving a re-run, and a batch with one bad file importing nothing at all.
+    """
+
+    def setUp(self):
+        self.branch = make_course(slug='import-target')
+        make_topic(self.branch, 'calki')
+        self.dir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def write(self, name, body):
+        path = self.dir / name
+        path.write_text(dedent(body).lstrip(), encoding='utf-8')
+        return path
+
+    def run_import(self, **kwargs):
+        out = StringIO()
+        call_command('import_exercises', str(self.dir), branch=self.branch.slug, stdout=out, stderr=out, **kwargs)
+        return out.getvalue()
+
+    GOOD = """
+        ---
+        number: 7
+        title: Całka testowa
+        topics: [calki]
+        difficulty: trudne
+        source: {type: Egzamin, name: Egzamin 2025, pages: 3}
+        tags: [calka-gaussa]
+        ---
+        ## Treść
+        Oblicz \\(\\int_0^1 x^2\\,dx\\).
+        ## Wskazówka
+        Wzór na całkę z potęgi.
+        ## Odpowiedź
+        \\(\\tfrac13\\)
+        ## Rozwiązanie
+        \\[\\int_0^1 x^2\\,dx = \\tfrac13.\\]
+        """
+
+    def test_a_file_becomes_an_exercise_its_translation_and_its_pinned_entries(self):
+        self.write('0007.md', self.GOOD)
+        self.run_import()
+
+        exercise = Exercise.objects.get(branch=self.branch, number=7)
+        self.assertEqual(exercise.difficulty, 'hard')
+        self.assertEqual(exercise.audience, 'university')
+        self.assertIsNone(exercise.submitted_by)
+        self.assertEqual([t.slug for t in exercise.topics.all()], ['calki'])
+        self.assertEqual([t.slug for t in exercise.tags.all()], ['calka-gaussa'])
+
+        translation = exercise.translations.get(locale='pl', status='published')
+        self.assertEqual(translation.title, 'Całka testowa')
+        self.assertIn(r'\(\int_0^1 x^2\,dx\)', translation.statement)
+        self.assertIsNone(translation.translated_by)
+
+        self.assertEqual(
+            sorted(exercise.entries.values_list('kind', flat=True)), ['hint', 'solution']
+        )
+        self.assertTrue(all(e.pinned and e.status == 'published' for e in exercise.entries.all()))
+        self.assertEqual(exercise.source.type, 'exam')
+        self.assertEqual(exercise.source.translations.get(locale='pl').name, 'Egzamin 2025')
+
+    def test_verified_is_derived_from_the_pinned_solution_not_from_the_file(self):
+        self.write('0007.md', self.GOOD)
+        self.write(
+            '0008.md',
+            """
+            ---
+            number: 8
+            title: Bez rozwiązania
+            difficulty: easy
+            ---
+            ## Treść
+            Policz \\(2+2\\).
+            """,
+        )
+        self.run_import()
+        self.assertTrue(Exercise.objects.get(branch=self.branch, number=7).verified)
+        self.assertFalse(Exercise.objects.get(branch=self.branch, number=8).verified)
+
+    def test_a_second_run_updates_in_place_and_keeps_a_readers_tag(self):
+        path = self.write('0007.md', self.GOOD)
+        self.run_import()
+        exercise = Exercise.objects.get(branch=self.branch, number=7)
+        exercise.tags.add(Tag.objects.create(slug='applied-by-a-reader'))
+
+        path.write_text(path.read_text(encoding='utf-8').replace('Całka testowa', 'Całka Gaussa'), encoding='utf-8')
+        self.run_import()
+
+        self.assertEqual(Exercise.objects.filter(branch=self.branch).count(), 1)
+        self.assertEqual(ExerciseTranslation.objects.filter(exercise=exercise, status='published').count(), 1)
+        self.assertEqual(exercise.translations.get(status='published').title, 'Całka Gaussa')
+        self.assertIn('applied-by-a-reader', [t.slug for t in exercise.tags.all()])
+
+    def test_a_file_without_a_number_gets_one_and_has_it_written_back(self):
+        make_exercise(self.branch, 41)
+        path = self.write(
+            'new.md',
+            """
+            ---
+            title: Nowe zadanie
+            difficulty: medium
+            ---
+            ## Statement
+            Compute \\(1+1\\).
+            """,
+        )
+        self.run_import()
+        self.assertTrue(Exercise.objects.filter(branch=self.branch, number=42).exists())
+        self.assertIn('number: 42', path.read_text(encoding='utf-8'))
+
+        # And the written-back number is exactly what makes the re-run an update, not a second row.
+        self.run_import()
+        self.assertEqual(Exercise.objects.filter(branch=self.branch).count(), 2)
+
+    def test_one_bad_file_aborts_the_whole_batch(self):
+        self.write('0007.md', self.GOOD)
+        self.write(
+            'bad.md',
+            """
+            ---
+            number: 9
+            title: Zepsute
+            difficulty: hardcore
+            verified: true
+            ---
+            ## Treść
+            Niedomknięta \\(x^2.
+            ## Wskazóweczka
+            Ten tekst by zniknął.
+            """,
+        )
+        with self.assertRaises(CommandError):
+            self.run_import()
+        self.assertEqual(Exercise.objects.filter(branch=self.branch).count(), 0)
+
+    def test_an_unknown_topic_is_refused_unless_topics_may_be_created(self):
+        self.write(
+            '0007.md',
+            """
+            ---
+            number: 7
+            title: Nowy temat
+            topics: [teoria-miary]
+            difficulty: easy
+            ---
+            ## Treść
+            Policz \\(2+2\\).
+            """,
+        )
+        with self.assertRaises(CommandError):
+            self.run_import()
+        self.run_import(create_topics=True)
+        exercise = Exercise.objects.get(branch=self.branch, number=7)
+        self.assertEqual([t.slug for t in exercise.topics.all()], ['teoria-miary'])
+        self.assertEqual(Topic.objects.get(branch=self.branch, slug='teoria-miary').status, 'approved')
+
+    def test_a_dry_run_writes_nothing(self):
+        self.write('0007.md', self.GOOD)
+        self.run_import(dry_run=True)
+        self.assertEqual(Exercise.objects.filter(branch=self.branch).count(), 0)
+
+    def test_a_re_import_does_not_republish_a_row_somebody_hid(self):
+        """The one direction an import must not move: `published` back up. A moderator's removal or
+        a report-driven auto-hide is a decision, and re-running the batch it came from is not an
+        appeal against it."""
+        self.write('0007.md', self.GOOD)
+        self.run_import()
+        Exercise.objects.filter(branch=self.branch, number=7).update(published=False)
+
+        output = self.run_import()
+
+        self.assertFalse(Exercise.objects.get(branch=self.branch, number=7).published)
+        self.assertIn('left hidden', output)
