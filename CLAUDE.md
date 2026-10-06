@@ -143,7 +143,7 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-two exist today — `exercise_submissions` `material_submissions`
+  with an `is_staff` bypass. Thirty-three exist today (counted against `/api/feature-flags/` on production, 2026-10-06 — this number had drifted twice before, so count it rather than increment it) — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
   `venues` `event_documents` `tickets` `shifts` `cloakroom` `role_preview` (seeded together by
