@@ -138,7 +138,22 @@ class Report(models.Model):
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
     object_id = models.PositiveIntegerField()
     target = GenericForeignKey('content_type', 'object_id')
-    reported_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # Nullable since the standing-page discussions (`community/discussions.py`): an anonymous
+    # comment is held for a moderator by `accounts.minors.hold_for_review`, which files a report in
+    # the author's own name — and a visitor has no name to file it in. Null means "the server held
+    # this, nobody reported it".
+    #
+    # The `unique_together` below is unaffected in practice: NULLs are distinct in SQL, so two
+    # server-held rows on the SAME object would both be allowed — but a held comment is its own
+    # object, so `object_id` already differs and the constraint never has to decide. The rule the
+    # constraint exists for (one report per person per object) is about real reporters and still
+    # holds for every one of them.
+    #
+    # Nothing reads a reporter's name: `moderation/services.py`'s queue payload carries counts and
+    # reasons only, deliberately. `courses/reports.py` select_relates it and does not read it.
+    reported_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE
+    )
     reason = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=REPORT_STATUS_CHOICES, default='pending')
     resolved_by = models.ForeignKey(
@@ -451,6 +466,14 @@ FEATURE_FLAG_CHOICES = [
     # frontend; a `[[slug]]` anchor already inside somebody's text still renders (it is an ordinary
     # relative link) and the page it leads to shows the gate.
     ('concepts', 'Concepts: wiki articles per audience'),
+    # The standing pages' own discussions (`community/discussions.py`). One flag over the whole
+    # surface, with the per-location switches underneath it: this one takes every thread on
+    # `/about`, the seven showcase pages and the manual's twelve away at once, which is what a kill
+    # switch has to be able to do (house rule 3) — the frontend then draws no affordance at all
+    # rather than one that refuses on click. Read with `is_feature_enabled` and not through
+    # `feature_gate`, because the read endpoint must keep answering "no discussion here" for
+    # everybody while it is off.
+    ('about_discussions', 'Discussions under the standing pages (/about and the manual)'),
 ]
 
 

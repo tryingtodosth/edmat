@@ -629,6 +629,12 @@ REST_FRAMEWORK = {
         # systematic search, not to punish typos. See accounts/throttles.py for the full reasoning.
         'login_username': '30/hour',
         'register': '10/hour',
+        # Writing under a standing page (`community/discussions.py`). Open to guests where a
+        # location says `audience='anyone'`, so it needs its own per-IP bound like `issue_report`
+        # and `legal_notice` — and tighter than those are loose, because an anonymous comment is
+        # held for a moderator and a flood of them is a queue somebody has to empty by hand. Enough
+        # for a visitor who answers three sections of the manual in one sitting.
+        'about_discussion': '20/hour',
         # Publishing a micro-post is immediate (no review queue), so the flood-bound lives here:
         # plenty for a person with thoughts, far too few for a spam script.
         'post_create': '12/hour',

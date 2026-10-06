@@ -16,6 +16,7 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import ShowcasePage from '$lib/components/showcase/ShowcasePage.svelte';
+	import DiscussableSection from '$lib/components/discussion/DiscussableSection.svelte';
 	import SampleFrame from '$lib/components/showcase/SampleFrame.svelte';
 	import SampleRows from '$lib/components/showcase/SampleRows.svelte';
 
@@ -27,75 +28,88 @@
 	const canSchoolDemo = $derived(
 		featureFlagsStore.isEnabled('school_demo') || authStore.isModerator
 	);
+
+	// The sections readers may talk under, and the keys the server knows them by
+	// (`backend/community/discussions.py`). The backend keeps no table of legal section
+	// names, so the page that draws a section is the only thing that knows it exists.
+	const DISCUSSION_SECTIONS = ['org', 'classes', 'roster', 'demo'];
 </script>
 
-<ShowcasePage {doc} slug="schools" {featureOff}>
-	<section>
-		<h2>{doc.orgHeading}</h2>
-		<SampleFrame caption={doc.orgCaption}>
-			<div class="org">
-				<p class="org__kind">{doc.org.kind} · {doc.org.place}</p>
-				<p class="org__name">{doc.org.name}</p>
-				<p class="org__summary">{doc.org.summary}</p>
-				<p class="org__runs">{doc.org.runs}</p>
-			</div>
-		</SampleFrame>
-		<p class="more">
-			<a href={resolve('/organizations')}>{doc.organizationsLinkLabel}</a>
-		</p>
-	</section>
-
-	<section>
-		<h2>{doc.classesHeading}</h2>
-		<SampleFrame caption={doc.classesCaption}>
-			<SampleRows rows={doc.classes} />
-		</SampleFrame>
-	</section>
-
-	<section>
-		<h2>{doc.rosterHeading}</h2>
-		{#each doc.rosterBody as paragraph (paragraph)}
-			<p class="body">{paragraph}</p>
-		{/each}
-		<SampleFrame caption={doc.rosterCaption}>
-			<table class="roster">
-				<thead>
-					<tr>
-						<th scope="col">{doc.rosterColumns.pupil}</th>
-						<th scope="col">{doc.rosterColumns.guardian}</th>
-						<th scope="col" class="num">{doc.rosterColumns.progress}</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each doc.roster as row (row.pupil)}
-						<tr>
-							<th scope="row">{row.pupil}</th>
-							<td>{row.guardian}</td>
-							<td class="num">{row.progress}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</SampleFrame>
-	</section>
-
-	<section>
-		<h2>{doc.demoHeading}</h2>
-		{#each doc.demoBody as paragraph (paragraph)}
-			<p class="body">{paragraph}</p>
-		{/each}
-		<ul class="limits">
-			{#each doc.demoLimits as limit (limit)}
-				<li>{limit}</li>
-			{/each}
-		</ul>
-		{#if canSchoolDemo}
-			<p class="demo-link">
-				<!-- Not resolve(): /dziennik is a separate static bundle, not a route of this app. -->
-				<a class="btn" href="/dziennik/" rel="external">{doc.demoLinkLabel}</a>
+<ShowcasePage {doc} slug="schools" discussionSections={DISCUSSION_SECTIONS} {featureOff}>
+	<DiscussableSection sectionKey="org" title={doc.orgHeading}>
+		<section>
+			<h2>{doc.orgHeading}</h2>
+			<SampleFrame caption={doc.orgCaption}>
+				<div class="org">
+					<p class="org__kind">{doc.org.kind} · {doc.org.place}</p>
+					<p class="org__name">{doc.org.name}</p>
+					<p class="org__summary">{doc.org.summary}</p>
+					<p class="org__runs">{doc.org.runs}</p>
+				</div>
+			</SampleFrame>
+			<p class="more">
+				<a href={resolve('/organizations')}>{doc.organizationsLinkLabel}</a>
 			</p>
-		{/if}
-	</section>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="classes" title={doc.classesHeading}>
+		<section>
+			<h2>{doc.classesHeading}</h2>
+			<SampleFrame caption={doc.classesCaption}>
+				<SampleRows rows={doc.classes} />
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="roster" title={doc.rosterHeading}>
+		<section>
+			<h2>{doc.rosterHeading}</h2>
+			{#each doc.rosterBody as paragraph (paragraph)}
+				<p class="body">{paragraph}</p>
+			{/each}
+			<SampleFrame caption={doc.rosterCaption}>
+				<table class="roster">
+					<thead>
+						<tr>
+							<th scope="col">{doc.rosterColumns.pupil}</th>
+							<th scope="col">{doc.rosterColumns.guardian}</th>
+							<th scope="col" class="num">{doc.rosterColumns.progress}</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each doc.roster as row (row.pupil)}
+							<tr>
+								<th scope="row">{row.pupil}</th>
+								<td>{row.guardian}</td>
+								<td class="num">{row.progress}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="demo" title={doc.demoHeading}>
+		<section>
+			<h2>{doc.demoHeading}</h2>
+			{#each doc.demoBody as paragraph (paragraph)}
+				<p class="body">{paragraph}</p>
+			{/each}
+			<ul class="limits">
+				{#each doc.demoLimits as limit (limit)}
+					<li>{limit}</li>
+				{/each}
+			</ul>
+			{#if canSchoolDemo}
+				<p class="demo-link">
+					<!-- Not resolve(): /dziennik is a separate static bundle, not a route of this app. -->
+					<a class="btn" href="/dziennik/" rel="external">{doc.demoLinkLabel}</a>
+				</p>
+			{/if}
+		</section>
+	</DiscussableSection>
 </ShowcasePage>
 
 <style lang="scss">

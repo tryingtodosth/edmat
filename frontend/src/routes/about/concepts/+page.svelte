@@ -10,6 +10,7 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import ShowcasePage from '$lib/components/showcase/ShowcasePage.svelte';
+	import DiscussableSection from '$lib/components/discussion/DiscussableSection.svelte';
 	import SampleFrame from '$lib/components/showcase/SampleFrame.svelte';
 	import DeckTile from '$lib/components/showcase/DeckTile.svelte';
 	import PathSteps from '$lib/components/showcase/PathSteps.svelte';
@@ -18,70 +19,85 @@
 
 	const doc = $derived(conceptsShowcaseFor(getLocale()));
 	const featureOff = $derived(!(featureFlagsStore.isEnabled('concepts') || authStore.isModerator));
+
+	// The sections readers may talk under, and the keys the server knows them by
+	// (`backend/community/discussions.py`). The backend keeps no table of legal section
+	// names, so the page that draws a section is the only thing that knows it exists.
+	const DISCUSSION_SECTIONS = ['cards', 'audiences', 'path', 'learn-first', 'deck'];
 </script>
 
-<ShowcasePage {doc} slug="concepts" {featureOff}>
-	<section>
-		<h2>{doc.cardsHeading}</h2>
-		<SampleFrame caption={doc.cardsCaption}>
-			{#each doc.cards as concept (concept.slug)}
-				<ConceptCard {concept} />
+<ShowcasePage {doc} slug="concepts" discussionSections={DISCUSSION_SECTIONS} {featureOff}>
+	<DiscussableSection sectionKey="cards" title={doc.cardsHeading}>
+		<section>
+			<h2>{doc.cardsHeading}</h2>
+			<SampleFrame caption={doc.cardsCaption}>
+				{#each doc.cards as concept (concept.slug)}
+					<ConceptCard {concept} />
+				{/each}
+			</SampleFrame>
+			<p class="more">
+				<a href={resolve('/concepts')}>{doc.conceptsLinkLabel}</a>
+			</p>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="audiences" title={doc.audiencesHeading}>
+		<section>
+			<h2>{doc.audiencesHeading}</h2>
+			{#each doc.audiencesBody as paragraph (paragraph)}
+				<p class="body">{paragraph}</p>
 			{/each}
-		</SampleFrame>
-		<p class="more">
-			<a href={resolve('/concepts')}>{doc.conceptsLinkLabel}</a>
-		</p>
-	</section>
+			<SampleFrame caption={doc.audiencesCaption}>
+				<dl class="versions">
+					{#each doc.audienceVersions as version (version.band)}
+						<div class="versions__row">
+							<dt>{version.band}</dt>
+							<dd><MathContent source={version.opening} /></dd>
+						</div>
+					{/each}
+				</dl>
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 
-	<section>
-		<h2>{doc.audiencesHeading}</h2>
-		{#each doc.audiencesBody as paragraph (paragraph)}
-			<p class="body">{paragraph}</p>
-		{/each}
-		<SampleFrame caption={doc.audiencesCaption}>
-			<dl class="versions">
-				{#each doc.audienceVersions as version (version.band)}
-					<div class="versions__row">
-						<dt>{version.band}</dt>
-						<dd><MathContent source={version.opening} /></dd>
-					</div>
-				{/each}
-			</dl>
-		</SampleFrame>
-	</section>
+	<DiscussableSection sectionKey="path" title={doc.pathHeading}>
+		<section>
+			<h2>{doc.pathHeading}</h2>
+			{#each doc.pathBody as paragraph (paragraph)}
+				<p class="body">{paragraph}</p>
+			{/each}
+			<SampleFrame caption={doc.pathCaption}>
+				<PathSteps steps={doc.path} start={doc.pathFrom} />
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 
-	<section>
-		<h2>{doc.pathHeading}</h2>
-		{#each doc.pathBody as paragraph (paragraph)}
-			<p class="body">{paragraph}</p>
-		{/each}
-		<SampleFrame caption={doc.pathCaption}>
-			<PathSteps steps={doc.path} start={doc.pathFrom} />
-		</SampleFrame>
-	</section>
+	<DiscussableSection sectionKey="learn-first" title={doc.learnFirstHeading}>
+		<section>
+			<h2>{doc.learnFirstHeading}</h2>
+			<p class="body">{doc.learnFirstLead}</p>
+			<SampleFrame caption={doc.learnFirstCaption}>
+				<p class="learn-first__exercise">{doc.learnFirstExercise}</p>
+				<ul class="learn-first__line">
+					{#each doc.learnFirstItems as item (item)}
+						<li class="learn-first__item">{item}</li>
+					{/each}
+				</ul>
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 
-	<section>
-		<h2>{doc.learnFirstHeading}</h2>
-		<p class="body">{doc.learnFirstLead}</p>
-		<SampleFrame caption={doc.learnFirstCaption}>
-			<p class="learn-first__exercise">{doc.learnFirstExercise}</p>
-			<ul class="learn-first__line">
-				{#each doc.learnFirstItems as item (item)}
-					<li class="learn-first__item">{item}</li>
-				{/each}
-			</ul>
-		</SampleFrame>
-	</section>
-
-	<section>
-		<h2>{doc.deckHeading}</h2>
-		{#each doc.deckBody as paragraph (paragraph)}
-			<p class="body">{paragraph}</p>
-		{/each}
-		<SampleFrame caption={doc.deckCaption}>
-			<DeckTile deck={doc.deck} />
-		</SampleFrame>
-	</section>
+	<DiscussableSection sectionKey="deck" title={doc.deckHeading}>
+		<section>
+			<h2>{doc.deckHeading}</h2>
+			{#each doc.deckBody as paragraph (paragraph)}
+				<p class="body">{paragraph}</p>
+			{/each}
+			<SampleFrame caption={doc.deckCaption}>
+				<DeckTile deck={doc.deck} />
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 </ShowcasePage>
 
 <style lang="scss">

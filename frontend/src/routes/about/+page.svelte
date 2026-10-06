@@ -21,6 +21,26 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+	import DiscussableSection from '$lib/components/discussion/DiscussableSection.svelte';
+	import { providePageDiscussions } from '$lib/components/discussion/pageDiscussions.svelte';
+
+	// The sections readers may talk under, and the keys the server knows them by
+	// (`backend/community/discussions.py`). Declared here, in one list, because the backend keeps no
+	// table of legal section names — the page that draws a section is the only thing that knows it
+	// exists, and a section dropped from this list simply stops being asked about. One request for
+	// all of them; see `pageDiscussions.svelte.ts`.
+	const DISCUSSION_PAGE = 'about';
+	const DISCUSSION_SECTIONS = [
+		'mission',
+		'origin',
+		'features',
+		'trust',
+		'audiences',
+		'money-and-openness',
+		'closing'
+	];
+	const pageDiscussions = providePageDiscussions();
+	$effect(() => pageDiscussions.load(DISCUSSION_PAGE, DISCUSSION_SECTIONS));
 	// learning: showcase (G) — the index of the seven /about/<feature> pages. Deliberately not
 	// flag-gated: a showcase page is a DESCRIPTION of a design and reads correctly whether or not
 	// the surface it describes is switched on (each page says so itself when it is off).
@@ -83,39 +103,43 @@
 	     is for, numbered because the third depends on the first two. A band rather than a card grid
 	     — none of the three is a link, and making them look like the feature cards below would
 	     promise a page behind each one. -->
-	<section class="about__section about__mission">
-		<h2>{doc.mission.heading}</h2>
-		{#each doc.mission.body as paragraph (paragraph)}
-			<p class="about__intro">{paragraph}</p>
-		{/each}
-		<ol class="about__pillars">
-			{#each doc.mission.pillars as pillar (pillar.key)}
-				<li class="about__pillar">
-					<h3>{pillar.title}</h3>
-					<p>{pillar.body}</p>
-				</li>
+	<DiscussableSection sectionKey="mission" title={doc.mission.heading}>
+		<section class="about__section about__mission">
+			<h2>{doc.mission.heading}</h2>
+			{#each doc.mission.body as paragraph (paragraph)}
+				<p class="about__intro">{paragraph}</p>
 			{/each}
-		</ol>
-	</section>
+			<ol class="about__pillars">
+				{#each doc.mission.pillars as pillar (pillar.key)}
+					<li class="about__pillar">
+						<h3>{pillar.title}</h3>
+						<p>{pillar.body}</p>
+					</li>
+				{/each}
+			</ol>
+		</section>
+	</DiscussableSection>
 
-	<section class="about__section about__origin">
-		<div class="about__prose">
-			<h2>{doc.origin.heading}</h2>
-			{#each doc.origin.body as paragraph (paragraph)}
-				<p>{paragraph}</p>
-			{/each}
-		</div>
-		<!-- An exercise's anatomy, as a card: the four fields every row in the corpus can carry. Static
-		     and deliberately without real maths — a landing page must not pull the KaTeX chunk. -->
-		<aside class="about__anatomy" aria-label={doc.anatomyLabel}>
-			{#each doc.fields as field, i (field.label)}
-				<div class="about__field" class:about__field--optional={i > 0}>
-					<span class="about__field-label">{field.label}</span>
-					<span class="about__field-note">{field.note}</span>
-				</div>
-			{/each}
-		</aside>
-	</section>
+	<DiscussableSection sectionKey="origin" title={doc.origin.heading}>
+		<section class="about__section about__origin">
+			<div class="about__prose">
+				<h2>{doc.origin.heading}</h2>
+				{#each doc.origin.body as paragraph (paragraph)}
+					<p>{paragraph}</p>
+				{/each}
+			</div>
+			<!-- An exercise's anatomy, as a card: the four fields every row in the corpus can carry. Static
+			     and deliberately without real maths — a landing page must not pull the KaTeX chunk. -->
+			<aside class="about__anatomy" aria-label={doc.anatomyLabel}>
+				{#each doc.fields as field, i (field.label)}
+					<div class="about__field" class:about__field--optional={i > 0}>
+						<span class="about__field-label">{field.label}</span>
+						<span class="about__field-note">{field.note}</span>
+					</div>
+				{/each}
+			</aside>
+		</section>
+	</DiscussableSection>
 
 	<!-- learning: showcase (G) — the index of the design showcase pages under /about/<feature>, built
 	     from sample data in lib/content/showcase/, mounted directly below this comment. -->
@@ -128,74 +152,84 @@
 		<p><a class="btn-secondary" href={resolve('/about/guide')}>{m.guide_aboutLinkCta()}</a></p>
 		<!-- "Open the manual →" -->
 	</section>
-	<section class="about__section">
-		<h2>{doc.featuresHeading}</h2>
-		<p class="about__intro">{doc.featuresIntro}</p>
-		<ul class="about__grid">
-			{#each features as feature (feature.key)}
-				<li class="about__card">
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the hrefs are the fixed route paths listed in lib/content/about.ts -->
-					<a href={localizeHref(feature.href)} class="about__card-link">
-						<h3>{feature.title}</h3>
-						<p>{feature.body}</p>
-					</a>
-				</li>
-			{/each}
-		</ul>
-	</section>
-
-	<section class="about__section about__band">
-		<div class="about__band-inner">
-			<h2>{doc.trust.heading}</h2>
-			{#each doc.trust.body as paragraph (paragraph)}
-				<p>{paragraph}</p>
-			{/each}
-			<ul class="about__checks">
-				{#each doc.trust.bullets ?? [] as bullet (bullet)}
-					<li>{bullet}</li>
+	<DiscussableSection sectionKey="features" title={doc.featuresHeading}>
+		<section class="about__section">
+			<h2>{doc.featuresHeading}</h2>
+			<p class="about__intro">{doc.featuresIntro}</p>
+			<ul class="about__grid">
+				{#each features as feature (feature.key)}
+					<li class="about__card">
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the hrefs are the fixed route paths listed in lib/content/about.ts -->
+						<a href={localizeHref(feature.href)} class="about__card-link">
+							<h3>{feature.title}</h3>
+							<p>{feature.body}</p>
+						</a>
+					</li>
 				{/each}
 			</ul>
-		</div>
-	</section>
+		</section>
+	</DiscussableSection>
 
-	<section class="about__section">
-		<h2>{doc.audiences.heading}</h2>
-		<ul class="about__bands" aria-label={doc.audiences.heading}>
-			{#each bands as band (band)}
-				<li>{band}</li>
-			{/each}
-		</ul>
-		{#each doc.audiences.body as paragraph (paragraph)}
-			<p>{paragraph}</p>
-		{/each}
-	</section>
+	<DiscussableSection sectionKey="trust" title={doc.trust.heading}>
+		<section class="about__section about__band">
+			<div class="about__band-inner">
+				<h2>{doc.trust.heading}</h2>
+				{#each doc.trust.body as paragraph (paragraph)}
+					<p>{paragraph}</p>
+				{/each}
+				<ul class="about__checks">
+					{#each doc.trust.bullets ?? [] as bullet (bullet)}
+						<li>{bullet}</li>
+					{/each}
+				</ul>
+			</div>
+		</section>
+	</DiscussableSection>
 
-	<section class="about__section about__pair">
-		<div>
-			<h2>{doc.money.heading}</h2>
-			{#each doc.money.body as paragraph (paragraph)}
-				<p>{paragraph}</p>
-			{/each}
-		</div>
-		<div>
-			<h2>{doc.open.heading}</h2>
-			{#each doc.open.body as paragraph (paragraph)}
-				<p>{paragraph}</p>
-			{/each}
-			<ul class="about__links">
-				<li><a href={resolve('/privacy')}>{doc.links.privacy}</a></li>
-				<li><a href={resolve('/levels')}>{doc.links.levels}</a></li>
-				<li><a href={resolve('/legal')}>{doc.links.legal}</a></li>
-				<li><a href={SOURCE_URL} rel="noopener">{doc.links.source}</a></li>
+	<DiscussableSection sectionKey="audiences" title={doc.audiences.heading}>
+		<section class="about__section">
+			<h2>{doc.audiences.heading}</h2>
+			<ul class="about__bands" aria-label={doc.audiences.heading}>
+				{#each bands as band (band)}
+					<li>{band}</li>
+				{/each}
 			</ul>
-		</div>
-	</section>
+			{#each doc.audiences.body as paragraph (paragraph)}
+				<p>{paragraph}</p>
+			{/each}
+		</section>
+	</DiscussableSection>
 
-	<section class="about__section about__closing">
-		<h2>{doc.closingTitle}</h2>
-		<p>{doc.closingBody}</p>
-		<a class="btn-primary" href={resolve('/disciplines')}>{doc.ctaBrowse}</a>
-	</section>
+	<DiscussableSection sectionKey="money-and-openness" title={doc.money.heading}>
+		<section class="about__section about__pair">
+			<div>
+				<h2>{doc.money.heading}</h2>
+				{#each doc.money.body as paragraph (paragraph)}
+					<p>{paragraph}</p>
+				{/each}
+			</div>
+			<div>
+				<h2>{doc.open.heading}</h2>
+				{#each doc.open.body as paragraph (paragraph)}
+					<p>{paragraph}</p>
+				{/each}
+				<ul class="about__links">
+					<li><a href={resolve('/privacy')}>{doc.links.privacy}</a></li>
+					<li><a href={resolve('/levels')}>{doc.links.levels}</a></li>
+					<li><a href={resolve('/legal')}>{doc.links.legal}</a></li>
+					<li><a href={SOURCE_URL} rel="noopener">{doc.links.source}</a></li>
+				</ul>
+			</div>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="closing" title={doc.closingTitle}>
+		<section class="about__section about__closing">
+			<h2>{doc.closingTitle}</h2>
+			<p>{doc.closingBody}</p>
+			<a class="btn-primary" href={resolve('/disciplines')}>{doc.ctaBrowse}</a>
+		</section>
+	</DiscussableSection>
 </article>
 
 <style lang="scss">

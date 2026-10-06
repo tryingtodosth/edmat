@@ -1283,6 +1283,8 @@ class FeatureFlagTests(APITestCase):
                 'flashcards',
                 'learning_record',
                 'creation_requires_verification',
+                # The standing pages' discussions, migration 0048 (`community/discussions.py`).
+                'about_discussions',
                 'material_uploads_verified_only',
             },
         )
@@ -1320,6 +1322,10 @@ class FeatureFlagTests(APITestCase):
                     # on removes nothing from anybody.
                     'flashcards',
                     'learning_record',
+                    # And the standing pages' discussions, 0048, for the same reason again: no
+                    # location exists the moment it runs. What it switches on is the per-location
+                    # switches underneath it meaning anything at all.
+                    'about_discussions',
                 )
             )
         )

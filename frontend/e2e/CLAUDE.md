@@ -120,6 +120,14 @@ test-runner suite.
     **raw LaTeX for a moment** after a page's header appears. A screenshot taken too early shows
     `\int_{-\infty}` as source and looks like a rendering bug. Wait for `.katex` before shooting.
 
+27. **A panel that appears instantly is not a panel that has loaded.** `SectionDiscussion` renders
+    its body the moment it is opened, carrying "Loading…", and fetches the thread after — so
+    `waitForSelector('.section-discussion__body')` resolves against a panel with no composer in it
+    yet, and `about-discussions.mjs` reported a missing composer that was simply not drawn. Register
+    `page.waitForResponse((r) => r.url().includes('/api/discussions/thread/'))` BEFORE the click and
+    await it. The same shape as trap 25, one layer down: there, waiting for an element proved
+    nothing about hydration; here it proves nothing about the fetch the click started.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

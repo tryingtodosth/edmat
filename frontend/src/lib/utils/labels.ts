@@ -389,6 +389,7 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	age_verification: m.featureFlags_label_ageVerification, // "Age gate on self-registration"
 	coauthoring: m.featureFlags_label_coauthoring, // "Co-authoring materials: versions, teams, proposals"
 	concepts: m.featureFlags_label_concepts, // "Concepts: wiki articles per audience"
+	about_discussions: m.featureFlags_label_aboutDiscussions, // "Discussions under the standing pages (/about and the manual)"
 	venues: m.featureFlags_label_venues, // "Venues, rooms and checklists"
 	event_documents: m.featureFlags_label_eventDocuments, // "Event documents and briefings"
 	tickets: m.featureFlags_label_tickets, // "Tickets, QR codes and scanning"
@@ -1161,6 +1162,39 @@ export function deckRefusalMessage(err: unknown, fallback: string): string {
 		}
 	}
 	return err instanceof Error ? err.message : fallback;
+}
+
+// Standing-page discussions — a hand-maintained mirror of `backend/community/discussions.py`'s
+// `AUDIENCE_CHOICES` and of the refusal words `post_block_reason` answers with. That module says so
+// from its side (house rule 13), because a word added on the server and not here shows a reader a
+// blank line where a sentence should be.
+import type { DiscussionAudience, DiscussionBlockReason } from '$lib/types/discussion';
+
+export const DISCUSSION_AUDIENCES: DiscussionAudience[] = ['anyone', 'users', 'verified', 'staff'];
+
+export const DISCUSSION_AUDIENCE_LABELS: Record<DiscussionAudience, () => string> = {
+	anyone: m.discussions_audience_anyone, // "Anyone, including visitors who are not signed in"
+	users: m.discussions_audience_users, // "Any signed-in account"
+	verified: m.discussions_audience_verified, // "Verified contributors and staff"
+	staff: m.discussions_audience_staff // "Staff only"
+};
+
+// House rule 6 spelled out: five words, five sentences. A boolean would make "sign in", "verified
+// contributors only" and "a moderator closed this" the same greyed-out box, and they are three
+// completely different things to be told.
+export const DISCUSSION_BLOCK_LABELS: Record<DiscussionBlockReason, () => string> = {
+	off: m.discussions_reason_off, // "This discussion is closed."
+	anonymous: m.discussions_reason_anonymous, // "Sign in to join this discussion."
+	verification_required: m.discussions_reason_verificationRequired, // "Only verified contributors can write here."
+	staff_only: m.discussions_reason_staffOnly, // "Only the site's moderators can write here."
+	minor: m.discussions_reason_minor // "Accounts under 16 cannot write where visitors who are not signed in can read and reply."
+};
+
+/** The sentence for a refusal word, falling back to the generic one for anything this map does not
+ *  recognise — so a word added on the server still shows something rather than nothing. */
+export function discussionRefusalMessage(reason: DiscussionBlockReason | null): string {
+	if (reason && reason in DISCUSSION_BLOCK_LABELS) return DISCUSSION_BLOCK_LABELS[reason]();
+	return m.discussions_reason_off();
 }
 
 // The learning record's metric columns — a hand-maintained mirror of `backend/identity/record.py`'s

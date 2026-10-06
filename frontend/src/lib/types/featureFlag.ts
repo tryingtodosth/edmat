@@ -66,6 +66,11 @@ export type FeatureFlagKey =
 	// keep working while showing nothing for it (house rule 3). A `[[slug]]` anchor already written
 	// into somebody's content still renders; the page it leads to shows the gate.
 	| 'concepts'
+	// The standing pages' own discussions (`backend/community/discussions.py`), migration 0048.
+	// One flag over the whole surface, with the per-location switches underneath it in
+	// `/api/discussion-locations/` — this one takes every thread on `/about`, the seven showcase
+	// pages and the manual's twelve away at once.
+	| 'about_discussions'
 	// The six conference surfaces (CONFERENCE-BRIEF.md §0), seeded together by moderation migration
 	// 0043 so that the seven parallel branches never each add a flag. Each closes its own app's
 	// endpoints to a non-staff caller and takes its own links with it; the older events surfaces

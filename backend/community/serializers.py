@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
-from .models import CommentAttachment, Comment, CommentRevision, InlineImage, Review, SavedComment
+from .models import CommentAttachment, Comment, CommentRevision, DiscussionLocation, InlineImage, Review, SavedComment
 from .targets import target_type_for
 
 
@@ -44,7 +44,24 @@ class ReviewSerializer(ReplyCountMixin, serializers.ModelSerializer):
         read_only_fields = ['author']
 
     def get_author_display_name(self, obj):
-        return getattr(obj.author.profile, 'display_name', '') or obj.author.username
+        return comment_author_display(obj)
+
+
+def comment_author_display(comment) -> str:
+    """Who to put above a comment, account or not.
+
+    One function for the two serializers below, because an anonymous comment
+    (`community/discussions.py`) has no `author` at all and a display name that read
+    `obj.author.username` would be an `AttributeError` on every one of them. The order is the
+    honest one: a real account's chosen name, then its username, then what an anonymous writer
+    typed, then ''. The server does not invent a name for somebody who did not give one, and ''
+    reaches `CommentNode.svelte`'s existing "—" byline — the same thing it already draws for an
+    author it could not resolve.
+    """
+    author = getattr(comment, 'author', None)
+    if author is not None:
+        return getattr(getattr(author, 'profile', None), 'display_name', '') or author.username
+    return (getattr(comment, 'anon_name', '') or '').strip()
 
 
 class CommentAttachmentSerializer(serializers.ModelSerializer):
@@ -157,7 +174,7 @@ class CommentSerializer(serializers.ModelSerializer):
     def get_author_display_name(self, obj):
         if obj.is_removed or obj.auto_hidden_at is not None:
             return ''
-        return getattr(obj.author.profile, 'display_name', '') or obj.author.username
+        return comment_author_display(obj)
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
@@ -272,3 +289,112 @@ class InlineImageSerializer(serializers.ModelSerializer):
 
     def get_embed_html(self, obj) -> str:
         return obj.embed_html(self.get_url(obj))
+
+
+class DiscussionLocationSerializer(serializers.ModelSerializer):
+    """A location as a MODERATOR sees it — the row's own fields, not the effective policy.
+
+    Deliberately not the same shape the reading endpoint returns. A moderator editing this row has
+    to see what the row itself says, including the difference between "this section is set to
+    `staff`" and "this section inherits `staff` from its page" — a serializer that quietly folded
+    the page's ceiling in would make the second look like the first, and the moderator would then
+    be unable to tell which row to change. `discussions.effective_policy` is the other shape, and
+    the reader's endpoint is where it belongs.
+    """
+
+    key = serializers.SerializerMethodField()
+    comment_count = serializers.SerializerMethodField()
+    held_count = serializers.SerializerMethodField()
+    updated_by_display_name = serializers.SerializerMethodField()
+    # Spelled out because `Meta.unique_together` on (page, section) makes DRF's own
+    # `UniqueTogetherValidator` require EVERY field in the constraint — so creating a page-level
+    # row, whose whole point is an empty section, came back 400 "this field is required" for a
+    # field the model has `blank=True` on. `default=''` is what the validator needs to see.
+    section = serializers.CharField(max_length=80, required=False, allow_blank=True, default='')
+
+    class Meta:
+        model = DiscussionLocation
+        fields = [
+            'id',
+            'key',
+            'page',
+            'section',
+            'is_enabled',
+            'audience',
+            'moderated',
+            'comment_count',
+            'held_count',
+            'updated_at',
+            'updated_by_display_name',
+        ]
+        read_only_fields = ['updated_at']
+
+    def get_key(self, row) -> str:
+        from .discussions import location_key
+
+        return location_key(row.page, row.section)
+
+    def _comments(self, row):
+        """Recounted on every read, never stored (house rule 5): two COUNTs over an indexed FK are
+        cheap, and a counter that misses one code path — a moderator removing a comment, the author
+        deleting it, an auto-hide — is wrong forever."""
+        content_type = ContentType.objects.get_for_model(DiscussionLocation)
+        return Comment.objects.filter(content_type=content_type, object_id=row.pk)
+
+    def get_comment_count(self, row) -> int:
+        return self._comments(row).filter(is_removed=False, auto_hidden_at__isnull=True).count()
+
+    def get_held_count(self, row) -> int:
+        """Waiting for a moderator — held or auto-hidden, not yet removed. This is the number that
+        makes the list worth looking at: a location with five of these is one somebody has to go
+        and read, and it is the honest cost of having set that location to `anyone`."""
+        return self._comments(row).filter(is_removed=False, auto_hidden_at__isnull=False).count()
+
+    def get_updated_by_display_name(self, row) -> str:
+        return _user_display_name(row.updated_by)
+
+    def validate_audience(self, value):
+        from .discussions import AUDIENCE_CHOICES
+
+        legal = {key for key, _label in AUDIENCE_CHOICES}
+        if value not in legal:
+            raise serializers.ValidationError(f'Unknown audience. One of: {", ".join(sorted(legal))}.')
+        return value
+
+    def validate(self, attrs):
+        """The key's shape is checked here rather than in the view, because a moderator CREATING a
+        location is the one caller who types a page and section by hand — every other path parses
+        them out of a key the frontend built."""
+        from .discussions import PAGE_RE, SECTION_RE
+
+        page = (attrs.get('page') or getattr(self.instance, 'page', '') or '').strip()
+        section = (attrs.get('section') or getattr(self.instance, 'section', '') or '').strip()
+        if not PAGE_RE.match(page):
+            raise serializers.ValidationError(
+                {'page': ['A page is `about` or `about/<segment>` or `about/<segment>/<segment>`.']}
+            )
+        if section and not SECTION_RE.match(section):
+            raise serializers.ValidationError(
+                {'section': ['A section is lowercase letters, digits and hyphens; empty means the whole page.']}
+            )
+        attrs['page'] = page
+        attrs['section'] = section
+        return attrs
+
+
+class DiscussionCommentDraftSerializer(serializers.Serializer):
+    """What a reader may send when writing under a standing page.
+
+    Its own serializer rather than `CommentSerializer`, because the two accept different things: a
+    comment here may carry `anon_name` and may have no author at all, and it may NOT carry the
+    attachment and inline-image machinery a thread on an exercise has. Keeping it separate is what
+    stops this endpoint from inheriting a field it has no rule for.
+    """
+
+    body = serializers.CharField(max_length=8000, allow_blank=False, trim_whitespace=True)
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Comment.objects.all(), required=False, allow_null=True
+    )
+    #: Only read for a writer with no account; a signed-in comment is bylined by the account, and
+    #: silently accepting a different name on it would let somebody sign a comment as anybody.
+    anon_name = serializers.CharField(max_length=40, required=False, allow_blank=True)

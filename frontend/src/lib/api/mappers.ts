@@ -625,7 +625,7 @@ export function mapMaterial(json: RawMaterial): Material {
 export interface RawMaterialReview {
 	id: number;
 	material: number;
-	author: number;
+	author: number | null;
 	author_display_name: string;
 	rating: number;
 	body: string;
@@ -650,7 +650,7 @@ export function mapMaterialReview(json: RawMaterialReview): MaterialReview {
 export interface RawReview {
 	id: number;
 	exercise: number;
-	author: number;
+	author: number | null;
 	author_display_name: string;
 	rating: number;
 	body: string;
@@ -673,7 +673,7 @@ export function mapReview(json: RawReview): Review {
 export interface RawComment {
 	id: number;
 	parent: number | null;
-	author: number;
+	author: number | null;
 	author_display_name: string;
 	body: string;
 	created_at: string;
@@ -708,7 +708,15 @@ export function mapComment(
 		targetType,
 		targetId,
 		parentId: idOrUndefined(json.parent),
-		authorId: String(json.author),
+		// `null` for a comment written by a visitor with no account (the standing-page discussions,
+		// `community/discussions.py`). Mapped to '' rather than the string "null", so every
+		// `usersById[authorId]` lookup misses cleanly instead of looking up a key that reads like a
+		// real id.
+		authorId: json.author === null ? '' : String(json.author),
+		// The server has always sent this and nothing mapped it, so every reader got its author
+		// from `usersById` and drew "—" when that map did not have them. An anonymous comment has
+		// no entry there by construction, so the byline it typed had nowhere to come from.
+		authorDisplayName: json.author_display_name ?? '',
 		body: json.body,
 		createdAt: json.created_at,
 		isRemoved: json.is_removed,
@@ -1606,7 +1614,7 @@ export function mapBooking(json: RawBooking): Booking {
 export interface RawServiceReview {
 	id: number;
 	service: number;
-	author: number;
+	author: number | null;
 	author_display_name: string;
 	rating: number;
 	body: string;

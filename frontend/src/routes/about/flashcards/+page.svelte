@@ -14,6 +14,7 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import ShowcasePage from '$lib/components/showcase/ShowcasePage.svelte';
+	import DiscussableSection from '$lib/components/discussion/DiscussableSection.svelte';
 	import SampleFrame from '$lib/components/showcase/SampleFrame.svelte';
 	import DeckTile from '$lib/components/showcase/DeckTile.svelte';
 	import FlipCard from '$lib/components/showcase/FlipCard.svelte';
@@ -34,76 +35,91 @@
 		good: () => m.showcase_gradeGood(), // "Good"
 		easy: () => m.showcase_gradeEasy() // "Easy"
 	};
+
+	// The sections readers may talk under, and the keys the server knows them by
+	// (`backend/community/discussions.py`). The backend keeps no table of legal section
+	// names, so the page that draws a section is the only thing that knows it exists.
+	const DISCUSSION_SECTIONS = ['decks', 'card', 'grades', 'queue', 'placement'];
 </script>
 
-<ShowcasePage {doc} slug="flashcards" {featureOff}>
-	<section>
-		<h2>{doc.decksHeading}</h2>
-		<SampleFrame caption={doc.decksCaption}>
-			<div class="decks">
-				{#each doc.decks as deck (deck.name)}
-					<DeckTile {deck} />
-				{/each}
-			</div>
-		</SampleFrame>
-	</section>
-
-	<section>
-		<h2>{doc.cardHeading}</h2>
-		<SampleFrame caption={doc.cardCaption} live>
-			<FlipCard
-				frontLabel={doc.card.frontLabel}
-				backLabel={doc.card.backLabel}
-				front={doc.card.front}
-				back={doc.card.back}
-				hint={doc.card.hint}
-				grades={doc.grades}
-			/>
-		</SampleFrame>
-	</section>
-
-	<section>
-		<h2>{doc.gradesHeading}</h2>
-		<dl class="grades">
-			{#each doc.grades as grade (grade.key)}
-				<div class="grades__row">
-					<dt>
-						{GRADE_LABEL[grade.key]()}
-						<span class="grades__days">
-							{grade.days === 0
-								? m.showcase_gradeNextToday() // "again today"
-								: m.showcase_gradeNextIn({ days: grade.days })}
-							<!-- "next in {days} days" -->
-						</span>
-					</dt>
-					<dd>{grade.meaning}</dd>
+<ShowcasePage {doc} slug="flashcards" discussionSections={DISCUSSION_SECTIONS} {featureOff}>
+	<DiscussableSection sectionKey="decks" title={doc.decksHeading}>
+		<section>
+			<h2>{doc.decksHeading}</h2>
+			<SampleFrame caption={doc.decksCaption}>
+				<div class="decks">
+					{#each doc.decks as deck (deck.name)}
+						<DeckTile {deck} />
+					{/each}
 				</div>
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="card" title={doc.cardHeading}>
+		<section>
+			<h2>{doc.cardHeading}</h2>
+			<SampleFrame caption={doc.cardCaption} live>
+				<FlipCard
+					frontLabel={doc.card.frontLabel}
+					backLabel={doc.card.backLabel}
+					front={doc.card.front}
+					back={doc.card.back}
+					hint={doc.card.hint}
+					grades={doc.grades}
+				/>
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="grades" title={doc.gradesHeading}>
+		<section>
+			<h2>{doc.gradesHeading}</h2>
+			<dl class="grades">
+				{#each doc.grades as grade (grade.key)}
+					<div class="grades__row">
+						<dt>
+							{GRADE_LABEL[grade.key]()}
+							<span class="grades__days">
+								{grade.days === 0
+									? m.showcase_gradeNextToday() // "again today"
+									: m.showcase_gradeNextIn({ days: grade.days })}
+								<!-- "next in {days} days" -->
+							</span>
+						</dt>
+						<dd>{grade.meaning}</dd>
+					</div>
+				{/each}
+			</dl>
+			<p class="note">{doc.gradesNote}</p>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="queue" title={doc.queueHeading}>
+		<section>
+			<h2>{doc.queueHeading}</h2>
+			<SampleFrame caption={doc.queueCaption}>
+				<ul class="queue">
+					<li><strong>{doc.queue.due}</strong> <span>{doc.queueLabels.due}</span></li>
+					<li><strong>{doc.queue.fresh}</strong> <span>{doc.queueLabels.fresh}</span></li>
+					<li><strong>{doc.queue.learned}</strong> <span>{doc.queueLabels.learned}</span></li>
+					<li><strong>{doc.queue.total}</strong> <span>{doc.queueLabels.total}</span></li>
+				</ul>
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="placement" title={doc.placementHeading}>
+		<section>
+			<h2>{doc.placementHeading}</h2>
+			{#each doc.placementBody as paragraph (paragraph)}
+				<p class="body">{paragraph}</p>
 			{/each}
-		</dl>
-		<p class="note">{doc.gradesNote}</p>
-	</section>
-
-	<section>
-		<h2>{doc.queueHeading}</h2>
-		<SampleFrame caption={doc.queueCaption}>
-			<ul class="queue">
-				<li><strong>{doc.queue.due}</strong> <span>{doc.queueLabels.due}</span></li>
-				<li><strong>{doc.queue.fresh}</strong> <span>{doc.queueLabels.fresh}</span></li>
-				<li><strong>{doc.queue.learned}</strong> <span>{doc.queueLabels.learned}</span></li>
-				<li><strong>{doc.queue.total}</strong> <span>{doc.queueLabels.total}</span></li>
-			</ul>
-		</SampleFrame>
-	</section>
-
-	<section>
-		<h2>{doc.placementHeading}</h2>
-		{#each doc.placementBody as paragraph (paragraph)}
-			<p class="body">{paragraph}</p>
-		{/each}
-		<SampleFrame caption={doc.placementCaption}>
-			<DeckTile deck={doc.placedDeck} />
-		</SampleFrame>
-	</section>
+			<SampleFrame caption={doc.placementCaption}>
+				<DeckTile deck={doc.placedDeck} />
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 </ShowcasePage>
 
 <style lang="scss">

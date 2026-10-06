@@ -14,6 +14,7 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+	import PageDiscussion from '$lib/components/discussion/PageDiscussion.svelte';
 
 	const doc = $derived(guideHubFor(getLocale()));
 	const locale = $derived(getLocale());
@@ -77,6 +78,10 @@
 			{/each}
 		</ul>
 	</section>
+
+	<!-- The manual as a whole — "where do I start?" rather than a question about one
+	     chapter, which belongs on that chapter. -->
+	<PageDiscussion page="about/guide" title={doc.title} />
 </article>
 
 <style lang="scss">

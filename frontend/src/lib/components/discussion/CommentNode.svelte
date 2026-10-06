@@ -238,6 +238,12 @@
 				<a class="comment__author" href={resolve('/users/[id]', { id: comment.authorId })}>
 					{usersById[comment.authorId].displayName}
 				</a>
+			{:else if comment.authorDisplayName && !hidden}
+				<!-- A name with no page behind it: either a visitor who signed what they wrote
+				     (the standing-page discussions), or an account this page did not load into
+				     `usersById`. A span and not a link, because there may be nothing to link to —
+				     and a link that 404s is worse than a plain name. -->
+				<span class="comment__author">{comment.authorDisplayName}</span>
 			{:else}
 				<span class="comment__author">—</span>
 			{/if}

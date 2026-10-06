@@ -152,6 +152,12 @@ def pending_reports_in_course(course) -> list[dict]:
 
 
 def _display_name(user) -> str:
+    """`None` is a real caller now: `Comment.author` is nullable since the standing-page
+    discussions (`community/discussions.py`). No comment inside a course can be anonymous — those
+    locations are `/about` pages — but a function that would raise on one is a crash waiting for
+    the first person who widens where anonymous writing is allowed."""
+    if user is None:
+        return ''
     profile = getattr(user, 'profile', None)
     return profile.display_name if profile and profile.display_name else user.username
 

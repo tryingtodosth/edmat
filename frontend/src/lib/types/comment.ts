@@ -57,6 +57,13 @@ export type CommentTargetType =
 	// Unlike `materialVersion` it is NOT private: an article a reader can see is a page anybody can
 	// open, so a course may link its thread like an exercise's.
 	| 'conceptArticle'
+	// A section of a standing page — `/about`, a showcase page, a manual chapter
+	// (`backend/community/discussions.py`). The ONE member of this union that is not a thing
+	// somebody made: it is a place on a page of prose, and the row behind it exists only so a
+	// Comment has something to point at. The id the client carries is the location's KEY
+	// (`about/guide/courses#enrolling`), not a numeric pk — every other member of this union is
+	// addressed by a pk, so anything generic that resolves a target by name has to know that.
+	| 'discussionLocation'
 	// An anchored micro-post on the activity feed (activity.Post) — its own thread.
 	| 'post'
 	// The three review kinds. Replying to somebody's review is not a new kind of object — it is a
@@ -72,7 +79,11 @@ export interface Comment {
 	targetType: CommentTargetType;
 	targetId: string;
 	parentId?: string;
+	/** '' when nobody signed it — a visitor's comment under a standing page. */
 	authorId: string;
+	/** What to put above it. Blanked by the server on a tombstone or a held comment, exactly as
+	 *  the body is, so a reader is never shown a name attached to text they cannot see. */
+	authorDisplayName: string;
 	body: string;
 	createdAt: string;
 	isRemoved: boolean; // tombstone, not hard-delete — preserves thread structure, mirrors CLAUDE.md's model

@@ -53,6 +53,13 @@ TARGET_TYPE_BY_MODEL = {
     # have written, and one thread across all of them would mix a conversation about the
     # primary-school wording with one about the university proof.
     ('concepts', 'conceptarticle'): 'conceptArticle',
+    # A section of a standing page — `/about`, a showcase page, a manual chapter
+    # (`community/discussions.py`). The ONE target in this map that is not a thing somebody made:
+    # it is a place on a page of prose, and the row exists only so a `Comment` has something to
+    # point at. Named for the location rather than the page, because a page has as many of these as
+    # it has sections and one thread across all of them would mix a question about enrolling with
+    # one about certificates.
+    ('community', 'discussionlocation'): 'discussionLocation',
 }
 
 # The targets whose own threads are NOT public: a course's discussion, and a week's or a session's

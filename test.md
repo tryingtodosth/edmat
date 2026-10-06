@@ -229,6 +229,40 @@ inherit from it rather than repeating the line.
 
 ---
 
+## Discussions under the standing pages (`community/discussions.py`, 2026-10-06)
+
+**Django: `../.venv/bin/python3 manage.py test community.test_discussions`** — 42 tests. Key
+parsing and what it refuses; `effective_policy`'s page-as-ceiling rule in both directions (a page
+narrows its sections, a section cannot widen past its page) and the flag above both; every refusal
+word `post_block_reason` answers with, including the `minor` rule that applies only to `anyone`;
+what is held and what is not (anonymous always, staff never); who may read a held comment; and the
+moderator's list, its counts and the fact that it has no DELETE.
+
+**Browser: `frontend/e2e/about-discussions.mjs`** — 25 checks, zero console errors.
+
+```bash
+cd backend && ../.venv/bin/python3 manage.py migrate   # trap 23: the tables are new
+cd frontend && E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 \
+  node e2e/about-discussions.mjs
+```
+
+It drives the surface as a reader meets it: the collapsed lines are drawn, and **no thread is
+fetched until one is clicked** — asserted on the network, not on the DOM, because an absent thread
+would also "pass" if the fetch had happened and failed. Then: a switched-off location draws no
+affordance at all (house rule 3, not a disabled line); a visitor gets a composer and a name field
+where the audience is `anyone`; what they write is accepted, comes back marked held, is invisible to
+everybody else and visible to staff; a signed-in comment appears at once; an unverified reader gets
+the verified-only sentence and no composer; a manual chapter draws exactly one discussion; and with
+the flag off there is no affordance anywhere while the policy endpoint still answers.
+
+It needs `admin` and `student1` with password `password123` (override with `E2E_STAFF`,
+`E2E_STAFF_PW`, `E2E_USER`, `E2E_USER_PW`) and it **leaves its comments behind** — there is no
+delete endpoint for a standing-page thread yet, so the count check asserts "a count ≥ 1" rather
+than an exact number. Two things it taught, both already in `e2e/CLAUDE.md`: waiting for
+`.section-discussion__body` proves nothing, because the panel appears instantly carrying
+"Loading…" (trap 25), and a long chain of full page loads exhausts the dev server into
+`ERR_INSUFFICIENT_RESOURCES`, which reads exactly like the feature being broken (trap 3).
+
 ## 2. Browser tests
 
 These drive a real Chromium against **both servers running**, so they need a little setup. They are

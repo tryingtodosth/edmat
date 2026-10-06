@@ -15,6 +15,7 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import ShowcasePage from '$lib/components/showcase/ShowcasePage.svelte';
+	import DiscussableSection from '$lib/components/discussion/DiscussableSection.svelte';
 	import SampleFrame from '$lib/components/showcase/SampleFrame.svelte';
 	import RecordBlocks from '$lib/components/showcase/RecordBlocks.svelte';
 	import EducationCard from '$lib/components/shared/EducationCard.svelte';
@@ -24,51 +25,62 @@
 	const featureOff = $derived(
 		!(featureFlagsStore.isEnabled('learning_record') || authStore.isModerator)
 	);
+
+	// The sections readers may talk under, and the keys the server knows them by
+	// (`backend/community/discussions.py`). The backend keeps no table of legal section
+	// names, so the page that draws a section is the only thing that knows it exists.
+	const DISCUSSION_SECTIONS = ['grades', 'record', 'consent'];
 </script>
 
-<ShowcasePage {doc} slug="learning-record" {featureOff}>
-	<section>
-		<h2>{doc.gradesHeading}</h2>
-		<SampleFrame caption={doc.educationCaption}>
-			<EducationCard education={doc.education} />
-		</SampleFrame>
-		<!-- The transcript opens and closes, so it is a live sample rather than a picture: a reader
-		     who cannot press the year heading learns nothing about what the year heading does. -->
-		<SampleFrame caption={doc.transcriptCaption} live>
-			<TranscriptView years={doc.transcriptYears} grades={doc.transcriptRows} />
-		</SampleFrame>
-	</section>
+<ShowcasePage {doc} slug="learning-record" discussionSections={DISCUSSION_SECTIONS} {featureOff}>
+	<DiscussableSection sectionKey="grades" title={doc.gradesHeading}>
+		<section>
+			<h2>{doc.gradesHeading}</h2>
+			<SampleFrame caption={doc.educationCaption}>
+				<EducationCard education={doc.education} />
+			</SampleFrame>
+			<!-- The transcript opens and closes, so it is a live sample rather than a picture: a reader
+			     who cannot press the year heading learns nothing about what the year heading does. -->
+			<SampleFrame caption={doc.transcriptCaption} live>
+				<TranscriptView years={doc.transcriptYears} grades={doc.transcriptRows} />
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 
-	<section>
-		<h2>{doc.recordHeading}</h2>
-		<SampleFrame caption={doc.recordCaption}>
-			<RecordBlocks {doc} />
-		</SampleFrame>
-	</section>
+	<DiscussableSection sectionKey="record" title={doc.recordHeading}>
+		<section>
+			<h2>{doc.recordHeading}</h2>
+			<SampleFrame caption={doc.recordCaption}>
+				<RecordBlocks {doc} />
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 
-	<section>
-		<h2>{doc.consentHeading}</h2>
-		{#each doc.consentBody as paragraph (paragraph)}
-			<p class="body">{paragraph}</p>
-		{/each}
-		<SampleFrame caption={doc.consentCaption}>
-			<ul class="consents">
-				{#each doc.consents as consent (consent.label)}
-					<li>
-						<span class="consents__state" class:consents__state--on={consent.on}>
-							{consent.on ? m.showcase_consentOn() : m.showcase_consentOff()}
-							<!-- "Shared" / "Not shared" -->
-						</span>
-						<span class="consents__label">{consent.label}</span>
-						<span class="consents__shares">{consent.shares}</span>
-					</li>
-				{/each}
-			</ul>
-		</SampleFrame>
-		<p class="more">
-			<a href={resolve('/settings/profile')}>{doc.settingsLinkLabel}</a>
-		</p>
-	</section>
+	<DiscussableSection sectionKey="consent" title={doc.consentHeading}>
+		<section>
+			<h2>{doc.consentHeading}</h2>
+			{#each doc.consentBody as paragraph (paragraph)}
+				<p class="body">{paragraph}</p>
+			{/each}
+			<SampleFrame caption={doc.consentCaption}>
+				<ul class="consents">
+					{#each doc.consents as consent (consent.label)}
+						<li>
+							<span class="consents__state" class:consents__state--on={consent.on}>
+								{consent.on ? m.showcase_consentOn() : m.showcase_consentOff()}
+								<!-- "Shared" / "Not shared" -->
+							</span>
+							<span class="consents__label">{consent.label}</span>
+							<span class="consents__shares">{consent.shares}</span>
+						</li>
+					{/each}
+				</ul>
+			</SampleFrame>
+			<p class="more">
+				<a href={resolve('/settings/profile')}>{doc.settingsLinkLabel}</a>
+			</p>
+		</section>
+	</DiscussableSection>
 </ShowcasePage>
 
 <style lang="scss">

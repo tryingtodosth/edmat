@@ -50,6 +50,7 @@
 	import { getExercisesByIds, reviewSolutionEntry } from '$lib/services/exercises';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
+	import DiscussionLocationsPanel from '$lib/components/moderation/DiscussionLocationsPanel.svelte';
 	import { featureFlagLabel } from '$lib/utils/labels';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import { resolve } from '$app/paths';
@@ -81,7 +82,11 @@
 		| 'entries'
 		| 'governors'
 		| 'applications'
-		| 'flags';
+		| 'flags'
+		// The standing pages' discussion locations (`community/discussions.py`). Beside 'flags'
+		// rather than inside it: a kill switch is one boolean per feature, and a location carries
+		// three settings and a count of comments waiting for somebody.
+		| 'discussions';
 	const TABS: ModerationTab[] = [
 		'reports',
 		'submissions',
@@ -92,7 +97,8 @@
 		'entries',
 		'governors',
 		'applications',
-		'flags'
+		'flags',
+		'discussions'
 	];
 	// `?tab=` is READ once, at mount, and never written: a notification about a governor application
 	// has to be able to open the queue it is about, and landing on Reports instead is a link that
@@ -673,6 +679,19 @@
 					onclick={() => (tab = 'flags')}
 				>
 					{m.moderation_tab_flags()}
+				</button>
+				<!-- Same staff-only scope again: who may speak under a standing page is a
+				     platform-wide decision, not a per-node one a scoped governor makes. -->
+				<button
+					type="button"
+					role="tab"
+					id="mod-tab-discussions"
+					aria-selected={tab === 'discussions'}
+					aria-controls="mod-tabpanel"
+					class:active={tab === 'discussions'}
+					onclick={() => (tab = 'discussions')}
+				>
+					{m.discussions_tabTitle()}
 				</button>
 			{/if}
 		</div>
@@ -1301,6 +1320,11 @@
 						</ol>
 					{/if}
 				</div>
+			{:else if tab === 'discussions'}
+				<!-- Everything this tab does lives in its own component: this file is already past a
+				     thousand lines, and the panel's loading, its three switches per row and its "add a
+				     location" form are self-contained. -->
+				<DiscussionLocationsPanel />
 			{:else}
 				<!-- tab === 'flags' — same "only ever reachable via a staff-only tab button" reasoning
 				     as the governors branch right above. -->

@@ -18,6 +18,7 @@
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import { SHOWCASE_PAGES, type ShowcaseDoc, type ShowcaseSlug } from '$lib/content/showcase';
 	import { SHOWCASE_HREF } from './hrefs';
+	import { providePageDiscussions } from '$lib/components/discussion/pageDiscussions.svelte';
 
 	let {
 		doc,
@@ -29,13 +30,29 @@
 		 * is a description rather than a surface.
 		 */
 		featureOff = false,
+		/**
+		 * The section keys this page's own `<DiscussableSection>`s use
+		 * (`backend/community/discussions.py`). Listed by the page, provided here, so that seven
+		 * pages share ONE policy request each instead of one per section — and so that the shell,
+		 * which cannot see its children's sections, does not have to guess them.
+		 *
+		 * Empty by default: a showcase page that lists nothing simply has no discussions, and the
+		 * page renders exactly as it did before.
+		 */
+		discussionSections = [],
 		children
 	}: {
 		doc: ShowcaseDoc;
 		slug: ShowcaseSlug;
 		featureOff?: boolean;
+		discussionSections?: string[];
 		children: Snippet;
 	} = $props();
+
+	// `about/<slug>` is the page key the server knows — the same string as the route, without the
+	// leading slash (`discussions.PAGE_RE`).
+	const pageDiscussions = providePageDiscussions();
+	$effect(() => pageDiscussions.load(`about/${slug}`, discussionSections));
 
 	const others = $derived(SHOWCASE_PAGES.filter((p) => p.slug !== slug));
 	// Reactive, not read once: `locale.svelte.ts` overwrites `getLocale` with a rune, so the picker

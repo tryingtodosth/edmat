@@ -14,6 +14,7 @@
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+	import PageDiscussion from '$lib/components/discussion/PageDiscussion.svelte';
 
 	const locale = $derived(getLocale());
 	const slug = $derived(page.params.chapter ?? '');
@@ -126,6 +127,14 @@
 				</a>
 			{/if}
 		</nav>
+	{/if}
+
+	<!-- One thread for the chapter, not one per step: a chapter is a numbered list of short steps,
+	     and a discussion under each would be twelve collapsed lines in a page a reader is working
+	     through. `PageDiscussion` is reactive on the page key, which matters here because `slug` is
+	     derived and SvelteKit reuses this component across chapters. -->
+	{#if doc}
+		<PageDiscussion page={`about/guide/${slug}`} title={doc.title} />
 	{/if}
 </article>
 

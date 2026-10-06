@@ -12,6 +12,7 @@
 	import { resolve } from '$app/paths';
 	import { exercisesShowcaseFor } from '$lib/content/showcase/exercises';
 	import ShowcasePage from '$lib/components/showcase/ShowcasePage.svelte';
+	import DiscussableSection from '$lib/components/discussion/DiscussableSection.svelte';
 	import SampleFrame from '$lib/components/showcase/SampleFrame.svelte';
 	import SampleRows from '$lib/components/showcase/SampleRows.svelte';
 	import DeckTile from '$lib/components/showcase/DeckTile.svelte';
@@ -19,55 +20,68 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 
 	const doc = $derived(exercisesShowcaseFor(getLocale()));
+
+	// The sections readers may talk under, and the keys the server knows them by
+	// (`backend/community/discussions.py`). The backend keeps no table of legal section
+	// names, so the page that draws a section is the only thing that knows it exists.
+	const DISCUSSION_SECTIONS = ['cards', 'faces', 'set', 'deck'];
 </script>
 
-<ShowcasePage {doc} slug="exercises">
-	<section>
-		<h2>{doc.cardsHeading}</h2>
-		<SampleFrame caption={doc.cardsCaption}>
-			{#each doc.cards as sample (sample.exercise.id)}
-				<ExerciseCard exercise={sample.exercise} courseName={sample.branchName} />
-			{/each}
-		</SampleFrame>
-	</section>
-
-	<section>
-		<h2>{doc.facesHeading}</h2>
-		<SampleFrame caption={doc.facesCaption}>
-			<dl class="faces">
-				{#each doc.faces as face (face.label)}
-					<div class="faces__row">
-						<dt>
-							{face.label}
-							<span class="faces__note">{face.note}</span>
-						</dt>
-						<dd><MathContent source={face.body} /></dd>
-					</div>
+<ShowcasePage {doc} slug="exercises" discussionSections={DISCUSSION_SECTIONS}>
+	<DiscussableSection sectionKey="cards" title={doc.cardsHeading}>
+		<section>
+			<h2>{doc.cardsHeading}</h2>
+			<SampleFrame caption={doc.cardsCaption}>
+				{#each doc.cards as sample (sample.exercise.id)}
+					<ExerciseCard exercise={sample.exercise} courseName={sample.branchName} />
 				{/each}
-			</dl>
-		</SampleFrame>
-	</section>
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 
-	<section>
-		<h2>{doc.setHeading}</h2>
-		<SampleFrame caption={doc.setCaption}>
-			<SampleRows rows={doc.setRows} title={doc.setName} />
-		</SampleFrame>
-		<p class="more">
-			<a href={resolve('/my-set')}>{doc.setLinkLabel}</a>
-		</p>
-	</section>
+	<DiscussableSection sectionKey="faces" title={doc.facesHeading}>
+		<section>
+			<h2>{doc.facesHeading}</h2>
+			<SampleFrame caption={doc.facesCaption}>
+				<dl class="faces">
+					{#each doc.faces as face (face.label)}
+						<div class="faces__row">
+							<dt>
+								{face.label}
+								<span class="faces__note">{face.note}</span>
+							</dt>
+							<dd><MathContent source={face.body} /></dd>
+						</div>
+					{/each}
+				</dl>
+			</SampleFrame>
+		</section>
+	</DiscussableSection>
 
-	<section>
-		<h2>{doc.deckHeading}</h2>
-		<SampleFrame caption={doc.deckCaption}>
-			<DeckTile deck={doc.deck} />
-		</SampleFrame>
-		<p class="note">{doc.snapshotNote}</p>
-		<p class="more">
-			<a href={resolve('/disciplines')}>{doc.browseLinkLabel}</a>
-		</p>
-	</section>
+	<DiscussableSection sectionKey="set" title={doc.setHeading}>
+		<section>
+			<h2>{doc.setHeading}</h2>
+			<SampleFrame caption={doc.setCaption}>
+				<SampleRows rows={doc.setRows} title={doc.setName} />
+			</SampleFrame>
+			<p class="more">
+				<a href={resolve('/my-set')}>{doc.setLinkLabel}</a>
+			</p>
+		</section>
+	</DiscussableSection>
+
+	<DiscussableSection sectionKey="deck" title={doc.deckHeading}>
+		<section>
+			<h2>{doc.deckHeading}</h2>
+			<SampleFrame caption={doc.deckCaption}>
+				<DeckTile deck={doc.deck} />
+			</SampleFrame>
+			<p class="note">{doc.snapshotNote}</p>
+			<p class="more">
+				<a href={resolve('/disciplines')}>{doc.browseLinkLabel}</a>
+			</p>
+		</section>
+	</DiscussableSection>
 </ShowcasePage>
 
 <style lang="scss">

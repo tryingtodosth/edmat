@@ -47,7 +47,23 @@ class Comment(models.Model):
     parent = models.ForeignKey(
         'self', null=True, blank=True, related_name='replies', on_delete=models.CASCADE
     )
-    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # Nullable since the standing-page discussions (`community/discussions.py`): a location set to
+    # `audience='anyone'` accepts a visitor with no account, and such a comment is ALWAYS held for a
+    # moderator before anybody else reads it. Everything that reads an author must therefore cope
+    # with None — `CommentSerializer.get_author_display_name`, `courses/reports.py: _display_name`
+    # and `courses/search.py` all do, and `accounts.minors.is_minor(None)` already answered False.
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE
+    )
+    # What an anonymous writer called themselves. Free text, sanitized like the body, and shown
+    # instead of a display name — never beside one, because a signed-in comment has an account page
+    # to reach and this does not. Blank is legal and reads as "somebody".
+    anon_name = models.CharField(max_length=40, blank=True)
+    # A salted digest of the writer's address (`discussions.ip_hash`), for rate limiting and for
+    # nothing else: never shown, never compared across locations, never consulted to decide whether
+    # a comment is visible. The address itself is not stored — it is personal data and this row has
+    # no retention story of its own (`LEGAL.md`).
+    anon_ip_hash = models.CharField(max_length=64, blank=True)
     body = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     is_removed = models.BooleanField(default=False)  # tombstone, not hard-delete
@@ -260,3 +276,61 @@ class InlineImage(models.Model):
             f'<img src="{src or self.image.url}" alt="{alt}"{size} '
             f'loading="lazy" class="inline-image">'
         )
+
+
+class DiscussionLocation(models.Model):
+    """One place on a standing page where readers may talk, and what that place allows.
+
+    The rule module is `community/discussions.py` and every question about this row is answered
+    there — this class is storage and nothing else. Read its docstring first; in particular
+    `effective_policy`, because a row's own fields are NOT the whole answer: a row with
+    `section=''` is the page's setting and acts as a ceiling over every section on it, and the
+    `about_discussions` flag sits above both.
+
+    **Rows are created lazily, by the first person to write at a location.** A location nobody has
+    written at and no moderator has configured simply has no row, and `effective_policy` answers
+    with the module's defaults — which is why a fresh deployment needs no seed migration and why
+    the moderation list is "the locations somebody has touched" rather than "every location that
+    could exist". The alternative, a hand-maintained table of every legal key, is the drift this
+    project has been bitten by three times (`labels.ts`, the flag enum, the prerender list).
+
+    One `status`-shaped lifecycle would be wrong here, and that is why there are two fields rather
+    than one (root `CLAUDE.md`, "a lifecycle is one status field"): `is_enabled` and `audience` are
+    not stages of one thing, they are two independent settings — a location can be switched off
+    while still remembering that it was meant for verified contributors, and switching it back on
+    should not also forget that. `moderated` is a third, for the reason
+    `discussions.py` gives: "verified contributors, and hold what they write" is a real
+    configuration and one field cannot express it.
+    """
+
+    page = models.CharField(max_length=80)
+    #: `''` means the page itself — see the class docstring and `discussions.effective_policy`.
+    section = models.CharField(max_length=80, blank=True)
+    is_enabled = models.BooleanField(default=True)
+    audience = models.CharField(max_length=16, default='users')
+    moderated = models.BooleanField(default=False)
+    # Who last changed this and when, for the same reason `moderation.FeatureFlag` carries them: a
+    # setting that decides who may speak somewhere is a moderation decision, and a decision with
+    # nobody's name on it is the one kind this project does not keep (house rule 12).
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+
+    class Meta:
+        unique_together = [('page', 'section')]
+        ordering = ['page', 'section']
+
+    def save(self, *args, **kwargs):
+        """`anon_name`-style sanitation is not needed here (no free text reaches a reader), but the
+        audience value is checked, because a row written through the Django admin bypasses the
+        serializer. An unknown value is not silently corrected — `discussions._narrower` treats it
+        as the narrowest thing it could mean, which fails closed."""
+        self.page = (self.page or '').strip()
+        self.section = (self.section or '').strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        from .discussions import location_key
+
+        return f'{location_key(self.page, self.section)} [{self.audience}]'

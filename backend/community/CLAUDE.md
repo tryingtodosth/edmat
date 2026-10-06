@@ -86,6 +86,37 @@ every ordinary one straight through — the exact hole it was written to close.
 `process_attachment` still exists and is still tested: the endpoint is public API, and nothing
 stops an older client from posting a picture to it.
 
+## `DiscussionLocation` + `discussions.py` — talking under a page that has no row
+
+The standing pages (`/about`, the seven `/about/<feature>` showcase pages, the manual's twelve) are
+prerendered prose with nothing in any table, so a `Comment`'s GenericForeignKey had nothing to point
+at. `DiscussionLocation` is that row — one per place on one of those pages — and
+`discussions.py` is the rule module every endpoint asks (root `CLAUDE.md` boundary 2).
+
+- **Two settings, not five.** `audience` (anyone | users | verified | staff) answers *who*;
+  `moderated` answers *what happens to what they wrote*. One field could not express "verified
+  contributors, and hold what they write".
+- **A row with `section=''` is the page's own**, and acts as a **ceiling** over every section on it:
+  where a page and a section disagree the NARROWER wins, and `moderated` is an OR. It is also the
+  page's own thread — deliberately both, so "close discussion on this chapter" is one action.
+- **Rows are created lazily**, by the first person to write at a location or by a moderator
+  configuring one. A read never creates one, or a crawler would fill the moderation list.
+- **`anyone` includes people with no account, and an anonymous comment is ALWAYS held**, whatever
+  `moderated` says — there is no account to notify, suspend or show a history of. Holding reuses
+  `accounts.minors.hold_for_review`, so it is `auto_hidden_at` + a `Report`, and the existing queue
+  already knows how to show, restore and remove it. **That is why this feature added no new state
+  and no second queue.**
+- It made two fields nullable, and both have readers that had to learn it: `Comment.author`
+  (`comment_author_display` in `serializers.py`, `courses/reports.py`) and `Report.reported_by`
+  (nothing reads a reporter's name; the queue payload carries counts and reasons only).
+- The page allowlist is a **pattern** (`PAGE_RE`), not a list: the manual's sections live in
+  `frontend/src/lib/content/guide/*.ts` and Python cannot read them, so the frontend declares what
+  it draws — the same division `targets.py` settles for target names. A well-formed junk key is the
+  worst a stranger can make, and it shows up as a row with no comments.
+- All of it under `feature_gate`-less `is_feature_enabled('about_discussions')`, because the read
+  endpoint must keep answering "no discussion here" when the flag is off, so the frontend draws
+  nothing rather than a button that fails on click.
+
 ## Verify
 
 `manage.py test community` — tombstone blanking, resubmit-updates, threading, anonymous
@@ -93,3 +124,7 @@ rejection, and the saved-comment privacy/idempotency rules are all pinned there.
 `test_inline_images.py` covers the re-encode, the sanitizer round-trip on `embed_html` (the check
 that actually matters — a tag bleach strips is a picture that vanishes on save), the refusals, the
 shared allowance and the minor-band hold. The browser half is `e2e/comment-input-kinds.mjs`.
+
+`manage.py test community.test_discussions` (42) covers the standing-page discussions: key
+parsing, the page-as-ceiling rule, every refusal word, what is held and what is not, who may
+read a held comment, and the moderator's list. The browser half is `e2e/about-discussions.mjs`.

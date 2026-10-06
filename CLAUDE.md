@@ -143,7 +143,7 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-one exist today — `exercise_submissions` `material_submissions`
+  with an `is_staff` bypass. Thirty-two exist today — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
   `venues` `event_documents` `tickets` `shifts` `cloakroom` `role_preview` (seeded together by
@@ -302,6 +302,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/decks/ /api/cards/ /api/flashcards/due/ /api/nodes/{kind}/{id}/decks/  flashcards (prompts/02-flashcards.md)
 /api/creation/ /api/users/{id}/learning-record/ /api/courses/{id}/completions/  the creation gate, the learning record, certificates
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
+/api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
 ```

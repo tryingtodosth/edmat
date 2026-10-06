@@ -541,3 +541,263 @@ class InlineImageViewSet(viewsets.GenericViewSet):
             InlineImageSerializer(row, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+# --- discussions under the standing pages -------------------------------------------------------
+#
+# `community/discussions.py` is the rule module and every decision is argued there. These three
+# endpoints only ever ASK it (root CLAUDE.md boundary 2), which is why the policy appears in three
+# places — the reader's page, the thread itself and the moderator's list — without three chances to
+# disagree about it.
+
+
+class _DiscussionThrottle(ScopedRateThrottle):
+    scope = 'about_discussion'
+
+
+def _location_for(page: str, section: str, *, create: bool):
+    """The row for this location, or None.
+
+    `create=False` for every read: a reader opening a thread must not write a row, or a crawler
+    would populate the moderation list with every page it walked. The row appears when somebody
+    actually writes (`create=True` on POST) or when a moderator configures it.
+    """
+    from .models import DiscussionLocation
+
+    if create:
+        row, _ = DiscussionLocation.objects.get_or_create(page=page, section=section)
+        return row
+    return DiscussionLocation.objects.filter(page=page, section=section).first()
+
+
+def _policy_payload(request, page: str, section: str) -> dict:
+    """The effective policy plus what it means FOR THIS READER.
+
+    `can_post` and `post_block_reason` are both here on purpose (house rule 6): the frontend draws
+    a different line for "sign in to reply", "verified contributors only" and "a moderator has
+    closed this", and a boolean would make all three the same greyed-out box. `held_for_you` is the
+    fourth thing it has to say, and it is not a refusal — somebody allowed to write deserves to
+    know before they write that what they write will wait.
+    """
+    from . import discussions
+
+    policy = discussions.effective_policy(page, section)
+    reason = discussions.post_block_reason(request.user, policy)
+    return {
+        **policy,
+        'can_post': reason is None,
+        'post_block_reason': reason,
+        'held_for_you': reason is None and discussions.held_for(request.user, policy),
+    }
+
+
+class DiscussionPolicyView(APIView):
+    """`GET /api/discussions/?page=<page>&sections=a,b,c` — one request per PAGE, not per section.
+
+    A manual chapter has up to a dozen sections, and a page that asked per section would fire a
+    dozen requests before a reader had clicked anything. So the frontend sends the sections it
+    draws and gets one answer per section, plus the page's own.
+
+    `AllowAny`, and it stays answerable when the flag is off: it then reports `is_enabled: false`
+    for every section, which is what lets the page draw NO affordance rather than one that fails on
+    click (house rule 3).
+
+    The counts are included because the affordance says "3 comments" before anybody opens it — a
+    collapsed thread with no count looks like a button that does nothing.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from . import discussions
+        from .models import DiscussionLocation
+
+        page = (request.query_params.get('page') or '').strip()
+        try:
+            discussions.parse_key(page)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        raw = (request.query_params.get('sections') or '').strip()
+        sections = []
+        for candidate in raw.split(','):
+            candidate = candidate.strip()
+            if not candidate:
+                continue
+            if not discussions.SECTION_RE.match(candidate):
+                return Response({'detail': 'section'}, status=status.HTTP_400_BAD_REQUEST)
+            if candidate not in sections:
+                sections.append(candidate)
+
+        # One query for every row on this page, rather than one per section inside
+        # `effective_policy` — which is the N+1 this endpoint exists to avoid.
+        rows = {row.section: row for row in DiscussionLocation.objects.filter(page=page)}
+        content_type = ContentType.objects.get_for_model(DiscussionLocation)
+        counts = dict(
+            Comment.objects.filter(
+                content_type=content_type,
+                object_id__in=[row.pk for row in rows.values()],
+                is_removed=False,
+                auto_hidden_at__isnull=True,
+            )
+            .values_list('object_id')
+            .annotate(n=Count('id'))
+        )
+
+        payload = []
+        for section in [''] + sections:
+            entry = _policy_payload(request, page, section)
+            row = rows.get(section)
+            entry['comment_count'] = counts.get(row.pk, 0) if row is not None else 0
+            payload.append(entry)
+        return Response({'page': page, 'locations': payload})
+
+
+class DiscussionThreadView(APIView):
+    """`GET|POST /api/discussions/thread/` — the comments at one location, read on click.
+
+    Lazy by design, because that is what the owner asked for ("available/drawn on click") and
+    because it is also the cheap shape: a manual chapter with twelve collapsed threads loads none
+    of them until a reader opens one.
+
+    **GET is open where the location is open, and refuses nothing.** A thread on a location whose
+    audience is `staff` is still READABLE by anybody — the audience governs who may *write*. That
+    is the same split every other standing page already has: the prose is public, and so is the
+    talk about it. A location switched off, or the whole flag off, answers with an empty thread and
+    `is_enabled: false` rather than 404, because the page it belongs to very much does exist.
+    """
+
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [_DiscussionThrottle]
+
+    def _resolve(self, request, data):
+        from . import discussions
+
+        page = (data.get('page') or '').strip()
+        section = (data.get('section') or '').strip()
+        try:
+            parsed_page, parsed_section = discussions.parse_key(
+                discussions.location_key(page, section)
+            )
+        except ValueError as exc:
+            return None, None, Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return parsed_page, parsed_section, None
+
+    def get_throttles(self):
+        # A read is not what the per-IP bound is for; throttling it would break an ordinary reader
+        # opening several threads on one chapter. The write is the only expensive act here.
+        if self.request.method == 'GET':
+            return []
+        return super().get_throttles()
+
+    def get(self, request):
+        from . import discussions
+        from .models import DiscussionLocation
+
+        page, section, error = self._resolve(request, request.query_params)
+        if error is not None:
+            return error
+
+        payload = _policy_payload(request, page, section)
+        row = _location_for(page, section, create=False)
+        comments = []
+        if row is not None and payload['is_enabled']:
+            content_type = ContentType.objects.get_for_model(DiscussionLocation)
+            qs = Comment.objects.filter(content_type=content_type, object_id=row.pk)
+            visible = discussions.visible_comments(request.user, qs)
+            comments = CommentSerializer(
+                visible.prefetch_related('votes'), many=True, context={'request': request}
+            ).data
+        return Response({**payload, 'comments': comments})
+
+    def post(self, request):
+        from . import discussions
+        from .models import DiscussionLocation
+        from .serializers import DiscussionCommentDraftSerializer
+
+        page, section, error = self._resolve(request, request.data)
+        if error is not None:
+            return error
+
+        policy = discussions.effective_policy(page, section)
+        reason = discussions.post_block_reason(request.user, policy)
+        if reason is not None:
+            # The word, not a bare status — the frontend has a line for each (house rule 6). 403 for
+            # all of them rather than 401 for `anonymous`: the request was understood and refused,
+            # and a 401 would invite a client to retry with credentials it may not have.
+            return Response({'detail': reason}, status=status.HTTP_403_FORBIDDEN)
+
+        draft = DiscussionCommentDraftSerializer(data=request.data)
+        draft.is_valid(raise_exception=True)
+
+        row = _location_for(page, section, create=True)
+        content_type = ContentType.objects.get_for_model(DiscussionLocation)
+
+        parent = draft.validated_data.get('parent')
+        if parent is not None and (
+            parent.content_type_id != content_type.id or parent.object_id != row.pk
+        ):
+            # The check community/CLAUDE.md says every new comment surface must repeat: without it
+            # a client can name a comment in an unrelated thread and have its reply attach there.
+            return Response(
+                {'parent': ['This reply must belong to the same discussion.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        authenticated = bool(request.user and request.user.is_authenticated)
+        comment = Comment(
+            content_type=content_type,
+            object_id=row.pk,
+            parent=parent,
+            author=request.user if authenticated else None,
+            body=draft.validated_data['body'],
+        )
+        if not authenticated:
+            # Read only for a writer with no account — see the draft serializer's own note.
+            comment.anon_name = (draft.validated_data.get('anon_name') or '').strip()
+            comment.anon_ip_hash = discussions.ip_hash(request)
+        comment.save()
+
+        # `community/signals.py` has already held this if its author is a minor. An anonymous
+        # comment is held here, because the signal cannot see the policy — and `hold_for_review` is
+        # idempotent (it returns False when `auto_hidden_at` is already set), so the two never
+        # fight over the same row.
+        if discussions.held_for(request.user, policy):
+            hold_for_review(comment, comment.author)
+
+        return Response(
+            {
+                **CommentSerializer(comment, context={'request': request}).data,
+                # Said back explicitly rather than left for the client to infer from a blanked
+                # body: somebody who just wrote something and sees it empty deserves the sentence
+                # that explains why (house rule 10).
+                'is_held': comment.auto_hidden_at is not None,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class DiscussionLocationViewSet(viewsets.ModelViewSet):
+    """`/api/discussion-locations/` — the moderator's list and the switches on it.
+
+    Staff only, reads included: this is not a surface an ordinary reader has any question about,
+    and the list says which locations are carrying held comments, which is moderation information.
+
+    No `destroy`: deleting a location row would silently return it to the module defaults while its
+    comments stayed attached to a row that no longer exists. Switching `is_enabled` off is the
+    honest way to close a location, and it keeps the record of who closed it (house rule 12).
+    """
+
+    from .models import DiscussionLocation as _Model
+    from .serializers import DiscussionLocationSerializer as _Serializer
+
+    queryset = _Model.objects.select_related('updated_by__profile').all()
+    serializer_class = _Serializer
+    permission_classes = [permissions.IsAdminUser]
+    http_method_names = ['get', 'post', 'patch', 'put', 'head', 'options']
+
+    def perform_create(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)

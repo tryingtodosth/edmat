@@ -11236,6 +11236,77 @@ errors.
 - **The footer still links `/dziennik`.** The owner named the user menu; the footer is a different
   surface, and widening the ask is not this pass's call.
 
+## 17BS — Discussions under the standing pages: a thread where there is no row (2026-10-06)
+
+Owner's ask, in one sentence: a comment section under each section of `/about` and its subpages,
+subtle, drawn on click, with replies "using today's infrastructure"; a superadmin able to turn off a
+specific location; and switches for who may write there — "anyone (anons as well), users, verified
+users, staff, and pending".
+
+**The one thing that had to be invented, and the three that did not.** `/about`, the seven
+`/about/<feature>` showcase pages and the manual's twelve are prerendered prose with no row in any
+table, and a `Comment` reaches its target through a `GenericForeignKey` — so there was nothing to
+point at. `community.DiscussionLocation` is that row, and it is the whole of the new schema.
+Everything else was already here: the thread, the reply tree, the votes, the report flow, the
+tombstones, the sanitizer and `CommentNode.svelte` all came for free from the generic `Comment`,
+which is exactly what that model was built to make possible.
+
+**"Pending" turned out not to be a fifth audience.** Four of the five options the owner listed
+answer *who* and one answers *what happens to what they wrote*, and as one field "verified
+contributors, and hold what they write" cannot be said at all. Owner chose two fields:
+`audience` (anyone | users | verified | staff) and `moderated`.
+
+**Anonymous writing is always held, whatever `moderated` says** — also an owner decision, and the
+right one for a reason the implementation then made obvious: every moderation surface here assumes
+an account behind the row, somebody to notify, to suspend, to show a history of. A visitor has none,
+so the only honest place for their comment is in front of a human before anybody else reads it.
+
+**Holding needed no new state and no second queue.** `accounts.minors.hold_for_review` already did
+exactly this for a minor's comment — set `auto_hidden_at` and file a `Report` in the author's name,
+so the existing queue can show, restore and remove it. Reusing it is what turned a "held comments
+queue" into nothing at all. It cost one widening: `Report.reported_by` is nullable now, because the
+server holding something has no name to file it in. Nothing reads a reporter's name (the queue
+payload carries counts and reasons, deliberately), and `Comment.author` became nullable in the same
+pass, with its three readers taught about it.
+
+**A page-level row is a ceiling, and that is what makes per-section switches usable.** A row with
+`section=''` applies to every section on its page; where the two disagree the narrower wins and
+`moderated` is an OR. Without it, "close discussion on this chapter" would have meant finding and
+editing a dozen rows.
+
+**Rows are created lazily and the page allowlist is a pattern, not a list.** The manual's sections
+live in `frontend/src/lib/content/guide/*.ts`, which Python cannot read, so the frontend declares
+what it draws and the server validates its shape — the same division `community/targets.py` already
+settles for comment target names. The cost is named rather than hidden: a well-formed junk key makes
+a location row nobody will ever read, visible to a moderator as a row with no comments.
+
+**One real bug, and the tests caught it in the way that matters.** The first `effective_policy`
+started from `DEFAULT_AUDIENCE` and narrowed, so a location explicitly set to `anyone` came back as
+`users` — the widest setting a moderator can choose was the one setting that did nothing. Every
+refusal test for an anonymous writer passed anyway, because the refusal they expected was the
+refusal the bug produced; what failed was the one test asserting that an anonymous writer MAY write.
+A second, smaller version of the same mistake: an unknown audience value was normalised only when
+two rows had to be compared, so a single row carrying one came back verbatim and matched no branch
+at all. Failing closed has to be the behaviour of the common path, not of the comparison.
+
+**Verified:** `manage.py test community.test_discussions` 42/42; the full suite; `check`,
+`makemigrations --check`; `npm run check` 0 errors 0 warnings over 6337 files; `npm run lint`;
+`npm run build`; catalogues 3928 keys each; and `e2e/about-discussions.mjs` 25/25 with zero console
+errors, against both real servers, with the screenshots looked at. Two of that script's own
+failures were worth keeping: it asserted against a panel that was still showing "Loading…", and a
+long chain of page loads exhausted the dev server into `ERR_INSUFFICIENT_RESOURCES` — which reads
+exactly like the feature being broken and is `e2e/CLAUDE.md` trap 3.
+
+**Left open.** No per-step threads inside a manual chapter (one per chapter, deliberately — a
+chapter is a numbered list of short steps). No delete endpoint for a standing-page thread, so the
+browser script leaves its comments behind. An anonymous writer sees their own held comment in the
+response to their own POST and never again, because there is no account to tie it to. The held
+count in the moderation list is a number, not a link into the queue filtered to that location. And
+`/privacy`, `/levels` and `/legal` have no discussions — they are standing pages too, but they are
+legal text, and talk under them is a different decision.
+
+---
+
 ## 17BR — The learning cycle: eight parallel steps, and what integrating them found (2026-10-05 → 2026-10-06)
 
 The design is `prompts/00-DESIGN.md`; the eight step briefs are `prompts/02`–`09`; the five launch
