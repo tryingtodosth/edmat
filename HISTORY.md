@@ -12945,3 +12945,112 @@ verifying them would have turned those into 201s without anybody noticing.
   the consent by hand. Arguably right — a seed command turning a privacy consent on is its own
   small dishonesty — and arguably why the showcase's own record went unlooked-at until now. Named,
   not changed: it is a product decision and not this step's.
+
+## 17BT.C — The manual's eleventh chapter: flashcards, written against the real screens (2026-10-06, `close/c-manual-flashcards`)
+
+Closing cycle step C (`prompts/14-manual-flashcards.md`), closing `todo.md` "Learning cycle — left
+open" bullet 3. `/about/guide`'s eleventh chapter had been the honest placeholder `learn/h-manual`
+wrote on 2026-10-05, before the flashcards app existed: it told the reader it was not written yet
+and sent them to `/about/flashcards`. The app has existed since `eb6086a`, so the placeholder's own
+docstring was now the only thing standing between the manual and a complete table of contents, and
+it said exactly what replacing it meant. This is that, and nothing else — no backend change, no
+migration, no new catalogue key.
+
+**The chapter.** `frontend/src/lib/content/guide/flashcards.ts` is a seven-step `GuideChapterDoc` in
+each language, same steps, same pictures, same order, `alt` text written separately in each: make a
+deck (from a saved set, and the three other buttons that make one); your decks and what is waiting;
+what is in a deck; adding a card; reviewing; the four grades; and placing a deck where people will
+find it. The order is the order a reader meets the screens, which is also the order
+`e2e/flashcards.mjs` drives them in, because that is what the app does
+(`backend/flashcards/CLAUDE.md`, §17BR.A).
+
+Three things the prose is careful about, each because the app is careful about it:
+
+- **Placement is the sharing**, and the chapter says so in those words (`prompts/README.md` §9) —
+  a deck placed on a course is studyable by everybody who can open that course, on the owner's
+  cards and on the reader's own schedule, and a course only its participants can see keeps its
+  decks that way because the panel is only drawn for somebody who could already open the page.
+- **"Placing is a pointer, not a handover"** is the reader's version of `can_study` being wider
+  than `can_edit`. The chapter names the honest answer the deck page gives a reader who wants to
+  change somebody else's deck: "Save a copy to my account".
+- **The schedule is described, not the algorithm.** "What you press decides when the card comes
+  back; Again means now, in this same sitting" is as much SM-2 as a manual should contain, and the
+  design's own sentence — a card comes back on the day you were about to forget it — is the lead.
+
+The closing `note` names what is missing: no public deck library to browse, no reminder when cards
+fall due, no offline study. It points at `/about/flashcards` for the design, as every chapter with
+a showcase does.
+
+**The pictures.** `chapters.flashcards` in `frontend/e2e/guide-screenshots.mjs`, 183 lines, writing
+`static/guide/flashcards/01…07`: seven pictures, 186 KB, every one clipped and taken by the script
+against the real app, as the file's own forty-line header insists. Nothing in `seed_demo_*` makes a
+deck, so the block creates its rows the way `chapters.help` does — idempotently, through the real
+API, under `ania@edmat.example`, who is the one demo account that has both a saved set to make a
+deck from and a course to place it on. It finds-or-creates the same "Before the midterm" set the
+exercises chapter photographs (repeated rather than shared, so `ONLY=flashcards` does not depend on
+that chapter having run), a deck of three exercise cards from it, a second deck of two text cards
+so the list has two rows and two source labels, and one placement on the seeded course `arrange()`
+publishes. **It grades nothing**: flipping a card is all the browser does, so the due counts in
+picture 2 are the same on the tenth run as on the first, and the schedule the account carries is
+unchanged by having been photographed.
+
+**`index.ts`**: `pending` dropped from the entry, the blurb rewritten in both languages, and the
+chapter deleted from the hub's own "Not written yet" list — that list is for parts of the site with
+no chapter, and flashcards now has one. The `pending` flag itself stays in the interface and
+`guide_pendingBadge` stays in both catalogues: the mechanism is for the next chapter written ahead
+of its screens, and no chapter uses it today.
+
+### Verified
+
+Both servers on 8143/5243 from this worktree, **with `DJANGO_CORS_ALLOWED_ORIGINS` set by hand** —
+a `runserver` started outside `run.sh` does not get the origin, and the first run of the day failed
+every browser check with what looked exactly like a broken page.
+
+- `ONLY=flashcards node e2e/guide-screenshots.mjs` — 10 checks, 0 failures.
+- The **whole** script — 58 checks, 0 failures, 50 pictures, 2.39 MB, largest 105 KB, 2 console
+  errors. The first attempt at the whole run was worth more than the second: on servers that had
+  been up all session it exhausted Chromium (`ERR_INSUFFICIENT_RESOURCES`, 4856 console errors),
+  failed the `events` chapter and produced three pictures at a tenth of their usual size — all of
+  which *passed* the 400 KB budget check, because a blank page is a small PNG. e2e trap 3, and now
+  a seventh bullet in `test.md`'s paragraph.
+- **Every one of the seven pictures looked at**, and the hub, the chapter in both languages and the
+  chapter with the switch off looked at in the browser. The chapter reads "Chapter 11 of 11", all
+  seven pictures decode, the hub shows no "Not written yet" badge, and with `flashcards` turned off
+  through `/moderation` as kasia the chapter still renders all seven steps and gains the "switched
+  off here at the moment" line — checked as an **anonymous** reader, because a moderator is bypassed
+  (e2e trap 10). The flag was turned back on and re-read from `/api/feature-flags/`.
+- `npm run check:a11y` against both servers: 48 pages, 0 load problems. **The manual hub, all
+  eleven chapter pages and all seven showcase pages: 0 violations.** The three findings are
+  elsewhere and older — `heading-order` on `/events` and `/tutoring` (both on a scratch row's `h3`)
+  and `color-contrast` on `.badge--waiting` in `/material-projects`.
+- `npm run check` 0 errors 0 warnings (2412 files); `npx eslint .` clean; Prettier clean on all
+  three files this step touched; `npm run build` clean. Catalogue key sets identical, 3927 each —
+  **this step added no key**, which is what the brief predicted: the chapter chrome was already
+  there.
+
+**Only `static/guide/flashcards/` is committed.** The whole-script run rewrites all fifty pictures,
+and the other forty-three came back within a few per cent of the committed bytes — visually the
+same pictures — so they were restored with `git checkout`. One of them would have been a
+regression: `courses/01-hub.png` came back as "Something went wrong", because clearing
+`backend/cachedata/*` under a running backend (which `test.md` tells you to do) left the file cache
+with a stale handle and `GET /api/courses/` answered 500 once. Found by looking at the picture, not
+by any check.
+
+### Left open
+
+- **No second language of pictures.** The chapter is Polish; the screens in it are English. Named
+  as a cost in §17BR.H, still named, still not paid.
+- **`decks_includeHint` and `decks_includeSolution` are catalogue keys with no call site.** The
+  review screen honours `includeHint`/`includeSolution` on a card and the API accepts them, but
+  nothing in the interface sets them, so no card ever has them on. The chapter therefore does not
+  mention revealing a hint with the answer — it would be describing a control that does not exist.
+  Either the control or the keys should go; it is `backend/flashcards/`'s and `/flashcards/[id]`'s
+  owner's call, not the manual's.
+- **The footer prints the site's name twice** — `Footer.svelte` renders
+  `{m.common_appName()} — {m.nav_tagline()}` and `nav_tagline` already begins "EdMat — ", so every
+  page in both languages ends with "EdMat — EdMat — exercises, materials, …". A one-word fix in a
+  file this step does not own. Found in a screenshot.
+- **The chapter has no picture of the deck page's own "Where this deck is placed" panel**, only of
+  the course-page end of the same placement; the prose covers the deck-page end. One more picture
+  if somebody wants it.
+- **`e2e/flashcards.mjs` was not run here** — that is closing step D's, by the brief.

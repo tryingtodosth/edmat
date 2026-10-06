@@ -942,6 +942,191 @@ chapters.moderation = async () => {
 	await ctx.close();
 };
 
+// ---- flashcards ----------------------------------------------------------------------------------
+chapters.flashcards = async () => {
+	// Nothing in `seed_demo_*` makes a deck — the app is three weeks old (HISTORY.md §17BR.A) — so
+	// this chapter's rows are created here, idempotently, through the real API, the shape
+	// `chapters.help` uses. Ania rather than any other demo account because the story needs one
+	// person who has BOTH a saved set to make a deck from and a course to place it on, and she is
+	// the only one who does: "Before the midterm" is the set the exercises chapter photographs, and
+	// "Analiza od zera" is the course `arrange()` has already published.
+	const token = await widenContentLocales('ania@edmat.example');
+
+	// The same find-or-create the exercises chapter makes, repeated rather than shared: a run with
+	// `ONLY=flashcards` must not depend on that chapter having gone first, and a set looked up by
+	// name is found again on the second run instead of piling up (`/api/exercise-sets/` is keyed by
+	// a random slug, so a delete-and-recreate would leave one more in the menu every time).
+	const SET_NAME = 'Before the midterm';
+	const sets = await api('/exercise-sets/', { token });
+	let set = (Array.isArray(sets.body) ? sets.body : []).find((s) => s.name === SET_NAME);
+	if (!set) {
+		const made = await api('/exercise-sets/', {
+			token,
+			method: 'POST',
+			body: { name: SET_NAME, is_public: true, exercise_ids: [50, 100, 120] }
+		});
+		check(
+			'flashcards: a saved set to make a deck from',
+			made.ok,
+			JSON.stringify(made.body).slice(0, 160)
+		);
+		set = made.body;
+	}
+
+	const DECK_NAME = 'Limits and sequences';
+	const HAND_NAME = 'Definitions I keep forgetting';
+	const existing = await api('/decks/', { token });
+	const rows = Array.isArray(existing.body) ? existing.body : [];
+
+	let deck = rows.find((d) => d.name === DECK_NAME);
+	if (!deck) {
+		const made = await api('/decks/', {
+			token,
+			method: 'POST',
+			body: {
+				name: DECK_NAME,
+				audience: 'university',
+				exercise_ids: [50, 100, 120],
+				source: { kind: 'set', id: set?.slug ?? String(set?.id ?? '') }
+			}
+		});
+		check('flashcards: a deck made from the set', made.ok, JSON.stringify(made.body).slice(0, 200));
+		deck = made.body;
+	}
+
+	// A second deck, built by hand out of two text cards, so the list has more than one row and the
+	// source line ("Built by hand" against "From an exercise set") is visible in the picture.
+	let hand = rows.find((d) => d.name === HAND_NAME);
+	if (!hand) {
+		const made = await api('/decks/', {
+			token,
+			method: 'POST',
+			body: { name: HAND_NAME, audience: 'university' }
+		});
+		hand = made.body;
+		check('flashcards: a hand-built deck', made.ok, JSON.stringify(made.body).slice(0, 160));
+		if (made.ok) {
+			for (const card of [
+				{
+					front: 'A sequence converges to \\(g\\) when…',
+					back: 'for every \\(\\varepsilon>0\\) there is an \\(N\\) such that \\(|a_n-g|<\\varepsilon\\) for all \\(n>N\\).'
+				},
+				{
+					front: 'What does it mean for a set to be compact?',
+					back: 'Every open cover of it has a finite subcover. In \\(\\mathbb{R}^n\\): closed and bounded.'
+				}
+			]) {
+				await api(`/decks/${hand.id}/cards/`, { token, method: 'POST', body: card });
+			}
+		}
+	}
+
+	// Placed on the course Ania runs — the whole of the 2026-10-05 placement decision
+	// (prompts/README.md §9), and the one thing the chapter's last step is about.
+	const full = await api(`/decks/${deck.id}/`, { token });
+	const placements = full.body?.placements ?? [];
+	if (demoCourseId && !placements.some((p) => String(p.node?.id) === String(demoCourseId))) {
+		const placed = await api(`/decks/${deck.id}/placements/`, {
+			token,
+			method: 'POST',
+			body: { kind: 'course', id: Number(demoCourseId) }
+		});
+		// 409 is `already_placed` — the world having moved, not a failure of this run.
+		check(
+			'flashcards: the deck is placed on the demo course',
+			placed.ok || placed.status === 409,
+			JSON.stringify(placed.body).slice(0, 200)
+		);
+	}
+
+	const mine = await open('ania@edmat.example');
+
+	// 1. Where a deck comes from: the saved sets block on /my-set, with the button on the row.
+	await visit(mine.page, '/my-set', { wait: 'h1', extra: 2000 });
+	await hideScratch(mine.page);
+	const saved = await rect(mine.page, '.named-sets');
+	await shoot(mine.page, 'flashcards', '01-make-from-set', {
+		clip: { x: 0, y: Math.max(56, Math.round(saved?.y ?? 200) - 16), width: WIDTH, height: 240 }
+	});
+
+	// 2. The deck list and what is waiting.
+	await visit(mine.page, '/flashcards', { wait: 'h1', extra: 2000 });
+	await hideScratch(mine.page);
+	await shoot(mine.page, 'flashcards', '02-decks', {
+		clip: { x: 0, y: 56, width: WIDTH, height: 580 }
+	});
+
+	// 3. One deck: its cards. The statements are typeset, so wait for KaTeX rather than for the
+	//    list (e2e trap 26 — a shot taken too early photographs raw LaTeX source).
+	await visit(mine.page, `/flashcards/${deck.id}`, { wait: 'h1', extra: 2500 });
+	await mine.page
+		.locator('.katex')
+		.first()
+		.waitFor({ timeout: 20000 })
+		.catch(() => {});
+	// By its own heading, never by position: the deck page has five `section.panel`s and which
+	// ones are drawn depends on `deck.canEdit` (e2e trap 6).
+	const cardsBox = await rect(mine.page, 'section.panel:has(h2:text-is("Cards"))');
+	await shoot(mine.page, 'flashcards', '03-cards', {
+		clip: { x: 0, y: Math.max(56, Math.round(cardsBox?.y ?? 900) - 16), width: WIDTH, height: 250 }
+	});
+
+	// 4. The three ways to put a card in a deck, on the same page.
+	const addBox = await rect(mine.page, 'section.panel:has(h2:text-is("Add an exercise"))');
+	await shoot(mine.page, 'flashcards', '04-add-a-card', {
+		clip: { x: 0, y: Math.max(56, Math.round(addBox?.y ?? 500) - 16), width: WIDTH, height: 480 }
+	});
+
+	// 5. The review screen, front face.
+	await visit(mine.page, `/flashcards/${deck.id}/review`, { wait: 'h1', extra: 2500 });
+	await mine.page
+		.locator('.katex')
+		.first()
+		.waitFor({ timeout: 20000 })
+		.catch(() => {});
+	await settle(mine.page, 800);
+	await shoot(mine.page, 'flashcards', '05-review', {
+		clip: { x: 0, y: 56, width: WIDTH, height: 420 }
+	});
+
+	// 6. The same card flipped, with the four grades. Flipping is all this does — nothing is
+	//    graded, so the schedule this account carries is the same after the run as before it and
+	//    the due counts in picture 2 do not drift from one run to the next.
+	const show = mine.page.getByRole('button', { name: 'Show the answer' }).first();
+	if (await show.count()) {
+		await show.click().catch(() => {});
+		await mine.page
+			.locator('[data-testid="review-back"]')
+			.waitFor({ timeout: 10000 })
+			.catch(() => {});
+		await settle(mine.page, 1200);
+		await shoot(mine.page, 'flashcards', '06-grades', {
+			clip: { x: 0, y: 56, width: WIDTH, height: 700 }
+		});
+	} else {
+		check('flashcards/06-grades: the "Show the answer" button was found', false);
+	}
+	await mine.ctx.close();
+
+	// 7. The reader's end of a placement: a PARTICIPANT of the course, who never made the deck and
+	//    cannot edit it, finds it on the course page and can study it.
+	const student = await open('piotr@edmat.example');
+	if (demoCourseId) {
+		await visit(student.page, `/courses/${demoCourseId}`, { wait: 'h1', extra: 3000 });
+		await student.page
+			.locator('.decks-panel')
+			.waitFor({ timeout: 20000 })
+			.catch(() => {});
+		await hideScratch(student.page);
+		const panel = await rect(student.page, '.decks-panel');
+		check('flashcards: the Flashcards panel is on the course page', Boolean(panel));
+		await shoot(student.page, 'flashcards', '07-on-a-course', {
+			clip: { x: 0, y: Math.max(56, Math.round(panel?.y ?? 900) + 3), width: WIDTH, height: 150 }
+		});
+	}
+	await student.ctx.close();
+};
+
 // ================================================================================================
 
 const order = [
@@ -954,7 +1139,8 @@ const order = [
 	'concepts',
 	'help',
 	'messages',
-	'moderation'
+	'moderation',
+	'flashcards'
 ];
 
 try {

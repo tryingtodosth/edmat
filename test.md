@@ -2064,8 +2064,10 @@ refuse, and `assert_contained()` runs inside the build's transaction over its ow
 
 ## 2026-10-05 — the user manual's screenshots (`frontend/e2e/guide-screenshots.mjs`)
 
-`/about/guide` is written against the screens as they are, and its forty-three pictures are taken
-rather than drawn. **`frontend/e2e/guide-screenshots.mjs` is how they are re-taken** — after any UI
+`/about/guide` is written against the screens as they are, and its fifty pictures are taken
+rather than drawn. All **eleven** chapters have pictures since 2026-10-06, when closing step C
+replaced the flashcards placeholder with a written chapter and a `chapters.flashcards` block
+(`static/guide/flashcards/`, seven pictures, 186 KB). **`frontend/e2e/guide-screenshots.mjs` is how they are re-taken** — after any UI
 change that moves something a chapter points at, and as a matter of course before a release that
 touches one of the surfaces it covers.
 
@@ -2083,9 +2085,10 @@ ONLY=exercises,submit node e2e/guide-screenshots.mjs    # one or two chapters wh
 It writes `frontend/static/guide/<chapter>/<nn>-<name>.png`, **checks its own budget** (400 KB a
 picture, 8 MB in total — `npm run build` copies `static/` verbatim into the deploy bundle) and
 fails if either is exceeded. It deletes a chapter's folder before re-taking it unless `KEEP=1`.
-Last run: 48 checks, 0 failures, 43 pictures, 2.19 MB, largest 105 KB.
+Last run (2026-10-06, closing step C): 58 checks, 0 failures, 50 pictures, 2.39 MB, largest
+105 KB.
 
-Six things about it that are not obvious, each of which has already cost a wrong picture:
+Seven things about it that are not obvious, each of which has already cost a wrong picture:
 
 - **It needs `vite.config.ts`'s `server.fs.allow` entry for the shared `node_modules`.** In a
   worktree that directory is a symlink, Vite refuses `/@fs/<realpath>/katex/dist/fonts/…` with 403,
@@ -2104,6 +2107,13 @@ Six things about it that are not obvious, each of which has already cost a wrong
   offer, one message, one booking request.
 - **It hides leftover rows rather than deleting them.** `hideScratch()` masks `asdasd`,
   `Linking check …`, `Published hours …` and friends before each shot; it does not own them.
+- **A whole run exhausts a tired dev server, and the damage is silent** (e2e trap 3). On a loaded
+  machine the second half of a run filled the console with `ERR_INSUFFICIENT_RESOURCES` and
+  `Failed to fetch dynamically imported module`, the `events` chapter failed waiting for its
+  Programme heading, and three pictures came out at a tenth of their usual size — every one of them
+  still *passing* the budget check, because a blank page is a small PNG. On fresh servers the same
+  commit produced 58/58. Restart both servers before a full run, and compare the file sizes with
+  the committed ones afterwards: a picture that lost 90 % of its bytes is a picture of nothing.
 
 `npm run check:a11y` now also audits `/about/guide` and all eleven chapter pages (they are in
 `scripts/check_accessibility.ts`'s anonymous list). Nothing in the manual calls an API, so a chapter

@@ -83,8 +83,8 @@ const BLURBS: Record<string, { en: string; pl: string }> = {
 		pl: 'Kolejki, zgłoszenia i wyłączniki — dla tych, którzy je mają.'
 	},
 	flashcards: {
-		en: 'Not written yet — the design is at /about/flashcards.',
-		pl: 'Jeszcze nienapisane — projekt jest pod /about/flashcards.'
+		en: 'Decks of cards, the four grades, and placing a deck where other people study.',
+		pl: 'Talie kart, cztery oceny i postawienie talii tam, gdzie uczą się inni.'
 	}
 };
 
@@ -115,10 +115,7 @@ export const GUIDE_CHAPTERS: GuideChapterEntry[] = [
 	entry('help', helpChapterFor, 'needs'),
 	entry('messages', messagesChapterFor, 'messaging'),
 	entry('moderation', moderationChapterFor, null),
-	entry('flashcards', flashcardsChapterFor, 'flashcards', {
-		showcase: '/about/flashcards',
-		pending: true
-	})
+	entry('flashcards', flashcardsChapterFor, 'flashcards', { showcase: '/about/flashcards' })
 ];
 
 export function chapterBySlug(slug: string): GuideChapterEntry | undefined {
@@ -148,7 +145,6 @@ const HUB_EN: GuideHubDoc = {
 		heading: 'Not written yet',
 		body: 'These parts of the site are real and working; they simply have no chapter here. Listed so that nobody takes the silence for an absence.',
 		items: [
-			'Flashcards — being built now; the design is at /about/flashcards.',
 			'Your learning record and what a profile shows about you.',
 			'Co-authoring a material: versions, a team, an invite link.',
 			'Organisations, tasks, plans, decisions and the work dashboard.',
@@ -170,7 +166,6 @@ const HUB_PL: GuideHubDoc = {
 		heading: 'Jeszcze nieopisane',
 		body: 'Te części serwisu istnieją i działają; po prostu nie mają jeszcze rozdziału. Wypisane po to, żeby nikt nie wziął milczenia za brak.',
 		items: [
-			'Fiszki — właśnie powstają; projekt jest pod /about/flashcards.',
 			'Twój zapis nauki i to, co profil o Tobie pokazuje.',
 			'Współtworzenie materiału: wersje, zespół, link zapraszający.',
 			'Organizacje, zadania, plany, decyzje i panel pracy.',
