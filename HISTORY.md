@@ -12816,3 +12816,132 @@ move while a session runs, which the route's own docstring states as a decision.
 - **`e2e/CLAUDE.md` has no trap for the stale-file-handle 500** that clearing `cachedata/` under a
   running backend produces. It is written in this script's header and in `test.md`; the catalogue
   belongs to no step this cycle, so it was not edited.
+
+## 17BT.B — Seams: one `lessons_done`, and the two matrix rows that never landed (2026-10-06, `close/b-seams`)
+
+Closing step B (`prompts/13-seams.md`). Two small backend edits the learning cycle's integration
+left on the board because each one wanted a decision rather than a quiet hand. Both decisions were
+taken before the branch was cut (`prompts/11-closing-design.md` §2), so this section is mostly
+about what the edits touched and what reading them turned up.
+
+**One implementation of `lessons_done`.** Steps B and C of the learning cycle each wrote a
+provider for the same metric, on branches that could not see each other:
+`identity.record.lessons_done_by_branch` (read-only over `courses`, registered at the bottom of
+`identity/record.py`) and `courses.record.activity_by_branch` (in the app that owns
+`LessonProgress`, tested, and deliberately *not* registered). `identity.record._activity_block`
+**sums** across providers, so registering both would have doubled every number on every profile —
+a wrong count that looks exactly like real data, which is why `identity/apps.py: ready()` had
+carried a long docstring explaining that it was leaving the question to the board.
+
+The owner's decision was to keep C's and delete B's: the provider lives where the rows live
+(`prompts/README.md` §5 rule 13), and `identity/record.py` now imports no app's models but
+`study`'s. Concretely — the function and its `register_activity_provider` line are gone; the module
+docstring, which named it four times and explained that it "lives here because `courses` had
+nothing to hand", says instead what the shape is and why; `identity/apps.py: ready()` registers
+`courses.record.activity_by_branch` beside the flashcards one, and its docstring, which argued at
+length for *not* doing this, now says only what is still true (the hook lives in the app that owns
+the rows, the integrator wires it, `ready()` runs more than once so the registry is idempotent);
+`courses/record.py`'s own docstring says where it is registered rather than that somebody will;
+and `accounts/management/commands/seed_profile_showcase.py` points its comment at the survivor.
+
+**Three things worth recording about the deletion.** The survivor's counting is *not* identical
+code: B's used `.order_by().values_list(pk, branch).distinct()` and C's is a plain `values_list`
+over the many-to-many, but both count one row per (progress, branch) pair, so the numbers agree —
+checked against the seeded account rather than assumed. C's guards `AnonymousUser` and `None` and
+B's did not; nothing relied on B's raising, because `_activity_block` is only ever reached behind
+the profile owner's own `share_activity` consent, and that guard is now documented in the function
+rather than left as an unexplained difference. And the label beside the column still says *said
+they finished* rather than *completed* in both catalogues: nothing here changes what the number
+means.
+
+**The test moved rather than being deleted, and got stronger on the way.** Nothing in
+`identity/tests.py` had asserted B's function by name — every test went through the endpoint — so
+what was missing was a pin on the *seam* rather than on either implementation.
+`test_exactly_one_registered_provider_counts_lessons_done` asks every registered provider what it
+answers for an account with one finished lesson and asserts that the list of those that answer
+`lessons_done` at all is exactly `['courses.record.activity_by_branch']`. That is the shape of the
+failure (two things count this metric) rather than the name of the function that caused it once, so
+a second implementation under any name would fail it; and it is why
+`grep -rn lessons_done_by_branch backend/` now finds nothing at all, prose included.
+`test_only_lessons_somebody_said_they_finished_are_counted` is the other half, unchanged: a lesson
+marked done reads `lessons_done: 1` through the endpoint, whichever function counted it.
+
+**The two permission-matrix rows.** `prompts/10-integration.md` §3 asked for six blocks; four
+landed. The two that did not are both endpoints where the matrix's usual shape does not quite fit,
+and each block says so in its own comment rather than quietly filling a column with the nearest
+thing.
+
+`/api/course-completions/{id}/` has **no 403 row, by design**. Every refusal on a certificate is a
+404: a 403 would confirm that somebody finished a course, which is the fact the document exists to
+carry. So the block pins the holder (200), the issuer-and-course-staff (200), a stranger, an event
+attendee and an event *volunteer* — the "staff role that may not" column — all at 404, anonymous at
+401 (`IsAuthenticated`), and `revoke` with the word `rules.revoke_block_reason` answers:
+`(404, 'not_staff')` for the holder, who keeps the sheet and does not withdraw it. One
+`CourseCompletion` was added to `setUpTestData`, written straight to the model because
+`POST /courses/{id}/completions/` refuses `not_done` until every lesson is ticked off and this
+fixture is about who may read one afterwards.
+
+`/api/creation/` is the opposite problem: **every persona gets 200 and the whole answer is in the
+body**, because the Add… menu asks this endpoint what it may draw and must therefore get an answer
+for a signed-out reader too. A row that pinned only the status would pass whatever the gate said.
+So the row tuple grew an **optional seventh element**, a body predicate `check(data) -> bool`,
+documented in the file's header box and checked after the status and the refusal word; `test_matrix`
+reads `row[:6]` and `row[6] if len(row) > 6`, so none of the ~700 rows written before it changed.
+The six rows pin `anonymous` for a signed-out reader, `minor` for the child, `verification_required`
+for three different adult personas — including the organiser, because running an event is not
+standing — and `None` for a verified contributor. That last one needed a persona nobody had:
+`persona.verified` is a **new** account rather than a tick on an existing one, because `attendee`
+is the persona three founding rows above already pin at `(403, 'verification_required')` and
+verifying them would have turned those into 201s without anybody noticing.
+
+**And the one-line fix step A could not make.** `PermissionMatrixTests` now declares
+`databases = set(all_log_shards()) | {'default'}`, with the same one-sentence comment
+`events/tests.py:33` carries. The file is step B's under this cycle's ownership table
+(`11-closing-design.md` §4), so the line was step B's to add.
+
+### Verified
+
+- `manage.py test identity courses.test_school_mode events.test_permission_matrix flashcards
+  --keepdb` — **207 tests, OK** in 325 s (identity 84; the other three 123), and **zero**
+  `Failed to write a request log row` tracebacks and zero tracebacks of any kind in the output,
+  which is what the new `databases` line buys.
+- `manage.py test events.test_permission_matrix --keepdb` on its own — **1 test** (the table is one
+  method over ~700 subtests), OK in 12 s, no log-row traceback.
+- `grep -rn lessons_done_by_branch backend/` — **nothing**, exit 1.
+- `manage.py check` — 0 issues. `makemigrations --check --dry-run` — **no changes**. No migration:
+  nothing here touches a model.
+- **By eye, with both servers up on 8142/5242**: signed in as the seeded sharer (`u-kasia`, whom
+  `seed_profile_showcase` gives two finished lessons on a course under *Rachunek
+  prawdopodobieństwa*; `share_activity` is not set by the command and was switched on for the
+  check), her profile's "Historia nauki" modal draws **one** "Ukończone zajęcia" column and the
+  number **2** — not 4, and not twice.
+  `frontend/e2e/screens/close-b-record-lessons-done-once.png`, looked at.
+- The API's own answer beside it, for the same account:
+  `[{analiza-matematyczna: sets 5, lessons_done 0, cards_reviewed 0},
+  {rachunek-prawdopodobienstwa: sets 3, lessons_done 2, cards_reviewed 0}]`, and
+  `ACTIVITY_PROVIDERS` is exactly `['identity.record.sets_by_branch',
+  'courses.record.activity_by_branch', 'flashcards.record.activity_by_branch']`.
+
+### Left open
+
+- **The matrix has no verified-contributor rows anywhere else.** `persona.verified` exists now and
+  is used by six rows; every other founding row in the table still pins the refusal and not the
+  success, so `POST /organizations/`, `POST /events/` and the two course paths are proved to refuse
+  an unverified adult and never proved to let a verified one through. Six more rows, not a design
+  question — left out because this step's brief says no new rows beyond the two blocks named.
+- **`/api/courses/{id}/certificate-*` has no rows because it does not exist**, but the *third*
+  completion endpoint does: `POST /api/courses/{id}/completions/`, the issuing action, is pinned
+  only at `GET`. Its four refusal words (`not_staff` 404, `not_participant` 400, `not_done` 409,
+  `already_issued` 409) are asserted in `courses/test_school_mode.py` and nowhere in the
+  cross-persona view. Noticed while reading the view; written on the board rather than added here.
+- **No `already_revoked` row.** Pinning the 409 needs a second, pre-revoked `CourseCompletion` in
+  the fixture (the unique constraint is over `(course, participant)` with no condition, so it
+  cannot be the same pair), and every matrix row is rolled back, so the revoke row above cannot
+  set it up for a later one.
+- **`test.md` is not updated.** The ownership table gives that file to closing step A, and the two
+  new row blocks are inside a suite `test.md` already describes.
+- **`seed_profile_showcase` still does not set `share_activity`**, so the account it fills has
+  finished lessons and a learning record that nobody but its owner can see until somebody ticks
+  the consent by hand. Arguably right — a seed command turning a privacy consent on is its own
+  small dishonesty — and arguably why the showcase's own record went unlooked-at until now. Named,
+  not changed: it is a product decision and not this step's.

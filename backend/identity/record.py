@@ -26,13 +26,21 @@ and a recount cannot drift; a stored counter that misses one write path is wrong
 honest limit: a provider is free to be as slow as its own data, and nothing here caches, so a
 profile with thousands of rows pays for them on every view. Named rather than pre-optimised.
 
-**Providers.** `sets_by_branch` and `lessons_done_by_branch` live here because `study` and
-`courses` had nothing to hand and this step owns neither app's schema. Anything that measures its
-own app registers itself instead:
+**Providers.** `sets_by_branch` lives here because `study` had nothing to hand and this module
+owns neither that app's schema nor anybody else's. Everything that measures its own app keeps the
+provider in the app that owns the rows (`prompts/README.md` §5 rule 13) and `identity/apps.py:
+ready()` registers it:
 
-    # flashcards/record.py, registered by the integrator at app-ready time
+    # courses/record.py, flashcards/record.py — registered in identity/apps.py: ready()
     from identity.record import register_activity_provider
     register_activity_provider(activity_by_branch)
+
+That is the shape, and `lessons_done` is why it is the shape. This module used to carry a second
+implementation of that metric — a read-across into `courses.models`, written on a branch that
+could not see `courses.record.activity_by_branch` — and `_activity_block` SUMS across providers,
+so the two of them together doubled every number on every profile. It was deleted on 2026-10-06
+(owner decision, `prompts/11-closing-design.md` §2); the survivor is the one in the app that owns
+`LessonProgress`, and this module no longer imports `courses` at all.
 
 A provider is `Callable[[User], dict[int, dict[str, int]]]` — branch id to metric name to count —
 and may answer with any metric key it likes; the union of what every provider returned is filled
@@ -57,10 +65,10 @@ from .models import EducationProfile, weighted_average
 #: dropped, because silently discarding somebody's measurement is worse than an unlabelled column.
 METRIC_KEYS: tuple[str, ...] = ('sets', 'lessons_done', 'cards_reviewed')
 
-#: Every registered source of per-branch activity counts. `sets_by_branch` and
-#: `lessons_done_by_branch` are registered below, at the bottom of this module; `flashcards` and
-#: anything later registers its own at app-ready time, so this module imports no app that might not
-#: be installed.
+#: Every registered source of per-branch activity counts. `sets_by_branch` is registered below, at
+#: the bottom of this module; `courses`, `flashcards` and anything later keep their provider in
+#: their own app and are registered by `identity/apps.py: ready()`, so this module imports no app
+#: that might not be installed.
 ACTIVITY_PROVIDERS: list[Callable[[object], dict[int, dict[str, int]]]] = []
 
 
@@ -75,7 +83,7 @@ def register_activity_provider(fn: Callable[[object], dict[int, dict[str, int]]]
         ACTIVITY_PROVIDERS.append(fn)
 
 
-# -- the two providers this step owns --------------------------------------------------------------
+# -- the one provider this module owns -------------------------------------------------------------
 
 
 def sets_by_branch(user) -> dict[int, dict[str, int]]:
@@ -108,42 +116,6 @@ def sets_by_branch(user) -> dict[int, dict[str, int]]:
             continue
         bucket = counts.setdefault(branch_id, {})
         bucket['sets'] = bucket.get('sets', 0) + 1
-    return counts
-
-
-def lessons_done_by_branch(user) -> dict[int, dict[str, int]]:
-    """Lessons this person SAID they finished, per branch of the course that holds them.
-
-    `courses.LessonProgress` is a statement, never a measurement (its own docstring says so at
-    length), and this count inherits that: it is "lessons they marked done", which is why the label
-    beside it in both catalogues says *said they finished* rather than *completed*.
-
-    READ-ONLY over `courses` — learning step C owns that app this cycle, so nothing here writes to
-    it, imports at module level, or assumes a field it does not already have. The branch comes from
-    `Course.subjects`, the course's own taxonomy links; a course with no subject contributes to no
-    branch at all, and is simply not counted rather than being filed under a guess.
-
-    Course-level visibility (`Course.progress_visibility`) is deliberately NOT consulted. That
-    setting decides who may see one course's roster progress; this is the person's own statement
-    about themselves, published by their own `share_activity` consent, and aggregated to a branch so
-    that no individual lesson of anybody's course is identifiable from it.
-    """
-    from courses.models import LessonProgress
-
-    # `.order_by()` for the same reason as `sets_by_branch`: `LessonProgress.Meta.ordering` is
-    # `['-updated_at']`, which a `distinct()` would pull into the SELECT and so defeat.
-    pairs = (
-        LessonProgress.objects.filter(participant=user, status='done')
-        .order_by()
-        .values_list('pk', 'lesson__chapter__course__subjects')
-        .distinct()
-    )
-    counts: dict[int, dict[str, int]] = {}
-    for _progress_id, branch_id in pairs:
-        if branch_id is None:
-            continue
-        bucket = counts.setdefault(branch_id, {})
-        bucket['lessons_done'] = bucket.get('lessons_done', 0) + 1
     return counts
 
 
@@ -285,4 +257,3 @@ def learning_record(profile_user, viewer=None, *, locale: str = DEFAULT_FALLBACK
 
 
 register_activity_provider(sets_by_branch)
-register_activity_provider(lessons_done_by_branch)

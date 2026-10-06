@@ -147,7 +147,8 @@ SETS = [
 
 #: `subjects` is the course's own taxonomy link (`courses.Course.subjects` -> `taxonomy.Branch`), and
 #: it is set here because the learning record counts "lessons they said they finished" PER BRANCH and
-#: gets the branch from exactly this field (`identity/record.py: lessons_done_by_branch`). A seeded
+#: gets the branch from exactly this field (`courses/record.py: activity_by_branch` — the one
+#: `lessons_done` provider since 2026-10-06, registered in `identity/apps.py: ready()`). A seeded
 #: course with no subject is a real state the record handles — it contributes to no branch — and the
 #: wrong one to demonstrate the record with, the same reasoning this file already applies to the
 #: showcase school.

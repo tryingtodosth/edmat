@@ -19,6 +19,10 @@ survives new endpoints — adding one is adding rows, not writing a new file.
     │ An expectation is a status, or a **(status, refusal word)** pair — use the pair        │
     │ wherever your rule module answers a word (house rule 6), because the number alone      │
     │ passes just as happily on the wrong reason.                                            │
+    │ A row may carry an optional **seventh element**: a body predicate                      │
+    │ `check(data) -> bool` (closing step B). Add one where the status is the same for       │
+    │ everybody and the answer is in the body — `GET /api/creation/` is the case it was      │
+    │ written for. It is checked after the status and the word; a failure prints the body.   │
     └───────────────────────────────────────────────────────────────────────────────────────┘
 
 The three shapes this file exists to pin, and why each one is that status and not another
@@ -51,7 +55,8 @@ from rest_framework.test import APITestCase
 from cloakroom.models import CloakroomDesk
 from coauthoring.models import MaterialProject, ProjectMember
 from config import nodes as node_seam
-from courses.models import Course, Enrollment
+from config.creation import CREATION_KINDS
+from courses.models import Course, CourseCompletion, Enrollment
 from decisions.models import Ballot, Poll, PollOption
 from documents.models import DocumentAcknowledgement, EventDocument
 from needs.models import Need, NeedApplication
@@ -60,6 +65,7 @@ from organizations.models import OrganizationLink, OrganizationMember
 from plans.models import Plan
 from shifts.models import Assignment, Shift, Station, VolunteerRecord
 from tasks.models import Task, TaskAssignee
+from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_material, make_user
 from testing.personas import make_personas
 from venues import services as venue_services
@@ -89,6 +95,10 @@ class _Rollback(Exception):
 class PermissionMatrixTests(APITestCase):
     """One test method, driven by MATRIX through `subTest` — a failing row names itself and the
     rest still run, which is the whole reason not to write this as a hundred methods."""
+
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test.
+    databases = set(all_log_shards()) | {'default'}
 
     @classmethod
     def setUpClass(cls):
@@ -284,6 +294,16 @@ class PermissionMatrixTests(APITestCase):
         participant = make_user('persona.participant')
         cls.people['participant'] = participant
 
+        # ONE MORE, for the creation gate's rows (closing step B). `config/creation.py` answers
+        # `verification_required` to every ordinary adult account, which is what all seven demo
+        # personas are — so without this one the gate's rows could pin four refusals and never the
+        # answer the gate exists to give. Deliberately a NEW account rather than ticking
+        # `is_verified_contributor` on an existing persona: `attendee` is the persona three
+        # founding rows above already pin at `(403, 'verification_required')`, and verifying them
+        # would quietly turn those into 201s.
+        verified = make_user('persona.verified', is_verified_contributor=True)
+        cls.people['verified'] = verified
+
         # Every node kind the seam knows (`config/nodes.py: NODE_KINDS`), so the nested
         # `/api/nodes/{kind}/{id}/…` lists are exercised on all four rather than four times on an
         # event — each kind answers `is_node_staff` from a different roster, which is the whole
@@ -293,6 +313,15 @@ class PermissionMatrixTests(APITestCase):
             instructor=organiser, title='Sandbox course', visibility='public', status='open'
         )
         Enrollment.objects.create(course=course, participant=participant, status='active')
+        # One issued certificate (closing step B). Written straight to the model rather than
+        # through `POST /courses/{id}/completions/`: that endpoint refuses `not_done` until every
+        # lesson of the course is ticked off, and this fixture is about who may READ the document
+        # afterwards — `courses/test_school_mode.py` owns the question of when one may be issued.
+        # The organiser runs the course and signed it; `participant` holds it.
+        completion = CourseCompletion.objects.create(
+            course=course, participant=participant, issued_by=organiser,
+            note="3 of 3 lessons, by the participant's own statements",
+        )
         # Unlisted — the 404 column for a course, exactly as `draft` is for an event.
         private_course = Course.objects.create(
             instructor=organiser, title='Sandbox course, unlisted', visibility='only_you'
@@ -530,6 +559,8 @@ class PermissionMatrixTests(APITestCase):
             'open_option_b': open_option_b.pk,
             'closed_option': closed_option.pk,
             'participant_id': participant.pk,
+            'verified_id': verified.pk,
+            'completion': completion.pk,
             'guardian_id': built['guardian'].pk,
             'organiser_id': organiser.pk,
         }
@@ -541,7 +572,14 @@ class PermissionMatrixTests(APITestCase):
         return body(self.ids, self.event_start) if callable(body) else body
 
     def test_matrix(self):
-        for persona, method, path, body, expected, why in MATRIX:
+        for row in MATRIX:
+            persona, method, path, body, expected, why = row[:6]
+            # An optional SEVENTH element is a body predicate, `check(data) -> bool` (closing step
+            # B). It exists for `GET /api/creation/`, where every persona gets 200 and the whole
+            # answer is in the body: a row that pinned only the status would pass whatever the gate
+            # said. Kept optional rather than made part of `expected`, so that none of the ~700
+            # rows written before it has to change.
+            check_body = row[6] if len(row) > 6 else None
             # A row's expectation is a status, or a (status, refusal word) pair. The pair is what
             # house rule 6 asks of a refusal — `enrollment_block_reason` and its cousins answer
             # WHY, and a row that only checked the number would pass just as happily on the wrong
@@ -573,6 +611,12 @@ class PermissionMatrixTests(APITestCase):
                             self.assertEqual(
                                 data.get('detail'), expected_word,
                                 f'{label}\n  right status, wrong word: {data!r:.200}',
+                            )
+                        if check_body is not None:
+                            data = getattr(response, 'data', None)
+                            self.assertTrue(
+                                check_body(data),
+                                f'{label}\n  right status, wrong body: {data!r:.300}',
                             )
                         raise _Rollback
                 except _Rollback:
@@ -719,8 +763,26 @@ _DEPOSIT_NOWHERE = {'rack_label': '99'}
 _EXCEPTION = {'description': 'Czarny płaszcz', 'identity_kind': 'student_card'}
 _EXCEPTION_ANONYMOUS = {'description': 'Czarny płaszcz', 'identity_kind': 'none'}
 
-#: (persona, method, path, body, expected status, why). Paths are formatted with `cls.ids` and get
-#: an `/api` prefix. `None` as a body means "send nothing".
+
+def _creation_says(reason):
+    """A body predicate for `GET /api/creation/`: every kind answered with exactly this word.
+
+    `None` means "go ahead", which is what the endpoint returns for somebody the gate lets found
+    things. Every kind, not one: `config/creation.py: creation_status` fans one kind-independent
+    rule out over four keys *on purpose* (its own docstring says why), so a row that checked a
+    single key would keep passing on the day that stops being true.
+    """
+
+    def check(data):
+        return isinstance(data, dict) and set(data) == set(CREATION_KINDS) and all(
+            data[kind] == reason for kind in CREATION_KINDS
+        )
+
+    return check
+
+
+#: (persona, method, path, body, expected status, why[, body predicate]). Paths are formatted with
+#: `cls.ids` and get an `/api` prefix. `None` as a body means "send nothing".
 MATRIX = [
 
     # ---- step D: tickets, the door, the badge sheet (events/ticket_views.py; integration) --------
@@ -1780,11 +1842,74 @@ MATRIX = [
     # the matrix's course.
     ('anonymous', 'GET', '/courses/{course}/completions/', None, 401, 'a document somebody issued is for a signed-in reader'),
     ('stranger', 'GET', '/courses/{course}/completions/', None, 200, 'scoped, not refused — their own, which is none'),
-    ('organiser', 'GET', '/courses/{course}/completions/', None, 200, 'they run it; the list is empty'),
+    ('organiser', 'GET', '/courses/{course}/completions/', None, 200,
+     'they run it, so they get the whole list — one row since closing step B seeded a certificate'),
+    ('participant', 'GET', '/courses/{course}/completions/', None, 200, 'their own, which is one'),
     ('stranger', 'GET', '/courses/{private_course}/completions/', None, 404, 'only_you — not for them'),
     # Step B: the learning record is public by consent; with nothing shared the body is null, 200,
     # because the profile exists and the record is withheld, not missing.
     ('anonymous', 'GET', '/users/{attendee_id}/learning-record/', None, 200, 'nothing shared → null, still 200'),
     ('stranger', 'GET', '/users/{attendee_id}/learning-record/', None, 200, 'same'),
     ('attendee', 'GET', '/users/{attendee_id}/learning-record/', None, 200, 'their own'),
+
+    # ==== closing step B (prompts/13-seams.md) ==================================================
+    #
+    # The two blocks `prompts/10-integration.md` §3 asked for and the learning cycle's integration
+    # never got. Both are endpoints where the matrix's usual shape does not quite fit, which is
+    # why each one carries its own note about the column it cannot fill.
+
+    # ---- the completion certificate, by its own id (courses/views.py: CourseCompletionViewSet) --
+    #
+    # There is NO 403 row here, and that is the design rather than a gap in the table. Every
+    # refusal on this endpoint is a 404: a certificate is a personal record, and 403 would confirm
+    # that somebody finished a course — exactly the fact the document exists to carry (house rule
+    # 4, and the viewset's own docstring). `volunteer` is the "staff role that may not" column the
+    # header box asks for; they are staff of the EVENT and nothing on this course, and they get the
+    # same 404 a stranger does. The holder is `participant`, the issuer and course staff is
+    # `organiser`, and the row was issued in `setUpTestData`.
+    ('anonymous', 'GET', '/course-completions/{completion}/', None, 401,
+     'IsAuthenticated: a document about a named person is not read signed out'),
+    ('participant', 'GET', '/course-completions/{completion}/', None, 200, 'the holder'),
+    ('organiser', 'GET', '/course-completions/{completion}/', None, 200,
+     'runs the course and signed it — both clauses of can_read_completion, one persona'),
+    ('stranger', 'GET', '/course-completions/{completion}/', None, 404,
+     'the course is listed, so the queryset lets them through and the authority check stops them'),
+    ('attendee', 'GET', '/course-completions/{completion}/', None, 404, 'same'),
+    ('volunteer', 'GET', '/course-completions/{completion}/', None, 404,
+     'staff of the event, nothing on this course — a role is not a ladder'),
+    ('anonymous', 'POST', '/course-completions/{completion}/revoke/', None, 401,
+     'a write needs a sign-in'),
+    ('participant', 'POST', '/course-completions/{completion}/revoke/', None, (404, 'not_staff'),
+     'the holder keeps it and does not withdraw it — the word, because rules.revoke_block_reason '
+     'gives one (house rule 6)'),
+    ('volunteer', 'POST', '/course-completions/{completion}/revoke/', None, (404, 'not_staff'), 'same'),
+    ('organiser', 'POST', '/course-completions/{completion}/revoke/', None, 200,
+     'a timestamp, never a delete — the sheet keeps saying it was withdrawn'),
+    ('organiser', 'GET', '/course-completions/undefined/', None, 404, 'not a number, so not a thing'),
+
+    # ---- the creation gate (config/creation.py, config/views.py: CreationStatusView) ------------
+    #
+    # EVERY persona gets 200 and a different body, so these rows carry the seventh element the
+    # header box documents. There is no 403 and no 404 column to fill: the Add… menu asks this
+    # endpoint what it may draw, so it must answer for everybody including a signed-out reader —
+    # the refusal is a word inside a 200, not a status (`CreationStatusView`'s docstring).
+    # `verified` is the only persona here the gate lets through; see `setUpTestData` for why it is
+    # a new account and not a tick on an existing one.
+    ('anonymous', 'GET', '/creation/', None, 200,
+     'the menu draws for a signed-out reader too; every kind says anonymous',
+     _creation_says('anonymous')),
+    ('child', 'GET', '/creation/', None, 200,
+     'minor — the older, narrower rule, and the one the flag cannot turn off',
+     _creation_says('minor')),
+    ('attendee', 'GET', '/creation/', None, 200,
+     'an ordinary adult account: verification_required until USOS lands',
+     _creation_says('verification_required')),
+    ('stranger', 'GET', '/creation/', None, 200, 'same — the gate is about standing, not role',
+     _creation_says('verification_required')),
+    ('organiser', 'GET', '/creation/', None, 200,
+     'running an event is not standing: hosting one already and founding the next are two questions',
+     _creation_says('verification_required')),
+    ('verified', 'GET', '/creation/', None, 200,
+     'a verified contributor may found all four — null, not a word',
+     _creation_says(None)),
 ]

@@ -1,9 +1,13 @@
 """What this app contributes to a person's learning record, per `taxonomy.Branch`.
 
 Step B (`prompts/03-learning-record.md`) owns the record itself: `identity/record.py` holds the
-registry, the consent flag and the endpoint, and the integrator registers this function in it
-(`prompts/README.md` §5 rule 13 — a hook another step must wire lives in *this* app, and this app
-never imports `identity/`). The shape is fixed there: ``{branch_id: {metric: count}}``.
+registry, the consent flag and the endpoint. **This function is registered in
+`identity/apps.py: ready()`** — since 2026-10-06, when it became the single implementation of
+`lessons_done` and the read-across `identity/record.py` carried was deleted (owner decision,
+`prompts/11-closing-design.md` §2; the two of them summed to double every number).
+`prompts/README.md` §5 rule 13 is why it is here rather than there — a hook another step must wire
+lives in *this* app, and this app never imports `identity/`. The shape is fixed there:
+``{branch_id: {metric: count}}``.
 
 **Counts, never rows** (`00-DESIGN.md` §4.4 and rule 3). "Seven lessons done in Analysis I" is what
 goes on a profile; *which* seven, and when, is between a person and the course they are in. Grouping
@@ -36,6 +40,12 @@ def activity_by_branch(user) -> dict[int, dict[str, int]]:
     subject" and the alternative — picking one branch per course — would be the client inventing a
     primary subject the course never declared. A course with no branches at all contributes nothing,
     because there is no row in the table for it to land in.
+
+    `AnonymousUser` and `None` answer `{}` rather than raising. Nothing in the record reaches
+    here without a real account — `identity.record._activity_block` is only called behind the
+    profile owner's `share_activity` consent — but a provider is a public hook that any future
+    caller may hand a request's `user`, and an empty dict is the honest answer for somebody who
+    has no rows rather than an exception for somebody who merely is not signed in.
 
     One query, grouped in Python rather than by the database: the values list is one row per
     (progress, branch) pair for one person, which is bounded by how many lessons they have ticked

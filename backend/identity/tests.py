@@ -52,8 +52,8 @@ def make_exercise_set(owner, name, exercises):
 
 def make_course_with_lessons(instructor, branch, titles):
     """A course, one chapter, and a lesson per title — the Chapter -> Lesson path
-    `record.lessons_done_by_branch` walks. `branch=None` builds the real state of a course with no
-    taxonomy link at all."""
+    `courses.record.activity_by_branch` walks. `branch=None` builds the real state of a course with
+    no taxonomy link at all."""
     course = Course.objects.create(title=f'Kurs {titles[0]}', instructor=instructor)
     if branch is not None:
         course.subjects.add(branch)
@@ -814,6 +814,35 @@ class LearningRecordTests(ApiTestCase):
         before = len(ACTIVITY_PROVIDERS)
         register_activity_provider(sets_by_branch)
         self.assertEqual(len(ACTIVITY_PROVIDERS), before)
+
+    def test_exactly_one_registered_provider_counts_lessons_done(self):
+        """The seam, pinned (`prompts/11-closing-design.md` §2, owner decision 2026-10-06).
+
+        Two implementations of `lessons_done` existed on two branches that could not see each
+        other, and `_activity_block` SUMS across providers — so registering both doubled every
+        number on every profile. The survivor is the one in the app that owns `LessonProgress`
+        (`prompts/README.md` §5 rule 13), wired in `identity/apps.py: ready()`.
+
+        Counted by asking every registered provider what it answers for an account with one
+        finished lesson, rather than by naming the deleted function: the failure this test exists
+        to catch is "two things count this metric", and a second implementation under any name at
+        all would be the same bug. `test_only_lessons_somebody_said_they_finished_are_counted`
+        above is the other half — the number itself, read through the endpoint.
+        """
+        from courses.record import activity_by_branch as courses_activity
+
+        done, _ = make_course_with_lessons(self.user, self.probability, ['Jedna', 'Druga'])
+        LessonProgress.objects.create(lesson=done, participant=self.user, status='done')
+        counting = [
+            provider
+            for provider in ACTIVITY_PROVIDERS
+            if any('lessons_done' in metrics for metrics in provider(self.user).values())
+        ]
+        self.assertEqual(
+            [f'{p.__module__}.{p.__name__}' for p in counting],
+            ['courses.record.activity_by_branch'],
+        )
+        self.assertIn(courses_activity, ACTIVITY_PROVIDERS)
 
     # -- the two blocks never mix -------------------------------------------------------------
 
