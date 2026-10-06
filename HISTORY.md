@@ -12160,3 +12160,116 @@ the profile page still renders. **52 checks, 0 failures**, zero console errors. 
   separately reports six errors, all in e2e scripts that predate this work (`course-claims`,
   `galleries-and-applications`, `login-return`, `material-open-and-titles`, `prerender-check`);
   nothing this step added appears in either list.
+
+---
+
+## 17BR.H — The manual: `/about/guide`, eleven chapters, forty-three real screenshots (2026-10-05)
+
+Branch `learn/h-manual`, from the learning-cycle prep `f90e221` (`prompts/01-prep.md`). Step H of
+`prompts/00-DESIGN.md`; the brief is `prompts/09-manual.md`.
+
+### What it is
+
+A user manual at `/about/guide`: a hub listing eleven chapters, and one page per chapter at
+`/about/guide/<slug>` — `start` `exercises` `submit` `courses` `events` `tutoring` `concepts`
+`help` `messages` `moderation` `flashcards`. Every chapter is a list of steps, each step a heading,
+one or two paragraphs and — for most of them — **a screenshot of this site actually running**,
+taken by `frontend/e2e/guide-screenshots.mjs` against real servers and a seeded database. Forty-three
+pictures, 2.2 MB, all of them under `frontend/static/guide/<chapter>/<nn>-<name>.png`.
+
+### Three decisions worth the words
+
+**The pictures are taken, not drawn, and they are taken by a script.** A drawn diagram of a screen
+goes stale silently; a screenshot goes stale loudly, the next time the script runs. The script is
+the deliverable as much as the pictures are: `ONLY=exercises node e2e/guide-screenshots.mjs`
+re-takes one chapter after a UI change. Step G's showcase pages make the opposite trade on purpose
+— they draw the real components from sample data, so they never go stale at all, and they show
+designs that do not exist yet. The manual shows what is there; the showcase shows what is meant.
+
+**One set of pictures, of the ENGLISH interface.** The Polish chapter text describes the same
+screens and its screenshot `alt` text is Polish. A second set would double `static/guide/` — which
+`npm run build` copies verbatim into the deploy bundle — to tell a reader who can already see which
+button is which what that button is called in their own language. Named as a cost, not hidden.
+
+**A chapter about a switched-off feature is labelled, not removed.** House rule 3 is about *links
+to* a feature; a page of prose describing one is not a link, and a reader is entitled to know what
+the software does even on a deployment where it is off. The hub and the chapter say so instead.
+
+### How the content is held
+
+`lib/content/guide/`: `types.ts`, one file per chapter with an `EN` and a `PL` const and a
+`…ChapterFor(locale)` resolver, and `index.ts` with `GUIDE_CHAPTERS` (slug, `titleFor`, `docFor`,
+`blurbFor`, the kill switch, an optional `showcase` path into step G's pages) plus the hub's own
+text. That is the fourth use of the deliberate exception `content/privacy.ts` opened — long-form
+writing lives in one file in both languages, because a reviewer cannot tell whether the two have
+drifted when they are scattered across sixty catalogue keys. Only the chrome is in the catalogues,
+twelve keys under `guide_`.
+
+Routes: `/about/guide` (hub) and `/about/guide/[chapter]` — **one dynamic route, not eleven
+directories**, because every chapter is the same page with different text. The twelve addresses are
+listed in `svelte.config.js`'s `prerender.entries`; a dynamic route is exactly the case the
+prerenderer cannot enumerate by itself. `npm run build` writes `about/guide.html` and
+`about/guide/<slug>.html` for all eleven.
+
+### Three things the build and the browser taught
+
+**Vite serves nothing outside its workspace root, and a worktree's `node_modules` is a symlink.**
+Every page with mathematics logged a 403 for KaTeX's own fonts (`/@fs/.../katex/dist/fonts/…`) and
+drew the formulas in a fallback face — on the dev server only, because production bundles the
+fonts. The first run of the screenshot script logged 74 console errors and photographed
+wrong-looking mathematics. `vite.config.ts` now allows the real path of the shared `node_modules`
+alongside `searchForWorkspaceRoot(process.cwd())`; the next run logged **1**. Found by the
+integrator on step G's branch and applied here before any picture was kept.
+
+**`boundingBox()` is viewport-relative.** Clipping a screenshot to a region measured after a click
+that scrolled the page photographs something 600 px away — the submit form's preview panel came out
+as its own Topics field. Every measurement now scrolls home first (`rect()`), and so does every
+capture, because `fullPage` draws a sticky header wherever the page happens to be scrolled to.
+
+**An idempotency guard has to read the right end of the thing.** The script's "has this demo
+message already been sent?" check asked the SENDER's `GET /api/messages/`, which is the signed-in
+reader's *inbox* and was empty every time, so five identical messages piled up before a screenshot
+showed them. It asks the recipient now.
+
+### Verified
+
+`npm run check` 0 errors / 0 warnings (2348 files). `npx eslint .` clean on everything this branch
+wrote. `npm run build` green, with `about/guide.html` and all eleven `about/guide/<slug>.html`
+present and `build/guide/` carrying the 2.2 MB of pictures. `e2e/guide-screenshots.mjs` against
+real servers on 8138/5238: 48 checks, 0 failures, 43 pictures, largest 105 KB, total 2.19 MB
+(budget: 400 KB each, 8 MB total). `npm run check:a11y` over the hub and all eleven chapters.
+**Every one of the 43 screenshots was looked at**, which is how the three findings below were found.
+
+### Found by looking at the screenshots (written up in `todo.md`, not fixed here)
+
+- **`/needs/new` is not a route.** It falls through to `/needs/[id]` with the id `new` and answers
+  "Something went wrong." A need is posted from the `NeedsPanel` on the thing that needs the help,
+  which is what the chapter shows instead.
+- **The `NeedsPanel` add-form's text inputs and textarea have no border or background** — they are
+  invisible against the panel. The selects and the date field are fine.
+- **A concept's "Connections" block prints a linked exercise's title as raw LaTeX** in the chip row
+  a manager sees, while the same exercise renders correctly as a card lower down the page.
+
+### Left open
+
+- **No Polish-UI screenshots.** The cost is the whole of `static/guide/` again, ~2.2 MB in the
+  deploy bundle, for pictures whose only difference is the button labels.
+- **No video, and no search over the manual.** Eleven chapters is a list, not a corpus.
+- **Six surfaces have no chapter**, and the hub says which: flashcards (step A, this cycle), the
+  learning record (step B), co-authoring, the management layer (organisations, tasks, plans,
+  decisions, work), the conference desks (tickets, cloakroom, shifts, venues), and the activity
+  feed with reporting and the legal notice channel.
+- **The flashcards chapter is a placeholder** until step A has merged. Replacing it is
+  self-contained: steps in both languages in `lib/content/guide/flashcards.ts`, a
+  `chapters.flashcards` block in the screenshot script, and dropping `pending` from the entry.
+- **The screenshot script leaves marks on the database it runs against.** It posts one exercise
+  submission per run (that is the only way to photograph what the form says afterwards, and it is
+  what gives the moderation chapter a real pending row), and it makes the seeded course "Analiza od
+  zera" public, books an hour with a seeded tutor and posts one help-wanted row — all idempotent
+  except the submission. Reject the spares from `/moderation` if they pile up.
+- **Leftover rows from earlier browser runs are hidden, not deleted.** `hideScratch()` masks
+  `asdasd`, `Linking check …`, `Published hours …` and friends before each shot, which is the
+  brief's "crop or mask anything else". A fresh database would not need it.
+- **The showcase links carry `rel="external"`** so the prerenderer does not crawl into step G's
+  not-yet-merged `/about/<feature>` pages and fail the build. The integrator may drop that attribute
+  once they exist.

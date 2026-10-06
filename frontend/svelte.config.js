@@ -58,8 +58,24 @@ const config = {
 				'/about/courses',
 				'/about/schools',
 				'/about/concepts',
-				'/about/events'
+				'/about/events',
+
 				// learning: guide (H) appends its /about/guide/** pages here, after G's.
+				// The manual: the hub is an ordinary route and `'*'` would reach it, but the eleven
+				// chapters are one DYNAMIC route (`/about/guide/[chapter]`), which the prerenderer
+				// cannot enumerate on its own. `deploy/fuw/pack.sh` should check every name below.
+				'/about/guide',
+				'/about/guide/start',
+				'/about/guide/exercises',
+				'/about/guide/submit',
+				'/about/guide/courses',
+				'/about/guide/events',
+				'/about/guide/tutoring',
+				'/about/guide/concepts',
+				'/about/guide/help',
+				'/about/guide/messages',
+				'/about/guide/moderation',
+				'/about/guide/flashcards'
 			]
 		}
 	}

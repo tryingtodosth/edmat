@@ -1,7 +1,7 @@
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { fileURLToPath } from 'node:url';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from 'vite';
 
 // KaTeX ships its @font-face rules with `font-display: block`, so a title containing math shows
 // NOTHING until the 26 KB math font has arrived — PageSpeed put those two fonts at the end of a
@@ -35,6 +35,17 @@ const nodeBuiltinShims = [
 ];
 
 export default defineConfig({
+	// Only for the parallel-build worktrees, whose `frontend/node_modules` is a SYMLINK to the main
+	// checkout's: Vite serves a file outside its workspace root as `/@fs/<realpath>` and refuses it
+	// with 403 unless the real path is allowed, so KaTeX's own fonts never load and every page with
+	// mathematics draws it in a fallback face and logs a console error. Production bundles the
+	// fonts, so this is a dev-server-only hazard — and exactly the kind that puts wrong-looking
+	// mathematics into a screenshot.
+	server: {
+		fs: {
+			allow: [searchForWorkspaceRoot(process.cwd()), '/Projects/edmat/frontend/node_modules']
+		}
+	},
 	resolve: { alias: nodeBuiltinShims },
 	plugins: [
 		katexFontDisplaySwap,

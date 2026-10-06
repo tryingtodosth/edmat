@@ -27,6 +27,23 @@ const API = argVal('--api', 'http://localhost:8000');
 
 const CHROMIUM_PATH = `${process.env.HOME}/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`;
 
+// The manual's chapters, in `lib/content/guide/index.ts` order. Spelled out rather than imported:
+// this script is plain Node outside the SvelteKit app and cannot resolve `$lib`, the same reason
+// its raw-row interfaces below do not import `$lib/types`.
+const GUIDE_CHAPTER_SLUGS = [
+	'start',
+	'exercises',
+	'submit',
+	'courses',
+	'events',
+	'tutoring',
+	'concepts',
+	'help',
+	'messages',
+	'moderation',
+	'flashcards'
+];
+
 interface AxeNode {
 	target: string[];
 	html: string;
@@ -164,7 +181,16 @@ async function main() {
 		{ name: 'Showcase: courses', url: '/about/courses' },
 		{ name: 'Showcase: schools', url: '/about/schools' },
 		{ name: 'Showcase: concepts', url: '/about/concepts' },
-		{ name: 'Showcase: events', url: '/about/events' }
+		{ name: 'Showcase: events', url: '/about/events' },
+
+		// The user manual (HISTORY.md §17BR.H): the hub and every chapter. Prose and screenshots, so
+		// the only thing axe has to say about them is whether the headings nest, the images carry
+		// alt text and the contrast holds — which is exactly what a page of pictures can get wrong.
+		{ name: 'Manual hub', url: '/about/guide' },
+		...GUIDE_CHAPTER_SLUGS.map((slug) => ({
+			name: `Manual: ${slug}`,
+			url: `/about/guide/${slug}`
+		}))
 	];
 
 	// Authenticated pages — a real moderator session (broadest surface: sees the moderation queue,

@@ -3786,5 +3786,17 @@
 	"record_ownerNothingShared": "Nie udostępniasz tu niczego, więc nikt inny nie widzi tej sekcji.",
 	"record_minorNote": "To konto należy do osoby niepełnoletniej, więc jej historia nauki nigdy nie jest publiczna — niezależnie od zgód.",
 	"record_consentActivity": "Pokazuj, co zrobiłem(-am) na EdMat, jako liczby według przedmiotu",
-	"record_consentActivityHint": "Tylko liczby: ile zestawów zbudowano, ile zajęć oznaczono jako ukończone, ile fiszek powtórzono — według przedmiotu, nigdy pojedyncze elementy. Oceny mają własną zgodę powyżej."
+	"record_consentActivityHint": "Tylko liczby: ile zestawów zbudowano, ile zajęć oznaczono jako ukończone, ile fiszek powtórzono — według przedmiotu, nigdy pojedyncze elementy. Oceny mają własną zgodę powyżej.",
+	"guide_backToManual": "← Wszystkie rozdziały",
+	"guide_chapterOf": "Rozdział {index} z {total}",
+	"guide_previousChapter": "← {title}",
+	"guide_nextChapter": "{title} →",
+	"guide_seeTheDesign": "Zobacz projekt →",
+	"guide_featureOff": "Ta część serwisu jest tu w tej chwili wyłączona. Rozdział mimo to opisuje, co robi.",
+	"guide_pendingBadge": "Jeszcze nienapisane",
+	"guide_unknownChapter": "Pod tym adresem nie ma żadnego rozdziału.",
+	"guide_screenshotNote": "Każdy obrazek to zrzut tego serwisu w działaniu, zrobiony skryptem na bazie testowej.",
+	"guide_aboutLink": "Jak korzystać z EdMatu: podręcznik, rozdział po rozdziale, z prawdziwymi zrzutami ekranu.",
+	"guide_aboutLinkCta": "Otwórz podręcznik →",
+	"guide_seoDescription": "Podręcznik użytkownika EdMatu, rozdział po rozdziale, ze zrzutami prawdziwego serwisu."
 }

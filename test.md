@@ -2007,3 +2007,50 @@ API and confirmed with an authenticated re-query (trap 12).
 progress statement, so a hand-edited plan fails the command rather than seeding data the API would
 refuse, and `assert_contained()` runs inside the build's transaction over its own
 `CONTAINMENT_MODELS`. Run it, run it again, `--reset`, run it again: one of everything each time.
+
+## 2026-10-05 — the user manual's screenshots (`frontend/e2e/guide-screenshots.mjs`)
+
+`/about/guide` is written against the screens as they are, and its forty-three pictures are taken
+rather than drawn. **`frontend/e2e/guide-screenshots.mjs` is how they are re-taken** — after any UI
+change that moves something a chapter points at, and as a matter of course before a release that
+touches one of the surfaces it covers.
+
+```bash
+cd backend && ../.venv/bin/python3 manage.py migrate && \
+  for s in seed_demo_users seed_demo_content seed_concepts seed_conference_demo seed_profile_showcase; do \
+    ../.venv/bin/python3 manage.py $s; done
+# both servers up on your own ports, then:
+rm -rf backend/cachedata/*
+cd frontend && E2E_BASE=http://localhost:5238 E2E_API=http://127.0.0.1:8138/api \
+  node e2e/guide-screenshots.mjs
+ONLY=exercises,submit node e2e/guide-screenshots.mjs    # one or two chapters while iterating
+```
+
+It writes `frontend/static/guide/<chapter>/<nn>-<name>.png`, **checks its own budget** (400 KB a
+picture, 8 MB in total — `npm run build` copies `static/` verbatim into the deploy bundle) and
+fails if either is exceeded. It deletes a chapter's folder before re-taking it unless `KEEP=1`.
+Last run: 48 checks, 0 failures, 43 pictures, 2.19 MB, largest 105 KB.
+
+Six things about it that are not obvious, each of which has already cost a wrong picture:
+
+- **It needs `vite.config.ts`'s `server.fs.allow` entry for the shared `node_modules`.** In a
+  worktree that directory is a symlink, Vite refuses `/@fs/<realpath>/katex/dist/fonts/…` with 403,
+  and every formula is drawn in a fallback face. Before the fix: 74 console errors and
+  wrong-looking mathematics. After: 1.
+- **It waits for hydration, not for an element** (e2e trap 25). The header's language picker reads
+  `pl` in the server-rendered HTML even on an English page and flips to `en` when the runes take
+  over; `hydrated()` waits for that, which is 3 s on a light page and 8 s on the home page.
+- **Every shot is clipped and measured at scroll 0.** `boundingBox()` is viewport-relative, and a
+  `fullPage` capture draws the sticky header wherever the page is scrolled to.
+- **It asks for `pl` + `en` content** — through `localStorage` when anonymous and through
+  `PATCH /api/auth/me/` when signed in (e2e trap 16), restoring the accounts afterwards.
+- **It leaves marks.** One exercise submission per run (deliberate: it is the only way to photograph
+  what the form says afterwards, and it gives the moderation chapter a real pending row), plus
+  idempotent demo rows — the seeded course made public, one help-wanted posting, one volunteering
+  offer, one message, one booking request.
+- **It hides leftover rows rather than deleting them.** `hideScratch()` masks `asdasd`,
+  `Linking check …`, `Published hours …` and friends before each shot; it does not own them.
+
+`npm run check:a11y` now also audits `/about/guide` and all eleven chapter pages (they are in
+`scripts/check_accessibility.ts`'s anonymous list). Nothing in the manual calls an API, so a chapter
+page renders with the backend down.

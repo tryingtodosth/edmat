@@ -122,6 +122,12 @@
 	<ShowcaseIndex />
 	<!-- learning: guide (H) — the one link into the manual at /about/guide, mounted directly below
 	     this comment (after G's block). -->
+	<section class="about__section about__manual">
+		<h2>{m.guide_aboutLink()}</h2>
+		<!-- "How to use EdMat: the manual, chapter by chapter, with real screenshots." -->
+		<p><a class="btn-secondary" href={resolve('/about/guide')}>{m.guide_aboutLinkCta()}</a></p>
+		<!-- "Open the manual →" -->
+	</section>
 	<section class="about__section">
 		<h2>{doc.featuresHeading}</h2>
 		<p class="about__intro">{doc.featuresIntro}</p>
@@ -468,6 +474,22 @@
 		flex-wrap: wrap;
 		gap: var(--space-1) var(--space-4);
 		font-size: var(--font-size-sm);
+	}
+
+	// ---- the manual -----------------------------------------------------------------------------
+	// A band rather than a card: the manual is one destination, and a single card in a grid of its
+	// own reads as a grid with one thing missing.
+	.about__manual {
+		h2 {
+			max-width: 62ch;
+			font-size: var(--font-size-base);
+			font-weight: 600;
+			color: var(--text-secondary);
+			margin-bottom: var(--space-3);
+		}
+		p {
+			margin: 0;
+		}
 	}
 
 	// ---- closing --------------------------------------------------------------------------------

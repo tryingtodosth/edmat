@@ -3786,5 +3786,17 @@
 	"record_ownerNothingShared": "You are sharing nothing here, so nobody else sees this section at all.",
 	"record_minorNote": "This account belongs to a minor, so its learning record is never public — whatever the consents say.",
 	"record_consentActivity": "Show what I have done on EdMat, as counts per subject",
-	"record_consentActivityHint": "Numbers only: how many sets you built, how many lessons you said you finished, how many cards you reviewed — per subject, never a single item. Your marks stay under their own consent above."
+	"record_consentActivityHint": "Numbers only: how many sets you built, how many lessons you said you finished, how many cards you reviewed — per subject, never a single item. Your marks stay under their own consent above.",
+	"guide_backToManual": "← All chapters",
+	"guide_chapterOf": "Chapter {index} of {total}",
+	"guide_previousChapter": "← {title}",
+	"guide_nextChapter": "{title} →",
+	"guide_seeTheDesign": "See the design →",
+	"guide_featureOff": "This part of the site is switched off here at the moment. The chapter still describes what it does.",
+	"guide_pendingBadge": "Not written yet",
+	"guide_unknownChapter": "There is no chapter under that address.",
+	"guide_screenshotNote": "Every picture here is a screenshot of this site running, taken by a script against a test database.",
+	"guide_aboutLink": "How to use EdMat: the manual, chapter by chapter, with real screenshots.",
+	"guide_aboutLinkCta": "Open the manual →",
+	"guide_seoDescription": "A chapter-by-chapter user manual for EdMat, with screenshots of the real site."
 }
