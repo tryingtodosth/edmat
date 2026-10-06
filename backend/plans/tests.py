@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 
 from courses.models import Course
 from moderation.models import FeatureFlag
+from telemetry.routers import all_log_shards
 from testing.factories import make_user
 
 from .models import Plan, PlanStep, PlanSuggestion
@@ -15,6 +16,11 @@ def _node_plans_url(kind, pk):
 
 
 class PlansTestCase(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, so the line
+    # lives here once and every class in this file inherits it.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.owner = make_user('owner')
         self.other_staff = make_user('assistant')

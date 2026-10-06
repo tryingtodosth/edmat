@@ -13,10 +13,16 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from exercises.models import ExerciseMaterialLink
+from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_exercise, make_material, make_user
 
 
 class MaterialExerciseListTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course(slug='links-branch')
         self.material = make_material(self.branch, slug='links-script', title='Linked script')
@@ -85,6 +91,8 @@ class MaterialExerciseListTests(APITestCase):
 
 
 class LinkAnExistingExerciseTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course(slug='link-post-branch')
         self.material = make_material(self.branch, slug='link-post-script')
@@ -164,6 +172,8 @@ class LinkAnExistingExerciseTests(APITestCase):
 class ExerciseMaterialsListTests(APITestCase):
     """The reverse reading — "From material …" on the exercise page."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course(slug='reverse-branch')
         self.exercise = make_exercise(self.branch, 1)
@@ -195,6 +205,8 @@ class ExerciseMaterialsListTests(APITestCase):
 
 class LinkManagementScopeTests(APITestCase):
     """PATCH/DELETE on one link — who may, and what everybody else sees (a 404, never a 403)."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course(slug='scope-branch')

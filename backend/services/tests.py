@@ -13,10 +13,16 @@ from community.models import Comment
 from moderation.models import FeatureFlag, Report
 from moderation.services import build_report_queue
 from services.models import Service, ServiceWatch
+from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_user
 
 
 class ServiceCreationTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course(slug='uw-services-am2')
         # The creation gate (`config/creation.py`, learning step F) is seeded ON, so a new
@@ -86,6 +92,8 @@ class ServiceCreationTests(APITestCase):
 
 
 class ServiceDiscoveryTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.course_a = make_course(slug='uw-services-am2')
         self.course_b = make_course(slug='uw-services-rp1')
@@ -181,6 +189,8 @@ class ServiceDiscoveryTests(APITestCase):
 
 
 class ServiceOwnershipTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course(slug='uw-services-am2')
         self.owner = make_user('service-owner')
@@ -239,6 +249,8 @@ class TutoringKillSwitchTests(APITestCase):
     that a real global moderator is unaffected (they can still browse/manage listings to decide
     whether to turn it back on)."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course(slug='uw-killswitch-am2')
         self.provider = make_user('kill-provider')
@@ -290,6 +302,8 @@ class ServiceReportingTests(APITestCase):
     REPORT_KIND_MODELS) rather than a bespoke one. A listing has no viewer-pool concept the way an
     Exercise does (`resolve_view_scope_exercise` returns None for it), so it never auto-hides no
     matter how many reports it gets — it still queues normally for a moderator's own decision."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.provider = make_user('report-provider')
@@ -385,6 +399,8 @@ class ServiceCommentsTests(APITestCase):
     object_id) Exercise/MaterialCoverage already use, reached via ServiceViewSet's own `comments`
     action rather than a bespoke one."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.provider = make_user('comment-provider')
         self.commenter = make_user('comment-commenter')
@@ -454,6 +470,8 @@ class ServiceReviewsTests(APITestCase):
     """Star rating + optional written review on a tutoring listing — the same upsert-on-resubmit
     shape ExerciseViewSet.reviews already establishes (community/tests.py)."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.provider = make_user('review-provider')
         self.reviewer = make_user('review-reviewer')
@@ -508,6 +526,8 @@ class ServiceReviewsTests(APITestCase):
 
 class ServiceWatchlistTests(APITestCase):
     """"Add certain tutor offers to a watchlist to compare listings" — a plain, per-user bookmark."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.provider = make_user('watch-provider')
@@ -587,6 +607,8 @@ class ServiceDescriptionSanitizeTests(APITestCase):
     refusal tests that go with that widening: the API is a second entry point, and a moderator
     reading a reported listing is already rendering somebody else's HTML.
     """
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course(slug='uw-services-sanitize')

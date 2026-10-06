@@ -29,6 +29,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.avatar import AVATAR_SIZE, process_avatar, validate_avatar_file
+from telemetry.routers import all_log_shards
 
 User = get_user_model()
 
@@ -60,6 +61,11 @@ def make_upload(content: bytes, name: str = 'avatar.jpg', content_type: str = 'i
 class AvatarTestCase(APITestCase):
     """Shared temporary MEDIA_ROOT. `override_settings` is applied per-class here rather than per-test
     so the directory survives for the whole class and is cleaned up exactly once."""
+
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, so the line
+    # lives here once and every class in this file inherits it.
+    databases = set(all_log_shards()) | {'default'}
 
     @classmethod
     def setUpClass(cls):

@@ -5,6 +5,7 @@ from rest_framework.test import APIClient
 
 from courses.models import Course
 from moderation.models import FeatureFlag
+from telemetry.routers import all_log_shards
 from testing.factories import make_user
 
 from .models import Need, NeedApplication, VolunteeringOffer
@@ -34,6 +35,11 @@ def _course(instructor, *, visibility='public', title='Analiza I'):
 
 
 class NeedsBaseTestCase(TestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, so the line
+    # lives here once and every class in this file inherits it.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         FeatureFlag.objects.update_or_create(key='needs', defaults={'is_enabled': True})
         self.manager = make_user('manager')
@@ -370,6 +376,8 @@ class VolunteeringOfferTests(TestCase):
     """The supply side (2026-10-01). Refusals first, as this file's header says, and then the one
     thing the owner actually asked for by name: that an offer can be written and found in a
     language other than the reader's."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         FeatureFlag.objects.update_or_create(key='volunteering', defaults={'is_enabled': True})

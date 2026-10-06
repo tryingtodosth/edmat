@@ -8,12 +8,18 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from community.models import Comment
+from telemetry.routers import all_log_shards
 from testing.factories import make_course as make_branch, make_topic, make_user
 
 from .models import Course, CourseClaim
 
 
 class CourseClaimTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch()
         self.other_branch = make_branch(slug='uw-other-branch')

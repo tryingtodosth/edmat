@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase, APIClient
 
 from config.test_nodes import _course
 from courses.models import Course, Enrollment
+from telemetry.routers import all_log_shards
 from testing.factories import make_user
 from . import rules
 from .models import Ballot, Poll, PollOption, Vote
@@ -218,6 +219,11 @@ class DecisionRulesTests(TestCase):
 
 class PollAPITests(APITestCase):
     """Test poll endpoints."""
+
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.client = APIClient()
@@ -459,6 +465,8 @@ class VisibilityRegressionTests(APITestCase):
     is not a thing a public course page may say to a passer-by — so the eligibility rule has to be
     a rule about people, not about the word `members`.
     """
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.manager = make_user('vis-manager@test.example')

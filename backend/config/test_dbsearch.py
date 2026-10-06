@@ -23,6 +23,7 @@ from rest_framework.test import APITestCase
 
 from config.dbsearch import contains_all, fold, search_terms
 from exercises.models import ExerciseTranslation
+from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_exercise, make_material
 
 
@@ -107,6 +108,11 @@ class BrowseSearchDiacriticsTests(APITestCase):
     """The two pre-existing `?q=` search paths, which had the same bug and are fixed by the same
     lookup. Driven through the real endpoints rather than the queryset, because that is where a
     reader met it."""
+
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_branch('browse-diacritics')

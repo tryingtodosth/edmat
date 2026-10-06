@@ -33,6 +33,11 @@ def make_entry(exercise, *, kind='solution', locale='pl', body='<p>Because \\(x=
 
 
 class EntryCreationTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch(slug='pool-create')
         self.exercise = make_exercise(self.branch, 1)
@@ -68,6 +73,8 @@ class EntryCreationTests(APITestCase):
 class EntryVisibilityTests(APITestCase):
     """What GET /api/exercises/{id}/ embeds, per caller — a pending entry must reach exactly its
     author and the reviewer circle, and nobody else."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_branch(slug='pool-vis')
@@ -112,6 +119,8 @@ class EntryVisibilityTests(APITestCase):
 
 
 class EntryReviewTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch(slug='pool-review')
         self.exercise = make_exercise(self.branch, 1)
@@ -167,6 +176,8 @@ class DerivedVerifiedTests(APITestCase):
     """Exercise.verified is derived now (signals.recount_verified) — at least one published,
     visible solution that passed review (pinned, reviewed, or by a verified contributor)."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch(slug='pool-verified')
         self.exercise = make_exercise(self.branch, 1)
@@ -208,6 +219,8 @@ class DerivedVerifiedTests(APITestCase):
 
 
 class EntryVoteTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch(slug='pool-votes')
         self.exercise = make_exercise(self.branch, 1)
@@ -247,6 +260,8 @@ class EntryVoteTests(APITestCase):
 
 
 class EntryPinAndOwnerEditTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch(slug='pool-own')
         self.exercise = make_exercise(self.branch, 1)
@@ -298,6 +313,8 @@ class EntryPinAndOwnerEditTests(APITestCase):
 class EntryEditSuggestionTests(APITestCase):
     """A suggestion against an entry names the ROW; its deciding circle is the entry's author +
     staff/governors — not every verified contributor, and never through the translation fields."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_branch(slug='pool-suggest')
@@ -391,6 +408,8 @@ class EntryEditSuggestionTests(APITestCase):
 
 
 class EntryDiscussionTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch(slug='pool-talk')
         self.exercise = make_exercise(self.branch, 1)
@@ -427,6 +446,8 @@ class EntryDiscussionTests(APITestCase):
 
 
 class EntryReportTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch(slug='pool-report')
         self.exercise = make_exercise(self.branch, 1)
@@ -493,6 +514,8 @@ class SubmissionCreatesEntriesTests(APITestCase):
 
 
 class SiteActivityTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def test_a_published_entry_reaches_the_activity_feed(self):
         """§17AI made the feed a STORED, public-by-construction log — a row appears when the
         publish path runs (the API), never from a bare objects.create the way the old derived

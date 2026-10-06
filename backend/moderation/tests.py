@@ -19,6 +19,7 @@ from exercises.models import Exercise, ExerciseTranslation
 from moderation.models import ContentView, FeatureFlag, NodeGovernor, Report
 from moderation.services import governed_branch_ids, is_feature_enabled, is_governor_of_course
 from taxonomy.models import Discipline
+from telemetry.routers import all_log_shards
 from testing.factories import (
     make_course,
     make_exercise,
@@ -34,6 +35,11 @@ class TranslationApprovalTests(APITestCase):
     reproduced LIVE (against a real, running server, or a direct ORM call) before this suite existed
     — see that section for the full story of why each one used to fail deterministically, not just
     under concurrency."""
+
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.moderator = make_user('mod', is_staff=True)
@@ -130,6 +136,8 @@ class TranslationApprovalTests(APITestCase):
 class SubmissionApprovalTests(APITestCase):
     """Regression coverage for the submission number-allocation race (CLAUDE.md Section 17I) and the
     idempotency guard both were built to fix."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.moderator = make_user('mod2', is_staff=True)
@@ -276,6 +284,8 @@ class SubmissionApprovalTests(APITestCase):
 
 
 class EditSuggestionApprovalTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.moderator = make_user('mod3', is_staff=True)
         self.branch = make_course(slug='uw-edit-branch')
@@ -326,6 +336,8 @@ class EditSuggestionApprovalTests(APITestCase):
 
 
 class ModerationQueuePermissionTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def test_non_moderator_is_forbidden(self):
         self.client.force_authenticate(make_user('visitor'))
         response = self.client.get(reverse('moderation-queue'))
@@ -357,6 +369,8 @@ class AutoHideTests(APITestCase):
     "+20% of users who viewed that content report it" hides it right away, with a real
     `MIN_REPORTS_FOR_AUTO_HIDE = 3` floor so a single bad-faith report can't hide something with a
     tiny viewer pool on its own (1 report / 4 viewers = 25%, well above the raw 20% rule)."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -451,6 +465,8 @@ class MaterialCoverageCommentReportTests(APITestCase):
     generically, regardless of what the comment's own `content_type`/`object_id` points at.
     Confirmed here directly rather than assumed."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def test_reporting_a_comment_attached_to_a_material_coverage_claim_succeeds(self):
         from materials.models import MaterialCoverage
 
@@ -513,6 +529,8 @@ class MaterialCoverageCommentReportTests(APITestCase):
 
 
 class ReportActionViewTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.moderator = make_user('report-mod', is_staff=True)
         self.branch = make_course()
@@ -580,6 +598,8 @@ class ReportActionScopingTests(APITestCase):
     reuses build_report_queue(), and the FIRST version of this fix left that one final call
     unscoped, which would have handed a course governor back every OTHER pending report on the
     platform the moment they resolved one of their own."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def _hidden_exercise_in(self, branch):
         exercise = make_exercise(branch, 1)
@@ -664,6 +684,8 @@ class ReportQueueTests(APITestCase):
     small, fixed number of bulk queries (CLAUDE.md Section 17F); these tests exercise its actual
     output shape, not just that it runs without error."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def test_reports_on_the_same_target_are_grouped_with_a_correct_count(self):
         branch = make_course()
         exercise = make_exercise(branch, 1)
@@ -696,6 +718,8 @@ class TagMaterialRequirementReportTests(APITestCase):
     branch used to assume "anything that isn't Exercise/Review/Service is a reported Comment" and
     would have crashed (an AttributeError reading a Comment-only field) the instant one of these
     three showed up in a real pending queue."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.moderator = make_user('tmr-mod', is_staff=True)
@@ -815,6 +839,8 @@ class ServiceReviewReportTests(APITestCase):
     different backend model from `review` (community.Review, an Exercise review) sharing the same
     frontend ReviewList component (ReviewList.svelte's own new `kind` prop). No viewer-pool concept
     (same as `service`/`tag`/`material`/`requirement`), so it queues immediately, no auto-hide."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         from services.models import Service, ServiceReview
@@ -945,6 +971,8 @@ class ModerationActionScopingTests(APITestCase):
     ModerationActionView.post() endpoint — approving a submission outside their own governed
     course(s) must fail with a clean 403, never silently succeed."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.course_a = make_course('scope-branch-a', discipline_slug='matematyka')
         self.course_b = make_course('scope-branch-b', discipline_slug='matematyka')
@@ -1038,6 +1066,8 @@ class ModerationQueueScopingTests(APITestCase):
     scoped governor should see only their own course(s); a real global moderator's own experience
     must stay completely unfiltered, unchanged."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def test_a_course_governor_only_sees_their_own_courses_pending_items(self):
         from moderation.models import ExerciseSubmission
 
@@ -1083,6 +1113,8 @@ class IsModeratorGateTests(APITestCase):
     surface at all; a plain authenticated user with none is forbidden, same as before this feature
     existed."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def test_a_node_governor_with_any_grant_can_reach_the_queue(self):
         branch = make_course('gate-branch')
         governor = make_user('gate-gov')
@@ -1104,6 +1136,8 @@ class IsModeratorGateTests(APITestCase):
 class NodeGovernorGrantApiTests(APITestCase):
     """The actual administration panel this feature is named for — granting/revoking a
     NodeGovernor row via `NodeGovernorViewSet` (moderation/views.py)."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.staff = make_user('grant-staff', is_staff=True)
@@ -1216,6 +1250,8 @@ class FeatureFlagTests(APITestCase):
     not an HTTP-shaped test) is covered directly here too, since it's the one place both the
     ViewSet's own read side and every `feature_gate`-protected endpoint elsewhere ultimately read
     from."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.staff = make_user('flag-staff', is_staff=True)
@@ -1425,6 +1461,8 @@ class ModerationQueueCountTests(APITestCase):
     to pin is that it AGREES with the queue: a count that disagreed with the page it links to would
     be worse than no count.
     """
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course('count-branch')

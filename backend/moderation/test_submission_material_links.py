@@ -19,10 +19,16 @@ from rest_framework.test import APITestCase
 
 from exercises.models import ExerciseMaterialLink
 from moderation.models import ExerciseSubmission
+from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_material, make_user
 
 
 class SubmissionPayloadValidationTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course(slug='sub-link-branch')
         self.material = make_material(self.branch, slug='sub-link-script', title='For material X')
@@ -76,6 +82,8 @@ class SubmissionPayloadValidationTests(APITestCase):
 
 
 class SubmissionApprovalCreatesTheLinkTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course(slug='apply-link-branch')
         self.material = make_material(self.branch, slug='apply-link-script', title='The script')
@@ -181,6 +189,8 @@ class SubmissionApprovalCreatesTheLinkTests(APITestCase):
 class QueueShowsWhichMaterialTests(APITestCase):
     """The moderator has to be able to see "for material X" before deciding — otherwise the link
     lands on approval as a surprise nobody reviewed."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course(slug='queue-link-branch')

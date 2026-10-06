@@ -4,13 +4,13 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, plus `test_*.py` in several apps | 1145 |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, plus `test_*.py` in several apps | 2686 |
 | **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 22 scripts |
 
-The backend figure was measured (`manage.py test --parallel 4`, ~9 min); the per-app numbers further
-down are not all re-counted and some lag behind. The browser row deliberately no longer carries a
-total — the per-script counts below are the ones kept current, and a headline number that nobody
-re-measures is worse than none.
+The backend figure was measured (`manage.py test --parallel 4 --keepdb`, ~24½ min — see below for
+what that number depends on); the per-app numbers further down are not all re-counted and some lag
+behind. The browser row deliberately no longer carries a total — the per-script counts below are
+the ones kept current, and a headline number that nobody re-measures is worse than none.
 
 The split is not arbitrary. The Django suite pins **rules** — who may see what, what is refused and
 why — because those are the things that fail silently: a broken create flow announces itself
@@ -26,23 +26,38 @@ different things to a stranger, a participant and the instructor.
 
 ```sh
 cd backend
-../.venv/bin/python3 manage.py test          # everything (~3.5 min)
-../.venv/bin/python3 manage.py test classroom  # one app
-../.venv/bin/python3 manage.py test classroom.tests.DiscussionTests            # one class
-../.venv/bin/python3 manage.py test classroom.tests.DiscussionTests.test_a_public_thread_is_readable_but_not_writable_by_outsiders  # one test
+../.venv/bin/python3 manage.py test --parallel 4 --keepdb   # everything — ~24½ min, 2686 tests
+../.venv/bin/python3 manage.py test courses                 # one app
+../.venv/bin/python3 manage.py test courses.tests.DiscussionTests            # one class
+../.venv/bin/python3 manage.py test courses.tests.DiscussionTests.test_a_public_thread_is_readable_but_not_writable_by_outsiders  # one test
 ```
 
 Useful flags:
 
 ```sh
-manage.py test --keepdb      # reuse the test database — much faster on repeat runs
-manage.py test --parallel 4  # split across processes
+manage.py test --parallel 4  # split across four worker processes — the documented way to run it all
+manage.py test --keepdb      # keep the test database afterwards
 manage.py test -v 2          # name every test as it runs
 manage.py test --failfast    # stop at the first failure
 ```
 
-**Nothing needs to be running first**, and nothing touches `db.sqlite3` — Django creates a separate
-test database, applies every migration, and destroys it afterwards.
+**`--parallel 4` is the command to use, and it needs `tblib`** (it is in `backend/requirements.txt`;
+`pip install -r requirements.txt` has it). A worker process ships a failure back to the parent by
+pickling it, and a traceback object does not pickle — without `tblib` the *first* error in any
+worker kills the whole run with `TypeError: cannot pickle 'traceback' object` and never tells you
+which test failed. Django's own documentation names it under "Running tests in parallel".
+
+**Where the time actually goes.** Measured on this machine on 2026-10-06: **24 min 27 s**
+wall-clock for 2 686 tests, of which **14 min 53 s** is the tests and the remaining **~9½ min** is
+building the test databases before a single one runs. (Four other agents were working the same six
+cores, so read it as an upper bound.) That build is ten databases, not one — `default` plus the
+nine telemetry log shards, each with its own `migrate`, and under `--parallel 4` each of them
+cloned once per worker. The test databases are SQLite **in-memory** (nothing in `DATABASES` sets
+`TEST['NAME']`), so **`--keepdb` cannot keep anything between runs here**: it is harmless, not a
+speed-up, and the ~9½ minutes are paid again every time.
+
+**Nothing needs to be running first**, and nothing touches `db.sqlite3` — Django creates separate
+test databases, applies every migration, and destroys them afterwards.
 
 One thing it *did* touch, until recently: the anonymous-read response cache is a FILE cache under
 `backend/cachedata/`, which outlives the process. Its stored responses are replayed as plain
@@ -55,18 +70,52 @@ The middleware is now removed from `MIDDLEWARE` under the test runner (`config/s
 itself. If a swathe of unrelated tests ever starts failing on a missing `.data` again, that is where
 to look.
 
-### One quirk you will hit if you write more of these
+### The one rule every new test class has to follow
 
-Any test that makes an HTTP request must declare the telemetry log-shard databases, or it fails on
-Django's cross-database isolation guard rather than on anything you wrote:
+**A test class that makes a request declares the telemetry log-shard databases.** One line, at the
+top of the class:
 
 ```python
-class MyApiTests(TestCase):
+from telemetry.routers import all_log_shards
+
+
+class MyApiTests(APITestCase):
     databases = set(all_log_shards()) | {'default'}
 ```
 
-`classroom/tests.py` and `identity/tests.py` both have an `ApiTestCase` base doing exactly that —
-inherit from it rather than repeating the line.
+The request-logging middleware writes a `RequestLog` row for every request, into one of nine
+separate SQLite files (`telemetry/routers.py`), and Django's test runner forbids a test from
+touching a database alias its class did not declare. Without the line the class fails on that
+guard rather than on anything you wrote — serially `telemetry/middleware.py`'s `except Exception`
+swallows it and logs a full traceback per request (noise that reads exactly like a failure), and
+under `--parallel` it is a hard `setUpClass` error.
+
+Three details that have each cost somebody an afternoon:
+
+- **Put it on a base class if the file has one** (`booking/tests.py: ApiTestCase`,
+  `shifts/tests.py: RotaTestCase`, `plans/tests.py: PlansTestCase`,
+  `galleries/tests.py: GalleryBase`, `accounts/test_avatar.py: AvatarTestCase`,
+  `accounts/test_throttling.py: ThrottleTestCase`), once, and let the subclasses inherit it. Where
+  a file has no base, every class that makes a request carries its own copy. There is deliberately
+  **no cross-app shared base**: the forty files that already had the line chose repetition on
+  purpose, so one app's fixtures cannot break another's.
+- **Not `databases = '__all__'`.** `config/test_locale_hint.py` is the one place that should use
+  it; a class that declares every database will happily pass a test that writes to the wrong one.
+- **It is not only `self.client`.** A class that builds its own `APIClient()` in a helper makes
+  requests too — `taxonomy/tests.py` does, and that is exactly how three of its classes stayed
+  broken while a narrower check said the file was fine.
+
+**`backend/testing/check_databases_declared.py` is the check**, and zero is the bar:
+
+```sh
+cd backend
+../.venv/bin/python3 testing/check_databases_declared.py   # -> "0 classes still unresolved, in 0 files"
+```
+
+It parses rather than imports (so it needs no settings and no database), resolves a declaration
+inherited from a base class in the same file **or in another module**, and names every class that
+still needs the line. Run it after adding a test class; a number other than zero is the count of
+suites whose next full run will be noise.
 
 ### What each app covers
 

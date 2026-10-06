@@ -15,9 +15,15 @@ from taxonomy.models import (
     DisciplineTranslation,
     Topic,
 )
+from telemetry.routers import all_log_shards
 
 
 class DisciplineListTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         # `/api/disciplines/` sits behind the anonymous-read response cache
         # (config/cachemw.py), which — unlike the database — is NOT rolled back between tests
@@ -63,6 +69,8 @@ class DisciplineListTests(APITestCase):
 
 
 class BranchDetailTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         # See DisciplineListTests.setUp — same anonymous-read cache, same cross-test leak.
         cache.clear()
@@ -92,6 +100,8 @@ class BranchLocaleTests(APITestCase):
     missing translation must fall back to the original rather than to whatever locale happens to
     sort first. Before the taxonomy service started sending `lang`, the backend defaulted to 'en'
     and a single English row made every reader see English."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         # See DisciplineListTests.setUp — same anonymous-read cache, same cross-test leak.
@@ -127,6 +137,8 @@ class ProposeTaxonomyTests(APITestCase):
     else's is live but marked pending — real and referenceable rather than parked in a side table,
     because a word you cannot use until somebody wakes up is no use to the person who needed it.
     """
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         # See DisciplineListTests.setUp — same anonymous-read cache, same cross-test leak.
@@ -191,6 +203,8 @@ class ProposeTaxonomyTests(APITestCase):
 
 class TaxonomyModerationTests(APITestCase):
     """Deciding on a proposal, from /moderation."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.user = User.objects.create_user('student', password='pw')
@@ -259,6 +273,8 @@ class TaxonomyDecisionTests(APITestCase):
     `Exercise.branch`/`Material.branch` both cascade — so a bare delete on a proposed branch with
     exercises filed under it destroys those exercises. It used to.
     """
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.user = User.objects.create_user('student', password='pw')
@@ -373,6 +389,8 @@ class TaxonomyDecisionReplyTests(APITestCase):
     quietly stops existing, and the one person who wanted to know is the one nobody told. Merge and
     move carry where the content went, which is the only part of any of this that is actionable.
     """
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.user = User.objects.create_user('student', password='pw')

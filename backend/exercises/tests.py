@@ -22,10 +22,16 @@ from rest_framework.test import APITestCase
 
 from exercises.models import Exercise, ExerciseTranslation, Tag
 from taxonomy.models import Topic
+from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_exercise, make_topic, make_user
 
 
 class ExerciseListingTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course()
         self.easy = make_exercise(self.branch, 1, difficulty='easy')
@@ -50,6 +56,8 @@ class ExerciseSubmittedByFilterTests(APITestCase):
     """The public profile page's own new "what they were doing/contributing" section (CLAUDE.md's
     tutoring-listings feature note, item 6) needs a way to list a specific user's own published
     exercise submissions — `?submitted_by=<id>` on the plain exercise list endpoint."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -77,6 +85,8 @@ class ExerciseLocaleResolutionTests(APITestCase):
     """CLAUDE.md Section 10's "resolve, fall back to original" behavior — a reader always sees the
     published translation for their requested `?lang=`, falling back to the original locale when
     none exists yet for the one they asked for."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -110,6 +120,8 @@ class ExerciseLocaleResolutionTests(APITestCase):
 
 
 class ExerciseTranslationSubmissionTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course()
         self.exercise = make_exercise(self.branch, 1)
@@ -144,6 +156,8 @@ class ExerciseBulkEndpointTests(APITestCase):
     DRF's `ListSerializer` shares as ONE instance across every row under `many=True` — every exercise
     past the first in a bulk response showed the FIRST one's own title/statement instead of its own.
     Fixed by caching on the per-row object instead; this test locks that fix in place."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def test_each_exercise_in_a_bulk_response_keeps_its_own_distinct_content(self):
         branch = make_course()

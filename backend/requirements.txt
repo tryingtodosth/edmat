@@ -40,3 +40,11 @@ cryptography>=42.0,<52.0
 # response caching, and pub/sub notification push. Without the env var nothing imports it at
 # request time and the file-based cache/DB-polling behavior applies — see config/settings.py.
 redis>=5.0,<9.0
+
+# Test runner only: `manage.py test --parallel` ships a failure from a worker process back to the
+# parent by pickling it, and a traceback object does not pickle. Django's own documentation names
+# tblib as the fix; without it the FIRST error in any worker kills the whole run with
+# `TypeError: cannot pickle 'traceback' object` and you never learn which test failed. It is a few
+# kilobytes and imports nothing at request time, so it stays in the one canonical list rather than
+# in a second requirements-dev.txt nobody would remember to install.
+tblib>=3.0,<4.0

@@ -24,6 +24,8 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework.throttling import SimpleRateThrottle
 
+from telemetry.routers import all_log_shards
+
 User = get_user_model()
 
 
@@ -45,6 +47,11 @@ class ThrottleTestCase(APITestCase):
     Subclasses declare `RATES` with small, obvious numbers rather than testing the real production
     values — a test that must issue 600 requests to prove a 600/hour limit is slow and proves little.
     """
+
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, so the line
+    # lives here once and every class in this file inherits it.
+    databases = set(all_log_shards()) | {'default'}
 
     RATES: dict[str, str] = {}
 

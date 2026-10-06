@@ -13,6 +13,11 @@ from testing.factories import make_course, make_exercise, make_material, make_to
 
 
 class ReviewTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course()
         self.exercise = make_exercise(self.branch, 1)
@@ -75,6 +80,8 @@ class ReviewTests(APITestCase):
 
 
 class CommentTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course()
         self.exercise = make_exercise(self.branch, 1)
@@ -197,6 +204,8 @@ class ReviewReplyTests(APITestCase):
     what is worth pinning here is the part that is genuinely new: who hears about it, and that a
     reply cannot be smuggled onto a thread it does not belong to."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course()
         self.exercise = make_exercise(self.branch, 1)
@@ -309,6 +318,8 @@ class ReviewReplyTests(APITestCase):
 class CommentEditDeleteTests(APITestCase):
     """What the author of a comment can do to it afterwards. Both were unreachable before — the
     model had `is_removed` but only a moderator could ever set it."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -531,6 +542,8 @@ class SavedCommentTests(APITestCase):
 
 
 class CommentVoteTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course()
         self.exercise = make_exercise(self.branch, 1)

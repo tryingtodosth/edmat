@@ -20,6 +20,7 @@ from rest_framework.test import APITestCase
 
 from galleries.models import Gallery, GalleryImage
 from moderation.models import FeatureFlag, NodeGovernor
+from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_exercise, make_material, make_user
 
 
@@ -48,6 +49,11 @@ class GalleryBase(APITestCase):
     one's "is it really gone?" check pass for the wrong reason. `accounts/test_avatar.py` and
     `events/tests.py` already do exactly this, for exactly this.
     """
+
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, so the line
+    # lives here once and every class in this file inherits it.
+    databases = set(all_log_shards()) | {'default'}
 
     @classmethod
     def setUpClass(cls):

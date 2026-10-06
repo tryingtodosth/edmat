@@ -12,12 +12,18 @@ from rest_framework.test import APITestCase
 from moderation.models import GovernorApplication, NodeGovernor
 from notifications.models import Notification
 from taxonomy.models import Branch
+from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_material, make_user
 
 STATEMENT = 'I photographed this handout and I would like to keep its pages in order.'
 
 
 class ApplyingTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch()
         self.material = make_material(self.branch)
@@ -92,6 +98,8 @@ class ApplyingTests(APITestCase):
 
 
 class QueueTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch()
         self.material = make_material(self.branch)
@@ -149,6 +157,8 @@ class QueueTests(APITestCase):
 
 
 class DecidingTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch()
         self.material = make_material(self.branch)
@@ -251,6 +261,8 @@ class DecidingTests(APITestCase):
 
 
 class WithdrawTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_branch()
         self.material = make_material(self.branch)

@@ -7,10 +7,16 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from study.models import ExerciseSet, ExerciseSetItem
+from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_exercise, make_user
 
 
 class ExerciseSetCreationTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course()
         self.exercise_a = make_exercise(self.branch, 1)
@@ -86,6 +92,8 @@ class ExerciseSetCreationTests(APITestCase):
 
 
 class ExerciseSetOwnershipTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.branch = make_course()
         self.exercises = [make_exercise(self.branch, n) for n in range(1, 4)]
@@ -137,6 +145,8 @@ class ExerciseSetSharingTests(APITestCase):
     "unshare," and the share link itself is an unguessable slug (study/models.py's
     `_generate_set_slug`), not a raw sequential pk — resolving that section's own "Left open" note
     that no revoke mechanism existed."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -228,6 +238,8 @@ class MinorSharedSetTests(APITestCase):
     where a stranger holding a link read a child's display name. The sharing feature predates the
     minors regime, which is exactly why nothing caught it.
     """
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()

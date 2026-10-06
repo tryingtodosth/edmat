@@ -74,7 +74,14 @@ class PrecedenceTests(WeekScheduleFixtureMixin, ApiTestCase):
         super().setUp()
         self.service = self.make_service()
         self.rule(TUESDAY, 14, 16)
-        self.tuesday = self.next_weekday(TUESDAY)
+        # Two weeks out, not one, because
+        # `test_the_weeks_around_a_detached_one_are_untouched` looks at the week BEFORE this one
+        # and `slots_for_service` never offers an hour that has already passed. With the default
+        # one week, that neighbouring Tuesday is today whenever the suite runs on a Tuesday, and
+        # the 14:00 and 15:00 slots it asserts are gone by mid-afternoon — a failure that depends
+        # on the day of the week and the time of day, and on nothing else (found 2026-10-06, a
+        # Tuesday, at 22:45).
+        self.tuesday = self.next_weekday(TUESDAY, weeks_ahead=2)
         self.monday = monday_of(self.tuesday)
 
     def test_an_untouched_week_follows_the_repeating_pattern(self):

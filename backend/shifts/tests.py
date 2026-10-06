@@ -18,6 +18,7 @@ from rest_framework.test import APITestCase
 from events.models import Event, EventStaff, Session
 from shifts.models import Assignment, Shift, Station, VolunteerRecord
 from shifts import rules
+from telemetry.routers import all_log_shards
 from testing.factories import make_user
 
 
@@ -29,6 +30,11 @@ def _future(days=3, hour=10):
 
 
 class RotaTestCase(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, so the line
+    # lives here once and every class in this file inherits it.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.organiser = make_user('rota-organiser')
         self.volunteer = make_user('rota-volunteer')

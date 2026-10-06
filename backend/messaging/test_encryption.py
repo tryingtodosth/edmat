@@ -20,12 +20,18 @@ from rest_framework.test import APITestCase
 
 from messaging.crypto import PREFIX, MessageDecryptionError, decrypt_text, encrypt_text
 from moderation.models import FeatureFlag
+from telemetry.routers import all_log_shards
 from testing.factories import make_user
 
 OTHER_KEY = base64.urlsafe_b64encode(os.urandom(32)).decode()
 
 
 class BodyEncryptionTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.sender = make_user('crypt-sender')
         self.recipient = make_user('crypt-recipient')
@@ -104,6 +110,8 @@ class BackwardsCompatibilityTests(APITestCase):
     """Encryption was switched on over a database that already had messages in it, and nothing
     forces those rows to be converted — so an unconverted one has to keep working."""
 
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.sender = make_user('legacy-sender')
         self.recipient = make_user('legacy-recipient')
@@ -148,6 +156,8 @@ class BackwardsCompatibilityTests(APITestCase):
 
 class UnreadableRowTests(APITestCase):
     """A rotated key, a truncated value, a tampered row — the inbox stays up and says so."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.sender = make_user('rot-sender')

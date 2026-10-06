@@ -24,6 +24,7 @@ from rest_framework.test import APITestCase
 
 from services.geocoding import GeocodingUnavailable, search
 from services.models import Service
+from telemetry.routers import all_log_shards
 
 User = get_user_model()
 
@@ -112,6 +113,11 @@ class GeocodingClientTests(APITestCase):
 
 
 class GeocodeApiTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         cache.clear()
         self.user = User.objects.create_user('geouser', 'geo@example.com', 'pw-for-test')
@@ -168,6 +174,8 @@ class GeocodeApiTests(APITestCase):
 
 
 class ServiceDeliveryModeTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.user = User.objects.create_user('tutor', 'tutor@example.com', 'pw-for-test')
         # The creation gate (`config/creation.py`, learning step F) is seeded ON, so a new listing
@@ -266,6 +274,8 @@ class ServiceDeliveryModeTests(APITestCase):
 
 class ServiceLocationFilterTests(APITestCase):
     """`?delivery_mode=` and `?near=` — what makes a stored location useful rather than decorative."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.user = User.objects.create_user('filtertutor', 'ft@example.com', 'pw-for-test')

@@ -13054,3 +13054,121 @@ by any check.
   the course-page end of the same placement; the prose covers the deck-page end. One more picture
   if somebody wants it.
 - **`e2e/flashcards.mjs` was not run here** — that is closing step D's, by the brief.
+
+## 17BT.A — `manage.py test --parallel 4`: 138 classes, one line each, and a checker that cannot lie (2026-10-06)
+
+Closing cycle, step A (`prompts/12-test-shards.md`, design `prompts/11-closing-design.md`). Branch
+`close/a-test-shards` from `490c195`. Closes `todo.md` "Learning cycle — left open" bullet 2.
+
+**The problem.** The documented way to run the backend suite did not work at all. `telemetry`'s
+middleware writes a `RequestLog` row for every request, into one of nine SQLite shards
+(`telemetry/routers.py`), and Django's test runner forbids a test from touching a database alias
+its class did not declare. Forty test classes carried
+`databases = set(all_log_shards()) | {'default'}`; **138** did not — the brief counted 137 in 28
+files, of which two (`booking/test_week_schedules.py`) turned out to need nothing and three more
+(`taxonomy/tests.py`) only showed up once the checker was widened, leaving 135 for this branch and
+3 for steps B and E. Serially,
+`telemetry/middleware.py`'s `except Exception` swallowed the resulting `DatabaseOperationForbidden`
+and logged a full traceback **per request** — the measurement: a run of the single class
+`events.test_permission_matrix.PermissionMatrixTests`, **one test**, printed **704** copies of
+`Failed to write a request log row` and **19 020 lines** of output. Multiply by the whole suite and
+that is the "tens of thousands of lines" the board complained of. Under `--parallel` the same
+refusal surfaced as a hard `setUpClass` error, and the runner then died shipping that error back to
+the parent: `TypeError: cannot pickle 'traceback' object`.
+
+**The fix is one line, repeated on purpose.** **113** copies of
+`databases = set(all_log_shards()) | {'default'}` across **25** test files, resolving **135**
+reported classes — the difference is inheritance: where a file already had a base class
+(`shifts/tests.py: RotaTestCase`, `plans/tests.py: PlansTestCase`, `galleries/tests.py:
+GalleryBase`, `accounts/test_avatar.py: AvatarTestCase`, `accounts/test_throttling.py:
+ThrottleTestCase`, `needs/tests.py: NeedsBaseTestCase`) the line went on the base, once, and
+twenty-two subclasses inherited it. **No cross-app shared base was extracted**, and that is a
+decision rather than laziness: the forty classes that already had the line each kept their own copy
+so that one app's fixtures cannot break another app's suite, and house rule 13 points the other way
+only when the thing being shared is *behaviour*, not a constant.
+
+`booking/test_week_schedules.py` was reported by the brief's own script and is the one file that
+needed **nothing**: its classes inherit `booking.tests.ApiTestCase`, which has had the line all
+along. A second copy there would have been a change that looked like a fix.
+
+**`tblib` is what makes a parallel failure legible**, and is now in `backend/requirements.txt` (the
+root file is a one-line include of it, which is what `setup.sh` installs, so one edit covers both).
+Without it the first error in any worker kills the run with no test name attached.
+
+**The checker is the deliverable, not the sweep.** `backend/testing/check_databases_declared.py`
+parses every `test*.py` (no settings, no database needed), resolves a `databases` declaration
+through inheritance **including a base imported from another module**, and names every class that
+still needs the line. Zero is the bar.
+
+**And the checker caught the sweep lying.** The brief's version of the script looked for
+`self.client.`, reported 137 classes, and would have printed `0` with
+`taxonomy.tests.TaxonomyModerationTests` — a class the board's own bullet names as broken — still
+broken, because that file posts through an `APIClient()` a `_as(who)` helper builds. Widening the
+test to "uses `self.client.` **or** constructs a client" found that class and two more beside it in
+the same file. A checker narrower than the rule it checks is worse than no checker: it says "done".
+
+### Verified
+
+- `backend/testing/check_databases_declared.py` → **`3 classes still unresolved, in 2 files`**, and
+  all three are the ones the ownership table gives to other branches:
+  `events/test_permission_matrix.py: PermissionMatrixTests` (step B) and
+  `community/test_discussions.py: DiscussionEndpointTests, DiscussionLocationAdminTests` (step E).
+  After those two merge it is **0**, which is what `prompts/17-closing-integration.md` step 3 asks.
+- `manage.py check` — no issues. `makemigrations --check --dry-run` — no changes.
+- Serial `manage.py test shifts plans materials --keepdb` — **196 tests, OK**, 161 s of tests
+  (11 min wall including the database build), and **0** occurrences of
+  `Failed to write a request log row`. Against the 704 that one unfixed class produces on its own,
+  that zero is the proof the declaration is the right fix and not a silenced guard.
+- `time manage.py test --parallel 4 --keepdb` — **2 686 tests, OK**, exit 0.
+  **24 min 27 s** wall-clock (22:58:38 → 23:23:05), of which 14 min 53 s is the tests themselves
+  and ~9½ min is building ten databases before any test runs. **Four other agents were working the
+  same six cores throughout** (closing steps B–E, three of them driving browsers), so that is an
+  upper bound, not a clean-machine figure. The documented "~9 min" was never a measurement of this
+  command — it is the database-build time quoted in every worktree recipe — and `test.md` now says
+  the measured number instead.
+- The 738 remaining `Failed to write a request log row` lines in that run are **all** from the
+  three classes the ownership table gives to steps B and E: 704 of them are
+  `PermissionMatrixTests` (measured on its own), the rest `community/test_discussions.py`. Nothing
+  else in 2 686 tests prints the line.
+- **The first `--parallel 4` run failed, and both causes were real but neither was the shards.**
+  Six errors were `OSError: [Errno 28] No space left on device` on `/tmp` — the machine's root
+  filesystem filled up mid-run with five agents on it, and `galleries/tests.py` and
+  `community/test_inline_images.py` both `mkdtemp` a per-class `MEDIA_ROOT`. The seventh was a
+  genuine, pre-existing, **date-dependent** test, described below. The run *reported* all seven and
+  exited cleanly, which is precisely what `tblib` is for: before this branch the first of them
+  would have killed the runner with no test name attached.
+
+### Left open
+
+- **Three classes still need the line and are deliberately not mine**:
+  `events/test_permission_matrix.py: PermissionMatrixTests` (step B's file) and
+  `community/test_discussions.py: DiscussionEndpointTests, DiscussionLocationAdminTests` (step E's).
+  `check_databases_declared.py` prints them by name until those branches merge; the integrator
+  should expect **0** afterwards and treat any other name as the step that missed it.
+- **`booking/test_week_schedules.py: PrecedenceTests` was fixed here, outside this step's brief.**
+  `test_the_weeks_around_a_detached_one_are_untouched` asserts on the week *before* the anchor
+  Tuesday, which with the default `weeks_ahead=1` is **today** whenever the suite runs on a
+  Tuesday — and `slots_for_service` never offers an hour that has already passed, so the 14:00 and
+  15:00 it expects are gone by mid-afternoon. It failed for the first time at 22:45 on Tuesday
+  2026-10-06 and would have failed serially too; `--parallel` had nothing to do with it. The fix is
+  `weeks_ahead=2` in that class's `setUp` with a comment saying why. I did not sweep the rest of
+  the suite for other day-of-week-dependent tests; `booking/tests.py: next_weekday` and
+  `events/tests.py` are where any others would live.
+- **The ~9½-minute database build is paid on every run** and `--keepdb` cannot help, because the
+  SQLite test databases are in-memory. Giving `default` a `TEST['NAME']` on disk would make
+  `--keepdb` real and cut most of it; it would also mean a stale test database can now outlive a
+  migration, which is a trade nobody has chosen. Named, not taken.
+- **Nothing stops the next test class from forgetting the line.** The checker exists and `test.md`
+  points at it, but no hook and no CI runs it — this project has no CI at all, so a reminder in a
+  document is the whole mechanism.
+- **Files that would genuinely benefit from an in-file base class** and did not get one, because
+  extracting one is a bigger change than this step was given: `moderation/tests.py` and
+  `materials/tests.py` (17 classes each, every one of them now carrying its own copy of the line),
+  `services/tests.py` (9) and `exercises/test_solution_entries.py` (10). The repetition is
+  deliberate *across* apps; inside one file it is just repetition.
+- **The six `No space left on device` errors were environmental and are not fixed.** They say
+  something true, though: a parallel run plus four other agents can fill this machine's root
+  filesystem, and `mkdtemp`-based per-class `MEDIA_ROOT`s are where it shows up first.
+- **`backend/CLAUDE.md`'s own "Testing" section still does not mention the rule.** It is not in the
+  closing cycle's file-ownership table, so I left it alone rather than collide with another branch;
+  it is a two-line addition for whoever integrates.

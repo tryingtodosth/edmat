@@ -14,12 +14,18 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
+from telemetry.routers import all_log_shards
 from testing.factories import make_course, make_user, pdf_bytes
 
 User = get_user_model()
 
 
 class RegisterViewTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def test_registering_creates_a_real_user_and_returns_a_token(self):
         response = self.client.post(
             reverse('auth-register'),
@@ -47,6 +53,8 @@ class RegisterViewTests(APITestCase):
 
 
 class LoginViewTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.user = make_user('loginuser', password='correct-password')
         self.user.email = 'loginuser@example.com'
@@ -76,6 +84,8 @@ class LoginViewTests(APITestCase):
 class MeViewNodeGovernorTests(APITestCase):
     """`is_node_governor` on ProfileSerializer (GET /auth/me/) — the flag a frontend uses to decide
     whether to show the scoped moderation nav link/route at all for a non-staff user."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def test_a_user_with_a_node_governor_grant_shows_true(self):
         from django.contrib.contenttypes.models import ContentType
@@ -107,6 +117,8 @@ class MeViewNodeGovernorTests(APITestCase):
 class UserReviewsViewTests(APITestCase):
     """GET /api/users/{id}/reviews/ — the public profile page's own new "their reviews" section
     (CLAUDE.md's tutoring-listings feature note, item 6), for EXERCISE reviews specifically."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def test_lists_only_that_users_own_visible_reviews(self):
         from community.models import Review
@@ -274,6 +286,8 @@ class ProfileMaterialUploadQuotaTests(APITestCase):
 class UserServiceReviewsViewTests(APITestCase):
     """GET /api/users/{id}/service-reviews/ — the same "their reviews" profile section, for
     tutoring-listing reviews."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def test_lists_only_that_users_own_service_reviews(self):
         from services.models import Service, ServiceReview

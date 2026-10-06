@@ -11,10 +11,16 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from moderation.models import FeatureFlag
+from telemetry.routers import all_log_shards
 from testing.factories import make_user
 
 
 class SendMessageTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test, and this
+    # file has no shared base, so every class that makes a request repeats the line.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.sender = make_user('msg-sender')
         self.recipient = make_user('msg-recipient')
@@ -88,6 +94,8 @@ class SendMessageTests(APITestCase):
 
 
 class ReplyAndThreadingTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.sender = make_user('thread-sender')
         self.recipient = make_user('thread-recipient')
@@ -186,6 +194,8 @@ class ReplyAndThreadingTests(APITestCase):
 
 
 class RetrieveMarksReadTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.sender = make_user('read-sender')
         self.recipient = make_user('read-recipient')
@@ -221,6 +231,8 @@ class RetrieveMarksReadTests(APITestCase):
 
 
 class FolderListingTests(APITestCase):
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         self.sender = make_user('folder-sender')
         self.recipient = make_user('folder-recipient')
@@ -263,6 +275,8 @@ class MessagingKillSwitchTests(APITestCase):
     moderation/permissions.py's feature_gate('messaging') on MessageViewSet.permission_classes —
     applies to every action (list/retrieve/create/reply/thread/unread-count), so the whole surface
     is inaccessible to a non-staff user while off."""
+
+    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.sender = make_user('kill-msg-sender')
