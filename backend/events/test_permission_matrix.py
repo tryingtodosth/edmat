@@ -1761,4 +1761,30 @@ MATRIX = [
     ('volunteer', 'GET', '/work/', None, 200, 'a task and a shift are waiting on them'),
     ('organiser', 'GET', '/work/', None, 200, 'and rather more on them'),
     ('child', 'GET', '/work/', None, 200, 'a minor holds tasks and votes, so they have one too'),
+
+    # ---- the learning cycle (prompts/00-DESIGN.md, 2026-10-05), added at integration ------------
+    # Step E: a session's take-home exercises and the courses its organisation runs. Both are as
+    # public as the event page; a draft stays 404 for everyone who may not see it.
+    ('anonymous', 'GET', '/events/{event}/sessions/{session}/exercises/', None, 200, 'as public as the programme'),
+    ('stranger', 'GET', '/events/{event}/sessions/{session}/exercises/', None, 200, 'same'),
+    ('organiser', 'GET', '/events/{event}/sessions/{session}/exercises/', None, 200, 'same'),
+    ('anonymous', 'GET', '/events/{event}/related-courses/', None, 200, 'through the organisation; public courses only'),
+    ('stranger', 'GET', '/events/{event}/related-courses/', None, 200, 'same'),
+    ('anonymous', 'GET', '/events/{draft}/related-courses/', None, 404, 'a draft does not exist for a stranger'),
+    ('stranger', 'GET', '/events/{draft}/related-courses/', None, 404, 'same'),
+    # Step C: completion certificates. GET is SCOPED, not refused (courses/views.py's own
+    # docstring): staff get every row, anybody else gets their own and nothing else, so a stranger
+    # who can see the course at all gets 200 and an empty list — that leaks neither the other
+    # certificates nor the size of the roster. `not_staff` -> 404 is the POST mapping, not this one.
+    # A private course is absent anyway, and that is where the 404 comes from. The organiser runs
+    # the matrix's course.
+    ('anonymous', 'GET', '/courses/{course}/completions/', None, 401, 'a document somebody issued is for a signed-in reader'),
+    ('stranger', 'GET', '/courses/{course}/completions/', None, 200, 'scoped, not refused — their own, which is none'),
+    ('organiser', 'GET', '/courses/{course}/completions/', None, 200, 'they run it; the list is empty'),
+    ('stranger', 'GET', '/courses/{private_course}/completions/', None, 404, 'only_you — not for them'),
+    # Step B: the learning record is public by consent; with nothing shared the body is null, 200,
+    # because the profile exists and the record is withheld, not missing.
+    ('anonymous', 'GET', '/users/{attendee_id}/learning-record/', None, 200, 'nothing shared → null, still 200'),
+    ('stranger', 'GET', '/users/{attendee_id}/learning-record/', None, 200, 'same'),
+    ('attendee', 'GET', '/users/{attendee_id}/learning-record/', None, 200, 'their own'),
 ]

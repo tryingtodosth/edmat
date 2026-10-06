@@ -15,7 +15,8 @@ let pass = 0,
 	fail = 0;
 const errors = [];
 const check = (l, ok, x = '') => {
-	ok ? pass++ : fail++;
+	if (ok) pass++;
+	else fail++;
 	console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${l} ${ok ? '' : x}`);
 };
 const browser = await chromium.launch(

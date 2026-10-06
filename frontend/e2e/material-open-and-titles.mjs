@@ -14,13 +14,14 @@ try {
 	({ chromium } = await import('playwright-core'));
 }
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
-const API = process.env.E2E_API ?? 'http://localhost:8000';
+const _API = process.env.E2E_API ?? 'http://localhost:8000';
 const PICTURE_ID = process.env.E2E_PICTURE_MATERIAL ?? '8';
 let pass = 0,
 	fail = 0;
 const errors = [];
 const check = (l, ok, x = '') => {
-	ok ? pass++ : fail++;
+	if (ok) pass++;
+	else fail++;
 	console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${l}${ok ? '' : '  <- ' + x}`);
 };
 const browser = await chromium.launch(

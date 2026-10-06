@@ -242,7 +242,11 @@ const refused = await fetch(`${API}/api/shifts/${shiftId}/done/`, {
 	headers: auth(kasia),
 	body: JSON.stringify({ assignment: Number(assignmentId), hours: '0.25' })
 });
-check('a big hours override with no note is refused', refused.status === 400, String(refused.status));
+check(
+	'a big hours override with no note is refused',
+	refused.status === 400,
+	String(refused.status)
+);
 const done = await fetch(`${API}/api/shifts/${shiftId}/done/`, {
 	method: 'POST',
 	headers: auth(kasia),

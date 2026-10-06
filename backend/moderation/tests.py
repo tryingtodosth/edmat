@@ -1272,6 +1272,17 @@ class FeatureFlagTests(APITestCase):
                 # arrived. Both are added in the same pass rather than only the one that was
                 # noticed.
                 'school_demo',
+                # The learning cycle's three, seeded together by migration 0047
+                # (prompts/01-prep.md), for the same reason the conference and management rows
+                # above are grouped: eight parallel branches, one migration.
+                # `creation_requires_verification` is INVERTED like
+                # `material_uploads_verified_only` — on means founding a course, an event, a
+                # listing or an organisation needs a verified contributor (config/creation.py) —
+                # and is seeded ON by owner decision, so it is asserted below with that one
+                # rather than with the plain kill switches.
+                'flashcards',
+                'learning_record',
+                'creation_requires_verification',
                 'material_uploads_verified_only',
             },
         )
@@ -1304,10 +1315,19 @@ class FeatureFlagTests(APITestCase):
                     # And sketches, for exactly that reason again: 0042 seeds the switch on with no
                     # sketch on the platform, so provisioning it takes nothing away.
                     'sketches',
+                    # And the learning cycle's two plain switches, 0047: there is no deck and no
+                    # shared learning record on the platform the moment it runs, so seeding them
+                    # on removes nothing from anybody.
+                    'flashcards',
+                    'learning_record',
                 )
             )
         )
         self.assertFalse(by_key['material_uploads_verified_only'])
+        # The cycle's inverted switch, seeded ON by owner decision (prompts/01-prep.md) — the one
+        # place this set's "plain switches are on, the inverted one is off" shape does not hold,
+        # because here ON is the restrictive setting and that is what was asked for.
+        self.assertTrue(by_key['creation_requires_verification'])
 
     def test_non_staff_cannot_toggle_a_flag(self):
         self.client.force_authenticate(self.plain_user)

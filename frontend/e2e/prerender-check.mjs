@@ -10,8 +10,9 @@ const BASE = process.env.E2E_BASE || 'http://localhost:5174';
 let pass = 0,
 	fail = 0;
 const check = (name, ok, detail = '') => {
-	(ok ? pass++ : fail++,
-		console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`));
+	if (ok) pass++;
+	else fail++;
+	console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`);
 };
 
 const browser = await chromium.launch();

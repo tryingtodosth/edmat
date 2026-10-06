@@ -28,7 +28,8 @@ const PASSWORD = 'password123';
 const SHOTS = new URL('./screens/', import.meta.url).pathname;
 mkdirSync(SHOTS, { recursive: true });
 
-let pass = 0, fail = 0;
+let pass = 0,
+	fail = 0;
 const check = (l, ok, x = '') => {
 	if (ok) pass++;
 	else fail++;
@@ -185,7 +186,11 @@ try {
 		await page.waitForURL('**/');
 
 		await page.goto(`${BASE}/polls/${pollId}`);
-		await page.locator('h1, h2, [role="heading"]').first().waitFor({ timeout: 5000 }).catch(() => {});
+		await page
+			.locator('h1, h2, [role="heading"]')
+			.first()
+			.waitFor({ timeout: 5000 })
+			.catch(() => {});
 
 		await page.screenshot({ path: `${SHOTS}decisions-manager.png`, fullPage: true });
 		check('desktop screenshot taken', true);
@@ -206,7 +211,11 @@ try {
 		await page.waitForURL('**/');
 
 		await page.goto(`${BASE}/polls/${pollId}`);
-		await page.locator('h1, h2, [role="heading"]').first().waitFor({ timeout: 5000 }).catch(() => {});
+		await page
+			.locator('h1, h2, [role="heading"]')
+			.first()
+			.waitFor({ timeout: 5000 })
+			.catch(() => {});
 
 		await page.screenshot({ path: `${SHOTS}decisions-member.png`, fullPage: true });
 		check('phone screenshot taken', true);
