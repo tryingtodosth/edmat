@@ -47,6 +47,14 @@
 				<a href="/dziennik/" rel="external">{m.footer_schoolDemo()}</a>
 				<!-- "School logbook demo" -->
 			{/if}
+			<!-- The repository. A plain <a> with `rel="external"`, like /dziennik above and for the
+			     same reason: it leaves the SPA, so the router must not try to own it. Not behind any
+			     FeatureFlag — where the code lives is a standing fact about this site, not a
+			     surface somebody might switch off. The wording is "code", not "source", because
+			     `footer_sourceNote` right above already uses "source" about the exercise corpus,
+			     and the two are completely different things. -->
+			<a href="https://github.com/tryingtodosth/edmat" rel="external">{m.footer_github()}</a>
+			<!-- "Code on GitHub" -->
 			{#if canIssues}
 				<a href={resolve('/issues')}>{m.footer_issues()}</a>
 				<!-- "Reported issues" -->

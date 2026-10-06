@@ -41,4 +41,17 @@ def register_management_providers():
     providers.register('poll', 'decisions', _only('poll', poll_items))
 
 
+def register_learning_providers():
+    """The learning cycle's one dashboard provider (`prompts/10-integration.md` §3).
+
+    No `_only` wrapper: `flashcards.work.work_items` yields exactly one kind, `cards_due`, so the
+    section and the kind are already the same vocabulary. The flag key is `flashcards`, so a
+    moderator switching decks off takes this section off the dashboard with it (house rule 3).
+    """
+    from flashcards.work import work_items as flashcards_items
+
+    providers.register('cards_due', 'flashcards', flashcards_items)
+
+
 register_management_providers()
+register_learning_providers()

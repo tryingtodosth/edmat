@@ -40,7 +40,8 @@
 		need_decision: () => m.work_section_need_decision(), // "Help wanted decisions"
 		plan_step: () => m.work_section_plan_step(), // "Plan steps due"
 		plan_suggestion: () => m.work_section_plan_suggestion(), // "Plan suggestions"
-		poll: () => m.work_section_poll() // "Open polls"
+		poll: () => m.work_section_poll(), // "Open polls"
+		cards_due: () => m.work_section_cards_due() // "Flashcards due"
 	};
 
 	// Map of kind to label functions
@@ -55,7 +56,8 @@
 		course_request: () => m.work_kind_courseRequest(), // "Course request"
 		proposal: () => m.work_kind_proposal(), // "Material proposal"
 		shift: () => m.work_kind_shift(), // "Shift"
-		booking: () => m.work_kind_booking() // "Tutoring booking"
+		booking: () => m.work_kind_booking(), // "Tutoring booking"
+		cards_due: () => m.work_kind_cardsDue() // "Flashcards"
 	};
 
 	onMount(async () => {

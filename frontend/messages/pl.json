@@ -3889,5 +3889,8 @@
 	"decks_panelStudy": "Ucz się",
 	"decks_panelPlace": "Umieść tu jedną z moich talii",
 	"decks_panelNoDecks": "Nie masz jeszcze talii do umieszczenia.",
-	"decks_panelEmpty": "Jeszcze nie ma tu talii."
+	"decks_panelEmpty": "Jeszcze nie ma tu talii.",
+	"work_section_cards_due": "Fiszki do powtórki",
+	"work_kind_cardsDue": "Fiszki",
+	"footer_github": "Kod na GitHubie"
 }

@@ -50,6 +50,10 @@ _SECTION_ORDER = [
     'plan_step',
     'plan_suggestion',
     'poll',
+    # The learning cycle, 2026-10-06. Last on purpose: cards being due is the one section with no
+    # deadline in it (`flashcards/work.py` — urgency never reaches 3), so it reads after everything
+    # somebody could actually be late for.
+    'cards_due',
 ]
 
 

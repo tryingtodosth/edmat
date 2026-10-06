@@ -11236,6 +11236,69 @@ errors.
 - **The footer still links `/dziennik`.** The owner named the user menu; the footer is a different
   surface, and widening the ask is not this pass's call.
 
+## 17BR — The learning cycle: eight parallel steps, and what integrating them found (2026-10-05 → 2026-10-06)
+
+The design is `prompts/00-DESIGN.md`; the eight step briefs are `prompts/02`–`09`; the five launch
+decisions are `prompts/README.md` §9. Eight worktrees from one prep commit (**`f90e221`** — flags
+0047, an empty `flashcards` app, `config/creation.py` wired into four create paths, `/api/creation/`,
+the flashcards service stub with `createDeckFromExercises`'s signature fixed before the app existed,
+and a marker comment at every mount point), eight agents, **all on Opus 5 by owner decision** rather
+than a cheaper model for the small steps — the steps were not small, and the three that looked it
+(G, H, F) each turned out to touch a dozen files.
+
+The prep commit is the reason eight branches could run at once without a single shared-file
+collision: every seam one step needed from another was a **named module in the owning app that
+imports nothing from the consumer** (`flashcards/work.py`, `flashcards/record.py`,
+`courses/record.py`), and the integrator wires them. Nobody edited `config/settings.py`,
+`config/urls.py`, `moderation/models.py`'s flag enum, or `notifications/services.py`.
+
+**One deliberate deviation from the design.** `00-DESIGN.md` §4.1 said decks are private only. Read
+literally that would have made step C's "make a deck from this lesson" and step E's "take this home"
+produce decks nobody but their maker could open, so a deck placed on a node is studyable by
+everybody who can view that node (`flashcards/CLAUDE.md`, decision 1). `is_public` exists, defaults
+off, and a minor may not set it.
+
+### What integration found
+
+Steps G, F, E, D, C and B merged on 10-05. **A and H did not**, and `UPDATE-20261006` was packed and
+applied to production without them — which is the real lesson of this cycle and the reason this
+preamble exists. The symptom was not a failing test but a live one: migration 0047 seeds
+`flashcards` **on**, and steps C, D and E each ship a "make a deck" button behind that flag, so
+production showed three buttons whose `POST /api/decks/` answered 404 — `backend/flashcards/` was
+still the prep stub, three lines of docstring and an empty router. House rule 3 in reverse: not a
+killed feature still showing its buttons, but a feature *never merged* still showing them, because
+the flag that gates them is seeded by the prep commit rather than by the step. **A flag belongs to
+the migration of the step that implements it, or it advertises work that may not arrive.**
+
+The stopgap was the kill switch doing its job (switch `flashcards` off, no redeploy). The fix was to
+merge A and H on 10-06 and cut `UPDATE-20261006-b`.
+
+Four more things the merge itself turned up, each a shape worth recognising again:
+
+- **`resolve_union.py` folded a function shut.** A's labels block and the `completionRefusalMessage`
+  above it end in the same four lines (`		}`, `	}`, a `return`, `}`), so the union spliced A's
+  whole block — an `import` included — *inside* that function's body. `svelte-check` would have
+  caught it; the reason to look first is that the same fold once silently removed a closing brace
+  from this file (commit `19e9660`). **Union-merging code is a guess that has to be read.**
+- **The prerender list needed a comma, and G had said so.** G's own comment ended "Step H appends
+  its `/about/guide/**` pages below, which means putting a comma on the last line here" — and the
+  union left exactly that comma out, in `svelte.config.js` and again in `check_accessibility.ts`.
+- **Two apps had implemented the same metric.** `identity.record.lessons_done_by_branch` (B, read-only
+  over `courses`) and `courses.record.activity_by_branch` (C, in the app that owns `LessonProgress`)
+  both answer `lessons_done`, and `_activity_block` **sums** across providers — so registering both,
+  as `prompts/10-integration.md` §3 said to, would have doubled every number on every profile. Only
+  flashcards' provider is registered; `identity/apps.py` records why, and one of the two duplicates
+  still has to go (`todo.md`).
+- **`svelte-check` reported 139 errors that were one stale codegen.** Every `decks_*` key "did not
+  exist" because Paraglide had not recompiled after the catalogues merged. `svelte-kit sync` does not
+  compile Paraglide; a build does. 0 errors, 0 warnings over 6295 files afterwards.
+
+Two test-side assertions were also wrong rather than the code they describe — a permission-matrix row
+that expected 404 where `courses/views.py` documents a **scoped, not refused** 200, and
+`moderation.tests`' flag set, which was missing 0047's three keys (and had already gone stale once
+the same way, for `school_demo`). Pre-merge the serial suite was 2580 tests with those two failures;
+post-merge, see the board entry for the numbers actually run.
+
 ## 17BR.E — Events: take-home decks from a session, and event ↔ course through the organisation (2026-10-05)
 
 Learning step E (`prompts/06-event-takeaways.md`, branch `learn/e-events`, from prep `f90e221`).

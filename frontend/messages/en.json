@@ -3889,5 +3889,8 @@
 	"decks_panelStudy": "Study",
 	"decks_panelPlace": "Place one of my decks here",
 	"decks_panelNoDecks": "You have no decks to place yet.",
-	"decks_panelEmpty": "No decks here yet."
+	"decks_panelEmpty": "No decks here yet.",
+	"work_section_cards_due": "Flashcards due",
+	"work_kind_cardsDue": "Flashcards",
+	"footer_github": "Code on GitHub"
 }
