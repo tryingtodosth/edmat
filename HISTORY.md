@@ -12548,6 +12548,85 @@ From the worktree, on ports 8131/5231:
   reports six errors across five `e2e/*.mjs` scripts. Reported, not fixed — they are nobody's
   step-A business and fixing them would put unrelated churn in this branch's diff.
 
+## 17BT — The closing cycle: five branches that built nothing new (2026-10-06 → 07)
+
+The fourth parallel build and the first one with no prep commit, because nothing was registered,
+flagged or migrated: the five steps below closed the two "left open" blocks `todo.md` carried after
+the learning cycle (§17BR) and the standing-page discussions (§17BS). `prompts/11-closing-design.md`
+is the design — its §4 per-file ownership table was the cycle's one new rule and held: the only
+three files two steps both needed (`events/test_permission_matrix.py`, `community/test_discussions.py`
+and their `databases` line) were routed to one owner each, and the merged tree's
+`testing/check_databases_declared.py` prints **0**. Briefs `12`–`16`, integration `17`, all five
+agents on Opus 5, launched from the orchestrating session and cut from `490c195` (`4a57d6d` plus
+the briefs). Each step's own section follows, in merge order.
+
+**Merged as they landed** (owner's instruction mid-cycle, replacing the C, D, B, E, A order the brief
+chose for conflict-smallness): E `4d1f209` → `25aeb5f`, D `1e2d775`+`e5ddf81` → `bc753a2`,
+B `a2eabd3` → `0d42d5a`, C `06a6d05` → `eafef7c`, A `ac2bf0f` → `87001af`. Every conflict was
+`HISTORY.md` "both appended", resolved by union; `test.md` auto-merged four times without
+duplicating a paragraph; no catalogue or `labels.ts` conflict at all (E added three keys, nobody
+else added any; 3931 keys, identical sets). No branch added a migration. Before each merge the
+branch's own numbers were re-run on its worktree: E 131 community tests, D 64 flashcards, B 85
+identity + matrix, all OK with zero request-log tracebacks on the fixed classes.
+
+**The three numbers the cycle is judged on** (`11-closing-design.md` §8), measured on the merged
+tree with the machine otherwise idle:
+
+1. `manage.py test --parallel 4 --keepdb` **completes**: 2700 tests, OK, **20 min 59 s** wall-clock
+   (12 min 43 s of tests, the rest building ten in-memory databases), **198 lines** of output and
+   zero `Failed to write a request log row` — against a serial run of ~52 min and tens of thousands
+   of traceback lines the week before.
+2. `npm run lint` is **clean over the whole tree** (Prettier + eslint), so it is a gate now;
+   `npm run check` 6340 files, 0 errors, 0 warnings; `npm run build` clean; `check:katex` 2254 rows,
+   0 issues.
+3. `npm run check:a11y` audited **48 pages, 0 load problems, 0 violations on all nineteen new pages**
+   (the manual's twelve, the showcase's seven). Its three findings are older and elsewhere —
+   `heading-order` on `/events` and `/tutoring`, `color-contrast` on `.badge--waiting` at
+   `/material-projects?tab=mine` — and are on the board.
+
+Browser scripts on the main checkout's servers (8000 / 5173): `flashcards.mjs` 43/0,
+`about-discussions.mjs` 35/0 with the exact count, `guide-screenshots.mjs` 63/0 (50 pictures,
+2.39 MB; the re-taken set was byte-different and visually the same, so only C's seven are
+committed, as C decided), `learning-record.mjs` 52/0, `about-page.mjs` 15/0. The learning record on
+the merged tree: `ACTIVITY_PROVIDERS` is exactly `sets_by_branch`, `courses.record.activity_by_branch`,
+`flashcards.record.activity_by_branch` — one `lessons_done`, as B verified on its branch.
+
+**What integration found, so nobody relearns it:**
+
+- **A hand-started `runserver` has no CORS origin.** `run.sh` exports
+  `DJANGO_CORS_ALLOWED_ORIGINS` for the Vite port; a bare `manage.py runserver` does not, so every
+  browser call is blocked and a script dies as a `waitForSelector` timeout that looks exactly like a
+  code bug. Found by E, passed to the others mid-cycle; every browser run above set it.
+- **`check:a11y` takes `--base`/`--api` arguments, not `E2E_BASE`.** Run with the environment
+  variable alone it audits the default port, finds nothing listening and reports every page as a
+  load problem. The first integration run did exactly that; the numbers above are the second.
+- **`about-page.mjs` had been red since §17BQ** (eight cards asserted, eight `<h2>`s on the page
+  then, nine and ten now — §17BR.G said "the integrator should set that number once" and the
+  learning cycle's integrator did not). Set to the page on 2026-10-07: nine cards, eight with
+  tutoring off, ten `<h2>`. The script's own labels had said "seven remain" over an assertion of
+  eight.
+- **`learning-record.mjs` fails on a database where `seed_profile_showcase` has not been re-run
+  after the courses step** (the joined course has no subjects, so the provider answers nothing); B hit
+  the same on its copy. Re-running the command is the fix, not the code.
+- **Clearing `backend/cachedata/*` under a running backend can 500 the next anonymous list read**
+  (`OSError: Stale file handle`) — found by C and D independently; stop the backend first.
+- **Five agents plus a parallel suite can fill this machine's root filesystem.** A's first
+  `--parallel` run lost six tests to `No space left on device` in `mkdtemp` media roots; its
+  second run and the integration run had the disk to themselves.
+- **The parallel suite's wall-clock is a shared-machine number twice over**: A measured 24½ min with
+  four agents beside it, integration 21 min alone. `--keepdb` keeps nothing here (in-memory
+  SQLite test databases), so ~9 min of every run is the build; A named the `TEST['NAME']` trade
+  and nobody has taken it.
+
+**Left open by the integration itself:** the pre-existing a11y findings above; the orphaned
+`e2e/screens/about-discussions-4-moderation.png` E named; the footer printing the site's name twice
+(C, from a screenshot); the `decks_includeHint` / `decks_includeSolution` keys with no control
+(C); the three "make a deck" buttons never driven against the real `POST /api/decks/` (D); the
+plural-free count strings site-wide (D); `/flashcards` signed out not linking to `/login` (D);
+`e2e/CLAUDE.md` still without the stale-file-handle trap or the `--base` note. All on `todo.md` under
+"Closing cycle — left open (2026-10-07)". Publishing is still a replay from `origin/main`
+(`CLAUDE.md`), not done here.
+
 ## 17BT.E — Discussions: an exact count, a link to the held, and no row for a key nobody will read (2026-10-06)
 
 `prompts/16-discussions.md`, branch `close/e-discussions`, cut from `490c195`. Three of §17BS's six

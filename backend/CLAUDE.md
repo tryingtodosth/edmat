@@ -19,7 +19,7 @@ still exist on disk — the live app is `courses/`; never resurrect `classroom`.
 ## Run / test
 
 - One shared venv at repo root: `.venv/` (Python 3.12). From `backend/`:
-  `../.venv/bin/python3 manage.py test` (`test.md` has the current count and what each suite covers), `manage.py check`,
+  `../.venv/bin/python3 manage.py test --parallel 4 --keepdb` (`test.md` has the current count, the time and what each suite covers), `manage.py check`,
   `manage.py makemigrations --check --dry-run`. No CI runs any of this — run it yourself.
 - Dev server: `./run.sh` from repo root (starts both halves; keeps CORS origin + `frontend/.env`
   in step with the chosen ports — changing a port by hand silently breaks CORS).
@@ -106,6 +106,12 @@ alone on a clean checkout, moving around depending on execution order. `telemetr
 AnonymousReadCacheTests` puts it back for itself with `@override_settings`.
 
 ## Testing
+
+**Every test class that reaches an endpoint declares `databases = set(all_log_shards()) | {'default'}`**
+(`from telemetry.routers import all_log_shards`; on the in-file base class where one exists, else on each class).
+The request-log middleware writes to one of nine SQLite shards on every request, and a class that did not declare
+them logs a traceback per request serially and kills `--parallel` outright. Not `'__all__'`.
+`testing/check_databases_declared.py` prints the classes that forgot; zero is the bar (`HISTORY.md` §17BT.A).
 
 `testing/factories.py` — plain functions, deliberately not factory_boy. Use `make_viewer` (no
 password hash) for decorative FK-target users; `make_user` only when something logs in — that

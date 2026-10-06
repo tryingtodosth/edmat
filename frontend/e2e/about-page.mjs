@@ -1,6 +1,6 @@
 // The landing page, `/about` (2026-09-24):
 //
-//   1. it renders in both interface languages with the same section count and eight feature cards;
+//   1. it renders in both interface languages with the same section count and nine feature cards;
 //   2. it holds under both themes and at phone width without horizontal overflow;
 //   3. a killed feature's card is gone for an anonymous visitor (house rule 3 — links, not just
 //      pages), and comes back when the switch is flipped on again;
@@ -90,11 +90,11 @@ try {
 			(await page.locator('h1').textContent())?.trim() === 'O EdMacie'
 		);
 		check(
-			'pl: eight feature cards',
-			(await page.locator('.about__grid .about__card').count()) === 8
+			'pl: nine feature cards',
+			(await page.locator('.about__grid .about__card').count()) === 9
 		);
 		check('pl: seven audience bands', (await page.locator('.about__bands li').count()) === 7);
-		check('pl: seven h2 sections', (await page.locator('article.about h2').count()) === 7);
+		check('pl: ten h2 sections', (await page.locator('article.about h2').count()) === 10);
 		check('exactly one <title>', (await page.locator('head title').count()) === 1);
 		check('title is shaped by PageHead', (await page.title()).startsWith('EdMat: '));
 		check(
@@ -122,8 +122,8 @@ try {
 			(await page.locator('h1').textContent())?.trim() === 'About EdMat'
 		);
 		check(
-			'en: eight feature cards',
-			(await page.locator('.about__grid .about__card').count()) === 8
+			'en: nine feature cards',
+			(await page.locator('.about__grid .about__card').count()) === 9
 		);
 		const overflow = await page.evaluate(
 			() => document.documentElement.scrollWidth - document.documentElement.clientWidth
@@ -157,8 +157,8 @@ try {
 					.count()) === 0
 			);
 			check(
-				'tutoring off: seven cards remain',
-				// Eight with the Volunteering card added on 2026-10-01, minus the tutoring one.
+				'tutoring off: eight cards remain',
+				// Nine since 2026-10-06 (Volunteering on 2026-10-01, the design showcase on 2026-10-05), minus the tutoring one.
 				(await page.locator('.about__grid .about__card').count()) === 8
 			);
 			await shoot(page, 'en-desktop-tutoring-off');
@@ -170,8 +170,8 @@ try {
 		const page = await ctx.newPage();
 		await openAbout(page);
 		check(
-			'tutoring on again: eight cards',
-			(await page.locator('.about__grid .about__card').count()) === 8
+			'tutoring on again: nine cards',
+			(await page.locator('.about__grid .about__card').count()) === 9
 		);
 		await ctx.close();
 	}

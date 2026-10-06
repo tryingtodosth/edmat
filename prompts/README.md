@@ -229,6 +229,15 @@ design file is a per-file ownership table that is this cycle's one new rule.
 Every step on Opus 5. Launch A and E first, then B, C, D together (`11-closing-design.md` §6).
 HISTORY section for the cycle: **§17BT**, one `## 17BT.<letter>` per step, appended at the end.
 
+**Outcome (2026-10-07, integrated as `HISTORY.md` §17BT):** all five landed and were merged as they
+landed (owner's call) — E `4d1f209`, D `1e2d775`+`e5ddf81`, B `a2eabd3`, C `06a6d05`, A `ac2bf0f` —
+with no migration from any of them and every conflict the "both appended" kind. The three numbers:
+`manage.py test --parallel 4 --keepdb` completes (2700 tests, 21 min, 198 lines of output);
+`npm run lint` is clean over the whole tree; `check:a11y` audited 48 pages with 0 violations on the
+nineteen new ones. `flashcards.mjs` 43/0, `about-discussions.mjs` 35/0, `guide-screenshots.mjs` 63/0
+(50 pictures, 2.39 MB), `learning-record.mjs` 52/0, `about-page.mjs` 15/0 after its counts were set
+to the page — all on the main checkout's servers.
+
 What the board said on 2026-10-06 and what was true an hour later, for the record: `todo.md` claimed
 `npm run lint` was red on four files and six eslint errors. At `4a57d6d` eslint is clean and
 Prettier rejects exactly one file, `e2e/about-discussions.mjs` — the §17BS commit fixed the rest

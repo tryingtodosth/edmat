@@ -4,10 +4,10 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, plus `test_*.py` in several apps | 2686 |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, plus `test_*.py` in several apps | 2700 |
 | **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 22 scripts |
 
-The backend figure was measured (`manage.py test --parallel 4 --keepdb`, ~24½ min — see below for
+The backend figure was measured (`manage.py test --parallel 4 --keepdb`, ~21 min — see below for
 what that number depends on); the per-app numbers further down are not all re-counted and some lag
 behind. The browser row deliberately no longer carries a total — the per-script counts below are
 the ones kept current, and a headline number that nobody re-measures is worse than none.
@@ -26,7 +26,7 @@ different things to a stranger, a participant and the instructor.
 
 ```sh
 cd backend
-../.venv/bin/python3 manage.py test --parallel 4 --keepdb   # everything — ~24½ min, 2686 tests
+../.venv/bin/python3 manage.py test --parallel 4 --keepdb   # everything — ~21 min, 2700 tests
 ../.venv/bin/python3 manage.py test courses                 # one app
 ../.venv/bin/python3 manage.py test courses.tests.DiscussionTests            # one class
 ../.venv/bin/python3 manage.py test courses.tests.DiscussionTests.test_a_public_thread_is_readable_but_not_writable_by_outsiders  # one test
@@ -50,7 +50,9 @@ which test failed. Django's own documentation names it under "Running tests in p
 **Where the time actually goes.** Measured on this machine on 2026-10-06: **24 min 27 s**
 wall-clock for 2 686 tests, of which **14 min 53 s** is the tests and the remaining **~9½ min** is
 building the test databases before a single one runs. (Four other agents were working the same six
-cores, so read it as an upper bound.) That build is ten databases, not one — `default` plus the
+cores, so read it as an upper bound.) Re-measured the same evening on the merged tree with the
+machine otherwise idle: **20 min 59 s** for **2 700** tests, 12 min 43 s of them tests, and the
+whole run printed 198 lines. That build is ten databases, not one — `default` plus the
 nine telemetry log shards, each with its own `migrate`, and under `--parallel 4` each of them
 cloned once per worker. The test databases are SQLite **in-memory** (nothing in `DATABASES` sets
 `TEST['NAME']`), so **`--keepdb` cannot keep anything between runs here**: it is harmless, not a
@@ -302,7 +304,7 @@ prints the candidates and changes nothing. On the development database on 2026-1
 locations and 0 candidates — every one of them had been configured through the moderator API by
 `about-discussions.mjs`, which is the "somebody decided this" condition doing its job.
 
-**Browser: `frontend/e2e/about-discussions.mjs`** — 31 checks, zero console errors.
+**Browser: `frontend/e2e/about-discussions.mjs`** — 35 checks, zero console errors (31 until 2026-10-06; closing step E added the held-count link and the clean-up re-query, and made the count assertion exact).
 
 ```bash
 cd backend && ../.venv/bin/python3 manage.py migrate   # trap 23: the tables are new
@@ -1733,7 +1735,7 @@ a name-shaped `{name}` slot cannot decline) in a screenshot.
     cd frontend && E2E_BASE=http://localhost:5232 E2E_API=http://127.0.0.1:8132/api node e2e/learning-record.mjs
 
 **`e2e/about-page.mjs` (15 checks)** — the landing page at `/about` (2026-09-24). Polish desktop
-(the base locale): the h1, eight feature cards, seven audience bands, seven sections, exactly one
+(the base locale): the h1, nine feature cards (eight until the showcase index of 2026-10-05; the script's counts were set to the page on 2026-10-07), seven audience bands, ten sections, exactly one
 `<title>` shaped by PageHead, the register CTA for a stranger and the footer link; the same page
 under `data-theme="dark"`; English at 390px with a `scrollWidth` overflow check; then the
 `tutoring` flag flipped off through the API as kasia and the page reloaded as a stranger — its card
@@ -1908,7 +1910,7 @@ that and `volunteering`. A new flag means a line there as well as the three file
 with the links they collapsed, About took stage 0, and Events is an icon at every width, so the
 widest-width check now makes an exception for it. `events-and-nav.mjs` no longer expects
 "Wydarzenia" as nav TEXT (it is an aria-label now) and pins the four removed Add-menu entries as
-absences. `about-page.mjs` matches `/tutoring` **or** `/korki` and counts eight cards.
+absences. `about-page.mjs` matches `/tutoring` **or** `/korki` and counts nine cards (eight with tutoring off).
 `booking`, `tutoring-modals`, `tutoring-cache`, `audience-bands`, `sorting-and-languages`: browser
 navigations move to `/tutoring`. **Their `api('/services/')` calls are untouched and correct** —
 the Django app is not renamed, only the frontend route. `scripts/check_accessibility.ts` likewise.

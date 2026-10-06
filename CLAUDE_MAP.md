@@ -68,7 +68,10 @@ still exists on disk; the live app is `courses`. Docs, tests and several e2e scr
   have put a `{count,next,previous,results}` envelope on some endpoints while the many custom `@action`s returned bare arrays.
 - Other config modules: `cachemw.py` (anonymous-read response cache), `sanitize.py`, `dbsearch.py`, `i18n_utils.py` (locale
   resolution/fallback, used by every translated serializer).
-- **Tests:** `manage.py test` — **~1145** across per-app `tests.py`/`test_*.py`. `backend/testing/factories.py` holds shared
+- **Tests:** `manage.py test --parallel 4 --keepdb` — **2700** across per-app `tests.py`/`test_*.py` (the count is `test.md`'s;
+  this one was 2026-10-06). Any class that reaches an endpoint declares `databases = set(all_log_shards()) | {'default'}`,
+  and `backend/testing/check_databases_declared.py` prints the classes that forgot — zero is the bar (`HISTORY.md` §17BT.A).
+  `backend/testing/factories.py` holds shared
   plain-function fixtures (deliberately not `factory_boy`); `make_viewer` skips password hashing on purpose, which cut the
   moderation suite from 52 s to 12 s.
 
@@ -191,6 +194,12 @@ serializer blanks `body`/`author_display_name` on a removed row.
 One real gap closed late: nothing validated that a submitted `parent` belonged to the *same* target, so a client could reply into a
 different object's thread. Now checked in the view (not the serializer — `content_type`/`object_id` aren't in client data yet at
 validation time), in both the exercise and coverage endpoints.
+
+`DiscussionLocation` (2026-10-06, `HISTORY.md` §17BS/§17BT.E) hangs a thread under a standing page that has no row of its
+own: `discussions.py` is the rule module (who may write, what is held, what "N comments" counts — public, non-tombstoned rows),
+`report_location_key()` is what `moderation/services.py` reads to put a `discussion_location` key on a held comment's report row,
+and `manage.py sweep_discussion_locations [--dry-run]` deletes rows nobody decided anything about (no comments, default
+settings, `updated_by IS NULL`). The row is created only after a write is accepted, so a refused post leaves nothing behind.
 
 ### `moderation` — the queue, the scoped role, and the kill switches
 Models: `ExerciseSubmission` (a JSON `payload` draft), `EditSuggestion`,
