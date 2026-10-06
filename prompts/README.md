@@ -206,3 +206,30 @@ suite, the e2e scripts, `check:a11y`, write the `HISTORY.md` §17BR preamble, th
   from their hubs (owner decision 2026-10-01), so F gates the hubs' buttons the same way.
 - **C, D and E verify their "make a deck" buttons against a mocked `POST /api/decks/`** and say
   so; the real call is verified at integration, after A merges.
+
+---
+
+## 10. The closing cycle (2026-10-06) — `11-closing-design.md` and briefs 12–17
+
+The learning cycle merged on 2026-10-06 (`4a57d6d`) and left two blocks at the top of `todo.md`.
+The closing cycle turns them into five branches, built the same way as above with one difference:
+**there is no prep commit**, because nothing new is registered, flagged or migrated
+(`11-closing-design.md` §3). Everything else in §1–§8 of this file still applies, and §4 of the
+design file is a per-file ownership table that is this cycle's one new rule.
+
+| Step | Brief | Branch | Ports | Closes |
+|---|---|---|---|---|
+| A test shards | `12-test-shards.md` | `close/a-test-shards` | 8141 / 5241 | `--parallel 4` does not work; 137 test classes lack `databases` |
+| B seams | `13-seams.md` | `close/b-seams` | 8142 / 5242 | two `lessons_done` providers (keep C's — owner, 2026-10-06); two missing matrix rows |
+| C manual chapter | `14-manual-flashcards.md` | `close/c-manual-flashcards` | 8143 / 5243 | the flashcards chapter is still the placeholder |
+| D browser pass | `15-browser-pass.md` | `close/d-browser-pass` | 8144 / 5244 | `flashcards.mjs`, `check:a11y` over the showcase, never run |
+| E discussions | `16-discussions.md` | `close/e-discussions` | 8145 / 5245 | the §17BS left-opens; the one file Prettier rejects |
+| integration | `17-closing-integration.md` | the orchestrating session | — | merge order C, D, B, E, A |
+
+Every step on Opus 5. Launch A and E first, then B, C, D together (`11-closing-design.md` §6).
+HISTORY section for the cycle: **§17BT**, one `## 17BT.<letter>` per step, appended at the end.
+
+What the board said on 2026-10-06 and what was true an hour later, for the record: `todo.md` claimed
+`npm run lint` was red on four files and six eslint errors. At `4a57d6d` eslint is clean and
+Prettier rejects exactly one file, `e2e/about-discussions.mjs` — the §17BS commit fixed the rest
+without saying so. The lint sweep is therefore one line of step E, not a step of its own.
