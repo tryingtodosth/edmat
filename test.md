@@ -2137,3 +2137,19 @@ thing it will print on any worktree: ~30 KaTeX font requests refused with 403 by
 `server.fs` allow list, because `frontend/node_modules` is a symlink to the main checkout. That is
 environmental — the production build copies the fonts — and the script buckets and reports the
 count rather than hiding it.
+
+**Run for the first time on 2026-10-06** (closing step D, `prompts/15-browser-pass.md`), on ports
+8144/5244: **43 checks, 0 failed, 0 console/page errors**, and every screenshot looked at. It had
+never been run against real servers before — it was written on `learn/a-flashcards` beside the app
+it drives — and the first run found three faults, all in the script and none in the app: it signed
+in eight times through the form and walked into `POST /api/auth/login/`'s **10/min per-IP throttle**
+(it now drives the form once per account and reuses `storageState`); "the deck page lists the
+placement" waited for a `.panel` whose SELECT carried the course's own title, so it passed before
+the POST and screenshotted a page reading "Not placed anywhere"; and "offers a place-it-somewhere
+select" counted every `select` on the page, including the header's language picker. The 43rd check
+is new: the deck page at phone width, which is where the one real bug of the pass was (a `<select>`
+sized by its widest option ran 69 px off a 390 px screen and cut the Place button in half — axe had
+just called that page clean, because axe does not look at geometry). **Clear `backend/cachedata/*`
+with the backend STOPPED**: emptying it under a running server leaves an entry the server still
+holds open, and the next read answers `OSError: [Errno 116] Stale file handle` as a 500 on an
+unrelated endpoint.

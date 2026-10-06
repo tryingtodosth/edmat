@@ -12705,3 +12705,114 @@ Two things the verification itself taught, both worth writing down:
 - **`frontend/e2e/screens/about-discussions-4-moderation.png` is now orphaned** — no script writes
   that name any more (the two new screenshots are `-4-held-count-link` and `-5-reports-filtered`).
   Left in place rather than deleted in a commit about something else.
+
+## 17BT.D — The browser pass: running what had only ever been written (2026-10-06, `close/d-browser-pass`)
+
+Closing step D, `prompts/15-browser-pass.md`. The learning cycle shipped two browser scripts and
+nineteen new pages and ran none of them; `todo.md` bullet 5 said so out loud, and added that no
+green `svelte-check`, suite or build above it was a substitute. House rule 2 in one step: run
+`e2e/flashcards.mjs` and `npm run check:a11y` for the first time, **look at the screenshots**, and
+fix what that finds in the one app and the seven showcase pages nobody else is in this cycle.
+
+### What the first run found: three script faults, one app fault, no backend fault
+
+The script failed on its first real run and lied twice before failing. All three of those were the
+script — which is the expected shape, because it was written on `learn/a-flashcards` beside an app
+that was still being built, against shapes rather than against a server:
+
+1. **429 at the eighth sign-in.** `POST /api/auth/login/` is throttled **10/min per IP**
+   (`accounts/throttles.py`, `config/settings.py: 'login'`). Three `tokenFor` calls plus one
+   browser sign-in per section is eleven inside a minute on a warm dev server, so section 6 died
+   in `waitForURL` — and a sign-in that times out reads exactly like a broken login page, which is
+   `e2e/CLAUDE.md` trap 1 wearing a different endpoint's clothes. Clearing `cachedata/` does not
+   help; the run refills the counter itself. The form is now driven **once per account** and every
+   later context starts from that account's saved `storageState`. That is not a test-only
+   shortcut: the token lives in `localStorage` (`lib/state/token.svelte.ts`), so it is precisely
+   the session a signed-in person has on their next page load, and the form itself is still
+   driven for real. It needed one companion, `open()`, which waits for the root layout's own
+   `/feature-flags/` request before anything is clicked — restoring a session skips the sign-in
+   navigation that used to give the bundle time to hydrate (trap 25).
+
+2. **"the deck page lists the placement" was vacuous** (trap 8). It waited for a `.panel`
+   containing the course's title — and the "Where this deck is placed" panel contains the SELECT
+   whose chosen option is that same title, so it matched the instant the option was picked, before
+   the POST. The check passed and the screenshot it then took showed **"Not placed anywhere."**
+   Nothing asserted the bug; it was found by opening `flashcards-4-placed.png` and reading it. The
+   app was right all along (`place()` re-reads the deck), and the check is now scoped to the
+   placement list and asserts the row's `href`.
+
+3. **"and offers a place-it-somewhere select" counted every `select` on the page**, including the
+   header's language picker (trap 6) — a check that would have passed on any page in the app.
+
+With those three fixed: **43 checks, 0 failed, 0 console/page errors**, seven sections, eleven
+screenshots, all looked at. `flashcards-4-placed.png` was the informative one, for the reason
+above. The 43rd check is new, and it is the app fault:
+
+**The one real bug: `/flashcards/[id]` overflowed 69 px at 390 px wide.** A `<select>` is sized by
+its widest option, and two of that page's three selects carry user-supplied titles — a course, an
+event, a saved set. `.grow`'s `min-width: 0` does nothing about it, because the select is a grid
+item inside the label and its own `min-width` is still `auto`, so it refuses to shrink and the flex
+row's `flex-wrap` never gets a chance. On a phone the "Place this deck on a course or an event you
+run" row ran off the right edge with the **Place button cut in half** — on a page `check:a11y` had
+just called clean, because axe does not look at geometry. Fixed with `width: 100%; min-width: 0`
+on the control itself, and pinned by the new check. **No backend bug was found, so
+`backend/flashcards/tests.py` is unchanged** and no migration was wanted anywhere.
+
+### `npm run check:a11y`: 48 pages, and the nineteen new ones were already clean
+
+Run for the first time over the cycle's pages. **0 violations of any impact on all seven showcase
+pages and all twelve manual pages**, before and after — there was nothing to fix, which is the
+honest result and worth recording as one. The run reports `0 had a load problem`, so this is not
+the empty-page false negative the script's own `MIN_BODY_TEXT_LENGTH` guard exists to catch.
+
+Three findings elsewhere, all pre-existing and none in this cycle's files, left for whoever owns
+them: `heading-order` (moderate) on `/events` and `/tutoring`, where a card's title is an `h3`
+under an `h1`; and `color-contrast` (serious) on `.badge--waiting` on `/material-projects?tab=mine`.
+
+### Looking, which is the part no checker does
+
+Forty screenshots: the seven showcase pages and the three `/flashcards` routes, at 1280 px and
+390 px, signed out and as `michal@edmat.example`, each with its horizontal overflow, its body-text
+length and a raw-LaTeX probe measured alongside. The showcase pages are prerendered sample data and
+came out pixel-identical signed in and signed out apart from the header, which is what they should
+be. No raw LaTeX anywhere — the look script waits for `.katex` before shooting (trap 26). The one
+page that broke was the deck page, above.
+
+Two things that look like faults in a screenshot and are not, checked rather than assumed: the
+learning record's two sample tables are **clipped at phone width on purpose** — `RecordBlocks` sets
+`min-width: 26rem` and `SampleFrame` is `overflow-x: auto`, with the reasoning in the component
+("squeezing 'Cards reviewed' until its numbers are cut off mid-digit looks like broken data rather
+than a table that scrolls"); and the review screen's `0 due · 3 new · 0 scheduled` line does not
+move while a session runs, which the route's own docstring states as a decision.
+
+### Verified
+
+- `node e2e/flashcards.mjs` on 8144/5244 — **43 checks, 0 failed, 0 console/page errors**. Eleven
+  screenshots re-taken and looked at.
+- `npm run check:a11y` over 48 pages, 0 with a load problem — **0 violations on the seven showcase
+  pages and the manual's twelve**; 1 serious + 2 moderate nodes elsewhere, all pre-existing.
+- Forty phone/desktop screenshots of the ten pages this step owns, signed out and signed in, each
+  with a measured overflow; 0 px on every one after the fix.
+- `manage.py test flashcards --keepdb`, `manage.py check`, `makemigrations --check --dry-run`,
+  `npm run check`, `npm run lint`, `npm run build` — numbers on the board entry.
+
+### Left open
+
+- **The app's count strings do not pluralise**, so `/flashcards` reads "3 cards waiting across
+  **1 decks**" in English and "1 fiszek czeka w 1 taliach" in Polish. Not a step-A regression and
+  not fixed here: zero of the ~1000 keys in either catalogue use an ICU plural, a few write
+  "(s)", so this is a site-wide copy convention and mending `decks_*` alone would make the site
+  inconsistent with itself. It wants one decision and one sweep.
+- **Signed out, `/flashcards` says "Sign in to keep decks and a review schedule." and does not
+  link to `/login`.** A sentence, where every other gated page offers the door.
+- **Nobody has driven the three "make a deck" buttons against the real `POST /api/decks/`.** Steps
+  C, D and E of the learning cycle each verified their lesson / session / concept button against a
+  *mock* and said so (`prompts/README.md` §9); integration never closed that. It is the next
+  browser script, not a check to bolt onto this one.
+- **`flashcards.mjs` still cannot be run twice in a minute on a fast machine** without the login
+  throttle noticing, if anything else on the box is signing in. Five logins per run is under the
+  limit with room, not with margin.
+- **The three a11y findings above are not mine** and are untouched.
+- **`e2e/CLAUDE.md` has no trap for the stale-file-handle 500** that clearing `cachedata/` under a
+  running backend produces. It is written in this script's header and in `test.md`; the catalogue
+  belongs to no step this cycle, so it was not edited.

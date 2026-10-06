@@ -647,6 +647,20 @@
 		gap: 0.2rem;
 	}
 
+	/* A `<select>` is sized by its WIDEST OPTION, and the options in two of these three selects are
+	 * user-supplied titles — a course, an event, a saved set. `.grow`'s own `min-width: 0` does
+	 * nothing about that, because the select is a GRID ITEM inside the label and its own
+	 * `min-width` is still `auto`, so it refuses to shrink and the flex row's `flex-wrap` never
+	 * gets the chance to wrap. At 390 px the "Place this deck on a course or an event you run" row
+	 * therefore ran 69 px off the right edge with the Place button cut in half — found by looking
+	 * at a phone-width screenshot, closing step D (prompts/15-browser-pass.md), on a page axe had
+	 * just called clean. The control itself has to be told. */
+	.grow select,
+	.band select {
+		width: 100%;
+		min-width: 0;
+	}
+
 	.band span,
 	.grow span,
 	.stack span {

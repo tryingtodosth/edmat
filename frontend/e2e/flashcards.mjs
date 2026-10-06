@@ -16,9 +16,15 @@
 // seeded demo users over registering, and reset mutable state yourself), and the cleanup is
 // confirmed by an AUTHENTICATED re-query, which bypasses the 60 s anonymous read cache (trap 12).
 //
-// Run (ports must match the servers that are up):
-//   rm -rf backend/cachedata/*
+// Run (ports must match the servers that are up). Clear the file cache with the backend DOWN:
+// emptying `cachedata/` under a running server left one entry the server still held open and the
+// next read of it answered `OSError: [Errno 116] Stale file handle` as a 500 on an unrelated
+// endpoint (`/api/branches/`), which looks like a product bug and is not one (2026-10-06).
+//   rm -rf backend/cachedata/*          # backend stopped
 //   E2E_BASE=http://localhost:5231 E2E_API=http://127.0.0.1:8131/api node e2e/flashcards.mjs
+//
+// First run against real servers: 2026-10-06, 42 checks, 0 failed, 0 console errors (closing
+// step D, prompts/15-browser-pass.md).
 //
 // Screenshots land in e2e/screens/flashcards-*.png and are meant to be LOOKED at.
 
@@ -191,15 +197,59 @@ const DESKTOP = { width: 1280, height: 900 };
 const PHONE = { width: 390, height: 844 };
 let deckId = null;
 
+/** Sign in through the real form ONCE per account, and hand every later context that account's
+ *  saved storage state instead of signing in again.
+ *
+ *  Why, found by the first real run of this script (2026-10-06): `POST /api/auth/login/` is
+ *  throttled at **10/min per IP** (`accounts/throttles.py`, `config/settings.py: 'login'`). The
+ *  script's three `tokenFor` calls plus one browser sign-in per section is eleven logins inside a
+ *  minute on a warm dev server, so the eighth browser sign-in answered **429** and section 6 died
+ *  in `waitForURL` — which reads exactly like a broken login page and is the shape `e2e/CLAUDE.md`
+ *  trap 1 warns about for `register`. Clearing `backend/cachedata/*` does not help: the counter is
+ *  refilled by the run itself.
+ *
+ *  Reusing the state is not a test-only shortcut — the token lives in `localStorage`
+ *  (`lib/state/token.svelte.ts`), so this is precisely the session a person already signed in has
+ *  on their next page load. The form itself is still driven for real, twice, which is what the
+ *  sign-in path needs to be verified at all. The context is a PLAIN one (no English cookie), so
+ *  section 7 can reuse the same state and still get the Polish default. */
+const sessions = new Map();
+async function sessionFor(email) {
+	const cached = sessions.get(email);
+	if (cached) return cached;
+	const ctx = await browser.newContext({ viewport: DESKTOP });
+	const page = await ctx.newPage();
+	await signIn(page, email);
+	const state = await ctx.storageState();
+	await ctx.close();
+	sessions.set(email, state);
+	return state;
+}
+
+/** `goto`, then wait for the root layout's own boot request before anything is clicked.
+ *  Restoring a session skips the sign-in navigation that used to give the bundle time to hydrate,
+ *  and every control in the header is in the served HTML long before a click on it does anything
+ *  (`e2e/CLAUDE.md` trap 25). */
+async function open(page, path) {
+	const booted = page
+		.waitForResponse((r) => r.url().includes('/feature-flags/'), { timeout: 30000 })
+		.catch(() => null);
+	await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
+	await booted;
+	await settle(800);
+}
+
 try {
 	// ---- 1. Make a deck from a saved set, on /my-set -------------------------------------------
 	{
 		console.log('\n1. /my-set → make a deck from a saved set');
-		const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const ctx = await englishContext(browser, BASE, {
+			viewport: DESKTOP,
+			storageState: await sessionFor(OWNER)
+		});
 		const page = await ctx.newPage();
 		watch(page);
-		await signIn(page, OWNER);
-		await page.goto(`${BASE}/my-set`, { waitUntil: 'load' });
+		await open(page, '/my-set');
 		const row = page.locator('.saved-list li', { hasText: 'E2E flashcards set' });
 		await row.waitFor({ timeout: 15000 });
 		const button = row.getByRole('button', { name: 'Make a deck from this set' });
@@ -229,11 +279,13 @@ try {
 	// ---- 2. /flashcards and the deck page ------------------------------------------------------
 	{
 		console.log('\n2. /flashcards and /flashcards/[id]');
-		const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const ctx = await englishContext(browser, BASE, {
+			viewport: DESKTOP,
+			storageState: await sessionFor(OWNER)
+		});
 		const page = await ctx.newPage();
 		watch(page);
-		await signIn(page, OWNER);
-		await page.goto(`${BASE}/flashcards`, { waitUntil: 'load' });
+		await open(page, '/flashcards');
 		const deckRow = page.locator('.deck', { hasText: 'E2E flashcards set' });
 		await deckRow.waitFor({ timeout: 15000 });
 		check('the deck is listed on /flashcards', true);
@@ -246,10 +298,15 @@ try {
 		check('the due summary names a number', /\d/.test(summary ?? ''), summary ?? '');
 		await shoot(page, '2-my-decks');
 
-		await page.goto(`${BASE}/flashcards/${deckId}`, { waitUntil: 'load' });
+		await open(page, `/flashcards/${deckId}`);
 		await page.locator('.cards .card').first().waitFor({ timeout: 15000 });
 		check('the deck page lists three cards', (await page.locator('.cards .card').count()) === 3);
-		check('and offers a place-it-somewhere select', (await page.locator('select').count()) >= 1);
+		// Scoped to the form that owns it: `page.locator('select')` also matches the HEADER's
+		// language picker, so the unscoped count passed on every page this app has (trap 6).
+		check(
+			'and offers a place-it-somewhere select',
+			(await page.locator('form:has(select) >> text=Place this deck on').count()) === 1
+		);
 		await shoot(page, '2-deck-page');
 		await ctx.close();
 	}
@@ -257,11 +314,13 @@ try {
 	// ---- 3. Review three cards on keys 1–4 -----------------------------------------------------
 	{
 		console.log('\n3. the review screen: flip, and grade three cards on keys 1–4');
-		const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const ctx = await englishContext(browser, BASE, {
+			viewport: DESKTOP,
+			storageState: await sessionFor(OWNER)
+		});
 		const page = await ctx.newPage();
 		watch(page);
-		await signIn(page, OWNER);
-		await page.goto(`${BASE}/flashcards/${deckId}/review`, { waitUntil: 'load' });
+		await open(page, `/flashcards/${deckId}/review`);
 		await page.locator('[data-testid="review-card"]').waitFor({ timeout: 20000 });
 		check(
 			'the progress line says 1 of 3',
@@ -338,18 +397,32 @@ try {
 	// ---- 4. Place it on a course, and let a participant study it -------------------------------
 	{
 		console.log('\n4. place the deck on a course, and study it as a participant');
-		const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const ctx = await englishContext(browser, BASE, {
+			viewport: DESKTOP,
+			storageState: await sessionFor(OWNER)
+		});
 		const page = await ctx.newPage();
 		watch(page);
-		await signIn(page, OWNER);
-		await page.goto(`${BASE}/flashcards/${deckId}`, { waitUntil: 'load' });
+		await open(page, `/flashcards/${deckId}`);
 		const placeForm = page.locator('form', { hasText: 'Place this deck on' });
 		await placeForm.waitFor({ timeout: 15000 });
 		// By option value, never by position (e2e/CLAUDE.md trap 6 and 14).
 		await placeForm.locator('select').selectOption(`course:${course.id}`);
 		await placeForm.getByRole('button', { name: 'Place', exact: true }).click();
-		await page.locator('.panel', { hasText: 'E2E flashcards course' }).waitFor({ timeout: 15000 });
-		check('the deck page lists the placement', true);
+		// Scoped to the LIST, not the panel: the panel also contains the select whose chosen option
+		// is the course's own title, so `.panel` with that text matched the instant the option was
+		// picked — before the POST — and the screenshot it then took showed "Not placed anywhere"
+		// under a passing check. The textbook vacuous pass (trap 8), found by looking at
+		// `flashcards-4-placed.png` on 2026-10-06.
+		const placedRow = page
+			.locator('.panel', { hasText: 'Where this deck is placed' })
+			.locator('ul li a', { hasText: 'E2E flashcards course' });
+		await placedRow.waitFor({ timeout: 15000 });
+		check(
+			'the deck page lists the placement',
+			(await placedRow.getAttribute('href')) === `/courses/${course.id}`,
+			await placedRow.getAttribute('href')
+		);
 		await shoot(page, '4-placed');
 		await ctx.close();
 
@@ -357,11 +430,13 @@ try {
 		check('the API has exactly one placement', placed.body?.placements?.length === 1);
 
 		// The participant's side — a different account, a fresh context.
-		const ctx2 = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const ctx2 = await englishContext(browser, BASE, {
+			viewport: DESKTOP,
+			storageState: await sessionFor(STUDENT)
+		});
 		const page2 = await ctx2.newPage();
 		watch(page2);
-		await signIn(page2, STUDENT);
-		await page2.goto(`${BASE}/courses/${course.id}`, { waitUntil: 'load' });
+		await open(page2, `/courses/${course.id}`);
 		const panel = page2.locator('.decks-panel');
 		await panel.waitFor({ timeout: 20000 });
 		check('a participant sees the Flashcards panel on the course', true);
@@ -414,11 +489,13 @@ try {
 		console.log('\n5. flashcards off: the links are gone (house rule 3)');
 		await setFlag(staffToken, 'flashcards', false);
 		try {
-			const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+			const ctx = await englishContext(browser, BASE, {
+				viewport: DESKTOP,
+				storageState: await sessionFor(STUDENT)
+			});
 			const page = await ctx.newPage();
 			watch(page, 'off');
-			await signIn(page, STUDENT);
-			await page.goto(`${BASE}/courses/${course.id}`, { waitUntil: 'load' });
+			await open(page, `/courses/${course.id}`);
 			// Wait for the COURSE to have rendered before asserting what is not on it — the first
 			// version of this check screenshotted a page still saying "Loading…" and read the
 			// absence of the panel off a page that had no course on it yet. A check that passes
@@ -468,10 +545,13 @@ try {
 	// ---- 5b. …and it is back when the switch is on ----------------------------------------------
 	{
 		console.log('\n5b. flashcards on: the account-menu entry is there');
-		const ctx = await englishContext(browser, BASE, { viewport: DESKTOP });
+		const ctx = await englishContext(browser, BASE, {
+			viewport: DESKTOP,
+			storageState: await sessionFor(STUDENT)
+		});
 		const page = await ctx.newPage();
 		watch(page);
-		await signIn(page, STUDENT);
+		await open(page, '/');
 		await page.locator('button.popover__trigger:has(.account-trigger)').click();
 		await page.getByRole('menuitem').first().waitFor({ timeout: 10000 });
 		const items = await page.getByRole('menuitem').allTextContents();
@@ -487,11 +567,13 @@ try {
 	// ---- 6. Phone width, no horizontal overflow -------------------------------------------------
 	{
 		console.log('\n6. the review screen at phone width');
-		const ctx = await englishContext(browser, BASE, { viewport: PHONE });
+		const ctx = await englishContext(browser, BASE, {
+			viewport: PHONE,
+			storageState: await sessionFor(STUDENT)
+		});
 		const page = await ctx.newPage();
 		watch(page);
-		await signIn(page, STUDENT);
-		await page.goto(`${BASE}/flashcards/${deckId}/review`, { waitUntil: 'load' });
+		await open(page, `/flashcards/${deckId}/review`);
 		await page.locator('[data-testid="review-card"]').waitFor({ timeout: 20000 });
 		await page.keyboard.press('Space');
 		await page.locator('.grade').first().waitFor({ timeout: 10000 });
@@ -501,16 +583,46 @@ try {
 		check('phone: no horizontal overflow', overflow <= 0, `overflow ${overflow}px`);
 		await shoot(page, '6-review-phone');
 		await ctx.close();
+
+		// …and the DECK page, as its owner, which is the one that got this wrong. A `<select>`
+		// whose options are course titles would not shrink, so the "Place this deck on…" row ran
+		// 69 px off the right edge of a 390 px screen with the Place button cut in half — on a
+		// page `npm run check:a11y` had just called clean, because axe does not look at geometry.
+		// Found by looking, closing step D; the fix is `.grow select { width: 100% }` in
+		// `routes/flashcards/[id]/+page.svelte`. The owner, not the participant: the panel only
+		// exists for somebody who can edit, and only once they run something to place it on.
+		const ownerCtx = await englishContext(browser, BASE, {
+			viewport: PHONE,
+			storageState: await sessionFor(OWNER)
+		});
+		const ownerPage = await ownerCtx.newPage();
+		watch(ownerPage);
+		await open(ownerPage, `/flashcards/${deckId}`);
+		await ownerPage
+			.locator('.panel', { hasText: 'Where this deck is placed' })
+			.waitFor({ timeout: 15000 });
+		const deckOverflow = await ownerPage.evaluate(
+			() => document.documentElement.scrollWidth - document.documentElement.clientWidth
+		);
+		check(
+			'phone: the deck page does not overflow either',
+			deckOverflow <= 0,
+			`overflow ${deckOverflow}px`
+		);
+		await shoot(ownerPage, '6-deck-phone');
+		await ownerCtx.close();
 	}
 
 	// ---- 7. Polish, the base locale -------------------------------------------------------------
 	{
 		console.log('\n7. the default (Polish) interface');
-		const ctx = await browser.newContext({ viewport: DESKTOP });
+		const ctx = await browser.newContext({
+			viewport: DESKTOP,
+			storageState: await sessionFor(OWNER)
+		});
 		const page = await ctx.newPage();
 		watch(page);
-		await signIn(page, OWNER);
-		await page.goto(`${BASE}/flashcards`, { waitUntil: 'load' });
+		await open(page, '/flashcards');
 		await page.locator('h1').waitFor({ timeout: 15000 });
 		check(
 			'pl: the heading is "Moje talie"',
