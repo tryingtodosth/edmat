@@ -24,11 +24,23 @@
 
 import { getSetsForUser, createSet, updateSet } from '$lib/services/exerciseSets';
 import { getMyTeaching, getMyParticipation, submitCourseItem } from '$lib/services/course';
+import { addCard, createDeck, getMyDecks } from '$lib/services/flashcards';
 import type { ExerciseSet } from '$lib/types';
 import type { Course } from '$lib/types/course';
+import type { Deck } from '$lib/types/flashcards';
 
 let sets = $state<ExerciseSet[]>([]);
 let courses = $state<Course[]>([]);
+// A DECK is the third target kind (prompts/02-flashcards.md). It joins this store rather than
+// getting one of its own for the reason the note at the top of this file gives: it is the same
+// question asked of a third backend — "where can this go?" — cached for the same reason and
+// cleared by the same logout. It loads lazily, with the courses, because like them it is only
+// needed once somebody opens the menu; unlike the sets, a deck does not decide whether the
+// bookmark is drawn (the bookmark means "saved somewhere to come back to", and a deck is a
+// schedule rather than a shelf).
+let decks = $state<Deck[]>([]);
+let decksLoadedFor = $state<string | null>(null);
+let decksLoading = $state(false);
 let loadedFor = $state<string | null>(null);
 let loading = $state(false);
 // The courses are tracked separately because they load separately — see the two `ensure*` methods.
@@ -51,6 +63,12 @@ export const saveTargetsStore = {
 	 * second reading of it worth having. */
 	get courses(): Course[] {
 		return courses.filter((c) => c.canContribute);
+	},
+	/** Empty until `ensureDecksLoaded` has been called with the `flashcards` switch ON — the store
+	 *  never asks for decks the API would refuse, and the menu never draws a section that would be
+	 *  empty for everybody (house rule 3). */
+	get decks(): Deck[] {
+		return decks;
 	},
 	get loading(): boolean {
 		return loading;
@@ -129,6 +147,45 @@ export const saveTargetsStore = {
 		}
 	},
 
+	/** The decks, loaded only when the caller says the `flashcards` switch is on. The flag is
+	 *  passed in rather than read here, for the same reason the owner is: this module deliberately
+	 *  imports no store it would have to be cleared by (see the note at the top). */
+	async ensureDecksLoaded(userId: string | null, enabled: boolean): Promise<void> {
+		if (!userId || !enabled) {
+			if (!enabled) decks = [];
+			return;
+		}
+		if (decksLoadedFor === userId || decksLoading) return;
+		decksLoading = true;
+		try {
+			decks = await getMyDecks();
+			decksLoadedFor = userId;
+		} catch {
+			// A 403 while the switch is off, or a network hiccup: no decks section rather than an
+			// error on a menu that is about saving an exercise somewhere else.
+			decks = [];
+		} finally {
+			decksLoading = false;
+		}
+	},
+
+	/** One exercise onto one deck as a new card. The API refuses a duplicate exercise on a deck
+	 *  with a 400 it names; the button turns that into "already there" rather than "it failed". */
+	async addToDeck(deckId: string, exerciseId: string): Promise<void> {
+		await addCard(deckId, { exerciseId });
+		// Recounted from the server's own answer rather than incremented here — one more count is
+		// cheap and cannot drift (house rule 5).
+		decks = decks.map((d) => (d.id === deckId ? { ...d, cardCount: d.cardCount + 1 } : d));
+	},
+
+	async createDeckWith(name: string, exerciseId: string): Promise<Deck> {
+		const made = await createDeck(name);
+		await addCard(made.id, { exerciseId });
+		const withCard = { ...made, cardCount: 1 };
+		decks = [withCard, ...decks];
+		return withCard;
+	},
+
 	async addTo(setId: string, exerciseId: string): Promise<void> {
 		const target = sets.find((s) => s.id === setId);
 		if (!target || target.exerciseIds.includes(exerciseId)) return;
@@ -162,8 +219,10 @@ export const saveTargetsStore = {
 	clear(): void {
 		sets = [];
 		courses = [];
+		decks = [];
 		loadedFor = null;
 		coursesLoadedFor = null;
+		decksLoadedFor = null;
 		error = '';
 	}
 };

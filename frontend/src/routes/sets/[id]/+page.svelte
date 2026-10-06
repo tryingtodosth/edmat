@@ -16,7 +16,9 @@
 	import { getExercisesByIds } from '$lib/services/exercises';
 	import { createSet, getSharedSet } from '$lib/services/exerciseSets';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
+	import { createDeckFromExercises } from '$lib/services/flashcards';
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
@@ -39,6 +41,33 @@
 	let loadedIntoMySet = $state(false);
 	let savingCopy = $state(false);
 	let savedCopy = $state(false);
+
+	// "Make a deck from this set" on somebody ELSE'S shared set — the deck is the reader's own from
+	// the first card (`POST /api/decks/` sets `owner=request.user`), and `source_set` is only
+	// recorded for a set they may actually read, which a shared one is. A membership snapshot, so
+	// the original owner editing their set later does not rewrite this deck.
+	const decksOn = $derived(featureFlagsStore.isEnabled('flashcards') || authStore.isModerator);
+	let deckBusy = $state(false);
+	let deckMade = $state<{ id: string; skipped: number } | null>(null);
+	let deckError = $state('');
+
+	async function makeDeck() {
+		if (!set) return;
+		deckBusy = true;
+		deckError = '';
+		try {
+			const deck = await createDeckFromExercises({
+				name: set.name,
+				exerciseIds: set.exerciseIds,
+				source: { kind: 'set', id: set.id }
+			});
+			deckMade = { id: deck.id, skipped: deck.skipped ?? 0 };
+		} catch {
+			deckError = m.decks_error(); // "That did not work. Try again."
+		} finally {
+			deckBusy = false;
+		}
+	}
 
 	async function loadAll(id: string) {
 		loading = true;
@@ -145,6 +174,31 @@
 				{/if}
 			{:else}
 				<span class="hint">{m.sharedSet_loginToSaveCopy()}</span>
+			{/if}
+
+			{#if decksOn && authStore.isAuthenticated}
+				<button
+					type="button"
+					class="save-copy"
+					disabled={deckBusy || set.exerciseIds.length === 0}
+					onclick={makeDeck}>{m.decks_makeFromSet()}</button
+				>
+				<!-- "Make a deck from this set" -->
+				{#if deckMade}
+					<span class="notice">
+						{m.decks_madeFromSet()}
+						<!-- "Deck created." -->
+						{#if deckMade.skipped > 0}
+							{m.decks_skipped({ count: deckMade.skipped })}
+							<!-- "{count} exercises were left out because they are no longer available." -->
+						{/if}
+						<a href={resolve(`/flashcards/${deckMade.id}`)}>{m.decks_openDeck()}</a>
+						<!-- "Open the deck" -->
+					</span>
+				{/if}
+				{#if deckError}
+					<span class="hint">{deckError}</span>
+				{/if}
 			{/if}
 		</div>
 

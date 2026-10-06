@@ -1110,6 +1110,59 @@ export function completionRefusalMessage(err: unknown, fallback: string): string
 	return err instanceof Error ? err.message : fallback;
 }
 
+// Flashcards enums — a hand-maintained mirror of `backend/flashcards/models.py`
+// (`SOURCE_KIND_CHOICES`, `GRADE_CHOICES`) and of the refusal words `flashcards/rules.py` answers
+// with. That file says so from its side (house rule 13: say it in both places, because this is
+// where drift creeps in). The TYPES live in `$lib/types/flashcards.ts` and are imported, not
+// redefined here — the same split every other app in this file uses.
+import type { DeckRefusalReason, DeckSourceKind, ReviewGrade } from '$lib/types/flashcards';
+
+export const DECK_SOURCE_LABELS: Record<DeckSourceKind, () => string> = {
+	set: m.decks_source_set, // "From an exercise set"
+	lesson: m.decks_source_lesson, // "From a course lesson"
+	session: m.decks_source_session, // "From an event session"
+	concept: m.decks_source_concept // "From a concept"
+};
+
+/** `null` is a real answer, not a missing one: somebody built this deck card by card. */
+export function deckSourceLabel(kind: DeckSourceKind | null): string {
+	return kind ? DECK_SOURCE_LABELS[kind]() : m.decks_source_manual(); // "Built by hand"
+}
+
+export const REVIEW_GRADES: ReviewGrade[] = [1, 2, 3, 4];
+
+export const REVIEW_GRADE_LABELS: Record<ReviewGrade, () => string> = {
+	1: m.decks_grade_again, // "Again"
+	2: m.decks_grade_hard, // "Hard"
+	3: m.decks_grade_good, // "Good"
+	4: m.decks_grade_easy // "Easy"
+};
+
+// House rule 6, spelled out: every refusal `place_block_reason` / `public_block_reason` can answer
+// with has its own sentence. A boolean would make "you do not run this course" and "it is already
+// here" the same message, and they are completely different things to be told.
+export const DECK_REFUSAL_LABELS: Record<DeckRefusalReason, () => string> = {
+	not_owner: m.decks_reason_notOwner, // "You can only place your own decks."
+	cannot_manage: m.decks_reason_cannotManage, // "You do not run this course or event."
+	already_placed: m.decks_reason_alreadyPlaced, // "This deck is already there."
+	kind: m.decks_reason_kind, // "A deck can only go on a course or an event."
+	minor: m.decks_reason_minor // "Accounts under 16 cannot share a deck publicly."
+};
+
+/** Reads a refusal word off an `ApiError` (`{detail: '<word>'}`) and returns its sentence,
+ * falling back to the error's own message for anything this map does not recognise — so a future
+ * refusal word still shows something rather than throwing. The same shape, and the same reason,
+ * as `pollRefusalMessage` above. */
+export function deckRefusalMessage(err: unknown, fallback: string): string {
+	if (err instanceof ApiError && err.body && typeof err.body === 'object') {
+		const detail = (err.body as Record<string, unknown>).detail;
+		if (typeof detail === 'string' && detail in DECK_REFUSAL_LABELS) {
+			return DECK_REFUSAL_LABELS[detail as DeckRefusalReason]();
+		}
+	}
+	return err instanceof Error ? err.message : fallback;
+}
+
 // The learning record's metric columns — a hand-maintained mirror of `backend/identity/record.py`'s
 // `METRIC_KEYS` (house rule 13: said in both files). One label and one hint per metric, because a
 // column headed "Lessons finished" over a number somebody TYPED about themselves needs the sentence

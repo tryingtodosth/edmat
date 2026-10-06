@@ -12273,3 +12273,143 @@ real servers on 8138/5238: 48 checks, 0 failures, 43 pictures, largest 105 KB, t
 - **The showcase links carry `rel="external"`** so the prerenderer does not crawl into step G's
   not-yet-merged `/about/<feature>` pages and fail the build. The integrator may drop that attribute
   once they exist.
+
+---
+
+## 17BR.A — Flashcards: decks, SM-2 review and placements (2026-10-05, `learn/a-flashcards`)
+
+Learning cycle step A (`prompts/00-DESIGN.md`, `prompts/02-flashcards.md`), from prep `f90e221`.
+The thirty-fifth app, `flashcards`: **decks** of **cards**, a **per-person SM-2 schedule**, a review
+screen, and **placements** that put a deck on a course or an event. It is also the app steps C, D
+and E build against — their "make a deck from this lesson / session / concept" buttons all call one
+endpoint of this app's, whose shape was fixed in the brief before any of it existed.
+
+### The four decisions
+
+**Placement is this cycle's sharing mechanism.** `00-DESIGN.md` §4.1 said decks are private only.
+Read literally that would have made C's and E's buttons produce decks nobody but their maker could
+open — a feature that does nothing. So the integrator decided at launch (`prompts/README.md` §9)
+that a deck **placed** on a node is studyable by everybody who can view that node, while `is_public`
+(world-readable) stays off by default and closed to minors. A public deck *library* is the next
+step. `rules.can_study` has exactly three answers — owner, public, or a placement on a viewable node
+— and `rules.can_edit` has one: the owner.
+
+**That gap is the whole permission model.** A participant who tries to rename the deck their
+lecturer placed gets **404**, not 403: the queryset let them *see* it because it is on their course,
+and "you may look but not touch" is not something this API says about a deck. The honest answer to
+"can I change this" is `POST /api/decks/{id}/copy/` — a private copy they own, a membership snapshot
+with no placements. A placement is a course's decision to point at somebody's deck, never a
+transfer.
+
+**A deck is a snapshot, not a link.** `courses.LessonExerciseSet` already documented this shape and
+every word of its reasoning carried over: the card list is copied once, each card's exercise or
+concept is a live FK, and a later edit to the source set does not rewrite somebody's homework.
+`Deck.source_set` is `SET_NULL` for the same reason that model's is.
+
+**The schedule is a measurement, so it is private by construction.** `ReviewState` is unique per
+`(user, card)` and no endpoint answers with somebody else's row; `ReviewLog` is append-only and read
+back only in aggregate, per `taxonomy.Branch`, through `record.py` behind step B's consent flag.
+Two people studying one placed deck provably keep two schedules — there is a test for it, because
+one shared row is exactly the bug this model shape exists to make impossible.
+
+### SM-2 as one pure function
+
+`scheduling.review(state, grade, now) -> state`: plain dicts, no queries, no models, no clock of its
+own. That is what let the algorithm be tested as a **table of grade sequences against expected
+intervals** rather than through an endpoint. Four grades (again / hard / good / easy) map onto the
+paper's six with two deliberate departures, both written down where the code is: **a lapse is due
+again immediately** (interval 0), because somebody pressing "again" means "show me again", not
+"tomorrow" — and it is also why the review queue is safe to re-request, being recomputed rather than
+held; and the **ease factor is clamped to [1.3, 3.0]**, because a run of "easy" on an unclamped ease
+schedules a card years out, which is a deletion with extra steps. "Due" is the server's day, because
+there is no per-account timezone on this site and half-day precision nobody can act on would be a
+lie dressed as rigour.
+
+`rules.apply_grade` is the only writer: one `update_or_create` and one insert in a short `atomic()`,
+no `select_for_update` (`backend/CLAUDE.md` rule 1). There is nothing to lock against — the row's
+only writer is the person it belongs to.
+
+### What the exercise card does NOT carry
+
+It does not store or inline the statement. The review screen loads a deck's exercises in **one**
+request through `GET /api/exercises/bulk/?ids=`, the endpoint already built for this shape of caller
+(My Set's PDF export is the other one), which already asks `exercises/entries.py: visible_entries`
+for the hint and solution pool. A second resolve in `flashcards` would have been the
+two-surfaces-disagree failure the rule-module boundary exists to prevent, and a 50-card response
+would have carried fifty statements for a screen that shows one at a time. A **concept** card is the
+other way round — its faces are two short strings from `concepts/resolve.py`, so inlining them saves
+the review screen a second endpoint and costs nothing.
+
+`rules.visible_cards` skips an exercise a moderator has pulled, and keeps showing it to the deck's
+OWNER — `courses.LessonExerciseSet.visible_exercises`'s rule, for its reason: a curator who cannot
+see the gap cannot fill it. The card row is never deleted for it.
+
+### Found by running it
+
+- **`npm run check` reported 356 errors on a clean worktree** before a single line of this app was
+  written: `src/lib/paraglide/` is generated and gitignored, so a fresh worktree has no compiled
+  messages at all and every `$lib/paraglide/messages.js` import fails. One
+  `npx paraglide-js compile` fixed it. Worth knowing for the other seven branches of this cycle.
+- **The e2e's first kill-switch check passed against a page that said "Loading…".** It asserted
+  "no `.decks-panel`" on a course page whose course had not arrived yet — a vacuous pass of exactly
+  the kind `e2e/CLAUDE.md` trap 8 warns about, and visible in one glance at the screenshot. It now
+  waits for the course's own `h1` first, and a `5b` section asserts the account-menu entry is
+  **present** with the switch on, because a kill-switch check that never saw the link proves nothing.
+- **Sign-in timed out until the script waited for the layout's own `/feature-flags/` request.**
+  Filling the form before the bundle hydrates submits it natively and goes nowhere (trap 25).
+- **KaTeX's fonts 403 on every dev server in a worktree.** `frontend/node_modules` is a symlink to
+  the main checkout (`prompts/README.md` §3), which is outside Vite's `server.fs` allow list, so 30
+  font requests are refused per run and maths renders with fallback metrics. Environmental, not a
+  product fault — `npm run build` copies them — so the script buckets and *reports* the count rather
+  than swallowing "403", which would also swallow a real one.
+- **The two placement serializers are not duplication.** One embeds the node (read from inside a
+  deck), the other the deck (read from a course page). One carrying both would be a cycle, and a
+  client asking for either would get the other.
+
+### Verified
+
+From the worktree, on ports 8131/5231:
+
+- `manage.py test flashcards config --keepdb` — **99 tests, OK** (144 s), of which 64 are this
+  app's. The schedule as a table first,
+  then every refusal before any happy path: 404 for a stranger and for an anonymous caller, a
+  participant refused a rename on **both** PATCH and PUT (the `UpdateModelMixin` hole that shipped
+  once in `needs`), the four `place_block_reason` words with `already_placed` as **409** and the
+  rest as 403, a minor refused `is_public`, a private node not named in a stranger's read of a
+  deck's placements, every endpoint 403 for a non-staff caller with the switch off and the course
+  endpoint still working beside it, and the event case proving `config/nodes.py` really dispatches
+  rather than `courses` being special-cased.
+- `manage.py check` — 0 issues. `makemigrations --check --dry-run` — no changes (one migration,
+  `flashcards/0001_initial`).
+- `npm run check` — **0 errors, 0 warnings** (2336 files on the final run). `npm run build` —
+  clean, 1 m 38 s.
+  `npx eslint src/` — clean. Prettier clean over `src/`, `messages/` and `e2e/flashcards.mjs`.
+- `node e2e/flashcards.mjs` — **42 checks, 0 failures**, zero console/page errors, seven sections
+  and ten screenshots, all looked at. It drives: making a deck from a saved set on `/my-set`;
+  `/flashcards` and the deck page; flipping a card with **Space** and grading three on **keys
+  1, 3, 4**, after which the API's counts are 1 due / 0 new / 2 scheduled — the numbers SM-2 says,
+  with the lapse still due; placing the deck on a course and a **participant** of that course
+  opening the course page, seeing the panel and grading a card on their own schedule while the
+  owner's is untouched; the switch off taking the panel and the account-menu entry away while the
+  course page still renders; phone width with no horizontal overflow; and the Polish default.
+
+### Left open
+
+- **No shared or public deck library**, and no per-Branch browse. `is_public` works; nothing lists.
+- **SM-2, not FSRS.** One pure function with one call site, so swapping it is a one-file change.
+- **No notification for cards due** — a three-file change (`notifications/services.py`'s
+  `_PREFERENCE_FIELD_FOR_TYPE`, the `NOTIFICATION_TYPES` derived from it, and
+  `frontend/src/lib/utils/labels.ts`) that eight parallel branches would have collided on.
+- **No offline grading**; every grade is a round trip.
+- **A concept card is never frozen** — it follows the concept's current revision.
+- **Concept and free-text cards contribute nothing to the learning record**, because
+  `Concept.branches` is a many-to-many and one review would have to be counted once per branch or
+  split between them. Named rather than guessed at.
+- **Cards cannot be reordered in the UI.** `PATCH /api/cards/{id}/ {order}` works; there is no
+  drag handle on the deck page.
+- **`record.py` and `work.py` are registered by nobody on this branch** — the integrator wires them
+  (`prompts/10-integration.md`). Both have tests here, so the wiring has a proof already.
+- **`npm run lint` does not pass on this branch and did not at `f90e221` either**, in files this
+  step never touched: Prettier flags `e2e/decisions.mjs` and `e2e/event-shifts.mjs`, and eslint
+  reports six errors across five `e2e/*.mjs` scripts. Reported, not fixed — they are nobody's
+  step-A business and fixing them would put unrelated churn in this branch's diff.

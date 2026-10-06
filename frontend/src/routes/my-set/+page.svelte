@@ -6,7 +6,9 @@
 	import { getExercisesByIds } from '$lib/services/exercises';
 	import { createSet, getSetsForUser, setExerciseSetPrivacy } from '$lib/services/exerciseSets';
 	import { authStore } from '$lib/state/auth.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
+	import { createDeckFromExercises } from '$lib/services/flashcards';
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
@@ -32,6 +34,34 @@
 	// copying one set's link doesn't show a stale "copied" note next to a DIFFERENT set below it.
 	let sharedSetId = $state<string | null>(null);
 	let saveNotice = $state(false);
+
+	// "Make a deck from this set" (prompts/02-flashcards.md): one `POST /api/decks/` carrying the
+	// saved set's own exercise ids and its slug as provenance — a membership SNAPSHOT, so a later
+	// edit to the set does not rewrite somebody's deck (`courses.LessonExerciseSet`'s reasoning,
+	// which the backend's `Deck.source_set` repeats). Behind the `flashcards` switch, so with it
+	// off the button is gone rather than failing somewhere less useful (house rule 3).
+	const decksOn = $derived(featureFlagsStore.isEnabled('flashcards') || authStore.isModerator);
+	let deckBusy = $state('');
+	let deckMade = $state<{ id: string; skipped: number } | null>(null);
+	let deckError = $state('');
+
+	async function makeDeck(set: ExerciseSet) {
+		deckBusy = set.id;
+		deckError = '';
+		deckMade = null;
+		try {
+			const deck = await createDeckFromExercises({
+				name: set.name,
+				exerciseIds: set.exerciseIds,
+				source: { kind: 'set', id: set.id }
+			});
+			deckMade = { id: deck.id, skipped: deck.skipped ?? 0 };
+		} catch {
+			deckError = m.decks_error(); // "That did not work. Try again."
+		} finally {
+			deckBusy = '';
+		}
+	}
 
 	// Per-exercise "what to show beyond the statement" — keyed by exercise id, one entry per
 	// exercise currently in the working set. Purely local until "Save set" persists it (study's own
@@ -231,9 +261,33 @@
 							<button type="button" class="load" onclick={() => loadSet(set)}
 								>{m.myset_loadSet()}</button
 							>
+							{#if decksOn}
+								<button
+									type="button"
+									class="deck"
+									disabled={deckBusy === set.id || set.exerciseIds.length === 0}
+									onclick={() => makeDeck(set)}>{m.decks_makeFromSet()}</button
+								>
+								<!-- "Make a deck from this set" -->
+							{/if}
 						</li>
 					{/each}
 				</ul>
+			{/if}
+			{#if deckMade}
+				<p class="notice">
+					{m.decks_madeFromSet()}
+					<!-- "Deck created." -->
+					{#if deckMade.skipped > 0}
+						{m.decks_skipped({ count: deckMade.skipped })}
+						<!-- "{count} exercises were left out because they are no longer available." -->
+					{/if}
+					<a href={resolve(`/flashcards/${deckMade.id}`)}>{m.decks_openDeck()}</a>
+					<!-- "Open the deck" -->
+				</p>
+			{/if}
+			{#if deckError}
+				<p class="deck-error">{deckError}</p>
 			{/if}
 		</section>
 	{/if}
@@ -445,6 +499,14 @@
 		font-size: var(--font-size-xs);
 		margin-left: auto;
 	}
+	.deck {
+		@include mix.button-secondary;
+	}
+
+	.deck-error {
+		color: var(--status-danger);
+	}
+
 	.load {
 		@include mix.button-secondary;
 		padding: 2px var(--space-2);

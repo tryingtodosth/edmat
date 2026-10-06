@@ -109,6 +109,7 @@
 	// per step, appended directly below this comment in step order (A flashcards, B learning_record,
 	// F the creation gate — F reads `GET /api/creation/`, not a flag). Nothing else in this block
 	// is touched by a step.
+	let canFlashcards = $derived(can('flashcards'));
 
 	// Step F, the creation gate (prompts/07-creation-gate.md). NOT a flag read: the flag
 	// (`creation_requires_verification`) is read server-side, because the answer also depends on
@@ -557,6 +558,15 @@
 	<!-- Learning account-menu marker (prompts/README.md §5 rule 4): step A appends "My decks"
 	     (→ /flashcards, behind `flashcards`) directly below this comment. No other learning step
 	     touches the account menu. -->
+	{#if canFlashcards}
+		<!-- A thing of theirs to come back to, like "My tasks" below, rather than something to make —
+		     which is why it is here and not in the Add… menu. A deck is created from a set, a lesson
+		     or this page, never from a global "new…" entry. -->
+		<a role="menuitem" class={itemClass} href={resolve('/flashcards')} {onclick}>
+			{m.decks_navMine()}
+			<!-- "My decks" -->
+		</a>
+	{/if}
 	{#if canTasks}
 		<!-- Everything waiting on this person across every course, event and material they help run
 		     (MANAGEMENT-BRIEF.md §3.B). Here rather than in Add… for the same reason Volunteering is:

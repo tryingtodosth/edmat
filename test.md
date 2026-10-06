@@ -2054,3 +2054,32 @@ Six things about it that are not obvious, each of which has already cost a wrong
 `npm run check:a11y` now also audits `/about/guide` and all eleven chapter pages (they are in
 `scripts/check_accessibility.ts`'s anonymous list). Nothing in the manual calls an API, so a chapter
 page renders with the backend down.
+
+**`flashcards` (learning cycle step A, 2026-10-05).** `backend/flashcards/tests.py` is 64 tests in
+eight classes, and the order is the point: `SchedulingTests` first, because `scheduling.review` is a
+pure function and the only honest way to test an algorithm is a **table** of grade sequences against
+expected intervals (`TABLE`, five sequences, plus the ease clamp at both ends and the interval cap);
+then every refusal before any happy path — `VisibilityTests` (404 for a stranger and for an
+anonymous caller, a placed deck reaching a course's participant, an event proving `config/nodes.py`
+dispatches), `AuthorityTests` (a participant refused a rename on **PATCH and PUT**, refused a
+delete, refused a card edit), `PlacementRefusalTests` (the four `place_block_reason` words, with
+`already_placed` as 409 and the rest 403, plus a private node withheld from a stranger's read of a
+deck's placements), `MinorTests` and `KillSwitchTests` (asserted as a NON-staff caller, with the
+staff bypass and a neighbouring course endpoint each getting one of their own). Only then
+`DeckCreationTests`, `CardTests`, `ReviewTests`, `CopyTests` and `ProviderTests` (the two hooks the
+integrator registers — `record.activity_by_branch` and `work.work_items` — which nothing imports on
+that branch, so this is their only proof). Run it with
+`../.venv/bin/python3 manage.py test flashcards config --keepdb` from `backend/`.
+`frontend/e2e/flashcards.mjs` is the browser half, 42 checks in seven sections: a deck made from a
+saved set on `/my-set`, `/flashcards` and the deck page, a card flipped with **Space** and three
+graded on **keys 1/3/4** with the resulting counts checked against what SM-2 should have produced,
+the deck placed on a course and studied by a **participant** of it on their own schedule, the kill
+switch taking the panel and the account-menu entry away (and section 5b putting them back, because a
+kill-switch check that never saw the link present proves nothing), phone width, and the Polish
+default. Run it as
+`rm -rf backend/cachedata/*; E2E_BASE=http://localhost:5231 E2E_API=http://127.0.0.1:8131/api node e2e/flashcards.mjs`
+with both servers up; it builds and removes all its own scratch state through the real API. One
+thing it will print on any worktree: ~30 KaTeX font requests refused with 403 by the dev server's
+`server.fs` allow list, because `frontend/node_modules` is a symlink to the main checkout. That is
+environmental — the production build copies the fonts — and the script buckets and reports the
+count rather than hiding it.

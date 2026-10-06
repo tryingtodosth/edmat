@@ -60,6 +60,8 @@
 	import { getNodeOrganizations } from '$lib/services/organizations';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import type { OrganizationLink } from '$lib/types/organization';
+
+	import DeckPlacementsPanel from '$lib/components/flashcards/DeckPlacementsPanel.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 	let course = $state<Course | null>(null);
 	let participants = $state<Enrollment[]>([]);
@@ -1046,6 +1048,7 @@
 			<ManagementPanels nodeKind="course" nodeId={course.id} />
 			<!-- learning: deck placements (A) — the decks placed on this course (flashcards.DeckPlacement),
 			     mounted directly below this comment behind `flashcards`. -->
+			<DeckPlacementsPanel nodeKind="course" nodeId={course.id} canManage={course.canCurate} />
 			<!-- learning: completion (C) — the completion-certificate controls and the "run by" line are
 			     C's, in C's own sections above; this marker records that nothing of C's mounts here. -->
 		</div>

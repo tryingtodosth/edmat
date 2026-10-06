@@ -32,6 +32,8 @@
 	import RotaPanel from '$lib/components/shift/RotaPanel.svelte';
 	import ManagementPanels from '$lib/components/management/ManagementPanels.svelte';
 	import RelatedCoursesPanel from '$lib/components/event/RelatedCoursesPanel.svelte'; // learning step E
+
+	import DeckPlacementsPanel from '$lib/components/flashcards/DeckPlacementsPanel.svelte';
 	import EventPreview from '$lib/components/event/EventPreview.svelte';
 	import TicketLinks from '$lib/components/event/TicketLinks.svelte';
 	import {
@@ -617,6 +619,7 @@
 				<ManagementPanels nodeKind="event" nodeId={event.id} />
 				<!-- learning: deck placements (A) — the decks placed on this event (flashcards.DeckPlacement),
 				     mounted directly below this comment behind `flashcards`. -->
+				<DeckPlacementsPanel nodeKind="event" nodeId={event.id} canManage={event.canOrganise} />
 				<!-- learning: event ↔ course (E) — the cross-link panel through the organisation ("this
 				     event's workshops became these courses"), mounted directly below this comment behind
 				     `organizations`. The take-home button is E's, inside Programme.svelte. -->

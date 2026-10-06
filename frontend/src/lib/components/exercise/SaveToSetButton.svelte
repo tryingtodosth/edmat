@@ -19,6 +19,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { saveTargetsStore } from '$lib/state/saveTargets.svelte';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
 	import Popover from '$lib/components/shared/Popover.svelte';
 
@@ -42,6 +43,12 @@
 	let showCourses = $state(false);
 	let naming = $state(false);
 	let newName = $state('');
+	// A DECK is one more place an exercise can go (prompts/02-flashcards.md): its own collapsible
+	// section in this same menu, behind the `flashcards` switch — and with the switch off the
+	// section, not just its endpoint, is gone (house rule 3).
+	let showDecks = $state(false);
+	let namingDeck = $state(false);
+	let newDeckName = $state('');
 	let busy = $state('');
 	let notice = $state('');
 	let error = $state('');
@@ -55,6 +62,8 @@
 	const shownSets = $derived(showAllSets ? sets : sets.slice(0, VISIBLE_SETS));
 	const hiddenCount = $derived(Math.max(sets.length - VISIBLE_SETS, 0));
 	const courses = $derived(saveTargetsStore.courses);
+	const decksOn = $derived(featureFlagsStore.isEnabled('flashcards') || authStore.isModerator);
+	const decks = $derived(saveTargetsStore.decks);
 	const stacked = $derived(displayPrefs.saveMenuLayout === 'above');
 
 	// The sets have to be loaded for the button to be honest — a bookmark means "already saved
@@ -72,6 +81,8 @@
 			notice = '';
 			error = '';
 			saveTargetsStore.ensureCoursesLoaded(authStore.user?.id ?? null);
+			// Same laziness and the same reason: nobody needs their decks until the menu is open.
+			saveTargetsStore.ensureDecksLoaded(authStore.user?.id ?? null, decksOn);
 		}
 	});
 
@@ -109,6 +120,44 @@
 			notice = m.save_addedToNew({ name });
 			newName = '';
 			naming = false;
+		} catch {
+			error = m.save_error();
+		} finally {
+			busy = '';
+		}
+	}
+
+	async function addToDeck(deckId: string, name: string) {
+		busy = deckId;
+		error = '';
+		try {
+			await saveTargetsStore.addToDeck(deckId, exerciseId);
+			notice = m.decks_addedToDeck({ name });
+		} catch (e) {
+			// The API answers `exercise_not_available` for a pulled exercise and a plain 400 for a
+			// card that is already there. Two different things to be told, and neither is "it
+			// failed" (house rule 6).
+			if (e instanceof ApiError && e.status === 400) {
+				notice = m.decks_addedToDeck({ name });
+			} else {
+				error = m.save_error();
+			}
+		} finally {
+			busy = '';
+		}
+	}
+
+	async function createDeckAndAdd(event: SubmitEvent) {
+		event.preventDefault();
+		const name = newDeckName.trim();
+		if (!name) return;
+		busy = 'new-deck';
+		error = '';
+		try {
+			await saveTargetsStore.createDeckWith(name, exerciseId);
+			notice = m.decks_addedToDeck({ name });
+			newDeckName = '';
+			namingDeck = false;
 		} catch {
 			error = m.save_error();
 		} finally {
@@ -175,7 +224,9 @@
 		<div
 			class="menu"
 			class:menu--stacked={stacked}
-			class:menu--twocol={!stacked && courses.length > 0}
+			class:menu--twocol={!stacked &&
+				(courses.length > 0 || (decksOn && authStore.isAuthenticated))}
+			class:menu--threecol={!stacked && courses.length > 0 && decksOn && authStore.isAuthenticated}
 		>
 			{#snippet coursesSection()}
 				{#if courses.length}
@@ -214,8 +265,70 @@
 				{/if}
 			{/snippet}
 
+			{#snippet decksSection()}
+				{#if decksOn && authStore.isAuthenticated}
+					<div class="menu__decks">
+						<button
+							type="button"
+							class="menu__row menu__row--head"
+							aria-expanded={showDecks}
+							onclick={() => (showDecks = !showDecks)}
+						>
+							<span>{m.decks_saveMenuHeading()}</span>
+							<!-- "Decks" -->
+							<span class="menu__chev" class:menu__chev--open={showDecks}>›</span>
+						</button>
+						{#if showDecks}
+							<ul class="menu__list">
+								{#each decks as deck (deck.id)}
+									<li>
+										<button
+											type="button"
+											class="menu__row"
+											disabled={busy === deck.id}
+											onclick={() => addToDeck(deck.id, deck.name)}
+										>
+											<span class="menu__name">{deck.name}</span>
+											{#if deck.dueCount > 0}
+												<span class="menu__hint">{deck.dueCount}</span>
+											{/if}
+										</button>
+									</li>
+								{/each}
+								<li>
+									{#if namingDeck}
+										<form class="menu__new" onsubmit={createDeckAndAdd}>
+											<input
+												type="text"
+												bind:value={newDeckName}
+												maxlength="120"
+												required
+												placeholder={m.decks_newNamePlaceholder()}
+											/>
+											<button type="submit" disabled={busy === 'new-deck'}>
+												{m.decks_create()}
+											</button>
+										</form>
+									{:else}
+										<button
+											type="button"
+											class="menu__row menu__row--more"
+											onclick={() => (namingDeck = true)}
+										>
+											{m.decks_newDeck()}
+											<!-- "New deck…" -->
+										</button>
+									{/if}
+								</li>
+							</ul>
+						{/if}
+					</div>
+				{/if}
+			{/snippet}
+
 			{#if stacked}
 				{@render coursesSection()}
+				{@render decksSection()}
 			{/if}
 
 			<div class="menu__sets">
@@ -288,6 +401,7 @@
 
 			{#if !stacked}
 				{@render coursesSection()}
+				{@render decksSection()}
 			{/if}
 		</div>
 
@@ -363,6 +477,13 @@
 			min-width: 23rem;
 		}
 
+		/* Three columns' worth of names once decks are on as well — the 210px that truncated every
+		   set name to "Trudne c…" is the bug this width exists to avoid, found by looking at a
+		   screenshot rather than by any assertion. */
+		&--threecol {
+			min-width: 31rem;
+		}
+
 		&--stacked {
 			flex-direction: column;
 			gap: var(--space-2);
@@ -376,17 +497,20 @@
 		flex: 3 1 0;
 	}
 
-	.menu__courses {
+	.menu__courses,
+	.menu__decks {
 		min-width: 0;
 		flex: 2 1 0;
 	}
 
-	.menu__courses {
+	.menu__courses,
+	.menu__decks {
 		border-left: 1px solid var(--border-color);
 		padding-left: var(--space-2);
 	}
 
-	.menu--stacked .menu__courses {
+	.menu--stacked .menu__courses,
+	.menu--stacked .menu__decks {
 		border-left: none;
 		border-bottom: 1px solid var(--border-color);
 		padding-left: 0;
