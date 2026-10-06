@@ -58,6 +58,41 @@ creates a location row nobody will ever read, visible to moderators as a row wit
 Poland (`accounts/minors.py`), not a product setting. It applies only to `audience='anyone'` — a
 minor may take part in a discussion among accounts, which is what every other thread on this site
 already allows them.
+
+## What "N comments" counts, and why a tombstone is not one
+
+Three places print a number for a location, and they have to agree or the collapsed line promises
+a thread that turns out to be shorter: `DiscussionPolicyView`'s `comment_count`,
+`DiscussionLocationSerializer.get_comment_count`, and the collapsed line in
+`SectionDiscussion.svelte`. All three count **public** comments — not removed, not held — and the
+reason is that a reader counting for themselves would get the same number: a tombstone is a
+placeholder where a comment used to be, not a comment, and a held comment has never been public at
+all. The two server-side counts said this from the start; the third did not — it was
+`thread.comments.length`, and the thread deliberately carries tombstones (so the tree keeps its
+shape, house rule 12) and carries held rows for staff and for their own author, so "(3)" could be
+one real comment, one tombstone and one thing waiting for a moderator. Fixed in the component,
+2026-10-06, and written down here because the next person to add a count will look here first.
+
+This is also what lets `e2e/about-discussions.mjs` assert an EXACT number rather than ">= 1": the
+script's signed-in comments it deletes as their author (`DELETE /api/comments/{id}/`, a tombstone),
+its anonymous one it removes through the report queue as staff — and neither a tombstone nor a held
+row is counted, so the count comes back to exactly what it was before the run. That is why this
+surface still has no delete endpoint of its own and still needs none (house rule 12; the
+`DiscussionLocationViewSet` docstring refuses `destroy` for the ROW for a different reason again).
+
+## A row is created by a write that SUCCEEDS
+
+`DiscussionLocation` rows are lazy (the model's own docstring says why), and lazily means "when
+somebody writes here", not "when somebody tries". A refused write (403), a malformed body (400) and
+a reply naming a parent in another thread (400) all leave no row behind — otherwise a client could
+manufacture a moderation-list row it is not even allowed to write at. The parent check is what made
+this non-obvious: it needs the row to compare against, so the row used to be created before it. It
+is not any more — an absent row simply means the named parent cannot belong here.
+
+What is left over from before that rule, plus the well-formed junk keys the pattern allowlist
+permits by design, is what `manage.py sweep_discussion_locations` removes: a row with no comments,
+default settings and no `updated_by` is a row nobody decided anything about, so deleting it loses
+no decision. See the command's own docstring.
 """
 
 from __future__ import annotations
@@ -123,6 +158,27 @@ def parse_key(key: str) -> tuple[str, str]:
 def location_key(page: str, section: str) -> str:
     """The inverse of `parse_key`, so the one spelling of a key lives here too."""
     return f'{page}#{section}' if section else page
+
+
+def report_location_key(target) -> str | None:
+    """The location key for a reported comment's own target, or `None` if it is not one of ours.
+
+    **`moderation/services.py` reads this** — it is the one thing the report queue knows about this
+    app, and it is here rather than there so that the spelling of a key stays in the module that
+    owns it (house rule 13: mirrored across two files, said in both). The queue's report rows carry
+    the result as `discussion_location`, which is what lets `/moderation?tab=reports&location=<key>`
+    show a moderator the held comments at ONE location — the number the panel prints next to that
+    location, made clickable.
+
+    Deliberately takes the already-resolved object rather than the comment: the queue builder has
+    bulk-resolved every reported comment's direct target by the time it asks, and a function that
+    took the comment would do that hop a second time, once per row.
+    """
+    from .models import DiscussionLocation
+
+    if not isinstance(target, DiscussionLocation):
+        return None
+    return location_key(target.page, target.section)
 
 
 def ip_hash(request) -> str:

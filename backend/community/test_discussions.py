@@ -11,16 +11,21 @@ seeds `about_discussions` on — so the tests that need it off set the row expli
 relying on absence.
 """
 
+from io import StringIO
+
 from django.contrib.contenttypes.models import ContentType
+from django.core.management import call_command
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.minors import HOLD_REASON
+from accounts.minors import HOLD_REASON, hold_for_review
 from community.models import Comment, DiscussionLocation
 from community import discussions
 from moderation.models import FeatureFlag, Report
-from testing.factories import make_user
+from moderation.services import build_report_queue
+from telemetry.routers import all_log_shards
+from testing.factories import make_branch, make_exercise, make_user
 
 PAGE = 'about/guide/courses'
 SECTION = 'enrolling'
@@ -179,6 +184,10 @@ class HeldForTests(APITestCase):
 
 
 class DiscussionEndpointTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         _flag(True)
         self.plain = make_user('ep-plain')
@@ -319,8 +328,98 @@ class DiscussionEndpointTests(APITestCase):
         self._post('<img src=x onerror=alert(1)>Fine text')
         self.assertNotIn('onerror', Comment.objects.get().body)
 
+    # --- a row is created by a write that SUCCEEDS (`discussions.py`'s own heading) -------------
+
+    def test_a_refused_write_creates_no_location_row(self):
+        """A 403 must leave nothing behind, or anybody who is not even allowed to write here can
+        manufacture a row in the moderator's list by trying.
+
+        The page's own row carries the refusal (it is the ceiling over every section on it), so
+        the SECTION is the one that must still not exist afterwards."""
+        DiscussionLocation.objects.create(page=PAGE, section='', audience='staff')
+        self.client.force_authenticate(self.plain)
+        response = self._post()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(DiscussionLocation.objects.filter(page=PAGE, section=SECTION).count(), 0)
+
+    def test_a_refused_write_at_a_location_with_no_row_creates_none(self):
+        _flag(False)
+        self.client.force_authenticate(self.plain)
+        response = self._post()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(DiscussionLocation.objects.count(), 0)
+
+    def test_a_reply_into_another_thread_creates_no_row_for_the_section_it_named(self):
+        """The regression this rule exists for: the row used to be created one line above the
+        parent check, so a refused reply left a location nobody had written at."""
+        self.client.force_authenticate(self.plain)
+        self._post('First')
+        parent = Comment.objects.get()
+        response = self.client.post(
+            self.thread_url,
+            {'page': PAGE, 'section': 'a-different-section', 'body': 'Reply', 'parent': parent.pk},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            DiscussionLocation.objects.filter(page=PAGE, section='a-different-section').count(), 0
+        )
+
+    def test_a_malformed_body_creates_no_row(self):
+        self.client.force_authenticate(self.plain)
+        response = self._post('   ')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(DiscussionLocation.objects.count(), 0)
+
+    def test_a_held_write_does_create_its_row(self):
+        """The other half of the same rule, so nobody "fixes" it into refusing to create one: a
+        held comment is stored, and a stored comment needs the row it hangs off."""
+        self._set(moderated=True)
+        self.client.force_authenticate(self.plain)
+        self.assertEqual(self._post('Held').status_code, status.HTTP_201_CREATED)
+        self.assertEqual(DiscussionLocation.objects.filter(page=PAGE, section=SECTION).count(), 1)
+
+    # --- what "N comments" counts (`discussions.py`) ---------------------------------------------
+
+    def test_the_count_excludes_a_tombstone_and_a_held_comment(self):
+        """The number the collapsed line prints. A tombstone is a placeholder, not a comment, and
+        a held comment has never been public — so deleting what it wrote brings the count back to
+        exactly where it was, which is what lets `e2e/about-discussions.mjs` assert `===`."""
+        self.client.force_authenticate(self.plain)
+        self._post('Public')
+        self._post('Will be deleted')
+        self._post('Will be held')
+
+        doomed = Comment.objects.get(body='Will be deleted')
+        doomed.is_removed = True
+        doomed.removed_by_author = True
+        doomed.save(update_fields=['is_removed', 'removed_by_author'])
+        hold_for_review(Comment.objects.get(body='Will be held'), None)
+
+        self.client.force_authenticate(None)
+        policies = self.client.get(self.policies_url, {'page': PAGE, 'sections': SECTION})
+        row = [r for r in policies.data['locations'] if r['section'] == SECTION][0]
+        self.assertEqual(row['comment_count'], 1)
+
+        # And the thread still CARRIES the tombstone, which is why the component cannot simply
+        # take `comments.length` (house rule 12 keeps the thread's shape).
+        thread = self.client.get(self.thread_url, {'page': PAGE, 'section': SECTION})
+        self.assertEqual(len(thread.data['comments']), 2)
+        self.assertEqual(
+            sum(
+                1
+                for c in thread.data['comments']
+                if not c['is_removed'] and not c['is_auto_hidden']
+            ),
+            1,
+        )
+
 
 class DiscussionLocationAdminTests(APITestCase):
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test.
+    databases = set(all_log_shards()) | {'default'}
+
     def setUp(self):
         _flag(True)
         self.plain = make_user('loc-plain')
@@ -396,3 +495,112 @@ class DiscussionLocationAdminTests(APITestCase):
         row = self.client.get(self.list_url).data[0]
         self.assertEqual(row['comment_count'], 1)
         self.assertEqual(row['held_count'], 1)
+
+
+class DiscussionReportRowTests(APITestCase):
+    """The one additive field `moderation/services.py` carries for this app.
+
+    It lives here rather than in `moderation/tests.py` because the rule it pins is this app's:
+    `community.discussions.report_location_key` decides what a key looks like, and the queue only
+    prints what that function returns (house rule 13 — mirrored, said in both files). What the
+    field buys is the link in `DiscussionLocationsPanel.svelte`: `/moderation?tab=reports&
+    location=<key>` filters the Reports tab to one standing page's held comments.
+    """
+
+    # The request-logging middleware writes to its own shards; a view test that does not declare
+    # them fails on Django's cross-database guard rather than on anything under test.
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        _flag(True)
+        self.thread_url = reverse('discussion-thread')
+
+    def _row_for(self, comment):
+        content_type = ContentType.objects.get_for_model(Comment)
+        for row in build_report_queue():
+            if row['kind'] == 'comment' and row['object_id'] == comment.pk:
+                return row
+        self.fail(f'no queue row for comment {comment.pk} (ct {content_type.pk})')
+
+    def test_a_held_standing_page_comment_carries_its_location(self):
+        DiscussionLocation.objects.create(page=PAGE, section=SECTION, audience='anyone')
+        response = self.client.post(
+            self.thread_url, {'page': PAGE, 'section': SECTION, 'body': 'From a visitor'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        comment = Comment.objects.get()
+        self.assertEqual(self._row_for(comment)['discussion_location'], f'{PAGE}#{SECTION}')
+
+    def test_a_page_level_location_has_no_hash_in_its_key(self):
+        DiscussionLocation.objects.create(page='about', section='', audience='anyone')
+        self.client.post(
+            self.thread_url, {'page': 'about', 'body': 'From a visitor'}, format='json'
+        )
+        comment = Comment.objects.get()
+        self.assertEqual(self._row_for(comment)['discussion_location'], 'about')
+
+    def test_a_comment_anywhere_else_carries_null(self):
+        """`None`, not a missing key: the frontend reads the field on every report row, and a
+        report on a comment under an exercise is by far the common case."""
+        branch = make_branch()
+        exercise = make_exercise(branch, 1)
+        author = make_user('rr-author')
+        comment = Comment.objects.create(
+            content_type=ContentType.objects.get_for_model(type(exercise)),
+            object_id=exercise.pk,
+            author=author,
+            body='An ordinary comment',
+        )
+        hold_for_review(comment, author)
+        self.assertIsNone(self._row_for(comment)['discussion_location'])
+
+
+class SweepDiscussionLocationsTests(APITestCase):
+    """`manage.py sweep_discussion_locations` — the junk-key bullet of `todo.md`.
+
+    Three conditions have to hold together before a row is a candidate, and three of these four
+    tests are one condition each failing. That is the whole argument that this is not a hole in
+    house rule 12: every row somebody decided something about is kept.
+    """
+
+    def _sweep(self, *args):
+        out = StringIO()
+        call_command('sweep_discussion_locations', *args, stdout=out)
+        return out.getvalue()
+
+    def test_dry_run_lists_a_junk_row_and_removes_nothing(self):
+        DiscussionLocation.objects.create(page='about/nonsense', section='whatever')
+        output = self._sweep('--dry-run')
+        self.assertIn('about/nonsense#whatever', output)
+        self.assertIn('1 candidate', output)
+        self.assertEqual(DiscussionLocation.objects.count(), 1)
+
+    def test_without_the_flag_it_removes_them(self):
+        DiscussionLocation.objects.create(page='about/nonsense', section='whatever')
+        DiscussionLocation.objects.create(page='about/other', section='')
+        self._sweep()
+        self.assertEqual(DiscussionLocation.objects.count(), 0)
+
+    def test_a_row_with_a_comment_is_never_a_candidate(self):
+        """Any comment at all, including a tombstone: a tombstone is the record that something was
+        said here and removed, and the row under it is what that record hangs off."""
+        row = DiscussionLocation.objects.create(page='about/nonsense', section='whatever')
+        Comment.objects.create(
+            content_type=ContentType.objects.get_for_model(DiscussionLocation),
+            object_id=row.pk,
+            author=make_user('sweep-author'),
+            body='Something',
+            is_removed=True,
+        )
+        self._sweep()
+        self.assertEqual(DiscussionLocation.objects.count(), 1)
+
+    def test_a_row_somebody_touched_or_changed_is_never_a_candidate(self):
+        moderator = make_user('sweep-mod', is_staff=True)
+        DiscussionLocation.objects.create(page='about/one', section='', updated_by=moderator)
+        DiscussionLocation.objects.create(page='about/two', section='', audience='staff')
+        DiscussionLocation.objects.create(page='about/three', section='', is_enabled=False)
+        DiscussionLocation.objects.create(page='about/four', section='', moderated=True)
+        output = self._sweep()
+        self.assertIn('0 candidate', output)
+        self.assertEqual(DiscussionLocation.objects.count(), 4)

@@ -231,14 +231,29 @@ inherit from it rather than repeating the line.
 
 ## Discussions under the standing pages (`community/discussions.py`, 2026-10-06)
 
-**Django: `../.venv/bin/python3 manage.py test community.test_discussions`** — 42 tests. Key
+**Django: `../.venv/bin/python3 manage.py test community.test_discussions`** — 55 tests. Key
 parsing and what it refuses; `effective_policy`'s page-as-ceiling rule in both directions (a page
 narrows its sections, a section cannot widen past its page) and the flag above both; every refusal
 word `post_block_reason` answers with, including the `minor` rule that applies only to `anyone`;
 what is held and what is not (anonymous always, staff never); who may read a held comment; and the
 moderator's list, its counts and the fact that it has no DELETE.
 
-**Browser: `frontend/e2e/about-discussions.mjs`** — 25 checks, zero console errors.
+Thirteen of those are from the closing cycle (2026-10-06): that a 403, a malformed body and a
+reply naming a parent in another thread each leave **no `DiscussionLocation` row** while a held
+comment still creates its own; that the count excludes a tombstone and a held comment while the
+thread still carries the tombstone; the `discussion_location` field a report row now carries for a
+comment held under a standing page (and `None` for every other comment — pinned here rather than
+in `moderation/tests.py`, because the rule it tests is this app's); and the three conditions
+`sweep_discussion_locations` requires, one test per condition failing.
+
+**Django: `../.venv/bin/python3 manage.py sweep_discussion_locations [--dry-run]`** — not a test,
+but the thing to run after a bulk import or anything that writes at a standing page. It deletes
+`DiscussionLocation` rows with no comments, default settings and no `updated_by`; `--dry-run`
+prints the candidates and changes nothing. On the development database on 2026-10-06 it found 4
+locations and 0 candidates — every one of them had been configured through the moderator API by
+`about-discussions.mjs`, which is the "somebody decided this" condition doing its job.
+
+**Browser: `frontend/e2e/about-discussions.mjs`** — 31 checks, zero console errors.
 
 ```bash
 cd backend && ../.venv/bin/python3 manage.py migrate   # trap 23: the tables are new
@@ -256,9 +271,14 @@ the verified-only sentence and no composer; a manual chapter draws exactly one d
 the flag off there is no affordance anywhere while the policy endpoint still answers.
 
 It needs `admin` and `student1` with password `password123` (override with `E2E_STAFF`,
-`E2E_STAFF_PW`, `E2E_USER`, `E2E_USER_PW`) and it **leaves its comments behind** — there is no
-delete endpoint for a standing-page thread yet, so the count check asserts "a count ≥ 1" rather
-than an exact number. Two things it taught, both already in `e2e/CLAUDE.md`: waiting for
+`E2E_STAFF_PW`, `E2E_USER`, `E2E_USER_PW`) and since 2026-10-06 it **clears up after itself**, so
+the count check asserts an exact number — the count it read from the server before it wrote
+anything, plus the one public comment it wrote. Cleanup uses the two removals this platform
+already has rather than a delete endpoint nobody should add (house rule 12): the signed-in comment
+is deleted by its own author (a tombstone), and the anonymous one — which was held, so never
+public — is removed by staff through the report queue `hold_for_review` filed for it. Both are
+re-queried **authenticated** at the end (trap 12). Two things it taught, both already in
+`e2e/CLAUDE.md`: waiting for
 `.section-discussion__body` proves nothing, because the panel appears instantly carrying
 "Loading…" (trap 25), and a long chain of full page loads exhausts the dev server into
 `ERR_INSUFFICIENT_RESOURCES`, which reads exactly like the feature being broken (trap 3).

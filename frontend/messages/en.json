@@ -3926,5 +3926,8 @@
 	"discussions_addFailed": "That location could not be added. A page is `about`, `about/<segment>` or `about/<segment>/<segment>`.",
 	"discussions_wholePage": "the whole page",
 	"discussions_saveFailed": "That change could not be saved.",
+	"discussions_heldLink": "Show the comments waiting at {key}",
+	"discussions_filterShowingAt": "Showing only the comments waiting at {key}.",
+	"discussions_filterShowAll": "show all reports",
 	"featureFlags_label_aboutDiscussions": "Discussions under the standing pages (/about and the manual)"
 }

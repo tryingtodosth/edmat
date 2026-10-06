@@ -502,6 +502,10 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
     scope_exercise_by_key: dict[tuple[int, int], Exercise | None] = {}
     needed_exercise_ids: set[int] = set()
     comment_keys: list[tuple[int, int]] = []
+    # One additive, read-only key on a report row: the standing-page discussion location a reported
+    # comment belongs to. Empty for every report that is not such a comment, which is why it is a
+    # dict filled in the comment pass below rather than a field on anything.
+    discussion_location_by_key: dict[tuple[int, int], str | None] = {}
     for key, obj in targets_by_key.items():
         ct_id, obj_id = key
         if ct_id == exercise_ct_id:
@@ -545,9 +549,17 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
             for obj in qs:
                 comment_targets_by_key[(ct_id, obj.pk)] = obj
 
+        # Which standing-page location a reported comment was written at, when it was written at
+        # one — `community/discussions.py: report_location_key` owns the spelling of a key and says
+        # so from its side too (house rule 13). Read off the target already resolved above, so it
+        # costs no query. Imported here rather than at module scope because `community.discussions`
+        # imports `is_feature_enabled` from this file.
+        from community.discussions import report_location_key
+
         for key in comment_keys:
             comment = targets_by_key[key]
             direct_target = comment_targets_by_key.get((comment.content_type_id, comment.object_id))
+            discussion_location_by_key[key] = report_location_key(direct_target)
             if isinstance(direct_target, Exercise):
                 scope_exercise_by_key[key] = direct_target
                 needed_exercise_ids.add(direct_target.pk)
@@ -675,6 +687,15 @@ def build_report_queue(branch_ids: set[int] | None = None) -> list[dict]:
                 'preview': preview,
                 'exercise_id': exercise_id,
                 'exercise_title': exercise_title,
+                # `'about/guide/courses#enrolling'` for a comment held under a standing page, None
+                # for everything else. Read by `routes/moderation/+page.svelte`, which filters the
+                # Reports tab on it when it is sent `?location=` — the moderation panel's "Waiting:
+                # 5" is a link to exactly that. Client-side filtering over an additive field, with
+                # no `?location=` parameter on this endpoint: a standing page produces single
+                # digits, and the queue is already fetched whole for the tab counts. The day a
+                # location carries more held comments than a moderator will scroll past is the day
+                # it needs a server-side filter, and that is a real `WHERE`, not a bigger payload.
+                'discussion_location': discussion_location_by_key.get(key),
                 'last_reported_at': g['last_reported_at'],
             }
         )

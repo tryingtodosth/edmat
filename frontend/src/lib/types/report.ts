@@ -49,5 +49,11 @@ export interface ReportGroup {
 	preview: string;
 	exerciseId?: string;
 	exerciseTitle?: string;
+	/** `'about/guide/courses#enrolling'` when this is a comment held under a standing page,
+	 *  undefined for every other report. Additive and read-only, built by
+	 *  `backend/community/discussions.py: report_location_key` and filled in by
+	 *  `moderation/services.py`; `/moderation?tab=reports&location=<key>` filters on it, which is
+	 *  what makes the "Waiting: 5" in the discussions panel a link worth clicking. */
+	discussionLocation?: string;
 	lastReportedAt: string;
 }

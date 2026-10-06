@@ -12547,3 +12547,161 @@ From the worktree, on ports 8131/5231:
   step never touched: Prettier flags `e2e/decisions.mjs` and `e2e/event-shifts.mjs`, and eslint
   reports six errors across five `e2e/*.mjs` scripts. Reported, not fixed — they are nobody's
   step-A business and fixing them would put unrelated churn in this branch's diff.
+
+## 17BT.E — Discussions: an exact count, a link to the held, and no row for a key nobody will read (2026-10-06)
+
+`prompts/16-discussions.md`, branch `close/e-discussions`, cut from `490c195`. Three of §17BS's six
+left-opens were engineering rather than product, and this is them, plus the two one-line debts the
+cycle's ownership table routed here. No migration: none of the three changes touches a model.
+
+### 1. The browser script asserts an exact count, because it now clears up after itself
+
+`about-discussions.mjs:188–191` asserted "a count ≥ 1" because the script left its comments behind
+and `todo.md` asked for a delete endpoint. House rule 12 forbids the hard delete that bullet wanted,
+so the first thing to establish was what the collapsed line's number actually counts.
+
+It turned out to be two different numbers depending on whether the thread had been opened. Before a
+click it is `policy.commentCount`, from `DiscussionPolicyView`, which has always counted public
+comments only — `is_removed=False, auto_hidden_at IS NULL`. After a click
+`SectionDiscussion.svelte` replaced it with `thread.comments.length`, and the thread deliberately
+carries tombstones (so a thread whose middle was removed keeps its shape) and, for staff and for
+their own author, rows that are still held. So the same line could read "(1)" collapsed and "(3)"
+open, with two of the three being a placeholder and a thing waiting for a moderator.
+
+`publicCount()` in the component is the fix — one definition, used in both places the count is set
+— and the reason is written into `discussions.py` under "What \"N comments\" counts", because it is
+the third place that number is printed and the next person to add a fourth will look there.
+
+With tombstones out of the count, **no new endpoint was needed**. The script's signed-in comment is
+deleted by its own author through `DELETE /api/comments/{id}/`, which tombstones it; its anonymous
+comment was *held*, so it was never public and never counted, and staff remove it through the
+report queue `accounts.minors.hold_for_review` already filed for it — the first and second of the
+three shapes the brief listed, and the third (a staff-only tombstoning action in `community/views.py`)
+was not built. The script reads both counts from the server before it writes anything and asserts
+`===` against what it computed.
+
+### 2. "Waiting: 5" is a link
+
+`DiscussionLocationsPanel.svelte` printed the held count as text, so a moderator who could see the
+number had to go and find the comments. A held comment IS a report, so the rows are already on the
+Reports tab — what was missing was any way to tell which location a reported comment came from.
+
+One additive, read-only key on a report row: **`discussion_location`**, the location key
+(`'about/guide/courses#enrolling'`, or `'about'` for a page-level row) when the reported comment's
+target is a `DiscussionLocation`, `None` for everything else. `community.discussions.report_location_key`
+builds it, so the spelling of a key stays in the app that owns it, and both files say the other
+reads it (house rule 13). It costs no query: `build_report_queue` has already bulk-resolved every
+reported comment's direct target by the time it asks.
+
+The Reports tab reads `?location=` once at mount, exactly the way it reads `?tab=`, filters its rows
+on that field and prints a visible line saying it is filtered with a "show all" button — a filter
+nobody can see is a queue that looks empty for no reason. The panel's link is
+`/moderation?tab=reports&location=<key>` and carries `data-sveltekit-reload`, because the panel
+lives *inside* `/moderation` and a client-side navigation from that route to itself would reuse the
+component and never re-run either read-once line.
+
+The filter is client-side, over the queue the tab already fetches whole. `moderation/services.py`
+says where that stops being enough: the day one location carries more held comments than a moderator
+will scroll past, it wants a real `WHERE` on the endpoint rather than a bigger payload.
+
+### 3. A row is created by a write that succeeds
+
+`DiscussionLocation` rows are lazy, and the POST created one *one line above* the parent check that
+needs it — so a reply naming a comment in another thread was refused 400 and still left a location
+behind, which a moderator then found in the list with no comments under it. The row is now resolved
+with `create=False`, every refusal happens, and only then is it created; an absent row is not a
+special case, it just means no parent can belong here. A 403 and a malformed body never reached the
+creation line and still do not; all three have tests. A *held* comment still creates its row, which
+is not the same question — it is stored, and a stored comment needs something to hang off.
+
+What is left over from before that rule, plus the well-formed junk keys `PAGE_RE` permits by design,
+is what `manage.py sweep_discussion_locations` removes. A candidate needs all three of: no comments
+of any kind (a tombstone is a record that something was said here), default settings, and
+`updated_by IS NULL`. The three together are the whole argument that this is not the hard delete
+house rule 12 forbids — nobody decided anything about such a row. `--dry-run` prints the candidates
+and changes nothing. `DiscussionLocationViewSet` still has no `destroy`, and the command's docstring
+says why the two are different questions.
+
+### 4. The two one-liners
+
+`e2e/about-discussions.mjs` was the one file in the tree Prettier rejected, so `npm run lint` is now
+clean over the whole tree — the second of the three numbers this cycle is judged on
+(`prompts/11-closing-design.md` §8). And both `test_discussions.py` classes now declare
+`databases = set(all_log_shards()) | {'default'}`, which step A's sweep skipped on purpose.
+
+### Verified
+
+From `/Projects/edmat/.claude/worktrees/close-e-discussions/`, servers on 8145 / 5245, Node 24.
+
+- `manage.py test community.test_discussions` — **55 tests, OK** (42 before; 13 new). Both classes
+  in the file now declare `databases`, and neither they nor the three new classes print a
+  `Failed to write a request log row`.
+- `manage.py test community` — **131 tests, OK**. The 47 remaining log-shard tracebacks all come
+  from five classes in `community/tests.py` (`CommentTests`, `CommentVoteTests`,
+  `CommentEditDeleteTests`, `ReviewTests`, `ReviewReplyTests`), which is step A's file, not this
+  one's; named here so nobody looks for them in `test_discussions.py`.
+- `manage.py check` — no issues. `manage.py makemigrations --check --dry-run` — **no changes
+  detected**. No migration, as the brief predicted.
+- `manage.py sweep_discussion_locations --dry-run` on the development database — `4 discussion
+  location(s); 0 candidate(s).` All four are `about#…` rows the browser script created through the
+  moderator API, so every one of them has `updated_by` set: the "somebody decided this" condition
+  refusing to delete, on real data. Driven end to end as well, by hand: a junk row
+  `about/nonsense#sweepme` was created, listed by `--dry-run` (which removed nothing), removed by
+  the bare command, and the next `--dry-run` was back to `4 … 0 candidate(s)`.
+- `e2e/about-discussions.mjs` — **35 passed, 0 failed, 0 console/page errors** (25 checks before;
+  0 KaTeX webfont 403s needed suppressing on this run, and the counter prints the number either
+  way). The count assertion is now `=== missionBefore + 1`; the script's own two comments are gone
+  at the end, confirmed by an authenticated re-query **by id** rather than by text, because runs
+  from before this change left comments with the same words at the same locations.
+  Screenshots: `about-discussions-1-anon-open.png`, `-2-thread-and-refusal.png`, `-3-flag-off.png`,
+  and two new ones, `-4-held-count-link.png` (the panel, "Oczekujące: 1" drawn as a link) and
+  `-5-reports-filtered.png` (the Reports tab showing one row and the line
+  "Pokazane są tylko komentarze oczekujące w about#origin. pokaż wszystkie zgłoszenia").
+- `npm run check` — **0 errors, 0 warnings** (2412 files). `npm run build` — clean.
+  `npm run lint` — **clean over the whole tree**, which it has not been for some time.
+- Both catalogues: 3931 keys each, key sets identical, the three new `discussions_*` keys appended
+  to the existing contiguous block.
+
+Two things the verification itself taught, both worth writing down:
+
+- **A hand-started `runserver` breaks CORS, and the page looks merely slow.** `run.sh` keeps
+  `DJANGO_CORS_ALLOWED_ORIGINS` in step with the ports; a worktree agent starting the two servers
+  itself does not, and every API call from `localhost:5245` is then refused by the browser. What
+  the script reported was `waitForSelector('.section-discussion__toggle')` timing out, which reads
+  exactly like a slow dev server — raising the timeout to 60s and re-running "confirmed" it twice.
+  Only a console dump named it. Start the backend with
+  `DJANGO_CORS_ALLOWED_ORIGINS="http://localhost:<vite>,http://127.0.0.1:<vite>"`.
+- **`svelte/no-navigation-without-resolve` cannot be satisfied by a `resolve()` inside a template
+  literal on its own line.** `eslint-disable-next-line` covers the line the `<a>` opens on, not
+  the `href=` three lines down where the rule reports, so the one-line form other call sites use
+  (`ArticlePool`, `TagChip`) silently does not transfer to a multi-attribute anchor. The block
+  form (`<!-- eslint-disable … -->` / `<!-- eslint-enable … -->`) is what works.
+
+### Left open
+
+- **An anonymous writer still sees their own held comment exactly once**, in the response to their
+  own POST. `todo.md` bullet 2, unchanged: a signed cookie would fix it and that is a decision
+  about tracking visitors, not a bug to fix quietly.
+- **One thread per manual chapter, not one per step** (bullet 4) and **`/privacy`, `/levels` and
+  `/legal` have no discussions** (bullet 5) — both product decisions nobody has taken; left.
+- **No server-side `?location=` filter on the moderation queue.** The Reports tab filters
+  client-side over the additive field, which is enough while a standing page produces single
+  digits and the tab fetches the whole queue anyway for its counts. It stops being enough when one
+  location carries more held comments than fit in a payload a moderator waits for — at that point
+  it wants a real `WHERE` on `ModerationQueueView`, not a bigger response.
+- **No new notification type** when a comment is held at a location a moderator looks after
+  (`prompts/README.md` §5 rule 12). The one I wanted was "a held comment is waiting at a page you
+  switched to `anyone`".
+- **The sweep is a command, not a schedule.** Nothing runs it; it is for after a bulk change or
+  when the moderator's list looks longer than it should. A cron entry is a deployment decision.
+- **`community/tests.py` still lacks `databases` on five classes**, so `manage.py test community`
+  still prints tracebacks. That file is step A's by the cycle's ownership table and this step did
+  not touch it.
+- **Two files in `frontend/project.inlang/` are now in `.prettierignore`.** `paraglide-js compile`
+  writes `.meta.json` and `README.md`, both already gitignored, and a newer compiler formats them
+  differently from the copies sitting in older checkouts — so any worktree that recompiled failed
+  `npm run lint` on two files nobody wrote. Ignoring them is what makes "lint is clean" a property
+  of the repository rather than of whether you happened to run the compiler.
+- **`frontend/e2e/screens/about-discussions-4-moderation.png` is now orphaned** — no script writes
+  that name any more (the two new screenshots are `-4-held-count-link` and `-5-reports-filtered`).
+  Left in place rather than deleted in a commit about something else.

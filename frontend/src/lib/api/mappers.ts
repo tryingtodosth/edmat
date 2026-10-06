@@ -828,6 +828,9 @@ export interface RawReportGroup {
 	preview: string;
 	exercise_id: number | null;
 	exercise_title: string | null;
+	// Optional because it was added later (the discussions filter, 2026-10-06) and is null for
+	// every report that is not a comment under a standing page.
+	discussion_location?: string | null;
 	last_reported_at: string;
 }
 
@@ -843,6 +846,7 @@ export function mapReportGroup(json: RawReportGroup): ReportGroup {
 		preview: json.preview,
 		exerciseId: idOrUndefined(json.exercise_id),
 		exerciseTitle: json.exercise_title ?? undefined,
+		discussionLocation: json.discussion_location ?? undefined,
 		lastReportedAt: json.last_reported_at
 	};
 }

@@ -14,6 +14,7 @@
 	 * edit — `DiscussionLocationSerializer`'s docstring argues this from the server's side.
 	 */
 	import { m } from '$lib/paraglide/messages.js';
+	import { resolve } from '$app/paths';
 	import { DISCUSSION_AUDIENCES, DISCUSSION_AUDIENCE_LABELS } from '$lib/utils/labels';
 	import {
 		createDiscussionLocation,
@@ -26,6 +27,22 @@
 	let loading = $state(true);
 	let error = $state('');
 	let pending = $state<Record<string, boolean>>({});
+
+	/** Where "Waiting: 5" goes. A moderator who can see that number has to be able to reach the
+	 *  five; before this it was plain text and they had to go and find them in a queue that does
+	 *  not say which page a comment came from. The Reports tab is the right landing because a held
+	 *  comment IS a report — `accounts.minors.hold_for_review` files one, which is why this whole
+	 *  feature needed no second queue — and the queue's rows now carry `discussionLocation`
+	 *  (`moderation/services.py`, one additive field) so the tab can show only these.
+	 *
+	 *  `data-sveltekit-reload` on the link, because this panel is itself rendered inside
+	 *  `/moderation`: a client-side navigation to the same route reuses that component, and both
+	 *  `?tab=` and `?location=` are read once at its mount by design. */
+	// `no-navigation-without-resolve` cannot see through a query string appended to a resolved
+	// path, so the link below carries the same disable every other "resolve() + ?query" link in
+	// this app does (ArticlePool, TagChip, the profile page's "send a message").
+	const heldHref = (key: string) =>
+		`${resolve('/moderation')}?tab=reports&location=${encodeURIComponent(key)}`;
 
 	let newPage = $state('');
 	let newSection = $state('');
@@ -140,7 +157,17 @@
 						<span class="location-row__counts">
 							{m.discussions_colComments()}: {row.commentCount}
 							{#if row.heldCount > 0}
-								· <strong>{m.discussions_colHeld()}: {row.heldCount}</strong>
+								·
+								<!-- eslint-disable svelte/no-navigation-without-resolve -- heldHref is built on resolve('/moderation'); the rule cannot see through the query string -->
+								<a
+									class="location-row__held"
+									href={heldHref(row.key)}
+									data-sveltekit-reload
+									title={m.discussions_heldLink({ key: row.key })}
+								>
+									<strong>{m.discussions_colHeld()}: {row.heldCount}</strong>
+								</a>
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
 							{/if}
 						</span>
 						{#if row.updatedByDisplayName}
@@ -267,6 +294,14 @@
 	.location-row__meta {
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
+	}
+	.location-row__held {
+		color: var(--accent);
+		text-decoration: none;
+		&:hover,
+		&:focus-visible {
+			text-decoration: underline;
+		}
 	}
 	.location-row__controls {
 		display: flex;

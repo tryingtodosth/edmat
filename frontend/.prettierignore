@@ -1,3 +1,10 @@
 .svelte-kit
 build
 src/lib/paraglide
+
+# Written by `paraglide-js compile` and gitignored by `project.inlang/.gitignore`. Their formatting
+# is the compiler's, not ours: a checkout that recompiles with a newer paraglide gets a blank line
+# the checked-in copy does not have, and `npm run lint` then fails on two files nobody wrote.
+# `project.inlang/settings.json` is hand-edited and stays checked.
+project.inlang/.meta.json
+project.inlang/README.md

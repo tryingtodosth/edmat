@@ -108,6 +108,15 @@
 	// can re-fire it and drag a moderator back to where they arrived (frontend/CLAUDE.md trap 2).
 	const askedTab = page.url.searchParams.get('tab') as ModerationTab | null;
 	let tab = $state<ModerationTab>(askedTab && TABS.includes(askedTab) ? askedTab : 'reports');
+	// `?location=` is read once at mount, for exactly the reason `?tab=` above is and from the same
+	// URL: the discussions panel's "Waiting: 5" links here
+	// (`DiscussionLocationsPanel.svelte` — `/moderation?tab=reports&location=<key>`), and landing a
+	// moderator on the whole Reports queue instead would be a link that does not do what it says.
+	// Never written back: clearing the filter is local state, like clicking a tab. The link that
+	// sends us here carries `data-sveltekit-reload`, because a client-side navigation from
+	// /moderation to /moderation reuses this component and would not re-run this line.
+	const askedLocation = page.url.searchParams.get('location');
+	let locationFilter = $state(askedLocation ?? '');
 	let flagTogglePending = $state<Record<string, boolean>>({});
 	let flagError = $state('');
 	let taxonomyProposals = $state<TaxonomyProposal[]>([]);
@@ -141,6 +150,16 @@
 		}
 	}
 	let reports = $state<ReportGroup[]>([]);
+	/** The Reports queue as this tab draws it — every row, or only the ones held at one
+	 *  standing-page discussion when `?location=` asked for that.
+	 *
+	 *  A client-side filter over the additive `discussionLocation` field rather than a
+	 *  `?location=` parameter on the queue endpoint: the whole queue is already fetched for the
+	 *  tab counts, and a standing page produces single digits. `moderation/services.py` says where
+	 *  that stops being enough. */
+	let shownReports = $derived(
+		locationFilter ? reports.filter((r) => r.discussionLocation === locationFilter) : reports
+	);
 	let submissions = $state<ExerciseSubmission[]>([]);
 	let materialVersions = $state<MaterialVersionQueueRow[]>([]);
 	/** Per-row, because a refusal from the version endpoint is a SENTENCE — `already_decided` and
@@ -736,11 +755,25 @@
 			</h2>
 
 			{#if tab === 'reports'}
-				{#if reports.length === 0}
+				{#if locationFilter}
+					<p class="location-filter">
+						{m.discussions_filterShowingAt({ key: locationFilter })}
+						<!-- "Showing only the comments waiting at {key}." -->
+						<button
+							type="button"
+							class="location-filter__clear"
+							onclick={() => (locationFilter = '')}
+						>
+							{m.discussions_filterShowAll()}
+							<!-- "show all reports" -->
+						</button>
+					</p>
+				{/if}
+				{#if shownReports.length === 0}
 					<p class="empty">{m.moderation_empty()}</p>
 				{:else}
 					<ul class="queue">
-						{#each reports as r (reportKey(r))}
+						{#each shownReports as r (reportKey(r))}
 							<li class="queue-item" class:queue-item--urgent={r.isAutoHidden}>
 								<div class="report-header">
 									<span class="report-kind">{REPORT_KIND_LABELS[r.kind]()}</span>
@@ -1752,5 +1785,20 @@
 	.flag-meta {
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
+	}
+	// The line that makes the `?location=` filter visible. A filter nobody can see is a queue that
+	// looks empty for no reason, which is the one way this link could make things worse.
+	.location-filter {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	.location-filter__clear {
+		background: none;
+		border: 0;
+		padding: 0;
+		font: inherit;
+		color: var(--accent);
+		text-decoration: underline;
+		cursor: pointer;
 	}
 </style>

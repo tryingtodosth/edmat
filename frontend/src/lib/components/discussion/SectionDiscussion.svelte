@@ -49,6 +49,18 @@
 	// one request), so at init it is whatever the first render had and the count would never
 	// correct itself.
 	let loadedCount = $state<number | null>(null);
+	/** What the collapsed line's number means, in one place.
+	 *
+	 * Not `comments.length`: the thread deliberately carries tombstones (so a thread whose middle
+	 * was removed keeps its shape, house rule 12) and, for staff and for their own author, rows
+	 * that are still held — so the raw length could read "(3)" for one real comment, one
+	 * placeholder and one thing waiting for a moderator. The two server-side counts
+	 * (`DiscussionPolicyView`, `DiscussionLocationSerializer`) have always counted public comments
+	 * only, and this is the third place that number is printed; it has to agree with them or the
+	 * line changes its mind the moment a reader opens it. `discussions.py`, "What \"N comments\"
+	 * counts", argues it from the server's side. */
+	const publicCount = (list: Comment[]) =>
+		list.filter((c) => !c.isRemoved && !c.isAutoHidden).length;
 	let anonName = $state('');
 	let justHeld = $state(false);
 
@@ -71,7 +83,7 @@
 		try {
 			const thread = await threadAt(policy.page, policy.section);
 			comments = thread.comments;
-			loadedCount = thread.comments.length;
+			loadedCount = publicCount(thread.comments);
 		} catch {
 			error = m.discussions_loadFailed(); // "This discussion could not be loaded."
 		} finally {
@@ -96,7 +108,7 @@
 				return;
 			}
 			comments = [...comments, created];
-			loadedCount = comments.length;
+			loadedCount = publicCount(comments);
 			anonName = '';
 		} catch {
 			error = m.discussions_postFailed(); // "This could not be posted."

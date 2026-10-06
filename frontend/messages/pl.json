@@ -3926,5 +3926,8 @@
 	"discussions_addFailed": "Nie udało się dodać tego miejsca. Strona to `about`, `about/<segment>` albo `about/<segment>/<segment>`.",
 	"discussions_wholePage": "cała strona",
 	"discussions_saveFailed": "Nie udało się zapisać zmiany.",
+	"discussions_heldLink": "Pokaż komentarze oczekujące w {key}",
+	"discussions_filterShowingAt": "Pokazane są tylko komentarze oczekujące w {key}.",
+	"discussions_filterShowAll": "pokaż wszystkie zgłoszenia",
 	"featureFlags_label_aboutDiscussions": "Dyskusje pod stronami stałymi (/about i podręcznik)"
 }

@@ -116,6 +116,28 @@ at. `DiscussionLocation` is that row — one per place on one of those pages —
 - All of it under `feature_gate`-less `is_feature_enabled('about_discussions')`, because the read
   endpoint must keep answering "no discussion here" when the flag is off, so the frontend draws
   nothing rather than a button that fails on click.
+- **A row is created by a write that SUCCEEDS** (2026-10-06). The row used to be created one line
+  above the parent check that needs it, so a reply naming a comment in another thread was refused
+  400 and still left a `DiscussionLocation` behind. `DiscussionThreadView.post` now resolves the
+  row with `create=False`, refuses, and creates only when nothing is left that could refuse. A
+  held comment still creates its row — it is stored, and a stored comment needs something to hang
+  off.
+- **`manage.py sweep_discussion_locations`** removes the rows that are left anyway: the pre-fix
+  ones and the well-formed junk keys `PAGE_RE` permits by design. A candidate has **no comments of
+  any kind, default settings and `updated_by IS NULL`** — the three together mean nobody decided
+  anything about the row, which is why deleting it is not the hard delete house rule 12 forbids.
+  `--dry-run` first; the command's docstring argues each condition. `DiscussionLocationViewSet`
+  still has no `destroy`, and the two are not the same question.
+- **`discussion_location` on a report row** is this app's one field in `moderation/services.py`
+  (house rule 13 — mirrored, said in both files). `discussions.report_location_key` builds it from
+  a reported comment's already-resolved target: the location key, or `None` for every other
+  comment. It is what makes `/moderation?tab=reports&location=<key>` show only the comments held
+  at one standing page, which is what the panel's "Waiting: 5" links to. The filter is
+  client-side, over the queue the Reports tab already fetches whole; the day a location carries
+  more held comments than a moderator will scroll past, it wants a real `WHERE` on the endpoint.
+- **What "N comments" counts** is argued in `discussions.py` under that heading: public comments
+  only, in all three places that print it. The collapsed line used to take `thread.comments.length`
+  and so counted tombstones and, for staff, held rows.
 
 ## Verify
 
@@ -125,6 +147,8 @@ rejection, and the saved-comment privacy/idempotency rules are all pinned there.
 that actually matters — a tag bleach strips is a picture that vanishes on save), the refusals, the
 shared allowance and the minor-band hold. The browser half is `e2e/comment-input-kinds.mjs`.
 
-`manage.py test community.test_discussions` (42) covers the standing-page discussions: key
+`manage.py test community.test_discussions` (55) covers the standing-page discussions: key
 parsing, the page-as-ceiling rule, every refusal word, what is held and what is not, who may
-read a held comment, and the moderator's list. The browser half is `e2e/about-discussions.mjs`.
+read a held comment, the moderator's list, that a refused write leaves no row, the three
+conditions `sweep_discussion_locations` requires, and the `discussion_location` field on a report
+row. The browser half is `e2e/about-discussions.mjs`.

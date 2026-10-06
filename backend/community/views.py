@@ -560,7 +560,9 @@ def _location_for(page: str, section: str, *, create: bool):
 
     `create=False` for every read: a reader opening a thread must not write a row, or a crawler
     would populate the moderation list with every page it walked. The row appears when somebody
-    actually writes (`create=True` on POST) or when a moderator configures it.
+    actually writes (`create=True` on POST, and only once that POST has passed every check that
+    could refuse it) or when a moderator configures it. `manage.py sweep_discussion_locations`
+    clears up the rows that predate that rule, and the well-formed junk keys `PAGE_RE` allows.
     """
     from .models import DiscussionLocation
 
@@ -730,12 +732,20 @@ class DiscussionThreadView(APIView):
         draft = DiscussionCommentDraftSerializer(data=request.data)
         draft.is_valid(raise_exception=True)
 
-        row = _location_for(page, section, create=True)
         content_type = ContentType.objects.get_for_model(DiscussionLocation)
+        # Resolved WITHOUT creating. The row used to be created here, one line above the parent
+        # check that needs it — so a reply naming a comment in another thread was refused 400 and
+        # still left a `DiscussionLocation` behind, which a moderator then found in the list with
+        # no comments under it. A write creates a row only when it succeeds
+        # (`discussions.py`, "A row is created by a write that SUCCEEDS"). An absent row is not a
+        # special case: there is nothing here yet, so no parent can belong to it.
+        row = _location_for(page, section, create=False)
 
         parent = draft.validated_data.get('parent')
         if parent is not None and (
-            parent.content_type_id != content_type.id or parent.object_id != row.pk
+            row is None
+            or parent.content_type_id != content_type.id
+            or parent.object_id != row.pk
         ):
             # The check community/CLAUDE.md says every new comment surface must repeat: without it
             # a client can name a comment in an unrelated thread and have its reply attach there.
@@ -743,6 +753,10 @@ class DiscussionThreadView(APIView):
                 {'parent': ['This reply must belong to the same discussion.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Nothing left can refuse this write, so the location may exist now.
+        if row is None:
+            row = _location_for(page, section, create=True)
 
         authenticated = bool(request.user and request.user.is_authenticated)
         comment = Comment(
