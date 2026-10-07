@@ -129,12 +129,16 @@
 	let takeHomeBusy = $state<Record<string, boolean>>({});
 	let takeHomeDone = $state<Record<string, string>>({});
 	let takeHomeError = $state<Record<string, string>>({});
+	// The deck's id, so the confirmation can offer the door — the concept button got this link in
+	// §17BU.D; the session button was left without it only because another branch was in here.
+	let takeHomeDeckId = $state<Record<string, string>>({});
 
 	async function takeHome(s: Session) {
 		if (takeHomeBusy[s.id]) return;
 		takeHomeBusy = { ...takeHomeBusy, [s.id]: true };
 		takeHomeError = { ...takeHomeError, [s.id]: '' };
 		takeHomeDone = { ...takeHomeDone, [s.id]: '' };
+		takeHomeDeckId = { ...takeHomeDeckId, [s.id]: '' };
 		try {
 			const rows = await getSessionExercises(event.id, s.id);
 			if (rows.length === 0) {
@@ -153,6 +157,7 @@
 				// offering a refusal (house rule 6 from the other side).
 				...(event.canOrganise ? { placement: { kind: 'event' as const, id: event.id } } : {})
 			});
+			takeHomeDeckId = { ...takeHomeDeckId, [s.id]: deck.id };
 			takeHomeDone = {
 				...takeHomeDone,
 				[s.id]: event.canOrganise
@@ -418,7 +423,13 @@
 												: m.takehome_button({ count: s.takehomeCount })}
 										</button>
 									{/if}
-									{#if takeHomeDone[s.id]}<span class="take-home-done">{takeHomeDone[s.id]}</span
+									{#if takeHomeDone[s.id]}<span class="take-home-done"
+											>{takeHomeDone[s.id]}
+											{#if takeHomeDeckId[s.id]}
+												<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `/flashcards/[id]` is a plain route with no localized address (see DeckFromConcept.svelte) -->
+												<a href={`/flashcards/${takeHomeDeckId[s.id]}`}>{m.paths_deck_open()}</a>
+												<!-- "Open it" -->
+											{/if}</span
 										>{/if}
 									{#if takeHomeError[s.id]}<span class="seat-error">{takeHomeError[s.id]}</span
 										>{/if}
@@ -605,6 +616,10 @@
 		font-weight: 600;
 		color: var(--accent);
 		align-self: center;
+	}
+	.take-home-done a {
+		margin-left: 0.35rem;
+		text-decoration: underline;
 	}
 	.seat-error {
 		color: var(--status-danger);
