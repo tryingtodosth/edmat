@@ -13940,15 +13940,16 @@ All on the merged working tree of `ux/colour-pass`, both real servers up (API `:
   table, 100 rows): every text pair ≥ 4.5:1 in light and dark and ≥ 7:1 in both high-contrast
   modes; the hero wash's text 5.4 / 5.7, the browse link on it 4.6 / 5.5; the raised dark alt
   surface 1.28:1 against the surface with `--text-secondary` on it at 6.6.
-- `npm run check:a11y -- --base … --api …` — **48 pages, 0 critical/serious violation nodes** on
-  every page that rendered. Each of the three runs lost ONE page (a different one each time:
-  `/concepts`, `/about/guide/flashcards`) to the dev server, not to the page — `Failed to fetch
-  dynamically imported module …?t=<the run's own timestamp>` plus `ERR_INSUFFICIENT_RESOURCES`,
-  i.e. Vite re-bundled under the audit and the module URLs it had handed out stopped existing
-  (`e2e/CLAUDE.md` trap 22's shape); the only two "moderate" nodes in any run were axe reading the
-  SvelteKit 500 shell of that one page. The after-cycle integration (§17BU) saw the same thing and
-  got its clean 48 on a second run; this pass reports the honest number rather than the run that
-  happened to be lucky.
+- `npm run check:a11y -- --base … --api …` — **48 pages, 0 load problems, 0 violations of any
+  level**, on the fourth run, with the dev server freshly restarted and nothing else driving a
+  browser. The three runs before it each lost ONE page (a different one each time: `/concepts`,
+  `/about/guide/flashcards`) to the dev server, not to the page — `Failed to fetch dynamically
+  imported module …?t=<the run's own timestamp>` plus `ERR_INSUFFICIENT_RESOURCES`, i.e. Vite
+  re-bundled under the audit and the module URLs it had handed out stopped existing (`e2e/CLAUDE.md`
+  trap 22's shape); the only two "moderate" nodes in any of those runs were axe reading the SvelteKit
+  500 shell of the lost page. The after-cycle integration (§17BU) saw the same thing and got its
+  clean 48 on a second run; the lesson is in `test.md` — restart the dev server and run the audit
+  alone before believing a load problem.
 - **Screenshots, looked at**: a 41-shot sweep (`e2e/colour-screens.mjs`, new) of the colour-bearing
   pages in light and dark at 1280 and light at 390, anonymous and signed in, taken BEFORE the pass
   and AFTER it; each implementer's own close-ups of its pages in both themes; a re-shoot of every
@@ -14005,5 +14006,6 @@ All on the merged working tree of `ux/colour-pass`, both real servers up (API `:
   by a spec rule; if a venue's checklist status wants a pending/success/neutral trio per state, that
   is the next one-line change.
 - **The `/concepts` page lost one audit run to `ERR_INSUFFICIENT_RESOURCES`** while the screenshot
-  sweep ran beside it — the same thing the after-cycle integration saw; the re-run on an idle
-  machine is the number that counts.
+  sweep ran beside it — the same thing the after-cycle integration saw; the fourth run, alone on a
+  restarted dev server, audited all 48 (see "Verified"). Not a bug in the page; left here so that
+  the next person who sees the message knows what it is.
