@@ -56,7 +56,14 @@ from cloakroom.models import CloakroomDesk
 from coauthoring.models import MaterialProject, ProjectMember
 from config import nodes as node_seam
 from config.creation import CREATION_KINDS
-from courses.models import Course, CourseCompletion, Enrollment
+from courses.models import (
+    Chapter,
+    Course,
+    CourseCompletion,
+    Enrollment,
+    Lesson,
+    LessonProgress,
+)
 from decisions.models import Ballot, Poll, PollOption
 from documents.models import DocumentAcknowledgement, EventDocument
 from needs.models import Need, NeedApplication
@@ -66,7 +73,7 @@ from plans.models import Plan
 from shifts.models import Assignment, Shift, Station, VolunteerRecord
 from tasks.models import Task, TaskAssignee
 from telemetry.routers import all_log_shards
-from testing.factories import make_branch, make_material, make_user
+from testing.factories import make_branch, make_material, make_user, make_viewer
 from testing.personas import make_personas
 from venues import services as venue_services
 from venues.models import (
@@ -313,6 +320,42 @@ class PermissionMatrixTests(APITestCase):
             instructor=organiser, title='Sandbox course', visibility='public', status='open'
         )
         Enrollment.objects.create(course=course, participant=participant, status='active')
+        # TWO LESSONS AND THREE MORE PEOPLE ON THE ROSTER (§17BU.B), for the issuing action —
+        # `POST /courses/{id}/completions/`, which closing step B left pinned only at GET.
+        # `rules.completion_block_reason` answers four different words depending on who is asked
+        # about WHOM, so each word needs its own person and none of them can be shared:
+        #
+        #   * `graduate` has said both lessons are done and holds no certificate → the 201.
+        #   * `halfway` has said ONE of the two is → `not_done`. Half rather than none on purpose:
+        #     "nothing ticked off" and "a course with no lessons at all" both reach that word by
+        #     the `total == 0` clause, and a row that could pass either way pins neither.
+        #   * `revoked` holds a certificate that has already been withdrawn → `already_revoked`,
+        #     which the board says needs a second row because the unique key is `(course,
+        #     participant)` with no condition and every matrix row is rolled back, so the `revoke`
+        #     200 above cannot set it up for a later row. It can, as long as the second row belongs
+        #     to somebody else — so here it is.
+        #   * `participant` keeps the live certificate → `already_issued` (checked BEFORE
+        #     `not_done` in the rule module, so this persona can never carry the 201).
+        #   * `stranger` is on no roster → `not_participant`.
+        #
+        # All three are `make_viewer`, not `make_user`: nothing signs in as them (the rows that
+        # name them send an id in a body, and `force_authenticate` needs no password anyway), and
+        # `backend/CLAUDE.md` asks for the cheap factory wherever that is true.
+        chapter = Chapter.objects.create(course=course, title='Macierze')
+        lessons = [
+            Lesson.objects.create(chapter=chapter, title=f'Zajęcia {n}', order=n) for n in range(2)
+        ]
+        graduate = make_viewer('persona.graduate')
+        halfway = make_viewer('persona.halfway')
+        revoked_holder = make_viewer('persona.revoked')
+        for learner in (graduate, halfway, revoked_holder):
+            Enrollment.objects.create(course=course, participant=learner, status='active')
+        for lesson in lessons:
+            LessonProgress.objects.create(lesson=lesson, participant=graduate, status='done')
+        LessonProgress.objects.create(lesson=lessons[0], participant=halfway, status='done')
+        cls.people['graduate'] = graduate
+        cls.people['halfway'] = halfway
+        cls.people['revoked'] = revoked_holder
         # One issued certificate (closing step B). Written straight to the model rather than
         # through `POST /courses/{id}/completions/`: that endpoint refuses `not_done` until every
         # lesson of the course is ticked off, and this fixture is about who may READ the document
@@ -320,7 +363,15 @@ class PermissionMatrixTests(APITestCase):
         # The organiser runs the course and signed it; `participant` holds it.
         completion = CourseCompletion.objects.create(
             course=course, participant=participant, issued_by=organiser,
-            note="3 of 3 lessons, by the participant's own statements",
+            note="2 of 2 lessons, by the participant's own statements",
+        )
+        # And the withdrawn one. `revoked_at` is a timestamp and never a delete (house rule 12), so
+        # this row is what a revoked certificate actually looks like: still there, still readable by
+        # the person it names, and refusing a second withdrawal.
+        revoked_completion = CourseCompletion.objects.create(
+            course=course, participant=revoked_holder, issued_by=organiser,
+            note="2 of 2 lessons, by the participant's own statements",
+            revoked_at=timezone.now(),
         )
         # Unlisted — the 404 column for a course, exactly as `draft` is for an event.
         private_course = Course.objects.create(
@@ -561,6 +612,11 @@ class PermissionMatrixTests(APITestCase):
             'participant_id': participant.pk,
             'verified_id': verified.pk,
             'completion': completion.pk,
+            # §17BU.B: the issuing action and the withdrawn certificate.
+            'revoked_completion': revoked_completion.pk,
+            'graduate_id': graduate.pk,
+            'halfway_id': halfway.pk,
+            'revoked_id': revoked_holder.pk,
             'guardian_id': built['guardian'].pk,
             'organiser_id': organiser.pk,
         }
@@ -742,6 +798,23 @@ def _parent_step_body(key):
 
 
 _NEW_ORGANIZATION = {'name': 'Nowe koło', 'kind': 'student_circle'}
+#: The other two things the creation gate governs (§17BU.B). The bodies are deliberately the
+#: smallest valid ones: these rows are about the gate, and a 400 from a missing field would look
+#: exactly like the refusal they exist to prove is NOT happening.
+_NEW_COURSE = {'title': 'Kurs, który prowadzę', 'visibility': 'public'}
+_NEW_SERVICE = {
+    'title': 'Korepetycje z macierzy', 'description': 'Godzina po godzinie.',
+    'hourly_rate': '60.00', 'delivery_mode': 'online', 'session_minutes': 60,
+}
+
+
+def _issue_to(key):
+    """A body for `POST /courses/{id}/completions/`: the account the certificate is for.
+
+    By numeric id, because that is what the endpoint takes — there is no people search
+    (`CLAUDE.md`, known gaps), so the issuer's form sends an id too.
+    """
+    return lambda ids, _s: {'participant': ids[key]}
 _NEW_TASK = {'title': 'Something that needs doing'}
 _NEW_NEED = {'title': 'Somebody who can bake', 'kind': 'help', 'wanted_count': 1}
 _NEW_PLAN = {'title': 'A roadmap'}
@@ -1912,4 +1985,88 @@ MATRIX = [
     ('verified', 'GET', '/creation/', None, 200,
      'a verified contributor may found all four — null, not a word',
      _creation_says(None)),
+
+    # ==== after the closing cycle (§17BU.B) =====================================================
+
+    # ---- the four founding paths, from the side the gate lets THROUGH --------------------------
+    #
+    # Closing step B left this on the board: `persona.verified` existed and only `GET /api/creation/`
+    # used it, so every founding row in this table pinned the refusal of an unverified adult and
+    # none pinned the success of a verified one — the table would have read exactly the same if the
+    # gate refused everybody, which is the failure a matrix is for. `config/creation.py` governs
+    # four kinds, so there are four 201s, and the bodies are the ones the refusal rows already
+    # send wherever one exists: a 201 is only evidence about the gate if the request that earns it
+    # is the request that was refused.
+    #
+    # `courses` and `services` had no founding rows AT ALL, so they get the whole column here. The
+    # board called them "the two course founding paths"; `courses/` has exactly one create path
+    # (`CourseViewSet.create`) and the second unpinned kind is a tutoring listing
+    # (`services/views.py: ServiceViewSet.create`) — four kinds, four create paths, one rule module.
+    ('verified', 'POST', '/events/', _NEW_EVENT, 201,
+     'the body the stranger is refused above, sent by somebody the gate lets host'),
+    ('verified', 'POST', '/organizations/', _NEW_ORGANIZATION, 201,
+     'and found a body — `found_block_reason` has nothing else to say about an adult'),
+    ('anonymous', 'POST', '/courses/', _NEW_COURSE, 401, 'a write needs a sign-in'),
+    ('child', 'POST', '/courses/', _NEW_COURSE, (403, 'minor'),
+     'the one rule the gate WIDENED: founding a course had no minors check before it'),
+    ('attendee', 'POST', '/courses/', _NEW_COURSE, (403, 'verification_required'),
+     'an ordinary adult account, until USOS lands'),
+    ('verified', 'POST', '/courses/', _NEW_COURSE, 201, 'and the 201 the three above imply'),
+    ('anonymous', 'POST', '/services/', _NEW_SERVICE, 401, 'a write needs a sign-in'),
+    ('child', 'POST', '/services/', _NEW_SERVICE, (403, 'minor'),
+     'a minor does not list themselves as a tutor (accounts/minors.py, and the gate agrees)'),
+    ('attendee', 'POST', '/services/', _NEW_SERVICE, (403, 'verification_required'), 'the same gate'),
+    ('verified', 'POST', '/services/', _NEW_SERVICE, 201, 'a verified contributor may offer korki'),
+
+    # ---- issuing a certificate (courses/views.py: `completions` POST, courses/rules.py) --------
+    #
+    # The third completion endpoint, which closing step B pinned only at GET and named on the
+    # board. Its four words are asserted in `courses/test_school_mode.py` against one school's own
+    # people; what was missing is the cross-persona column — above all the "staff role that may
+    # not", which here is the event's `volunteer`, staff of something else entirely.
+    #
+    # The ORDER of the words is the rule module's, not this table's, and two rows depend on it:
+    # `already_issued` is checked before `not_done`, so `participant` (who holds the live
+    # certificate and has ticked off nothing) answers `already_issued` and can never carry the
+    # 201 — which is why `graduate` exists in the fixture.
+    ('anonymous', 'POST', '/courses/{course}/completions/', _issue_to('graduate_id'), 401,
+     'IsAuthenticated — a certificate carries the name of whoever signed it'),
+    ('stranger', 'POST', '/courses/{course}/completions/', _issue_to('graduate_id'),
+     (404, 'not_staff'), 'for somebody who does not run this course its staff surface is not there'),
+    ('participant', 'POST', '/courses/{course}/completions/', _issue_to('participant_id'),
+     (404, 'not_staff'), 'and nobody issues their own — being on the roster is not running it'),
+    ('volunteer', 'POST', '/courses/{course}/completions/', _issue_to('graduate_id'),
+     (404, 'not_staff'),
+     'staff of the EVENT and nothing on this course — a role is not a ladder'),
+    ('organiser', 'POST', '/courses/{course}/completions/', _issue_to('stranger_id'),
+     (400, 'not_participant'),
+     'they run it, but that person is on no roster — wrong when it was written, so 400'),
+    ('organiser', 'POST', '/courses/{course}/completions/', {}, (400, 'not_participant'),
+     'a body naming nobody is the same mistake, and `_user_or_none` answers it with one word'),
+    ('organiser', 'POST', '/courses/{course}/completions/', _issue_to('halfway_id'),
+     (409, 'not_done'),
+     'one of the two lessons — well formed, and the world is simply not there yet'),
+    ('organiser', 'POST', '/courses/{course}/completions/', _issue_to('participant_id'),
+     (409, 'already_issued'), 'the certificate they want exists; the world moved'),
+    ('organiser', 'POST', '/courses/{course}/completions/', _issue_to('revoked_id'),
+     (409, 'already_issued'),
+     'a WITHDRAWN row still occupies the pair — reissuing is revoke’s inverse and is not built'),
+    ('organiser', 'POST', '/courses/{course}/completions/', _issue_to('graduate_id'), 201,
+     'course staff, somebody on the roster, both lessons ticked off by their own statements'),
+
+    # ---- the certificate that was withdrawn (the `already_revoked` row the board asked for) ----
+    #
+    # It needed a second `CourseCompletion` in the fixture: the unique key is `(course,
+    # participant)` with no condition, so the live one cannot also be the revoked one, and every
+    # matrix row is rolled back, so the `revoke` 200 above cannot leave one behind for a later row.
+    # A second row for a DIFFERENT participant is all it takes, and `revoked` is that person.
+    ('organiser', 'POST', '/course-completions/{revoked_completion}/revoke/', None,
+     (409, 'already_revoked'),
+     'withdrawn once already — one decision taken twice is not a malformed request'),
+    ('revoked', 'GET', '/course-completions/{revoked_completion}/', None, 200,
+     'its holder still reads it: a revocation is a timestamp, never a delete (house rule 12)'),
+    ('organiser', 'GET', '/course-completions/{revoked_completion}/', None, 200,
+     'and so does the course staff who withdrew it — the record of the decision is the point'),
+    ('stranger', 'GET', '/course-completions/{revoked_completion}/', None, 404,
+     'a withdrawn certificate is no more public than a live one'),
 ]

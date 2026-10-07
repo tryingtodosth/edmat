@@ -1560,6 +1560,23 @@ was overridden), every `eligibility: members` poll was visible to anybody who co
 `POST /api/polls/{id}/options/` 500'd on the second option when the body named no `order` —
 `HISTORY.md`, "Matrix rows for the management layer".
 
+**746 rows today** (2026-10-07, `HISTORY.md` §17BU.B), and the count above had drifted: 690 was
+right when the management layer went in, the learning cycle's integration added 15 and closing step
+B 17, and nobody updated the number — 690 + 15 + 17 + 24 = 746, countable per block against the
+block comments in the file. Recount it, never increment it (house rule 5). The last 24 are the three
+bullets closing step B named and left: the **four founding paths** `config/creation.py` governs,
+pinned from the side the gate lets *through* (`POST /api/{courses,events,services,organizations}/`
+— until now the table proved only that an unverified adult is refused, and would have read the same
+if the gate refused everybody; `courses` and `services` had no founding rows at all), the **issuing
+action** `POST /api/courses/{id}/completions/` with all four of its refusal words plus the 201, and
+the **`already_revoked`** 409 that needed a second, pre-revoked `CourseCompletion` in the fixture
+for a different participant. Three more fixture people come with them — `graduate` (both lessons
+done), `halfway` (one of two, which is what pins `not_done` on something other than the "no lessons
+at all" clause) and `revoked` — all `make_viewer`, because nothing signs in as them. The 24 rows
+found no bug; each was instead **mutation-checked** (eight expectations falsified in a scratch copy,
+run came back `FAILED (failures=8)`), which is how a row that passes because nothing reaches the
+endpoint gets caught.
+
 Its personas come from `backend/testing/personas.make_personas()`, which is also what
 `../.venv/bin/python3 manage.py seed_conference_personas [--password X]` runs — seven accounts
 (`persona.organiser@edmat.example` … `persona.stranger@…`, plus `persona.child`, a real minor made

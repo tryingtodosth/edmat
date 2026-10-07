@@ -13333,3 +13333,113 @@ rule drawn rather than asserted.
   account-menu entry away as a non-staff reader, and `take-home.mjs` proves it takes the "Take home"
   button away; a third copy would be three places to update.
 - **The script is desktop-only.** `flashcards.mjs` owns the phone-width checks for this feature.
+
+## 17BU.B — The matrix rows closing step B named and did not write (2026-10-07, `after/b-matrix-rows`)
+
+Three bullets from `todo.md` "Closing step B — left open", all of them in one file:
+`backend/events/test_permission_matrix.py`. Nothing else in `backend/` changed — no model, no
+view, no rule module, no migration. **24 rows and three fixture people**, taking the table from
+722 rows to **746**.
+
+### 1. The four founding paths, from the side the gate lets through
+
+Closing step B added `persona.verified` for `GET /api/creation/` and said so in its own "Left
+open": every *founding* row in the table pinned the refusal of an unverified adult and none pinned
+the success of a verified one. The table would therefore have read exactly the same if the creation
+gate refused **everybody** — which is the one failure a permission matrix exists to catch.
+
+`config/creation.py` governs four kinds (`course` `event` `service` `organization`), so there are
+four 201s. Two of those four paths had **no founding rows at all**, so they get the whole column —
+401 anonymous, `(403, 'minor')`, `(403, 'verification_required')`, 201 verified — and the two that
+already carried refusals get the 201 only, with the **same body** the refused row sends: a 201 is
+evidence about the gate only if the request that earns it is the request that was refused.
+
+**The board said "the two course founding paths" and that is not what they are.** `courses/` has
+exactly one create path, `CourseViewSet.create`; the second unpinned kind is a *tutoring listing*,
+`services/views.py: ServiceViewSet.create` (the app is still `services` and the API still
+`/api/services/` — only the frontend route is `/korki`). Four kinds, four create paths, one rule
+module; the comment in the file says so, so the next reader does not go looking for a second
+course endpoint that has never existed. Six rows were asked for; ten is what the four endpoints
+actually need.
+
+### 2. Issuing a certificate — `POST /api/courses/{id}/completions/`
+
+The third completion endpoint. Closing step B pinned `GET` on it and `GET`/`revoke` on
+`/api/course-completions/{id}/`, and wrote the issuing action on the board: its four words are
+asserted in `courses/test_school_mode.py` against one school's own people, and nowhere in the
+cross-persona view. Ten rows now: 401 anonymous, `not_staff` for a stranger, for the holder
+(nobody issues their own) and for the event's **volunteer** — the "staff role that may not" column,
+staff of something else entirely — `not_participant` both for somebody on no roster and for a body
+that names nobody at all (`_user_or_none` answers one mistake with one word), `not_done`,
+`already_issued`, and the 201.
+
+**The order of the words is the rule module's and two rows depend on it.**
+`completion_block_reason` checks `already_issued` *before* `not_done`, so `participant` — who holds
+the live certificate and has ticked nothing off — can never carry the 201 whatever the fixture
+does to them. Hence `graduate`. And a **withdrawn** certificate still answers `already_issued`,
+because a revoked row keeps its `(course, participant)` pair and reissuing is `revoke`'s inverse,
+which is not built; that is now a row rather than a sentence in a docstring.
+
+### 3. `already_revoked` — the fixture could carry it after all
+
+The board recorded this one as possibly impossible: the unique key is `(course, participant)` with
+no condition, so the live certificate cannot also be the withdrawn one, and every matrix row runs
+in its own rolled-back savepoint, so the `revoke` 200 cannot leave a withdrawn row behind for a
+later row to collide with. Both are true, and neither is in the way: a **second** completion for a
+**different** participant is all it takes. `persona.revoked` holds it, and three rows come with the
+409 — the holder still reads their withdrawn certificate (200: a revocation is a timestamp, never a
+delete, house rule 12), the course staff who withdrew it still read it, and a stranger still gets
+404, because a withdrawn certificate is no more public than a live one.
+
+### The fixture, and why three people rather than one
+
+`course` grew a chapter and **two** lessons, and three more accounts on its roster: `graduate` (both
+lessons done, no certificate → the 201), `halfway` (**one** of the two → `not_done`) and `revoked`
+(a withdrawn certificate). Half rather than none on purpose: "nothing ticked off" and "a course
+with no lessons at all" both reach `not_done` through the `total == 0` clause, so a row that could
+pass either way pins neither. All three are `make_viewer`, not `make_user` — nothing signs in as
+them (the rows that name them send an id in a body), which is exactly the case `backend/CLAUDE.md`
+asks for the cheap factory in. The seeded certificate's note changed from `3 of 3 lessons` to
+`2 of 2`, so the fixture's own text stops contradicting the course it hangs on.
+
+### Verified
+
+- `manage.py test events.test_permission_matrix courses.test_school_mode -v 1` — **59 tests, OK**
+  in 188 s (one matrix method over 746 subtests, plus school mode's 58). Unpiped into a file and
+  the `OK` line read out of it, because a piped run reports `tail`'s exit status (`test.md` §7).
+- **Each of the 24 rows was mutation-checked, not merely watched to pass.** Eight new expectations
+  were deliberately falsified in a scratch copy — the four 201s turned into refusals, `not_done`
+  into `already_issued`, the issuing 201 into a 409, `already_revoked` into `not_done`, and the
+  revoked holder's 200 into a 404 — and the run came back **`FAILED (failures=8)`**, each failure
+  printing the real response (`got 201: {…'title': 'Kurs, który prowadzę'…}`,
+  `right status, wrong word: {'detail': 'already_revoked'}`). A row that passes because nothing
+  reaches the endpoint would have stayed green through that; these did not.
+- `testing/check_databases_declared.py` — **`0 classes still unresolved, in 0 files`**.
+  `PermissionMatrixTests` already declared the line (closing step B added it).
+- `manage.py check` — 0 issues. `makemigrations --check --dry-run` — **no changes**.
+- **746 rows, counted rather than incremented** (house rule 5), and the count in `test.md` had
+  already drifted: **690** was right when the management layer went in, the learning cycle's
+  integration added 15 and closing step B 17, and nobody updated the number. 690 + 15 + 17 + 24 =
+  746, and each block's own share is checkable against the block comments.
+
+### Left open
+
+- **`events/CLAUDE.md` still says "the 690-row permission matrix"**, and `test.md` now says 746.
+  The brief for this step gave me the matrix file, `test.md` and `HISTORY.md` and nothing else in
+  `backend/`, so the app's own `CLAUDE.md` is one number for whoever may edit it. It is the third
+  place this count lives, which is itself the reason it drifts.
+- **No row for the `verified` persona on anything but the four founding paths and
+  `/api/creation/`.** That is the whole of what the gate governs, so nothing is missing today; the
+  day `is_verified_contributor` gates a fifth surface, this is where it needs a column.
+- **The 201 rows found no bug.** Four create paths answered 201 for a verified contributor the
+  first time they were asked, which is the honest outcome and worth recording: unlike the
+  management-layer rows (four real bugs) and the conference rows (one), this block pins behaviour
+  that was already right.
+- **`not_done` is still pinned on a course with lessons only.** The `total == 0` clause — a course
+  with no lessons at all is vacuously complete and must *not* print a certificate — is asserted in
+  `courses/test_school_mode.py` and has no matrix row, because giving it one would mean a second
+  course in this fixture whose only purpose is to have nothing in it.
+- **Nothing was done about the issuing endpoint's shape**, which this reading made me notice:
+  `POST /courses/{id}/completions/` takes `participant` as a bare id and there is no people search
+  (`CLAUDE.md`, known gaps), so the issuer's form has to already know the number. Not this step's,
+  and not a permissions question.
