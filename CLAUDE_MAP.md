@@ -68,7 +68,7 @@ still exists on disk; the live app is `courses`. Docs, tests and several e2e scr
   have put a `{count,next,previous,results}` envelope on some endpoints while the many custom `@action`s returned bare arrays.
 - Other config modules: `cachemw.py` (anonymous-read response cache), `sanitize.py`, `dbsearch.py`, `i18n_utils.py` (locale
   resolution/fallback, used by every translated serializer).
-- **Tests:** `manage.py test --parallel 4 --keepdb` — **2700** across per-app `tests.py`/`test_*.py` (the count is `test.md`'s;
+- **Tests:** `manage.py test --parallel 4 --keepdb` — **2707** across per-app `tests.py`/`test_*.py` (the count is `test.md`'s;
   this one was 2026-10-06). Any class that reaches an endpoint declares `databases = set(all_log_shards()) | {'default'}`,
   and `backend/testing/check_databases_declared.py` prints the classes that forgot — zero is the bar (`HISTORY.md` §17BT.A).
   `backend/testing/factories.py` holds shared

@@ -26,7 +26,7 @@ different things to a stranger, a participant and the instructor.
 
 ```sh
 cd backend
-../.venv/bin/python3 manage.py test --parallel 4 --keepdb   # everything — ~21 min, 2706 tests
+../.venv/bin/python3 manage.py test --parallel 4 --keepdb   # everything — ~21 min, 2707 tests
 ../.venv/bin/python3 manage.py test courses                 # one app
 ../.venv/bin/python3 manage.py test courses.tests.DiscussionTests            # one class
 ../.venv/bin/python3 manage.py test courses.tests.DiscussionTests.test_a_public_thread_is_readable_but_not_writable_by_outsiders  # one test
@@ -58,6 +58,9 @@ databases, not one — `default` plus the nine telemetry log shards, each with i
 under `--parallel 4` each of them cloned once per worker. The test databases are SQLite **in-memory** (nothing in `DATABASES` sets
 `TEST['NAME']`), so **`--keepdb` cannot keep anything between runs here**: it is harmless, not a
 speed-up, and the ~9½ minutes are paid again every time.
+And on the merged tree the same afternoon (`HISTORY.md` §17BU): **23 min 22 s** for **2 707**
+tests, 199 lines, with the a11y audit running beside it for part of the time — the count is what
+changed (D's one test and C's six), not the shape.
 
 **Nothing needs to be running first**, and nothing touches `db.sqlite3` — Django creates separate
 test databases, applies every migration, and destroys them afterwards.

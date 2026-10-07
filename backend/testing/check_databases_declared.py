@@ -155,7 +155,12 @@ def offending_classes(root: pathlib.Path = ROOT) -> list[tuple[str, int, str]]:
     analyzer = Analyzer(root)
     found: list[tuple[str, int, str]] = []
     for p in sorted(root.rglob('test*.py')):
-        if 'migrations' in str(p):
+        # `migrations/` holds no tests; a virtualenv, a `node_modules` or anything in
+        # `site-packages` is somebody else's test suite. The main checkout had a stale
+        # `backend/.venv/` beside the real `../.venv/`, and the day `is_test_case()` learned to
+        # see through base classes (§17BU.C) the checker started reporting django-postman's four.
+        parts = set(p.relative_to(root).parts)
+        if parts & {'migrations', '.venv', 'venv', 'node_modules', 'site-packages'}:
             continue
         try:
             src = p.read_text()

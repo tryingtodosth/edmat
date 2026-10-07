@@ -13254,6 +13254,90 @@ the same file. A checker narrower than the rule it checks is worse than no check
 
 ---
 
+## 17BU — After the closing cycle: the publish replay, and four branches on the left-opens (2026-10-07)
+
+The closing cycle (§17BT) ended with a board shorter than it found it and one thing it was not
+allowed to do: publish. This section is that publish, and the four branches that took what §17BT
+named and did not own. Nothing new was designed; every item below was a bullet on `todo.md` that
+morning.
+
+### The publish, and the drift it had to settle first
+
+`origin/main` had been at `4668148` since 2026-09-25 — the owner's list, the learning cycle and the
+closing cycle were all unpublished, 42 first-parent commits and 465 paths. Two things made the usual
+cherry-pick replay the wrong tool. The 2026-09-25 replays had been **edited on the publish branch**
+(deploy and webek4 references stripped; §17BL split into §17BL + §17BM) and never merged back, so
+nine paths disagreed and `git cherry` could not be trusted; and a 42-commit cherry-pick across
+that drift would have conflicted on every HISTORY append.
+
+So the drift came home first — `d577d94`: origin's wording for HISTORY.md, test.md,
+`backend/events/CLAUDE.md`, `testing/conference_demo.py` and `testing/personas.py`, with every
+local section after §17BP kept; local kept for the three `school-management-demo/scripts/*.js` and
+the snapshot, where local was ahead. Then the replay was done as a **tree build rather than a
+patch series**: for each first-parent commit, its tree with `deploy/` swapped for origin's copy and
+(for the commits before the reconcile) the five text files overlaid, written with `commit-tree`
+under the original author, date and message. No conflict is possible that way, and the audit is one
+command: `git diff --stat d577d94 publish/2026-10-07` lists the three held-back `deploy/` files and
+nothing else. `publish/2026-10-07` = `9ec2086`, 41 commits (the reconcile itself is empty after the
+overlays and is skipped). The script is kept beside the union resolver in the orchestrator's memory
+directory, with a `BASE=` so the after-cycle commits stack on the same branch.
+
+**Not pushed by the session.** The auto-mode classifier refuses `git push` as a production deploy,
+and that refusal is not something an agent should route around; the owner pushes
+`publish/2026-10-07:main` (a fast-forward). Until then `origin/main` is still `4668148`, and the
+boards say so.
+
+### The four branches
+
+Cut from `d577d94`, worktrees `after-<x>`, ports 815x/525x, merged as they landed — D `a921e0c`,
+B `86b2f9f`, A `efa1d01`, C `f1e5b00` — every conflict the "both appended" kind in HISTORY.md,
+resolved by union; no migration anywhere. Each has its own subsection below, written on its branch.
+
+| Step | Closed | Found on the way |
+|---|---|---|
+| **D** make-a-deck | `e2e/make-a-deck.mjs`, 45 checks against the real `POST /api/decks/` | the create path **refused** a generated name over 120 characters that the edit path truncated — "The deck could not be made" about a name nobody typed (`backend/flashcards/serializers.py`); the concept button's confirmation had no link to the deck |
+| **B** matrix rows | 24 rows, 722 → 746: the verified contributor's four 201s, the issuing action's four refusal words and its success, `already_revoked` | the matrix count had drifted in three files (690 was true at the management layer); `POST /api/services/` and `POST /api/courses/` had **no founding rows at all**; "the two course founding paths" are one course path and one tutoring listing |
+| **A** six small things | the footer's doubled name, the `/flashcards` sign-in door, three a11y findings, two `e2e/CLAUDE.md` traps, the orphaned PNG, the hint/solution reveal toggles | the heading-order finding was not the scratch row's — `/events` and `/tutoring` put cards' `h3` straight under an `h1`; the waiting badge was a **mismatched pair** (warning foreground on the info background) |
+| **C** test hygiene | 55 copies of the `databases` line → 4 in-file bases; the checker run by the suite (`testing/test_databases_declared.py`); the day-of-week sweep | the checker had skipped **74 request-making classes** whose base name did not contain `TestCase`; one booking test could not fail after 22:00; nothing else in the backend computes a weekday |
+
+### What integration did on top
+
+- **"Take home" links to its deck** (`9ebf661`, `Programme.svelte`): D's one-line left-open, held
+  back only because A was in the events components. Driven by D's script on the merged tree: 45
+  passed, 0 failed, screenshot 5 shows the link.
+- **The checker skips a virtualenv.** The main checkout has a stale `backend/.venv/` beside the
+  real `../.venv/` (the worktrees only have a symlink, which `rglob` does not follow), and the day
+  C's `is_test_case()` learned to see through base classes it started reporting django-postman's
+  four test classes — the suite's new test would have failed on the main checkout and nowhere else.
+  `check_databases_declared.py` now skips `.venv`, `venv`, `node_modules` and `site-packages`.
+- `backend/events/CLAUDE.md` says 746 rows and 248 tests, counted (`d550d60`); root `CLAUDE.md`
+  and `CLAUDE_MAP.md` say 2706.
+
+### Verified on the merged tree
+
+- `manage.py test --parallel 4 --keepdb`: **2707 tests, OK, 23 min 22 s** wall (12 min 40 s of them tests; the a11y audit was
+  running beside it for part of that), 199 lines, 0 request-log noise, the one deliberate traceback
+  (`work/tests.py: failing_provider`). 2700 → 2707 is D's one test and C's six.
+- `testing/check_databases_declared.py` **0**; `manage.py check` clean; `makemigrations --check` no changes.
+- `npm run check` 6341 files, **0 errors, 0 warnings**; `npm run lint` clean; `npm run build` ok;
+  catalogues 3932 / 3932, key sets identical.
+- `npm run check:a11y` over 48 pages: **0 load problems, 0 violations** of any level — the first run reported the manual's
+  help chapter as a load problem with two moderate findings on the error page it drew, which was
+  Chromium's `ERR_INSUFFICIENT_RESOURCES` with the parallel suite running beside it, and the re-run on
+  an idle machine cleared it. An audit that runs beside the suite is an audit of the machine.
+- `e2e/make-a-deck.mjs` 45 / 0 on the merged tree.
+
+### Left open by the integration
+
+- **The push**, above.
+- The pluralisation sweep, the on-disk test database for `--keepdb`, the `?location=` filter and
+  the held-comment notification, `seed_profile_showcase` and `share_activity`: all product or
+  design decisions, named on the board and not taken.
+- Each branch's own list is in its subsection; the ones that are somebody's work are on `todo.md`
+  under "After the closing cycle, <X> — left open".
+
+---
+
 ## 17BU.D — The three "make a deck" buttons, against the real endpoint (2026-10-07, `after/d-make-a-deck`)
 
 The learning cycle's §API bargain (`prompts/README.md` §9) was that steps C, D and E would each
