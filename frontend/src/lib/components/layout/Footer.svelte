@@ -22,7 +22,12 @@
 
 <footer class="site-footer no-print">
 	<div class="site-footer__row">
-		<p>{m.common_appName()} — {m.nav_tagline()}</p>
+		<!-- `nav_tagline` ALREADY begins with the site's name in both catalogues ("EdMat — …"), so
+		     prefixing `common_appName` printed it twice — "EdMat — EdMat — exercises, materials, …".
+		     Found on a manual screenshot during the closing cycle. The tagline stands alone; the name
+		     in the header's brand mark is the one that is a separate string. -->
+		<p>{m.nav_tagline()}</p>
+		<!-- "EdMat — exercises, materials, courses and events for learners of every age" -->
 		<p class="muted">{m.footer_sourceNote()}</p>
 		<p class="muted">{m.footer_phaseNote()}</p>
 		<!-- With no consent banner, this link is the site's standing disclosure — so it belongs

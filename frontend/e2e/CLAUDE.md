@@ -128,6 +128,24 @@ test-runner suite.
     await it. The same shape as trap 25, one layer down: there, waiting for an element proved
     nothing about hydration; here it proves nothing about the fetch the click started.
 
+28. **Emptying `backend/cachedata/*` under a RUNNING backend 500s the next anonymous read.** The
+    file cache holds its entries open, so deleting them out from under the process leaves one it
+    still has a handle on, and the next anonymous list that reads it answers
+    `OSError: [Errno 116] Stale file handle` — a 500 on whichever endpoint happened to own that
+    entry (`/api/branches/`, in the run that found it), while every other page is fine. That reads
+    exactly like "one feature is broken" and is nothing of the kind. **Stop the backend, clear
+    `cachedata/`, start it again** — in that order — and only when a stale cached list is actually
+    in the way (trap 12 is the cheaper answer: re-query as an authenticated user, which skips the
+    cache entirely). Found 2026-10-06, closing step D.
+
+29. **`scripts/check_accessibility.ts` reads `--base`/`--api` as CLI ARGUMENTS, not `E2E_BASE`.**
+    It is the one script here that does not take the env vars every `.mjs` takes, and it has
+    defaults (`:5174`, `:8000`), so `E2E_BASE=… npm run check:a11y` does not fail — it audits
+    whatever is on port 5174, usually nothing, and reports every single page as a load problem.
+    A "forty-one pages all broken" result is this, not a regression. Run it as
+    `npm run check:a11y -- --base http://localhost:<fe> --api http://127.0.0.1:<be>` (the bare `--`
+    is what gets the flags past npm to the script).
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

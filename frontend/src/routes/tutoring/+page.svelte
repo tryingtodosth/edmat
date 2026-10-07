@@ -331,8 +331,12 @@
 						     and knows nothing about caching — the same "dumb component, pure props in"
 						     contract the booking calendar pieces already follow. -->
 						<div class="grid-cell" style="opacity: {opacityFor(row.confirmedAt)}">
+							<!-- `headingLevel={2}`: the page's `h1` is followed by the filters and then this
+							     grid, with no section heading between, so the card's default `h3` skipped a
+							     level — a real axe `heading-order` finding on /tutoring. -->
 							<ServiceCard
 								{service}
+								headingLevel={2}
 								branchNames={service.branchIds.map((id) => branchNameById.get(id) ?? id)}
 							/>
 						</div>

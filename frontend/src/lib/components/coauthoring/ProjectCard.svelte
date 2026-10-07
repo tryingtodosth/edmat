@@ -100,7 +100,14 @@
 	.badge--seeking {
 		@include mix.status-pill(var(--status-info), var(--status-info-bg));
 	}
+	// A MISMATCHED pair: the warning foreground over the INFO background, which is the blue-tinted
+	// one `.badge--seeking` above is built for. #a15c00 on #e8eefb is 4.46:1 and axe called it a
+	// serious `color-contrast` violation on /material-projects?tab=mine. Pairing the warning
+	// foreground with its own background is the whole fix — the badge still reads as "waiting"
+	// (amber on cream, the one warm pill in a row of neutral and blue ones) and the ratio is 4.65:1
+	// light / 5.97:1 dark, both over WCAG AA's 4.5. The light figure clears it by 0.15, so a later
+	// change to either warning token has to be re-measured rather than eyeballed.
 	.badge--waiting {
-		@include mix.status-pill(var(--status-warning, var(--status-info)), var(--status-info-bg));
+		@include mix.status-pill(var(--status-warning, var(--status-info)), var(--status-warning-bg));
 	}
 </style>

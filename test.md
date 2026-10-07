@@ -2257,3 +2257,15 @@ just called that page clean, because axe does not look at geometry). **Clear `ba
 with the backend STOPPED**: emptying it under a running server leaves an entry the server still
 holds open, and the next read answers `OSError: [Errno 116] Stale file handle` as a 500 on an
 unrelated endpoint.
+
+**2026-10-07, `after/a-frontend-fixes` (HISTORY.md §17BU.A).** `npm run check:a11y -- --base
+http://localhost:5251 --api http://127.0.0.1:8151` now audits **48 pages, 0 with a load problem, 0
+critical/serious and 0 moderate/minor violation nodes** — the last three pre-existing findings are
+gone (`heading-order` on `/events` and `/tutoring`, `color-contrast` on `.badge--waiting` at
+`/material-projects?tab=mine`). Two things to know before trusting a clean run of it. It takes
+`--base`/`--api` as **CLI arguments** and not `E2E_BASE`, and it has defaults, so running it with
+the env var alone silently audits an empty port and calls every page a load problem (`e2e/CLAUDE.md`
+trap 29). And the badge check is only non-vacuous while some project the audited account (kasia)
+belongs to has a **pending proposal** — with none, `/material-projects?tab=mine` draws no
+`.badge--waiting` at all and the page passes without testing anything. `e2e/flashcards.mjs` re-run
+on the same servers: **43 passed, 0 failed**.

@@ -92,9 +92,19 @@
 			<!-- "Decks of flashcards you have made, and what is waiting to be reviewed." -->
 		</header>
 
-		{#if !authStore.isAuthenticated}
-			<p class="status">{m.decks_signInNote()}</p>
-			<!-- "Sign in to keep decks and a review schedule." -->
+		{#if authStore.restoring}
+			<p class="session-restoring">{m.common_loading()}</p>
+		{:else if !authStore.isAuthenticated}
+			<!-- A gated page offers the DOOR, not only the refusal. This one printed "Sign in to keep
+			     decks…" as flat text and left the reader to find /login themselves, while every other
+			     gated page here (/notifications, /messages, /settings, /submit, /tutoring/watchlist)
+			     makes the sign-in line itself the link. Same shape, same class name, and the
+			     `restoring` branch above is the other half of that pattern: without it somebody
+			     reloading with a valid token is shown a refusal for the length of one request. -->
+			<p data-session-hidden class="login-prompt">
+				<a href={resolve('/login')}>{m.decks_signInNote()}</a>
+				<!-- "Sign in to keep decks and a review schedule." -->
+			</p>
 		{:else}
 			<p class="due" data-testid="due-summary">
 				{#if due.total > 0}
@@ -183,6 +193,17 @@
 	.status {
 		color: var(--text-secondary);
 		margin: 0;
+	}
+
+	// The same two rules /notifications gives its own sign-in line: the prompt reads as secondary
+	// copy, and the link inside it reads as a link.
+	.login-prompt {
+		margin: 0;
+		font-size: var(--font-size-sm);
+	}
+	.login-prompt a {
+		color: var(--accent);
+		font-weight: 600;
 	}
 
 	.due {

@@ -28,6 +28,7 @@
 		getDeckCards,
 		placeDeck,
 		removePlacement,
+		updateCard,
 		updateDeck
 	} from '$lib/services/flashcards';
 	import { getSetsForUser } from '$lib/services/exerciseSets';
@@ -216,6 +217,29 @@
 			front = '';
 			back = '';
 			deck = await getDeck(deck!.id);
+		});
+	}
+
+	/** The two "show more than the statement" flags, per CARD.
+	 *
+	 * They were persisted (`flashcards.Card.include_hint` / `include_solution`), honoured by the
+	 * review screen (`[id]/review`, which only reveals a hint or a solution when the card says so)
+	 * and accepted by the API (`CardEditSerializer`) from the day the app landed — and nothing
+	 * anywhere SET them, so every card reviewed as statement-and-answer only and two message keys
+	 * had no call site at all (named as a gap by closing step C). This is that control.
+	 *
+	 * Only an EXERCISE card gets it. A concept card's two faces are a resolved revision's title and
+	 * summary and a free-text card's are what its author typed; neither has a hint or a pinned
+	 * solution to reveal, so a checkbox there would be a switch wired to nothing.
+	 *
+	 * The response is spliced back over the row rather than the flag being flipped locally, for the
+	 * same reason every other write on this page re-reads: the server's answer is the state, and a
+	 * refusal must not leave the box ticked.
+	 */
+	function toggleInclude(card: Card, field: 'includeHint' | 'includeSolution', next: boolean) {
+		return run(`include:${card.id}`, async () => {
+			const saved = await updateCard(card.id, { [field]: next });
+			cards = cards.map((row) => (row.id === saved.id ? saved : row));
 		});
 	}
 
@@ -478,6 +502,32 @@
 											<p class="hint">{m.decks_cardPulled()}</p>
 											<!-- "This exercise is no longer visible to readers — only you can see this card." -->
 										{/if}
+										{#if deck.canEdit}
+											<div class="card__includes">
+												<label>
+													<input
+														type="checkbox"
+														checked={card.includeHint}
+														disabled={busy === `include:${card.id}`}
+														onchange={(e) =>
+															toggleInclude(card, 'includeHint', e.currentTarget.checked)}
+													/>
+													{m.decks_includeHint()}
+													<!-- "Reveal the hint too" -->
+												</label>
+												<label>
+													<input
+														type="checkbox"
+														checked={card.includeSolution}
+														disabled={busy === `include:${card.id}`}
+														onchange={(e) =>
+															toggleInclude(card, 'includeSolution', e.currentTarget.checked)}
+													/>
+													{m.decks_includeSolution()}
+													<!-- "Reveal the solution too" -->
+												</label>
+											</div>
+										{/if}
 									{:else if card.kind === 'concept' && card.concept}
 										<a href={resolve(`/concepts/${card.concept.slug}`)}>
 											<MathTitle text={card.concept.title} />
@@ -693,7 +743,10 @@
 		display: flex;
 		gap: var(--space-2);
 		justify-content: space-between;
-		align-items: baseline;
+		/* `flex-start`, not `baseline`: the body is now two or three lines tall on an exercise card
+		 * (title, maybe the pulled note, the two reveal checkboxes) and baseline alignment pushed
+		 * the Remove button down to the last of them. */
+		align-items: flex-start;
 	}
 
 	.card--pulled {
@@ -702,6 +755,24 @@
 
 	.card__body {
 		min-width: 0;
+	}
+
+	/* The two reveal flags sit under the exercise's own title, not beside the Remove button: they
+	 * are facts about THIS card, and a row of controls shared with a destructive one invites the
+	 * wrong click. Wrapping, because both labels are full sentences at phone width. */
+	.card__includes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1) var(--space-3);
+		margin-top: var(--space-1);
+
+		label {
+			display: flex;
+			align-items: center;
+			gap: var(--space-1);
+			color: var(--text-secondary);
+			font-size: var(--font-size-sm);
+		}
 	}
 
 	.result {

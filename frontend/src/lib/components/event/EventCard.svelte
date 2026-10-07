@@ -13,7 +13,12 @@
 	import { formatDateTime, formatClock } from '$lib/utils/datetime';
 	import type { EdmatEvent } from '$lib/types/event';
 
-	let { event }: { event: EdmatEvent } = $props();
+	// headingLevel: the same prop `ServiceCard` and `MaterialCard` carry, and for the same reason —
+	// a card's title is an `h3` under a section heading (the homepage's tabs, /search's groups,
+	// /about/events), but the browse page at /events has no section heading at all: its `h1` is
+	// followed straight by this grid, so a fixed `h3` skipped a level and axe reported a real
+	// `heading-order` violation there (moderate, found by the closing cycle's a11y run).
+	let { event, headingLevel = 3 }: { event: EdmatEvent; headingLevel?: 2 | 3 } = $props();
 
 	const LOCATION_LABEL = {
 		onsite: () => m.events_locationKind_onsite(),
@@ -44,7 +49,7 @@
 <a class="event-card" href={resolve('/events/[id]', { id: event.id })}>
 	<p class="when">{whenLabel}</p>
 	<div class="head">
-		<h3>{event.title}</h3>
+		<svelte:element this={`h${headingLevel}`} class="title">{event.title}</svelte:element>
 		<div class="badges">
 			<AudienceBadge audience={event.audience} />
 			{#if event.visibility === 'private'}
@@ -104,7 +109,9 @@
 		gap: var(--space-2);
 		align-items: baseline;
 	}
-	h3 {
+	// Targets the class, not the tag: the level is a prop now, so a tag selector would stop
+	// applying in exactly the case the prop exists for (the same note `ServiceCard` carries).
+	.title {
 		font-size: var(--font-size-md);
 	}
 	.status {

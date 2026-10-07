@@ -144,7 +144,9 @@
 			<div class="grid">
 				{#each events as row (row.item.id)}
 					<StaleRow confirmedAt={row.confirmedAt}>
-						<EventCard event={row.item} />
+						<!-- `headingLevel={2}`: this page's `h1` is followed straight by the grid, with no
+						     section heading between, so the card's default `h3` skipped a level. -->
+						<EventCard event={row.item} headingLevel={2} />
 					</StaleRow>
 				{/each}
 			</div>

@@ -13443,3 +13443,127 @@ asks for the cheap factory in. The seeded certificate's note changed from `3 of 
   `POST /courses/{id}/completions/` takes `participant` as a bare id and there is no people search
   (`CLAUDE.md`, known gaps), so the issuer's form has to already know the number. Not this step's,
   and not a permissions question.
+
+## 17BU.A — Six small things the closing cycle named and nobody owned (2026-10-07, `after/a-frontend-fixes`)
+
+Six bullets from `todo.md`'s "Closing cycle — left open", every one of them found by a step that
+had no business fixing it: a double word in the footer, a gated page with no door, three
+pre-existing axe findings, two traps that cost a session each and were never written down, an
+orphaned screenshot, and two message keys with nothing calling them. None is interesting on its
+own. Collected here because the alternative is that each gets rediscovered separately.
+
+### The footer said the name twice
+
+`Footer.svelte` rendered `{m.common_appName()} — {m.nav_tagline()}`, and `nav_tagline` already
+begins with the name in **both** catalogues ("EdMat — zadania, …" / "EdMat — exercises, …"). So the
+first line of every page's footer read "EdMat — EdMat — exercises, materials, …". The fix is to
+drop the prefix: the tagline stands alone, and the header's brand mark is the one place the name is
+genuinely a separate string. Found on a manual screenshot by closing step C, which could not reach
+the file.
+
+### `/flashcards` signed out told you to sign in and not where
+
+The page printed `decks_signInNote` — "Sign in to keep decks and a review schedule." — as flat
+text. Every other gated page here makes that line a link: `/notifications`, `/messages`,
+`/settings`, `/submit`, `/submit-material`, `/tutoring/watchlist`, `/courses/mine`. So this page now
+uses the same `<p data-session-hidden class="login-prompt"><a href={resolve('/login')}>…</a></p>`
+they do, with the same two style rules, and the `{#if authStore.restoring}` branch that is the
+other half of that pattern — without it somebody reloading with a valid token is shown a refusal
+for the length of one request. **No new message key**: the copy that was already there became the
+link, which is the version with one sentence in it rather than two.
+
+### The three pre-existing axe findings
+
+All three were reported by C, D *and* the integration run, and all three were outside the nineteen
+pages any closing step owned.
+
+- **`heading-order` (moderate) on `/events` and `/tutoring`.** Not a scratch row's fault, although
+  that is how it looked: both pages put their `h1` straight above a grid of cards with no section
+  heading between, and both cards hard-coded `h3`. `ServiceCard` already had a `headingLevel` prop
+  (1 | 2 | 3, for its own detail page); `EventCard` did not, so it got one — same shape, same
+  class-not-tag style selector `ServiceCard` carries a note about, since a tag selector stops
+  applying in exactly the case the prop exists for. `/events`, `/tutoring` and
+  `/tutoring/watchlist` (the same `h1`-then-cards shape, not reported only because the audit does
+  not open it) pass `headingLevel={2}`. The homepage, `/search`, `/about/events` and the profile's
+  listings modal all sit under an `h2` and keep the default 3.
+- **`color-contrast` (serious) on `.badge--waiting` at `/material-projects?tab=mine`.** A
+  **mismatched pair**: the warning foreground over the *info* background, which is the blue-tinted
+  one `.badge--seeking` directly above it is built for. #a15c00 on #e8eefb is **4.46:1**, under
+  AA's 4.5. Pairing the warning foreground with its own background is the whole fix — amber on
+  cream, still the one warm pill in a row of neutral and blue ones — and gives **4.65:1** light,
+  **5.97:1** dark. The light figure clears the bar by 0.15, which is thin enough that the component
+  now says so: a later change to either warning token has to be re-measured, not eyeballed.
+
+### Two traps, written down
+
+`frontend/e2e/CLAUDE.md` gained 28 and 29, both of which cost a real session during the closing
+cycle and neither of which was in the file:
+
+- **Clearing `backend/cachedata/*` under a running backend** leaves the process holding a handle on
+  a file that is gone, and the next anonymous read of that entry answers `OSError: [Errno 116]
+  Stale file handle` as a 500 — on `/api/branches/`, in the run that found it, which reads as "one
+  feature is broken". Stop the backend first.
+- **`scripts/check_accessibility.ts` reads `--base`/`--api`, not `E2E_BASE`**, and has defaults. Run
+  with the env var alone it does not fail: it audits whatever is on `:5174`, usually nothing, and
+  reports every page as a load problem.
+
+### `decks_includeHint` / `decks_includeSolution` got their control
+
+The two flags were persisted (`flashcards.Card.include_hint` / `include_solution`), honoured by the
+review screen, accepted by the API (`CardEditSerializer`) and exposed by the service
+(`updateCard`) — and **nothing anywhere set them**, so every card was reviewed as
+statement-and-answer only and two message keys had no call site. The owner's call was to build the
+control rather than delete the keys, and the backend needed no change at all: the serializer
+already takes both on `PATCH /api/cards/{id}/`.
+
+The control is a pair of checkboxes under each card's title in the deck's own card list
+(`/flashcards/[id]`), drawn only for `deck.canEdit` and only on an **exercise** card — a concept
+card's two faces are a resolved revision's title and summary and a free-text card's are what its
+author typed, so neither has a hint or a pinned solution to reveal and a checkbox there would be a
+switch wired to nothing. The response is spliced back over the row rather than the flag flipped
+locally, for the reason every other write on this page re-reads: the server's answer is the state,
+and a refusal must not leave the box ticked. `.card`'s `align-items` moved from `baseline` to
+`flex-start`, because the body is now three lines tall and baseline alignment pushed Remove down to
+the last of them.
+
+### Verified
+
+Both real servers up (backend `:8151`, frontend `:5251`), Node 24.21.
+
+- `npm run check` — **2412 files, 0 errors, 0 warnings**.
+- `npm run lint` — prettier and eslint clean.
+- `npm run build` — built in 40.8 s, adapter-static wrote `build/`.
+- `npm run check:a11y -- --base http://localhost:5251 --api http://127.0.0.1:8151` — **48 pages, 0
+  had a load problem, 0 critical/serious, 0 moderate/minor**. Run first against the pre-fix files
+  for the same database, which reported exactly the three findings and nothing else: `heading-order`
+  on `/events` (`<h3>TEST=FAKE Sandbox conference</h3>`) and `/tutoring`, `color-contrast` on
+  `.badge--waiting`. The badge page is **not** a vacuous pass — project 12 ("A verified upload")
+  carries one pending proposal in this database, so the pill is genuinely drawn.
+- `e2e/flashcards.mjs` against the same servers — **43 passed, 0 failed**, zero console errors.
+- An ad-hoc browser pass (not added to `e2e/`, 11 checks, all passing): the footer names EdMat
+  exactly once in **both** languages; `/flashcards` signed out gives a link that lands on `/login`;
+  the deck page draws six checkboxes for three exercise cards, ticking one `PATCH`es
+  `/api/cards/{id}/` with 200, the server agrees afterwards, and the flags survive a reload. The
+  deck was put back to both-flags-off at the end.
+- Screenshots looked at: the footer in both languages, `/flashcards` signed out, the deck page at
+  desktop and at 390 px (no overflow, the labels wrap under each title). The three
+  `flashcards-*.png` that show the deck's card list are re-committed because they genuinely changed;
+  the other twelve were restored.
+- `messages/en.json` and `messages/pl.json` — 3931 keys each, key sets identical. **No key was
+  added**; this change is entirely call sites.
+
+### Left open
+
+- **The light-mode `.badge--waiting` ratio is 4.65:1**, 0.15 above AA. It passes, and it is the
+  closest thing on the site to the line. Darkening `$light-status-warning` from `#a15c00` to about
+  `#8a4f00` would take it to 5.88:1 and improve every other warning surface with it — a token
+  change affecting the whole site, which is not a badge fix and was not taken here.
+- **`/events` in this dev database holds exactly one row, `TEST=FAKE Sandbox conference`** — a
+  leftover from some earlier browser run. Harmless, and it is what the axe finding quoted; nobody
+  has swept the dev database for scratch rows.
+- **Nothing sets the two reveal flags at CREATION time.** "Add an exercise" and "Add its exercises"
+  both post a card with both flags false, and the person then ticks them in the list. A per-add
+  default (or a deck-level one) is a product decision, not a missing control.
+- **Still no plural forms.** `decks_cardCount`, `decks_dueSummary` and friends read "1 decks" /
+  "1 taliach"; zero of 3931 keys use an ICU plural. It is a site-wide copy decision and one sweep —
+  named again here because this section touched the same screens and did not fix it.

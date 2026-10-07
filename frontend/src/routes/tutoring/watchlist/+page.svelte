@@ -93,8 +93,10 @@
 			{#each watches as row (row.item.id)}
 				{@const watch = row.item}
 				<div class="watch-item" style="opacity: {opacityFor(row.confirmedAt)}">
+					<!-- `headingLevel={2}` for the same reason as the browse grid: `h1` then cards. -->
 					<ServiceCard
 						service={watch.service}
+						headingLevel={2}
 						branchNames={courseNamesByServiceId[watch.service.id] ?? []}
 					/>
 					<button type="button" class="remove" onclick={() => handleRemove(watch.id)}>
