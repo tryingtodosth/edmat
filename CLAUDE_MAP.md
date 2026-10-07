@@ -468,6 +468,15 @@ material proposals, shifts, bookings); `work/integrations.py` registers the six 
 filtered by `kind` — the only file that knows both sides. `GET /api/work/` behind `work_dashboard`. Frontend: `/work`,
 account "My work".
 
+**EdMat on EdMat (2026-10-07).** `work/edmat_project.py` is the project's own organisation as content
+— fifteen goals (one plan per module, `/dziennik` among them), the association's three phase plans
+with phase 1 mirrored into deadline-bearing tasks, the needs, the polls, the founding meeting once
+its date is set, two research accounts and the Gemini Deep Research thread under `/about` — and
+`manage.py seed_edmat_project --owner <username>` writes it idempotently. `work/edmat_history.py` +
+`manage.py export_edmat_history` turn `HISTORY.md` into `work/edmat_history.json` (one dated row
+per section, filed under a goal by hand), which is what ships; `work/edmat_research_thread.json` is
+the thread. `backend/work/CLAUDE.md` has the rules.
+
 ### `flashcards` — decks, cards, SM-2 review, and where a deck is placed (2026-10-05)
 The learning cycle's one new app (`prompts/02-flashcards.md`, `backend/flashcards/CLAUDE.md`). `Deck` (owner, nullable
 `source_set`, `source_kind`, `is_public` off by default and refused to a minor), `Card` (exercise XOR concept XOR free text,

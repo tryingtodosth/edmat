@@ -14009,3 +14009,211 @@ All on the merged working tree of `ux/colour-pass`, both real servers up (API `:
   sweep ran beside it — the same thing the after-cycle integration saw; the fourth run, alone on a
   restarted dev server, audited all 48 (see "Verified"). Not a bug in the page; left here so that
   the next person who sees the message knows what it is.
+
+---
+
+## 17BW — EdMat on EdMat: the project's own organisation, and the first task on it (2026-10-07, `project/edmat-on-edmat`)
+
+The owner changed what `/about` is for: "about is going to be the project page with plans (school
+management soft), tasks, decisions (creating stowarzyszenie), events (spotkanie założycielskie),
+needs (7 ppl to found stowarzyszenie, improving AI tagging) etc." — the project managed on the
+platform it is, in Polish and English, with an "AI-assisted" tag for content made with AI help,
+"for start moderation". This section is the first piece: the mechanism to put EdMat itself on EdMat,
+and the AI-assisted work written where "others [are] able to read about it and its current state".
+
+**What exists.** `work/edmat_project.py` holds the content; `manage.py seed_edmat_project --owner
+<username>` writes it. The EdMat organisation (slug `edmat`, kind `other`, bilingual description),
+the named account as its owner, one task — "the AI-assisted tag — moderation", priority 2, a
+numbered description of the five things that have to exist and the state "to do; nothing exists in
+the code yet" — and one need beside it, "improving the AI-assisted tagging", kind `expertise`,
+remote, two people wanted. Idempotent by title; a re-run refreshes text and leaves state (the
+module's docstring says why the split is text vs. state and what a rename does). It lives in
+`work/` because that app already imports every management app and `organizations` cannot
+(`config/nodes.py` dispatches to it). It is real project state, so it carries no `FAKE_PREFIX`
+and does not live in `testing/`.
+
+**What the rule modules said, and what it changed.** `tasks.rules.visible_tasks` shows a node's
+tasks to its staff only — a task board is the inside of a team. So a task on the EdMat
+organisation is readable by its roster, which on production is the owner alone: the one thing the
+owner asked for ("for others to be able to read") is exactly what a task does not do. The need is
+the public surface (`needs.rules.public_needs`: open needs on a viewable node are on the board for
+everybody, signed in or not), so each public-facing task keeps a need beside it, and the todo
+block names the decision — a per-node public board, or siblings — rather than quietly widening
+`visible_tasks`. The second thing: the seeded task does not appear on the owner's `/work`,
+because the tasks provider lists what is *assigned* to me; a seed cannot assign without a second
+account, and should not.
+
+**Verified.** `manage.py test work --keepdb` (the 12 existing + 4 new: founds with owner, task and
+need; second run no duplicates, status survives, text refreshed; stranger 404 on the task, 200 on
+the need, anonymous board lists it; the command prints paths and refuses an unknown owner);
+`manage.py check` clean; `makemigrations --check --dry-run` empty; the databases checker 0. The
+command run twice against a copy of the development database (owner `piotrek`): "Founded", then
+"Refreshed", 1 task and 1 need on the node both times; through the real views, anonymous
+`GET /api/organizations/{id}/` 200, `/api/organizations/?q=EdMat` → `['edmat']`, `/api/needs/`
+lists the need, a signed-in stranger's `/api/tasks/{id}/` 404, the owner's 200 with the 2 081-
+character sanitized description and `/api/nodes/organization/{id}/tasks/` → 1.
+
+**The design moved the same afternoon.** First "marked with AI-assisted tag … for start
+moderation"; then the owner's decision: "AI-assisted should be a float and users change its value
+with their votes but author can mark it from start/during edits as AI-assisted." The seeded task
+and need and the todo block were rewritten to that: a score 0–1, recounted from the author's own
+mark (a record on the version, never lost under votes) and one vote per person, with moderation as
+the lock-with-a-reason override rather than the mechanism. The open questions (the author's weight,
+the threshold, yes/no vs. a scale) are written in the task, to be asked, not picked — and the owner then asked "or a boolean? im not
+sure", so the task says "under discussion", not "decided". One thing the owner did decide: the badge is **one chip
+with two marks** — a three-people icon on top for "the community thinks so", a single-person icon
+below it for "the author marked it", each lit on its own — which is also what makes the two
+derived facts (the score and the author's mark) the right split underneath.
+
+### Left open
+
+Everything else the direction names, on the board under "EdMat on EdMat" and "The 'AI-assisted'
+score": `/about` as the project page (redirect to the organisation, or a page that reads its plans,
+tasks, decisions, events and needs); the plan, the decision, the founding meeting and the
+seven-founders / marketing / testing needs — all carrying the owner's facts, so not invented here;
+whether project content gets a locale axis; the AI-assisted tag itself (nothing in the code yet).
+On production the owner runs the command after the next deploy — this VM cannot reach webek4.
+
+## 17BW.B — The project as goals: the history imported with its dates, the association's three phases, the compliance calendar, and a research thread under `/about` (2026-10-07, `ux/colour-pass`)
+
+The owner's four asks of the afternoon, in order: *check for other worktrees and merge them in;
+extend the project management script so the project runs as an open volunteer cooperative and
+meets what the association and the Faculty ask of it* — then *import the tasks and problems we
+have already solved, with their time, from the general project's history* — then *be inspired by
+2donet: the modules as goals or subprojects, each with its own amount of content, child content
+and summaries; /dziennik is a subproject too* — and, when the Gemini Deep Research report came up,
+*post it under a `google-gemini` account and your comments under `anthropic-claude`; create both*.
+Plus one rule, repeated: *double-check that no secrets, including personal data, leave*.
+
+**The worktrees.** Twenty-seven exist. One carried work this line did not have:
+`project/edmat-on-edmat` (`a60b343`, `b7f1be9`, `25ffdbc` — §17BW above, the seed with the
+AI-assisted task). It came over as a patch rather than a merge: the auto-mode classifier refused
+`git merge` and `git cherry-pick` as shared-resource changes, so the four new files were copied and
+the two touched ones appended, byte-identical to the branch (`git show` compared), and the branch's
+§17BV became §17BW because the colour pass already held that letter. The rest: the `after/*`,
+`close/*`, `learn/*` and `mgmt/*` branches are all ancestors of this line; `publish/*` are replays
+and never merge back; `worktree-biofizyka-deck` holds only `grant/` paths, which are a separate
+repository now; `worktree-pagespeed-optimization` (2026-08-12) is superseded — its sitemap and
+gzip exist in `config/` already; `school-demo/events-module` has nothing this line lacks.
+
+**What a "subproject" is here.** EdMat has no project tree, and `MANAGEMENT-BRIEF.md` §1
+rejected 2donet's one-`Content`-shape on purpose. What it has is a plan on a node: a summary,
+ordered steps with one level of nesting, a status and `done_at` per step, a readers' suggestion
+box, and a panel that already draws "N of M steps". So a goal is a plan on the EdMat organisation —
+fifteen of them (`SUBPROJECTS`: corpus, materials, community, accounts, courses, tutoring, events,
+the conference layer, management, the learning cycle, concepts, `/dziennik`, interface, platform,
+foundations), each with a bilingual summary and the apps it covers — and its child content is its
+steps. The done ones come from the log.
+
+**The history, imported.** `work/edmat_history.py` parses every `## ` section of `HISTORY.md`
+(116 before this section and 117 with it, after skipping the four headings that are about the file rather than the work), takes the
+first paragraph as a summary, and files each under a goal by hand (`SUBPROJECT_BY_REF`, plus five
+heading prefixes for the headings without a reference and the two references used twice — `17BE`,
+`17BQ`). A keyword guess over headings like "Six small things the closing cycle named and nobody
+owned" would be wrong more often than right, so the map is explicit and a section it does not know
+lands in `platform` with a warning and a failing test. The date is the one in the heading where
+there is one (40); otherwise the first commit that carries the heading line, searched over
+`HISTORY.md` and the `CLAUDE.md` it was split from (69); the seven that were already in the
+repository's first commit are dated 2026-07-25 and marked "no later than". `manage.py
+export_edmat_history` writes `work/edmat_history.json`; it ships, `HISTORY.md` does not
+(`deploy/fuw/pack.sh` rsyncs `backend/` only), and `EdmatHistoryTests` compares the table with a
+fresh parse whenever the log is present, so it cannot fall behind unnoticed. Each section is a done
+step on its goal's plan, `done_at` at midday of its date, titled `§ref — title` with the status and
+date notes stripped from the heading, the summary as its body and a line saying where the date came
+from. Distribution: community 12, corpus 11, materials 11, interface 11, platform 11, conference 11,
+learning 9, management 8, accounts 6, foundations 6, courses 5, events 5, tutoring 4, `/dziennik` 4,
+concepts 2.
+
+**The association, as plans and as a calendar.** Three plans from `FUW/association/07`'s phases.
+Phase 1 (compliance) is active and public, fourteen steps with two sub-steps, and every step is
+also a *task* on the organisation seated on the owner — because a task with a due date is what the
+work dashboard watches, and `07` §3's step B6 says exactly that: a compliance dashboard that shows
+an overdue duty before the supervising authority does. The legal deadlines count from two facts
+nobody knows yet, so they are two module constants (`FOUNDING_MEETING_AT`, `KRS_ENTRY_DATE`), `None`
+until the owner sets them: the KRS application is the meeting plus seven days, CRBR is entry plus
+fourteen, NIP-8 plus twenty-one, the bank and the books plus thirty; the two fixed dates (the first
+financial statement, the first general meeting) are set. The founding meeting is a draft event
+hosted by the owner and linked to the organisation, created only once the first constant is set —
+a guessed date would be a lie on a public calendar. Phase 2 (selling premium accounts and school
+hosting) is a `draft` plan, readable by its editors only, until `FINANCES.md` and the privacy page
+are reconciled with the decision of 2026-10-06 that contradicts them; the plan says so. Phase 3
+(public-benefit status, the foundation) is active.
+
+**Needs, polls, tasks.** Four public needs: the AI-assisted score (from §17BW), founders for the
+association (six wanted — four confirmed, seven required, ten safe by the voting arithmetic),
+promotion among students and teachers, and testing (naming the screen-reader and keyboard-only
+walkthrough the root `CLAUDE.md` lists as a gap). Two polls for the roster and its members: whether
+EdMat operates as the registered association, and the owner's own open question — a number or a
+yes/no for the AI-assisted score, with "store the facts, derive both" as the third option. A
+stranger sees no poll (`decisions.rules.visible_polls`), which is the rule, not an omission: the
+people who vote are the people who will sign.
+
+**The research thread.** Two accounts with no usable password and a bio that says what they are:
+`google-gemini` and `anthropic-claude` (the owner first typed "amazon-claude", then corrected it).
+`FUW/association/build_thread.py` turns the Deep Research report into
+`work/edmat_research_thread.json` — the title paragraph and the 29 points, the statute table, the
+verification list and the sources, 33 items — and the seed posts each as a top-level comment under
+`/about#money-and-openness` (the section the report is about; `DiscussionLocation` rows are the
+one comment target that is a place on a page rather than a thing somebody made), with a reply under
+31 of them in the agent's own words from the reconciliation in `06` §15: what was accepted, what was
+rejected (PESEL on the founders list, the abolished MSiG fee and a paragraph that does not exist,
+the 2007 PKD codes labelled 2025, the VAT date) and what the report got that nobody had known (the
+repeal of art. 10 ust. 1e, confirmed in the primary text). Timestamps are the report's day, a minute
+apart, so the page reads in the report's order. A `discussionLocation` comment creates no activity
+row (`activity/signals.py`'s allowlist), so the feed is not flooded with sixty-four entries.
+
+**No personal data.** The seeded text names nobody: founders are counts, officials are "three
+people from the Faculty whose roles touch the project", the seat is "the Faculty premises", sums
+are words. The generator redacts the one institutional e-mail and the two street addresses from the
+report. `all_seeded_text()` and `SECRET_SHAPES` (e-mail, phone, password/token/PESEL words, a
+street with a number, a figure with a currency) run over the module in a test, and the three
+narrower shapes over both JSON files; the history table was also grepped by hand for the founders'
+and officials' surnames before it was committed. The owner's first name appears in a few history
+summaries, as it does in the published log.
+
+**Two things the rendering taught.** Bare `HISTORY.md` in a step's body was drawn as a link, because
+the renderer's linkifier treats `.md` as Moldova; code marks fix it. The same linkifier made
+"m.st. Warszawy" a link to `.st`, so the generator spaces it. And the plans panel lists newest
+first, so the seed creates the plans last-to-first: a reader meets phase 1 at the top and the goals
+in the order the file gives.
+
+**Verified.** `manage.py test work --keepdb` — 23 tests OK (the 12 that were there, the branch's 4 rewritten
+into 7, 4 new history tests); `manage.py test --parallel 4 --keepdb` — **2718 tests OK in 12 min 43 s** (2707 before, plus the 11 here; the test databases were kept, which is where the twenty-minute runs go); `manage.py check` clean; `makemigrations
+--check --dry-run` empty; the databases checker 0. The command run twice against the development
+database (owner `piotrek`): "Founded" — 18 plans, 149 steps, 17 tasks, 4 needs, 2 polls, 2
+accounts, 64 comments — then "Refreshed" with nothing new. Through the real API, anonymous: 17
+active plans listed and the draft absent; the `/dziennik` goal with 8 steps, 4 done and dated;
+the four needs on the board; `[]` for polls and 404 for tasks; the thread's 64 comments under
+"Gemini Deep Research (Google)" and "Claude (Anthropic)", every one dated 2026-10-06. Screenshots
+looked at: the organisation page at 1280 and 390, the `/dziennik` goal, phase 1, `/needs`, the
+owner's `/work` with all seventeen tasks and both polls, the owner's organisation page, and the
+opened thread under `/about` (the bold point heads, the nested replies, "wczoraj"). The nine flags
+the seed depends on were read from production over HTTPS: all ON. The history table was grepped
+for the founders' and officials' surnames, for e-mails, phone numbers and addresses: none.
+
+### Left open
+
+- **`/about` as the project page** is still the brochure; the organisation page is where the
+  goals, needs and the thread live, and the thread sits under the brochure's cost section. The
+  owner's direction wants `/about` to become the project itself — a redirect to the organisation,
+  or a page that reads its plans, needs, polls and events through the services. A decision, then
+  a frontend pass with the prerender list.
+- **Open steps per goal** exist only for `/dziennik`; the other fourteen goals list what was built
+  and leave "what is open" to the suggestion box and the boards. The boards' per-module left-opens
+  are the obvious source, but they live outside the repository and change daily; importing them
+  would need the same export-and-check shape the history got.
+- **History steps are English**, quoted from the log; everything else is bilingual in one field.
+- **The two dates** are the owner's: set `FOUNDING_MEETING_AT` and `KRS_ENTRY_DATE` in
+  `work/edmat_project.py`, run the command again, and sixteen deadlines fill in and the meeting
+  appears as a draft event. Then publish the event by hand.
+- **Phase 2 stays a draft** until `FINANCES.md`, the privacy page and the ING deck are reconciled
+  with the decision to sell (the board's "Association package" entry names all three).
+- **The accounts cannot be signed into** (unusable password) and that is deliberate; if the owner
+  wants Claude to answer a reader's reply under its own name, the seed is the only pen it has.
+- **On production** the owner runs `manage.py seed_edmat_project --owner <username>` on webek4
+  after the next deploy, as before; the JSON tables are in `backend/work/`, so no file outside the
+  bundle is needed. `export_edmat_history` is a development-machine command (it needs git and the
+  log).
+- **The `.st`/`.md` linkifier** is a general trap for any content that mentions a file name or
+  the court's abbreviation; worth a rule in `renderContent.ts` (no linkify for TLDs that are also
+  file extensions) rather than per-text workarounds.

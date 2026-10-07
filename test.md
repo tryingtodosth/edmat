@@ -2318,3 +2318,25 @@ Frontend only; no backend test changed. What was run, and how to run it again:
 - Contrast was measured, not guessed: every pair in the spec's table was produced by a small WCAG
   calculator (`contrast.py`, kept with the pass's working files outside the repo); the ratios that
   matter are recorded next to the token values in `_tokens.scss`.
+
+**2026-10-07, `project/edmat-on-edmat` → `ux/colour-pass` (HISTORY §17BW, §17BW.B).**
+`work.tests.EdmatProjectSeedTests` (7 tests, on a three-row history table and a three-item thread
+so the counts are exact): the seed founds the organisation with its owner, one plan per goal with a
+done, dated history step under the right goal, the three association plans (phase 2 a draft), the
+phase-1 steps mirrored into tasks seated on the owner, the needs, the polls with their options, the
+two research accounts with no usable password, and the thread's comments and replies dated to the
+report; a second run creates nothing, keeps status / assignees / `done_by` / a need's status, and
+refreshes every text (a history step's `done_at` follows the log); the anonymous and stranger
+surfaces answer as the rule modules say (active plans and open needs yes, the draft plan 404, polls
+and tasks none; the owner sees all, votes once — 201 — and 409 the second time); the deadlines are
+empty until `FOUNDING_MEETING_AT` / `KRS_ENTRY_DATE` are patched in and then count from them, and
+the founding meeting appears as a draft event linked to the organisation, once; the owner's
+`/api/work/` lists every compliance task; the command prints the paths and refuses an unknown
+`--owner`; and `all_seeded_text()` plus both JSON files pass `SECRET_SHAPES` / `DATA_FILE_SHAPES`.
+`work.tests.EdmatHistoryTests` (4, `SimpleTestCase`): the parse of a sample log (skip-list,
+reference, heading date, first-paragraph summary, goal, the twice-used references told apart by
+heading), and — whenever `HISTORY.md` is present — that `work/edmat_history.json` equals a fresh
+parse (run `manage.py export_edmat_history` when it does not) and that the thread file is whole.
+Run `manage.py test work --keepdb` (23 tests). The seed itself was run twice against the
+development database and the pages looked at (`/organizations/edmat`, a goal, `/work`, the thread
+under `/about`).

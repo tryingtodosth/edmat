@@ -127,3 +127,48 @@ section with zero items (`if items: sections.append(...)`), so that branch in `+
 unreachable through the real API; documented as dead defensive code rather than a script gap.
 15/15 checks passing as of 2026-09-24 (`E2E_BASE=http://localhost:5226 E2E_API=http://127.0.0.1:8126
 node e2e/work.mjs`).
+
+## `edmat_project.py`, `edmat_history.py` and the two commands — EdMat managed on EdMat (2026-10-07)
+
+The owner's direction of 2026-10-07: the project is run on the platform, as an open volunteer
+cooperative, with one goal per module and the project's own history imported with its dates.
+`work/edmat_project.py` is the content; `manage.py seed_edmat_project --owner <username>` writes
+it, idempotently by title (a plan, task, need by title on the node; a step by title on its plan; a
+poll by question; a comment by its bold first line): a second run refreshes the text and leaves
+status, assignees, applications, ballots and who-marked-what alone. It lives here and not in
+`organizations/` because it imports every management app, which `organizations` must not do at
+module level (`config/nodes.py` dispatches to `organizations`). It is NOT demo data: no
+`FAKE_PREFIX`, no `testing/`. What it writes, and the rule behind each choice:
+
+- **A goal is a plan** (`SUBPROJECTS`, fifteen: one per module, `/dziennik` among them). EdMat
+  has no project tree; a plan has a summary, steps with one level of nesting, `done_at`, a
+  suggestion box and a panel that already draws "N of M steps". Its done steps are the sections of
+  `HISTORY.md` filed under it — `work/edmat_history.py` parses the log, `SUBPROJECT_BY_REF` files
+  each section by hand (a keyword guess would be wrong too often), and `manage.py
+  export_edmat_history` writes `work/edmat_history.json` with a date per section (from the
+  heading, else the first commit carrying it, else "no later than the repository's first commit").
+  **The JSON ships; `HISTORY.md` does not** (`deploy/fuw/pack.sh` rsyncs `backend/` only), so
+  re-run the export when the log grows — `EdmatHistoryTests` fails when the table is behind, and
+  a section not in the map lands in `platform` with a warning.
+- **The association is three plans** (`ASSOCIATION_PLANS`, the phases of `FUW/association/07`),
+  phase 1 mirrored into **tasks with deadlines** (`as_tasks`), all seated on the owner, because a
+  task is what `/work` watches. Deadlines count from `FOUNDING_MEETING_AT` and `KRS_ENTRY_DATE`
+  (module constants, `None` until the owner knows them; `due_at_for`); the founding meeting is
+  created as a draft event only once the first is set. Phase 2 (selling) stays `draft` — editors
+  only — until `FINANCES.md` is reconciled with that decision.
+- **A task and a poll are the roster's; an active plan and an open need are everybody's**
+  (`tasks.rules.visible_tasks`, `decisions.rules.visible_polls`, `plans.rules.visible_plans`,
+  `needs.rules.public_needs`). Whatever the public should read is a plan step or a need.
+- **Two research accounts** (`ACCOUNTS`: `google-gemini`, `anthropic-claude`, no usable
+  password, a bio that says what they are) and **the Gemini Deep Research thread** under
+  `/about#money-and-openness`: `work/edmat_research_thread.json`, one top-level comment per point
+  by the first account, a reply by the second where it had something to say, all timestamped to
+  the report's date. `FUW/association/build_thread.py` writes the JSON from the report (gitignored
+  there) and redacts the one e-mail and the street addresses. A `discussionLocation` comment
+  creates no activity row (`activity/signals.py`), so the feed is not flooded.
+- **No personal data, ever.** Nothing names a founder, a Faculty official, an office or a sum;
+  people are roles or counts. `all_seeded_text()` + `SECRET_SHAPES` and the test that runs them
+  over the module and both JSON files are the gate — extend the shapes before you extend the text.
+- **Both languages in one field**, Polish first, a rule, then English: no management row has a
+  translation table. History steps quote the English log as written. Whether project content
+  should get a locale axis is on the board ("EdMat on EdMat").

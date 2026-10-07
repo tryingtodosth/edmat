@@ -363,8 +363,8 @@ features that share a word and answer to two different flags (`volunteering` and
 ```
 
 - **One shared venv at the repo root**, `.venv/` (Python 3.12). From `backend/`:
-  `../.venv/bin/python3 manage.py test --parallel 4 --keepdb` (2707 tests, **21–23 min** on this six-core
-  machine on 2026-10-06 — nine of them building the ten in-memory databases, which `--keepdb` cannot
+  `../.venv/bin/python3 manage.py test --parallel 4 --keepdb` (2718 tests, **13 min** with the test databases kept, **21–23 min** when they are rebuilt, on this six-core
+  machine on 2026-10-07 — nine of them building the ten in-memory databases, which `--keepdb` cannot
   keep; serial is ~52 min), `manage.py check`, `manage.py makemigrations --check --dry-run`. Every
   test class that reaches an endpoint declares `databases = set(all_log_shards()) | {'default'}`, and
   `testing/check_databases_declared.py` must print zero (`test.md` §1, `HISTORY.md` §17BT.A).
