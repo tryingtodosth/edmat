@@ -351,7 +351,16 @@ class DeckDraftSerializer(serializers.Serializer):
     different subsets: the "new deck" form sends a name, "make a deck from this set" sends a name
     plus ids plus a source, and steps C and E send all four."""
 
-    name = serializers.CharField(max_length=NAME_MAX_LENGTH)
+    # **No `max_length` here, deliberately** — `validate_name` truncates instead, the way
+    # `DeckSerializer.validate_name` already did for the edit path. A field-level `max_length`
+    # runs BEFORE `validate_name` and raises, which is the right answer for a name somebody typed
+    # (both inputs that do are capped at 120 in the browser) and the wrong one for a name nobody
+    # typed: the three "make a deck" buttons GENERATE theirs from a lesson, session or concept
+    # title, each of which is `max_length=200` in its own app. A 130-character lesson title then
+    # took the whole deck down with a 400 the person could do nothing about, and the button said
+    # only "The deck could not be made." Found against the real endpoint by
+    # `frontend/e2e/make-a-deck.mjs` (§17BU.D); the create path now agrees with the edit path.
+    name = serializers.CharField()
     audience = serializers.ChoiceField(choices=AUDIENCE_VALUES, required=False)
     exercise_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1), required=False, allow_empty=True
@@ -363,7 +372,7 @@ class DeckDraftSerializer(serializers.Serializer):
         value = (value or '').strip()
         if not value:
             raise serializers.ValidationError('A deck needs a name.')
-        return value
+        return value[:NAME_MAX_LENGTH]
 
 
 class CardDraftSerializer(serializers.Serializer):

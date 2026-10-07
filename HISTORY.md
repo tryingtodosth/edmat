@@ -13251,3 +13251,85 @@ the same file. A checker narrower than the rule it checks is worse than no check
 - **`backend/CLAUDE.md`'s own "Testing" section still does not mention the rule.** It is not in the
   closing cycle's file-ownership table, so I left it alone rather than collide with another branch;
   it is a two-line addition for whoever integrates.
+
+---
+
+## 17BU.D — The three "make a deck" buttons, against the real endpoint (2026-10-07, `after/d-make-a-deck`)
+
+The learning cycle's §API bargain (`prompts/README.md` §9) was that steps C, D and E would each
+build a "make a deck" button against the shape step A had promised, verify it against a `page.route`
+**mock**, and let integration prove the real call. Integration merged all eight branches and never
+pressed one. So three buttons — a course lesson (`CourseContent.svelte`, §17BR.C), a programme
+session (`Programme.svelte`, §17BR.E) and a concept (`DeckFromConcept.svelte`, §17BR.D) — shipped
+having only ever talked to a mock that answered whatever they sent. `school-mode.mjs` and
+`take-home.mjs` still carry those mocks, and will: they are testing their own half.
+
+`frontend/e2e/make-a-deck.mjs` is the half nobody had: **45 checks in six sections**, both real
+servers, the real `POST /api/decks/`.
+
+### What the real endpoint showed
+
+**Two of the three were right about everything that was ever in doubt.** The lesson button sends
+three string exercise ids and a `{kind:'lesson', id}` source and gets three cards back **in the
+lesson's own order**; `placement: {kind:'course'}` lands for an instructor and is correctly absent
+for a participant, whose deck comes back unplaced while the course's two placements stay the
+instructor's. "Take home" sends the session's two ids and a `{kind:'session'}` source and the
+organiser's deck arrives on the event, a visitor's in their own list. The concept button sends the
+concept's **numeric pk** (`concept.id` from `mapConcept`, not the slug — `_resolve_source` accepts
+either, which is why nobody had had to be sure) and gets one card per linked exercise, placed
+nowhere. Pressing each a second time makes a **second deck**, which is the design answer and not a
+gap: `already_placed` can only fire for a deck that is already on that node, and a deck created
+half a second ago never is.
+
+**One thing was genuinely broken, and it was in the one place three callers share.**
+`DeckDraftSerializer.name` was `CharField(max_length=120)`, so `POST /api/decks/` **refused** a name
+over the cap with a 400. None of the three buttons asks anybody for a name: each **generates** one
+from a lesson, session or concept title, and `Lesson.title`, `Session.title` and a concept's
+resolved head are all `max_length=200`. A teacher with a long week heading pressed the button and
+got "The deck could not be made." — a refusal they could not act on, about a name they never typed.
+The same file's `DeckSerializer.validate_name` (the **edit** path) had always truncated instead, so
+the two halves of one endpoint disagreed about the same field. Fixed by making the create path
+agree: no `max_length` on the field, `value[:NAME_MAX_LENGTH]` in `validate_name`. Truncating is the
+right answer precisely because nobody typed it — both inputs where somebody does type a deck name
+are `maxlength="120"` in the browser, so a typed name cannot reach this at all.
+`DeckCreationTests.test_a_generated_name_past_the_cap_is_truncated_rather_than_refused` pins it, and
+section 3 of the script drives it through a real lesson whose generated name is 152 characters.
+
+**One thing was stale rather than broken.** §17BR.D wrote, honestly, that `DeckFromConcept.svelte`
+has "deliberately no link to the deck that comes back", because `/flashcards/[id]` did not exist on
+that branch — and ended "the integrator adds the link". The integrator added the route and not the
+link, so the concept button's confirmation was a dead end while the lesson button's offered the
+door. Added (`paths_deck_open`, both locales), with the underline the pill needs: inside a green
+`status-pill` an un-underlined "Open it" is the same colour as the sentence it ends and does not
+read as a link at all — visible in a screenshot, invisible to `npm run check:a11y`.
+
+### Verified
+
+45 checks, 0 failed, 0 console/page errors, twice (before and after the link's CSS), against
+`localhost:5254` / `127.0.0.1:8154`. `manage.py test flashcards` 65 tests OK; `check`,
+`makemigrations --check --dry-run` (no changes) and `testing/check_databases_declared.py` (0) clean;
+`npm run check` 2412 files / 0 errors / 0 warnings; `npm run lint` clean. Nine screenshots in
+`e2e/screens/make-a-deck-*.png`, all looked at — the truncated deck name and the underlined "Open
+it" are both things only a screenshot shows, and the participant's view of the course (her own deck
+absent from the panel, the instructor's two present with no "Remove from here") is the placement
+rule drawn rather than asserted.
+
+### Left open
+
+- **"Take home" still has no link to the deck it made.** The organiser's sentence ends "it is on
+  this event, so everybody here can study it", and the event's Flashcards panel does carry the link
+  — so an organiser is one scroll from it. A visitor is told "it is in your decks" and has to go
+  find them. The same one-line addition as the concept button, in `Programme.svelte`, which this
+  branch left alone because another agent was in the events components.
+- **One exercise, two names on two screens.** On `/concepts/calka` the Exercises card reads "Test EN
+  title" and the deck made from that very page names the same row "Aksjomaty normy euklidesowej".
+  Neither is wrong: `ConceptLinks` goes through the exercise service, which sends `?lang=`, and both
+  `/api/concepts/{slug}/exercises/` and a deck's card refs do not, so they get
+  `config/i18n_utils.request_locale`'s documented default of the **original** locale. It is the
+  shape of the bug §17BR.D found by looking at a screenshot (`_target_title` naming one concept two
+  ways), one layer out, and it wants a decision about which answer a deck should carry rather than
+  a patch.
+- **No kill-switch section.** `flashcards.mjs` already proves the switch takes the panel and the
+  account-menu entry away as a non-staff reader, and `take-home.mjs` proves it takes the "Take home"
+  button away; a third copy would be three places to update.
+- **The script is desktop-only.** `flashcards.mjs` owns the phone-width checks for this feature.

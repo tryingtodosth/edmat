@@ -3708,6 +3708,7 @@
 	"paths_deck_make": "Make a deck from this concept",
 	"paths_deck_working": "Making the deck…",
 	"paths_deck_made": "Deck made: {name}",
+	"paths_deck_open": "Open it",
 	"paths_deck_failed": "The deck could not be made.",
 	"paths_deck_name": "Flashcards: {title}",
 	"gate_reason_anonymous": "Sign in to start something new here.",

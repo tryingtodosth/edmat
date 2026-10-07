@@ -15,10 +15,14 @@
 	 * is already enforced by the page's own `FeatureGate`; `flashcards` is the feature being reached
 	 * for, and killing it has to take the button away as well as the endpoint (house rule 3).
 	 *
-	 * There is deliberately no link to the deck that comes back. `/flashcards/[id]` is step A's
-	 * route and does not exist on this branch; a link to a route that is not there is the exact bug
-	 * `CLAUDE.md` house rule 2 records finding in a browser ("an invite link pointing at a route
-	 * renamed months earlier"). The confirmation names the deck; the integrator adds the link.
+	 * The confirmation **links to the deck**. It deliberately did not when this was written: step
+	 * A's `/flashcards/[id]` did not exist on this branch, and a link to a route that is not there
+	 * is the exact bug `CLAUDE.md` house rule 2 records finding in a browser ("an invite link
+	 * pointing at a route renamed months earlier"), so the sentence named the deck and said the
+	 * integrator would add the link. The integration landed the route and not the link, and the
+	 * first run of `e2e/make-a-deck.mjs` against the real `POST /api/decks/` found the gap: the
+	 * course and event buttons both offer the door and this one left the reader to go and find
+	 * their new deck (HISTORY §17BU.D). `CourseContent.svelte`'s `.deck-note` is the shape copied.
 	 */
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -46,7 +50,9 @@
 
 	let exercises = $state<ConceptExerciseRef[]>([]);
 	let working = $state(false);
-	let made = $state('');
+	/** The deck that came back, or `null` for "nothing made yet" — both halves together, because a
+	 *  name with no id would draw a link to nowhere. */
+	let made = $state<{ id: string; name: string } | null>(null);
 	let error = $state('');
 
 	const available = $derived(
@@ -72,18 +78,19 @@
 		if (working || exercises.length === 0) return;
 		working = true;
 		error = '';
-		made = '';
+		made = null;
 		try {
 			const deck = await createDeckFromExercises({
 				name: m.paths_deck_name({ title }), // "Flashcards: {title}"
 				exerciseIds: exercises.map((row) => row.id),
 				source: { kind: 'concept', id: conceptId }
 			});
-			made = deck.name || m.paths_deck_name({ title });
+			made = { id: deck.id, name: deck.name || m.paths_deck_name({ title }) };
 		} catch {
-			// One sentence for every failure, deliberately: until step A's endpoint exists there is
-			// no refusal vocabulary to translate, and inventing reasons it might answer with would
-			// be guessing at somebody else's API (house rule 10 — say what is known).
+			// One sentence for every failure, deliberately: the endpoint's own refusal vocabulary
+			// (`not_owner`, `kind`, `cannot_manage`, `already_placed`) is all about PLACEMENT, and
+			// this button never places anything — so there is nothing here to translate that a
+			// person could act on (house rule 10: say what is known).
 			error = m.paths_deck_failed(); // "The deck could not be made."
 		} finally {
 			working = false;
@@ -98,8 +105,13 @@
 	</button>
 {/if}
 {#if made}
-	<p class="made" role="status">{m.paths_deck_made({ name: made })}</p>
-	<!-- "Deck made: {name}" -->
+	<p class="made" role="status">
+		{m.paths_deck_made({ name: made.name })}
+		<!-- "Deck made: {name}" -->
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `/flashcards/[id]` is a plain route with no localized address; `svelte/no-navigation-without-resolve` cannot see through a template literal without type-aware linting, which this project deliberately does not turn on (frontend/CLAUDE.md) -->
+		<a href={`/flashcards/${made.id}`}>{m.paths_deck_open()}</a>
+		<!-- "Open it" -->
+	</p>
 {/if}
 {#if error}
 	<p class="error">{error}</p>
@@ -118,6 +130,14 @@
 		@include mix.status-pill(var(--status-success), var(--status-success-bg));
 		margin: 0;
 		white-space: normal;
+	}
+	/* `inherit` rather than the link colour: the pill picked its foreground against its own green
+	   background, and a link colour chosen for the page background need not clear AA on this one.
+	   Underlined, because without it "Open it" is the same green as the sentence it ends and does
+	   not read as a door at all — which a screenshot shows and axe does not (house rule 2). */
+	.made a {
+		color: inherit;
+		text-decoration: underline;
 	}
 	.error {
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));

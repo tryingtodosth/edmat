@@ -130,9 +130,15 @@ All behind `feature_gate('flashcards')`, **reads included**. The node-nested rou
 
 `POST /api/decks/` is **the one call steps C, D and E make**
 (`frontend/src/lib/services/flashcards.ts: createDeckFromExercises`, whose signature the prep commit
-fixed before this app existed). Three guarantees to them: one card per id **in the order the ids
-arrived**; ids the caller may not see are **skipped, not refused**, with the count in `skipped`; and
-**a refused placement does not lose the deck** — it is created first and returned in the 403 body.
+fixed before this app existed). Four guarantees to them: one card per id **in the order the ids
+arrived**; ids the caller may not see are **skipped, not refused**, with the count in `skipped`;
+**a refused placement does not lose the deck** — it is created first and returned in the 403 body;
+and **a name past `NAME_MAX_LENGTH` is cut to fit, not refused**. That last one was a 400 until
+2026-10-07 (`HISTORY.md` §17BU.D): none of the three buttons asks anybody for a name, each builds
+one from a lesson, session or concept title whose own `max_length` is 200, so a long heading gave
+a person "The deck could not be made" about a name they never typed. `DeckSerializer` (the edit
+path) had truncated all along; the two halves of one endpoint now agree. Both inputs where a name
+IS typed are `maxlength="120"` in the browser, so this only ever fires on a generated name.
 
 ## `record.py` and `work.py` — the two hooks
 

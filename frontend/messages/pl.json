@@ -3708,6 +3708,7 @@
 	"paths_deck_make": "Zrób talię z tego pojęcia",
 	"paths_deck_working": "Tworzę talię…",
 	"paths_deck_made": "Talia gotowa: {name}",
+	"paths_deck_open": "Otwórz",
 	"paths_deck_failed": "Nie udało się utworzyć talii.",
 	"paths_deck_name": "Fiszki: {title}",
 	"gate_reason_anonymous": "Zaloguj się, aby coś tu założyć.",

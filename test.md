@@ -387,6 +387,7 @@ node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
+node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
 node e2e/about-page.mjs               # the /about landing page: both locales, both themes, phone width, the tutoring kill switch hiding its card; signs in kasia through the API only to flip the flag and restore it
 node e2e/showcase.mjs                 # the seven design-showcase pages under /about/<feature>; signs nobody in and needs no backend data (set E2E_NO_BACKEND=1 to run with the API down)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
@@ -2198,6 +2199,31 @@ thing it will print on any worktree: ~30 KaTeX font requests refused with 403 by
 `server.fs` allow list, because `frontend/node_modules` is a symlink to the main checkout. That is
 environmental — the production build copies the fonts — and the script buckets and reports the
 count rather than hiding it.
+
+**`e2e/make-a-deck.mjs` (45 checks)** — the three "make a deck" buttons against the **real**
+`POST /api/decks/`. Steps C, D and E each built one while step A still owned the endpoint, so all
+three were verified against a `page.route` mock of the agreed §API shape (`take-home.mjs` and
+`school-mode.mjs` still carry theirs) and nothing had ever pressed one for real. Six sections: a
+course lesson pressed by the **instructor** (three cards in the lesson's own order, placed on the
+course, and the course's Flashcards panel listing it); the same lesson pressed by a **participant**
+(their own deck, deliberately unplaced, and the course's placements unchanged); a lesson whose
+**generated name is longer than a deck name may be** (the regression test for the 400 this script
+found — see `HISTORY.md` §17BU.D); a programme session pressed by the **organiser** ("Take home",
+placed on the event); the same session pressed by a **visitor** (theirs, and the event's panel does
+not grow a row); and a **concept**, whose confirmation now links to the deck and whose link is
+followed to `/flashcards/[id]`. Each of the three is pressed a **second** time, because the design
+answer is a second deck rather than a refusal (`already_placed` can only fire for a deck that is
+already on that node). It builds its own course, chapter, two lessons, four course items, event and
+session through the real API, uses the seeded concept `calka` read-only, and deletes every deck it
+made from BOTH accounts before confirming through an authenticated re-query. Needs
+`seed_demo_users`, `seed_demo_content` and `seed_concepts`. Run it as
+
+    rm -rf backend/cachedata/*          # backend stopped
+    cd frontend && E2E_BASE=http://localhost:5254 E2E_API=http://127.0.0.1:8154/api node e2e/make-a-deck.mjs
+
+(the ports are whichever pair is up; `E2E_API` is accepted with or without the `/api` suffix).
+Screenshots land in `e2e/screens/make-a-deck-*.png` and are meant to be looked at — the truncated
+deck name and the underlined "Open it" on the concept page are both things only a screenshot shows.
 
 **Run for the first time on 2026-10-06** (closing step D, `prompts/15-browser-pass.md`), on ports
 8144/5244: **43 checks, 0 failed, 0 console/page errors**, and every screenshot looked at. It had

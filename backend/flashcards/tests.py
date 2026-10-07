@@ -33,7 +33,16 @@ from telemetry.routers import all_log_shards
 from testing.factories import make_branch, make_exercise, make_user
 
 from . import record, rules, scheduling, work
-from .models import MAX_EASE, MIN_EASE, Card, Deck, DeckPlacement, ReviewLog, ReviewState
+from .models import (
+    MAX_EASE,
+    MIN_EASE,
+    NAME_MAX_LENGTH,
+    Card,
+    Deck,
+    DeckPlacement,
+    ReviewLog,
+    ReviewState,
+)
 
 
 class SchedulingTests(APITestCase):
@@ -508,6 +517,29 @@ class DeckCreationTests(FlashcardsTestCase):
         self.client.force_authenticate(self.owner)
         response = self.client.post(reverse('deck-list'), {'name': '   '}, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_generated_name_past_the_cap_is_truncated_rather_than_refused(self):
+        """The three "make a deck" buttons do not ask anybody for the name: they build it from a
+        lesson, session or concept title, every one of which is `max_length=200` in its own app.
+        Refusing the request would hand the person a 400 and the sentence "the deck could not be
+        made" with nothing they could do about it, so the name is cut to fit — which is what
+        `DeckSerializer.validate_name` has always done on the edit path. Found against the real
+        endpoint by `frontend/e2e/make-a-deck.mjs` (HISTORY §17BU.D)."""
+        self.client.force_authenticate(self.owner)
+        generated = f'{"Całkowanie przez podstawienie " * 7}— fiszki'
+        self.assertGreater(len(generated), NAME_MAX_LENGTH)
+        response = self.client.post(
+            reverse('deck-list'),
+            {
+                'name': generated,
+                'exercise_ids': [self.one.pk],
+                'source': {'kind': 'lesson', 'id': '41'},
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], generated[:NAME_MAX_LENGTH])
+        self.assertEqual(response.data['card_count'], 1)
 
 
 class CardTests(FlashcardsTestCase):
