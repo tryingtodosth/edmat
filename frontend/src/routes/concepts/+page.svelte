@@ -285,8 +285,7 @@
 			cursor: pointer;
 		}
 		button.on {
-			border-color: var(--accent);
-			color: var(--accent);
+			@include mix.selected-soft;
 			font-weight: 600;
 		}
 	}

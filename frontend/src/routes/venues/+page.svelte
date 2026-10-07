@@ -68,7 +68,7 @@
 	.page {
 		max-width: 780px;
 		margin: 0 auto;
-		padding: var(--space-4) var(--space-4) var(--space-8);
+		padding: var(--space-4) var(--space-4) var(--space-6);
 	}
 	.intro,
 	.status {
@@ -84,7 +84,7 @@
 	.card {
 		display: grid;
 		gap: 0.15rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.7rem 0.9rem;
 		text-decoration: none;

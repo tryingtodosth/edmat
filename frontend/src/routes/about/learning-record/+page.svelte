@@ -106,8 +106,9 @@
 		font-size: var(--font-size-xs);
 		text-align: center;
 	}
+	// ON is the flag-ON voice: a completed state, so the success pair.
 	.consents__state--on {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.status-pill(var(--status-success), var(--status-success-bg));
 		font-size: var(--font-size-xs);
 		font-weight: 700;
 		text-align: center;

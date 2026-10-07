@@ -185,7 +185,7 @@
 
 <style lang="scss">
 	.registrations {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.9rem 1rem;
 		margin-top: 1rem;
@@ -204,7 +204,7 @@
 		min-height: 44px;
 		padding: 0 0.8rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -214,7 +214,7 @@
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	.danger {
 		color: var(--status-danger);
@@ -242,7 +242,7 @@
 		padding: 0.1rem 0.5rem;
 		border-radius: 999px;
 		background: var(--bg-surface);
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 	}
 	.pill--going,
 	.pill--checked {

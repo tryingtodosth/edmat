@@ -549,8 +549,11 @@
 	.badge {
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
 	}
+	// Pinned is a fact about the entry, not a question for the reader: the neutral pill, weighted
+	// up (2026-10-07 colour pass — info means "asks you" now).
 	.badge--pinned {
-		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		@include mix.neutral-pill;
+		font-weight: 600;
 	}
 	.badge--pending {
 		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));

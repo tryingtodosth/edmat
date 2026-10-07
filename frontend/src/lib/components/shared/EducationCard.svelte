@@ -89,7 +89,7 @@
 		color: var(--text-secondary);
 	}
 	.school {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
 	.tick {
 		color: var(--accent);

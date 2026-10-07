@@ -262,7 +262,7 @@
 		font-size: var(--font-size-sm);
 	}
 	.pill {
-		@include mix.status-pill(var(--text-secondary), var(--bg-secondary));
+		@include mix.status-pill(var(--text-secondary), var(--status-neutral-bg));
 	}
 	.pill--open {
 		@include mix.status-pill(var(--status-info), var(--status-info-bg));

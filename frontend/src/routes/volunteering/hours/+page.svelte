@@ -109,7 +109,7 @@
 		gap: 0.6rem;
 		align-items: baseline;
 		padding: 0.55rem 0;
-		border-bottom: 1px solid var(--border);
+		border-bottom: 1px solid var(--border-color);
 	}
 	.when,
 	.hours,
@@ -120,6 +120,6 @@
 		font-size: 0.87rem;
 	}
 	.error {
-		color: var(--danger, #c62828);
+		color: var(--status-danger);
 	}
 </style>

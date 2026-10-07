@@ -283,9 +283,7 @@
 		padding: var(--space-2) var(--space-3);
 		font-size: var(--font-size-sm);
 		&--active {
-			background: var(--accent);
-			color: var(--accent-contrast);
-			border-color: var(--accent);
+			@include mix.selected-soft;
 		}
 	}
 	.error {

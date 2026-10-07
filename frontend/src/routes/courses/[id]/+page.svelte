@@ -1074,7 +1074,7 @@
 		font-size: var(--font-size-xl);
 	}
 	h2 {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
 	.meta,
 	.status,
@@ -1095,7 +1095,7 @@
 	}
 	.badge {
 		font-size: var(--font-size-xs);
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 999px;
 		padding: 0 0.5em;
 	}
@@ -1135,7 +1135,7 @@
 		gap: var(--space-3);
 	}
 	.add-panel h3 {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
 	.add-panel__form {
 		display: flex;

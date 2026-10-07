@@ -17,20 +17,18 @@
 </span>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.pending-badge {
 		display: inline-block;
 		align-self: flex-start;
+		/* The "not settled yet, nothing is wrong" voice, now the site-wide `pending-pill` mixin
+		   (2026-10-07 colour pass) — this badge's own reasoning, promoted: the neutral pair with a
+		   dashed border in the same neutral. An earlier draft here invented `--surface-2`/
+		   `--text-muted`, which did not exist, so the badge rendered as bare bold text; the mixin is
+		   the single source now, so that cannot happen twice. */
+		@include mix.pending-pill;
 		padding: 0.1rem 0.45rem;
-		border: 1px dashed var(--border-color);
-		border-radius: var(--radius-sm);
-		font-size: var(--font-size-xs);
-		font-weight: 600;
-		/* The neutral status pair, not the warning one: nothing is wrong, it just is not settled
-		   yet. These are the real token names — an earlier draft invented `--surface-2`/
-		   `--text-muted`, which do not exist here, so the badge rendered as bare bold text with no
-		   pill around it at all. Nothing failed; it just silently looked wrong. */
-		color: var(--status-neutral);
-		background: var(--status-neutral-bg);
 		white-space: nowrap;
 	}
 	.pending-badge--compact {

@@ -229,7 +229,7 @@
 			font: inherit;
 			font-size: var(--font-size-sm);
 			padding: 0.4rem 0.6rem;
-			border: 1px solid var(--border);
+			border: 1px solid var(--border-color);
 			border-radius: 6px;
 			background: var(--bg-surface);
 			color: var(--text-primary);

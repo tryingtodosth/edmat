@@ -696,7 +696,11 @@ picker. Several e2e scripts learned this the hard way.
 
 Light / dark / system via a token bridge: `_tokens.scss` defines light/dark variable pairs, `_theme.scss` is the only file that
 reads them and re-exposes everything as CSS custom properties, swapped by a `data-theme` attribute, with a no-flash inline script in
-`app.html`. Pattern carried over wholesale from `personalizacja_edukacji` rather than redesigned.
+`app.html`. Pattern carried over wholesale from `personalizacja_edukacji` rather than redesigned. Since the 2026-10-07 colour pass
+(`HISTORY.md` §17BV) the four theme blocks are four mixins (light, dark, high-contrast light, high-contrast dark), colour has a
+stated vocabulary (`frontend/CLAUDE.md` §Theming: the accent means interactive / selected / progress, `--stage` is the learning
+flow's one reveal hue, the five status pairs each mean one thing, six shapes live in `_mixins.scss`), and an undefined custom
+property is treated as the bug it is — it drops the whole declaration, and ~130 such reads had hidden borders and panels for months.
 
 ## 3.8 Tooling and tests
 - `npm run check` (svelte-check), `lint` (prettier + eslint), `build`, `format`.

@@ -96,11 +96,13 @@
 			border-color: var(--accent);
 		}
 	}
+	// A date is a fact, so it carries no hue; the card's one coloured thing is its status, when
+	// it has one (2026-10-07 colour pass).
 	.when {
 		font-size: var(--font-size-xs);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
-		color: var(--accent);
+		color: var(--text-primary);
 		font-weight: 600;
 	}
 	.head {
@@ -112,7 +114,7 @@
 	// Targets the class, not the tag: the level is a prop now, so a tag selector would stop
 	// applying in exactly the case the prop exists for (the same note `ServiceCard` carries).
 	.title {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
 	.status {
 		font-size: var(--font-size-xs);
@@ -122,7 +124,7 @@
 		white-space: nowrap;
 	}
 	.status--cancelled {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 	.badges {
 		display: flex;
@@ -143,13 +145,13 @@
 	}
 	.mine {
 		font-size: var(--font-size-xs);
-		color: var(--accent);
+		color: var(--text-primary);
 		font-weight: 600;
 	}
 	// Weighted up out of the muted meta line it sits in: "the room moved this morning" is the one
 	// thing on this card that can be newer than the card itself.
 	.updates {
-		color: var(--accent);
+		color: var(--text-primary);
 		font-weight: 600;
 	}
 </style>

@@ -102,6 +102,29 @@
 
 <svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
 
+<!-- One die, drawn once and rendered twice (the bar button and the popover's Roll). Inline SVG in
+     currentColor rather than the 🎲 emoji (2026-10-07 colour pass), so it matches the sliders icon
+     in the same bordered control and takes the theme's text colour like every other icon there. -->
+{#snippet dieIcon()}
+	<svg
+		class="die-icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<rect x="3" y="3" width="18" height="18" rx="4" />
+		<circle cx="8" cy="8" r="1.6" fill="currentColor" stroke="none" />
+		<circle cx="16" cy="8" r="1.6" fill="currentColor" stroke="none" />
+		<circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+		<circle cx="8" cy="16" r="1.6" fill="currentColor" stroke="none" />
+		<circle cx="16" cy="16" r="1.6" fill="currentColor" stroke="none" />
+	</svg>
+{/snippet}
+
 <div class="random-picker" bind:this={container}>
 	<div class="random-picker__buttons">
 		<button
@@ -112,7 +135,7 @@
 			title={m.random_quickRoll()}
 			aria-label={m.random_quickRoll()}
 		>
-			<span aria-hidden="true">🎲</span>
+			{@render dieIcon()}
 		</button>
 		<button
 			type="button"
@@ -220,7 +243,7 @@
 			<div class="random-menu__actions">
 				<button type="button" class="clear" onclick={clearFilters}>{m.filters_clear()}</button>
 				<button type="button" class="roll" onclick={roll} disabled={rolling}>
-					<span aria-hidden="true">🎲</span>
+					{@render dieIcon()}
 					{m.random_roll()}
 				</button>
 			</div>
@@ -256,12 +279,23 @@
 			cursor: wait;
 		}
 	}
+	.dice-button {
+		display: inline-flex;
+		align-items: center;
+		color: var(--text-primary);
+	}
 	.menu-toggle {
 		border-left: 1px solid var(--border-color);
 		font-size: var(--font-size-xs);
 		padding-inline: var(--space-1);
 		display: inline-flex;
 		align-items: center;
+	}
+	.die-icon {
+		width: 18px;
+		height: 18px;
+		display: block;
+		flex: none;
 	}
 	// Sized to the glyph it replaced rather than to the button, so swapping the chevron out did not
 	// change how wide the dice control is in a row whose whole point is that it fits on one line.

@@ -222,7 +222,7 @@
 
 <style lang="scss">
 	.stations {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.9rem 1rem;
 		margin-top: 1rem;
@@ -231,7 +231,7 @@
 		margin: 0 0 0.6rem;
 	}
 	.station {
-		border-top: 1px solid var(--border);
+		border-top: 1px solid var(--border-color);
 		padding: 0.7rem 0;
 	}
 	.station header {
@@ -246,14 +246,14 @@
 	}
 	.pill {
 		font-size: 0.72rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 999px;
 		padding: 0.05rem 0.45rem;
 		color: var(--text-secondary);
 	}
 	.pill.warn {
-		border-color: #ef6c00;
-		color: #ef6c00;
+		border-color: var(--status-warning);
+		color: var(--status-warning);
 	}
 	.where {
 		font-size: 0.8rem;
@@ -265,12 +265,12 @@
 		margin: 0.4rem 0 0;
 	}
 	.shifts > li {
-		border-left: 3px solid var(--border);
+		border-left: 3px solid var(--border-color);
 		padding: 0.35rem 0 0.35rem 0.55rem;
 		margin-bottom: 0.5rem;
 	}
 	.shifts > li.short {
-		border-left-color: #ef6c00;
+		border-left-color: var(--status-warning);
 	}
 	.when {
 		display: flex;
@@ -286,7 +286,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.4rem;
-		border-top: 1px solid var(--border);
+		border-top: 1px solid var(--border-color);
 		padding-top: 0.7rem;
 	}
 	.row {
@@ -308,7 +308,7 @@
 		margin: 0.35rem 0 0;
 	}
 	.error {
-		color: var(--danger, #c62828);
+		color: var(--status-danger);
 		font-size: 0.85rem;
 	}
 	.link {
@@ -317,11 +317,11 @@
 		padding: 0;
 		font: inherit;
 		font-size: 0.8rem;
-		color: var(--accent, #1565c0);
+		color: var(--accent);
 		cursor: pointer;
 		text-decoration: underline;
 	}
 	.link.danger {
-		color: var(--danger, #c62828);
+		color: var(--status-danger);
 	}
 </style>

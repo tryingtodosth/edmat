@@ -155,7 +155,7 @@
 	.popover__panel {
 		position: absolute;
 		top: calc(100% + 4px);
-		z-index: var(--z-modal, 60);
+		z-index: var(--z-modal);
 		min-width: 12rem;
 		display: flex;
 		flex-direction: column;

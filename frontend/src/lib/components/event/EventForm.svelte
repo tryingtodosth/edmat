@@ -636,7 +636,7 @@
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
-		color: var(--bg-page);
+		color: var(--accent-contrast);
 		background: var(--accent);
 		border-radius: 999px;
 		padding: 0.05em var(--space-2);
@@ -680,7 +680,7 @@
 		gap: var(--space-2) var(--space-4);
 	}
 	.error {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 		font-size: var(--font-size-sm);
 	}
 	.submit {

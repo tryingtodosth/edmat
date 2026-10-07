@@ -181,9 +181,12 @@
 			margin-right: var(--space-1);
 			color: var(--text-secondary);
 		}
+		/* "You are here": the same inset-underline idiom as the header's current section — the
+		   accent as selected / current, not as a link. The prerequisites stay accent links. */
 		.here {
-			color: var(--text-secondary);
+			color: var(--text-primary);
 			font-weight: 600;
+			box-shadow: inset 0 -2px 0 var(--accent);
 		}
 	}
 	.hint {

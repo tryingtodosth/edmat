@@ -316,7 +316,9 @@
 		overflow: hidden;
 		button {
 			background: var(--bg-surface);
-			border: none;
+			// Transparent, not none: `selected-soft` draws a 1px border on the active segment, and
+			// the two segments must keep the same box.
+			border: 1px solid transparent;
 			padding: var(--space-1) var(--space-3);
 			font-size: var(--font-size-xs);
 			font-weight: 600;
@@ -324,8 +326,7 @@
 			cursor: pointer;
 		}
 		button.active {
-			background: var(--accent);
-			color: var(--bg-surface);
+			@include mix.selected-soft;
 		}
 	}
 	.filter {

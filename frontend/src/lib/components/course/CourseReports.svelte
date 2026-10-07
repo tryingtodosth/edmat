@@ -129,6 +129,8 @@
 </section>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.reports {
 		margin-top: var(--space-3);
 	}
@@ -144,11 +146,7 @@
 	}
 
 	.reports__count {
-		background: var(--status-danger);
-		border-radius: 999px;
-		color: var(--bg-surface);
-		font-size: var(--font-size-xs);
-		padding: 0 0.4em;
+		@include mix.count-badge;
 	}
 
 	.reports__list {
@@ -173,7 +171,7 @@
 	}
 
 	.report__hidden {
-		color: var(--status-warning);
+		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 		margin-left: var(--space-1);
 	}
 
@@ -217,7 +215,7 @@
 	.report__remove {
 		background: var(--status-danger);
 		border: 1px solid var(--status-danger);
-		color: var(--bg-surface);
+		color: var(--accent-contrast);
 	}
 
 	.muted {

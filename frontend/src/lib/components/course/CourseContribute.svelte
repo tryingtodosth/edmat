@@ -374,7 +374,7 @@
 		gap: var(--space-3);
 	}
 	.contribute h2 {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
 	.add-panel__form {
 		display: flex;
@@ -399,7 +399,7 @@
 	}
 	.error {
 		font-size: var(--font-size-sm);
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 	input,
 	select {
@@ -422,9 +422,7 @@
 			padding: var(--space-1) var(--space-3);
 			font-size: var(--font-size-xs);
 			&.active {
-				background: var(--accent);
-				color: var(--accent-contrast);
-				border-color: var(--accent);
+				@include mix.selected-soft;
 			}
 		}
 	}

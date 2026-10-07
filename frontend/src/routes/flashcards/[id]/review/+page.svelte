@@ -203,6 +203,12 @@
 					{m.decks_reviewProgress({ done: index + 1, total: queue.cards.length })}
 					<!-- "{done} of {total}" -->
 				</p>
+				<div class="progress__track" aria-hidden="true">
+					<div
+						class="progress__fill"
+						style:width="{Math.round((100 * (index + 1)) / queue.cards.length)}%"
+					></div>
+				</div>
 
 				<article class="card" data-testid="review-card" data-flipped={flipped}>
 					<div class="card__face card__face--front">
@@ -226,7 +232,7 @@
 						<hr />
 						<div class="card__face card__face--back" data-testid="review-back">
 							{#if current.kind === 'exercise'}
-								<h3>{m.decks_answer()}</h3>
+								<h3 class="stage">{m.decks_answer()}</h3>
 								<!-- "Answer" -->
 								{#if exercise?.answer}
 									<MathContent source={exercise.answer} />
@@ -235,14 +241,14 @@
 									<!-- "This exercise has no published answer yet." -->
 								{/if}
 								{#if current.includeHint && entries('hint').length > 0}
-									<h3>{m.decks_hint()}</h3>
+									<h3 class="stage">{m.decks_hint()}</h3>
 									<!-- "Hint" -->
 									{#each entries('hint') as entry (entry.id)}
 										<MathContent source={entry.body} />
 									{/each}
 								{/if}
 								{#if current.includeSolution && entries('solution').length > 0}
-									<h3>{m.decks_solution()}</h3>
+									<h3 class="stage">{m.decks_solution()}</h3>
 									<!-- "Solution" -->
 									{#each entries('solution').slice(0, 1) as entry (entry.id)}
 										<MathContent source={entry.body} />
@@ -335,6 +341,17 @@
 		font-size: var(--font-size-sm);
 	}
 
+	/* A fraction done: the accent on the alt-surface track (progress is one of the accent's three
+	   meanings). The counts line above stays one line of --text-secondary — colouring three numbers
+	   would split one key into three. */
+	.progress__track {
+		@include mix.progress-track;
+	}
+
+	.progress__fill {
+		@include mix.progress-fill;
+	}
+
 	.error {
 		color: var(--status-danger);
 		margin: 0;
@@ -354,6 +371,15 @@
 		border-top: 1px solid var(--border-color);
 		margin: 0;
 		width: 100%;
+	}
+
+	/* The back face is the reveal layer of the learning flow — the one hue the exercise page's
+	   hint / answer / solution sections carry, so a learner meets it in the same place twice. The
+	   front face (the maths) stays unmarked. */
+	.card__face--back .stage {
+		color: var(--stage);
+		border-left: 3px solid var(--stage);
+		padding-left: var(--space-2);
 	}
 
 	.away {

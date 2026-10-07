@@ -193,8 +193,14 @@
 		border-radius: var(--radius-md);
 		background: var(--bg-surface);
 	}
+	// Hidden drops the whole card to the secondary text colour — never opacity on content (at .72
+	// `--text-secondary` falls to 3.51:1).
 	.post--hidden {
-		opacity: 0.75;
+		color: var(--text-secondary);
+	}
+	.post--hidden .post__author,
+	.post--hidden .post__ref {
+		color: inherit;
 	}
 	.post__meta {
 		display: flex;
@@ -204,11 +210,11 @@
 		font-size: var(--font-size-xs);
 	}
 	.post__anchor {
-		@include mix.status-pill(var(--accent), var(--bg-surface-alt));
+		@include mix.neutral-pill;
 		font-weight: 600;
 	}
 	.post__author {
-		color: var(--accent);
+		color: var(--text-primary);
 		font-weight: 600;
 	}
 	.post__when {
@@ -249,8 +255,11 @@
 		padding: 0;
 		font-size: var(--font-size-xs);
 		font-weight: 600;
-		color: var(--accent);
+		color: var(--text-secondary);
 		cursor: pointer;
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.action--danger {
 		color: var(--status-danger);

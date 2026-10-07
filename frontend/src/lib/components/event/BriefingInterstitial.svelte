@@ -140,7 +140,7 @@
 		padding: 0 0.9rem;
 		margin-top: 0.4rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -149,7 +149,7 @@
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	.done {
 		font-size: 0.85rem;

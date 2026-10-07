@@ -15,10 +15,8 @@
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// Translated is a fact, so it wears the same neutral pill as "original".
 	.badge {
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
-	}
-	.badge--translated {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
 	}
 </style>

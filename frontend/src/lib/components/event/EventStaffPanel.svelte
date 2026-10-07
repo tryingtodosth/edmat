@@ -83,7 +83,7 @@
 
 <style lang="scss">
 	.staff-panel {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.9rem 1rem;
 		margin-top: 1rem;

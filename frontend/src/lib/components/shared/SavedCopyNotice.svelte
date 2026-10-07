@@ -27,11 +27,11 @@
 		color: var(--text-secondary);
 		padding: var(--space-2) var(--space-3);
 		border: 1px dashed var(--border-color);
-		border-radius: var(--radius-sm, 4px);
+		border-radius: var(--radius-sm);
 	}
 	// Past a day the copy is old enough that it should catch the eye rather than sit quietly.
 	.saved-copy--stale {
-		color: var(--status-warning, var(--text-secondary));
+		color: var(--status-warning);
 		border-style: solid;
 	}
 </style>

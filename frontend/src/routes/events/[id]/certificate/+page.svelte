@@ -152,10 +152,10 @@
 		margin-bottom: 1rem;
 	}
 	.sheet {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 1.6rem;
-		background: var(--surface, transparent);
+		background: var(--bg-surface);
 	}
 	h1 {
 		font-size: 1.25rem;
@@ -195,7 +195,7 @@
 	th,
 	td {
 		text-align: left;
-		border-bottom: 1px solid var(--border);
+		border-bottom: 1px solid var(--border-color);
 		padding: 0.3rem 0.4rem 0.3rem 0;
 	}
 	.issued {
@@ -208,7 +208,7 @@
 		color: var(--text-secondary);
 	}
 	.error {
-		color: var(--danger, #c62828);
+		color: var(--status-danger);
 	}
 
 	// The print sheet: the browser makes the PDF, so no server-side renderer and no new binary

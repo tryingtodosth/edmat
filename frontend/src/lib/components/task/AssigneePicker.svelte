@@ -173,9 +173,9 @@
 		align-items: center;
 		gap: 0.25rem;
 		padding: 0.1rem 0.45rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 999px;
-		background: var(--surface-2, var(--surface));
+		background: var(--bg-surface-alt);
 	}
 	.chip__remove {
 		border: 0;
@@ -194,17 +194,17 @@
 	}
 	select {
 		padding: 0.25rem 0.4rem;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm, 4px);
-		background: var(--surface);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
 	}
 	button {
 		padding: 0.2rem 0.6rem;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm, 4px);
-		background: var(--surface);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
 		color: var(--text-primary);
 		cursor: pointer;
 		font: inherit;
@@ -213,14 +213,14 @@
 	.link {
 		border: 0;
 		background: none;
-		color: var(--accent, #2f6fdb);
+		color: var(--accent);
 		text-decoration: underline;
 		padding: 0;
 	}
 	.problem {
 		flex-basis: 100%;
 		margin: 0;
-		color: var(--danger, #b3261e);
+		color: var(--status-danger);
 	}
 	.sr-only {
 		position: absolute;

@@ -543,14 +543,14 @@
 		max-height: 160px;
 		max-width: 240px;
 		border-radius: 6px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		display: block;
 	}
 	.pdf-chip {
 		min-height: 44px;
 		padding: 0 0.7rem;
 		border-radius: 999px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;

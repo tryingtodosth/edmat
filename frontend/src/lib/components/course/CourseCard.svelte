@@ -31,8 +31,13 @@
 	);
 </script>
 
-<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an internal route with a dynamic id segment the rule cannot statically see through -->
-<a class="course-card" href={`${resolve('/courses')}/${course.id}`}>
+<!-- eslint-disable svelte/no-navigation-without-resolve -- an internal route with a dynamic id segment the rule cannot statically see through; a block, not next-line, because the tag spans several lines -->
+<a
+	class="course-card"
+	class:course-card--over={course.status === 'finished'}
+	href={`${resolve('/courses')}/${course.id}`}
+>
+	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	<div class="head">
 		<h2 class="title">{course.title}</h2>
 		{#if visibilityLabel}
@@ -97,22 +102,32 @@
 		align-items: baseline;
 	}
 	.title {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
+	// One shape for every status (2026-10-07 colour pass, after review: the uppercase caption left
+	// beside the new pills looked unfinished): running and finished are the neutral pill, open the
+	// info pill, unlisted the pending pill.
 	.status {
-		font-size: var(--font-size-xs);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--text-secondary);
+		@include mix.neutral-pill;
+		font-weight: 600;
 		white-space: nowrap;
 	}
-	.status--open {
-		color: var(--accent);
+	.course-card--over .title {
+		color: var(--text-secondary);
 	}
-	/* Warning-toned, not danger: an unlisted course is a state its owner chose, not a fault. It only
-	   ever renders for somebody who can already see the course, so it reveals nothing. */
+	// Open is a question the reader is expected to answer (join?), so it takes the info pair.
+	.status--open {
+		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		text-transform: none;
+		letter-spacing: normal;
+	}
+	/* Not findable is not settled, not wrong: an unlisted course is a state its owner chose, so it
+	   takes the pending voice (dashed neutral), not warning. It only ever renders for somebody who
+	   can already see the course, so it reveals nothing. */
 	.status--unlisted {
-		color: var(--status-warning);
+		@include mix.pending-pill;
+		text-transform: none;
+		letter-spacing: normal;
 	}
 	.summary,
 	.meta {
@@ -131,6 +146,6 @@
 	.mine {
 		font-size: var(--font-size-xs);
 		font-weight: 600;
-		color: var(--accent);
+		color: var(--text-primary);
 	}
 </style>

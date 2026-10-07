@@ -209,7 +209,7 @@
 	.url {
 		flex: 1;
 		min-width: 12rem;
-		font-family: var(--font-mono, monospace);
+		font-family: var(--font-mono);
 		font-size: var(--font-size-xs);
 	}
 	.uses,

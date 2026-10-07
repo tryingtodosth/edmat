@@ -339,7 +339,7 @@
 
 		h3 {
 			margin: 0;
-			font-size: var(--font-size-md);
+			font-size: var(--font-size-base);
 		}
 	}
 	.public-notice {

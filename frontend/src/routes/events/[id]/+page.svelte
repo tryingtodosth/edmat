@@ -686,8 +686,8 @@
 		font-size: var(--font-size-sm);
 	}
 	.notice--danger {
-		border-color: var(--status-danger, #c0392b);
-		color: var(--status-danger, #c0392b);
+		border-color: var(--status-danger);
+		color: var(--status-danger);
 	}
 	.head {
 		display: flex;
@@ -731,7 +731,7 @@
 	}
 	.sub-events {
 		h2 {
-			font-size: var(--font-size-md);
+			font-size: var(--font-size-base);
 			margin-bottom: var(--space-2);
 		}
 		ul {
@@ -772,8 +772,8 @@
 	}
 	.danger {
 		@include mix.button-secondary;
-		border-color: var(--status-danger, #c0392b);
-		color: var(--status-danger, #c0392b);
+		border-color: var(--status-danger);
+		color: var(--status-danger);
 	}
 	.mine {
 		font-weight: 600;
@@ -799,11 +799,11 @@
 		@include mix.card-surface;
 		padding: var(--space-3);
 		font-size: var(--font-size-sm);
-		border-color: var(--status-warning, #b7791f);
-		color: var(--status-warning, #b7791f);
+		border-color: var(--status-warning);
+		color: var(--status-warning);
 	}
 	.error {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 		font-size: var(--font-size-sm);
 	}
 	.roster {

@@ -118,7 +118,7 @@
 	.lightbox {
 		position: fixed;
 		inset: 0;
-		z-index: var(--z-modal, 1000);
+		z-index: var(--z-modal);
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -129,7 +129,7 @@
 		inset: 0;
 		border: 0;
 		padding: 0;
-		background: var(--backdrop, rgba(0, 0, 0, 0.75));
+		background: var(--backdrop);
 		cursor: zoom-out;
 	}
 	.lightbox__panel {

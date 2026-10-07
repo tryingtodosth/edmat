@@ -40,9 +40,10 @@
 		color: var(--text-secondary);
 		font-size: var(--font-size-sm);
 	}
+	// A count is a fact, not a link (2026-10-07 colour pass): weighted, not coloured.
 	.field-card__count {
 		font-size: var(--font-size-xs);
-		color: var(--accent);
+		color: var(--text-secondary);
 		font-weight: 600;
 	}
 </style>

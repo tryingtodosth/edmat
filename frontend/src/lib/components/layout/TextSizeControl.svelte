@@ -34,7 +34,7 @@
 		min-width: 36px;
 		height: 36px;
 		padding: 0 0.5rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 		background: var(--bg-surface);
 		color: var(--text-primary);

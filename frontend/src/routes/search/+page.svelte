@@ -264,6 +264,12 @@
 
 <style lang="scss">
 	.search-page {
+		// The same container every other page draws for itself (.page in routes/+page.svelte and the
+		// hubs); this one never had it, so the heading and the grid sat flush against the viewport
+		// edge on a desktop — visible in any screenshot wider than the grid.
+		max-width: 1100px;
+		margin: 0 auto;
+		padding: var(--space-4);
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);

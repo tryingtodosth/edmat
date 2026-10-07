@@ -91,6 +91,10 @@
 	const closedStatuses: TaskStatus[] = ['done', 'cancelled'];
 	const columns = $derived(showClosed ? TASK_STATUS_ORDER : openStatuses);
 	const closedCount = $derived(tasks.filter((row) => closedStatuses.includes(row.status)).length);
+	// The overdue filter shows its number before it is clicked.
+	let overdueCount = $derived(
+		tasks.filter((t) => t.isOverdue && t.status !== 'done' && t.status !== 'cancelled').length
+	);
 
 	function inStatus(status: TaskStatus): Task[] {
 		return tasks.filter((row) => row.status === status);
@@ -113,6 +117,7 @@
 				</button>
 				<button type="button" class:on={filter === 'overdue'} onclick={() => (filter = 'overdue')}>
 					{m.tasks_filterOverdue()}
+					{#if overdueCount > 0}<span class="count count--badge">{overdueCount}</span>{/if}
 					<!-- "Overdue" -->
 				</button>
 			</div>
@@ -168,13 +173,13 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.tasks-panel {
+		@include mix.card-surface;
 		display: grid;
 		gap: 0.7rem;
-		padding: 1rem;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md, 8px);
-		background: var(--surface-2, var(--surface));
+		padding: var(--space-3);
 	}
 	.head {
 		display: flex;
@@ -193,18 +198,16 @@
 	}
 	button {
 		padding: 0.22rem 0.6rem;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm, 4px);
-		background: var(--surface);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
 		color: var(--text-primary);
 		cursor: pointer;
 		font: inherit;
 		font-size: 0.82rem;
 	}
 	.on {
-		background: var(--accent, #2f6fdb);
-		border-color: transparent;
-		color: #fff;
+		@include mix.selected-soft;
 	}
 	.column {
 		display: grid;
@@ -225,6 +228,10 @@
 		font-weight: 400;
 		color: var(--text-secondary);
 	}
+	// The overdue filter's number is the one count on the board that waits on the reader.
+	.count--badge {
+		@include mix.count-badge;
+	}
 	.status-line {
 		margin: 0;
 		color: var(--text-secondary);
@@ -232,7 +239,7 @@
 	}
 	.problem {
 		margin: 0;
-		color: var(--danger, #b3261e);
+		color: var(--status-danger);
 		font-size: 0.88rem;
 	}
 	.toggle {

@@ -107,7 +107,7 @@
 		font-size: var(--font-size-xl);
 	}
 	h2 {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 		margin-bottom: var(--space-2);
 	}
 	.status {

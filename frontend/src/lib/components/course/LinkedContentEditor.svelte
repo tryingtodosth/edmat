@@ -259,7 +259,7 @@
 			padding: var(--space-2);
 			border: 1px solid var(--border-color);
 			border-radius: var(--radius-sm);
-			background: var(--surface);
+			background: var(--bg-surface);
 			color: var(--text-primary);
 		}
 	}

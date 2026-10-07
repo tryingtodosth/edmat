@@ -448,8 +448,10 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.checklist-panel {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.9rem 1rem;
 		margin-top: 1rem;
@@ -502,11 +504,11 @@
 		gap: 0.7rem;
 	}
 	.item {
-		border-left: 3px solid var(--border);
+		border-left: 3px solid var(--border-color);
 		padding-left: 0.6rem;
 	}
 	.item--done {
-		border-left-color: var(--status-success, var(--accent));
+		border-left-color: var(--status-success);
 	}
 	.item--not_applicable {
 		border-left-color: var(--text-secondary);
@@ -539,16 +541,17 @@
 		font-size: 0.72rem;
 		padding: 0.1rem 0.5rem;
 		border-radius: 999px;
-		background: var(--accent-soft);
-		color: var(--accent);
+		// A status word is a fact: the neutral pair (2026-10-07 colour pass; accent-soft means "on").
+		background: var(--bg-surface-alt);
+		color: var(--text-secondary);
 	}
+	// A need with nobody on it puts the event at risk — danger, in the house shape (no solid fill).
 	.pill--need {
-		background: var(--status-danger);
-		color: #fff;
+		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 	}
 	.pill--soft {
 		background: transparent;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		color: var(--text-secondary);
 	}
 	.item__actions {

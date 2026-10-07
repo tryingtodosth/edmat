@@ -139,7 +139,7 @@
 		}
 	}
 	.meatballs__item--danger {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 	.meatballs__empty {
 		padding: var(--space-2) var(--space-3);

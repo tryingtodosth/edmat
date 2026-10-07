@@ -95,6 +95,8 @@
 </div>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.tabs {
 		display: flex;
 		gap: var(--space-2);
@@ -119,11 +121,8 @@
 		color: var(--accent);
 		border-bottom-color: var(--accent);
 	}
+	// A number waiting on the reader: the one count shape (2026-10-07 colour pass).
 	.tabs__badge {
-		background: var(--accent);
-		color: var(--accent-contrast);
-		border-radius: var(--radius-sm);
-		padding: 0 0.35rem;
-		font-size: var(--font-size-xs);
+		@include mix.count-badge;
 	}
 </style>

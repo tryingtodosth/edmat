@@ -103,6 +103,7 @@
 						type="button"
 						class="chip"
 						class:chip--on={mine === state.value}
+						data-state={state.value}
 						aria-pressed={mine === state.value}
 						disabled={saving}
 						onclick={() => choose(state.value)}
@@ -179,6 +180,8 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.progress {
 		margin-top: var(--space-2);
 		padding-top: var(--space-2);
@@ -213,9 +216,22 @@
 		}
 
 		&--on {
-			background: var(--accent);
-			border-color: var(--accent);
-			color: var(--bg-surface);
+			border-color: currentColor;
+		}
+		&--on[data-state='not_started'] {
+			color: var(--status-neutral);
+			background: var(--status-neutral-bg);
+		}
+		&--on[data-state='in_progress'] {
+			@include mix.selected-soft;
+		}
+		&--on[data-state='stuck'] {
+			color: var(--status-warning);
+			background: var(--status-warning-bg);
+		}
+		&--on[data-state='done'] {
+			color: var(--status-success);
+			background: var(--status-success-bg);
 		}
 
 		&:disabled {
@@ -231,7 +247,7 @@
 	}
 
 	.progress__fill {
-		background: var(--status-success);
+		background: var(--accent);
 		height: 100%;
 	}
 

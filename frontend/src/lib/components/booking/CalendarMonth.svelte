@@ -133,8 +133,7 @@
 		border-color: var(--accent);
 	}
 	.month__cell--selected {
-		background: var(--accent);
-		color: var(--accent-contrast);
+		@include mix.selected-soft;
 	}
 	.month__number {
 		line-height: 1;
@@ -155,7 +154,6 @@
 		opacity: 0.6;
 	}
 	.month__cell--selected .month__dot {
-		background: var(--accent-contrast);
 		opacity: 1;
 	}
 	.month__count--free {
@@ -177,11 +175,5 @@
 	.month__count--settled {
 		background: var(--bg-surface-alt);
 		color: var(--text-secondary);
-	}
-	/* On a selected (accent) cell the pill's own tinted background disappears into it, so it borrows
-	   the cell's colours instead of keeping a tone nobody can read. */
-	.month__cell--selected .month__count {
-		background: var(--accent-contrast);
-		color: var(--accent);
 	}
 </style>

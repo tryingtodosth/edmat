@@ -720,8 +720,7 @@
 		color: var(--accent);
 	}
 	.week__entry--selected {
-		background: var(--accent);
-		color: var(--accent-contrast);
+		@include mix.selected-soft;
 	}
 	.week__entry--requested {
 		background: var(--status-warning-bg);

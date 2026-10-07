@@ -2289,3 +2289,32 @@ trap 29). And the badge check is only non-vacuous while some project the audited
 belongs to has a **pending proposal** — with none, `/material-projects?tab=mine` draws no
 `.badge--waiting` at all and the page passes without testing anything. `e2e/flashcards.mjs` re-run
 on the same servers: **43 passed, 0 failed**.
+
+## 2026-10-07 — the colour pass (`ux/colour-pass`, `HISTORY.md` §17BV)
+
+Frontend only; no backend test changed. What was run, and how to run it again:
+
+- **`frontend/e2e/colour-screens.mjs`** (new) — the screenshot sweep the pass was judged on: the
+  home tabs, an exercise, a branch, every hub, search, login, and (signed in as kasia) home,
+  flashcards, my set, settings, notifications, courses and `/work`, in light and dark at 1280 and
+  light at 390. Not a check-counter: it writes PNGs and prints page errors, and the pass condition
+  is that somebody looks at them (house rule 2). Run it twice around a theme or token change and
+  compare the two folders:
+  ```
+  cd frontend
+  E2E_TOKEN=<kasia's DRF token> E2E_BASE=http://localhost:5260 E2E_API=http://127.0.0.1:8160/api \
+    node e2e/colour-screens.mjs /tmp/shots/after
+  ```
+  `E2E_TOKEN` is optional but the login endpoint is throttled (`e2e/CLAUDE.md` trap 30), so a
+  sweep that is re-run several times should carry it.
+- **`npm run check:a11y -- --base … --api …`** after the pass: 48 pages, see §17BV "Verified" for
+  the numbers. A page reported as a load problem with `ERR_INSUFFICIENT_RESOURCES` or `Failed to
+  fetch dynamically imported module` is the dev server, not the page: the first is another
+  Chromium job running beside the audit, the second a dev server that has gone stale after a long
+  day of hot reloads (restart it; `e2e/CLAUDE.md` trap 3).
+- **`e2e/guide-screenshots.mjs`** was re-run so the manual's 50 pictures show the recoloured
+  interface (63 checks, 0 failed over two runs — the same stale-server trap cost the first run two
+  chapters).
+- Contrast was measured, not guessed: every pair in the spec's table was produced by a small WCAG
+  calculator (`contrast.py`, kept with the pass's working files outside the repo); the ratios that
+  matter are recorded next to the token values in `_tokens.scss`.

@@ -306,6 +306,22 @@ export const NOTIFICATION_TYPE_CATEGORY: Record<NotificationType, NotificationPr
 // needing an actor/title, e.g. "X approved your submission 'Y'"; a settings toggle just wants a
 // plain noun phrase like "Submission approved"). `commentReply` has no entry — it's the sole member
 // of its own category, so the existing coarse checkbox already says everything a per-type row would.
+/** Notification types whose sentence asks the reader to decide something (accept, decline, review,
+ *  approve). NotificationCard draws these with a 3px info rule; decision OUTCOMES (approved,
+ *  rejected, decided, published) are deliberately absent — the sentence already says it. A
+ *  hand-kept classification (house rule 13): a new request-shaped type must be added here or it
+ *  ships without the rule. */
+export const NOTIFICATION_NEEDS_ACTION: ReadonlySet<NotificationType> = new Set<NotificationType>([
+	'courseEnrollmentRequested',
+	'bookingRequested',
+	'contributionSubmitted',
+	'courseContributionSubmitted',
+	'governorApplicationSubmitted',
+	'materialVersionProposed',
+	'projectJoinRequested',
+	'conceptRevisionPending'
+]);
+
 export const NOTIFICATION_TYPE_LABELS: Partial<Record<NotificationType, () => string>> = {
 	submissionApproved: m.notifPref_submissionApproved,
 	submissionRejected: m.notifPref_submissionRejected,

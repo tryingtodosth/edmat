@@ -126,8 +126,7 @@
 		color: var(--text-primary);
 	}
 	.chip--current {
-		border-color: var(--accent);
-		color: var(--accent);
+		@include mix.selected-soft;
 		font-weight: 600;
 	}
 	.chip__locale,

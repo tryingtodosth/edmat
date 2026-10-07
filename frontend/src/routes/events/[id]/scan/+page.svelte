@@ -415,7 +415,7 @@
 		margin: 0.2rem 0 0;
 	}
 	fieldset.direction {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.5rem 0.8rem 0.7rem;
 		display: flex;
@@ -448,7 +448,7 @@
 		color: var(--status-warning);
 	}
 	.banner--bad {
-		background: var(--status-danger-bg, #fde8e8);
+		background: var(--status-danger-bg);
 		color: var(--status-danger);
 	}
 	.banner-name {
@@ -471,7 +471,7 @@
 		min-height: 44px;
 		padding: 0 0.6rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -492,7 +492,7 @@
 		min-height: 44px;
 		padding: 0 0.9rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -501,7 +501,7 @@
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	.matches {
 		list-style: none;
@@ -521,7 +521,7 @@
 		font-size: 0.75rem;
 		padding: 0.1rem 0.5rem;
 		border-radius: 999px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 	}
 	.state p {
 		margin: 0;

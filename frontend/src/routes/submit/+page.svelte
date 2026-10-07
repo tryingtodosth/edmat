@@ -695,7 +695,7 @@
 			border: none;
 			color: var(--text-secondary);
 			cursor: pointer;
-			font-size: var(--font-size-md);
+			font-size: var(--font-size-base);
 			line-height: 1;
 			&:hover {
 				color: var(--status-danger);
@@ -750,8 +750,8 @@
 		flex-direction: column;
 		gap: var(--space-2);
 		padding: var(--space-3);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md, 6px);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-md);
 	}
 	.for-material__chip {
 		display: flex;

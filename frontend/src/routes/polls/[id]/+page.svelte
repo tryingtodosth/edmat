@@ -97,7 +97,9 @@
 		<div class="poll-container">
 			<div class="poll-header">
 				<h1>{poll.question}</h1>
-				<span class="poll-status-badge">{POLL_STATUSES[poll.status]()}</span>
+				<span class="poll-status-badge poll-status-badge--{poll.status}"
+					>{POLL_STATUSES[poll.status]()}</span
+				>
 				{#if poll.description}
 					<p class="poll-description">{poll.description}</p>
 				{/if}
@@ -173,13 +175,15 @@
 {/if}
 
 <style lang="scss">
+	@use '../../../lib/styles/mixins' as mix;
+
 	.poll-page {
 		padding: 2rem;
 
 		&.loading,
 		&.error {
 			text-align: center;
-			color: var(--color-text-secondary);
+			color: var(--text-secondary);
 		}
 
 		.poll-container {
@@ -195,17 +199,24 @@
 					display: inline;
 				}
 
+				// The same three pills PollsPanel draws: open asks, draft is not settled, closed is over.
 				.poll-status-badge {
 					margin-left: 0.75rem;
-					font-size: 0.85rem;
-					color: var(--color-text-secondary);
-					text-transform: uppercase;
-					letter-spacing: 0.04em;
+					vertical-align: middle;
+				}
+				.poll-status-badge--open {
+					@include mix.status-pill(var(--status-info), var(--status-info-bg));
+				}
+				.poll-status-badge--draft {
+					@include mix.pending-pill;
+				}
+				.poll-status-badge--closed {
+					@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
 				}
 
 				.poll-description {
 					margin: 0.5rem 0 0;
-					color: var(--color-text-secondary);
+					color: var(--text-secondary);
 					font-size: 1.1rem;
 				}
 			}
@@ -214,18 +225,18 @@
 			.poll-draft-notice,
 			.poll-closed {
 				padding: 1.5rem;
-				background: var(--color-bg-secondary);
+				background: var(--bg-surface-alt);
 				border-radius: 0.5rem;
 				margin: 1.5rem 0;
 			}
 
 			.poll-action-error {
-				color: var(--color-error, #c0392b);
+				color: var(--status-danger);
 			}
 
 			.poll-voting {
 				padding: 1.5rem;
-				border: 1px solid var(--color-border);
+				border: 1px solid var(--border-color);
 				border-radius: 0.5rem;
 
 				form {
@@ -247,23 +258,9 @@
 					}
 
 					.btn-vote {
+						@include mix.button-primary;
 						align-self: flex-start;
-						padding: 0.75rem 1.5rem;
-						background: var(--color-primary);
-						color: white;
-						border: none;
-						border-radius: 0.25rem;
 						cursor: pointer;
-						font-size: 1rem;
-
-						&:hover {
-							background: var(--color-primary-dark);
-						}
-
-						&:disabled {
-							opacity: 0.6;
-							cursor: not-allowed;
-						}
 					}
 				}
 			}
@@ -271,8 +268,9 @@
 			.decision-note {
 				margin-bottom: 2rem;
 				padding: 1.5rem;
-				background: var(--color-bg-note);
-				border-left: 4px solid var(--color-accent);
+				// The same "new for you" shape as PollsPanel's note: alt surface + a 3px accent rule.
+				background: var(--bg-surface-alt);
+				border-left: 3px solid var(--accent);
 				border-radius: 0.25rem;
 
 				h2 {
@@ -295,7 +293,7 @@
 						justify-content: space-between;
 						align-items: center;
 						padding: 1rem;
-						border: 1px solid var(--color-border);
+						border: 1px solid var(--border-color);
 						border-radius: 0.25rem;
 
 						.result-label {
@@ -306,7 +304,7 @@
 						.result-count {
 							font-size: 1.2rem;
 							font-weight: bold;
-							color: var(--color-primary);
+							color: var(--text-primary);
 						}
 					}
 				}
@@ -314,9 +312,9 @@
 				.results-summary {
 					margin-top: 1.5rem;
 					padding-top: 1.5rem;
-					border-top: 1px solid var(--color-border);
+					border-top: 1px solid var(--border-color);
 					text-align: center;
-					color: var(--color-text-secondary);
+					color: var(--text-secondary);
 				}
 			}
 		}

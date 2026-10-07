@@ -66,7 +66,7 @@
 	}
 	h3 {
 		margin: 0;
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 
 		a {
 			color: var(--text-primary);
@@ -108,6 +108,6 @@
 	// light / 5.97:1 dark, both over WCAG AA's 4.5. The light figure clears it by 0.15, so a later
 	// change to either warning token has to be re-measured rather than eyeballed.
 	.badge--waiting {
-		@include mix.status-pill(var(--status-warning, var(--status-info)), var(--status-warning-bg));
+		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
 	}
 </style>

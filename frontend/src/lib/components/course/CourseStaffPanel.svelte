@@ -147,7 +147,7 @@
 	}
 	.error {
 		font-size: var(--font-size-sm);
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 	input,
 	select {
@@ -164,7 +164,7 @@
 		border: none;
 		border-radius: var(--radius-sm);
 		background: var(--accent);
-		color: var(--bg-surface);
+		color: var(--accent-contrast);
 		cursor: pointer;
 	}
 	.link {
@@ -178,6 +178,6 @@
 		color: var(--text-secondary);
 	}
 	.danger:hover {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 </style>

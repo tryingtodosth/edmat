@@ -456,6 +456,8 @@
 </section>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.programme {
 		margin-top: 1.5rem;
 	}
@@ -478,7 +480,7 @@
 	button {
 		min-height: 44px;
 		padding: 0 0.8rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
@@ -486,16 +488,15 @@
 		font: inherit;
 		font-size: 0.9rem;
 	}
+	// A pressed toggle is a selection, not a command: selected-soft, never the filled accent.
 	button.on,
 	.view-switch .on {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		@include mix.selected-soft;
 	}
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	.danger {
 		color: var(--status-danger);
@@ -514,7 +515,7 @@
 	.tracks input {
 		font: inherit;
 		padding: 0.35rem 0.5rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
@@ -551,12 +552,13 @@
 		grid-template-columns: 8.5rem 1fr;
 		gap: 0.8rem;
 		padding: 0.7rem 0.9rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		background: var(--bg-surface);
 	}
-	.session--break {
-		opacity: 0.8;
+	// A break or social slot is quieter by token, never by opacity on content (measured 3.5:1).
+	.session--break h4 {
+		color: var(--text-secondary);
 	}
 	.session__time {
 		display: grid;
@@ -570,8 +572,9 @@
 		font-size: 0.75rem;
 		padding: 0.1rem 0.5rem;
 		border-radius: 999px;
-		background: var(--accent-soft);
-		color: var(--accent);
+		// A track name is a fact: the neutral pair (accent-soft means "selected" now).
+		background: var(--bg-surface-alt);
+		color: var(--text-secondary);
 		width: max-content;
 	}
 	h4 {

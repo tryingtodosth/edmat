@@ -580,6 +580,7 @@
 				aria-selected={tab === 'reports'}
 				aria-controls="mod-tabpanel"
 				class:active={tab === 'reports'}
+				data-count={reports.length}
 				onclick={() => (tab = 'reports')}
 			>
 				{m.moderation_tab_reports({ count: reports.length })}
@@ -591,6 +592,7 @@
 				aria-selected={tab === 'submissions'}
 				aria-controls="mod-tabpanel"
 				class:active={tab === 'submissions'}
+				data-count={submissions.length}
 				onclick={() => (tab = 'submissions')}
 			>
 				{m.moderation_tab_submissions({ count: submissions.length })}
@@ -607,6 +609,7 @@
 				aria-selected={tab === 'materials'}
 				aria-controls="mod-tabpanel"
 				class:active={tab === 'materials'}
+				data-count={materialVersions.length}
 				onclick={() => (tab = 'materials')}
 			>
 				{m.moderation_tab_materials({ count: materialVersions.length })}
@@ -619,6 +622,7 @@
 				aria-selected={tab === 'edits'}
 				aria-controls="mod-tabpanel"
 				class:active={tab === 'edits'}
+				data-count={editSuggestions.length}
 				onclick={() => (tab = 'edits')}
 			>
 				{m.moderation_tab_edits({ count: editSuggestions.length })}
@@ -630,6 +634,7 @@
 				aria-selected={tab === 'translations'}
 				aria-controls="mod-tabpanel"
 				class:active={tab === 'translations'}
+				data-count={translations.length}
 				onclick={() => (tab = 'translations')}
 			>
 				{m.moderation_tab_translations({ count: translations.length })}
@@ -641,6 +646,7 @@
 				aria-selected={tab === 'concepts'}
 				aria-controls="mod-tabpanel"
 				class:active={tab === 'concepts'}
+				data-count={conceptRevisions.length}
 				onclick={() => (tab = 'concepts')}
 			>
 				{m.moderation_tab_concepts({ count: conceptRevisions.length })}
@@ -653,6 +659,7 @@
 				aria-selected={tab === 'entries'}
 				aria-controls="mod-tabpanel"
 				class:active={tab === 'entries'}
+				data-count={solutionEntries.length}
 				onclick={() => (tab = 'entries')}
 			>
 				{m.moderation_tab_entries({ count: solutionEntries.length })}
@@ -682,6 +689,7 @@
 					aria-selected={tab === 'applications'}
 					aria-controls="mod-tabpanel"
 					class:active={tab === 'applications'}
+					data-count={pendingApplications.length}
 					onclick={() => (tab = 'applications')}
 				>
 					{m.govapp_queueTab({ count: pendingApplications.length })}
@@ -1419,7 +1427,7 @@
 		flex-basis: 100%;
 	}
 	.blocked {
-		color: var(--status-warning, var(--status-danger));
+		color: var(--status-warning);
 		font-size: var(--font-size-sm);
 	}
 	.taxonomy-proposals .kind {
@@ -1465,6 +1473,19 @@
 	.tabs button.active {
 		color: var(--accent);
 		border-bottom-color: var(--accent);
+	}
+	// A queue with something in it asks the moderator; the number is already in the label text
+	// (`moderation_tab_* ({count})`), so a pill would print it twice — the dot is the only honest
+	// carrier, and as a pseudo-element it is silent for AT, which reads the label alone.
+	.tabs button[data-count]:not([data-count='0'])::after {
+		content: '';
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		margin-left: var(--space-1);
+		border-radius: 50%;
+		background: var(--status-info);
+		vertical-align: middle;
 	}
 	// The proposed text and the text it would replace, side by side on a wide screen and stacked on
 	// a narrow one — a reviewer comparing two columns on a phone is comparing nothing.
@@ -1547,10 +1568,10 @@
 	.scan-badge--flagged {
 		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
 	}
-	// Which question a version row is asking. Informational rather than a warning hue: neither
-	// "first publication" nor "nobody looks after this" is a problem, they are two different jobs.
+	// Which KIND of change a version row is ('First publication', 'New concept') — a fact pill, not
+	// a state; info is reserved for "asks you", and the whole row already asks.
 	.version-badge {
-		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		@include mix.neutral-pill;
 		font-size: var(--font-size-xs);
 	}
 	// Per row, not per page: `already_decided` on one version says nothing about the next one.
@@ -1573,6 +1594,15 @@
 	.meta {
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
+	}
+	// `.error` (the applications tab's failure line) and `.hint` (a proposal's parent, beside its
+	// name) are rendered at lines ~507 and ~1301 but had no rule here, so both inherited body colour.
+	.error {
+		color: var(--status-danger);
+	}
+	.hint {
+		color: var(--text-secondary);
+		font-size: var(--font-size-xs);
 	}
 	.excerpt {
 		font-size: var(--font-size-sm);
@@ -1709,7 +1739,7 @@
 
 		h3 {
 			margin: 0;
-			font-size: var(--font-size-md);
+			font-size: var(--font-size-base);
 		}
 		input {
 			min-height: 44px;
@@ -1779,8 +1809,9 @@
 		@include mix.status-pill(var(--status-success), var(--status-success-bg));
 		align-self: flex-start;
 	}
+	// OFF is a state the owner chose, not a failure; ON stays success.
 	.flag-status--off {
-		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
 	}
 	.flag-meta {
 		font-size: var(--font-size-xs);

@@ -94,7 +94,7 @@
 		{#if plans.length > 0}
 			<ul class="plan-list">
 				{#each plans as plan (plan.id)}
-					<li class="plan-row">
+					<li class="plan-row" class:plan-row--over={plan.status === 'archived'}>
 						<a class="plan-link" data-plan-card href={resolve('/plans/[id]', { id: plan.id })}>
 							<span class="plan-title">{plan.title}</span>
 							<span class="plan-status status-{plan.status}"
@@ -193,30 +193,28 @@
 	.plan-title {
 		font-weight: 600;
 	}
+	.plan-row--over .plan-title {
+		color: var(--text-secondary);
+	}
+	// Active is the neutral base: a plan being worked on asks nobody for anything.
 	.plan-status {
 		font-size: var(--font-size-xs);
 		padding: 2px 8px;
 		border-radius: 999px;
 		background: var(--bg-surface-alt);
 		color: var(--text-secondary);
-		&.status-active {
-			background: var(--status-success-bg);
-			color: var(--status-success);
-		}
 		&.status-completed {
-			background: var(--accent-soft);
-			color: var(--accent);
+			@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		}
+		&.status-draft {
+			@include mix.pending-pill;
 		}
 	}
 	.progress-track {
-		height: 6px;
-		border-radius: 999px;
-		background: var(--bg-surface-alt);
-		overflow: hidden;
+		@include mix.progress-track;
 	}
 	.progress-fill {
-		height: 100%;
-		background: var(--accent);
+		@include mix.progress-fill;
 	}
 	.progress-text,
 	.next-step {

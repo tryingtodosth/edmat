@@ -426,6 +426,8 @@
 </div>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.rich-editor {
 		display: grid;
 		gap: 0.3rem;
@@ -453,7 +455,7 @@
 		min-height: 32px;
 		min-width: 32px;
 		padding: 0 0.5rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
@@ -462,12 +464,10 @@
 		cursor: pointer;
 	}
 	.rich-editor__bar button.on {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		@include mix.selected-soft;
 	}
 	.rich-editor__host {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		min-height: 6rem;
@@ -492,7 +492,7 @@
 		padding: 0 0.15rem;
 	}
 	.rich-editor__host :global(.rich-editor-math:hover) {
-		background: var(--bg-hover, rgba(127, 127, 127, 0.12));
+		background: var(--bg-surface-alt);
 	}
 	.rich-editor__host :global(.rich-editor-math.is-selected) {
 		outline: 2px solid var(--accent);
@@ -551,24 +551,24 @@
 	}
 	.rich-editor__host :global(.ProseMirror td),
 	.rich-editor__host :global(.ProseMirror th) {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		padding: 0.3rem 0.5rem;
 		vertical-align: top;
 		position: relative;
 	}
 	.rich-editor__host :global(.ProseMirror th) {
-		background: var(--bg-surface-alt, rgba(127, 127, 127, 0.08));
+		background: var(--bg-surface-alt);
 		font-weight: 600;
 		text-align: left;
 	}
 	.rich-editor__host :global(.ProseMirror .selectedCell) {
-		background: var(--bg-hover, rgba(127, 127, 127, 0.15));
+		background: var(--bg-surface-alt);
 	}
 	textarea {
 		font: inherit;
 		width: 100%;
 		padding: 0.45rem 0.6rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);

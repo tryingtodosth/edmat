@@ -261,8 +261,10 @@
 		margin-top: var(--space-1);
 	}
 	.private-note {
-		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		@include mix.pending-pill;
 		margin-top: var(--space-2);
+		// A ~110-character sentence, not a label: the pill mixin's nowrap would overflow a phone.
+		white-space: normal;
 	}
 	.hint {
 		font-size: var(--font-size-sm);

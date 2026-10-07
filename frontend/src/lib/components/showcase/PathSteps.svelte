@@ -56,7 +56,7 @@
 		gap: var(--space-2);
 	}
 	.path__distance {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.neutral-pill;
 		font-size: var(--font-size-xs);
 		font-weight: 700;
 		min-width: 2rem;

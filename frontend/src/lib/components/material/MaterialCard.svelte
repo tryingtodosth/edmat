@@ -353,6 +353,9 @@
 	.material-card__title-link {
 		color: var(--text-primary);
 		min-width: 0;
+		// A long unbreakable token in a title (an upload named by its run id) used to run under
+		// the type pill; now it wraps.
+		overflow-wrap: anywhere;
 		// Class, not tag — the heading level is a prop now (see headingLevel), so `h3` here would
 		// stop matching on /materials/[id] and the hover would quietly do nothing.
 		&:hover .material-card__title {
@@ -393,63 +396,43 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
+	// A claim is a FACT about the material (what it covers, what it needs first), and facts are grey
+	// (2026-10-07 colour pass, after review: three blue boxes per card were the loudest colour on
+	// /materialy, on a page where nothing else is coloured, and blue means "asks you" everywhere
+	// else). Depth is carried by weight and border, not hue: light → plain, moderate → a border,
+	// deep → a darker border and 600. "Obejmuje:" / "Wymaga:" are the words that tell the two lines
+	// apart, so the requirement chip no longer wears the warning pair either — amber beside blue read
+	// as "something is wrong with Stokes".
 	.claim-chip--coverage {
 		@include mix.focus-ring;
-		// Base/`--light`-depth treatment: pale info background, no border. `--moderate` and `--deep`
-		// below override this to stay visually distinct from each other — the two used to share
-		// this exact pale-pill look, which is the "look identical" bug CoverageBadge.svelte's own
-		// depth variants fix the same way (this card renders coverage claims as its own chips,
-		// not <CoverageBadge>, so the fix is duplicated here rather than shared).
-		color: var(--status-info);
-		background: var(--status-info-bg);
+		position: relative;
 		border: 1px solid transparent;
 		cursor: pointer;
 		font: inherit;
-		&:hover {
-			background: var(--accent-soft);
+		font-size: var(--font-size-xs);
+		// 28px beats global.scss's 44px button floor (these chips were 44px-tall boxes); the
+		// ::before keeps the touch promise, the way TagChip does it.
+		min-height: 28px;
+		&::before {
+			content: '';
+			position: absolute;
+			inset: -8px 0;
+		}
+		&:hover,
+		&:focus-visible {
 			color: var(--accent);
+			border-color: var(--accent);
 		}
 	}
-	.claim-chip--coverage-moderate {
-		border-color: var(--status-info);
-	}
-	.claim-chip--coverage-deep {
-		// Filled, matching CoverageBadge's own `--deep` treatment: `--accent` background clears
-		// 5.8:1 against `--accent-contrast` text in the light theme (AA needs 4.5:1 for this
-		// font-size-xs text).
-		color: var(--accent-contrast);
-		background: var(--accent);
-		border-color: var(--accent);
-		font-weight: 600;
-		&:hover {
-			background: var(--accent);
-			color: var(--accent-contrast);
-			opacity: 0.9;
-		}
-	}
-	// A requirement chip is the same interactive chip in the warning hue — "you need this first"
-	// must never be mistaken for "this is taught here" on a card where both lines sit together.
-	.claim-chip--requirement {
-		color: var(--status-warning);
-		background: var(--status-warning-bg);
-		&:hover {
-			background: var(--status-warning-bg);
-			color: var(--status-warning);
-			opacity: 0.85;
-		}
-	}
+	.claim-chip--coverage-moderate,
 	.claim-chip--requirement-moderate {
-		border-color: var(--status-warning);
+		border-color: var(--border-color);
+		font-weight: 500;
 	}
+	.claim-chip--coverage-deep,
 	.claim-chip--requirement-deep {
-		color: var(--accent-contrast);
-		background: var(--status-warning);
-		border-color: var(--status-warning);
+		border-color: var(--text-secondary);
 		font-weight: 600;
-		&:hover {
-			background: var(--status-warning);
-			color: var(--accent-contrast);
-		}
 	}
 	.claim-more {
 		@include mix.focus-ring;

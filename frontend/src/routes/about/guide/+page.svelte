@@ -190,7 +190,7 @@
 	}
 	.guide-hub__off {
 		font-size: var(--font-size-sm);
-		color: var(--status-warning, var(--text-secondary));
+		color: var(--status-warning);
 	}
 
 	.guide-hub__gaps {

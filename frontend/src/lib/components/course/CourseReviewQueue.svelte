@@ -97,11 +97,8 @@
 		gap: var(--space-2);
 	}
 	.count {
-		font-size: var(--font-size-sm);
-		color: var(--bg-surface);
-		background: var(--accent);
-		border-radius: var(--radius-sm);
-		padding: 0 var(--space-2);
+		@include mix.count-badge;
+		vertical-align: middle;
 	}
 	ul {
 		list-style: none;
@@ -163,6 +160,6 @@
 	.primary {
 		border: none;
 		background: var(--accent);
-		color: var(--bg-surface);
+		color: var(--accent-contrast);
 	}
 </style>

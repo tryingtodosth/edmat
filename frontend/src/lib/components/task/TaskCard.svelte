@@ -102,9 +102,11 @@
 
 <article class="task" class:task--closed={task.status === 'done' || task.status === 'cancelled'}>
 	<header class="task__head">
-		<span class="pri pri--{task.priority}">{TASK_PRIORITY_LABELS[task.priority]()}</span>
+		{#if task.priority <= 2}
+			<span class="pri pri--{task.priority}">{TASK_PRIORITY_LABELS[task.priority]()}</span>
+		{/if}
 		<h3 class="task__title">{task.title}</h3>
-		<span class="status">{TASK_STATUS_LABELS[task.status]()}</span>
+		<span class="status status--{task.status}">{TASK_STATUS_LABELS[task.status]()}</span>
 	</header>
 
 	<p class="meta">
@@ -236,16 +238,19 @@
 </article>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.task {
 		display: grid;
 		gap: 0.4rem;
 		padding: 0.7rem 0.8rem;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md, 8px);
-		background: var(--surface);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-md);
+		background: var(--bg-surface);
 	}
-	.task--closed {
-		opacity: 0.72;
+	.task--closed .task__title {
+		color: var(--text-secondary);
+		font-weight: 500;
 	}
 	.task__head {
 		display: flex;
@@ -264,17 +269,27 @@
 		font-size: 0.72rem;
 		padding: 0.1rem 0.4rem;
 		border-radius: 999px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		color: var(--text-secondary);
 		white-space: nowrap;
 	}
+	// Priority shows only above baseline (Normal / Low render no pill at all).
 	.pri--1 {
-		border-color: var(--danger, #b3261e);
-		color: var(--danger, #b3261e);
+		@include mix.status-pill(var(--status-danger), var(--status-danger-bg));
+		border-color: transparent;
 	}
 	.pri--2 {
-		border-color: var(--warning, #a5670d);
-		color: var(--warning, #a5670d);
+		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		border-color: transparent;
+	}
+	// The review column is the manager's inbox — an open question for whoever reads this board.
+	.status--review {
+		@include mix.status-pill(var(--status-info), var(--status-info-bg));
+		border-color: transparent;
+	}
+	.status--done {
+		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		border-color: transparent;
 	}
 	.meta {
 		display: flex;
@@ -285,7 +300,7 @@
 		color: var(--text-secondary);
 	}
 	.due--late {
-		color: var(--danger, #b3261e);
+		color: var(--status-danger);
 		font-weight: 600;
 	}
 	.description {
@@ -300,9 +315,9 @@
 	button,
 	.actions a {
 		padding: 0.2rem 0.6rem;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm, 4px);
-		background: var(--surface);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
 		color: var(--text-primary);
 		cursor: pointer;
 		font: inherit;
@@ -312,12 +327,12 @@
 	.link {
 		border: 0;
 		background: none;
-		color: var(--accent, #2f6fdb);
+		color: var(--accent);
 		text-decoration: underline;
 		padding: 0;
 	}
 	.link--danger {
-		color: var(--danger, #b3261e);
+		color: var(--status-danger);
 	}
 	.confirm,
 	.problem {
@@ -325,14 +340,14 @@
 		font-size: 0.85rem;
 	}
 	.problem {
-		color: var(--danger, #b3261e);
+		color: var(--status-danger);
 	}
 	.steps {
 		display: grid;
 		gap: 0.4rem;
 		margin-left: 0.8rem;
 		padding-left: 0.6rem;
-		border-left: 2px solid var(--border);
+		border-left: 2px solid var(--border-color);
 	}
 	.steps h4 {
 		margin: 0.2rem 0 0;

@@ -35,10 +35,11 @@
 				aria-pressed={value >= n}
 				aria-label={String(n)}
 			>
-				★
+				{(hovered ?? value) >= n ? '★' : '☆'}
 			</button>
 		{:else}
-			<span class="star" class:filled={value >= n} aria-hidden="true">★</span>
+			<span class="star" class:filled={value >= n} aria-hidden="true">{value >= n ? '★' : '☆'}</span
+			>
 		{/if}
 	{/each}
 </div>
@@ -56,8 +57,11 @@
 		border: none;
 		padding: 0;
 	}
+	/* `--rating` is a named alias of the accent (2026-10-07 colour pass; _tokens.scss says why
+	   gold was rejected). The glyph carries the state — ★ filled, ☆ empty — so "4 of 5" never
+	   depends on colour: in high contrast the two colours are 2.25:1 apart. */
 	.star.filled {
-		color: var(--accent);
+		color: var(--rating);
 	}
 	.stars--interactive .star {
 		cursor: pointer;

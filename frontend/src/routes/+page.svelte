@@ -454,15 +454,35 @@
 	}
 	.hero__browse {
 		font-size: var(--font-size-sm);
+		color: var(--accent);
+		font-weight: 600;
 	}
 
 	.hero {
+		position: relative;
+		isolation: isolate;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
 		padding: var(--space-6) 0 var(--space-3);
 		text-align: center;
 		align-items: center;
+	}
+	// The one wash. Bounded to the hero and present on one route, so it says "you are at the front
+	// door" — the brand's own soft tint, not a warning-adjacent peach. Fades out by 70% of the
+	// ellipse, above the audience chips and the hidden-languages notice, which are INSIDE .hero and
+	// sit on its transparent tail. Measured at the centre: light 14.85 / 5.96 / 5.10 (text-primary /
+	// text-secondary / the browse link), dark 8.91 / 5.12 / 5.00. High contrast hides it.
+	.hero::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		pointer-events: none;
+		background: radial-gradient(ellipse 60% 50% at 50% 28%, var(--hero-wash) 0%, transparent 72%);
+	}
+	:global(:root[data-contrast='high']) .hero::before {
+		display: none;
 	}
 	.hero h1 {
 		font-size: var(--font-size-xl);

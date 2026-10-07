@@ -495,6 +495,9 @@
 	.watchlist-link {
 		font-size: var(--font-size-sm);
 		white-space: nowrap;
+		// A link beside a filled button needs an affordance of its own.
+		color: var(--accent);
+		font-weight: 600;
 	}
 
 	.tabs {

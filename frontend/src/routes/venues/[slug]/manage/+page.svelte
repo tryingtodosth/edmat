@@ -404,7 +404,7 @@
 	.page {
 		max-width: 820px;
 		margin: 0 auto;
-		padding: var(--space-4) var(--space-4) var(--space-8);
+		padding: var(--space-4) var(--space-4) var(--space-6);
 	}
 	.status,
 	.hint,
@@ -439,7 +439,7 @@
 		opacity: 0.75;
 	}
 	.row {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.6rem 0.8rem;
 	}
@@ -481,7 +481,7 @@
 	}
 	.pill--off {
 		background: transparent;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		color: var(--text-secondary);
 	}
 	.link {

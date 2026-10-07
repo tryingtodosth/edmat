@@ -124,6 +124,8 @@
 </form>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.task-form {
 		display: grid;
 		gap: 0.6rem;
@@ -147,9 +149,9 @@
 	select {
 		width: 100%;
 		padding: 0.4rem 0.5rem;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm, 4px);
-		background: var(--surface);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
 	}
@@ -159,21 +161,19 @@
 	}
 	button {
 		padding: 0.35rem 0.8rem;
-		border-radius: var(--radius-sm, 4px);
-		border: 1px solid var(--border);
-		background: var(--surface);
+		border-radius: var(--radius-sm);
+		border: 1px solid var(--border-color);
+		background: var(--bg-surface);
 		color: var(--text-primary);
 		cursor: pointer;
 		font: inherit;
 	}
 	.primary {
-		background: var(--accent, #2f6fdb);
-		border-color: transparent;
-		color: #fff;
+		@include mix.button-primary;
 	}
 	.problem {
 		margin: 0;
-		color: var(--danger, #b3261e);
+		color: var(--status-danger);
 		font-size: 0.85rem;
 	}
 </style>

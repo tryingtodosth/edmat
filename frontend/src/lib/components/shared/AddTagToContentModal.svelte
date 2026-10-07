@@ -260,9 +260,7 @@
 		button {
 			@include mix.button-secondary;
 			&.active {
-				background: var(--accent);
-				color: var(--accent-contrast);
-				border-color: var(--accent);
+				@include mix.selected-soft;
 			}
 		}
 	}

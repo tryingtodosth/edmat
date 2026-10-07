@@ -155,6 +155,6 @@
 	}
 	.problem {
 		margin: 0;
-		color: var(--danger, #b3261e);
+		color: var(--status-danger);
 	}
 </style>

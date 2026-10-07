@@ -116,6 +116,8 @@
 </div>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.chips {
 		display: flex;
 		flex-wrap: wrap;
@@ -140,7 +142,7 @@
 	.chip {
 		min-height: 44px;
 		padding: 0.35rem 0.9rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 999px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
@@ -148,10 +150,10 @@
 		font: inherit;
 		font-size: 0.9rem;
 	}
+	// Selected = the soft idiom (2026-10-07 colour pass): a filled accent box is a command
+	// (the Szukaj button 90px away), a selection is tint + accent text + a 1px accent border.
 	.chip--on {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		@include mix.selected-soft;
 	}
 	.chip:focus-visible {
 		outline: 2px solid var(--accent);

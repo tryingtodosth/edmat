@@ -193,7 +193,7 @@
 		font-size: var(--font-size-sm);
 	}
 	.pill {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.neutral-pill;
 	}
 	.langs {
 		display: grid;

@@ -493,7 +493,7 @@
 		min-height: 44px;
 		padding: 0 0.8rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -503,7 +503,7 @@
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	.danger {
 		color: var(--status-danger);
@@ -511,7 +511,7 @@
 	.propose {
 		display: grid;
 		gap: 0.6rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 1rem;
 		margin-top: 0.6rem;
@@ -538,7 +538,7 @@
 	textarea {
 		font: inherit;
 		padding: 0.4rem 0.5rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
@@ -553,7 +553,7 @@
 	}
 	.card {
 		padding: 0.6rem 0.8rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		background: var(--bg-surface);
 	}
@@ -571,7 +571,7 @@
 		font-size: 0.75rem;
 		padding: 0.1rem 0.5rem;
 		border-radius: 999px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 	}
 	.pill--accepted,
 	.pill--scheduled {

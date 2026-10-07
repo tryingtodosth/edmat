@@ -154,6 +154,7 @@
 		<button
 			type="button"
 			class="mode-toggle"
+			aria-pressed={advanced}
 			onclick={() => materialsUiStore.toggle()}
 			title={m.materialFilters_modeToggleHint()}
 		>
@@ -285,12 +286,16 @@
 	h2 {
 		font-size: var(--font-size-base);
 	}
+	// A pressed toggle: neutral at rest, `selected-soft` when advanced mode is on.
 	.mode-toggle {
 		@include mix.focus-ring;
-		@include mix.status-pill(var(--accent), var(--accent-soft));
-		border: none;
+		@include mix.neutral-pill;
+		border: 1px solid transparent;
 		cursor: pointer;
 		font-weight: 600;
+		&[aria-pressed='true'] {
+			@include mix.selected-soft;
+		}
 	}
 	.field {
 		display: flex;

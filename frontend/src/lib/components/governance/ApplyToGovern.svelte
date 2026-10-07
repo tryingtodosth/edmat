@@ -157,7 +157,7 @@
 	.govapp-form__error {
 		margin: 0;
 		font-size: var(--font-size-sm);
-		color: var(--status-danger-text, #b3261e);
+		color: var(--status-danger);
 	}
 	.field {
 		display: flex;

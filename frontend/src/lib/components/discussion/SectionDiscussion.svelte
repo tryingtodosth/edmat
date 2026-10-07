@@ -246,7 +246,7 @@
 		}
 	}
 	.section-discussion__error {
-		color: var(--danger, #b00020);
+		color: var(--status-danger);
 		font-size: var(--font-size-sm);
 	}
 	.section-discussion__held {
@@ -265,7 +265,7 @@
 			padding: var(--space-1) var(--space-2);
 			border: 1px solid var(--border-color);
 			border-radius: var(--radius-sm);
-			background: var(--surface);
+			background: var(--bg-surface);
 			color: var(--text-primary);
 			font: inherit;
 		}

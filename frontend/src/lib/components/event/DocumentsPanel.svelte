@@ -383,7 +383,7 @@
 
 <style lang="scss">
 	.documents {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.9rem 1rem;
 		margin-top: 1rem;
@@ -432,7 +432,7 @@
 		padding: 0.1rem 0.5rem;
 		border-radius: 999px;
 		background: var(--bg-surface);
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 	}
 	.pill--warn {
 		background: var(--status-warning-bg);
@@ -453,7 +453,7 @@
 		min-height: 44px;
 		padding: 0 0.8rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -463,7 +463,7 @@
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	.danger {
 		color: var(--status-danger);
@@ -473,7 +473,7 @@
 		gap: 0.5rem;
 		margin-top: 0.6rem;
 		padding: 0.7rem;
-		border: 1px dashed var(--border);
+		border: 1px dashed var(--border-color);
 		border-radius: 8px;
 	}
 	label {
@@ -492,7 +492,7 @@
 		min-height: 44px;
 		padding: 0 0.6rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;

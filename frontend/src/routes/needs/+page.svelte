@@ -111,7 +111,11 @@
 		{:else}
 			<div class="grid">
 				{#each needs as need (need.id)}
-					<a class="card" href={resolve('/needs/[id]', { id: need.id })}>
+					<a
+						class="card"
+						class:card--over={need.status === 'cancelled' || need.status === 'fulfilled'}
+						href={resolve('/needs/[id]', { id: need.id })}
+					>
 						<div class="card__head">
 							<strong>{need.title}</strong>
 							<span class="pill pill--{need.status}">{NEED_STATUS_LABELS[need.status]()}</span>
@@ -138,6 +142,8 @@
 </FeatureGate>
 
 <style lang="scss">
+	@use '../../lib/styles/mixins' as mix;
+
 	.page {
 		max-width: 1100px;
 		margin: 0 auto;
@@ -169,7 +175,7 @@
 	input.search {
 		font: inherit;
 		padding: 0.4rem 0.6rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
@@ -191,12 +197,16 @@
 	}
 	.card {
 		display: block;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.8rem 1rem;
 		background: var(--bg-surface);
 		color: inherit;
 		text-decoration: none;
+	}
+	.card--over strong {
+		color: var(--text-secondary);
+		font-weight: 500;
 	}
 	.card__head {
 		display: flex;
@@ -218,7 +228,7 @@
 		margin-top: 0.4rem;
 	}
 	.badge {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 999px;
 		padding: 0 0.4rem;
 	}
@@ -226,21 +236,24 @@
 		font-size: 0.75rem;
 		padding: 0.1rem 0.5rem;
 		border-radius: 999px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		flex-shrink: 0;
 	}
+	// The call for help is open to anyone — the info pair (§1: an open question for the reader).
 	.pill--open {
-		background: var(--status-success-bg);
-		color: var(--status-success);
+		@include mix.status-pill(var(--status-info), var(--status-info-bg));
 		border-color: transparent;
 	}
 	.pill--in_progress {
-		background: var(--status-warning-bg);
-		color: var(--status-warning);
+		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
 		border-color: transparent;
 	}
-	.pill--fulfilled,
+	.pill--fulfilled {
+		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		border-color: transparent;
+	}
 	.pill--cancelled {
-		opacity: 0.7;
+		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
+		border-color: transparent;
 	}
 </style>

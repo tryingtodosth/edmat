@@ -63,14 +63,14 @@
 	.skeleton--card {
 		padding: var(--space-3);
 		border: 1px solid var(--border-color);
-		border-radius: var(--radius-md, 8px);
+		border-radius: var(--radius-md);
 		background: var(--bg-surface);
 	}
 	.bar {
 		position: relative;
 		overflow: hidden;
 		height: 0.75rem;
-		border-radius: var(--radius-sm, 4px);
+		border-radius: var(--radius-sm);
 		background: var(--border-color);
 	}
 	// A sweep rather than a pulse: a pulsing block reads as a broken image, where a sweep is the
@@ -82,12 +82,7 @@
 		content: '';
 		position: absolute;
 		inset: 0;
-		background: linear-gradient(
-			90deg,
-			transparent 0%,
-			var(--bg-surface-alt, rgba(255, 255, 255, 0.35)) 50%,
-			transparent 100%
-		);
+		background: linear-gradient(90deg, transparent 0%, var(--bg-surface-alt) 50%, transparent 100%);
 		transform: translateX(-100%);
 		animation: sweep 1.4s ease-in-out infinite;
 	}

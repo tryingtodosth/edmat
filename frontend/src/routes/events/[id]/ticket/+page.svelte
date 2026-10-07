@@ -189,14 +189,14 @@
 		gap: var(--space-3);
 	}
 	.ticket {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 12px;
 		padding: 1rem;
 		background: var(--bg-surface);
 		text-align: center;
 	}
 	.ticket--minor {
-		border-top: 10px solid var(--status-warning, #b26a00);
+		border-top: 10px solid var(--status-warning);
 	}
 	h1 {
 		font-size: var(--font-size-lg);
@@ -266,7 +266,7 @@
 		min-height: 44px;
 		padding: 0 0.9rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -275,7 +275,7 @@
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	.hint,
 	.status {

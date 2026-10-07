@@ -106,14 +106,20 @@
 		min-width: 0;
 	}
 	a.row__title {
-		color: var(--accent);
+		color: var(--text-primary);
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.row__actor {
 		color: var(--text-secondary);
 		font-size: var(--font-size-xs);
 	}
 	a.row__actor {
-		color: var(--accent);
+		color: var(--text-secondary);
+		&:hover {
+			color: var(--accent);
+		}
 	}
 	.row__when {
 		color: var(--text-secondary);

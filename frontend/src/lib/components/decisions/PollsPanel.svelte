@@ -205,7 +205,13 @@
 {:else}
 	<div class="polls-panel" data-polls-panel>
 		{#each polls as poll (poll.id)}
-			<div class="poll poll-{poll.status}" data-poll-id={poll.id} data-poll-status={poll.status}>
+			<!-- The rule marks only polls that still want THIS reader's vote. -->
+			<div
+				class="poll poll-{poll.status}"
+				class:poll-asks={poll.status === 'open' && !poll.has_voted}
+				data-poll-id={poll.id}
+				data-poll-status={poll.status}
+			>
 				<div class="poll-header">
 					<h3>
 						<a href={resolve('/polls/[id]', { id: String(poll.id) })}>{poll.question}</a>
@@ -383,26 +389,39 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.polls-panel {
+		@include mix.card-surface;
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
+		padding: var(--space-3);
 
+		// No card tints: a poll's state is its badge; the one coloured rule is "asks you".
 		.poll {
-			border: 1px solid var(--color-border);
-			border-radius: 0.5rem;
+			@include mix.card-surface;
 			padding: 1rem;
+			border-left: 3px solid transparent;
 
-			&.poll-draft {
-				background: var(--color-bg-draft);
+			&.poll-asks {
+				border-left-color: var(--status-info);
 			}
 
-			&.poll-open {
-				background: var(--color-bg-open);
+			&.poll-closed h3 {
+				color: var(--text-secondary);
 			}
 
-			&.poll-closed {
-				background: var(--color-bg-closed);
+			&.poll-open .poll-status-badge {
+				@include mix.status-pill(var(--status-info), var(--status-info-bg));
+			}
+
+			&.poll-draft .poll-status-badge {
+				@include mix.pending-pill;
+			}
+
+			&.poll-closed .poll-status-badge {
+				@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
 			}
 
 			.poll-header {
@@ -419,18 +438,11 @@
 						color: inherit;
 					}
 				}
-
-				.poll-status-badge {
-					font-size: 0.8rem;
-					color: var(--color-text-secondary);
-					text-transform: uppercase;
-					letter-spacing: 0.04em;
-				}
 			}
 
 			.poll-description {
 				margin: 0.5rem 0 0;
-				color: var(--color-text-secondary);
+				color: var(--text-secondary);
 				font-size: 0.9rem;
 			}
 
@@ -452,18 +464,18 @@
 				display: flex;
 				flex-direction: column;
 				gap: 0.5rem;
-				border-top: 1px dashed var(--color-border);
+				border-top: 1px dashed var(--border-color);
 				padding-top: 0.75rem;
 			}
 
 			.poll-note {
 				margin: 0.75rem 0 0;
-				color: var(--color-text-secondary);
+				color: var(--text-secondary);
 			}
 
 			.poll-action-error {
 				margin: 0.5rem 0 0;
-				color: var(--color-error, #c0392b);
+				color: var(--status-danger);
 			}
 
 			.poll-results {
@@ -476,7 +488,7 @@
 					display: flex;
 					justify-content: space-between;
 					padding: 0.5rem 0;
-					border-bottom: 1px solid var(--color-border);
+					border-bottom: 1px solid var(--border-color);
 
 					.result-label {
 						flex: 1;
@@ -490,16 +502,17 @@
 
 			.poll-turnout {
 				margin: 0.75rem 0 0;
-				color: var(--color-text-secondary);
+				color: var(--text-secondary);
 				font-size: 0.9rem;
 			}
 
+			// NewSinceNotice's "new for you" shape — the decision is the thing to read here.
 			.poll-decision-note {
 				margin: 1rem 0;
 				padding: 1rem;
-				background: var(--color-bg-note);
+				background: var(--bg-surface-alt);
 				border-radius: 0.25rem;
-				border-left: 3px solid var(--color-accent);
+				border-left: 3px solid var(--accent);
 
 				p {
 					margin: 0;
@@ -508,10 +521,10 @@
 		}
 
 		.create-form {
-			border: 1px dashed var(--color-border);
+			border: 1px dashed var(--border-color);
 			border-radius: 0.5rem;
 			padding: 1.5rem;
-			background: var(--color-bg-form);
+			background: var(--bg-surface-alt);
 
 			h3 {
 				margin-top: 0;
@@ -523,7 +536,7 @@
 				width: 100%;
 				margin: 0.5rem 0;
 				padding: 0.5rem;
-				border: 1px solid var(--color-border);
+				border: 1px solid var(--border-color);
 				border-radius: 0.25rem;
 			}
 
@@ -559,32 +572,16 @@
 		}
 
 		button {
-			padding: 0.5rem 1rem;
-			border: 1px solid var(--color-border);
-			border-radius: 0.25rem;
+			@include mix.button-secondary;
 			cursor: pointer;
-			background: var(--color-bg);
-			color: var(--color-text);
 
 			&.btn-primary {
-				background: var(--color-primary);
-				color: white;
-				border-color: var(--color-primary);
-			}
-
-			&.btn-secondary {
-				background: var(--color-bg);
-				color: var(--color-text);
+				@include mix.button-primary;
 			}
 
 			&.btn-tiny {
 				padding: 0.25rem 0.5rem;
 				font-size: 0.85rem;
-			}
-
-			&:disabled {
-				opacity: 0.6;
-				cursor: not-allowed;
 			}
 		}
 
@@ -593,7 +590,7 @@
 		&.polls-error {
 			padding: 1rem;
 			text-align: center;
-			color: var(--color-text-secondary);
+			color: var(--text-secondary);
 		}
 	}
 </style>

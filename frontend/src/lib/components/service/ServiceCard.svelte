@@ -164,15 +164,11 @@
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
 		font-size: var(--font-size-xs);
 	}
-	// In-person and hybrid share the accent treatment because they share the fact that matters —
-	// you can meet this person. Online stays neutral: it is the default and the most common, so
-	// highlighting it would make the pill decorative rather than informative.
-	.mode-pill--inPerson,
-	.mode-pill--hybrid {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
-	}
+	// A mode is a fact. The price is the one thing a reader scans for, so it is weighted up, not
+	// coloured.
 	.rate {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.status-pill(var(--text-primary), var(--bg-surface-alt));
+		font-weight: 600;
 		flex-shrink: 0;
 	}
 	.description {

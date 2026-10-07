@@ -187,7 +187,7 @@
 		color: var(--text-secondary);
 	}
 	.year__average {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.neutral-pill;
 	}
 	.year__average--none {
 		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
@@ -243,7 +243,7 @@
 		flex-shrink: 0;
 	}
 	.grade__matched {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.neutral-pill;
 	}
 	.empty {
 		font-size: var(--font-size-sm);

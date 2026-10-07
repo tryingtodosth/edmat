@@ -280,7 +280,7 @@
 
 <style lang="scss">
 	.preview-switch {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: var(--radius-md);
 		padding: var(--space-4);
 		display: flex;
@@ -289,14 +289,14 @@
 
 		h3 {
 			margin: 0;
-			font-size: var(--text-lg);
+			font-size: var(--font-size-lg);
 		}
 	}
 	.preview-switch__lead,
 	.preview-switch__note {
 		margin: 0;
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--font-size-sm);
 	}
 	.preview-switch__buttons {
 		display: flex;
@@ -305,9 +305,9 @@
 
 		button {
 			padding: var(--space-2) var(--space-3);
-			border: 1px solid var(--border);
+			border: 1px solid var(--border-color);
 			border-radius: var(--radius-sm);
-			background: var(--surface);
+			background: var(--bg-surface);
 			color: var(--text-primary);
 			cursor: pointer;
 		}
@@ -337,7 +337,7 @@
 		box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
 	}
 	.preview-bar__text {
-		font-size: var(--text-sm);
+		font-size: var(--font-size-sm);
 	}
 	.preview-bar__exit {
 		padding: var(--space-1) var(--space-3);
@@ -357,7 +357,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-		background: var(--surface);
+		background: var(--bg-surface);
 	}
 	.preview-view__kind,
 	.preview-view__hidden,
@@ -365,7 +365,7 @@
 	.preview-view__status {
 		margin: 0;
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--font-size-sm);
 	}
 	.preview-view__status--none {
 		font-weight: 600;
@@ -377,7 +377,7 @@
 	}
 	.preview-view__title {
 		margin: 0;
-		font-size: var(--text-xl);
+		font-size: var(--font-size-xl);
 		font-weight: 700;
 	}
 	.preview-view__host,
@@ -392,7 +392,7 @@
 		gap: var(--space-2);
 
 		dt {
-			font-size: var(--text-sm);
+			font-size: var(--font-size-sm);
 			color: var(--text-secondary);
 		}
 		dd {
@@ -415,6 +415,6 @@
 	}
 	.preview-view__when {
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--font-size-sm);
 	}
 </style>

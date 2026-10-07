@@ -164,7 +164,7 @@
 	.registration-form {
 		display: grid;
 		gap: 0.7rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 1rem;
 		background: var(--bg-surface);
@@ -192,14 +192,14 @@
 	textarea {
 		font: inherit;
 		padding: 0.45rem 0.55rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		min-height: 40px;
 	}
 	fieldset {
-		border: 1px dashed var(--border);
+		border: 1px dashed var(--border-color);
 		border-radius: 8px;
 		padding: 0.5rem 0.8rem;
 		display: grid;
@@ -227,7 +227,7 @@
 		min-height: 44px;
 		padding: 0 1rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -236,6 +236,6 @@
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 </style>

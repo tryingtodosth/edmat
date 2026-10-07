@@ -180,7 +180,7 @@
 	.url {
 		flex: 1;
 		min-width: 12rem;
-		font-family: var(--font-mono, monospace);
+		font-family: var(--font-mono);
 		font-size: var(--font-size-xs);
 	}
 	.role,
@@ -191,7 +191,7 @@
 	}
 	.dead {
 		font-size: var(--font-size-xs);
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 	form {
 		display: flex;
@@ -207,7 +207,7 @@
 	}
 	.error {
 		font-size: var(--font-size-sm);
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 	input,
 	select {
@@ -227,7 +227,7 @@
 		border: none;
 		border-radius: var(--radius-sm);
 		background: var(--accent);
-		color: var(--bg-surface);
+		color: var(--accent-contrast);
 	}
 	.link {
 		background: none;
@@ -239,6 +239,6 @@
 		color: var(--text-secondary);
 	}
 	.danger:hover {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 </style>

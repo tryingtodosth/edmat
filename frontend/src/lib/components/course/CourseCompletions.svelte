@@ -224,13 +224,15 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.completions {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
 	}
 	h2 {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
 	h3 {
 		font-size: var(--font-size-sm);
@@ -250,12 +252,12 @@
 		gap: var(--space-3);
 		justify-content: space-between;
 		align-items: flex-start;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 		padding: var(--space-3);
 	}
-	li.revoked {
-		opacity: 0.7;
+	li.revoked .who {
+		color: var(--text-secondary);
 	}
 	.who {
 		min-width: 0;
@@ -267,10 +269,7 @@
 		flex-wrap: wrap;
 	}
 	.badge {
-		font-size: var(--font-size-xs);
-		border: 1px solid var(--border);
-		border-radius: 999px;
-		padding: 0 0.5em;
+		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
 		margin-left: 0.4em;
 	}
 	.meta,
@@ -283,7 +282,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
-		border-top: 1px solid var(--border);
+		border-top: 1px solid var(--border-color);
 		padding-top: var(--space-3);
 	}
 	.field {

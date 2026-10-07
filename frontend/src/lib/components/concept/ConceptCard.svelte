@@ -81,7 +81,7 @@
 		h2,
 		h3 {
 			margin: 0;
-			font-size: var(--font-size-md);
+			font-size: var(--font-size-base);
 		}
 		h2 a,
 		h3 a {
@@ -110,8 +110,10 @@
 		padding: 1px var(--space-2);
 		background: var(--bg-surface-alt);
 	}
+	// "Not written for your readers yet" is a fact the reader cannot act on, so it is grey, not the
+	// warning pair (2026-10-07 colour pass, after review).
 	.fallback {
-		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		@include mix.neutral-pill;
 		font-size: var(--font-size-xs);
 	}
 	.summary {

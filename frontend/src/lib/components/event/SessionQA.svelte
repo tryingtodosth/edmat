@@ -54,7 +54,7 @@
 	.qa {
 		margin-top: 0.6rem;
 		padding-top: 0.6rem;
-		border-top: 1px dashed var(--border);
+		border-top: 1px dashed var(--border-color);
 	}
 	h4 {
 		margin: 0 0 0.4rem;

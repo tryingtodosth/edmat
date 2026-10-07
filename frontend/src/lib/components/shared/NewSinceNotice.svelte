@@ -28,8 +28,8 @@
 		color: var(--text-secondary);
 		padding: var(--space-2) var(--space-3);
 		border-left: 3px solid var(--accent);
-		background: var(--surface-2, transparent);
-		border-radius: var(--radius-sm, 4px);
+		background: var(--bg-surface-alt);
+		border-radius: var(--radius-sm);
 	}
 	strong {
 		color: var(--text-primary);

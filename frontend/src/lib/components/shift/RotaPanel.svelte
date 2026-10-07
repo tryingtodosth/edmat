@@ -322,7 +322,7 @@
 
 <style lang="scss">
 	.rota {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.9rem 1rem;
 		margin-top: 1rem;
@@ -353,7 +353,7 @@
 		align-items: center;
 		gap: 0.45rem;
 		padding: 0.3rem 0;
-		border-bottom: 1px solid var(--border);
+		border-bottom: 1px solid var(--border-color);
 		font-size: 0.87rem;
 	}
 	.where,
@@ -374,13 +374,13 @@
 	}
 	.pill {
 		font-size: 0.72rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 999px;
 		padding: 0.05rem 0.45rem;
 		color: var(--text-secondary);
 	}
 	.error {
-		color: var(--danger, #c62828);
+		color: var(--status-danger);
 		font-size: 0.85rem;
 	}
 	.link {
@@ -389,7 +389,7 @@
 		padding: 0;
 		font: inherit;
 		font-size: 0.82rem;
-		color: var(--accent, #1565c0);
+		color: var(--accent);
 		cursor: pointer;
 		text-decoration: underline;
 	}

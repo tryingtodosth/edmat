@@ -18,6 +18,25 @@ $light-accent: #2a6f6f;
 $light-accent-soft: #e7f2f2;
 $light-accent-contrast: #ffffff;
 
+// 2026-10-07 colour pass. The learning flow's ONE reveal hue: hint, answer and solution share it —
+// the word says how much is given away, the hue says "this gives something away". Carried only by a
+// 3px rule, an uppercase heading and an outlined toggle; never a background, never a pill, never
+// behind KaTeX. 254°, 34° from --status-info and 100° from --status-danger: shape (rule + word vs
+// pill) keeps it apart from a status at a glance. 6.59:1 on white, 5.84 on $light-bg-surface-alt.
+// A trio (hint / answer / solution) was designed and rejected: its members sat 1.02–1.05 apart in
+// lightness, so a red/green reader saw one hue anyway, and the solution member was 33° from danger
+// on the page that shows 'Trudne'.
+$light-stage: #634bb3;
+// Filled stars. An alias of the accent ON PURPOSE, named so StarRating and LessonFeedback cannot
+// drift and so an amber decision, if the owner ever wants one, is one line here. Gold was measured
+// and rejected: every candidate that clears 3:1 on $light-bg-surface-alt sits 4° from
+// $light-status-warning (dE 11–16), i.e. the 'Średnie' pill and the stars became one colour.
+$light-rating: $light-accent;
+// The home hero's one wash. Its own token, not --accent-soft: a chip tint that is right at 1.07:1
+// against the page is invisible as a wash (the reviewers measured ΔE 5 — the same as a white card).
+// Text on it: --text-primary 13.6, --text-secondary 5.5, --accent 4.7 (the browse link, 600 weight).
+$light-hero-wash: #d6e9e9;
+
 // Phase 4 accessibility pass: darkened from #1a8a4a (a real, axe-core-caught WCAG AA failure,
 // 3.92:1 against $light-status-success-bg — below the 4.5:1 normal-text threshold) to a shade
 // that clears it with real margin (5.63:1) while staying visually the same green. The dark-theme
@@ -26,7 +45,9 @@ $light-status-success: #146e3b;
 $light-status-success-bg: #e5f6ec;
 $light-status-danger: #c22b3b;
 $light-status-danger-bg: #fbe8ea;
-$light-status-warning: #a15c00;
+// 2026-10-07 colour pass: #a15c00 cleared AA on its own background by 0.15 (4.65:1); this shade
+// measures 5.88:1 on $light-status-warning-bg and stays the same amber to the eye.
+$light-status-warning: #8a4f00;
 $light-status-warning-bg: #fdf1de;
 $light-status-info: #2359c9;
 $light-status-info-bg: #e8eefb;
@@ -40,7 +61,9 @@ $light-backdrop: rgba(20, 22, 34, 0.4);
 // ---- Dark theme ----
 $dark-bg-page: #14181c;
 $dark-bg-surface: #1c2126;
-$dark-bg-surface-alt: #1f252b;
+// Raised from #1f252b (2026-10-07 colour pass): three RGB steps from the surface, so a neutral pill
+// — a price, a tag, a kind — had no silhouette in dark mode. 1.28:1 against the surface now.
+$dark-bg-surface-alt: #2c343c;
 $dark-bg-elevated: #262d34;
 $dark-bg-menu: #1f252b;
 $dark-border: #333c44;
@@ -49,8 +72,15 @@ $dark-text-primary: #f2f4f6;
 $dark-text-secondary: #b4bcc4;
 
 $dark-accent: #5fc9c9;
-$dark-accent-soft: #223838;
+// Raised from #223838 (1.31:1 against $dark-bg-surface — a selected chip was invisible without
+// its border). --accent on it now measures exactly 5.00:1 (AA); #225050 would drop that to 4.58.
+// The tint itself is 1.65:1 against the surface, so the selected-soft mixin's 1px --accent border
+// (8.25:1) remains the state's real boundary. Never drop the border.
+$dark-accent-soft: #1f4a4a;
 $dark-accent-contrast: #0c1516;
+$dark-stage: #bba3f2; // 7.44:1 on $dark-bg-surface, 7.10 on -alt, 8.18 on the page
+$dark-rating: $dark-accent;
+$dark-hero-wash: #1b4343; // a step softer than the chip tint, so the glow dissolves before the hero's sides
 
 $dark-status-success: #5ce68a;
 $dark-status-success-bg: rgba(92, 230, 138, 0.12);
@@ -58,9 +88,14 @@ $dark-status-danger: #ff6b6b;
 $dark-status-danger-bg: rgba(255, 44, 44, 0.14);
 $dark-status-warning: #e0a63a;
 $dark-status-warning-bg: rgba(219, 146, 0, 0.14);
-$dark-status-info: #6f92ff;
+// 2026-10-07 colour pass: on its own tint composited over $dark-bg-elevated (a status pill inside
+// a modal) #6f92ff measured 4.25:1. One step lighter, same hue: 4.68 on elevated, 5.38 on the
+// surface, 6.15 as plain text on the surface. --accent-contrast on it (the count badge) is 7.02.
+$dark-status-info: #7a9bff;
 $dark-status-info-bg: rgba(48, 92, 222, 0.16);
-$dark-status-neutral: #9599ad;
+// Same reason: #9599ad was 4.07:1 on its tint over $dark-bg-elevated; this is 4.65 there, 5.42 on
+// the surface. It is also the dashed border of the pending pill, which needs 3:1 — it has 5.42.
+$dark-status-neutral: #a0a4b8;
 $dark-status-neutral-bg: rgba(149, 153, 173, 0.12);
 
 $dark-shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45);
@@ -84,6 +119,11 @@ $font-size-sm: 14px;
 $font-size-base: 16px;
 $font-size-lg: 20px;
 $font-size-xl: 28px;
+
+// One monospace stack for the five places that show a code, a token or a diff (invites, version
+// changes, the connection modal, discussion locations). They used to read `var(--font-mono,
+// monospace)` with the token undefined, so the bare fallback rendered; now it is one decision.
+$font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 
 $z-dropdown: 20;
 $z-popover: 30;

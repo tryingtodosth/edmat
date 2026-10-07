@@ -142,7 +142,7 @@
 	td {
 		text-align: left;
 		padding: 0.4rem 0.5rem 0.4rem 0;
-		border-bottom: 1px solid var(--border);
+		border-bottom: 1px solid var(--border-color);
 	}
 	.time {
 		font-variant-numeric: tabular-nums;

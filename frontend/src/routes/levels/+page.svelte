@@ -106,13 +106,13 @@
 		margin-top: var(--space-3);
 	}
 	.levels__notice {
-		border: 1px solid var(--status-warning, #b7791f);
+		border: 1px solid var(--status-warning);
 		border-left-width: 4px;
 		border-radius: var(--radius-sm);
 		padding: var(--space-3);
 		line-height: 1.6;
 		color: var(--text-primary);
-		background: var(--bg-surface, transparent);
+		background: var(--bg-surface);
 	}
 	.levels__section {
 		margin-top: var(--space-5);

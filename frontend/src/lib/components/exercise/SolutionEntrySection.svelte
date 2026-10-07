@@ -120,7 +120,9 @@
 </script>
 
 {#if entries.length > 0 || authStore.isAuthenticated}
-	<section class="content-section">
+	<section class="content-section content-section--stage">
+		<h2>{kind === 'hint' ? m.entry_hintsHeading() : m.entry_solutionsHeading()}</h2>
+		<!-- "Hints" / "Solutions" -->
 		<div class="section-head">
 			{#if entries.length > 0}
 				<button type="button" class="reveal-toggle" onclick={() => (revealed = !revealed)}>
@@ -246,6 +248,29 @@
 		font-size: var(--font-size-xs);
 		padding: var(--space-1) var(--space-3);
 	}
+	// The learning flow's reveal layer — the same block the exercise page's Answer section carries
+	// (Svelte scopes styles per component, so the selector name is shared and the rule is copied;
+	// two strikes, house rule 13). The heading is the page's own uppercase style, copied for the same
+	// reason: without it the hint and solution cards were the only stage cards with no word, and
+	// four reviewers read the three cards as two shapes. Hints and solutions get the SAME hue: the
+	// word says which. Background stays --bg-surface: never a tint behind MathContent.
+	h2 {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-secondary);
+	}
+	.content-section--stage {
+		border-left: 3px solid var(--stage);
+		h2 {
+			color: var(--stage);
+		}
+		.reveal-toggle {
+			border-color: var(--stage);
+			color: var(--stage);
+		}
+	}
 	.add-toggle,
 	.other-locales {
 		background: none;
@@ -263,8 +288,9 @@
 		@include mix.status-pill(var(--status-success), var(--status-success-bg));
 		align-self: flex-start;
 	}
+	// A submitted entry waits for a verdict — pending, not a warning.
 	.notice--pending {
-		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
+		@include mix.pending-pill;
 	}
 	.composer {
 		display: flex;

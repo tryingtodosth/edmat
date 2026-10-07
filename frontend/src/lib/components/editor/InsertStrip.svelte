@@ -387,6 +387,8 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.insert-strip {
 		display: grid;
 		gap: 0.35rem;
@@ -407,7 +409,7 @@
 	.insert-strip__actions button {
 		min-height: 32px;
 		padding: 0 0.55rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
@@ -418,9 +420,7 @@
 		align-items: center;
 	}
 	.insert-strip__row button.on {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		@include mix.selected-soft;
 	}
 	.insert-strip__file {
 		position: relative;
@@ -439,9 +439,9 @@
 		display: grid;
 		gap: 0.4rem;
 		padding: 0.5rem 0.6rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
-		background: var(--bg-surface-alt, var(--bg-surface));
+		background: var(--bg-surface-alt);
 	}
 	.insert-strip__hint {
 		margin: 0;
@@ -452,9 +452,7 @@
 		color: var(--status-danger);
 	}
 	.insert-strip__file.on {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		@include mix.selected-soft;
 	}
 	.insert-strip__thumb {
 		max-width: 100%;
@@ -474,7 +472,7 @@
 			font: inherit;
 			font-size: 0.85rem;
 			padding: 0.4rem 0.6rem;
-			border: 1px solid var(--border);
+			border: 1px solid var(--border-color);
 			border-radius: 6px;
 			background: var(--bg-surface);
 			color: var(--text-primary);
@@ -498,7 +496,7 @@
 	.insert-strip__actions .primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	textarea {
 		font: inherit;
@@ -506,7 +504,7 @@
 		font-size: 0.85rem;
 		width: 100%;
 		padding: 0.45rem 0.6rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);

@@ -307,7 +307,7 @@
 	input[type='text'] {
 		font: inherit;
 		color: var(--text-primary);
-		background: var(--bg-primary);
+		background: var(--bg-surface);
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-md);
 		padding: var(--space-1) var(--space-2);

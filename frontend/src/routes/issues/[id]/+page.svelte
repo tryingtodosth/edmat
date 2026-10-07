@@ -243,7 +243,7 @@
 		gap: var(--space-1);
 	}
 	.pill {
-		@include mix.status-pill(var(--text-secondary), var(--bg-secondary));
+		@include mix.status-pill(var(--text-secondary), var(--status-neutral-bg));
 	}
 	.pill--open {
 		@include mix.status-pill(var(--status-info), var(--status-info-bg));
@@ -302,7 +302,7 @@
 		textarea {
 			font: inherit;
 			color: var(--text-primary);
-			background: var(--bg-primary);
+			background: var(--bg-surface);
 			border: 1px solid var(--border-color);
 			border-radius: var(--radius-md);
 			padding: var(--space-1) var(--space-2);

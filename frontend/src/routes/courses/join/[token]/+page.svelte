@@ -139,7 +139,7 @@
 		color: var(--status-info);
 	}
 	.error {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 	.primary {
 		@include mix.focus-ring;
@@ -148,7 +148,7 @@
 		border: none;
 		border-radius: var(--radius-sm);
 		background: var(--accent);
-		color: var(--bg-surface);
+		color: var(--accent-contrast);
 		cursor: pointer;
 		text-decoration: none;
 	}

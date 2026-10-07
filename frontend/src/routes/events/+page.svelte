@@ -188,8 +188,7 @@
 			font-size: var(--font-size-sm);
 		}
 		.active {
-			border-color: var(--accent);
-			color: var(--accent);
+			@include mix.selected-soft;
 		}
 	}
 	.grid {

@@ -23,6 +23,9 @@
 	--accent: #{t.$light-accent};
 	--accent-soft: #{t.$light-accent-soft};
 	--accent-contrast: #{t.$light-accent-contrast};
+	--stage: #{t.$light-stage};
+	--rating: #{t.$light-rating};
+	--hero-wash: #{t.$light-hero-wash};
 
 	--status-success: #{t.$light-status-success};
 	--status-success-bg: #{t.$light-status-success-bg};
@@ -56,6 +59,9 @@
 	--accent: #{t.$dark-accent};
 	--accent-soft: #{t.$dark-accent-soft};
 	--accent-contrast: #{t.$dark-accent-contrast};
+	--stage: #{t.$dark-stage};
+	--rating: #{t.$dark-rating};
+	--hero-wash: #{t.$dark-hero-wash};
 
 	--status-success: #{t.$dark-status-success};
 	--status-success-bg: #{t.$dark-status-success-bg};
@@ -95,6 +101,8 @@
 	--font-size-lg: #{t.$font-size-lg};
 	--font-size-xl: #{t.$font-size-xl};
 
+	--font-mono: #{t.$font-mono};
+
 	--z-dropdown: #{t.$z-dropdown};
 	--z-popover: #{t.$z-popover};
 	--z-modal-scrim: #{t.$z-modal-scrim};
@@ -126,48 +134,67 @@
 // High contrast: the same tokens, pushed to black-on-white (or white-on-black) with hard borders
 // and a darker accent that still clears 7:1 on white. Everything reads the tokens, so nothing
 // else has to know.
-:root[data-contrast='high'] {
+//
+// 2026-10-07 colour pass, three bugs found by reading the token names rather than the screen:
+//   1. These blocks set `--border`, which no component reads — every border in the app reads
+//      `--border-color` — so high contrast never hardened a single border. (It did switch ON the
+//      ~130 drifting `var(--border)` reads that were invisible in the normal themes; those now read
+//      `--border-color` too.)
+//   2. The dark variant was hand-copied twice and never overrode the status hues, so a dark
+//      high-contrast reader got the LIGHT block's darkened status colours on black — about 2.3:1.
+//   3. `--status-info` and `--status-neutral` were not overridden at all.
+// Hence two mixins, like light-theme-vars / dark-theme-vars above: a value lives in one place.
+@mixin high-contrast-light-vars {
 	--bg-page: #ffffff;
 	--bg-surface: #ffffff;
 	--bg-surface-alt: #f2f2f2;
 	--bg-elevated: #ffffff;
 	--bg-menu: #ffffff;
-	--border: #000000;
+	--border-color: #000000;
 	--text-primary: #000000;
 	--text-secondary: #1a1a1a;
 	--accent: #0b4f4f;
 	--accent-soft: #dff0f0;
 	--accent-contrast: #ffffff;
+	--stage: #40298a; // 11.04:1 on white
+	--rating: #0b4f4f; // = the HC accent
+	--hero-wash: transparent; // no wash in high contrast
 	--status-success: #0a5a2a;
 	--status-warning: #6b4600;
 	--status-danger: #8a0f0f;
+	--status-info: #123f99;
+	--status-neutral: #1a1a1a;
 }
-:root[data-contrast='high'][data-theme='dark'],
-:root[data-contrast='high']:not([data-theme='light']) {
-	@media (prefers-color-scheme: dark) {
-		--bg-page: #000000;
-		--bg-surface: #000000;
-		--bg-surface-alt: #141414;
-		--bg-elevated: #000000;
-		--bg-menu: #000000;
-		--border: #ffffff;
-		--text-primary: #ffffff;
-		--text-secondary: #e6e6e6;
-		--accent: #7fe0e0;
-		--accent-soft: #0f2a2a;
-		--accent-contrast: #000000;
-	}
-}
-:root[data-contrast='high'][data-theme='dark'] {
+@mixin high-contrast-dark-vars {
 	--bg-page: #000000;
 	--bg-surface: #000000;
 	--bg-surface-alt: #141414;
 	--bg-elevated: #000000;
 	--bg-menu: #000000;
-	--border: #ffffff;
+	--border-color: #ffffff;
 	--text-primary: #ffffff;
 	--text-secondary: #e6e6e6;
 	--accent: #7fe0e0;
 	--accent-soft: #0f2a2a;
 	--accent-contrast: #000000;
+	--stage: #cbbff8; // 12.35:1 on black
+	--rating: #7fe0e0; // = the HC accent
+	--hero-wash: transparent;
+	// Light-on-black, each ≥ 7:1 on #000 and on its own translucent status background.
+	--status-success: #7df0a6;
+	--status-warning: #f0c060;
+	--status-danger: #ff9a9a;
+	--status-info: #9fb8ff;
+	--status-neutral: #e6e6e6;
+}
+:root[data-contrast='high'] {
+	@include high-contrast-light-vars;
+}
+@media (prefers-color-scheme: dark) {
+	:root[data-contrast='high']:not([data-theme='light']) {
+		@include high-contrast-dark-vars;
+	}
+}
+:root[data-contrast='high'][data-theme='dark'] {
+	@include high-contrast-dark-vars;
 }

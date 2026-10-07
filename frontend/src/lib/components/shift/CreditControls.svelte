@@ -87,14 +87,14 @@
 	}
 	.pill {
 		font-size: 0.72rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 999px;
 		padding: 0.05rem 0.45rem;
 		color: var(--text-secondary);
 	}
 	.pill.warn {
-		border-color: #ef6c00;
-		color: #ef6c00;
+		border-color: var(--status-warning);
+		color: var(--status-warning);
 	}
 	.credited,
 	.note-text {
@@ -112,11 +112,11 @@
 		padding: 0;
 		font: inherit;
 		font-size: 0.8rem;
-		color: var(--accent, #1565c0);
+		color: var(--accent);
 		cursor: pointer;
 		text-decoration: underline;
 	}
 	.link.danger {
-		color: var(--danger, #c62828);
+		color: var(--status-danger);
 	}
 </style>

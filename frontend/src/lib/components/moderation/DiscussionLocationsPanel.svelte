@@ -230,7 +230,7 @@
 		font-size: var(--font-size-sm);
 	}
 	.locations-error {
-		color: var(--danger, #b00020);
+		color: var(--status-danger);
 		font-size: var(--font-size-sm);
 	}
 	.locations-add {
@@ -255,7 +255,7 @@
 			padding: var(--space-1) var(--space-2);
 			border: 1px solid var(--border-color);
 			border-radius: var(--radius-sm);
-			background: var(--surface);
+			background: var(--bg-surface);
 			color: var(--text-primary);
 			font: inherit;
 		}
@@ -285,7 +285,7 @@
 		min-width: 0;
 	}
 	.location-row__key {
-		font-family: var(--font-mono, monospace);
+		font-family: var(--font-mono);
 		font-size: var(--font-size-sm);
 		overflow-wrap: anywhere;
 	}
@@ -319,7 +319,7 @@
 			padding: var(--space-1) var(--space-2);
 			border: 1px solid var(--border-color);
 			border-radius: var(--radius-sm);
-			background: var(--surface);
+			background: var(--bg-surface);
 			color: var(--text-primary);
 			font: inherit;
 		}

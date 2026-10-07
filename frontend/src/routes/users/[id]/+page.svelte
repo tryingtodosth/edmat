@@ -691,7 +691,7 @@
 		align-items: center;
 	}
 	.badge {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.neutral-pill;
 	}
 	.badge--neutral {
 		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));

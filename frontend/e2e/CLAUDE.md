@@ -146,6 +146,20 @@ test-runner suite.
     `npm run check:a11y -- --base http://localhost:<fe> --api http://127.0.0.1:<be>` (the bare `--`
     is what gets the flags past npm to the script).
 
+30. **Five scripts signing in as the same account in one hour burn the login throttle for all of
+    them.** `POST /api/auth/login/` is ~10/hour per IP (trap 1), and a session that runs several
+    screenshot or verification scripts — or five parallel implementers each verifying their own
+    package, which is how the 2026-10-07 colour pass found it — reaches it in minutes; every later
+    sign-in answers 429 with "available in 2800 seconds" and the scripts fail at their first
+    authenticated page. The DRF token is one per user and stable, so read it once
+    (`manage.py shell -c "from rest_framework.authtoken.models import Token; from
+django.contrib.auth import get_user_model; print(Token.objects.get(user=get_user_model()
+.objects.get(email__iexact='kasia@edmat.example')).key)"`) and pass it as `E2E_TOKEN` to a
+    script that accepts one (`colour-screens.mjs` does) or set `localStorage['edmat-auth-token']`
+    in `addInitScript` before the first navigation — the app restores a session from exactly that
+    key. Clearing the throttle counters is `manage.py shell -c "from django.core.cache import
+cache; cache.clear()"`, through the API and never by deleting `cachedata/` (trap 28).
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

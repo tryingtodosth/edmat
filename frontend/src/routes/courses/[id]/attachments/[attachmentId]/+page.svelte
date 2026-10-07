@@ -235,7 +235,7 @@
 		font-size: var(--font-size-sm);
 	}
 	.error {
-		color: var(--danger, crimson);
+		color: var(--status-danger);
 	}
 	.download {
 		display: inline-block;

@@ -182,7 +182,10 @@
 		{:else}
 			<ul class="list">
 				{#each needs as need (need.id)}
-					<li class="row">
+					<li
+						class="row"
+						class:row--over={need.status === 'cancelled' || need.status === 'fulfilled'}
+					>
 						<a class="title" href={resolve('/needs/[id]', { id: need.id })}>{need.title}</a>
 						<span class="kind">{NEED_KIND_LABELS[need.kind]()}</span>
 						<span class="pill pill--{need.status}">{NEED_STATUS_LABELS[need.status]()}</span>
@@ -200,9 +203,13 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.needs-panel {
+		@include mix.card-surface;
 		display: grid;
 		gap: var(--space-3, 0.75rem);
+		padding: var(--space-3);
 	}
 	.head {
 		display: flex;
@@ -213,13 +220,16 @@
 	}
 	.head h2 {
 		margin: 0;
-		font-size: 1.1rem;
+		font-size: var(--font-size-sm);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-secondary);
 	}
 	button {
 		min-height: 40px;
 		padding: 0 0.8rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -227,9 +237,7 @@
 		cursor: pointer;
 	}
 	.primary {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		@include mix.button-primary;
 	}
 	.status {
 		color: var(--text-secondary);
@@ -238,7 +246,7 @@
 	.add-form {
 		display: grid;
 		gap: 0.6rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 1rem;
 		background: var(--bg-surface);
@@ -256,7 +264,7 @@
 	textarea {
 		font: inherit;
 		padding: 0.4rem 0.5rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 6px;
 		background: var(--bg-surface);
 		color: var(--text-primary);
@@ -292,11 +300,15 @@
 		gap: 0.5rem;
 		flex-wrap: wrap;
 		padding: 0.5rem 0.7rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 	}
 	.title {
 		font-weight: 600;
+	}
+	.row--over .title {
+		color: var(--text-secondary);
+		font-weight: 500;
 	}
 	.kind,
 	.count {
@@ -307,23 +319,23 @@
 		font-size: 0.75rem;
 		padding: 0.1rem 0.5rem;
 		border-radius: 999px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 	}
+	// The call for help is open to anyone — the info pair (§1: an open question for the reader).
 	.pill--open {
-		background: var(--status-success-bg);
-		color: var(--status-success);
+		@include mix.status-pill(var(--status-info), var(--status-info-bg));
 		border-color: transparent;
 	}
 	.pill--in_progress {
-		background: var(--status-warning-bg);
-		color: var(--status-warning);
+		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
 		border-color: transparent;
 	}
 	.pill--fulfilled {
-		background: var(--status-info-bg, var(--bg-surface));
-		color: var(--text-secondary);
+		@include mix.status-pill(var(--status-success), var(--status-success-bg));
+		border-color: transparent;
 	}
 	.pill--cancelled {
-		opacity: 0.7;
+		@include mix.status-pill(var(--status-neutral), var(--status-neutral-bg));
+		border-color: transparent;
 	}
 </style>

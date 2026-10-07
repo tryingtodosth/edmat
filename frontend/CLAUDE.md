@@ -153,7 +153,33 @@ purpose — flagged in both files). Feature-gated nav/menu items are single-sour
 rendered into both desktop popovers and the phone drawer, so a FeatureFlag can't hide a link in
 one and leave it in the other. Killing a feature removes LINKS as well as pages (`FeatureGate`).
 Theming: token bridge (`_tokens.scss` → `_theme.scss` → CSS custom properties, `data-theme`
-swap, no-flash inline script in `app.html`). `adapter-static` SPA fallback is a deliberate
+swap, no-flash inline script in `app.html`). **Four mixins hold the theme values** — `light-theme-vars`,
+`dark-theme-vars`, `high-contrast-light-vars`, `high-contrast-dark-vars` — so a new token is added in
+exactly four places and nowhere else; the high-contrast blocks were hand-copied until 2026-10-07 and
+the dark one had inherited the LIGHT block's darkened status hues (≈2.3:1 on black) for months. **An
+undefined custom property does not "fall back to nothing": it drops the whole declaration** —
+`border: 1px solid var(--border)` with `--border` undefined draws NO border — and ~130 such reads
+(`--border`, `--surface`, `--text-on-accent`, `--danger`, `--font-size-md`, the whole `--color-*`
+family in the polls components) rendered as missing borders, transparent panels and white-on-light-teal
+text for months because nothing checks it. Before calling a style done: `grep -rhoE 'var\(--[a-z0-9-]+'
+src | sort -u` against the names `_theme.scss` defines. The real names are `--bg-page/-surface/
+-surface-alt/-elevated/-menu`, `--border-color`, `--text-primary/-secondary`, `--accent/-soft/
+-contrast`, `--status-{success,danger,warning,info,neutral}` and their `-bg` tints, `--stage`,
+`--rating`, `--shadow-popover/-modal`, `--backdrop`, `--space-*`, `--radius-*`, `--font-size-*`,
+`--font-mono`, `--z-*`. **Colour vocabulary (HISTORY.md §17BV, the 2026-10-07 colour pass):** the
+accent means interactive, selected/current, and progress — nothing else; `--stage` (violet) is the
+one reveal hue of the learning flow and may be read only by `routes/exercises/[id]`,
+`SolutionEntrySection` and the flashcard review page, never as a background; `--rating` is a named
+alias of the accent for filled stars (`StarRating`, `LessonFeedback` only). The five status pairs
+mean: info = an open question for the reader (counts, open polls/needs, review), success = done/
+verified/ON, warning = near/stuck/short/drifted, danger = overdue/wrong/auto-hidden, neutral =
+closed/over/a fact. `_mixins.scss` carries the six shapes — `pending-pill` (neutral + dashed, "not
+settled"), `neutral-pill` (a fact), `selected-soft` (the ON state: tint + accent text + 1px accent
+border — the border is load-bearing in dark mode), `count-badge` (info fill, contrast digits),
+`progress-track`/`progress-fill` (accent fill, never success) — use them rather than re-typing the
+pair; `status-pill(var(--accent), var(--accent-soft))` must have zero readers and a filled accent box
+is a command (`button-primary`, the brand tile), never a selection. Never opacity on content: dim a
+closed row's title to `--text-secondary`. `adapter-static` SPA fallback is a deliberate
 non-change — nothing needs SSR.
 
 ## First paint

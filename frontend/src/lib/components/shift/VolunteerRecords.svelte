@@ -61,7 +61,7 @@
 
 <style lang="scss">
 	.records {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.9rem 1rem;
 		margin-top: 1rem;
@@ -75,7 +75,7 @@
 		margin: 0.5rem 0 0;
 	}
 	li {
-		border-top: 1px solid var(--border);
+		border-top: 1px solid var(--border-color);
 		padding: 0.5rem 0;
 	}
 	.hint,
@@ -85,7 +85,7 @@
 		color: var(--text-secondary);
 	}
 	.error {
-		color: var(--danger, #c62828);
+		color: var(--status-danger);
 		font-size: 0.85rem;
 	}
 </style>

@@ -192,7 +192,9 @@
 								{booking.venue.name}
 							</a>
 							<strong>{booking.room.name}</strong>
-							<span class="pill">{ROOM_BOOKING_STATUS_LABELS[booking.status]()}</span>
+							<span class="pill pill--{booking.status}"
+								>{ROOM_BOOKING_STATUS_LABELS[booking.status]()}</span
+							>
 						</div>
 						<div class="booking__when">
 							{m.venues_bookingFor()}
@@ -296,8 +298,10 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.venue-panel {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 0.9rem 1rem;
 		margin-top: 1rem;
@@ -322,11 +326,11 @@
 		gap: 0.6rem;
 	}
 	.booking {
-		border-left: 3px solid var(--border);
+		border-left: 3px solid var(--border-color);
 		padding-left: 0.6rem;
 	}
 	.booking--approved {
-		border-left-color: var(--status-success, var(--accent));
+		border-left-color: var(--status-success);
 	}
 	.booking--rejected {
 		border-left-color: var(--status-danger);
@@ -348,12 +352,18 @@
 	.who {
 		color: var(--text-secondary);
 	}
+	// A booking's status in the house voices (2026-10-07 colour pass): waiting for the building's
+	// verdict = the pending pill, confirmed = success, everything else neutral.
 	.pill {
-		font-size: 0.75rem;
-		padding: 0.1rem 0.5rem;
-		border-radius: 999px;
-		background: var(--accent-soft);
-		color: var(--accent);
+		@include mix.neutral-pill;
+	}
+	.pill--pending,
+	.pill--requested {
+		@include mix.pending-pill;
+	}
+	.pill--confirmed,
+	.pill--approved {
+		@include mix.status-pill(var(--status-success), var(--status-success-bg));
 	}
 	.ask {
 		display: grid;

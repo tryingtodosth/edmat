@@ -237,7 +237,7 @@
 		text-decoration: underline;
 	}
 	.error {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 		font-size: var(--font-size-sm);
 	}
 	.actions {

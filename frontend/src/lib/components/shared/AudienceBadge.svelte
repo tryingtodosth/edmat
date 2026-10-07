@@ -13,7 +13,6 @@
 	.badge {
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
 	}
-	.badge--all {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
-	}
+	/* `.badge--all` used to be the accent pair; "for everyone" is a fact like the other six
+	   audiences (2026-10-07 colour pass), so the class stays in the markup and draws nothing. */
 </style>

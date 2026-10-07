@@ -65,6 +65,6 @@
 	img {
 		max-width: 100%;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 	}
 </style>

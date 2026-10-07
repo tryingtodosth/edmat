@@ -440,7 +440,9 @@
 			/>
 
 			{#if exercise.answer}
-				<section class="content-section">
+				<section class="content-section content-section--stage">
+					<h2>{m.exercise_answer()}</h2>
+					<!-- "Odpowiedź" -->
 					<button type="button" class="reveal-toggle" onclick={() => (showAnswer = !showAnswer)}>
 						{showAnswer ? m.exercise_hideAnswer() : m.exercise_showAnswer()}
 					</button>
@@ -713,6 +715,19 @@
 		align-self: flex-start;
 		font-size: var(--font-size-xs);
 		padding: var(--space-1) var(--space-3);
+	}
+	// The learning flow's reveal layer. Statement is the paper the maths sits on and stays unmarked;
+	// Source and Discussion are unmarked too, which is what makes the rule read as "stage" and not as
+	// decoration. Background stays --bg-surface: never a tint behind MathContent.
+	.content-section--stage {
+		border-left: 3px solid var(--stage);
+		h2 {
+			color: var(--stage);
+		}
+		.reveal-toggle {
+			border-color: var(--stage);
+			color: var(--stage);
+		}
 	}
 	.source-line {
 		font-size: var(--font-size-sm);

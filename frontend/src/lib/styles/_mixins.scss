@@ -81,3 +81,64 @@
 		background: var(--bg-surface-alt);
 	}
 }
+
+// ---- 2026-10-07 colour pass: the six shapes that used to be re-typed per file ----
+
+// "Not settled yet, nothing is wrong": a submission, a proposal, a draft, an unlisted thing. The
+// neutral pair with a DASHED border in the same neutral — PendingBadge's voice, promoted. The dash
+// is what separates pending from closed, so it must clear 3:1: --status-neutral on --status-neutral-bg
+// is 5.87 light / 5.42 dark (a dash in --border-color measured 1.12 and was invisible).
+@mixin pending-pill {
+	@include status-pill(var(--status-neutral), var(--status-neutral-bg));
+	border: 1px dashed var(--status-neutral);
+	font-weight: 600;
+}
+
+// A fact in a pill (a kind, a type, a tag, a mode, a role): grey on the alt surface, 6.04 light /
+// 8.05 dark. The accent-on-accent-soft pill recipe means "selected" now and nothing else.
+@mixin neutral-pill {
+	@include status-pill(var(--text-secondary), var(--bg-surface-alt));
+}
+
+// The ON state of a toggle, chip, filter, segmented control or editor button. The border is
+// load-bearing: in the dark theme the tint is 1.65:1 against the surface and the border (8.25:1)
+// is what draws the state. A filled --accent + --accent-contrast box is reserved for button-primary
+// and the brand tile — a command, not a selection.
+@mixin selected-soft {
+	background: var(--accent-soft);
+	color: var(--accent);
+	border: 1px solid var(--accent);
+}
+
+// A number of things waiting on the reader (queue, unread, requests). One shape, one colour: the
+// info pair's foreground as a fill with --accent-contrast digits (6.28 light / 7.02 dark / 9.56 /
+// 10.77 HC) — never red (danger means wrong) and never a literal white (2.9:1 on the dark fill).
+@mixin count-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 16px;
+	height: 16px;
+	padding: 0 4px;
+	border-radius: 999px;
+	background: var(--status-info);
+	color: var(--accent-contrast);
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1;
+	white-space: nowrap;
+}
+
+// A fraction done. Fill is the accent (progress is one of its three meanings); success is for a
+// completed STATE, never for a fraction.
+@mixin progress-track {
+	height: 6px;
+	border-radius: 999px;
+	background: var(--bg-surface-alt);
+	overflow: hidden;
+}
+@mixin progress-fill {
+	height: 100%;
+	border-radius: inherit;
+	background: var(--accent);
+}

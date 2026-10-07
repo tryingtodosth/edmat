@@ -302,7 +302,7 @@
 		color: var(--border-color);
 
 		&--on {
-			color: var(--status-warning);
+			color: var(--rating);
 		}
 	}
 
@@ -320,7 +320,7 @@
 	}
 
 	.reviews__stars {
-		color: var(--status-warning);
+		color: var(--rating);
 		margin-right: var(--space-2);
 	}
 

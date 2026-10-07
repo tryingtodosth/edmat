@@ -176,10 +176,10 @@
 		margin-bottom: 1rem;
 	}
 	.sheet {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 10px;
 		padding: 1.6rem;
-		background: var(--surface, transparent);
+		background: var(--bg-surface);
 	}
 	.sheet--revoked {
 		opacity: 0.75;
@@ -230,7 +230,7 @@
 	}
 	.error,
 	.revoked {
-		color: var(--status-danger, #c62828);
+		color: var(--status-danger);
 	}
 
 	// The print sheet: the browser makes the PDF, so no server-side renderer and no new binary

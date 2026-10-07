@@ -294,7 +294,7 @@
 	.gallery__error {
 		margin: 0;
 		font-size: var(--font-size-sm);
-		color: var(--status-danger-text, #b3261e);
+		color: var(--status-danger);
 	}
 	.gallery__grid {
 		list-style: none;
@@ -365,7 +365,7 @@
 			}
 		}
 		.danger {
-			color: var(--status-danger-text, #b3261e);
+			color: var(--status-danger);
 		}
 	}
 	.gallery__add-label {

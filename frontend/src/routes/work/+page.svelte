@@ -114,7 +114,7 @@
 							<ul class="items">
 								{#each section.items as item (item.url)}
 									<li class="work-item">
-										<div class="item-card">
+										<div class="item-card" data-urgency={item.urgency}>
 											<button
 												type="button"
 												class="item-button"
@@ -263,15 +263,32 @@
 	// The card is the visual unit (border, radius, background); the button inside it is
 	// borderless and transparent, so it and the sibling `.item-node` link below it read as one box
 	// without the button having to contain another interactive element (see the template comment).
+	// The urgency dot, this 3px rule and the due-date chip are the only colour on /work: they
+	// appear only when something is near (warning) or past (danger) due.
 	.item-card {
 		border: 1px solid var(--border-color);
+		border-left: 3px solid transparent;
 		border-radius: var(--radius-sm);
 		background: var(--bg-surface-alt);
 		overflow: hidden; // clips the button's own radius/hover fill to the card's shape
 		transition: border-color 0.2s ease;
 
+		&[data-urgency='2'] {
+			border-left-color: var(--status-warning);
+		}
+		&[data-urgency='3'] {
+			border-left-color: var(--status-danger);
+		}
+
+		// Hover must not paint over the urgency rule on the left: three sides, and the fourth only
+		// when there is no urgency to keep.
 		&:has(.item-button:hover) {
-			border-color: var(--accent);
+			border-top-color: var(--accent);
+			border-right-color: var(--accent);
+			border-bottom-color: var(--accent);
+		}
+		&:not([data-urgency='2']):not([data-urgency='3']):has(.item-button:hover) {
+			border-left-color: var(--accent);
 		}
 	}
 
@@ -319,11 +336,36 @@
 	.item-status {
 		display: inline-flex;
 		align-items: center;
+		font-size: var(--font-size-xs);
+	}
+	// The due date keeps the outlined chip; the kind is plain text (it names a KIND, not a state)
+	// and the status is a neutral fact pill.
+	.item-due-date {
 		padding: 2px var(--space-2);
 		background: var(--bg-surface);
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-sm);
-		font-size: var(--font-size-xs);
+	}
+	.item-kind {
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--text-secondary);
+	}
+	.item-card[data-urgency='2'] .item-due-date {
+		color: var(--status-warning);
+		border-color: currentColor;
+	}
+	.item-card[data-urgency='3'] .item-due-date {
+		color: var(--status-danger);
+		border-color: currentColor;
+	}
+	.item-status {
+		@include mix.neutral-pill;
+		// The card itself sits on --bg-surface-alt, so the pill needs the plain surface and an
+		// edge to exist at all.
+		background: var(--bg-surface);
+		border: 1px solid var(--border-color);
 	}
 
 	.item-node {

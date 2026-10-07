@@ -8,6 +8,7 @@
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
 	import NotificationCard from '$lib/components/notification/NotificationCard.svelte';
+	import BellIcon from './BellIcon.svelte';
 
 	let open = $state(false);
 	let container: HTMLDivElement | undefined = $state();
@@ -59,7 +60,7 @@
 		aria-expanded={open}
 		aria-label={m.notification_inboxHeading()}
 	>
-		🔔
+		<BellIcon />
 		{#if unread > 0}
 			<span class="badge">{unread}</span>
 		{/if}
@@ -102,6 +103,8 @@
 </div>
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.notification-bell {
 		position: relative;
 	}
@@ -125,21 +128,14 @@
 			color: var(--text-primary);
 		}
 	}
+	// The unread count: the one count-badge shape, in the info pair — a number waiting on the
+	// reader, not a danger (danger means wrong). It replaced a danger fill with a literal white
+	// that measured 2.78:1 in the dark theme.
 	.badge {
+		@include mix.count-badge;
 		position: absolute;
 		top: -4px;
 		right: -6px;
-		min-width: 16px;
-		height: 16px;
-		padding: 0 3px;
-		border-radius: 999px;
-		background: var(--status-danger);
-		color: white;
-		font-size: 10px;
-		font-weight: 700;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 	}
 	.menu {
 		position: absolute;

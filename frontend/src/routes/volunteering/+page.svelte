@@ -262,7 +262,7 @@
 		align-items: baseline;
 	}
 	.pill {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.neutral-pill;
 		flex-shrink: 0;
 	}
 	.who {

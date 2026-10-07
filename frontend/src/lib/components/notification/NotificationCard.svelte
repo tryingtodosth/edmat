@@ -9,6 +9,7 @@
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { formatRelativeDate } from '$lib/utils/format';
 	import { notificationStore } from '$lib/state/notifications.svelte';
+	import { NOTIFICATION_NEEDS_ACTION } from '$lib/utils/labels';
 
 	let { notification }: { notification: Notification } = $props();
 
@@ -312,6 +313,7 @@
 	{href}
 	class="notification-card"
 	class:notification-card--unread={!notification.isRead}
+	class:notification-card--action={NOTIFICATION_NEEDS_ACTION.has(notification.type)}
 	role={href ? undefined : 'button'}
 	tabindex={href ? undefined : 0}
 	onclick={handleClick}
@@ -335,11 +337,18 @@
 		gap: var(--space-2);
 		padding: var(--space-2) var(--space-3);
 		border-radius: var(--radius-sm);
+		border-left: 3px solid transparent;
 		color: var(--text-primary);
 		cursor: pointer;
 		&:hover {
 			background: var(--bg-surface-alt);
 		}
+	}
+	// The one coloured rule in the feed: this row asks the reader to decide something (the info
+	// pair — an open question for the person looking). Decided / approved / rejected rows stay
+	// uncoloured; the unread dot below stays the accent. No per-type palette.
+	.notification-card--action {
+		border-left-color: var(--status-info);
 	}
 	.notification-card__dot {
 		width: 8px;

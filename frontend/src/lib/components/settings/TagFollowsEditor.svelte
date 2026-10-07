@@ -108,7 +108,7 @@
 		}
 	}
 	.follow-row__tag {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.neutral-pill;
 		font-weight: 600;
 	}
 	.follow-row__notify {

@@ -1,38 +1,40 @@
 <script lang="ts">
 	/**
-	 * A visual indicator of item urgency (0-3).
-	 * Used on the work dashboard.
+	 * A visual indicator of item urgency (0-3), used on the work dashboard.
+	 *
+	 * Colour appears only when something is near or past due (urgency 0 is a transparent box, so
+	 * rows stay aligned), and the word is always there for a screen reader — the dot used to be
+	 * hue-only with an English `title` on a div (house rule 1 and WCAG 1.4.1 both).
 	 */
+	import { m } from '$lib/paraglide/messages.js';
 
-	const { urgency = 0 } = $props<{ urgency?: 0 | 1 | 2 | 3 }>();
+	let { urgency = 0 }: { urgency?: 0 | 1 | 2 | 3 } = $props();
 
-	function getUrgencyTitle(u: 0 | 1 | 2 | 3): string {
-		switch (u) {
-			case 0:
-				return 'No urgency';
-			case 1:
-				return 'This month';
-			case 2:
-				return 'This week';
-			case 3:
-				return 'Urgent — overdue or today';
-		}
-	}
+	const LABELS = {
+		0: () => m.work_urgency_none(), // "Not urgent"
+		1: () => m.work_urgency_month(), // "This month"
+		2: () => m.work_urgency_week(), // "This week"
+		3: () => m.work_urgency_urgent() // "Urgent — due today or overdue"
+	} as const;
 
-	function getUrgencyClass(u: 0 | 1 | 2 | 3): string {
-		return {
-			0: 'urgency-none',
-			1: 'urgency-month',
-			2: 'urgency-week',
-			3: 'urgency-urgent'
-		}[u];
-	}
+	const CLASSES = {
+		0: 'urgency-none',
+		1: 'urgency-month',
+		2: 'urgency-week',
+		3: 'urgency-urgent'
+	} as const;
 </script>
 
-<div class={`urgency-dot ${getUrgencyClass(urgency)}`} title={getUrgencyTitle(urgency)}></div>
+<span class={`urgency-dot ${CLASSES[urgency]}`}>
+	<span class="visually-hidden">{LABELS[urgency]()}</span>
+</span>
 
-<style>
+<style lang="scss">
+	@use '../styles/mixins' as mix;
+
 	.urgency-dot {
+		position: relative;
+		display: inline-block;
 		width: 12px;
 		height: 12px;
 		border-radius: 50%;
@@ -40,11 +42,11 @@
 	}
 
 	.urgency-none {
-		background-color: var(--status-neutral);
+		background-color: transparent;
 	}
 
 	.urgency-month {
-		background-color: var(--status-info);
+		background-color: var(--status-neutral);
 	}
 
 	.urgency-week {
@@ -53,5 +55,9 @@
 
 	.urgency-urgent {
 		background-color: var(--status-danger);
+	}
+
+	.visually-hidden {
+		@include mix.visually-hidden;
 	}
 </style>

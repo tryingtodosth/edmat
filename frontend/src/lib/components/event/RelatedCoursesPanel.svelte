@@ -110,7 +110,7 @@
 	}
 	h2 {
 		margin: 0 0 var(--space-1);
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
 	.behind {
 		margin: 0 0 var(--space-1);

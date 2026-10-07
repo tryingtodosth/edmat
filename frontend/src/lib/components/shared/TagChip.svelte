@@ -132,7 +132,7 @@
 		aria-expanded={open}
 		title={tag}
 	>
-		#{tag}
+		<span class="tag-chip__label">#{tag}</span>
 	</button>
 
 	{#if open}
@@ -229,18 +229,43 @@
 	}
 	.tag-chip__trigger {
 		@include mix.focus-ring;
-		@include mix.status-pill(var(--accent), var(--accent-soft));
-		border: none;
+		@include mix.neutral-pill;
+		position: relative;
+		// A tag is navigation to a search, not the thing itself: grey at rest, accent when reached
+		// for (2026-10-07 colour pass — the accent-on-accent-soft pill now means "selected").
+		// 28px beats global.scss's `:where(main) button { min-height: 44px }`, which made this the
+		// tallest, loudest element on a concept card…
+		min-height: 28px;
+		padding: 2px var(--space-2);
+		border: 1px solid transparent;
 		cursor: pointer;
 		font: inherit;
-		// Unlike the other status-pill consumers (type/difficulty/source badges — a short, fixed
-		// vocabulary), a tag is free-form, uploader-chosen text with no length cap — the real corpus
-		// has tags 40+ characters long. The mixin's own `white-space: nowrap` is right for those
-		// short badges but lets a long tag stretch the pill arbitrarily wide instead; truncate it here
-		// instead, with the full label still available via `title`.
+		font-size: var(--font-size-xs);
+		// …and this keeps the 44px touch promise (AUDIENCE-BRIEF §8) without the 44px box. It
+		// overlaps the next row of tags by up to 8px; the later chip wins a tap in the gap. A trade.
+		&::before {
+			content: '';
+			position: absolute;
+			inset: -8px 0;
+		}
+		&:hover,
+		&:focus-visible {
+			color: var(--accent);
+			border-color: var(--accent);
+		}
+	}
+	// Unlike the other status-pill consumers (type/difficulty/source badges — a short, fixed
+	// vocabulary), a tag is free-form, uploader-chosen text with no length cap — the real corpus
+	// has tags 40+ characters long. The mixin's own `white-space: nowrap` is right for those
+	// short badges but lets a long tag stretch the pill arbitrarily wide instead; truncate it here
+	// instead, with the full label still available via `title`. On an inner span, so the trigger
+	// itself can keep `overflow: visible` for the hit-area extension above.
+	.tag-chip__label {
+		display: block;
 		max-width: 160px;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.tag-chip__menu {
 		position: absolute;

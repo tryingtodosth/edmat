@@ -55,6 +55,7 @@
 	import LocaleSwitcher from './LocaleSwitcher.svelte';
 	import RandomExerciseButton from './RandomExerciseButton.svelte';
 	import NotificationBell from './NotificationBell.svelte';
+	import BellIcon from './BellIcon.svelte';
 
 	// `|| authStore.isModerator` everywhere, mirroring `FeatureGate` and the backend's own
 	// `feature_gate`: a moderator can still reach a killed feature, both to check what is live and to
@@ -217,6 +218,36 @@
 		});
 	});
 
+	// Which browse link is "where you are". A prefix table, not a route match, so the localized
+	// addresses (/korki, /materialy) and the content routes a section owns all count. Every new
+	// route family must be added here or it silently shows no current section. The personal
+	// pages (/flashcards, /my-set, /sets) are deliberately absent: a reader on "Moje talie" is not
+	// in "Zadania", and no current section is the honest answer there.
+	const SECTION_PREFIXES: Record<
+		'disciplines' | 'needs' | 'services' | 'events' | 'about',
+		string[]
+	> = {
+		disciplines: [
+			'/disciplines',
+			'/branches',
+			'/exercises',
+			'/materialy',
+			'/materials',
+			'/concepts',
+			'/articles'
+		],
+		needs: ['/needs', '/volunteering'],
+		services: ['/korki', '/tutoring', '/bookings'],
+		events: ['/events'],
+		about: ['/about', '/legal', '/privacy', '/levels']
+	};
+	const currentSection = $derived.by(() => {
+		const p = page.url.pathname;
+		for (const [key, prefixes] of Object.entries(SECTION_PREFIXES))
+			if (prefixes.some((pre) => p === pre || p.startsWith(pre + '/'))) return key;
+		return null;
+	});
+
 	// ---- the focus trap --------------------------------------------------------------------------
 	// Without this, tabbing past the last item in an open drawer walks into the page behind it: the
 	// links there are still focusable, so a keyboard user ends up driving a page they cannot see while
@@ -338,6 +369,7 @@
 	     second surface that may disagree with it. -->
 	<a
 		class="nav-link nav-link--disciplines"
+		aria-current={currentSection === 'disciplines' ? 'page' : undefined}
 		href={resolve('/disciplines')}
 		aria-label={m.nav_browse()}
 		title={m.nav_browse()}
@@ -354,6 +386,7 @@
 	{#if canNeeds}
 		<a
 			class="nav-link nav-link--needs"
+			aria-current={currentSection === 'needs' ? 'page' : undefined}
 			href={resolve('/needs')}
 			aria-label={m.nav_needs()}
 			title={m.nav_needs()}
@@ -367,6 +400,7 @@
 		<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address; the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. The href is inside a multi-line tag, where a next-line comment cannot be placed. -->
 		<a
 			class="nav-link nav-link--services"
+			aria-current={currentSection === 'services' ? 'page' : undefined}
 			href={localizedPath(resolve('/tutoring'))}
 			aria-label={m.nav_services()}
 			title={m.nav_services()}
@@ -379,6 +413,7 @@
 	{/if}
 	<a
 		class="nav-link nav-link--about"
+		aria-current={currentSection === 'about' ? 'page' : undefined}
 		href={resolve('/about')}
 		aria-label={m.nav_about()}
 		title={m.nav_about()}
@@ -396,6 +431,7 @@
 	{#if canEvents}
 		<a
 			class="nav-link nav-link--events"
+			aria-current={currentSection === 'events' ? 'page' : undefined}
 			href={resolve('/events')}
 			aria-label={m.nav_events()}
 			title={m.nav_events()}
@@ -868,7 +904,7 @@
 				<a class="icon-button" href={resolve('/my-set')} aria-label={m.nav_mySet()}>
 					{@render mySetIcon()}
 					{#if guestSetStore.count > 0}
-						<span class="badge badge--floating">{guestSetStore.count}</span>
+						<span class="badge badge--floating badge--count">{guestSetStore.count}</span>
 					{/if}
 				</a>
 
@@ -1029,7 +1065,7 @@
 	<div class="drawer__section drawer__section--you">
 		{#if authStore.isAuthenticated}
 			<a class="drawer__link" href={resolve('/notifications')} onclick={closeOnNavigate}>
-				<span aria-hidden="true">🔔</span>
+				<BellIcon />
 				<span>{m.notification_inboxHeading()}</span>
 				{#if notificationStore.unreadCount > 0}
 					<span class="badge">{notificationStore.unreadCount}</span>
@@ -1056,13 +1092,13 @@
 			{@render mySetIcon()}
 			<span>{m.nav_mySet()}</span>
 			{#if guestSetStore.count > 0}
-				<span class="badge">{guestSetStore.count}</span>
+				<span class="badge badge--count">{guestSetStore.count}</span>
 			{/if}
 		</a>
 
 		{#if authStore.canModerate}
 			<a class="drawer__link" href={resolve('/moderation')} onclick={closeOnNavigate}>
-				<span aria-hidden="true">⚖</span>
+				{@render shieldIcon()}
 				<span>{m.nav_moderation()}</span>
 				{#if moderationQueueStore.total > 0}
 					<!-- How many decisions are actually waiting. A moderation link with no number says
@@ -1147,7 +1183,10 @@
 		--hdr-pad-y: clamp(6px, 1.25vw - 3px, 12px); // 12px @1200 → 6px @720
 		--hdr-pad-x: clamp(8px, 1.667vw - 4px, 16px); // 16px → 8px
 		--hdr-gap: clamp(6px, 1.25vw - 3px, 12px); // 12px → 6px
-		--hdr-gap-sm: clamp(4px, 0.833vw - 2px, 8px); // 8px → 4px
+		// 7px, not 8: the brand tile (2026-10-07 colour pass) is 11px wider than the bare glyph was,
+		// and the signed-in staff bar had no slack at 1100px — this gap, the brand gap and the tile's
+		// own size give the pixels back, each change below the eye's threshold.
+		--hdr-gap-sm: clamp(4px, 0.75vw - 2px, 7px); // 7px → 4px
 		--hdr-border: clamp(0.5px, 0.10417vw - 0.25px, 1px); // 1px → 0.5px
 
 		border-bottom-width: var(--hdr-border);
@@ -1169,20 +1208,30 @@
 	.brand {
 		display: inline-flex;
 		align-items: center;
-		gap: var(--space-2);
+		gap: 6px; // see --hdr-gap-sm above
 		font-weight: 700;
 		font-size: var(--font-size-lg);
 		color: var(--text-primary);
 	}
+	// Drawn like static/favicon.svg — one brand in the tab and in the bar. The one place in the
+	// chrome where the accent is a filled surface; everything else in the bar is currentColor.
 	.brand__mark {
-		color: var(--accent);
+		display: inline-grid;
+		place-items: center;
+		width: 20px;
+		height: 20px;
+		border-radius: var(--radius-sm);
+		background: var(--accent);
+		color: var(--accent-contrast);
+		font-size: 13px;
+		line-height: 1;
 	}
 	// Under the wordmark, over the bar's bottom padding — the row never grows for it. The padding
 	// is the hit area: the label is 11px, the target is ~19px tall and wider than the text by 12px.
 	.brand__report {
 		@include mix.focus-ring;
 		position: absolute;
-		left: calc(var(--hdr-pad-x) + 11px); // under the wordmark, not the ∫ (owner-tuned)
+		left: calc(var(--hdr-pad-x) + 26px); // under the wordmark, not the ∫ tile (20px + 6px gap)
 		top: calc(50% + 0.65em);
 		z-index: 1;
 		padding: 4px 6px;
@@ -1220,6 +1269,10 @@
 		}
 		> :global(a) {
 			white-space: nowrap;
+			// A link never shrinks below its content: the nav scrolls instead, so an icon can never be
+			// cut mid-glyph (which is what the brand tile's extra width did at 1280 before the gaps
+			// above were trimmed).
+			flex: none;
 		}
 		a {
 			color: var(--text-secondary);
@@ -1233,6 +1286,13 @@
 			}
 		}
 	}
+	// "You are here": the accent as a current/selected mark, one of its three meanings. A box-shadow,
+	// not a border, so the bar's height does not move; at an icon-only stage the line sits under the
+	// icon, so both collapse states read.
+	.site-nav .nav-link[aria-current='page'] {
+		color: var(--text-primary);
+		box-shadow: inset 0 -2px 0 var(--accent);
+	}
 	// Each browse link carries both forms; the stage rules below swap text for icon IN PLACE, so a
 	// collapsed link keeps its position and order in the nav (Materials stays between Disciplines
 	// and Courses). The base rule hides every icon, which is also what keeps the drawer — where the
@@ -1242,15 +1302,18 @@
 		align-items: center;
 	}
 	.badge {
-		@include mix.status-pill(var(--accent-contrast), var(--accent));
-		padding: 0 6px;
-		font-size: 10px;
+		@include mix.count-badge;
 	}
 	.badge--floating {
 		position: absolute;
 		top: -2px;
 		right: -4px;
-		line-height: 1.3;
+	}
+	// A number of things I saved is not a number waiting on me: the saved set's count is a plain
+	// neutral, so the info fill means "waiting for you" and nothing else.
+	.badge--count {
+		background: var(--status-neutral-bg);
+		color: var(--text-primary);
 	}
 	/* The personal group — messages, notifications, who you are. The whole actions block is pushed
 	   to the right-hand end by its own `margin-left: auto`; inside it, plain gaps and nothing else
@@ -1540,7 +1603,7 @@
 			border-radius: var(--radius-sm);
 			background: none;
 			color: var(--text-primary);
-			font-size: var(--font-size-md);
+			font-size: var(--font-size-base);
 			line-height: 1;
 			cursor: pointer;
 		}
@@ -1552,7 +1615,7 @@
 			position: fixed;
 			inset: 0;
 			z-index: var(--z-modal-scrim);
-			background: rgb(0 0 0 / 45%);
+			background: var(--backdrop);
 		}
 
 		.drawer {
@@ -1635,7 +1698,7 @@
 			border-radius: var(--radius-sm);
 			background: var(--bg-surface);
 			color: var(--text-primary);
-			font-size: var(--font-size-md);
+			font-size: var(--font-size-base);
 			line-height: 1;
 			cursor: pointer;
 			box-shadow: var(--shadow-modal);
@@ -1680,7 +1743,7 @@
 			// 44px of target, which is the size a thumb actually hits.
 			min-height: 44px;
 			padding: var(--space-2) 0;
-			font-size: var(--font-size-md);
+			font-size: var(--font-size-base);
 			text-align: left;
 			background: none;
 			border: none;
@@ -1689,6 +1752,12 @@
 			cursor: pointer;
 		}
 		.drawer__item--primary {
+			color: var(--accent);
+			font-weight: 600;
+		}
+		// The drawer's copy of the current section — the same aria-current the bar reads, since the
+		// snippet renders both, so the two surfaces cannot disagree about where you are.
+		.drawer__section > :global(a[aria-current='page']) {
 			color: var(--accent);
 			font-weight: 600;
 		}

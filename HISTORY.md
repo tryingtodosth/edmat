@@ -13798,3 +13798,212 @@ still there, on any day, at any hour.
   (`self.client.`, `APIClient()`, `Client()`). It is deliberately wider than the truth, which is the
   safe direction, but a class that reaches an endpoint through a module-level helper taking no client
   would still be missed. No instance of that exists today.
+
+## 17BV — The colour pass: colour that means something, and the colour that was missing by accident (2026-10-07, `ux/colour-pass`)
+
+The owner's ask, verbatim: *"improve interface: make it more colorful, but keep minimalistic and
+simple to not distract from what's most important: this is a website for ease of learning and
+controling what to focus on and what others should focus, therefore its ui and ux should meet that."*
+
+What the site was: one muted teal on near-white, five status pairs on pills, and nothing else. The
+exercise page was four identical white cards; the discipline hub, three; the hero a heading on the
+page background; the only saturated pixels on any page were three emoji in the header (a yellow bell,
+an orange sun, a die). It was clean and it was monochrome.
+
+### How it was done
+
+Three workflows, one after the other, each adversarial where it could be:
+
+1. **Six readers mapped every colour-bearing surface** (tokens and their drift; cards and lists by
+   kind; the learning flow; hard-coded literals; the chrome; state and priority signals), and a
+   critic listed what nobody had read. The map found the bugs in §"What was broken" below before
+   anybody had an opinion about colour.
+2. **Three designers, three judges, one synthesis.** The designers argued three theses — *colour is
+   wayfinding* (a hue per family of thing), *one warm second hue* (teal for doing, apricot for
+   people), *semantic restraint* (colour only for state and stage). Three judges scored each from a
+   lens — a learner and a teacher, accessibility with every pair re-measured, the engineer who ships
+   it — and all three chose restraint (39/40/42 of 50), with grafts: the hero wash and the fuller
+   header prefix table from the first, the count-badge shape and the `::before` hit area from the
+   second. Every objection was resolved in the synthesis, which wrote a spec precise enough for
+   parallel implementers: tokens with four values each (light, dark, high-contrast light and dark)
+   and a measured contrast table, a rule per surface, twelve decisions with reasons, six disjoint
+   work packages. `frontend/CLAUDE.md` §Theming now carries the vocabulary.
+3. **Package 1 by hand, packages 2–6 in parallel** on disjoint file sets in one checkout, each
+   implementer verifying its own pages in both themes with a screenshot sweep and reporting what it
+   saw and what it left open. The orchestrator took their left-opens that were in scope, ran the
+   checks once for everybody, and had the before/after pairs reviewed again.
+
+### What was broken, and is not any more
+
+Found by reading token *names*, not screens — nothing in the build checks them:
+
+- **An undefined custom property drops the whole declaration.** `border: 1px solid var(--border)`
+  with `--border` undefined draws *no* border. 128 such reads across 54 files — every task, needs,
+  event-ops, venue, editor and guardian panel — had rendered borderless for months; `--surface`
+  made panels transparent, `--font-size-md`/`--text-sm` inherited the parent size, `--space-8` left
+  three venue pages with no padding, and the whole `--color-*` family in the polls components (38
+  reads) resolved to nothing: polls had no border, no tint, and a vote button of white text on
+  nothing. Every one now reads the real token (`--border-color`, `--bg-surface`, `--bg-surface-alt`,
+  `--bg-elevated`, `--font-size-base`, `--font-size-sm`, `--space-6`, `--text-secondary`, `--accent`…),
+  88 files in one mechanical pass with the counts matching the census exactly.
+- **The fallbacks that painted were the real colour bugs.** `var(--text-on-accent, #fff)` on twenty
+  primary buttons and toggles was white on the dark theme's light teal — **1.97:1**; `var(--danger,
+  #b3261e)` and friends were a foreign Material red at 2.2–3.0:1 on the dark surface. All read
+  `--accent-contrast` / `--status-danger` now; 65 dead fallbacks on always-defined tokens were
+  dropped so a future reader cannot mistake them for the value.
+- **High contrast never hardened a border**: the three `[data-contrast='high']` blocks set
+  `--border`, which nothing reads. And the dark high-contrast block, hand-copied twice, never
+  overrode the status hues, so a dark high-contrast reader got the *light* block's darkened
+  success/warning/danger on black at **≈2.3:1**. The four theme blocks are four mixins now; dark HC
+  has its own light-on-black status set (10–15:1), both HC blocks override info and neutral.
+- Ten sites drew text on an accent or danger fill with `--bg-surface`/`--bg-page` instead of
+  `--accent-contrast` (right by coincidence in both themes); two more used a literal `white`.
+- `$light-status-warning` `#a15c00` → `#8a4f00`: the `.badge--waiting` bullet from the board
+  (4.65:1 → 5.88:1 on its own tint, every warning surface with it).
+- `/search` had no page container (its heading sat at x = 0 on a desktop); the moderation page
+  rendered `.error` and `.hint` with no rule; `--font-mono` is a real token now.
+
+### What colour means now (the spec's thesis, in short)
+
+Colour answers two questions a learner cannot answer from the words and the layout: **where am I in
+the learning flow**, and **what is in what state, and does it wait on me**. It never says *what kind*
+of thing something is (the kind word, the card's silhouette and the section heading do), and never
+*which discipline*. Concretely:
+
+- **`--stage`** (violet, `#634bb3` / `#bba3f2`, 6.6 / 7.4:1): the one reveal hue. On the exercise
+  page the hints, answer and solutions cards carry a 3px left rule, an uppercase heading in the hue
+  (the Answer card gained the heading it never had, `exercise_answer`) and a violet-outlined reveal
+  toggle; the statement, source and discussion cards stay unmarked, which is what makes the rule
+  read as *stage*. The flashcard back face's hint/answer/solution headings share it. Never a
+  background, never behind maths. A hint/answer/solution *trio* was designed and rejected: its
+  members were 1.02–1.05 apart in lightness (one hue to a red/green reader) and the solution member
+  sat 33° from danger on the page that shows "Trudne".
+- **The accent keeps three meanings and gains no fourth**: interactive, selected/current, progress.
+  It was taken away from facts — the event date line, a tutor's price, "you are hosting", an
+  activity row's title, a tag, "for everyone" — all neutral now, weighted up where a reader scans
+  for them.
+- **The five status pairs under one rule**: *info* = an open question for the readers of the surface
+  (every count badge, an open poll this viewer has not voted in, an open need, a course open to
+  join, a task in review, a request-shaped notification's 3px rule, the dot after a moderation tab
+  with work behind it); *success* = done, fulfilled, completed, verified, issued, a flag ON;
+  *warning* = near due, stuck, short-staffed, drifted, High priority; *danger* = overdue, urgent,
+  auto-hidden; *neutral* = closed, cancelled, archived, finished, a fact — and the one **pending
+  pill** (neutral + a dashed neutral border, `PendingBadge`'s voice promoted to a mixin) for a thing
+  waiting on somebody else's verdict. "Pending" had been drawn in four hues; a feature flag OFF
+  was danger; a cancelled need was dimmed by opacity (3.5:1). **No opacity on content** anywhere
+  the pass touched: a closed row's title drops to `--text-secondary`.
+- **Three selected-state idioms, one meaning each.** FILLED accent = a command (`button-primary`,
+  the brand tile). SOFT (`selected-soft`: tint + accent text + 1px accent border, the border
+  load-bearing in dark mode where the tint is 1.65:1) = every selected/pressed state — audience
+  chips, filters, editor toggles, calendar selections, the lesson-progress chip. UNDERLINE = where
+  you are: the tab strips, and now the header's current browse section (`aria-current="page"` from a
+  pathname-prefix table that knows `/korki` and `/materialy`). `status-pill(--accent, --accent-soft)`
+  has zero readers.
+- **Counts**: one shape (`count-badge`, 16px round, info fill, contrast digits) for everything that
+  waits on the reader — shield, bell, queue tabs, review counts. A teal 16 and a red 77 had sat
+  80px apart in the bar; red leaves the header. The saved-set bookmark count is the same shape in
+  neutral: a number I saved is not a number waiting on me.
+- **The chrome at rest is monochrome**: bell, sun/moon/monitor and die are 18px `currentColor` SVGs;
+  the brand mark is the favicon's filled teal tile; the hidden-languages notice is a grey box with a
+  teal-outlined button, not a warning. The one tinted surface on the site is the home hero's
+  bounded `--accent-soft` radial wash (hidden in high contrast).
+- **`--rating`** is a named alias of the accent for filled stars (`StarRating`, `LessonFeedback`
+  — the latter had amber "warning" stars); empty stars are ☆, so 4-of-5 never depends on colour.
+  Gold was measured and rejected: every gold that clears 3:1 sits 4° from `--status-warning`.
+- **Tags** are 28px neutral pills with a 44px `::before` hit area (they inherited the 44px
+  touch-target rule and were the tallest, most saturated thing on a concept card).
+- **Lessons** carry their progress on the rule they already had: in progress = accent, stuck =
+  warning, done = success, otherwise grey. `/work`: urgency 0 is a transparent box (no grey dot
+  for "nothing"), the card's left rule and due chip take the dot's pair, and the dot has a
+  screen-reader word — the four `work_urgency_*` keys are the pass's only new message keys.
+- **Dark `--accent-soft`** `#223838` → `#1f4a4a` (accent on it exactly 5.00:1); dark `--status-info`
+  and `--status-neutral` one step lighter so a status pill inside a modal clears AA.
+
+What stays monochrome is the longer list, on purpose, and it is in the spec: every card body on a
+single-kind page, every title, every kind word and fact pill, the statement and the flashcard front,
+the panel shells, the closed states, the footer, every form. On most pages the count of non-status
+hues is one; on the exercise page and a flashcard back it is two. Never a third.
+
+### Verified
+
+All on the merged working tree of `ux/colour-pass`, both real servers up (API `:8160`, frontend
+`:5260`), Node 24.21:
+
+- `npm run check` — **0 errors, 0 warnings**; `npm run lint` — prettier and eslint clean;
+  `npm run build` — ok. Catalogues **3938 / 3938**, key sets identical (six new keys: the four
+  `work_urgency_*` screen-reader words and the two `entry_*Heading` stage headings).
+- The spec's grep-able allowlists hold: `var(--stage)` has exactly three readers, `var(--rating)`
+  two, `status-pill(var(--accent), var(--accent-soft))` zero; no undefined custom property is read
+  anywhere under `src/` (the census that found 41 undefined names now finds the eleven intentional
+  locals and nothing else).
+- Every new or changed token pair was measured with the pass's own `contrast.py` (the spec's §7
+  table, 100 rows): every text pair ≥ 4.5:1 in light and dark and ≥ 7:1 in both high-contrast
+  modes; the hero wash's text 5.4 / 5.7, the browse link on it 4.6 / 5.5; the raised dark alt
+  surface 1.28:1 against the surface with `--text-secondary` on it at 6.6.
+- `npm run check:a11y -- --base … --api …` — **48 pages, 0 critical/serious violation nodes** on
+  every page that rendered. Each of the three runs lost ONE page (a different one each time:
+  `/concepts`, `/about/guide/flashcards`) to the dev server, not to the page — `Failed to fetch
+  dynamically imported module …?t=<the run's own timestamp>` plus `ERR_INSUFFICIENT_RESOURCES`,
+  i.e. Vite re-bundled under the audit and the module URLs it had handed out stopped existing
+  (`e2e/CLAUDE.md` trap 22's shape); the only two "moderate" nodes in any run were axe reading the
+  SvelteKit 500 shell of that one page. The after-cycle integration (§17BU) saw the same thing and
+  got its clean 48 on a second run; this pass reports the honest number rather than the run that
+  happened to be lucky.
+- **Screenshots, looked at**: a 41-shot sweep (`e2e/colour-screens.mjs`, new) of the colour-bearing
+  pages in light and dark at 1280 and light at 390, anonymous and signed in, taken BEFORE the pass
+  and AFTER it; each implementer's own close-ups of its pages in both themes; a re-shoot of every
+  page the review fixes touched. Four reviewers (the owner's eye, consistency, dark mode and the
+  phone, a regression hunter) compared the pairs; their findings and what was done with each are
+  in "Left open" and in the fixes above (the clipped calendar icon, the invisible light wash, the
+  two headless stage cards, the loud coverage chips, the eight remaining old-idiom spots).
+- The manual's pictures were regenerated (`e2e/guide-screenshots.mjs`, 50 pictures, **63 checks
+  passed, 0 failed** over two runs — the first lost two chapters to a dev server that had gone
+  stale after a day of hot reloads and was serving module URLs that no longer existed; restarting
+  it was the whole fix). The manual now shows the interface it describes.
+- A full `manage.py test` run was not made: the backend is untouched (`git diff --stat backend/`
+  is empty).
+
+### Left open
+
+- **`/work` `.item-status` prints the raw backend word** ('todo', 'hosting', '1 pending') — now in a
+  visible neutral pill, still untranslated. `WorkItem.status` is a free string in
+  `backend/work/builtin.py`; translating it is a backend enum plus a `labels.ts` map plus keys.
+- **Opacity on content in files this pass did not touch** — `CourseInvites` (.6), `CourseSearch`
+  (.8), `ContributionsPanel` (.7), `ExportsCard` (.6), `routes/needs/[id]` (.7): the same defect, the
+  same fix (the title → `--text-secondary`).
+- **The `--stage`/`--status-info` hue gap** is the smallest this pass takes to a status colour (34°,
+  ΔE 16 in light); shape (a 3px rule + an uppercase word + an outlined toggle, never a pill) is the
+  separator. The exercise page with a coverage claim visible under "Co obejmuje" is the shot to look
+  at if it ever reads as "info"; move `--stage` toward 270°, never toward warm.
+- **The flashcard review's counts line** ("{due} due · {fresh} new · {learned} scheduled") stays one
+  grey line: colouring the three numbers is a three-key change in both catalogues (due → warning,
+  new → info, learned → success, numbers only).
+- **Five teal stars beside a teal-on-hover title** is an affordance smell the accessibility judge
+  named. If the owner finds the stars read as links: `$light-rating: $light-text-primary` (and the
+  three siblings) — one line per block, which is why the alias has a name.
+- **`CalendarWeek.svelte:778` (the drag preview) and `EventForm.svelte` (the form's own
+  current-step marker)** keep a filled accent; a live-drag ghost and a step marker are not selected
+  states, and were not re-read in detail.
+- **`TagChip`'s ±8px hit extension overlaps the next tag row**; the later chip wins a tap in the
+  gap. A trade for the 44px touch promise without the 44px box, recorded so it is not rediscovered.
+- **`Header.svelte`'s `SECTION_PREFIXES` table is hand-kept**: `/organizations`, `/plans`, `/polls`,
+  `/tasks` and `/messages` show no current section until somebody adds them (the comment in the
+  file says so; the drawer gives the same answer).
+- **`NOTIFICATION_NEEDS_ACTION` in `labels.ts` is a hand-kept mirror** (house rule 13): a new
+  request-shaped notification type ships without the "asks you" rule until it is added there.
+- **Emoji → SVG removes three glyphs a senior may have learned** ("the sun is the theme button");
+  the bordered box, size and position stay. Worth a word in the first screen-reader/keyboard
+  walkthrough (`QA.md`).
+- **The brand tile's ∫ is the body sans; `static/favicon.svg` draws it in Georgia.** Adding
+  `font-family: Georgia, serif` to `.brand__mark` would make tab and bar one glyph — a taste call.
+- **The P5 implementer left a sandbox event in the dev database**: event 132 "TEST=FAKE P5
+  colour-pass sandbox" (tasks 7–12, needs 5–9, plans 3–6, polls 3–6, station 32 with shifts
+  119–120, checklist instance 7), created as kasia so every management state could be photographed.
+  `TEST=FAKE`-titled like the other seeded rows; delete it or keep it as the one demo of every
+  state. The dev database has never been swept for scratch rows (an older board bullet).
+- **`ChecklistPanel`'s base `.pill` and `Programme`'s track chip went neutral by the §1 test**, not
+  by a spec rule; if a venue's checklist status wants a pending/success/neutral trio per state, that
+  is the next one-line change.
+- **The `/concepts` page lost one audit run to `ERR_INSUFFICIENT_RESOURCES`** while the screenshot
+  sweep ran beside it — the same thing the after-cycle integration saw; the re-run on an idle
+  machine is the number that counts.

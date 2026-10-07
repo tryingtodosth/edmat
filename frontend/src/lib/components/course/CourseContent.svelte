@@ -661,6 +661,9 @@
 						<li
 							id="course-lesson-{lesson.id}"
 							class="lesson"
+							class:lesson--in_progress={lesson.progress.mine === 'in_progress'}
+							class:lesson--stuck={lesson.progress.mine === 'stuck'}
+							class:lesson--done={lesson.progress.mine === 'done'}
 							class:dragging={dragged?.kind === 'lesson' && dragged.id === lesson.id}
 							class:drag-over={dragOverKey === dragKey('lesson', lesson.id)}
 							draggable={course.canCurate}
@@ -1129,7 +1132,7 @@
 			{/if}
 			<h6>{link.title}</h6>
 			{#if course.canCurate && link.hasDrifted && onrefreshset}
-				<span class="pill pill--pending">{m.course_sets_drifted()}</span>
+				<span class="pill pill--drifted">{m.course_sets_drifted()}</span>
 				<button
 					type="button"
 					class="link"
@@ -1216,6 +1219,8 @@
 {/if}
 
 <style lang="scss">
+	@use '../../styles/mixins' as mix;
+
 	.content {
 		display: flex;
 		flex-direction: column;
@@ -1247,7 +1252,7 @@
 	.empty--droppable.drag-over,
 	ol.lessons.drag-over {
 		outline: none;
-		background: var(--accent-soft, var(--bg-surface-alt));
+		background: var(--accent-soft);
 	}
 	.chapter {
 		border: 1px solid var(--border-color);
@@ -1278,7 +1283,7 @@
 		flex-wrap: wrap;
 	}
 	h3 {
-		font-size: var(--font-size-md);
+		font-size: var(--font-size-base);
 	}
 	.lock {
 		font-size: var(--font-size-xs);
@@ -1329,7 +1334,7 @@
 		padding: var(--space-2);
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-sm);
-		background: var(--surface);
+		background: var(--bg-surface);
 		color: var(--text-primary);
 	}
 	.modal-form textarea {
@@ -1365,9 +1370,6 @@
 			border-bottom: none;
 		}
 	}
-	.item--pending {
-		opacity: 0.75;
-	}
 	.kind {
 		font-size: var(--font-size-xs);
 		text-transform: uppercase;
@@ -1389,8 +1391,10 @@
 		border-radius: var(--radius-sm);
 	}
 	.pill--pending {
-		color: var(--status-info);
-		background: var(--status-info-bg);
+		@include mix.pending-pill;
+	}
+	.pill--drifted {
+		@include mix.status-pill(var(--status-warning), var(--status-warning-bg));
 	}
 	.pill--rejected {
 		color: var(--text-secondary);
@@ -1419,7 +1423,7 @@
 	}
 	.set {
 		width: 100%;
-		border: 1px solid var(--border-subtle);
+		border: 1px solid var(--border-color);
 		border-radius: var(--radius-sm);
 		padding: var(--space-2);
 		display: flex;
@@ -1464,7 +1468,7 @@
 	}
 	.empty--droppable {
 		border: 1px dashed var(--border-color);
-		border-radius: var(--radius-md, 6px);
+		border-radius: var(--radius-md);
 		padding: var(--space-3);
 		text-align: center;
 	}
@@ -1474,8 +1478,8 @@
 		gap: var(--space-2);
 		padding: var(--space-2) var(--space-3);
 		border: 1px solid var(--border-color);
-		border-radius: var(--radius-md, 6px);
-		background: var(--surface-raised, transparent);
+		border-radius: var(--radius-md);
+		background: var(--bg-elevated);
 		font-size: var(--font-size-sm);
 	}
 	.lessons {
@@ -1489,7 +1493,18 @@
 	// between them, so a chapter with three or four became a wall of text with no visible seams.
 	.lesson {
 		padding-left: var(--space-3);
-		border-left: 2px solid var(--border-color);
+		border-left: 3px solid var(--border-color);
+	}
+	// The reader's own progress on the lesson, as the rule's colour: the accent is "you are here",
+	// warning is "stuck", success is "done". Nothing recorded keeps the plain border.
+	.lesson--in_progress {
+		border-left-color: var(--accent);
+	}
+	.lesson--stuck {
+		border-left-color: var(--status-warning);
+	}
+	.lesson--done {
+		border-left-color: var(--status-success);
 	}
 	.lesson__head {
 		display: flex;
@@ -1548,7 +1563,7 @@
 		color: var(--text-secondary);
 	}
 	.danger:hover {
-		color: var(--status-danger, #c0392b);
+		color: var(--status-danger);
 	}
 	.visually-hidden {
 		position: absolute;

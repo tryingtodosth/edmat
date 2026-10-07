@@ -33,17 +33,21 @@
 		margin: 0.5rem 0 1rem;
 		padding: 0.5rem 0.8rem;
 		border-radius: 8px;
-		background: var(--status-warning-bg);
-		color: var(--status-warning);
+		// A passive notice with a choice is neither a warning nor a request (2026-10-07 colour pass):
+		// warning is reserved for things that must be acted on. Grey on the alt surface, with the
+		// button in the accent because it is the one interactive thing here.
+		background: var(--bg-surface-alt);
+		border: 1px solid var(--border-color);
+		color: var(--text-secondary);
 		font-size: 0.9rem;
 	}
 	button {
 		min-height: 44px;
 		padding: 0 0.8rem;
 		border-radius: 8px;
-		border: 1px solid currentColor;
+		border: 1px solid var(--accent);
 		background: transparent;
-		color: inherit;
+		color: var(--accent);
 		font: inherit;
 		cursor: pointer;
 	}

@@ -82,8 +82,9 @@
 		@include mix.status-pill(var(--text-secondary), var(--bg-surface-alt));
 		font-size: var(--font-size-xs);
 	}
+	// Due today asks you, so it takes the info pair.
 	.deck__count--due {
-		@include mix.status-pill(var(--accent), var(--accent-soft));
+		@include mix.status-pill(var(--status-info), var(--status-info-bg));
 		font-size: var(--font-size-xs);
 		font-weight: 700;
 	}

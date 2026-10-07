@@ -331,7 +331,7 @@
 		font-size: var(--font-size-sm);
 	}
 	.error {
-		color: var(--danger, #c0392b);
+		color: var(--status-danger);
 		font-size: var(--font-size-sm);
 	}
 	.picker {
@@ -339,8 +339,8 @@
 		flex-direction: column;
 		gap: var(--space-2);
 		padding: var(--space-3);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md, 6px);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-md);
 	}
 	.picker__field {
 		display: flex;
@@ -370,7 +370,7 @@
 		text-align: left;
 		background: none;
 		border: 1px solid transparent;
-		border-radius: var(--radius-sm, 4px);
+		border-radius: var(--radius-sm);
 		padding: 0.3rem 0.4rem;
 		cursor: pointer;
 		color: var(--text-primary);
@@ -415,13 +415,13 @@
 		line-height: 1;
 		padding: 0 0.2rem;
 		&:hover {
-			color: var(--danger, #c0392b);
+			color: var(--status-danger);
 		}
 	}
 	.chip {
 		font-size: var(--font-size-xs);
 		padding: 0.1rem 0.4rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 999px;
 		color: var(--text-secondary);
 	}

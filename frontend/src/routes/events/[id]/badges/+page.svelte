@@ -110,7 +110,7 @@
 		min-height: 44px;
 		padding: 0 0.9rem;
 		border-radius: 8px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		background: var(--bg-surface);
 		color: var(--text-primary);
 		font: inherit;
@@ -119,7 +119,7 @@
 	.primary {
 		background: var(--accent);
 		border-color: var(--accent);
-		color: var(--text-on-accent, #fff);
+		color: var(--accent-contrast);
 	}
 	.grid {
 		display: grid;
@@ -127,7 +127,7 @@
 		gap: 0.4rem;
 	}
 	.badge {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 8px;
 		padding: 0.9rem;
 		min-height: 90px;
@@ -138,7 +138,7 @@
 		background: var(--bg-surface);
 	}
 	.badge--minor {
-		border-top: 8px solid var(--status-warning, #b26a00);
+		border-top: 8px solid var(--status-warning);
 	}
 	.name {
 		margin: 0;

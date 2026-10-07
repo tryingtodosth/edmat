@@ -196,7 +196,7 @@
 	// The raw source of a description or a text: Markdown and LaTeX read better in a fixed width,
 	// and a long one scrolls inside its own box rather than pushing the decision off the page.
 	.source {
-		font-family: var(--font-mono, monospace);
+		font-family: var(--font-mono);
 		font-size: var(--font-size-xs);
 		max-height: 60vh;
 		overflow: auto;

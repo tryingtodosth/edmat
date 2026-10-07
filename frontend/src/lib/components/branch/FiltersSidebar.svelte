@@ -79,7 +79,7 @@
 	);
 </script>
 
-<aside class="filters">
+<aside class="filters" class:filters--active={hasActiveFilters}>
 	<h2>{m.filters_heading()}</h2>
 
 	<label class="field">
@@ -128,7 +128,7 @@
 	</label>
 
 	<div class="filters__footer">
-		<span class="result-count">
+		<span class="result-count" class:result-count--narrowed={hasActiveFilters}>
 			{resultCount === undefined
 				? m.filters_resultCounting()
 				: m.filters_resultCount({ count: resultCount })}
@@ -148,6 +148,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
+	}
+	// A narrowed list says so: the accent border means "a filter is in force", the same way the
+	// selected chip does elsewhere.
+	.filters--active {
+		border-color: var(--accent);
 	}
 	h2 {
 		font-size: var(--font-size-base);
@@ -178,6 +183,10 @@
 	.result-count {
 		font-size: var(--font-size-xs);
 		color: var(--text-secondary);
+	}
+	.result-count--narrowed {
+		color: var(--text-primary);
+		font-weight: 600;
 	}
 	.link-button {
 		background: none;

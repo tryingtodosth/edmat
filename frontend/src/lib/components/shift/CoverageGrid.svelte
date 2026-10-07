@@ -181,7 +181,7 @@
 		font-size: 0.7rem;
 		color: var(--text-secondary);
 		text-align: left;
-		border-left: 1px solid var(--border);
+		border-left: 1px solid var(--border-color);
 		padding-left: 2px;
 	}
 	.station {
@@ -192,7 +192,7 @@
 		align-items: center;
 	}
 	.cell {
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		border-radius: 5px;
 		font: inherit;
 		font-size: 0.72rem;
@@ -207,13 +207,13 @@
 	}
 	// Colour is never the only carrier: every cell prints its own "2/3" and the flag is a glyph.
 	.cell.green {
-		background: color-mix(in srgb, #2e7d32 22%, transparent);
+		background: color-mix(in srgb, var(--status-success) 22%, transparent);
 	}
 	.cell.amber {
-		background: color-mix(in srgb, #ef6c00 26%, transparent);
+		background: color-mix(in srgb, var(--status-warning) 26%, transparent);
 	}
 	.cell.red {
-		background: color-mix(in srgb, #c62828 26%, transparent);
+		background: color-mix(in srgb, var(--status-danger) 26%, transparent);
 	}
 	.flag {
 		font-weight: 700;
@@ -236,17 +236,17 @@
 		width: 0.85rem;
 		height: 0.85rem;
 		border-radius: 3px;
-		border: 1px solid var(--border);
+		border: 1px solid var(--border-color);
 		display: inline-block;
 	}
 	.swatch.green {
-		background: color-mix(in srgb, #2e7d32 22%, transparent);
+		background: color-mix(in srgb, var(--status-success) 22%, transparent);
 	}
 	.swatch.amber {
-		background: color-mix(in srgb, #ef6c00 26%, transparent);
+		background: color-mix(in srgb, var(--status-warning) 26%, transparent);
 	}
 	.swatch.red {
-		background: color-mix(in srgb, #c62828 26%, transparent);
+		background: color-mix(in srgb, var(--status-danger) 26%, transparent);
 	}
 	.status {
 		color: var(--text-secondary);

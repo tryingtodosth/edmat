@@ -98,9 +98,7 @@
 		font-size: var(--font-size-sm);
 	}
 	button.active {
-		background: var(--accent);
-		color: var(--accent-contrast);
-		border-color: var(--accent);
+		@include mix.selected-soft;
 	}
 	button:disabled {
 		opacity: 0.45;

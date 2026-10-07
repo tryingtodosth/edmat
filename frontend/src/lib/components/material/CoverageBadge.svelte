@@ -57,32 +57,25 @@
 		background: var(--bg-surface-alt);
 		border-color: var(--border-color);
 	}
+	// Depth is weight and border, not hue (2026-10-07 colour pass, after review): a claim is a fact,
+	// and the info pair means "asks you" everywhere else. Light → plain, moderate → a border,
+	// deep → a darker border and 600. A requirement reads the same ladder; the panel's own heading
+	// ("Co jest wymagane") is what says it is a prerequisite.
 	.coverage-badge--moderate {
-		// Outlined, not filled: pale background plus a matching border so it reads as one step up
-		// from `--light` above rather than blurring into `--deep`'s own filled treatment below.
-		color: var(--status-info);
-		background: var(--status-info-bg);
-		border-color: var(--status-info);
+		color: var(--text-secondary);
+		background: var(--bg-surface-alt);
+		border-color: var(--border-color);
 	}
 	.coverage-badge--deep {
-		// Filled (solid background, contrast-checked light text): the strongest of the three depths
-		// gets the strongest visual weight. `--accent` on white clears 5.8:1 in the light theme.
-		color: var(--accent-contrast);
-		background: var(--accent);
-		border-color: var(--accent);
+		color: var(--text-primary);
+		background: var(--bg-surface-alt);
+		border-color: var(--text-secondary);
 		font-weight: 600;
 	}
-	// A requirement is drawn in the warning hue instead of info/accent — "you need this first" is a
-	// caution, and it must not be mistaken for "this is taught here" at a glance.
-	.coverage-badge--requires.coverage-badge--moderate {
-		color: var(--status-warning);
-		background: var(--status-warning-bg);
-		border-color: var(--status-warning);
-	}
-	.coverage-badge--requires.coverage-badge--deep {
-		color: var(--accent-contrast);
-		background: var(--status-warning);
-		border-color: var(--status-warning);
+	.coverage-badge:hover,
+	.coverage-badge:focus-visible {
+		color: var(--accent);
+		border-color: var(--accent);
 	}
 	.coverage-badge__label {
 		// A topic/subtopic name is real, unbounded-length text — truncate just the label (not the
@@ -100,8 +93,8 @@
 	.coverage-badge__count {
 		opacity: 0.75;
 	}
-	// Blended over a solid fill the 0.75 opacity drops the sub-text under the 4.5:1 floor, so it
-	// goes back to full opacity there.
+	// The strongest depth keeps its sub-text at full opacity: weight, not hue, is what separates
+	// it from `--moderate`.
 	.coverage-badge--deep .coverage-badge__depth,
 	.coverage-badge--deep .coverage-badge__count {
 		opacity: 1;
