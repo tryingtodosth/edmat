@@ -162,7 +162,7 @@ both out of `make_personas` keeps `seed_conference_personas`, `CAPABILITY_TABLE`
 
 ## Verify
 
-`manage.py test events` (154 tests + the 690-row permission matrix, refusal-weighted) + the availability
+`manage.py test events` (248 tests + the 746-row permission matrix, refusal-weighted; the row count is recounted in test.md §7, not incremented here) + the availability
 half in `booking/tests.py`. E2E: `events-and-nav.mjs`, `known-issues.mjs`, `event-preview.mjs`
 (needs `seed_conference_personas` run against the backend it drives).
 
