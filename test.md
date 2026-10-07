@@ -4,7 +4,7 @@ Two suites, deliberately different in kind:
 
 | | What it is | Where | Count |
 |---|---|---|---|
-| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, plus `test_*.py` in several apps | 2700 |
+| **Backend** | Django's own test runner against a real (throwaway) database | `backend/*/tests.py`, plus `test_*.py` in several apps | 2706 |
 | **Browser** | Playwright driving the real frontend against the real backend | `frontend/e2e/*.mjs` | 22 scripts |
 
 The backend figure was measured (`manage.py test --parallel 4 --keepdb`, ~21 min — see below for
@@ -26,7 +26,7 @@ different things to a stranger, a participant and the instructor.
 
 ```sh
 cd backend
-../.venv/bin/python3 manage.py test --parallel 4 --keepdb   # everything — ~21 min, 2700 tests
+../.venv/bin/python3 manage.py test --parallel 4 --keepdb   # everything — ~21 min, 2706 tests
 ../.venv/bin/python3 manage.py test courses                 # one app
 ../.venv/bin/python3 manage.py test courses.tests.DiscussionTests            # one class
 ../.venv/bin/python3 manage.py test courses.tests.DiscussionTests.test_a_public_thread_is_readable_but_not_writable_by_outsiders  # one test
@@ -52,9 +52,10 @@ wall-clock for 2 686 tests, of which **14 min 53 s** is the tests and the remain
 building the test databases before a single one runs. (Four other agents were working the same six
 cores, so read it as an upper bound.) Re-measured the same evening on the merged tree with the
 machine otherwise idle: **20 min 59 s** for **2 700** tests, 12 min 43 s of them tests, and the
-whole run printed 198 lines. That build is ten databases, not one — `default` plus the
-nine telemetry log shards, each with its own `migrate`, and under `--parallel 4` each of them
-cloned once per worker. The test databases are SQLite **in-memory** (nothing in `DATABASES` sets
+whole run printed 198 lines. And again on 2026-10-07, idle, after the six tests below were added:
+**21 min 38 s** for **2 706** tests, 13 min 34 s of them tests, 194 lines. The build is ten
+databases, not one — `default` plus the nine telemetry log shards, each with its own `migrate`, and
+under `--parallel 4` each of them cloned once per worker. The test databases are SQLite **in-memory** (nothing in `DATABASES` sets
 `TEST['NAME']`), so **`--keepdb` cannot keep anything between runs here**: it is harmless, not a
 speed-up, and the ~9½ minutes are paid again every time.
 
@@ -94,13 +95,16 @@ under `--parallel` it is a hard `setUpClass` error.
 
 Three details that have each cost somebody an afternoon:
 
-- **Put it on a base class if the file has one** (`booking/tests.py: ApiTestCase`,
-  `shifts/tests.py: RotaTestCase`, `plans/tests.py: PlansTestCase`,
-  `galleries/tests.py: GalleryBase`, `accounts/test_avatar.py: AvatarTestCase`,
-  `accounts/test_throttling.py: ThrottleTestCase`), once, and let the subclasses inherit it. Where
-  a file has no base, every class that makes a request carries its own copy. There is deliberately
-  **no cross-app shared base**: the forty files that already had the line chose repetition on
-  purpose, so one app's fixtures cannot break another's.
+- **Put it on a base class in that file, once**, and let the subclasses inherit it — forty-two
+  files now do (`booking/tests.py: ApiTestCase`, `shifts/tests.py: RotaTestCase`,
+  `plans/tests.py: PlansTestCase`, `galleries/tests.py: GalleryBase`,
+  `accounts/test_avatar.py: AvatarTestCase`, `accounts/test_throttling.py: ThrottleTestCase`, and
+  since 2026-10-07 `moderation/tests.py`, `materials/tests.py`, `services/tests.py` and
+  `exercises/test_solution_entries.py`, which between them carried the line 55 times and now carry
+  it 4). A **new test file adds a base rather than repeating the line**. A class in such a file
+  that reaches no endpoint stays on plain `APITestCase`, which is what keeps the check below able
+  to catch the next class that forgets. There is deliberately **no cross-app shared base**: the
+  repetition across apps is on purpose, so one app's fixtures cannot break another's.
 - **Not `databases = '__all__'`.** `config/test_locale_hint.py` is the one place that should use
   it; a class that declares every database will happily pass a test that writes to the wrong one.
 - **It is not only `self.client`.** A class that builds its own `APIClient()` in a helper makes
@@ -118,6 +122,19 @@ It parses rather than imports (so it needs no settings and no database), resolve
 inherited from a base class in the same file **or in another module**, and names every class that
 still needs the line. Run it after adding a test class; a number other than zero is the count of
 suites whose next full run will be noise.
+
+**The suite runs it too**, which is new on 2026-10-07 — `testing/test_databases_declared.py`
+asserts `offending_classes()` is empty, so a forgotten line now fails `manage.py test` instead of
+waiting for somebody to remember a paragraph. Four fixture tests beside it build throwaway source
+trees and prove the check can still fail: a class that declares nothing is caught, a base class in
+the same file counts for its subclasses, a base that itself forgot does not shield them, and a base
+whose *name* does not contain `TestCase` (`GalleryBase`, `DeskCase`) no longer makes its subclasses
+invisible — that last one had been hiding 74 real request-making classes from the check, all of
+which happened to inherit the line anyway. The test class is a `SimpleTestCase` and needs no
+`databases` of its own, because it makes no request: the checker and the test agree about that.
+
+`testing/` is not a Django app, but `manage.py test` finds it — discovery walks the filesystem from
+`backend/`, not `INSTALLED_APPS`, which is also why `config/test_locale_hint.py` runs.
 
 ### What each app covers
 

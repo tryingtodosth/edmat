@@ -31,12 +31,19 @@ from testing.factories import (
 )
 
 
-class MaterialListingTests(APITestCase):
-    # The request-logging middleware writes to its own shards; a view test that does not declare
-    # them fails on Django's cross-database guard rather than on anything under test, and this
-    # file has no shared base, so every class that makes a request repeats the line.
+class ApiTestCase(APITestCase):
+    """Base for every suite in this file that makes a request.
+
+    The request-logging middleware writes to its own shards; a view test that does not declare
+    them fails on Django's cross-database guard rather than on anything under test. The line lives
+    here once and the subclasses inherit it (`test.md` §1). A class in this file that reaches no
+    endpoint stays on `APITestCase`, so `testing/check_databases_declared.py` keeps its bite.
+    """
+
     databases = set(all_log_shards()) | {'default'}
 
+
+class MaterialListingTests(ApiTestCase):
     def setUp(self):
         self.branch = make_course()
         self.material = make_material(
@@ -88,9 +95,7 @@ class MaterialListingTests(APITestCase):
         self.assertEqual(response.data['submitted_by_display_name'], 'Real Submitter Name')
 
 
-class MaterialCoverageProposalTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class MaterialCoverageProposalTests(ApiTestCase):
     def setUp(self):
         self.branch = make_course()
         self.other_course = make_course(slug='uw-other-branch')
@@ -146,9 +151,7 @@ class MaterialCoverageProposalTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class MaterialCoverageVoteTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class MaterialCoverageVoteTests(ApiTestCase):
     def setUp(self):
         self.branch = make_course()
         self.material = make_material(self.branch, 'skrypt')
@@ -201,9 +204,7 @@ class MaterialCoverageVoteTests(APITestCase):
         self.assertFalse(MaterialCoverageVote.objects.filter(coverage=self.coverage, voter=voter).exists())
 
 
-class MaterialCoverageCommentTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class MaterialCoverageCommentTests(ApiTestCase):
     def test_authenticated_user_can_comment_on_a_coverage_claim(self):
         branch = make_course()
         material = make_material(branch, 'skrypt')
@@ -222,11 +223,9 @@ class MaterialCoverageCommentTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
-class MaterialFilterSortTests(APITestCase):
+class MaterialFilterSortTests(ApiTestCase):
     """The search/filter/sort overhaul's own structured query params (`type`, `topic_id`,
     `min_level`, `sort`) — none of these had any real test coverage before this class."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -314,9 +313,7 @@ class MaterialFilterSortTests(APITestCase):
         self.assertEqual(slugs, {'skrypt'})
 
 
-class MaterialRecommendedTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class MaterialRecommendedTests(ApiTestCase):
     def test_anonymous_visitor_gets_the_honest_non_personalized_fallback(self):
         branch = make_course()
         make_material(branch, 'skrypt')
@@ -362,11 +359,9 @@ class MaterialRecommendedTests(APITestCase):
         self.assertEqual(len(response.data['results']), 2)
 
 
-class MaterialPriceAndTimeSerializationTests(APITestCase):
+class MaterialPriceAndTimeSerializationTests(ApiTestCase):
     """Both fields are genuinely optional — a material that never sets either behaves exactly as
     before this feature existed (null on the wire, not a fabricated "Free"/"0 min" default)."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def test_unset_price_and_time_serialize_as_null(self):
         branch = make_course()
@@ -393,13 +388,11 @@ class MaterialPriceAndTimeSerializationTests(APITestCase):
         self.assertEqual(response.data['estimated_minutes'], 45)
 
 
-class MaterialRequirementApiTests(APITestCase):
+class MaterialRequirementApiTests(ApiTestCase):
     """PUT /api/materials/{id}/requirements/ — the governor-facing (not "any authenticated user")
     bulk-replace endpoint. Gated by the exact same trust boundary moderation/services.py's
     `is_governor_of_course` already establishes for every other moderator-adjacent Material
     mutation — global staff, or a real governor of the material's own course."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course(slug='uw-requirement-branch')
@@ -501,13 +494,11 @@ class MaterialRequirementApiTests(APITestCase):
         return ContentType.objects.get_for_model(Branch)
 
 
-class MaterialRequirementProposalTests(APITestCase):
+class MaterialRequirementProposalTests(ApiTestCase):
     """POST /api/materials/{id}/requirements/propose_requirement/ — open to any authenticated user,
     the requirement-side counterpart to MaterialCoverageProposalTests above (single-item propose,
     the community then votes — MaterialRequirementVoteTests already covers the voting half). Kept
     entirely separate from the governor-only bulk-replace PUT above, which is unaffected."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course(slug='uw-propose-requirement-branch')
@@ -573,13 +564,11 @@ class MaterialRequirementProposalTests(APITestCase):
         self.assertEqual(response.data['order'], 2)
 
 
-class MaterialCoverageCommentThreadingTests(APITestCase):
+class MaterialCoverageCommentThreadingTests(ApiTestCase):
     """Real, threaded discussion per MaterialCoverage claim — CLAUDE.md's own note: the model/API
     mostly already supported this (Comment.parent, CommentSerializer's own writable `parent` field),
     confirmed here rather than assumed, plus the one real gap closed alongside it: a submitted
     `parent` must actually belong to the SAME coverage's own comment set."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -662,12 +651,10 @@ class MaterialCoverageCommentThreadingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class MaterialRequirementVoteTests(APITestCase):
+class MaterialRequirementVoteTests(ApiTestCase):
     """The new votable half of "split material tags into two groups (covers/requires), each
     votable, so users can sort by that" — mirrors MaterialCoverageVoteTests above exactly, just
     targeting a MaterialRequirement instead of a MaterialCoverage row."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -759,12 +746,10 @@ class MaterialRequirementVoteTests(APITestCase):
         self.assertEqual(ids[0], well_voted.pk)
 
 
-class MaterialReviewsTests(APITestCase):
+class MaterialReviewsTests(ApiTestCase):
     """Star rating + optional written review on a Material — mirrors
     services/tests.py's own ServiceReviewsTests (the same upsert-on-resubmit shape, the same
     average_rating/review_count surfaced on the parent serializer)."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -822,11 +807,9 @@ class MaterialReviewsTests(APITestCase):
         self.assertEqual(response.data['review_count'], 2)
 
 
-class MaterialCommentsTests(APITestCase):
+class MaterialCommentsTests(ApiTestCase):
     """A whole-material discussion thread — "add discussions... to materials," distinct from the
     already-existing per-coverage-claim thread (MaterialCoverageCommentTests above)."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -879,8 +862,7 @@ class MaterialCommentsTests(APITestCase):
         self.assertEqual(len(response.data), 1)
 
 
-
-class MaterialTypeVocabularyTests(APITestCase):
+class MaterialTypeVocabularyTests(ApiTestCase):
     """The thirteen hardcoded `choices` are now rows anybody can add to.
 
     The properties that matter: the built-ins survived the migration with both languages intact
@@ -888,8 +870,6 @@ class MaterialTypeVocabularyTests(APITestCase):
     reading names from the API), a pending type is usable immediately, and merging a duplicate
     re-points the materials filed under it rather than orphaning them.
     """
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.user = make_user('type-student')
@@ -1038,11 +1018,9 @@ class MaterialTypeVocabularyTests(APITestCase):
         self.assertEqual(n.target_label, 'Lab notebook')
 
 
-class MaterialClaimKindTests(APITestCase):
+class MaterialClaimKindTests(ApiTestCase):
     """`kind` splits what used to be one number read two ways: a `covers` claim and a `requires`
     claim on the same topic are different statements and may coexist; two of the same kind may not."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()
@@ -1093,9 +1071,7 @@ class MaterialClaimKindTests(APITestCase):
         self.assertEqual([row['slug'] for row in response.data], ['skrypt'])
 
 
-class MaterialClaimImportanceVoteTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class MaterialClaimImportanceVoteTests(ApiTestCase):
     def setUp(self):
         self.branch = make_course()
         self.material = make_material(self.branch, 'skrypt')
@@ -1235,10 +1211,8 @@ class CreateMaterialFactoryTests(APITestCase):
         self.assertEqual(ActivityEvent.objects.get(material=material).actor_id, publisher.pk)
 
 
-class MaterialBodyAndProjectIdSerializationTests(APITestCase):
+class MaterialBodyAndProjectIdSerializationTests(ApiTestCase):
     """The two read-only fields the co-authoring frontend needs before the app itself exists."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_course()

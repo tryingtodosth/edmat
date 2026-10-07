@@ -24,6 +24,18 @@ from testing.factories import make_branch, make_exercise, make_user, make_viewer
 from .models import Exercise, SolutionEntry, SolutionEntryAttachment, SolutionEntryVote
 
 
+class ApiTestCase(APITestCase):
+    """Base for every suite in this file that makes a request.
+
+    The request-logging middleware writes to its own shards; a view test that does not declare
+    them fails on Django's cross-database guard rather than on anything under test. The line lives
+    here once and the subclasses inherit it (`test.md` §1). A class in this file that reaches no
+    endpoint stays on `APITestCase`, so `testing/check_databases_declared.py` keeps its bite.
+    """
+
+    databases = set(all_log_shards()) | {'default'}
+
+
 def make_entry(exercise, *, kind='solution', locale='pl', body='<p>Because \\(x=2\\).</p>',
                author=None, status='published', pinned=False, reviewed_by=None):
     return SolutionEntry.objects.create(
@@ -32,12 +44,7 @@ def make_entry(exercise, *, kind='solution', locale='pl', body='<p>Because \\(x=
     )
 
 
-class EntryCreationTests(APITestCase):
-    # The request-logging middleware writes to its own shards; a view test that does not declare
-    # them fails on Django's cross-database guard rather than on anything under test, and this
-    # file has no shared base, so every class that makes a request repeats the line.
-    databases = set(all_log_shards()) | {'default'}
-
+class EntryCreationTests(ApiTestCase):
     def setUp(self):
         self.branch = make_branch(slug='pool-create')
         self.exercise = make_exercise(self.branch, 1)
@@ -70,11 +77,9 @@ class EntryCreationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class EntryVisibilityTests(APITestCase):
+class EntryVisibilityTests(ApiTestCase):
     """What GET /api/exercises/{id}/ embeds, per caller — a pending entry must reach exactly its
     author and the reviewer circle, and nobody else."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_branch(slug='pool-vis')
@@ -118,9 +123,7 @@ class EntryVisibilityTests(APITestCase):
         self.assertEqual(ids[0], pinned.pk)
 
 
-class EntryReviewTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class EntryReviewTests(ApiTestCase):
     def setUp(self):
         self.branch = make_branch(slug='pool-review')
         self.exercise = make_exercise(self.branch, 1)
@@ -172,11 +175,9 @@ class EntryReviewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
 
-class DerivedVerifiedTests(APITestCase):
+class DerivedVerifiedTests(ApiTestCase):
     """Exercise.verified is derived now (signals.recount_verified) — at least one published,
     visible solution that passed review (pinned, reviewed, or by a verified contributor)."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_branch(slug='pool-verified')
@@ -218,9 +219,7 @@ class DerivedVerifiedTests(APITestCase):
         self.assertFalse(self._verified())
 
 
-class EntryVoteTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class EntryVoteTests(ApiTestCase):
     def setUp(self):
         self.branch = make_branch(slug='pool-votes')
         self.exercise = make_exercise(self.branch, 1)
@@ -259,9 +258,7 @@ class EntryVoteTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
 
-class EntryPinAndOwnerEditTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class EntryPinAndOwnerEditTests(ApiTestCase):
     def setUp(self):
         self.branch = make_branch(slug='pool-own')
         self.exercise = make_exercise(self.branch, 1)
@@ -310,11 +307,9 @@ class EntryPinAndOwnerEditTests(APITestCase):
         self.assertFalse(SolutionEntry.objects.filter(pk=self.entry.pk).exists())
 
 
-class EntryEditSuggestionTests(APITestCase):
+class EntryEditSuggestionTests(ApiTestCase):
     """A suggestion against an entry names the ROW; its deciding circle is the entry's author +
     staff/governors — not every verified contributor, and never through the translation fields."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_branch(slug='pool-suggest')
@@ -407,9 +402,7 @@ class EntryEditSuggestionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class EntryDiscussionTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class EntryDiscussionTests(ApiTestCase):
     def setUp(self):
         self.branch = make_branch(slug='pool-talk')
         self.exercise = make_exercise(self.branch, 1)
@@ -445,9 +438,7 @@ class EntryDiscussionTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class EntryReportTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class EntryReportTests(ApiTestCase):
     def setUp(self):
         self.branch = make_branch(slug='pool-report')
         self.exercise = make_exercise(self.branch, 1)
@@ -476,12 +467,9 @@ class EntryReportTests(APITestCase):
         self.assertEqual(detail.data['entries'], [])
 
 
-class SubmissionCreatesEntriesTests(APITestCase):
+class SubmissionCreatesEntriesTests(ApiTestCase):
     """`_apply_submission` turns the form's hint/solution into founding pool entries — pinned when
     a moderator approved, unpinned on the verified fast path (nobody reviewed it)."""
-
-    # The submission endpoint's request path writes telemetry to the log shards.
-    databases = set(all_log_shards()) | {'default'}
 
     def test_verified_fast_path_publishes_unpinned_entries(self):
         branch = make_branch(slug='pool-sub')
@@ -513,9 +501,7 @@ class SubmissionCreatesEntriesTests(APITestCase):
         self.assertTrue(exercise.verified)
 
 
-class SiteActivityTests(APITestCase):
-    databases = set(all_log_shards()) | {'default'}
-
+class SiteActivityTests(ApiTestCase):
     def test_a_published_entry_reaches_the_activity_feed(self):
         """§17AI made the feed a STORED, public-by-construction log — a row appears when the
         publish path runs (the API), never from a bare objects.create the way the old derived
@@ -535,13 +521,11 @@ class SiteActivityTests(APITestCase):
         self.assertIn('solution_entry', kinds)
 
 
-class EntryAttachmentTests(APITestCase):
+class EntryAttachmentTests(ApiTestCase):
     """A scan or a PDF hanging off a hint/solution (2026-10-01, the owner's "make adding solution
     as PDF, image, Chemistry, etc. work"). The pipeline is `community`'s, so what is pinned here
     is the wiring, the ownership rules and the shared allowance — not `process_attachment` itself,
     which `community/test_attachments.py` already covers file by file."""
-
-    databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
         self.branch = make_branch(slug='pool-attach')

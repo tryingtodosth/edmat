@@ -108,10 +108,13 @@ AnonymousReadCacheTests` puts it back for itself with `@override_settings`.
 ## Testing
 
 **Every test class that reaches an endpoint declares `databases = set(all_log_shards()) | {'default'}`**
-(`from telemetry.routers import all_log_shards`; on the in-file base class where one exists, else on each class).
+(`from telemetry.routers import all_log_shards`) — **once, on a base class inside that file**, which is what
+forty-two test files now do and what a new one should do, leaving any class that reaches no endpoint on plain
+`APITestCase` so the checker below keeps its bite.
 The request-log middleware writes to one of nine SQLite shards on every request, and a class that did not declare
 them logs a traceback per request serially and kills `--parallel` outright. Not `'__all__'`.
-`testing/check_databases_declared.py` prints the classes that forgot; zero is the bar (`HISTORY.md` §17BT.A).
+`testing/check_databases_declared.py` prints the classes that forgot; zero is the bar, and
+`testing/test_databases_declared.py` is what makes the suite itself check it (`HISTORY.md` §17BT.A, §17BU.C).
 
 `testing/factories.py` — plain functions, deliberately not factory_boy. Use `make_viewer` (no
 password hash) for decorative FK-target users; `make_user` only when something logs in — that

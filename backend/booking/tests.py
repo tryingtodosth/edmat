@@ -6,8 +6,11 @@ that fails silently. A broken booking form announces itself the first time anybo
 finds out when the tutor declines them, which is exactly the experience the mode exists to prevent.
 The other half is the lifecycle: who may confirm, decline, cancel and complete, and from where.
 
-Times are built relative to a fixed, computed anchor rather than hard-coded — `_next_weekday` walks
-forward to a real future date, so the suite does not start failing on a particular Tuesday.
+Times are built relative to a fixed, computed anchor rather than hard-coded — `next_weekday` walks
+forward to a real future date, so the suite does not start failing on a particular Tuesday. Nothing
+here subtracts from that anchor except `test_the_past_is_not_hidden`, which means to land in the
+past and always does; a test that wants a date BEFORE the anchor needs `weeks_ahead=2`, which is
+what `test_week_schedules.PrecedenceTests` learned the hard way (`HISTORY.md` §17BT.A, §17BU.C).
 """
 
 from datetime import date, datetime, time, timedelta
@@ -225,14 +228,19 @@ class AvailabilityComputationTests(ApiTestCase):
         self.assertEqual(starts, [self.at(tuesday, h) for h in (9, 10, 11, 12, 13)])
 
     def test_slots_already_past_are_never_offered(self):
+        """`now` is injected rather than read off the clock. Against the real one this test cannot
+        fail after 22:00 — every hour of the open window has gone, `slots` is empty, and
+        `all()` over an empty list passes — so for a couple of hours every evening it was a test
+        that only looked like one. With noon passed in, both halves are pinned: the morning is
+        gone and the afternoon is all still there."""
         service = self.make_service()
         today = timezone.localdate()
         AvailabilityException.objects.create(
             tutor=self.tutor, date=today, kind='open', start_time=time(0), end_time=time(23)
         )
 
-        slots = slots_for_service(service, today, today)[0].slots
-        self.assertTrue(all(s.start > timezone.now() for s in slots))
+        slots = slots_for_service(service, today, today, now=self.at(today, 12))[0].slots
+        self.assertEqual([s.start for s in slots], [self.at(today, h) for h in range(12, 23)])
 
 
 class ModeTests(ApiTestCase):

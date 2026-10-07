@@ -14,10 +14,19 @@ Run it from `backend/` with the venv's python::
     ../.venv/bin/python3 testing/check_databases_declared.py
 
 It parses rather than imports, so it is safe to run with no settings and no database. A
-declaration on a base class counts for its subclasses, **including a base imported from another
-module** (`booking/test_week_schedules.py` inherits `booking.tests.ApiTestCase`, which already has
-the line — adding a second copy there would be the wrong fix). Only classes that make a request
-are reported.
+declaration on a base class counts for its subclasses, both **a base defined in the same file**
+(forty-two files do, each declaring it once on their own base — `moderation/tests.py`,
+`materials/tests.py`, `services/tests.py` and `exercises/test_solution_entries.py` joined them on
+2026-10-07, which cut 55 copies of the line to 4) and **a base imported from another module**
+(`booking/test_week_schedules.py` inherits `booking.tests.ApiTestCase`, which already has the line
+— adding a second copy there would be the wrong fix). Only classes that make a request are
+reported, so a class in one of those files that reaches no endpoint and stays on `APITestCase` is
+not a finding, and a new class that reaches one and stays on `APITestCase` still is.
+
+`testing/test_databases_declared.py` asserts `offending_classes()` is empty, which is the only
+thing that actually runs this check — the project has no CI and no git hook. That test also builds
+a two-file fixture tree to prove the check can still fail, because a checker that has quietly
+stopped finding anything looks exactly like a clean tree.
 
 A class counts as making a request if its body uses `self.client.` **or builds a test client of
 its own** (`APIClient()`, `Client()`). The second half was added after the first version of this
@@ -41,14 +50,16 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAKES_A_REQUEST = re.compile(r'self\.client\.|\b(?:APIClient|Client)\(')
 
 
-def _module_path(module: str, level: int, origin: pathlib.Path) -> pathlib.Path | None:
+def _module_path(
+    module: str, level: int, origin: pathlib.Path, root: pathlib.Path
+) -> pathlib.Path | None:
     """The file a `from <module> import ...` refers to, or None if it is not ours to read."""
     if level:
         base = origin.parent
         for _ in range(level - 1):
             base = base.parent
     else:
-        base = ROOT
+        base = root
     candidate = base.joinpath(*module.split('.')) if module else base
     for p in (candidate.with_suffix('.py'), candidate / '__init__.py'):
         if p.is_file():
@@ -59,7 +70,8 @@ def _module_path(module: str, level: int, origin: pathlib.Path) -> pathlib.Path 
 class Analyzer:
     """One pass over `backend/`, memoised, so a base class is parsed once however often it is used."""
 
-    def __init__(self) -> None:
+    def __init__(self, root: pathlib.Path = ROOT) -> None:
+        self.root = root
         self._cache: dict[pathlib.Path, tuple[dict[str, ast.ClassDef], dict[str, pathlib.Path]]] = {}
 
     def _parse(self, path: pathlib.Path):
@@ -73,13 +85,42 @@ class Analyzer:
             imported: dict[str, pathlib.Path] = {}
             for n in ast.walk(tree):
                 if isinstance(n, ast.ImportFrom):
-                    target = _module_path(n.module or '', n.level, path)
+                    target = _module_path(n.module or '', n.level, path, self.root)
                     if target is None:
                         continue
                     for alias in n.names:
                         imported[alias.asname or alias.name] = target
             self._cache[path] = (classes, imported)
         return self._cache[path]
+
+    def is_test_case(self, path: pathlib.Path, name: str, seen=()) -> bool:
+        """Does this class reach a `…TestCase` through its bases at all?
+
+        A substring check on the immediate base names (what this did first) skips any class whose
+        only base is a file-local one whose *name* happens not to contain `TestCase` —
+        `galleries/tests.py: GalleryBase`, `cloakroom/tests.py: DeskCase`,
+        `coauthoring/tests.py: CoauthoringBase` and nine more, 74 request-making classes between
+        them, none of them ever examined. A class the checker skips is a class it can never report,
+        and whether the base was called `RotaTestCase` or `DeskCase` is not a fact about the code
+        under test. Resolved the same way `declares` resolves a base, so the two halves agree about
+        what a test class is.
+        """
+        key = (str(path), name)
+        if key in seen:
+            return False
+        if 'TestCase' in name:
+            return True
+        classes, imported = self._parse(path)
+        node = classes.get(name)
+        if node is None:
+            target = imported.get(name)
+            if target is not None and target != path:
+                return self.is_test_case(target, name, seen + (key,))
+            return False
+        return any(
+            self.is_test_case(path, ast.unparse(b).split('.')[-1], seen + (key,))
+            for b in node.bases
+        )
 
     def declares(self, path: pathlib.Path, name: str, seen=()) -> bool:
         """Does this class, or anything it inherits from, set `databases`?"""
@@ -104,10 +145,16 @@ class Analyzer:
         )
 
 
-def main() -> int:
-    analyzer = Analyzer()
-    report: dict[str, list[tuple[int, str]]] = {}
-    for p in sorted(ROOT.rglob('test*.py')):
+def offending_classes(root: pathlib.Path = ROOT) -> list[tuple[str, int, str]]:
+    """Every test class under `root` that makes a request and declares no `databases`.
+
+    Returned as `(path relative to root, line number, class name)`, sorted. This is the function
+    `testing/test_databases_declared.py` asserts is empty, so that the suite itself is what runs
+    the check — nothing else does (no CI, no hook).
+    """
+    analyzer = Analyzer(root)
+    found: list[tuple[str, int, str]] = []
+    for p in sorted(root.rglob('test*.py')):
         if 'migrations' in str(p):
             continue
         try:
@@ -115,18 +162,26 @@ def main() -> int:
             tree = ast.parse(src)
         except (SyntaxError, OSError, UnicodeDecodeError):
             continue
-        rel = str(p.relative_to(ROOT))
+        rel = str(p.relative_to(root))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
-            bases = [ast.unparse(b) for b in node.bases]
-            if not any('TestCase' in b for b in bases):
+            if not any(
+                analyzer.is_test_case(p, ast.unparse(b).split('.')[-1]) for b in node.bases
+            ):
                 continue
             if not MAKES_A_REQUEST.search(ast.get_source_segment(src, node) or ''):
                 continue
             if analyzer.declares(p, node.name):
                 continue
-            report.setdefault(rel, []).append((node.lineno, node.name))
+            found.append((rel, node.lineno, node.name))
+    return sorted(found)
+
+
+def main() -> int:
+    report: dict[str, list[tuple[int, str]]] = {}
+    for rel, lineno, name in offending_classes():
+        report.setdefault(rel, []).append((lineno, name))
 
     total = sum(len(v) for v in report.values())
     print(total, 'classes still unresolved, in', len(report), 'files')

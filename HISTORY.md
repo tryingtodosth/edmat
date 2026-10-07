@@ -13567,3 +13567,150 @@ Both real servers up (backend `:8151`, frontend `:5251`), Node 24.21.
 - **Still no plural forms.** `decks_cardCount`, `decks_dueSummary` and friends read "1 decks" /
   "1 taliach"; zero of 3931 keys use an ICU plural. It is a site-wide copy decision and one sweep —
   named again here because this section touched the same screens and did not fix it.
+
+## 17BU.C — One `databases` line per file, a checker the suite runs, and a day-of-week sweep (2026-10-07, `after/c-test-hygiene`)
+
+Follow-up cycle after the closing integration, step C. Branch `after/c-test-hygiene` from `d577d94`.
+Closes three of the six bullets in `todo.md` "Closing step A — left open" — the per-file base
+classes, the checker being run by the suite, and the day-of-week sweep. Two more of the six had gone
+stale and were deleted with them: the three classes that lacked the line landed with steps B and E,
+and `backend/CLAUDE.md` §Testing had already gained the rule at integration. The sixth, the
+in-memory test databases that make `--keepdb` a no-op, is still open and still named.
+
+### 1. The line lives on a base class, once per file
+
+`moderation/tests.py` and `materials/tests.py` carried
+`databases = set(all_log_shards()) | {'default'}` **17 times each**, `exercises/test_solution_entries.py`
+**12** and `services/tests.py` **9** — 55 copies of one constant, with the same three-line comment
+explaining it stranded on whichever class happened to come first. Each file now defines its own
+`class ApiTestCase(APITestCase)` carrying the line and the explanation, and its suites inherit:
+**55 copies down to 4**. §17BT.A's "no cross-app shared base" decision is untouched and restated in
+each new base's docstring — the repetition *across* apps is what stops one app's fixtures breaking
+another's; inside one file it was only repetition. **Thirty-eight test files already did it this
+way** (forty-two now), so this was joining the convention rather than inventing one.
+
+**The classes that make no request were deliberately left on `APITestCase`** —
+`moderation.NodeGovernorHelperTests` and `materials.CreateMaterialFactoryTests`. That is not tidiness:
+it is what keeps `check_databases_declared.py` able to catch the next class that forgets. If every
+class in a file inherited the base, no class in that file could ever be reported again.
+
+### 2. The checker had to be read before trusting it — and then widened
+
+**It already honoured inheritance within a file**, which the brief for this step expected to have to
+teach it (§17BT.A built it that way for `booking/test_week_schedules.py`'s cross-module base). So the
+base-class extraction needed no change to it at all: it printed `0` before and after.
+
+What it did *not* do was consider a class whose only base is a **file-local base named without
+`TestCase` in it**. The filter was a substring test on the immediate base names, so every subclass of
+`galleries/tests.py: GalleryBase`, `cloakroom/tests.py: DeskCase`,
+`coauthoring/tests.py: CoauthoringBase`, `concepts/tests.py: ConceptBase`,
+`documents/tests.py: DocumentCase`, `materials_coop/tests.py: CoopBase` and six others was skipped
+before anything else was asked about it: **74 request-making classes the checker had never
+examined**. All 74 happen to inherit the line from their base — the next one
+would not have had to. `Analyzer.is_test_case()` now resolves "is this a test class" through the base
+chain the same way `declares()` resolves the declaration, so the two halves agree about what they are
+looking at. Classes considered: **258 → 332**. Offenders: **0 → 0**.
+
+This is the same failure §17BT.A caught in the brief's own sweep script, one layer down: a checker
+narrower than the rule it checks says "done".
+
+### 3. The suite is what runs the checker now
+
+Nothing ran it — no CI, no git hook, and a paragraph in `test.md` asking the next person to remember.
+`main()` is split into `offending_classes(root=ROOT)` (returning `(file, line, class)` triples) and a
+`main()` that prints exactly what it printed before, and `backend/testing/test_databases_declared.py`
+asserts the list is empty. A forgotten line is now a test failure that names the file, the line and
+the class.
+
+`testing/` is not in `INSTALLED_APPS` and does not need to be: `manage.py test` discovers from the
+filesystem under `backend/`, which is also why `config/test_locale_hint.py` has always run. The test
+class is a `SimpleTestCase` and declares no `databases` — it makes no request, and the checker agrees,
+because it only reports classes whose body makes one. Nothing in that file may build a test client
+without owing the very declaration it polices.
+
+Four fixture tests beside the real assertion build throwaway source trees in a `TemporaryDirectory`
+and prove the check can still fail: a class that declares nothing is caught; a same-file base counts
+for its subclasses; a base that itself forgot does **not** shield them; and a base whose name lacks
+`TestCase` no longer hides them. "Found nothing" and "cannot find anything any more" look identical
+from outside, and the base-class change above is exactly the kind that could have turned one into the
+other.
+
+### 4. The day-of-week sweep
+
+§17BT.A fixed `booking/test_week_schedules.PrecedenceTests` by accident, at 22:45 on a Tuesday, and
+left the sweep open. The sweep is done and it found **one** thing, which is worth saying as plainly as
+a long list would be.
+
+**Where day-of-week arithmetic can live at all:** `weekday`, `week_start`, `monday_of` and
+`day_of_week` appear in exactly one app's logic — `booking/`. Every hit anywhere else in `backend/`
+is `AccountProfile.week_starts_on` (a display preference: it says how a time is *drawn*, and nothing
+computes with it), a comment about it, or `seed_demo_content.py` writing two `AvailabilityRule` rows
+for a demo tutor. So no test outside `booking/` can depend on which day it runs, and none does: the date-bearing suites
+(`events`, `shifts`, `venues`, `documents`, `cloakroom`, `work`, `tasks`, `events/test_tickets.py`)
+all build times as `timezone.now() ± timedelta(...)` or from a per-class `self.start` anchor, and
+`/api/my-schedule/`'s default horizon is 14 days, so a `now + 1 day` event is in range on every day of
+the week.
+
+**Inside `booking/`**, every date comes from `ApiTestCase.next_weekday`, which walks **at least a full
+week forward**, so the anchor itself is never today. The only exposure is a test that then looks
+*backwards* from the anchor, which is precisely the bug §17BT.A hit. All three backwards references
+were checked by hand: `test_week_schedules.py:105` (`tuesday - 7d`) and `:171` (`monday - 1d`) are both
+inside `PrecedenceTests`, whose anchor is already `weeks_ahead=2`, leaving them 7 to 19 days ahead
+whatever day it is; and
+`booking/tests.py: test_the_past_is_not_hidden` (`tuesday - 14d`) means to land in the past and lands
+there on every day of the week (1 to 7 days ago). The module docstring now says this, so the next
+person adding a test knows the rule is "do not subtract from the anchor without `weeks_ahead=2`".
+
+**The one fix is time-of-day, not day-of-week.**
+`AvailabilityComputationTests.test_slots_already_past_are_never_offered` opened the whole of *today*
+and asserted `all(slot.start > timezone.now())`. After 22:00 there is no remaining hour, `slots` is
+empty, and `all()` over an empty list passes: for two hours every evening it was a test that could not
+fail. `slots_for_service` already takes `now=` for exactly this reason, so noon is passed in and the
+assertion is now an equality against hours 12–22 — the morning is gone *and* the afternoon is all
+still there, on any day, at any hour.
+
+### Verified
+
+- `../.venv/bin/python3 testing/check_databases_declared.py` → **`0 classes still unresolved, in 0 files`**,
+  before the change and after it, and after the filter widening that put 74 more classes under it.
+- `manage.py test testing` → **6 tests, OK**, 2.3 s, and `Skipping setup of unused database(s)` for
+  all ten — a `SimpleTestCase` suite that costs nothing.
+- `manage.py check` — no issues. `makemigrations --check --dry-run` — no changes (this step adds
+  no model and no migration).
+- The touched apps together,
+  `manage.py test moderation materials exercises services booking events testing --parallel 4 --keepdb`
+  — **825 tests, OK**, 168 s of tests, **0** occurrences of `Failed to write a request log row` and
+  **0** tracebacks in 108 lines of output. That zero is the point: the base classes resolve to the
+  same declaration the 55 copies made, and nothing fell through.
+- `time manage.py test --parallel 4 --keepdb`, machine otherwise idle — **2 706 tests, OK**,
+  **21 min 38 s** wall-clock (813.7 s of it the tests; the rest is the ten-database build), **194
+  lines** of output, **0** occurrences of `Failed to write a request log row`. **2 700 → 2 706** is
+  exactly the six tests in `testing/test_databases_declared.py`; nothing else was added, removed or
+  renamed into or out of discovery. The one `Traceback` in those 194 lines is the deliberate one
+  `work/tests.py: failing_provider` raises to prove `work/providers.py` reports a broken provider as
+  unavailable rather than failing the dashboard — it was in the integration's 198 lines too.
+
+### Left open
+
+- **`--keepdb` still keeps nothing**, because the SQLite test databases are in-memory; the ~9½-minute
+  build is paid on every run. Named again rather than taken: a `TEST['NAME']` on disk would make it
+  real at the cost of letting a stale test database outlive a migration (§17BT.A's own bullet, still
+  the honest trade).
+- **`shifts/tests.py: _future()` promises a weekday and does not deliver one.** Its docstring says "a
+  weekday morning a few days out"; it is `now + 3 days` at 10:00, which is a Saturday every Wednesday
+  and a Sunday every Thursday. Nothing in `shifts/` reads a weekday, so no test depends on it — but
+  the same expression also `.replace(hour=...)` on an aware datetime that has been moved three days,
+  which keeps the *old* UTC offset across a DST boundary. Both are one-line fixes in a file this step
+  did not own.
+- **No check that a new test file adds a base rather than repeating the line.** The checker enforces
+  that the declaration *exists*, never that it exists once; a file with 17 fresh copies would still
+  print 0. Counting copies per file is a different kind of rule — style, not correctness — and nobody
+  has asked for it.
+- **The headline test count is stale in two files this step did not own.** `test.md` says the new
+  number; the root `CLAUDE.md` running block and `CLAUDE_MAP.md` still say 2 700. Three sibling
+  branches were editing both files the same afternoon, and a one-number edit is not worth a conflict
+  in a shared file — whoever integrates this cycle should set all three from one measurement.
+- **The checker still answers "does this class make a request?" with a regex** over the class body
+  (`self.client.`, `APIClient()`, `Client()`). It is deliberately wider than the truth, which is the
+  safe direction, but a class that reaches an endpoint through a module-level helper taking no client
+  would still be missed. No instance of that exists today.
