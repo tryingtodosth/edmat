@@ -18,6 +18,7 @@
 	// upload a new one right in this form via the same `uploadAttachment` the Files tab already uses.
 	import { untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { creationStore } from '$lib/state/creation.svelte'; // learning step F
 	import { resolve } from '$app/paths';
 	import { getLocale } from '$lib/paraglide/runtime';
@@ -206,158 +207,163 @@
 
 <!-- A card, matching the "add a chapter" panel above it — the two used to run straight into each
      other with no more than a paragraph of whitespace between them, so it read as one form rather
-     than two. -->
-<section class="contribute add-panel">
-	<h2>{m.course_contribute_heading()}</h2>
+     than two. Both fold since 2026-10-08: on a course with three chapters the two always-open add
+     forms were most of the tab's height for a reader who is not filling it in right now. The page
+     carries a warning from the last time something like this was tried ("it used to be four
+     collapsed drawers here… an instructor found the thing they came to do always shut") and the
+     answer to it is that a fold now REMEMBERS: an instructor who opens this once finds it open on
+     every course after that. -->
+<FoldSection key="courseContribute" title={m.course_contribute_heading()}>
+	<div class="contribute add-panel">
+		<p class="add-panel__hint">
+			{course.contributionNeedsApproval
+				? m.course_contribute_willWait()
+				: m.course_contribute_willPublish()}
+		</p>
 
-	<p class="add-panel__hint">
-		{course.contributionNeedsApproval
-			? m.course_contribute_willWait()
-			: m.course_contribute_willPublish()}
-	</p>
-
-	<form class="add-panel__form" onsubmit={submit}>
-		<label class="field">
-			<span>{m.course_contribute_kind()}</span>
-			<select value={kind} onchange={(e) => switchKind(e.currentTarget.value as CourseItemKind)}>
-				<option value="material">{m.course_items_material()}</option>
-				<option value="exercise">{m.course_items_exercise()}</option>
-				<option value="attachment">{m.course_items_attachment()}</option>
-				<option value="event">{m.course_items_event()}</option>
-			</select>
-		</label>
-
-		{#if kind === 'attachment'}
-			<!-- A course file is never something to search for — it either already lives in this
-			     course, or it doesn't exist yet anywhere. -->
-			{#if attachments.length > 0}
-				<div class="kind-toggle" role="tablist">
-					<button
-						type="button"
-						class:active={attachmentMode === 'pick'}
-						role="tab"
-						aria-selected={attachmentMode === 'pick'}
-						onclick={() => (attachmentMode = 'pick')}
-					>
-						{m.course_contribute_pickExisting()}
-					</button>
-					<button
-						type="button"
-						class:active={attachmentMode === 'upload'}
-						role="tab"
-						aria-selected={attachmentMode === 'upload'}
-						onclick={() => (attachmentMode = 'upload')}
-					>
-						{m.course_contribute_uploadNew()}
-					</button>
-				</div>
-			{/if}
-
-			{#if attachmentMode === 'pick' && attachments.length > 0}
-				<label class="field">
-					<span>{m.course_contribute_attachmentId()}</span>
-					<select bind:value={pickedAttachmentId}>
-						<option value="">{m.course_contribute_pickFileNone()}</option>
-						{#each attachments as a (a.id)}
-							<option value={a.id}>{a.title}</option>
-						{/each}
-					</select>
-				</label>
-			{:else}
-				<label class="field">
-					<span>{m.course_contribute_uploadFileLabel()}</span>
-					<input
-						type="file"
-						accept={ACCEPTED_EXTENSIONS}
-						onchange={(e) => (uploadFile = e.currentTarget.files?.[0] ?? null)}
-					/>
-				</label>
-				<label class="field">
-					<span>{m.course_contribute_uploadTitleLabel()}</span>
-					<input type="text" bind:value={uploadTitle} maxlength="200" />
-				</label>
-				<p class="add-panel__hint">{m.course_contribute_uploadHint()}</p>
-			{/if}
-		{:else}
+		<form class="add-panel__form" onsubmit={submit}>
 			<label class="field">
-				<span>{m.course_contribute_search()}</span>
-				{#if pickedId}
-					<div class="picked">
-						<span class="picked__label">{pickedLabel}</span>
-						<button type="button" class="link" onclick={clearPick}>
-							{m.course_contribute_change()}
+				<span>{m.course_contribute_kind()}</span>
+				<select value={kind} onchange={(e) => switchKind(e.currentTarget.value as CourseItemKind)}>
+					<option value="material">{m.course_items_material()}</option>
+					<option value="exercise">{m.course_items_exercise()}</option>
+					<option value="attachment">{m.course_items_attachment()}</option>
+					<option value="event">{m.course_items_event()}</option>
+				</select>
+			</label>
+
+			{#if kind === 'attachment'}
+				<!-- A course file is never something to search for — it either already lives in this
+			     course, or it doesn't exist yet anywhere. -->
+				{#if attachments.length > 0}
+					<div class="kind-toggle" role="tablist">
+						<button
+							type="button"
+							class:active={attachmentMode === 'pick'}
+							role="tab"
+							aria-selected={attachmentMode === 'pick'}
+							onclick={() => (attachmentMode = 'pick')}
+						>
+							{m.course_contribute_pickExisting()}
+						</button>
+						<button
+							type="button"
+							class:active={attachmentMode === 'upload'}
+							role="tab"
+							aria-selected={attachmentMode === 'upload'}
+							onclick={() => (attachmentMode = 'upload')}
+						>
+							{m.course_contribute_uploadNew()}
 						</button>
 					</div>
-				{:else}
-					<input
-						type="text"
-						bind:value={query}
-						oninput={(e) => search.typed(e.currentTarget.value)}
-						oncompositionstart={search.compositionStart}
-						oncompositionend={(e) => search.compositionEnd(e.currentTarget.value)}
-						placeholder={m.course_contribute_searchPlaceholder()}
-					/>
-					{#if searching}
-						<p class="add-panel__hint">{m.common_loading()}</p>
-					{:else if committedQuery && results.length === 0}
-						<p class="add-panel__hint">{m.course_contribute_noResults()}</p>
-					{:else if results.length > 0}
-						<ul class="results">
-							{#each results as result (result.id)}
-								<li>
-									<button type="button" onclick={() => pick(result)}>{result.label}</button>
-								</li>
-							{/each}
-						</ul>
-					{/if}
 				{/if}
-			</label>
-			{#if kind !== 'event' || creationStore.allows('event')}
-				<!-- The creation gate (learning step F): "create an event instead" leads to a form
+
+				{#if attachmentMode === 'pick' && attachments.length > 0}
+					<label class="field">
+						<span>{m.course_contribute_attachmentId()}</span>
+						<select bind:value={pickedAttachmentId}>
+							<option value="">{m.course_contribute_pickFileNone()}</option>
+							{#each attachments as a (a.id)}
+								<option value={a.id}>{a.title}</option>
+							{/each}
+						</select>
+					</label>
+				{:else}
+					<label class="field">
+						<span>{m.course_contribute_uploadFileLabel()}</span>
+						<input
+							type="file"
+							accept={ACCEPTED_EXTENSIONS}
+							onchange={(e) => (uploadFile = e.currentTarget.files?.[0] ?? null)}
+						/>
+					</label>
+					<label class="field">
+						<span>{m.course_contribute_uploadTitleLabel()}</span>
+						<input type="text" bind:value={uploadTitle} maxlength="200" />
+					</label>
+					<p class="add-panel__hint">{m.course_contribute_uploadHint()}</p>
+				{/if}
+			{:else}
+				<label class="field">
+					<span>{m.course_contribute_search()}</span>
+					{#if pickedId}
+						<div class="picked">
+							<span class="picked__label">{pickedLabel}</span>
+							<button type="button" class="link" onclick={clearPick}>
+								{m.course_contribute_change()}
+							</button>
+						</div>
+					{:else}
+						<input
+							type="text"
+							bind:value={query}
+							oninput={(e) => search.typed(e.currentTarget.value)}
+							oncompositionstart={search.compositionStart}
+							oncompositionend={(e) => search.compositionEnd(e.currentTarget.value)}
+							placeholder={m.course_contribute_searchPlaceholder()}
+						/>
+						{#if searching}
+							<p class="add-panel__hint">{m.common_loading()}</p>
+						{:else if committedQuery && results.length === 0}
+							<p class="add-panel__hint">{m.course_contribute_noResults()}</p>
+						{:else if results.length > 0}
+							<ul class="results">
+								{#each results as result (result.id)}
+									<li>
+										<button type="button" onclick={() => pick(result)}>{result.label}</button>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					{/if}
+				</label>
+				{#if kind !== 'event' || creationStore.allows('event')}
+					<!-- The creation gate (learning step F): "create an event instead" leads to a form
 				     `POST /api/events/` would refuse for an account that may not host one, so the
 				     offer goes with the ability (house rule 3). The material and exercise branches
 				     are untouched — submitting is not founding. -->
-				<p class="add-panel__hint">
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built by a $derived that calls resolve() itself; the rule only sees the attribute -->
-					<a href={createHref}>{createLabel}</a>
-				</p>
+					<p class="add-panel__hint">
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built by a $derived that calls resolve() itself; the rule only sees the attribute -->
+						<a href={createHref}>{createLabel}</a>
+					</p>
+				{/if}
 			{/if}
-		{/if}
 
-		{#if course.canCurate && course.chapters.length > 0}
+			{#if course.canCurate && course.chapters.length > 0}
+				<label class="field">
+					<span>{m.course_items_moveTo()}</span>
+					<select bind:value={target}>
+						<option value="">{m.course_items_moveNone()}</option>
+						{#each course.chapters as chapter (chapter.id)}
+							<optgroup label={chapter.title}>
+								<option value="chapter:{chapter.id}">{m.course_items_moveWholeChapter()}</option>
+								{#each chapter.lessons as lesson (lesson.id)}
+									<option value="lesson:{lesson.id}">{lesson.title}</option>
+								{/each}
+							</optgroup>
+						{/each}
+					</select>
+				</label>
+			{/if}
+
 			<label class="field">
-				<span>{m.course_items_moveTo()}</span>
-				<select bind:value={target}>
-					<option value="">{m.course_items_moveNone()}</option>
-					{#each course.chapters as chapter (chapter.id)}
-						<optgroup label={chapter.title}>
-							<option value="chapter:{chapter.id}">{m.course_items_moveWholeChapter()}</option>
-							{#each chapter.lessons as lesson (lesson.id)}
-								<option value="lesson:{lesson.id}">{lesson.title}</option>
-							{/each}
-						</optgroup>
-					{/each}
-				</select>
+				<span>{m.course_contribute_note()}</span>
+				<input type="text" bind:value={note} maxlength="500" />
 			</label>
+
+			<button type="submit" class="primary" disabled={busy || !canSubmit}>
+				{m.course_contribute_submit()}
+			</button>
+		</form>
+
+		{#if notice}
+			<p class="notice">{notice}</p>
 		{/if}
-
-		<label class="field">
-			<span>{m.course_contribute_note()}</span>
-			<input type="text" bind:value={note} maxlength="500" />
-		</label>
-
-		<button type="submit" class="primary" disabled={busy || !canSubmit}>
-			{m.course_contribute_submit()}
-		</button>
-	</form>
-
-	{#if notice}
-		<p class="notice">{notice}</p>
-	{/if}
-	{#if error}
-		<p class="error">{error}</p>
-	{/if}
-</section>
+		{#if error}
+			<p class="error">{error}</p>
+		{/if}
+	</div>
+</FoldSection>
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
@@ -366,15 +372,9 @@
 	// panel carries the identical .add-panel* block. Not pulled into a shared mixin: two occurrences
 	// is the threshold this codebase leaves alone, per its own "three strikes" convention.
 	.contribute {
-		@include mix.card-surface;
-		padding: var(--space-4);
-		margin-top: var(--space-3);
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-	}
-	.contribute h2 {
-		font-size: var(--font-size-base);
 	}
 	.add-panel__form {
 		display: flex;

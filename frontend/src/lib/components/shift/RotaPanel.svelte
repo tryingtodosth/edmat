@@ -17,6 +17,7 @@
 	 */
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
@@ -180,163 +181,157 @@
 </script>
 
 {#if enabled && !hidden && loaded}
-	<section class="rota">
-		<header class="head">
-			<h2>{m.shifts_heading()}</h2>
-			<!-- "Volunteer rota" -->
+	<FoldSection key="rota" title={m.shifts_heading()} count={openShifts.length}>
+		<!-- "Volunteer rota" — the count is the OPEN shifts, not every shift: "four still need
+		     somebody" is the reason a volunteer opens this section, and the total is not. -->
+		{#snippet actions()}
 			<a class="wall" href={resolve('/events/[id]/rota', { id: eventId })}>{m.shifts_wallRota()}</a>
 			<!-- "Print the wall rota" -->
-		</header>
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
+		{/snippet}
+		<div class="rota">
+			{#if error}<p class="error" role="alert">{error}</p>{/if}
 
-		<div class="mine">
-			<h3>{m.shifts_myShifts()}</h3>
-			<!-- "My shifts" -->
-			{#if mine && mine.shifts.length > 0}
-				<ul class="my-list">
-					{#each mine.shifts as row (row.assignmentId)}
+			<div class="mine">
+				<h3>{m.shifts_myShifts()}</h3>
+				<!-- "My shifts" -->
+				{#if mine && mine.shifts.length > 0}
+					<ul class="my-list">
+						{#each mine.shifts as row (row.assignmentId)}
+							<li>
+								<strong>{row.stationName}</strong>
+								<span>{formatDateTime(row.startsAt)}–{formatTimeOfDay(row.endsAt)}</span>
+								{#if row.locationText}<span class="where">{row.locationText}</span>{/if}
+								<span class="pill">{ASSIGNMENT_STATUS_LABELS[row.status]()}</span>
+								{#if row.coVolunteers.length > 0}
+									<span class="with"
+										>{m.shifts_withPeople({ names: row.coVolunteers.join(', ') })}</span
+									>
+									<!-- "with {names}" -->
+								{/if}
+								{#if row.dropBlockReason}
+									<button
+										type="button"
+										class="link"
+										disabled
+										title={DROP_BLOCK_REASON_LABELS[row.dropBlockReason]()}
+									>
+										{m.shifts_drop()}
+										<!-- "Give it back" -->
+									</button>
+									<span class="why">{DROP_BLOCK_REASON_LABELS[row.dropBlockReason]()}</span>
+								{:else}
+									<button
+										type="button"
+										class="link"
+										onclick={() => run(() => dropShift(row.shiftId))}
+									>
+										{m.shifts_drop()}
+										<!-- "Give it back" -->
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+					<p class="totals">
+						{m.shifts_hoursTotal({ hours: mine.hours })}
+						<!-- "{hours} h credited so far" -->
+						<button type="button" class="link" onclick={downloadIcs}
+							>{m.shifts_downloadIcs()}</button
+						>
+						<!-- "Add to my calendar (.ics)" -->
+						<a href={resolve('/events/[id]/certificate', { id: eventId })}
+							>{m.shifts_certificate()}</a
+						>
+						<!-- "Certificate of service" -->
+					</p>
+					{#if mine.deskLocation}
+						<p class="desk">{m.shifts_deskAt({ where: mine.deskLocation })}</p>
+						<!-- "Organiser desk: {where}" -->
+					{/if}
+				{:else}
+					<p class="status">{m.shifts_noShiftsOfMine()}</p>
+					<!-- "You have no shifts on this event yet." -->
+				{/if}
+			</div>
+
+			<div class="open">
+				<h3>{m.shifts_openShifts()}</h3>
+				<!-- "Open shifts" -->
+				{#if openShifts.length === 0}
+					<p class="status">{m.shifts_noOpenShifts()}</p>
+					<!-- "Nothing open right now." -->
+				{/if}
+				<ul class="open-list">
+					{#each openShifts as shift (shift.id)}
 						<li>
-							<strong>{row.stationName}</strong>
-							<span>{formatDateTime(row.startsAt)}–{formatTimeOfDay(row.endsAt)}</span>
-							{#if row.locationText}<span class="where">{row.locationText}</span>{/if}
-							<span class="pill">{ASSIGNMENT_STATUS_LABELS[row.status]()}</span>
-							{#if row.coVolunteers.length > 0}
-								<span class="with"
-									>{m.shifts_withPeople({ names: row.coVolunteers.join(', ') })}</span
-								>
-								<!-- "with {names}" -->
-							{/if}
-							{#if row.dropBlockReason}
-								<button
-									type="button"
-									class="link"
-									disabled
-									title={DROP_BLOCK_REASON_LABELS[row.dropBlockReason]()}
-								>
-									{m.shifts_drop()}
-									<!-- "Give it back" -->
-								</button>
-								<span class="why">{DROP_BLOCK_REASON_LABELS[row.dropBlockReason]()}</span>
-							{:else}
-								<button
-									type="button"
-									class="link"
-									onclick={() => run(() => dropShift(row.shiftId))}
-								>
-									{m.shifts_drop()}
-									<!-- "Give it back" -->
-								</button>
+							<strong>{shift.stationName}</strong>
+							<span>{formatDateTime(shift.startsAt)}–{formatTimeOfDay(shift.endsAt)}</span>
+							{#if shift.locationText}<span class="where">{shift.locationText}</span>{/if}
+							<span class="count"
+								>{m.shifts_placesLeft({
+									taken: shift.confirmedCount + shift.claimedCount,
+									needed: shift.needed
+								})}</span
+							>
+							<!-- "{taken} of {needed} taken" -->
+							<button
+								type="button"
+								disabled={!shift.canClaim}
+								onclick={() => run(() => claimShift(shift.id))}
+							>
+								{m.shifts_claim()}
+								<!-- "Take this shift" -->
+							</button>
+							{#if shift.claimBlockReason}
+								<span class="why">{CLAIM_BLOCK_REASON_LABELS[shift.claimBlockReason]()}</span>
 							{/if}
 						</li>
 					{/each}
 				</ul>
-				<p class="totals">
-					{m.shifts_hoursTotal({ hours: mine.hours })}
-					<!-- "{hours} h credited so far" -->
-					<button type="button" class="link" onclick={downloadIcs}>{m.shifts_downloadIcs()}</button>
-					<!-- "Add to my calendar (.ics)" -->
-					<a href={resolve('/events/[id]/certificate', { id: eventId })}>{m.shifts_certificate()}</a
-					>
-					<!-- "Certificate of service" -->
-				</p>
-				{#if mine.deskLocation}
-					<p class="desk">{m.shifts_deskAt({ where: mine.deskLocation })}</p>
-					<!-- "Organiser desk: {where}" -->
-				{/if}
-			{:else}
-				<p class="status">{m.shifts_noShiftsOfMine()}</p>
-				<!-- "You have no shifts on this event yet." -->
-			{/if}
-		</div>
-
-		<div class="open">
-			<h3>{m.shifts_openShifts()}</h3>
-			<!-- "Open shifts" -->
-			{#if openShifts.length === 0}
-				<p class="status">{m.shifts_noOpenShifts()}</p>
-				<!-- "Nothing open right now." -->
-			{/if}
-			<ul class="open-list">
-				{#each openShifts as shift (shift.id)}
-					<li>
-						<strong>{shift.stationName}</strong>
-						<span>{formatDateTime(shift.startsAt)}–{formatTimeOfDay(shift.endsAt)}</span>
-						{#if shift.locationText}<span class="where">{shift.locationText}</span>{/if}
-						<span class="count"
-							>{m.shifts_placesLeft({
-								taken: shift.confirmedCount + shift.claimedCount,
-								needed: shift.needed
-							})}</span
-						>
-						<!-- "{taken} of {needed} taken" -->
-						<button
-							type="button"
-							disabled={!shift.canClaim}
-							onclick={() => run(() => claimShift(shift.id))}
-						>
-							{m.shifts_claim()}
-							<!-- "Take this shift" -->
-						</button>
-						{#if shift.claimBlockReason}
-							<span class="why">{CLAIM_BLOCK_REASON_LABELS[shift.claimBlockReason]()}</span>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		</div>
-
-		{#if canOrganise}
-			<div class="organiser">
-				<h3>{m.shifts_coverageHeading()}</h3>
-				<!-- "Coverage" -->
-				<CoverageGrid cells={coverage} />
-				<StationEditor
-					{stations}
-					{sessions}
-					oncreatestation={(draft: StationDraft) => run(() => createStation(eventId, draft))}
-					ondeletestation={(id) => run(() => deleteStation(id))}
-					oncreateshift={(stationId, startsAt, endsAt, needed) =>
-						run(() =>
-							createShift(stationId, {
-								startsAt: startsAt ?? undefined,
-								endsAt: endsAt ?? undefined,
-								needed
-							})
-						)}
-					ondeleteshift={(id) => run(() => deleteShift(id))}
-					onassign={(shiftId, userId) => run(() => assignShift(shiftId, userId))}
-					onconfirm={(shiftId, assignmentId) => run(() => confirmAssignment(shiftId, assignmentId))}
-					onnoshow={(shiftId, assignmentId) => run(() => markNoShow(shiftId, assignmentId))}
-					ondone={(shiftId, assignmentId, hours, note) =>
-						run(() => markDone(shiftId, assignmentId, { hours, note }))}
-					ondrop={(shiftId, assignmentId) => run(() => dropShift(shiftId, { assignmentId }))}
-				/>
-				<VolunteerRecords
-					{records}
-					onsave={(userId, fields) => run(() => saveVolunteerRecord(eventId, userId, fields))}
-				/>
 			</div>
-		{/if}
-	</section>
+
+			{#if canOrganise}
+				<div class="organiser">
+					<h3>{m.shifts_coverageHeading()}</h3>
+					<!-- "Coverage" -->
+					<CoverageGrid cells={coverage} />
+					<StationEditor
+						{stations}
+						{sessions}
+						oncreatestation={(draft: StationDraft) => run(() => createStation(eventId, draft))}
+						ondeletestation={(id) => run(() => deleteStation(id))}
+						oncreateshift={(stationId, startsAt, endsAt, needed) =>
+							run(() =>
+								createShift(stationId, {
+									startsAt: startsAt ?? undefined,
+									endsAt: endsAt ?? undefined,
+									needed
+								})
+							)}
+						ondeleteshift={(id) => run(() => deleteShift(id))}
+						onassign={(shiftId, userId) => run(() => assignShift(shiftId, userId))}
+						onconfirm={(shiftId, assignmentId) =>
+							run(() => confirmAssignment(shiftId, assignmentId))}
+						onnoshow={(shiftId, assignmentId) => run(() => markNoShow(shiftId, assignmentId))}
+						ondone={(shiftId, assignmentId, hours, note) =>
+							run(() => markDone(shiftId, assignmentId, { hours, note }))}
+						ondrop={(shiftId, assignmentId) => run(() => dropShift(shiftId, { assignmentId }))}
+					/>
+					<VolunteerRecords
+						{records}
+						onsave={(userId, fields) => run(() => saveVolunteerRecord(eventId, userId, fields))}
+					/>
+				</div>
+			{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
+	// Card chrome, the heading row and the spacing above are `FoldSection`'s since 2026-10-08.
 	.rota {
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.9rem 1rem;
-		margin-top: 1rem;
-	}
-	.head {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 0.6rem;
-		flex-wrap: wrap;
-	}
-	h2 {
-		margin: 0;
-		font-size: 1.15rem;
+		display: grid;
+		gap: 0.5rem;
 	}
 	h3 {
 		margin: 0.9rem 0 0.35rem;

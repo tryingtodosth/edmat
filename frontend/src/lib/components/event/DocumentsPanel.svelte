@@ -11,6 +11,7 @@
 	 * (house rule 3 — the gate in `documents/access.py` answers "nothing owed" while the flag is
 	 * off, so the neighbouring surface is not left half-broken). */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { ApiError } from '$lib/api/client';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
@@ -176,226 +177,221 @@
 </script>
 
 {#if enabled}
-	<section class="documents">
-		<div class="head">
-			<h3>{m.documents_heading()}</h3>
-			<!-- "Documents" -->
-			{#if outstanding > 0}
-				<span class="pill pill--warn">{m.documents_outstanding({ count: outstanding })}</span>
-				<!-- "{count} still to read" -->
-			{/if}
+	<FoldSection
+		key="documents"
+		title={m.documents_heading()}
+		count={documents.length}
+		note={outstanding > 0 ? m.documents_outstanding({ count: outstanding }) : null}
+		level={3}
+	>
+		<!-- "Documents" / "{count} still to read" — the outstanding count is ON the shut line,
+		     because a briefing somebody still owes is the one thing about this section they need to
+		     know before deciding whether to open it. -->
+		{#snippet actions()}
 			{#if event.canOrganise}
 				<button type="button" onclick={startNew}>{m.documents_add()}</button>
 				<!-- "Add a document" -->
 			{/if}
-		</div>
+		{/snippet}
+		<div class="documents">
+			{#if loading && documents.length === 0}
+				<p class="status">{m.common_loading()}</p>
+				<!-- "Loading…" -->
+			{:else if !loading && documents.length === 0}
+				<p class="status">{m.documents_empty()}</p>
+				<!-- "Nothing has been shared here yet." -->
+			{/if}
 
-		{#if loading && documents.length === 0}
-			<p class="status">{m.common_loading()}</p>
-			<!-- "Loading…" -->
-		{:else if !loading && documents.length === 0}
-			<p class="status">{m.documents_empty()}</p>
-			<!-- "Nothing has been shared here yet." -->
-		{/if}
-
-		{#if showForm && event.canOrganise}
-			<form onsubmit={submit}>
-				{#if replacingId}
-					<p class="status">{m.documents_replaceHint()}</p>
-					<!-- "The old version is kept, and everybody who had read it is asked again." -->
-				{/if}
-				<label>
-					{m.documents_title()}
-					<!-- "Title" -->
-					<input type="text" bind:value={draft.title} required maxlength="200" />
-				</label>
-				<label>
-					{m.documents_kind()}
-					<!-- "What is it" -->
-					<select bind:value={draft.kind}>
-						<option value="file">{m.documents_kindFile()}</option>
-						<!-- "A file" -->
-						<option value="link">{m.documents_kindLink()}</option>
-						<!-- "A link" -->
-					</select>
-				</label>
-				{#if draft.kind === 'file'}
+			{#if showForm && event.canOrganise}
+				<form onsubmit={submit}>
+					{#if replacingId}
+						<p class="status">{m.documents_replaceHint()}</p>
+						<!-- "The old version is kept, and everybody who had read it is asked again." -->
+					{/if}
 					<label>
-						{m.documents_file()}
-						<!-- "File (a PDF or a picture)" -->
-						<input
-							type="file"
-							accept="application/pdf,image/png,image/jpeg,image/webp"
-							onchange={(e) => (chosenFile = e.currentTarget.files?.[0] ?? null)}
-						/>
+						{m.documents_title()}
+						<!-- "Title" -->
+						<input type="text" bind:value={draft.title} required maxlength="200" />
 					</label>
-				{:else}
 					<label>
-						{m.documents_url()}
-						<!-- "Address" -->
-						<input type="url" bind:value={draft.url} />
+						{m.documents_kind()}
+						<!-- "What is it" -->
+						<select bind:value={draft.kind}>
+							<option value="file">{m.documents_kindFile()}</option>
+							<!-- "A file" -->
+							<option value="link">{m.documents_kindLink()}</option>
+							<!-- "A link" -->
+						</select>
 					</label>
-				{/if}
-				<label>
-					{m.documents_visibility()}
-					<!-- "Who may see it" -->
-					<select bind:value={draft.visibility}>
-						{#each DOCUMENT_TIERS as tier (tier)}
-							<option value={tier}>{DOCUMENT_TIER_LABELS[tier]()}</option>
-						{/each}
-					</select>
-				</label>
-				<label class="check">
-					<input type="checkbox" bind:checked={draft.requiresAcknowledgement} />
-					{m.documents_requiresAcknowledgement()}
-					<!-- "Everybody who can see it has to confirm they have read it" -->
-				</label>
-				<div class="actions">
-					<button type="submit" class="primary" disabled={busy === 'form'}
-						>{busy === 'form' ? m.documents_saving() : m.documents_save()}</button
-					>
-					<!-- "Adding…" / "Add" -->
-					<button type="button" onclick={() => (showForm = false)}>{m.common_cancel()}</button>
-					<!-- "Cancel" -->
-				</div>
-			</form>
-		{/if}
+					{#if draft.kind === 'file'}
+						<label>
+							{m.documents_file()}
+							<!-- "File (a PDF or a picture)" -->
+							<input
+								type="file"
+								accept="application/pdf,image/png,image/jpeg,image/webp"
+								onchange={(e) => (chosenFile = e.currentTarget.files?.[0] ?? null)}
+							/>
+						</label>
+					{:else}
+						<label>
+							{m.documents_url()}
+							<!-- "Address" -->
+							<input type="url" bind:value={draft.url} />
+						</label>
+					{/if}
+					<label>
+						{m.documents_visibility()}
+						<!-- "Who may see it" -->
+						<select bind:value={draft.visibility}>
+							{#each DOCUMENT_TIERS as tier (tier)}
+								<option value={tier}>{DOCUMENT_TIER_LABELS[tier]()}</option>
+							{/each}
+						</select>
+					</label>
+					<label class="check">
+						<input type="checkbox" bind:checked={draft.requiresAcknowledgement} />
+						{m.documents_requiresAcknowledgement()}
+						<!-- "Everybody who can see it has to confirm they have read it" -->
+					</label>
+					<div class="actions">
+						<button type="submit" class="primary" disabled={busy === 'form'}
+							>{busy === 'form' ? m.documents_saving() : m.documents_save()}</button
+						>
+						<!-- "Adding…" / "Add" -->
+						<button type="button" onclick={() => (showForm = false)}>{m.common_cancel()}</button>
+						<!-- "Cancel" -->
+					</div>
+				</form>
+			{/if}
 
-		{#each groups as group (group.tier)}
-			<div class="group">
-				<h4>
-					<span class="pill">{DOCUMENT_TIER_LABELS[group.tier]()}</span>
-				</h4>
-				<ul>
-					{#each group.rows as doc (doc.id)}
-						<li>
-							<div class="row-head">
-								<strong>{doc.title}</strong>
-								{#if doc.version > 1}
-									<span class="meta">{m.documents_version({ number: doc.version })}</span>
-									<!-- "Version {number}" -->
-								{/if}
-								{#if doc.requiresAcknowledgement}
-									<span class="pill pill--warn">{m.documents_mandatory()}</span>
-									<!-- "Must be read" -->
-								{/if}
-								{#if doc.uploadedBy}
-									<span class="meta"
-										>{m.documents_uploadedBy({ name: doc.uploadedBy.displayName })}</span
-									>
-									<!-- "Added by {name}" -->
-								{/if}
-							</div>
-							<div class="actions">
-								{#if doc.kind === 'link'}
-									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an external absolute URL an organiser typed, not an app route -->
-									<a href={doc.url} target="_blank" rel="noopener noreferrer"
-										>{m.documents_openLink()}</a
-									>
-									<!-- "Open the link" -->
-								{:else}
-									<button
-										type="button"
-										onclick={() => (openPreview = openPreview === doc.id ? '' : doc.id)}
-										>{openPreview === doc.id
-											? m.documents_hidePreview()
-											: m.documents_preview()}</button
-									>
-									<!-- "Hide the preview" / "Preview" -->
-									<button type="button" disabled={busy === doc.id} onclick={() => download(doc)}
-										>{m.documents_open()}</button
-									>
-									<!-- "Download" -->
-									{#if !doc.scanned && doc.contentType.includes('pdf')}
-										<span class="meta">{m.documents_notScanned()}</span>
-										<!-- "Not virus-scanned" -->
+			{#each groups as group (group.tier)}
+				<div class="group">
+					<h4>
+						<span class="pill">{DOCUMENT_TIER_LABELS[group.tier]()}</span>
+					</h4>
+					<ul>
+						{#each group.rows as doc (doc.id)}
+							<li>
+								<div class="row-head">
+									<strong>{doc.title}</strong>
+									{#if doc.version > 1}
+										<span class="meta">{m.documents_version({ number: doc.version })}</span>
+										<!-- "Version {number}" -->
 									{/if}
-								{/if}
-								{#if doc.requiresAcknowledgement}
-									{#if doc.acknowledged}
-										<span class="pill pill--ok">{m.documents_acknowledged()}</span>
-										<!-- "Read" -->
+									{#if doc.requiresAcknowledgement}
+										<span class="pill pill--warn">{m.documents_mandatory()}</span>
+										<!-- "Must be read" -->
+									{/if}
+									{#if doc.uploadedBy}
+										<span class="meta"
+											>{m.documents_uploadedBy({ name: doc.uploadedBy.displayName })}</span
+										>
+										<!-- "Added by {name}" -->
+									{/if}
+								</div>
+								<div class="actions">
+									{#if doc.kind === 'link'}
+										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an external absolute URL an organiser typed, not an app route -->
+										<a href={doc.url} target="_blank" rel="noopener noreferrer"
+											>{m.documents_openLink()}</a
+										>
+										<!-- "Open the link" -->
 									{:else}
 										<button
 											type="button"
-											class="primary"
-											disabled={busy === doc.id}
-											onclick={() => run(doc.id, () => acknowledgeDocument(doc.id))}
-											>{m.documents_acknowledge()}</button
+											onclick={() => (openPreview = openPreview === doc.id ? '' : doc.id)}
+											>{openPreview === doc.id
+												? m.documents_hidePreview()
+												: m.documents_preview()}</button
 										>
-										<!-- "Read and understood" -->
+										<!-- "Hide the preview" / "Preview" -->
+										<button type="button" disabled={busy === doc.id} onclick={() => download(doc)}
+											>{m.documents_open()}</button
+										>
+										<!-- "Download" -->
+										{#if !doc.scanned && doc.contentType.includes('pdf')}
+											<span class="meta">{m.documents_notScanned()}</span>
+											<!-- "Not virus-scanned" -->
+										{/if}
 									{/if}
-								{/if}
-								{#if event.canOrganise}
-									<button type="button" onclick={() => startReplace(doc)}
-										>{m.documents_replace()}</button
-									>
-									<!-- "Upload a new version" -->
-									<button
-										type="button"
-										class="danger"
-										disabled={busy === doc.id}
-										onclick={() => run(doc.id, () => removeEventDocument(doc.id))}
-										>{m.documents_remove()}</button
-									>
-									<!-- "Withdraw" -->
-								{/if}
-							</div>
-							{#if openPreview === doc.id && doc.kind === 'file'}
-								<DocumentPreview document={doc} />
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			</div>
-		{/each}
-
-		{#if event.canOrganise && receipts.length > 0}
-			<div class="receipts">
-				<button type="button" onclick={() => (showReceipts = !showReceipts)}
-					>{showReceipts ? m.documents_receiptsHide() : m.documents_receiptsShow()}</button
-				>
-				<!-- "Hide the read receipts" / "Who has read what" -->
-				{#if showReceipts}
-					{#each documents.filter((d) => d.requiresAcknowledgement) as doc (doc.id)}
-						<h4>{doc.title}</h4>
-						<ul class="people">
-							{#each receiptsFor(doc.id) as row (row.userId)}
-								<li>
-									<span>{row.userDisplayName}</span>
-									{#if row.outstanding}
-										<span class="pill pill--warn">{m.documents_receiptsOutstanding()}</span>
-										<!-- "Not yet" -->
-									{:else}
-										<span class="meta">{formatDateTime(row.acknowledgedAt ?? '')}</span>
+									{#if doc.requiresAcknowledgement}
+										{#if doc.acknowledged}
+											<span class="pill pill--ok">{m.documents_acknowledged()}</span>
+											<!-- "Read" -->
+										{:else}
+											<button
+												type="button"
+												class="primary"
+												disabled={busy === doc.id}
+												onclick={() => run(doc.id, () => acknowledgeDocument(doc.id))}
+												>{m.documents_acknowledge()}</button
+											>
+											<!-- "Read and understood" -->
+										{/if}
 									{/if}
-								</li>
-							{/each}
-						</ul>
-					{/each}
-				{/if}
-			</div>
-		{/if}
+									{#if event.canOrganise}
+										<button type="button" onclick={() => startReplace(doc)}
+											>{m.documents_replace()}</button
+										>
+										<!-- "Upload a new version" -->
+										<button
+											type="button"
+											class="danger"
+											disabled={busy === doc.id}
+											onclick={() => run(doc.id, () => removeEventDocument(doc.id))}
+											>{m.documents_remove()}</button
+										>
+										<!-- "Withdraw" -->
+									{/if}
+								</div>
+								{#if openPreview === doc.id && doc.kind === 'file'}
+									<DocumentPreview document={doc} />
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/each}
 
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
-	</section>
+			{#if event.canOrganise && receipts.length > 0}
+				<div class="receipts">
+					<button type="button" onclick={() => (showReceipts = !showReceipts)}
+						>{showReceipts ? m.documents_receiptsHide() : m.documents_receiptsShow()}</button
+					>
+					<!-- "Hide the read receipts" / "Who has read what" -->
+					{#if showReceipts}
+						{#each documents.filter((d) => d.requiresAcknowledgement) as doc (doc.id)}
+							<h4>{doc.title}</h4>
+							<ul class="people">
+								{#each receiptsFor(doc.id) as row (row.userId)}
+									<li>
+										<span>{row.userDisplayName}</span>
+										{#if row.outstanding}
+											<span class="pill pill--warn">{m.documents_receiptsOutstanding()}</span>
+											<!-- "Not yet" -->
+										{:else}
+											<span class="meta">{formatDateTime(row.acknowledgedAt ?? '')}</span>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						{/each}
+					{/if}
+				</div>
+			{/if}
+
+			{#if error}<p class="error" role="alert">{error}</p>{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
+	// Card chrome, the heading row and the spacing above are `FoldSection`'s since 2026-10-08.
 	.documents {
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.9rem 1rem;
-		margin-top: 1rem;
-	}
-	.head {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
+		display: grid;
 		gap: 0.6rem;
-		flex-wrap: wrap;
 	}
-	h3,
 	h4 {
 		margin: 0;
 	}

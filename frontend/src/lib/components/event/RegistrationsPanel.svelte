@@ -3,6 +3,7 @@
 	 * decline for pending rows (organisers), check-in and undo (any staff member — that is what a
 	 * volunteer is for), and the CSV. */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { resolve } from '$app/paths';
 	import type { EdmatEvent, EventAttendee, EventAttendanceStatus } from '$lib/types/event';
 	import {
@@ -73,122 +74,127 @@
 	}
 </script>
 
-<section class="registrations">
-	<div class="head">
-		<h3>{m.events_registrationsHeading({ count: rows.length })}</h3>
-		{#if event.canOrganise}
-			<button type="button" onclick={exportCsv} disabled={rows.length === 0}
-				>{m.events_exportCsv()}</button
-			>
-			<!-- CONFERENCE-BRIEF.md §3.D: one line, beneath the CSV button. The badge sheet is the printable
+<FoldSection
+	key="registrations"
+	title={m.events_registrationsHeading({ count: rows.length })}
+	level={3}
+>
+	<div class="registrations">
+		<div class="head">
+			{#if event.canOrganise}
+				<button type="button" onclick={exportCsv} disabled={rows.length === 0}
+					>{m.events_exportCsv()}</button
+				>
+				<!-- CONFERENCE-BRIEF.md §3.D: one line, beneath the CSV button. The badge sheet is the printable
 			     half of this same list, and this is where an organiser is already standing when they want it. -->
-			{#if featureFlagsStore.isEnabled('tickets') || authStore.isModerator}<a
-					class="badges"
-					href={resolve('/events/[id]/badges', { id: event.id })}>{m.tickets_badges()}</a
-				>{/if}
-		{/if}
-	</div>
-	<!-- conference: exports -->
-	<ExportsCard {event} />
-	{#if loading}
-		<p class="status">{m.common_loading()}</p>
-	{:else if rows.length === 0}
-		<p class="status">{m.events_registrationsEmpty()}</p>
-	{:else}
-		<ul class="rows">
-			{#each rows as row (row.id)}
-				<li class="row row--{row.status}">
-					<div class="who">
-						{#if row.attendee.id}
-							<a href={resolve('/users/[id]', { id: row.attendee.id })}
-								>{row.attendee.displayName}</a
-							>
-						{:else}
-							<span class="name">{row.attendee.displayName}</span>
-						{/if}
-						<span class="pill pill--{row.status}">{STATUS[row.status]()}</span>
-						{#if row.checkedIn}<span class="pill pill--checked">{m.events_checkedIn()}</span>{/if}
-						{#if row.registeredBy}<span class="by"
-								>{m.events_registeredBy({ name: row.registeredBy.displayName })}</span
-							>{/if}
-					</div>
-					{#if row.note}<p class="note">{row.note}</p>{/if}
-					{#if Object.keys(row.answers).length > 0}
-						<dl class="answers">
-							{#each event.registrationFields as f (f.id)}
-								{#if row.answers[f.id] !== undefined && answerText(row.answers[f.id])}
-									<dt>{f.label}</dt>
-									<dd>{answerText(row.answers[f.id])}</dd>
-								{/if}
-							{/each}
-							{#if row.answers._attendance_mode}<dt>{m.events_reg_attendanceMode()}</dt>
-								<dd>
-									{row.answers._attendance_mode === 'online'
-										? m.events_locationKind_online()
-										: m.events_locationKind_onsite()}
-								</dd>{/if}
-							{#if row.answers._needs}<dt>{m.events_reg_needs()}</dt>
-								<dd>{answerText(row.answers._needs)}</dd>{/if}
-						</dl>
-					{/if}
-					<div class="actions">
-						{#if row.status === 'pending' && event.canOrganise}
-							<button
-								type="button"
-								class="primary"
-								onclick={() => act(() => decideRegistration(event.id, row.id, 'accept'))}
-								>{m.events_accept()}</button
-							>
-							<button
-								type="button"
-								class="danger"
-								onclick={() => act(() => decideRegistration(event.id, row.id, 'decline'))}
-								>{m.events_decline()}</button
-							>
-						{/if}
-						{#if row.status === 'going' && event.canCheckIn}
-							{#if row.checkedIn}
-								<button
-									type="button"
-									onclick={() => act(() => setCheckedIn(event.id, row.id, false))}
-									>{m.events_undoCheckIn()}</button
+				{#if featureFlagsStore.isEnabled('tickets') || authStore.isModerator}<a
+						class="badges"
+						href={resolve('/events/[id]/badges', { id: event.id })}>{m.tickets_badges()}</a
+					>{/if}
+			{/if}
+		</div>
+		<!-- conference: exports -->
+		<ExportsCard {event} />
+		{#if loading}
+			<p class="status">{m.common_loading()}</p>
+		{:else if rows.length === 0}
+			<p class="status">{m.events_registrationsEmpty()}</p>
+		{:else}
+			<ul class="rows">
+				{#each rows as row (row.id)}
+					<li class="row row--{row.status}">
+						<div class="who">
+							{#if row.attendee.id}
+								<a href={resolve('/users/[id]', { id: row.attendee.id })}
+									>{row.attendee.displayName}</a
 								>
 							{:else}
+								<span class="name">{row.attendee.displayName}</span>
+							{/if}
+							<span class="pill pill--{row.status}">{STATUS[row.status]()}</span>
+							{#if row.checkedIn}<span class="pill pill--checked">{m.events_checkedIn()}</span>{/if}
+							{#if row.registeredBy}<span class="by"
+									>{m.events_registeredBy({ name: row.registeredBy.displayName })}</span
+								>{/if}
+						</div>
+						{#if row.note}<p class="note">{row.note}</p>{/if}
+						{#if Object.keys(row.answers).length > 0}
+							<dl class="answers">
+								{#each event.registrationFields as f (f.id)}
+									{#if row.answers[f.id] !== undefined && answerText(row.answers[f.id])}
+										<dt>{f.label}</dt>
+										<dd>{answerText(row.answers[f.id])}</dd>
+									{/if}
+								{/each}
+								{#if row.answers._attendance_mode}<dt>{m.events_reg_attendanceMode()}</dt>
+									<dd>
+										{row.answers._attendance_mode === 'online'
+											? m.events_locationKind_online()
+											: m.events_locationKind_onsite()}
+									</dd>{/if}
+								{#if row.answers._needs}<dt>{m.events_reg_needs()}</dt>
+									<dd>{answerText(row.answers._needs)}</dd>{/if}
+							</dl>
+						{/if}
+						<div class="actions">
+							{#if row.status === 'pending' && event.canOrganise}
 								<button
 									type="button"
-									onclick={() => act(() => setCheckedIn(event.id, row.id, true))}
-									>{m.events_checkIn()}</button
+									class="primary"
+									onclick={() => act(() => decideRegistration(event.id, row.id, 'accept'))}
+									>{m.events_accept()}</button
+								>
+								<button
+									type="button"
+									class="danger"
+									onclick={() => act(() => decideRegistration(event.id, row.id, 'decline'))}
+									>{m.events_decline()}</button
 								>
 							{/if}
-						{/if}
-						{#if row.promotionExpiresAt && row.status === 'promoted'}
-							<span class="until"
-								>{m.events_seatHeldUntil({ when: formatDateTime(row.promotionExpiresAt) })}</span
-							>
-						{/if}
-					</div>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-	{#if briefing}
-		<BriefingInterstitial
-			eventId={event.id}
-			block={briefing}
-			onread={() => {
-				briefing = null;
-			}}
-		/>
-	{/if}
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
-</section>
+							{#if row.status === 'going' && event.canCheckIn}
+								{#if row.checkedIn}
+									<button
+										type="button"
+										onclick={() => act(() => setCheckedIn(event.id, row.id, false))}
+										>{m.events_undoCheckIn()}</button
+									>
+								{:else}
+									<button
+										type="button"
+										onclick={() => act(() => setCheckedIn(event.id, row.id, true))}
+										>{m.events_checkIn()}</button
+									>
+								{/if}
+							{/if}
+							{#if row.promotionExpiresAt && row.status === 'promoted'}
+								<span class="until"
+									>{m.events_seatHeldUntil({ when: formatDateTime(row.promotionExpiresAt) })}</span
+								>
+							{/if}
+						</div>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+		{#if briefing}
+			<BriefingInterstitial
+				eventId={event.id}
+				block={briefing}
+				onread={() => {
+					briefing = null;
+				}}
+			/>
+		{/if}
+		{#if error}<p class="error" role="alert">{error}</p>{/if}
+	</div>
+</FoldSection>
 
 <style lang="scss">
+	// Card chrome, the heading and the spacing above are `FoldSection`'s since 2026-10-08. The
+	// heading already carries the count in its own sentence, so no `count` pill is passed.
 	.registrations {
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.9rem 1rem;
-		margin-top: 1rem;
+		display: grid;
+		gap: 0.6rem;
 	}
 	.head {
 		display: flex;
@@ -196,9 +202,6 @@
 		align-items: center;
 		gap: 0.6rem;
 		flex-wrap: wrap;
-	}
-	h3 {
-		margin: 0;
 	}
 	button {
 		min-height: 44px;

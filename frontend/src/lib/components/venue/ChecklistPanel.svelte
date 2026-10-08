@@ -14,6 +14,7 @@
 	 *    reason in words on it, rather than accepted and then refused.
 	 */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { getLocale } from '$lib/paraglide/runtime';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import {
@@ -227,237 +228,245 @@
 </script>
 
 {#if venuesOn && loaded && (instances.length > 0 || (canOrganise && templates.length > 0))}
-	<section class="checklist-panel">
-		<h3>{m.checklist_panelTitle()}</h3>
+	<FoldSection key="checklist" title={m.checklist_panelTitle()} count={instances.length} level={3}>
 		<!-- "The building's checklist" -->
-		<p class="hint">{m.checklist_panelIntro()}</p>
-		<!-- "What has to happen before the doors open, and afterwards…" -->
+		<div class="checklist-panel">
+			<p class="hint">{m.checklist_panelIntro()}</p>
+			<!-- "What has to happen before the doors open, and afterwards…" -->
 
-		{#if instances.length === 0}
-			<p class="hint">{m.checklist_none()}</p>
-			<!-- "No checklist has been started for this event." -->
-			{#if canOrganise}
-				<form class="start" onsubmit={begin}>
-					<label>
-						<span>{m.checklist_pickTemplate()}</span>
-						<!-- "Choose a checklist" -->
-						<select bind:value={chosenTemplate}>
-							<option value="">{m.venues_pickPrompt()}</option>
-							<!-- "Choose…" -->
-							{#each templates as template (template.id)}
-								<option value={template.id}>
-									{template.name} — {template.items.length}
-									{m.venues_templateItems()}
-									<!-- "items" -->
-								</option>
-							{/each}
-						</select>
-					</label>
-					<button type="submit" disabled={busy === 'start' || !chosenTemplate}>
-						{busy === 'start' ? m.checklist_starting() : m.checklist_start()}
-						<!-- "Starting…" / "Start this checklist" -->
-					</button>
-					<p class="hint">{m.checklist_snapshotNote()}</p>
-					<!-- "Your copy is a snapshot…" -->
-				</form>
-			{/if}
-		{:else}
-			{#if totalPending > 0}
-				<p class="blocked" role="status">
-					<strong>{m.checklist_mandatoryPending()}: {totalPending}</strong>
-					<!-- "Required items not yet started" -->
-					<br />
-					{m.checklist_publishBlocked()}
-					<!-- "This event has a room, so it cannot be published until every required item is at least under way." -->
-				</p>
+			{#if instances.length === 0}
+				<p class="hint">{m.checklist_none()}</p>
+				<!-- "No checklist has been started for this event." -->
+				{#if canOrganise}
+					<form class="start" onsubmit={begin}>
+						<label>
+							<span>{m.checklist_pickTemplate()}</span>
+							<!-- "Choose a checklist" -->
+							<select bind:value={chosenTemplate}>
+								<option value="">{m.venues_pickPrompt()}</option>
+								<!-- "Choose…" -->
+								{#each templates as template (template.id)}
+									<option value={template.id}>
+										{template.name} — {template.items.length}
+										{m.venues_templateItems()}
+										<!-- "items" -->
+									</option>
+								{/each}
+							</select>
+						</label>
+						<button type="submit" disabled={busy === 'start' || !chosenTemplate}>
+							{busy === 'start' ? m.checklist_starting() : m.checklist_start()}
+							<!-- "Starting…" / "Start this checklist" -->
+						</button>
+						<p class="hint">{m.checklist_snapshotNote()}</p>
+						<!-- "Your copy is a snapshot…" -->
+					</form>
+				{/if}
 			{:else}
-				<p class="hint">{m.checklist_allSettled()}</p>
-				<!-- "Everything required is under way or done." -->
-			{/if}
+				{#if totalPending > 0}
+					<p class="blocked" role="status">
+						<strong>{m.checklist_mandatoryPending()}: {totalPending}</strong>
+						<!-- "Required items not yet started" -->
+						<br />
+						{m.checklist_publishBlocked()}
+						<!-- "This event has a room, so it cannot be published until every required item is at least under way." -->
+					</p>
+				{:else}
+					<p class="hint">{m.checklist_allSettled()}</p>
+					<!-- "Everything required is under way or done." -->
+				{/if}
 
-			{#each instances as instance (instance.id)}
-				<article class="instance">
-					<h4>
-						{instance.templateName}
-						<span class="where">
-							{m.checklist_venueLabel()}: {instance.venue.name}
-							<!-- "Building" -->
-						</span>
-					</h4>
-					{#if instance.templateHasNewItems}
-						<p class="notice">
-							{m.checklist_newItems()}
-							<!-- "This building has changed this checklist since you started." -->
-							<button
-								type="button"
-								disabled={busy === instance.id}
-								onclick={() => pullNew(instance.id)}
-							>
-								{busy === instance.id ? m.checklist_syncing() : m.checklist_sync()}
-								<!-- "Adding…" / "Add the new items" -->
-							</button>
-						</p>
-					{/if}
-					<ul class="items">
-						{#each instance.items as item (item.id)}
-							<li class="item item--{item.status}" class:item--overdue={item.isOverdue}>
-								<div class="item__head">
-									<span class="title">{title(item)}</span>
-									<span class="pill">{CHECKLIST_STATUS_LABELS[item.status]()}</span>
-									{#if item.isMandatory}
-										<span class="pill pill--need">{m.checklist_mandatory()}</span>
-										<!-- "Required" -->
-									{:else}
-										<span class="pill pill--soft">{m.checklist_optional()}</span>
-										<!-- "Optional" -->
-									{/if}
-									<span class="pill pill--soft">{CHECKLIST_OWNER_LABELS[item.ownerRole]()}</span>
-								</div>
-								{#if body(item)}
-									<p class="item__body">{body(item)}</p>
-								{/if}
-								<p class="item__due">
-									{#if item.computedDueAt}
-										{m.checklist_due()}: {formatDateTime(item.computedDueAt)}
-										<!-- "Due" -->
-										{#if item.isOverdue}
-											<span class="late">{m.checklist_overdue()}</span>
-											<!-- "Overdue" -->
+				{#each instances as instance (instance.id)}
+					<article class="instance">
+						<h4>
+							{instance.templateName}
+							<span class="where">
+								{m.checklist_venueLabel()}: {instance.venue.name}
+								<!-- "Building" -->
+							</span>
+						</h4>
+						{#if instance.templateHasNewItems}
+							<p class="notice">
+								{m.checklist_newItems()}
+								<!-- "This building has changed this checklist since you started." -->
+								<button
+									type="button"
+									disabled={busy === instance.id}
+									onclick={() => pullNew(instance.id)}
+								>
+									{busy === instance.id ? m.checklist_syncing() : m.checklist_sync()}
+									<!-- "Adding…" / "Add the new items" -->
+								</button>
+							</p>
+						{/if}
+						<ul class="items">
+							{#each instance.items as item (item.id)}
+								<li class="item item--{item.status}" class:item--overdue={item.isOverdue}>
+									<div class="item__head">
+										<span class="title">{title(item)}</span>
+										<span class="pill">{CHECKLIST_STATUS_LABELS[item.status]()}</span>
+										{#if item.isMandatory}
+											<span class="pill pill--need">{m.checklist_mandatory()}</span>
+											<!-- "Required" -->
+										{:else}
+											<span class="pill pill--soft">{m.checklist_optional()}</span>
+											<!-- "Optional" -->
 										{/if}
-									{:else}
-										{m.checklist_noDue()}
-										<!-- "No date — this event has no time set yet." -->
+										<span class="pill pill--soft">{CHECKLIST_OWNER_LABELS[item.ownerRole]()}</span>
+									</div>
+									{#if body(item)}
+										<p class="item__body">{body(item)}</p>
 									{/if}
-								</p>
-								{#if item.requiresVenueSignoff}
-									<p class="item__signoff">
-										{m.checklist_signoffNeeded()}
-										<!-- "The building signs this one off" -->
-										{#if item.signedOffBy}
-											— {m.checklist_signedOffBy()}
-											<!-- "Signed off by" -->
-											{item.signedOffBy.displayName}
-											<!-- "Signed off by" -->
+									<p class="item__due">
+										{#if item.computedDueAt}
+											{m.checklist_due()}: {formatDateTime(item.computedDueAt)}
+											<!-- "Due" -->
+											{#if item.isOverdue}
+												<span class="late">{m.checklist_overdue()}</span>
+												<!-- "Overdue" -->
+											{/if}
+										{:else}
+											{m.checklist_noDue()}
+											<!-- "No date — this event has no time set yet." -->
 										{/if}
 									</p>
-								{/if}
-								{#if item.status === 'not_applicable' && item.naReason}
-									<p class="item__na">{item.naReason}</p>
-								{/if}
-
-								{#if item.evidenceKind !== 'none'}
-									<form
-										class="evidence"
-										onsubmit={(e) =>
-											saveEvidence(
-												e,
-												item,
-												(e.currentTarget.elements.namedItem('value') as HTMLInputElement).value
-											)}
-									>
-										<label>
-											<span>
-												{m.checklist_evidenceHeading()}: {CHECKLIST_EVIDENCE_LABELS[
-													item.evidenceKind
-												]()}
-												<!-- "What the building asks for" -->
-											</span>
-											{#if item.evidenceKind === 'file'}
-												<em class="hint">{m.checklist_evidenceFileNotYet()}</em>
-												<!-- "Attaching a file here is not built yet — leave a note or a link instead." -->
-												<input type="text" name="value" value={item.evidenceText} maxlength="400" />
-											{:else if item.evidenceKind === 'link'}
-												<input type="url" name="value" value={item.evidenceUrl} />
-											{:else}
-												<input type="text" name="value" value={item.evidenceText} maxlength="400" />
+									{#if item.requiresVenueSignoff}
+										<p class="item__signoff">
+											{m.checklist_signoffNeeded()}
+											<!-- "The building signs this one off" -->
+											{#if item.signedOffBy}
+												— {m.checklist_signedOffBy()}
+												<!-- "Signed off by" -->
+												{item.signedOffBy.displayName}
+												<!-- "Signed off by" -->
 											{/if}
-										</label>
-										<button type="submit" disabled={busy === item.id}>
-											{busy === item.id ? m.checklist_saving() : m.checklist_save()}
-											<!-- "Saving…" / "Save" -->
-										</button>
-									</form>
-								{/if}
+										</p>
+									{/if}
+									{#if item.status === 'not_applicable' && item.naReason}
+										<p class="item__na">{item.naReason}</p>
+									{/if}
 
-								<div class="item__actions">
-									{#if item.status !== 'in_progress' && item.status !== 'done'}
-										<button
-											type="button"
-											disabled={busy === item.id}
-											onclick={() => setStatus(item, 'in_progress')}
+									{#if item.evidenceKind !== 'none'}
+										<form
+											class="evidence"
+											onsubmit={(e) =>
+												saveEvidence(
+													e,
+													item,
+													(e.currentTarget.elements.namedItem('value') as HTMLInputElement).value
+												)}
 										>
-											{m.checklist_status_in_progress()}
-											<!-- "Being done" -->
-										</button>
+											<label>
+												<span>
+													{m.checklist_evidenceHeading()}: {CHECKLIST_EVIDENCE_LABELS[
+														item.evidenceKind
+													]()}
+													<!-- "What the building asks for" -->
+												</span>
+												{#if item.evidenceKind === 'file'}
+													<em class="hint">{m.checklist_evidenceFileNotYet()}</em>
+													<!-- "Attaching a file here is not built yet — leave a note or a link instead." -->
+													<input
+														type="text"
+														name="value"
+														value={item.evidenceText}
+														maxlength="400"
+													/>
+												{:else if item.evidenceKind === 'link'}
+													<input type="url" name="value" value={item.evidenceUrl} />
+												{:else}
+													<input
+														type="text"
+														name="value"
+														value={item.evidenceText}
+														maxlength="400"
+													/>
+												{/if}
+											</label>
+											<button type="submit" disabled={busy === item.id}>
+												{busy === item.id ? m.checklist_saving() : m.checklist_save()}
+												<!-- "Saving…" / "Save" -->
+											</button>
+										</form>
 									{/if}
-									{#if item.status !== 'done'}
-										<button
-											type="button"
-											disabled={busy === item.id ||
-												(item.requiresVenueSignoff && !instance.canSignOff)}
-											title={item.requiresVenueSignoff && !instance.canSignOff
-												? m.checklist_block_needs_venue_signoff()
-												: undefined}
-											onclick={() => setStatus(item, 'done')}
-										>
-											{m.checklist_status_done()}
-											<!-- "Done" -->
-										</button>
+
+									<div class="item__actions">
+										{#if item.status !== 'in_progress' && item.status !== 'done'}
+											<button
+												type="button"
+												disabled={busy === item.id}
+												onclick={() => setStatus(item, 'in_progress')}
+											>
+												{m.checklist_status_in_progress()}
+												<!-- "Being done" -->
+											</button>
+										{/if}
+										{#if item.status !== 'done'}
+											<button
+												type="button"
+												disabled={busy === item.id ||
+													(item.requiresVenueSignoff && !instance.canSignOff)}
+												title={item.requiresVenueSignoff && !instance.canSignOff
+													? m.checklist_block_needs_venue_signoff()
+													: undefined}
+												onclick={() => setStatus(item, 'done')}
+											>
+												{m.checklist_status_done()}
+												<!-- "Done" -->
+											</button>
+										{/if}
+										{#if item.naAllowed && item.status !== 'not_applicable'}
+											<button
+												type="button"
+												onclick={() => (naFor = naFor === item.id ? '' : item.id)}
+											>
+												{m.checklist_markNa()}
+												<!-- "Mark as not applicable" -->
+											</button>
+										{/if}
+										{#if item.requiresVenueSignoff && instance.canSignOff && !item.signedOffAt}
+											<button type="button" disabled={busy === item.id} onclick={() => sign(item)}>
+												{m.checklist_signOff()}
+												<!-- "Sign off" -->
+											</button>
+										{/if}
+									</div>
+									{#if naFor === item.id}
+										<form class="na" onsubmit={(e) => markNotApplicable(e, item)}>
+											<label>
+												<span>{m.checklist_naReason()}</span>
+												<!-- "Why does this not apply?" -->
+												<input
+													type="text"
+													bind:value={naReason}
+													placeholder={m.checklist_naReasonPlaceholder()}
+													maxlength="300"
+													required
+												/>
+											</label>
+											<button type="submit" disabled={busy === item.id}>{m.checklist_save()}</button
+											>
+											<!-- "Save" -->
+										</form>
 									{/if}
-									{#if item.naAllowed && item.status !== 'not_applicable'}
-										<button
-											type="button"
-											onclick={() => (naFor = naFor === item.id ? '' : item.id)}
-										>
-											{m.checklist_markNa()}
-											<!-- "Mark as not applicable" -->
-										</button>
-									{/if}
-									{#if item.requiresVenueSignoff && instance.canSignOff && !item.signedOffAt}
-										<button type="button" disabled={busy === item.id} onclick={() => sign(item)}>
-											{m.checklist_signOff()}
-											<!-- "Sign off" -->
-										</button>
-									{/if}
-								</div>
-								{#if naFor === item.id}
-									<form class="na" onsubmit={(e) => markNotApplicable(e, item)}>
-										<label>
-											<span>{m.checklist_naReason()}</span>
-											<!-- "Why does this not apply?" -->
-											<input
-												type="text"
-												bind:value={naReason}
-												placeholder={m.checklist_naReasonPlaceholder()}
-												maxlength="300"
-												required
-											/>
-										</label>
-										<button type="submit" disabled={busy === item.id}>{m.checklist_save()}</button>
-										<!-- "Save" -->
-									</form>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				</article>
-			{/each}
-		{/if}
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
-	</section>
+								</li>
+							{/each}
+						</ul>
+					</article>
+				{/each}
+			{/if}
+			{#if error}<p class="error" role="alert">{error}</p>{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// Card chrome, the heading and the spacing above are `FoldSection`'s since 2026-10-08.
 	.checklist-panel {
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.9rem 1rem;
-		margin-top: 1rem;
-	}
-	h3 {
-		margin: 0 0 0.25rem;
+		display: grid;
+		gap: 0.4rem;
 	}
 	h4 {
 		margin: 0.8rem 0 0.2rem;

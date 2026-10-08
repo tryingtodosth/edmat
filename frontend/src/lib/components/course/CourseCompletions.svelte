@@ -18,6 +18,7 @@
 	// course response would cost a join on every course list for a row almost no course has.
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { getCompletions, issueCompletion, revokeCompletion } from '$lib/services/course';
 	import { completionRefusalMessage } from '$lib/utils/labels';
 	import { authStore } from '$lib/state/auth.svelte';
@@ -122,117 +123,118 @@
 </script>
 
 {#if loaded && showsSomething}
-	<section class="completions">
-		<h2>{canCurate ? m.school_certificatesHeading() : m.school_myCertificateHeading()}</h2>
+	<FoldSection
+		key="completions"
+		title={canCurate ? m.school_certificatesHeading() : m.school_myCertificateHeading()}
+	>
 		<!-- "Completion certificates" / "Your certificate" -->
+		<div class="completions">
+			{#if error}
+				<p class="error" role="alert">{error}</p>
+			{/if}
 
-		{#if error}
-			<p class="error" role="alert">{error}</p>
-		{/if}
-
-		{#if rows.length === 0}
-			<p class="muted">{m.school_noCompletions()}</p>
-			<!-- "No certificates have been issued on this course yet." -->
-		{:else}
-			<ul>
-				{#each rows as row (row.id)}
-					<li class:revoked={row.isRevoked}>
-						<div class="who">
-							<strong>{row.participant.displayName}</strong>
-							{#if row.isRevoked}
-								<span class="badge"
-									>{m.school_revokedOn({ date: formatDate(row.revokedAt ?? '') })}</span
-								>
-								<!-- "Withdrawn {date}" -->
-							{/if}
-							<p class="meta">
-								{m.school_issuedBy({
-									date: formatDate(row.issuedAt),
-									issuer: row.issuedBy?.displayName ?? row.instructor.displayName
-								})}
-								<!-- "Issued {date} by {issuer}" -->
-							</p>
-							<!-- The basis the server froze at issue time. Shown in the panel as well as on
+			{#if rows.length === 0}
+				<p class="muted">{m.school_noCompletions()}</p>
+				<!-- "No certificates have been issued on this course yet." -->
+			{:else}
+				<ul>
+					{#each rows as row (row.id)}
+						<li class:revoked={row.isRevoked}>
+							<div class="who">
+								<strong>{row.participant.displayName}</strong>
+								{#if row.isRevoked}
+									<span class="badge"
+										>{m.school_revokedOn({ date: formatDate(row.revokedAt ?? '') })}</span
+									>
+									<!-- "Withdrawn {date}" -->
+								{/if}
+								<p class="meta">
+									{m.school_issuedBy({
+										date: formatDate(row.issuedAt),
+										issuer: row.issuedBy?.displayName ?? row.instructor.displayName
+									})}
+									<!-- "Issued {date} by {issuer}" -->
+								</p>
+								<!-- The basis the server froze at issue time. Shown in the panel as well as on
 							     the sheet, because it is the one sentence that says what the certificate
 							     does and does not claim. -->
-							<p class="meta">{row.note}</p>
-						</div>
-						<div class="actions">
-							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved above; the helper is opaque to the rule -->
-							<a class="secondary" href={certificateHref(row)}>{m.school_openCertificate()}</a>
-							<!-- "Open the certificate" -->
-							{#if canCurate && !row.isRevoked}
-								<button
-									type="button"
-									class="link danger"
-									disabled={busy}
-									onclick={() => withdraw(row.id)}
-								>
-									{m.school_revoke()}
-									<!-- "Withdraw" -->
-								</button>
-							{/if}
-						</div>
-					</li>
-				{/each}
-			</ul>
-		{/if}
+								<p class="meta">{row.note}</p>
+							</div>
+							<div class="actions">
+								<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved above; the helper is opaque to the rule -->
+								<a class="secondary" href={certificateHref(row)}>{m.school_openCertificate()}</a>
+								<!-- "Open the certificate" -->
+								{#if canCurate && !row.isRevoked}
+									<button
+										type="button"
+										class="link danger"
+										disabled={busy}
+										onclick={() => withdraw(row.id)}
+									>
+										{m.school_revoke()}
+										<!-- "Withdraw" -->
+									</button>
+								{/if}
+							</div>
+						</li>
+					{/each}
+				</ul>
+			{/if}
 
-		{#if canCurate}
-			<div class="issue">
-				<h3>{m.school_issueHeading()}</h3>
-				<!-- "Issue a certificate" -->
-				<p class="muted">{m.school_issueBasis()}</p>
-				<!-- "A certificate can only go to somebody whose own progress statements say every
+			{#if canCurate}
+				<div class="issue">
+					<h3>{m.school_issueHeading()}</h3>
+					<!-- "Issue a certificate" -->
+					<p class="muted">{m.school_issueBasis()}</p>
+					<!-- "A certificate can only go to somebody whose own progress statements say every
 				     lesson is done. It carries no grade, no mark and no rank." -->
-				{#if issuable.length === 0}
-					<p class="muted">{m.school_issueNobodyEligible()}</p>
-					<!-- "Nobody has said yet that every lesson is done, so there is nobody to issue one to." -->
-				{:else}
-					<label class="field">
-						<span>{m.school_issueWho()}</span>
-						<!-- "To" -->
-						<select bind:value={pickedParticipant}>
-							<option value="">{m.school_issuePickPlaceholder()}</option>
-							<!-- "Choose a participant" -->
-							{#each issuable as row (row.id)}
-								<option value={row.participant.id}>{row.participant.displayName}</option>
-							{/each}
-						</select>
-					</label>
-					<label class="field">
-						<span>{m.school_issueNoteLabel()}</span>
-						<!-- "A line to add to the certificate (optional)" -->
-						<!-- `type="text"`-shaped input only: `bind:value` on a number input binds a real
+					{#if issuable.length === 0}
+						<p class="muted">{m.school_issueNobodyEligible()}</p>
+						<!-- "Nobody has said yet that every lesson is done, so there is nobody to issue one to." -->
+					{:else}
+						<label class="field">
+							<span>{m.school_issueWho()}</span>
+							<!-- "To" -->
+							<select bind:value={pickedParticipant}>
+								<option value="">{m.school_issuePickPlaceholder()}</option>
+								<!-- "Choose a participant" -->
+								{#each issuable as row (row.id)}
+									<option value={row.participant.id}>{row.participant.displayName}</option>
+								{/each}
+							</select>
+						</label>
+						<label class="field">
+							<span>{m.school_issueNoteLabel()}</span>
+							<!-- "A line to add to the certificate (optional)" -->
+							<!-- `type="text"`-shaped input only: `bind:value` on a number input binds a real
 						     number and every `.trim()` downstream throws (frontend/CLAUDE.md trap 1).
 						     A textarea is the right control for a sentence anyway. -->
-						<textarea bind:value={note} maxlength="300" rows="2"></textarea>
-					</label>
-					<button
-						type="button"
-						class="primary"
-						disabled={busy || !pickedParticipant}
-						onclick={issue}
-					>
-						{m.school_issue()}
-						<!-- "Issue" -->
-					</button>
-				{/if}
-			</div>
-		{/if}
-	</section>
+							<textarea bind:value={note} maxlength="300" rows="2"></textarea>
+						</label>
+						<button
+							type="button"
+							class="primary"
+							disabled={busy || !pickedParticipant}
+							onclick={issue}
+						>
+							{m.school_issue()}
+							<!-- "Issue" -->
+						</button>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// The heading is `FoldSection`'s since 2026-10-08; this is its body.
 	.completions {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-	}
-	h2 {
-		font-size: var(--font-size-base);
 	}
 	h3 {
 		font-size: var(--font-size-sm);

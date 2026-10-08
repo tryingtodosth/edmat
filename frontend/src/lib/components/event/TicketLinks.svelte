@@ -8,6 +8,7 @@
 	 * switch that leaves its links behind has hidden nothing (house rule 3). The flag is read here
 	 * rather than at the route, so the LINK goes with the page. */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { resolve } from '$app/paths';
 	import type { EdmatEvent } from '$lib/types/event';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
@@ -20,8 +21,7 @@
 </script>
 
 {#if enabled && (hasSeat || event.canCheckIn || event.canOrganise)}
-	<section class="tickets">
-		<h3>{m.tickets_linksHeading()}</h3>
+	<FoldSection key="tickets" title={m.tickets_linksHeading()} level={3}>
 		<div class="links">
 			{#if hasSeat}
 				<a href={resolve('/events/[id]/ticket', { id: event.id })}>{m.tickets_myTicket()}</a>
@@ -33,19 +33,13 @@
 				<a href={resolve('/events/[id]/badges', { id: event.id })}>{m.tickets_badges()}</a>
 			{/if}
 		</div>
-	</section>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
-	.tickets {
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.9rem 1rem;
-		margin-top: 1rem;
-	}
-	h3 {
-		margin: 0 0 0.5rem;
-	}
+	// Card chrome, the heading and the spacing above are `FoldSection`'s since 2026-10-08. Three
+	// links are a short body for a fold, and it is folded anyway: on a page of twenty sections, one
+	// card that behaves differently from the rest costs the reader more than the click saves.
 	.links {
 		display: flex;
 		gap: 0.8rem;

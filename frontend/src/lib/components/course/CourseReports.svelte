@@ -13,13 +13,13 @@
 	// Loads nothing until opened. Most courses have nothing reported, and a request per course page
 	// load to discover that is a request wasted.
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { getCourseReports } from '$lib/services/course';
 	import { resolveReport } from '$lib/services/moderation';
 	import type { CourseReportRow } from '$lib/types/course';
 
 	let { courseId }: { courseId: string } = $props();
 
-	let open = $state(false);
 	let loaded = $state(false);
 	let loading = $state(false);
 	let rows = $state<CourseReportRow[]>([]);
@@ -40,10 +40,6 @@
 		}
 	}
 
-	$effect(() => {
-		if (open && !loaded) load();
-	});
-
 	async function decide(row: CourseReportRow, decision: 'restore' | 'remove') {
 		busy = row.id;
 		error = '';
@@ -61,16 +57,20 @@
 	}
 </script>
 
-<section class="reports">
-	<button type="button" class="reports__toggle" aria-expanded={open} onclick={() => (open = !open)}>
-		{open ? '▾' : '▸'}
-		{m.course_reports_heading()}
-		{#if loaded && rows.length > 0}
-			<span class="reports__count">{rows.length}</span>
-		{/if}
-	</button>
-
-	{#if open}
+<!-- This panel had its own disclosure — a button, a `▾`/`▸` and a count — written before there was
+     a shared one. It is the same control, so it is now the shared one (2026-10-08): the course page
+     folds everything else the same way, and two disclosures that look different on one page read as
+     two different kinds of thing. The reader's choice is now remembered, which the local one never
+     did. -->
+<FoldSection
+	key="courseReports"
+	title={m.course_reports_heading()}
+	count={loaded && rows.length > 0 ? rows.length : null}
+	onopen={() => {
+		if (!loaded) load();
+	}}
+>
+	<div class="reports">
 		{#if loading}
 			<p class="muted">{m.common_loading()}</p>
 		{:else if rows.length === 0}
@@ -125,28 +125,16 @@
 		{#if error}
 			<p class="error">{error}</p>
 		{/if}
-	{/if}
-</section>
+	</div>
+</FoldSection>
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// The toggle, its count badge and the spacing above are `FoldSection`'s since 2026-10-08.
 	.reports {
-		margin-top: var(--space-3);
-	}
-
-	.reports__toggle {
-		background: none;
-		border: none;
-		color: var(--accent);
-		cursor: pointer;
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-		padding: 0;
-	}
-
-	.reports__count {
-		@include mix.count-badge;
+		display: grid;
+		gap: var(--space-2);
 	}
 
 	.reports__list {

@@ -17,6 +17,7 @@
 	 */
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { getMyDecks, getNodeDecks, placeDeck, removePlacement } from '$lib/services/flashcards';
@@ -106,101 +107,95 @@
 </script>
 
 {#if canSee && !unavailable && (placements.length > 0 || canManage)}
-	<section class="decks-panel">
-		<h2>{m.decks_panelHeading()}</h2>
+	<FoldSection key="decks" title={m.decks_panelHeading()} count={placements.length}>
 		<!-- "Flashcards" -->
-
-		{#if placements.length === 0}
-			<p class="hint">{m.decks_panelEmpty()}</p>
-			<!-- "No decks here yet." -->
-		{:else}
-			<ul>
-				{#each placements as placement (placement.id)}
-					<li>
-						<div class="row__text">
-							<a href={resolve(`/flashcards/${placement.deck.id}`)}>
-								<MathTitle text={placement.deck.name} />
-							</a>
-							<span class="meta">
-								{m.decks_cardCount({ count: placement.deck.cardCount })}
-								<!-- "{count} cards" -->
-								{#if placement.addedBy}
-									· {m.decks_byOwner({ name: placement.addedBy.displayName })}
-									<!-- "by {name}" -->
-								{/if}
-							</span>
-						</div>
-						<div class="row__actions">
-							{#if placement.deck.cardCount > 0}
-								<a class="study" href={resolve(`/flashcards/${placement.deck.id}/review`)}>
-									{placement.deck.dueCount > 0
-										? m.decks_dueCount({ count: placement.deck.dueCount })
-										: m.decks_panelStudy()}
-									<!-- "{count} to review" / "Study" -->
+		<div class="decks-panel">
+			{#if placements.length === 0}
+				<p class="hint">{m.decks_panelEmpty()}</p>
+				<!-- "No decks here yet." -->
+			{:else}
+				<ul>
+					{#each placements as placement (placement.id)}
+						<li>
+							<div class="row__text">
+								<a href={resolve(`/flashcards/${placement.deck.id}`)}>
+									<MathTitle text={placement.deck.name} />
 								</a>
-							{/if}
-							{#if canManage}
-								<button
-									type="button"
-									class="link-button"
-									disabled={busy === placement.id}
-									onclick={() => unplace(placement.id)}
-								>
-									{m.decks_unplace()}
-									<!-- "Remove from here" -->
-								</button>
-							{/if}
-						</div>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-
-		{#if canManage}
-			{#if placeable.length > 0}
-				<form onsubmit={(e) => (e.preventDefault(), place())}>
-					<label>
-						<span>{m.decks_panelPlace()}</span>
-						<!-- "Place one of my decks here" -->
-						<select bind:value={chosen}>
-							<option value="">{m.decks_placeChoose()}</option>
-							{#each placeable as deck (deck.id)}
-								<option value={deck.id}>{deck.name}</option>
-							{/each}
-						</select>
-					</label>
-					<button type="submit" disabled={busy === 'place' || !chosen}>{m.decks_place()}</button>
-					<!-- "Place" -->
-				</form>
-			{:else if myDecks.length === 0}
-				<p class="hint">
-					{m.decks_panelNoDecks()}
-					<!-- "You have no decks to place yet." -->
-					<a href={resolve('/flashcards')}>{m.decks_navMine()}</a>
-					<!-- "My decks" -->
-				</p>
+								<span class="meta">
+									{m.decks_cardCount({ count: placement.deck.cardCount })}
+									<!-- "{count} cards" -->
+									{#if placement.addedBy}
+										· {m.decks_byOwner({ name: placement.addedBy.displayName })}
+										<!-- "by {name}" -->
+									{/if}
+								</span>
+							</div>
+							<div class="row__actions">
+								{#if placement.deck.cardCount > 0}
+									<a class="study" href={resolve(`/flashcards/${placement.deck.id}/review`)}>
+										{placement.deck.dueCount > 0
+											? m.decks_dueCount({ count: placement.deck.dueCount })
+											: m.decks_panelStudy()}
+										<!-- "{count} to review" / "Study" -->
+									</a>
+								{/if}
+								{#if canManage}
+									<button
+										type="button"
+										class="link-button"
+										disabled={busy === placement.id}
+										onclick={() => unplace(placement.id)}
+									>
+										{m.decks_unplace()}
+										<!-- "Remove from here" -->
+									</button>
+								{/if}
+							</div>
+						</li>
+					{/each}
+				</ul>
 			{/if}
-		{/if}
 
-		{#if error}
-			<p class="error">{error}</p>
-		{/if}
-	</section>
+			{#if canManage}
+				{#if placeable.length > 0}
+					<form onsubmit={(e) => (e.preventDefault(), place())}>
+						<label>
+							<span>{m.decks_panelPlace()}</span>
+							<!-- "Place one of my decks here" -->
+							<select bind:value={chosen}>
+								<option value="">{m.decks_placeChoose()}</option>
+								{#each placeable as deck (deck.id)}
+									<option value={deck.id}>{deck.name}</option>
+								{/each}
+							</select>
+						</label>
+						<button type="submit" disabled={busy === 'place' || !chosen}>{m.decks_place()}</button>
+						<!-- "Place" -->
+					</form>
+				{:else if myDecks.length === 0}
+					<p class="hint">
+						{m.decks_panelNoDecks()}
+						<!-- "You have no decks to place yet." -->
+						<a href={resolve('/flashcards')}>{m.decks_navMine()}</a>
+						<!-- "My decks" -->
+					</p>
+				{/if}
+			{/if}
+
+			{#if error}
+				<p class="error">{error}</p>
+			{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// Card chrome and the heading are `FoldSection`'s since 2026-10-08; this is its body.
 	.decks-panel {
-		@include mix.card-surface;
-		padding: var(--space-3);
 		display: grid;
 		gap: var(--space-2);
-	}
-
-	h2 {
-		margin: 0;
-		font-size: var(--font-size-lg);
 	}
 
 	ul {

@@ -6,6 +6,7 @@
 	// showing the event with no updates under it.
 	import { onMount } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import {
 		createEventPost,
@@ -96,94 +97,93 @@
 	}
 </script>
 
-<section class="updates">
-	<div class="head">
-		<h2>{m.eventPosts_heading()}</h2>
+<FoldSection key="eventUpdates" title={m.eventPosts_heading()} count={posts.length}>
+	{#snippet actions()}
 		{#if isHost && !composing}
 			<button type="button" class="new" onclick={() => (composing = true)}>
 				{m.eventPosts_new()}
 			</button>
 		{/if}
-	</div>
+	{/snippet}
+	<div class="updates">
+		{#if isHost && composing}
+			<div class="composer">
+				<EventPostForm
+					submitting={busy}
+					error={formError}
+					submitLabel={m.eventPosts_publish()}
+					onsubmit={create}
+					oncancel={() => {
+						composing = false;
+						formError = '';
+					}}
+				/>
+			</div>
+		{/if}
 
-	{#if isHost && composing}
-		<div class="composer">
-			<EventPostForm
-				submitting={busy}
-				error={formError}
-				submitLabel={m.eventPosts_publish()}
-				onsubmit={create}
-				oncancel={() => {
-					composing = false;
-					formError = '';
-				}}
-			/>
-		</div>
-	{/if}
+		{#if loading}
+			<p class="status">{m.common_loading()}</p>
+		{:else if posts.length === 0}
+			<p class="status">
+				{isHost ? m.eventPosts_emptyForHost() : m.eventPosts_empty()}
+			</p>
+		{:else}
+			<ol class="list">
+				{#each posts as post (post.id)}
+					<li class="post">
+						{#if editingId === post.id}
+							<EventPostForm
+								initial={post}
+								submitting={busy}
+								error={formError}
+								submitLabel={m.common_save()}
+								onsubmit={(draft) => save(post.id, draft)}
+								oncancel={() => {
+									editingId = null;
+									formError = '';
+								}}
+							/>
+						{:else}
+							<div class="meta">
+								<time datetime={post.createdAt}>{formatDateTime(post.createdAt)}</time>
+								{#if post.isEdited}
+									<span class="edited">{m.eventPosts_edited()}</span>
+								{/if}
+								{#if isHost}
+									<span class="controls">
+										<button
+											type="button"
+											class="link-button"
+											disabled={busy}
+											onclick={() => {
+												editingId = post.id;
+												formError = '';
+											}}
+										>
+											{m.events_edit()}
+										</button>
+										<button
+											type="button"
+											class="link-button"
+											disabled={busy}
+											onclick={() => withdraw(post.id)}
+										>
+											{m.common_delete()}
+										</button>
+									</span>
+								{/if}
+							</div>
 
-	{#if loading}
-		<p class="status">{m.common_loading()}</p>
-	{:else if posts.length === 0}
-		<p class="status">
-			{isHost ? m.eventPosts_emptyForHost() : m.eventPosts_empty()}
-		</p>
-	{:else}
-		<ol class="list">
-			{#each posts as post (post.id)}
-				<li class="post">
-					{#if editingId === post.id}
-						<EventPostForm
-							initial={post}
-							submitting={busy}
-							error={formError}
-							submitLabel={m.common_save()}
-							onsubmit={(draft) => save(post.id, draft)}
-							oncancel={() => {
-								editingId = null;
-								formError = '';
-							}}
-						/>
-					{:else}
-						<div class="meta">
-							<time datetime={post.createdAt}>{formatDateTime(post.createdAt)}</time>
-							{#if post.isEdited}
-								<span class="edited">{m.eventPosts_edited()}</span>
+							{#if post.body}
+								<p class="body">{post.body}</p>
 							{/if}
-							{#if isHost}
-								<span class="controls">
-									<button
-										type="button"
-										class="link-button"
-										disabled={busy}
-										onclick={() => {
-											editingId = post.id;
-											formError = '';
-										}}
-									>
-										{m.events_edit()}
-									</button>
-									<button
-										type="button"
-										class="link-button"
-										disabled={busy}
-										onclick={() => withdraw(post.id)}
-									>
-										{m.common_delete()}
-									</button>
-								</span>
-							{/if}
-						</div>
 
-						{#if post.body}
-							<p class="body">{post.body}</p>
-						{/if}
-
-						{#if post.imageUrl}
-							<!-- No alt text is available: the host uploads a picture, and this app never asks
+							{#if post.imageUrl}
+								<!-- No alt text is available: the host uploads a picture, and this app never asks
 							     them for a description. An empty alt marks it decorative to a screen reader,
 							     which is the honest answer — inventing one ("event picture") would be noise
 							     read aloud on every post. -->
-							<!-- Deliberately NO width/height, which is the opposite of the rule applied to every
+								<!-- Deliberately NO width/height, which is the opposite of the rule applied to every
 							     other <img> in this app — so it is worth saying why rather than leaving it
 							     looking like an oversight.
 
@@ -198,27 +198,28 @@
 							     The real fix is width_field/height_field on the model, a migration, and the two
 							     numbers in the serializer — recorded as a follow-up rather than faked here.
 							     `lazy` + `async` still apply: these sit well below the fold. -->
-							<img class="picture" src={post.imageUrl} alt="" loading="lazy" decoding="async" />
-						{/if}
+								<img class="picture" src={post.imageUrl} alt="" loading="lazy" decoding="async" />
+							{/if}
 
-						{#if post.links.length > 0}
-							<ul class="links">
-								{#each post.links as link (link)}
-									<li>
-										<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a host-supplied external URL, deliberately not an internal route -->
-										<a href={link} target="_blank" rel="noopener noreferrer nofollow">
-											{linkLabel(link)}
-										</a>
-									</li>
-								{/each}
-							</ul>
+							{#if post.links.length > 0}
+								<ul class="links">
+									{#each post.links as link (link)}
+										<li>
+											<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a host-supplied external URL, deliberately not an internal route -->
+											<a href={link} target="_blank" rel="noopener noreferrer nofollow">
+												{linkLabel(link)}
+											</a>
+										</li>
+									{/each}
+								</ul>
+							{/if}
 						{/if}
-					{/if}
-				</li>
-			{/each}
-		</ol>
-	{/if}
-</section>
+					</li>
+				{/each}
+			</ol>
+		{/if}
+	</div>
+</FoldSection>
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
@@ -227,15 +228,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-	}
-	.head {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: var(--space-2);
-		h2 {
-			font-size: var(--font-size-lg);
-		}
 	}
 	.new {
 		@include mix.button-secondary;

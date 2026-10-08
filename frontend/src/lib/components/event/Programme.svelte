@@ -5,6 +5,7 @@
 	 * and the session editor inline — the same page, not an admin route, because a programme is
 	 * built while looking at it. */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { resolve } from '$app/paths';
 	import { localizedPath } from '$lib/utils/localizedPath';
 	import { onMount } from 'svelte';
@@ -249,217 +250,222 @@
 	}
 </script>
 
-<section class="programme">
-	<div class="programme__head">
-		<h2>{m.events_programme()}</h2>
-		<div class="programme__actions">
-			{#if sessions.length > 0}
-				<div class="view-switch" role="group" aria-label={m.events_programmeView()}>
-					<button
-						type="button"
-						class:on={view === 'list'}
-						aria-pressed={view === 'list'}
-						onclick={() => (view = 'list')}>{m.events_viewList()}</button
+<FoldSection key="programme" title={m.events_programme()} count={sessions.length}>
+	<div class="programme">
+		<!-- The view switch and the organiser's controls stay in the BODY: they act on sessions a
+		     reader of a shut section cannot see. -->
+		<div class="programme__head">
+			<div class="programme__actions">
+				{#if sessions.length > 0}
+					<div class="view-switch" role="group" aria-label={m.events_programmeView()}>
+						<button
+							type="button"
+							class:on={view === 'list'}
+							aria-pressed={view === 'list'}
+							onclick={() => (view = 'list')}>{m.events_viewList()}</button
+						>
+						<button
+							type="button"
+							class:on={view === 'week'}
+							aria-pressed={view === 'week'}
+							onclick={() => (view = 'week')}>{m.events_viewWeek()}</button
+						>
+					</div>
+					<button type="button" class="ics" onclick={exportIcs}>{m.events_exportIcs()}</button>
+				{/if}
+				{#if event.canOrganise && editing === null}
+					<button type="button" class="primary" onclick={() => (editing = 'new')}
+						>{m.events_sessionAdd()}</button
 					>
-					<button
-						type="button"
-						class:on={view === 'week'}
-						aria-pressed={view === 'week'}
-						onclick={() => (view = 'week')}>{m.events_viewWeek()}</button
+				{/if}
+			</div>
+		</div>
+
+		{#if event.canOrganise}
+			<div class="tracks">
+				<span class="tracks__label">{m.events_tracks()}</span>
+				{#each tracks as t (t.id)}
+					<span class="track-chip"
+						>{t.name}<button
+							type="button"
+							class="x"
+							aria-label={m.common_remove()}
+							onclick={() => removeTrack(t)}>×</button
+						></span
 					>
-				</div>
-				<button type="button" class="ics" onclick={exportIcs}>{m.events_exportIcs()}</button>
-			{/if}
-			{#if event.canOrganise && editing === null}
-				<button type="button" class="primary" onclick={() => (editing = 'new')}
-					>{m.events_sessionAdd()}</button
-				>
-			{/if}
-		</div>
-	</div>
-
-	{#if event.canOrganise}
-		<div class="tracks">
-			<span class="tracks__label">{m.events_tracks()}</span>
-			{#each tracks as t (t.id)}
-				<span class="track-chip"
-					>{t.name}<button
-						type="button"
-						class="x"
-						aria-label={m.common_remove()}
-						onclick={() => removeTrack(t)}>×</button
-					></span
-				>
-			{/each}
-			<input
-				type="text"
-				bind:value={newTrack}
-				placeholder={m.events_trackNamePlaceholder()}
-				aria-label={m.events_trackNamePlaceholder()}
-				onkeydown={(e) => {
-					if (e.key === 'Enter') {
-						e.preventDefault();
-						addTrack();
-					}
-				}}
-			/>
-			<button type="button" onclick={addTrack}>{m.common_add()}</button>
-		</div>
-	{/if}
-
-	{#if editing === 'new'}
-		<SessionEditor {tracks} {busy} {error} onsubmit={save} oncancel={() => (editing = null)} />
-	{/if}
-
-	{#if loading}
-		<p class="status">{m.common_loading()}</p>
-	{:else if sessions.length === 0}
-		<p class="status">{m.events_programmeEmpty()}</p>
-	{:else if view === 'week'}
-		<div class="week">
-			<CalendarWeek days={weekDays} {entries} emptyLabel={m.events_programmeEmpty()} />
-		</div>
-	{:else}
-		{#each days as [day, rows] (day)}
-			<h3 class="day">{formatDate(rows[0].startsAt)}</h3>
-			<ol class="sessions">
-				{#each rows as s (s.id)}
-					<li class="session" class:session--break={s.kind === 'break' || s.kind === 'social'}>
-						{#if editing !== 'new' && editing?.id === s.id}
-							<SessionEditor
-								initial={s}
-								{tracks}
-								{busy}
-								{error}
-								onsubmit={save}
-								oncancel={() => (editing = null)}
-							/>
-						{:else}
-							<div class="session__time">
-								<span>{formatTimeOfDay(s.startsAt)}–{formatTimeOfDay(s.endsAt)}</span>
-								{#if s.trackId && trackById[s.trackId]}<span class="session-track"
-										>{trackById[s.trackId].name}</span
-									>{/if}
-							</div>
-							<div class="session__body">
-								<h4>{s.title} <span class="kind">{SESSION_KIND_LABELS[s.kind]()}</span></h4>
-								{#if s.speakers.length > 0}
-									<p class="speakers">
-										{#each s.speakers as sp, i (sp.id)}{i > 0 ? ', ' : ''}{#if sp.user}<a
-													href={resolve('/users/[id]', { id: sp.user.id })}>{sp.name}</a
-												>{:else}{sp.name}{/if}{#if sp.affiliation}{sp.affiliation ? ' ' : ''}<span
-													class="aff">({sp.affiliation})</span
-												>{/if}{/each}
-									</p>
-								{/if}
-								<!-- eslint-disable svelte/no-navigation-without-resolve -- external addresses, not app routes -->
-								{#if s.locationText || s.onlineUrl}
-									<p class="place">
-										{s.locationText}{#if s.locationText && s.onlineUrl}
-											·
-										{/if}{#if s.onlineUrl}<a href={s.onlineUrl} rel="nofollow"
-												>{m.events_joinOnline()}</a
-											>{/if}
-									</p>
-								{/if}
-								{#if s.abstract}<p class="abstract">{s.abstract}</p>{/if}
-								{#each linksByRole(s) as group (group.role)}
-									<p class="links">
-										<span class="role">{SESSION_LINK_ROLE_LABELS[group.role]()}:</span>
-										{#each group.links as l, i (l.id)}{#if i > 0},
-											{/if}<a href={linkHref(l)} rel={l.kind === 'url' ? 'nofollow' : undefined}
-												>{l.title}</a
-											>{#if l.note}
-												<span class="note">— {l.note}</span>{/if}{/each}
-									</p>
-								{/each}
-								<!-- eslint-enable svelte/no-navigation-without-resolve -->
-								<div class="session__actions">
-									{#if authStore.isAuthenticated}
-										<button
-											type="button"
-											class:on={s.isBookmarked}
-											aria-pressed={s.isBookmarked}
-											onclick={() => toggleBookmark(s)}
-										>
-											{s.isBookmarked
-												? m.events_bookmarked()
-												: m.events_bookmark()}{#if s.bookmarkCount > 0}
-												· {s.bookmarkCount}{/if}
-										</button>
-									{/if}
-									{#if s.capacity > 0 && authStore.isAuthenticated}
-										<button
-											type="button"
-											class:on={s.isRegistered}
-											aria-pressed={s.isRegistered}
-											onclick={() => toggleSeat(s)}
-										>
-											{s.isRegistered ? m.events_seatTaken() : m.events_takeSeat()} · {s.registeredCount}/{s.capacity}
-										</button>
-									{:else if s.capacity > 0}
-										<span class="seats"
-											>{m.events_seats({ taken: s.registeredCount, capacity: s.capacity })}</span
-										>
-									{/if}
-									{#if seatError[s.id]}<span class="seat-error">{seatError[s.id]}</span>{/if}
-									{#if exerciseIds(s).length > 0}
-										<button type="button" onclick={() => addToSet(s)}>
-											{added[s.id] !== undefined
-												? m.events_addedToSet({ count: added[s.id] })
-												: m.events_addToSet({ count: exerciseIds(s).length })}
-										</button>
-									{/if}
-									<!-- Take home (E): one deck from everything this session points at. -->
-									{#if flashcardsOn && authStore.isAuthenticated && s.takehomeCount > 0}
-										<button
-											type="button"
-											class="take-home"
-											disabled={takeHomeBusy[s.id]}
-											onclick={() => takeHome(s)}
-										>
-											{takeHomeBusy[s.id]
-												? m.takehome_busy()
-												: m.takehome_button({ count: s.takehomeCount })}
-										</button>
-									{/if}
-									{#if takeHomeDone[s.id]}<span class="take-home-done"
-											>{takeHomeDone[s.id]}
-											{#if takeHomeDeckId[s.id]}
-												<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `/flashcards/[id]` is a plain route with no localized address (see DeckFromConcept.svelte) -->
-												<a href={`/flashcards/${takeHomeDeckId[s.id]}`}>{m.paths_deck_open()}</a>
-												<!-- "Open it" -->
-											{/if}</span
-										>{/if}
-									{#if takeHomeError[s.id]}<span class="seat-error">{takeHomeError[s.id]}</span
-										>{/if}
-									<button
-										type="button"
-										onclick={() => (openQA = { ...openQA, [s.id]: !openQA[s.id] })}
-										aria-expanded={!!openQA[s.id]}>{m.events_sessionQA()}</button
-									>
-									{#if event.canOrganise}
-										<button type="button" onclick={() => (editing = s)}>{m.common_edit()}</button>
-										<button type="button" class="danger" onclick={() => remove(s)}
-											>{m.common_remove()}</button
-										>
-									{/if}
-								</div>
-								{#if openQA[s.id]}<SessionQA sessionId={s.id} />{/if}
-							</div>
-						{/if}
-					</li>
 				{/each}
-			</ol>
-		{/each}
-	{/if}
-</section>
+				<input
+					type="text"
+					bind:value={newTrack}
+					placeholder={m.events_trackNamePlaceholder()}
+					aria-label={m.events_trackNamePlaceholder()}
+					onkeydown={(e) => {
+						if (e.key === 'Enter') {
+							e.preventDefault();
+							addTrack();
+						}
+					}}
+				/>
+				<button type="button" onclick={addTrack}>{m.common_add()}</button>
+			</div>
+		{/if}
+
+		{#if editing === 'new'}
+			<SessionEditor {tracks} {busy} {error} onsubmit={save} oncancel={() => (editing = null)} />
+		{/if}
+
+		{#if loading}
+			<p class="status">{m.common_loading()}</p>
+		{:else if sessions.length === 0}
+			<p class="status">{m.events_programmeEmpty()}</p>
+		{:else if view === 'week'}
+			<div class="week">
+				<CalendarWeek days={weekDays} {entries} emptyLabel={m.events_programmeEmpty()} />
+			</div>
+		{:else}
+			{#each days as [day, rows] (day)}
+				<h3 class="day">{formatDate(rows[0].startsAt)}</h3>
+				<ol class="sessions">
+					{#each rows as s (s.id)}
+						<li class="session" class:session--break={s.kind === 'break' || s.kind === 'social'}>
+							{#if editing !== 'new' && editing?.id === s.id}
+								<SessionEditor
+									initial={s}
+									{tracks}
+									{busy}
+									{error}
+									onsubmit={save}
+									oncancel={() => (editing = null)}
+								/>
+							{:else}
+								<div class="session__time">
+									<span>{formatTimeOfDay(s.startsAt)}–{formatTimeOfDay(s.endsAt)}</span>
+									{#if s.trackId && trackById[s.trackId]}<span class="session-track"
+											>{trackById[s.trackId].name}</span
+										>{/if}
+								</div>
+								<div class="session__body">
+									<h4>{s.title} <span class="kind">{SESSION_KIND_LABELS[s.kind]()}</span></h4>
+									{#if s.speakers.length > 0}
+										<p class="speakers">
+											{#each s.speakers as sp, i (sp.id)}{i > 0 ? ', ' : ''}{#if sp.user}<a
+														href={resolve('/users/[id]', { id: sp.user.id })}>{sp.name}</a
+													>{:else}{sp.name}{/if}{#if sp.affiliation}{sp.affiliation ? ' ' : ''}<span
+														class="aff">({sp.affiliation})</span
+													>{/if}{/each}
+										</p>
+									{/if}
+									<!-- eslint-disable svelte/no-navigation-without-resolve -- external addresses, not app routes -->
+									{#if s.locationText || s.onlineUrl}
+										<p class="place">
+											{s.locationText}{#if s.locationText && s.onlineUrl}
+												·
+											{/if}{#if s.onlineUrl}<a href={s.onlineUrl} rel="nofollow"
+													>{m.events_joinOnline()}</a
+												>{/if}
+										</p>
+									{/if}
+									{#if s.abstract}<p class="abstract">{s.abstract}</p>{/if}
+									{#each linksByRole(s) as group (group.role)}
+										<p class="links">
+											<span class="role">{SESSION_LINK_ROLE_LABELS[group.role]()}:</span>
+											{#each group.links as l, i (l.id)}{#if i > 0},
+												{/if}<a href={linkHref(l)} rel={l.kind === 'url' ? 'nofollow' : undefined}
+													>{l.title}</a
+												>{#if l.note}
+													<span class="note">— {l.note}</span>{/if}{/each}
+										</p>
+									{/each}
+									<!-- eslint-enable svelte/no-navigation-without-resolve -->
+									<div class="session__actions">
+										{#if authStore.isAuthenticated}
+											<button
+												type="button"
+												class:on={s.isBookmarked}
+												aria-pressed={s.isBookmarked}
+												onclick={() => toggleBookmark(s)}
+											>
+												{s.isBookmarked
+													? m.events_bookmarked()
+													: m.events_bookmark()}{#if s.bookmarkCount > 0}
+													· {s.bookmarkCount}{/if}
+											</button>
+										{/if}
+										{#if s.capacity > 0 && authStore.isAuthenticated}
+											<button
+												type="button"
+												class:on={s.isRegistered}
+												aria-pressed={s.isRegistered}
+												onclick={() => toggleSeat(s)}
+											>
+												{s.isRegistered ? m.events_seatTaken() : m.events_takeSeat()} · {s.registeredCount}/{s.capacity}
+											</button>
+										{:else if s.capacity > 0}
+											<span class="seats"
+												>{m.events_seats({ taken: s.registeredCount, capacity: s.capacity })}</span
+											>
+										{/if}
+										{#if seatError[s.id]}<span class="seat-error">{seatError[s.id]}</span>{/if}
+										{#if exerciseIds(s).length > 0}
+											<button type="button" onclick={() => addToSet(s)}>
+												{added[s.id] !== undefined
+													? m.events_addedToSet({ count: added[s.id] })
+													: m.events_addToSet({ count: exerciseIds(s).length })}
+											</button>
+										{/if}
+										<!-- Take home (E): one deck from everything this session points at. -->
+										{#if flashcardsOn && authStore.isAuthenticated && s.takehomeCount > 0}
+											<button
+												type="button"
+												class="take-home"
+												disabled={takeHomeBusy[s.id]}
+												onclick={() => takeHome(s)}
+											>
+												{takeHomeBusy[s.id]
+													? m.takehome_busy()
+													: m.takehome_button({ count: s.takehomeCount })}
+											</button>
+										{/if}
+										{#if takeHomeDone[s.id]}<span class="take-home-done"
+												>{takeHomeDone[s.id]}
+												{#if takeHomeDeckId[s.id]}
+													<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- `/flashcards/[id]` is a plain route with no localized address (see DeckFromConcept.svelte) -->
+													<a href={`/flashcards/${takeHomeDeckId[s.id]}`}>{m.paths_deck_open()}</a>
+													<!-- "Open it" -->
+												{/if}</span
+											>{/if}
+										{#if takeHomeError[s.id]}<span class="seat-error">{takeHomeError[s.id]}</span
+											>{/if}
+										<button
+											type="button"
+											onclick={() => (openQA = { ...openQA, [s.id]: !openQA[s.id] })}
+											aria-expanded={!!openQA[s.id]}>{m.events_sessionQA()}</button
+										>
+										{#if event.canOrganise}
+											<button type="button" onclick={() => (editing = s)}>{m.common_edit()}</button>
+											<button type="button" class="danger" onclick={() => remove(s)}
+												>{m.common_remove()}</button
+											>
+										{/if}
+									</div>
+									{#if openQA[s.id]}<SessionQA sessionId={s.id} />{/if}
+								</div>
+							{/if}
+						</li>
+					{/each}
+				</ol>
+			{/each}
+		{/if}
+	</div>
+</FoldSection>
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// The card, the heading and the spacing above are `FoldSection`'s since 2026-10-08.
 	.programme {
-		margin-top: 1.5rem;
+		display: grid;
+		gap: 0.6rem;
 	}
 	.programme__head {
 		display: flex;
@@ -467,9 +473,6 @@
 		align-items: center;
 		gap: 0.6rem;
 		flex-wrap: wrap;
-	}
-	.programme__head h2 {
-		margin: 0;
 	}
 	.programme__actions {
 		display: flex;

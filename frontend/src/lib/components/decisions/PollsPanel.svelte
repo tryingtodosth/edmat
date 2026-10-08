@@ -7,6 +7,7 @@
 
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import {
@@ -265,253 +266,261 @@
 	</p>
 {/snippet}
 
-{#if !canUseDecisions}
-	<!-- Poll feature is disabled -->
-{:else if loading}
-	<div class="polls-panel polls-loading" data-polls-panel>{m.polls_loading()}</div>
-{:else if loadError}
-	<div class="polls-panel polls-error" data-polls-panel>{loadError}</div>
-{:else if polls.length === 0 && !showCreateForm}
-	{#if node.canManage}
-		<div class="polls-panel polls-empty" data-polls-panel>
-			<p>{m.polls_empty()}</p>
-			<button class="create-toggle" onclick={() => (showCreateForm = true)}>
-				{m.polls_create()}
-			</button>
-		</div>
-	{/if}
-{:else}
-	<div class="polls-panel" data-polls-panel>
-		{#each polls as poll (poll.id)}
-			<!-- The rule marks only polls that still want THIS reader's vote. -->
-			<div
-				class="poll poll-{poll.status}"
-				class:poll-asks={poll.status === 'open' && !poll.has_voted}
-				data-poll-id={poll.id}
-				data-poll-status={poll.status}
-			>
-				<div class="poll-header">
-					<h3>
-						<a href={resolve('/polls/[id]', { id: String(poll.id) })}>{poll.question}</a>
-					</h3>
-					<span class="poll-status-badge">{POLL_STATUSES[poll.status]()}</span>
-					{#if node.canManage}
-						<!-- The menu the owner asked for. `updatePoll` and `deletePoll` had been in the
+<!-- Folded like every other panel on a node page (2026-10-08). The outer condition is what the
+     four branches below used to express between them: with the switch off, with nothing to show and
+     no right to add one, this draws NOTHING — not a shut line with nothing behind it, which is the
+     house-rule-3 failure in a new place. Polls had no heading of its own before this, because a bare
+     list of cards needs none; a shut section does, so `polls_panelHeading` is new. -->
+{#if canUseDecisions && (loading || loadError || polls.length > 0 || node.canManage)}
+	<FoldSection key="polls" title={m.polls_panelHeading()} count={polls.length}>
+		<!-- "Polls" -->
+		{#if loading}
+			<div class="polls-panel polls-loading" data-polls-panel>{m.polls_loading()}</div>
+		{:else if loadError}
+			<div class="polls-panel polls-error" data-polls-panel>{loadError}</div>
+		{:else if polls.length === 0 && !showCreateForm}
+			{#if node.canManage}
+				<div class="polls-panel polls-empty" data-polls-panel>
+					<p>{m.polls_empty()}</p>
+					<button class="create-toggle" onclick={() => (showCreateForm = true)}>
+						{m.polls_create()}
+					</button>
+				</div>
+			{/if}
+		{:else}
+			<div class="polls-panel" data-polls-panel>
+				{#each polls as poll (poll.id)}
+					<!-- The rule marks only polls that still want THIS reader's vote. -->
+					<div
+						class="poll poll-{poll.status}"
+						class:poll-asks={poll.status === 'open' && !poll.has_voted}
+						data-poll-id={poll.id}
+						data-poll-status={poll.status}
+					>
+						<div class="poll-header">
+							<h3>
+								<a href={resolve('/polls/[id]', { id: String(poll.id) })}>{poll.question}</a>
+							</h3>
+							<span class="poll-status-badge">{POLL_STATUSES[poll.status]()}</span>
+							{#if node.canManage}
+								<!-- The menu the owner asked for. `updatePoll` and `deletePoll` had been in the
 						     service with NO call site anywhere, so a poll's question and a draft poll's
 						     existence really were Django-admin-only. Editing the text is refused
 						     server-side once a poll leaves `draft` (409 `poll_not_draft`) — an open
 						     poll's question is what people have already voted on — so the item is only
 						     offered on a draft. -->
-						<ManagementTextMenu
-							kind="poll"
-							id={String(poll.id)}
-							versions={mapTextVersions(poll.text_versions)}
-							fallbackHeading={poll.question}
-							fallbackBody={poll.description}
-							headingLabel={m.polls_question()}
-							bodyLabel={m.polls_description()}
-							label={m.polls_rowActionsLabel()}
-							canEdit={poll.status === 'draft'}
-							items={poll.status === 'draft'
-								? [
-										{
-											label: m.polls_deleteDraft(),
-											danger: true,
-											onselect: () => void handleDelete(poll)
-										}
-									]
-								: []}
-							onSaved={(written) => applyPollText(poll.id, written)}
-						/>
-					{/if}
-				</div>
-				<LanguageNote
-					language={poll.language ? mapLanguageReading(poll.language) : NO_LANGUAGE_READING}
-				/>
-				{#if poll.description}
-					<p class="poll-description">{poll.description}</p>
-				{/if}
-
-				{#if poll.status === 'draft'}
-					{#if node.canManage}
-						<div class="poll-actions">
-							<button
-								class="btn-small"
-								disabled={actionBusy[poll.id]}
-								onclick={() => handleOpenPoll(poll.id)}
-							>
-								{m.polls_open()}
-							</button>
-						</div>
-					{/if}
-				{:else if poll.status === 'open'}
-					{#if poll.has_voted}
-						<p class="poll-note">{POLL_REFUSAL_LABELS.already_voted()}</p>
-					{:else if poll.can_vote}
-						<form onsubmit={(e) => e.preventDefault()}>
-							{#each poll.options as option (option.id)}
-								<label>
-									{#if poll.mode === 'single'}
-										<input
-											type="radio"
-											name="option_{poll.id}"
-											checked={(voteSelections[poll.id] ?? []).includes(option.id)}
-											onchange={() => toggleSingleChoice(poll.id, option.id)}
-										/>
-									{:else}
-										<input
-											type="checkbox"
-											checked={(voteSelections[poll.id] ?? []).includes(option.id)}
-											onchange={(e) =>
-												toggleMultipleChoice(poll.id, option.id, e.currentTarget.checked)}
-										/>
-									{/if}
-									{option.text}
-								</label>
-							{/each}
-							<button
-								class="btn-small btn-primary"
-								disabled={actionBusy[poll.id]}
-								onclick={() => handleVote(poll)}
-							>
-								{m.polls_vote()}
-							</button>
-						</form>
-					{:else if authStore.isAuthenticated}
-						<!-- an open board: a reader who is not a member sees the question, not a form -->
-						<p class="poll-note">{POLL_REFUSAL_LABELS.not_eligible()}</p>
-					{:else}
-						<p class="poll-note">{m.polls_signInToVote()}</p>
-						<!-- "Sign in to vote." -->
-					{/if}
-					{#if closedResults[poll.id]}
-						<p class="poll-note">{m.polls_resultsSoFar()}</p>
-						<!-- "Results so far" -->
-						{@render tally(closedResults[poll.id])}
-					{/if}
-
-					{#if node.canManage}
-						<div class="poll-close-form">
-							<textarea
-								name="decision_note"
-								placeholder={m.polls_decision_note_placeholder()}
-								bind:value={closeNotes[poll.id]}
-								class="form-textarea"></textarea>
-							<button
-								class="btn-small"
-								disabled={actionBusy[poll.id]}
-								onclick={() => handleClose(poll)}
-							>
-								{m.polls_close()}
-							</button>
-						</div>
-					{/if}
-				{:else if poll.status === 'closed'}
-					{#if poll.decision_note}
-						<div class="poll-decision-note">
-							<p>{poll.decision_note}</p>
-						</div>
-					{/if}
-					{#if closedResults[poll.id]}
-						{@render tally(closedResults[poll.id])}
-					{:else}
-						<p class="poll-note">{m.polls_loadingResults()}</p>
-					{/if}
-				{/if}
-
-				{#if actionError[poll.id]}
-					<p class="poll-action-error">{actionError[poll.id]}</p>
-				{/if}
-
-				<RowDiscussion
-					policy={rowDiscussions.byKey[discussionKeyFor('polls', poll.id)]}
-					title={poll.question}
-				/>
-			</div>
-		{/each}
-
-		{#if node.canManage && !showCreateForm}
-			<button class="btn-small create-toggle" onclick={() => (showCreateForm = true)}>
-				{m.polls_create()}
-			</button>
-		{/if}
-
-		{#if node.canManage && showCreateForm}
-			<div class="create-form">
-				<h3>{m.polls_create()}</h3>
-				<input
-					type="text"
-					name="question"
-					placeholder={m.polls_question()}
-					bind:value={createData.question}
-					class="form-input"
-				/>
-				<textarea
-					name="description"
-					placeholder={m.polls_description()}
-					bind:value={createData.description}
-					class="form-textarea"></textarea>
-				<select name="mode" bind:value={createData.mode} class="form-select">
-					<option value="single">{m.polls_mode_single()}</option>
-					<option value="multiple">{m.polls_mode_multiple()}</option>
-				</select>
-				<select name="eligibility" bind:value={createData.eligibility} class="form-select">
-					<option value="members">{m.polls_eligibility_members()}</option>
-					<option value="staff">{m.polls_eligibility_staff()}</option>
-				</select>
-				<label>
-					<input type="checkbox" name="anonymous" bind:checked={createData.anonymous} />
-					{m.polls_anonymous()}
-				</label>
-
-				<div class="create-options">
-					{#each optionTexts as _text, index (index)}
-						<div class="create-option-row">
-							<input
-								type="text"
-								name="option-{index}"
-								placeholder={m.polls_option_number({ number: index + 1 })}
-								bind:value={optionTexts[index]}
-								class="form-input"
-							/>
-							{#if optionTexts.length > 2}
-								<button type="button" class="btn-tiny" onclick={() => removeOptionField(index)}>
-									{m.polls_remove_option()}
-								</button>
+								<ManagementTextMenu
+									kind="poll"
+									id={String(poll.id)}
+									versions={mapTextVersions(poll.text_versions)}
+									fallbackHeading={poll.question}
+									fallbackBody={poll.description}
+									headingLabel={m.polls_question()}
+									bodyLabel={m.polls_description()}
+									label={m.polls_rowActionsLabel()}
+									canEdit={poll.status === 'draft'}
+									items={poll.status === 'draft'
+										? [
+												{
+													label: m.polls_deleteDraft(),
+													danger: true,
+													onselect: () => void handleDelete(poll)
+												}
+											]
+										: []}
+									onSaved={(written) => applyPollText(poll.id, written)}
+								/>
 							{/if}
 						</div>
-					{/each}
-					<button type="button" class="btn-tiny add-option" onclick={addOptionField}>
-						{m.polls_add_option()}
-					</button>
-				</div>
+						<LanguageNote
+							language={poll.language ? mapLanguageReading(poll.language) : NO_LANGUAGE_READING}
+						/>
+						{#if poll.description}
+							<p class="poll-description">{poll.description}</p>
+						{/if}
 
-				{#if createError}
-					<p class="poll-action-error">{createError}</p>
-				{/if}
+						{#if poll.status === 'draft'}
+							{#if node.canManage}
+								<div class="poll-actions">
+									<button
+										class="btn-small"
+										disabled={actionBusy[poll.id]}
+										onclick={() => handleOpenPoll(poll.id)}
+									>
+										{m.polls_open()}
+									</button>
+								</div>
+							{/if}
+						{:else if poll.status === 'open'}
+							{#if poll.has_voted}
+								<p class="poll-note">{POLL_REFUSAL_LABELS.already_voted()}</p>
+							{:else if poll.can_vote}
+								<form onsubmit={(e) => e.preventDefault()}>
+									{#each poll.options as option (option.id)}
+										<label>
+											{#if poll.mode === 'single'}
+												<input
+													type="radio"
+													name="option_{poll.id}"
+													checked={(voteSelections[poll.id] ?? []).includes(option.id)}
+													onchange={() => toggleSingleChoice(poll.id, option.id)}
+												/>
+											{:else}
+												<input
+													type="checkbox"
+													checked={(voteSelections[poll.id] ?? []).includes(option.id)}
+													onchange={(e) =>
+														toggleMultipleChoice(poll.id, option.id, e.currentTarget.checked)}
+												/>
+											{/if}
+											{option.text}
+										</label>
+									{/each}
+									<button
+										class="btn-small btn-primary"
+										disabled={actionBusy[poll.id]}
+										onclick={() => handleVote(poll)}
+									>
+										{m.polls_vote()}
+									</button>
+								</form>
+							{:else if authStore.isAuthenticated}
+								<!-- an open board: a reader who is not a member sees the question, not a form -->
+								<p class="poll-note">{POLL_REFUSAL_LABELS.not_eligible()}</p>
+							{:else}
+								<p class="poll-note">{m.polls_signInToVote()}</p>
+								<!-- "Sign in to vote." -->
+							{/if}
+							{#if closedResults[poll.id]}
+								<p class="poll-note">{m.polls_resultsSoFar()}</p>
+								<!-- "Results so far" -->
+								{@render tally(closedResults[poll.id])}
+							{/if}
 
-				<div class="form-actions">
-					<button class="btn-primary" disabled={creating} onclick={handleCreatePoll}>
+							{#if node.canManage}
+								<div class="poll-close-form">
+									<textarea
+										name="decision_note"
+										placeholder={m.polls_decision_note_placeholder()}
+										bind:value={closeNotes[poll.id]}
+										class="form-textarea"></textarea>
+									<button
+										class="btn-small"
+										disabled={actionBusy[poll.id]}
+										onclick={() => handleClose(poll)}
+									>
+										{m.polls_close()}
+									</button>
+								</div>
+							{/if}
+						{:else if poll.status === 'closed'}
+							{#if poll.decision_note}
+								<div class="poll-decision-note">
+									<p>{poll.decision_note}</p>
+								</div>
+							{/if}
+							{#if closedResults[poll.id]}
+								{@render tally(closedResults[poll.id])}
+							{:else}
+								<p class="poll-note">{m.polls_loadingResults()}</p>
+							{/if}
+						{/if}
+
+						{#if actionError[poll.id]}
+							<p class="poll-action-error">{actionError[poll.id]}</p>
+						{/if}
+
+						<RowDiscussion
+							policy={rowDiscussions.byKey[discussionKeyFor('polls', poll.id)]}
+							title={poll.question}
+						/>
+					</div>
+				{/each}
+
+				{#if node.canManage && !showCreateForm}
+					<button class="btn-small create-toggle" onclick={() => (showCreateForm = true)}>
 						{m.polls_create()}
 					</button>
-					<button class="btn-secondary" onclick={resetCreateForm}>
-						{m.polls_cancel()}
-					</button>
-				</div>
+				{/if}
+
+				{#if node.canManage && showCreateForm}
+					<div class="create-form">
+						<h3>{m.polls_create()}</h3>
+						<input
+							type="text"
+							name="question"
+							placeholder={m.polls_question()}
+							bind:value={createData.question}
+							class="form-input"
+						/>
+						<textarea
+							name="description"
+							placeholder={m.polls_description()}
+							bind:value={createData.description}
+							class="form-textarea"></textarea>
+						<select name="mode" bind:value={createData.mode} class="form-select">
+							<option value="single">{m.polls_mode_single()}</option>
+							<option value="multiple">{m.polls_mode_multiple()}</option>
+						</select>
+						<select name="eligibility" bind:value={createData.eligibility} class="form-select">
+							<option value="members">{m.polls_eligibility_members()}</option>
+							<option value="staff">{m.polls_eligibility_staff()}</option>
+						</select>
+						<label>
+							<input type="checkbox" name="anonymous" bind:checked={createData.anonymous} />
+							{m.polls_anonymous()}
+						</label>
+
+						<div class="create-options">
+							{#each optionTexts as _text, index (index)}
+								<div class="create-option-row">
+									<input
+										type="text"
+										name="option-{index}"
+										placeholder={m.polls_option_number({ number: index + 1 })}
+										bind:value={optionTexts[index]}
+										class="form-input"
+									/>
+									{#if optionTexts.length > 2}
+										<button type="button" class="btn-tiny" onclick={() => removeOptionField(index)}>
+											{m.polls_remove_option()}
+										</button>
+									{/if}
+								</div>
+							{/each}
+							<button type="button" class="btn-tiny add-option" onclick={addOptionField}>
+								{m.polls_add_option()}
+							</button>
+						</div>
+
+						{#if createError}
+							<p class="poll-action-error">{createError}</p>
+						{/if}
+
+						<div class="form-actions">
+							<button class="btn-primary" disabled={creating} onclick={handleCreatePoll}>
+								{m.polls_create()}
+							</button>
+							<button class="btn-secondary" onclick={resetCreateForm}>
+								{m.polls_cancel()}
+							</button>
+						</div>
+					</div>
+				{/if}
 			</div>
 		{/if}
-	</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// Card chrome is `FoldSection`'s since 2026-10-08; this is its body. The nested `.poll` cards
+	// keep theirs — they are rows inside the section, not the section.
 	.polls-panel {
-		@include mix.card-surface;
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
-		padding: var(--space-3);
 
 		// No card tints: a poll's state is its badge; the one coloured rule is "asks you".
 		.poll {

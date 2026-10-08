@@ -22,6 +22,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { goalRefusalMessage } from '$lib/utils/labels';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 
 	let { node }: { node: NodeRef } = $props();
 
@@ -74,6 +75,11 @@
 		);
 	});
 
+	// On the shut line: how many goals, and how many of them are met. `goals_progress` is the same
+	// sentence a single goal already uses for its own criteria, which is why it is reused rather
+	// than a second key saying the same thing in a different shape (house rule 13).
+	const metCount = $derived(goals.filter((goal) => goal.status === 'met').length);
+
 	function replace(updated: Goal) {
 		goals = goals.map((goal) => (goal.id === updated.id ? updated : goal));
 	}
@@ -99,87 +105,82 @@
 </script>
 
 {#if canSee && !loading && (goals.length > 0 || node.canManage)}
-	<section class="goals-panel" aria-labelledby="goals-heading-{node.kind}-{node.id}">
-		<div class="head">
-			<h2 id="goals-heading-{node.kind}-{node.id}">{m.goals_heading()}</h2>
-			<!-- "Goals" -->
+	<FoldSection
+		key="goals"
+		title={m.goals_heading()}
+		count={goals.length}
+		note={goals.length > 0 ? m.goals_progress({ met: metCount, total: goals.length }) : null}
+	>
+		<!-- "Goals" / "{met} of {total} met" -->
+		{#snippet actions()}
 			{#if node.canManage}
 				<button type="button" class="link" onclick={() => (showForm = !showForm)}
 					>{m.goals_addGoal()}</button
 				>
 				<!-- "Add a goal" -->
 			{/if}
-		</div>
-		<p class="intro">{m.goals_panelIntro()}</p>
-		<!-- "What this body is trying to achieve, and what will count as having achieved it." -->
+		{/snippet}
+		<div class="goals-panel">
+			<p class="intro">{m.goals_panelIntro()}</p>
+			<!-- "What this body is trying to achieve, and what will count as having achieved it." -->
 
-		{#if showForm}
-			<form class="form" onsubmit={submit}>
-				<label>
-					<span>{m.goals_formTitleLabel()}</span>
-					<!-- "Title" -->
-					<input
-						type="text"
-						bind:value={title}
-						placeholder={m.goals_formTitlePlaceholder()}
-						maxlength="200"
-						disabled={busy}
-					/>
-				</label>
-				<label>
-					<span>{m.goals_formDescriptionLabel()}</span>
-					<!-- "What this goal is" -->
-					<textarea bind:value={description} rows="3" disabled={busy}></textarea>
-				</label>
-				<div class="actions">
-					<button type="submit" disabled={busy || !title.trim()}>{m.goals_save()}</button>
-					<button type="button" class="link" onclick={() => (showForm = false)}
-						>{m.goals_cancel()}</button
-					>
-				</div>
-				{#if error}<p class="error">{error}</p>{/if}
-			</form>
-		{/if}
-
-		{#if goals.length === 0}
-			<p class="intro">{m.goals_empty()}</p>
-			<!-- "No goals yet." -->
-		{:else}
-			<ul class="list">
-				{#each goals as goal (goal.id)}
-					<li>
-						<GoalCard
-							{goal}
-							policy={rowDiscussions.byKey[discussionKeyFor('goals', goal.id)]}
-							onChanged={replace}
-							onRemoved={() => (goals = goals.filter((row) => row.id !== goal.id))}
+			{#if showForm}
+				<form class="form" onsubmit={submit}>
+					<label>
+						<span>{m.goals_formTitleLabel()}</span>
+						<!-- "Title" -->
+						<input
+							type="text"
+							bind:value={title}
+							placeholder={m.goals_formTitlePlaceholder()}
+							maxlength="200"
+							disabled={busy}
 						/>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</section>
+					</label>
+					<label>
+						<span>{m.goals_formDescriptionLabel()}</span>
+						<!-- "What this goal is" -->
+						<textarea bind:value={description} rows="3" disabled={busy}></textarea>
+					</label>
+					<div class="actions">
+						<button type="submit" disabled={busy || !title.trim()}>{m.goals_save()}</button>
+						<button type="button" class="link" onclick={() => (showForm = false)}
+							>{m.goals_cancel()}</button
+						>
+					</div>
+					{#if error}<p class="error">{error}</p>{/if}
+				</form>
+			{/if}
+
+			{#if goals.length === 0}
+				<p class="intro">{m.goals_empty()}</p>
+				<!-- "No goals yet." -->
+			{:else}
+				<ul class="list">
+					{#each goals as goal (goal.id)}
+						<li>
+							<GoalCard
+								{goal}
+								policy={rowDiscussions.byKey[discussionKeyFor('goals', goal.id)]}
+								onChanged={replace}
+								onRemoved={() => (goals = goals.filter((row) => row.id !== goal.id))}
+							/>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// The card chrome and the heading row belong to `FoldSection` now (2026-10-08): this panel is
+	// its body, so it keeps the stack and gives up the border, the padding and its own `<h2>`.
 	.goals-panel {
-		@include mix.card-surface;
 		display: grid;
 		gap: var(--space-3, 0.75rem);
-		padding: var(--space-3);
-	}
-	.head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-2, 0.5rem);
-		flex-wrap: wrap;
-		h2 {
-			margin: 0;
-			font-size: 1.05rem;
-		}
 	}
 	.intro {
 		margin: 0;

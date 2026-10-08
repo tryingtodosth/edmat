@@ -12,6 +12,7 @@
 	 * lists first and which has produced `.trim is not a function` on a live submit four times.
 	 */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { resolve } from '$app/paths';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import { ROOM_BOOKING_STATUS_LABELS, VENUE_BLOCK_LABELS } from '$lib/utils/labels';
@@ -49,6 +50,9 @@
 	// away; it does not leave a sign where it used to be. Found by looking at the screenshot.
 	// `isModerator` mirrors the backend's own `is_staff` bypass, exactly as `FeatureGate` does.
 	let venuesOn = $derived(featureFlagsStore.isEnabled('venues') || authStore.isModerator);
+	// Who may take a booking back. An organiser of this event, or a platform operator — see the
+	// comment on the button itself.
+	let canWithdraw = $derived(canOrganise || authStore.isModerator);
 
 	let bookings = $state<RoomBooking[]>([]);
 	let venues = $state<VenueSummary[]>([]);
@@ -172,142 +176,144 @@
 </script>
 
 {#if venuesOn && loaded && (canOrganise || bookings.length > 0)}
-	<section class="venue-panel">
-		<h3>{m.venues_panelTitle()}</h3>
+	<FoldSection key="venue" title={m.venues_panelTitle()} count={bookings.length} level={3}>
 		<!-- "Venue and room" -->
-		{#if canOrganise}
-			<p class="hint">{m.venues_panelIntro()}</p>
-			<!-- "Ask a building for a room. The building answers; an approved booking is what links this event to a venue." -->
-		{/if}
+		<div class="venue-panel">
+			{#if canOrganise}
+				<p class="hint">{m.venues_panelIntro()}</p>
+				<!-- "Ask a building for a room. The building answers; an approved booking is what links this event to a venue." -->
+			{/if}
 
-		{#if bookings.length === 0}
-			<p class="hint">{m.venues_noBookings()}</p>
-			<!-- "No room has been asked for yet." -->
-		{:else}
-			<ul class="bookings">
-				{#each bookings as booking (booking.id)}
-					<li class="booking booking--{booking.status}">
-						<div class="booking__where">
-							<a href={resolve('/venues/[slug]', { slug: booking.venue.slug })}>
-								{booking.venue.name}
-							</a>
-							<strong>{booking.room.name}</strong>
-							<span class="pill pill--{booking.status}"
-								>{ROOM_BOOKING_STATUS_LABELS[booking.status]()}</span
-							>
-						</div>
-						<div class="booking__when">
-							{m.venues_bookingFor()}
-							<!-- "Booked for" -->
-							{formatDateTime(booking.startsAt)} — {formatDateTime(booking.endsAt)}
-						</div>
-						{#if booking.note}
-							<p class="booking__note">
-								{#if booking.decidedBy}
-									<span class="who">{m.venues_decidedBy()} {booking.decidedBy.displayName}:</span>
-									<!-- "Answered by" -->
-								{/if}
-								{booking.note}
-							</p>
-						{/if}
-						{#if canOrganise && (booking.status === 'requested' || booking.status === 'approved')}
-							<button
-								type="button"
-								class="link danger"
-								disabled={busy}
-								onclick={() => withdraw(booking.id)}
-							>
-								{m.venues_cancelRequest()}
-								<!-- "Withdraw this request" -->
-							</button>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
+			{#if bookings.length === 0}
+				<p class="hint">{m.venues_noBookings()}</p>
+				<!-- "No room has been asked for yet." -->
+			{:else}
+				<ul class="bookings">
+					{#each bookings as booking (booking.id)}
+						<li class="booking booking--{booking.status}">
+							<div class="booking__where">
+								<a href={resolve('/venues/[slug]', { slug: booking.venue.slug })}>
+									{booking.venue.name}
+								</a>
+								<strong>{booking.room.name}</strong>
+								<span class="pill pill--{booking.status}"
+									>{ROOM_BOOKING_STATUS_LABELS[booking.status]()}</span
+								>
+							</div>
+							<div class="booking__when">
+								{m.venues_bookingFor()}
+								<!-- "Booked for" -->
+								{formatDateTime(booking.startsAt)} — {formatDateTime(booking.endsAt)}
+							</div>
+							{#if booking.note}
+								<p class="booking__note">
+									{#if booking.decidedBy}
+										<span class="who">{m.venues_decidedBy()} {booking.decidedBy.displayName}:</span>
+										<!-- "Answered by" -->
+									{/if}
+									{booking.note}
+								</p>
+							{/if}
+							<!-- `canWithdraw`, not `canOrganise`: platform staff are shown every booking on this
+						     event (the `is_staff` bypass in the API's own queryset) and could not act on
+						     one, which is the owner's report of 2026-10-08. Mirrors the backend's rule in
+						     `venues/views.py: cancel`, the same way `venuesOn` mirrors its feature gate. -->
+							{#if canWithdraw && (booking.status === 'requested' || booking.status === 'approved')}
+								<button
+									type="button"
+									class="link danger"
+									disabled={busy}
+									onclick={() => withdraw(booking.id)}
+								>
+									{m.venues_cancelRequest()}
+									<!-- "Withdraw this request" -->
+								</button>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
 
-		{#if canOrganise}
-			<form class="ask" onsubmit={ask}>
-				<label>
-					<span>{m.venues_pickVenue()}</span>
-					<!-- "Building" -->
-					<select value={venueId} onchange={(e) => pickVenue(e.currentTarget.value)}>
-						<option value="">{m.venues_pickPrompt()}</option>
-						<!-- "Choose…" -->
-						{#each venues as venue (venue.id)}
-							<option value={venue.id}>{venue.name}</option>
-						{/each}
-					</select>
-				</label>
-				<label>
-					<span>{m.venues_pickRoom()}</span>
-					<!-- "Room" -->
-					<select bind:value={roomId} disabled={rooms.length === 0}>
-						<option value="">{m.venues_pickPrompt()}</option>
-						<!-- "Choose…" -->
-						{#each rooms as room (room.id)}
-							<option value={room.id}>
-								{room.name} — {m.venues_fire()}
-								<!-- "Fire capacity" -->
-								{room.fireCapacity}
-							</option>
-						{/each}
-					</select>
-				</label>
-				<label>
-					<span>{m.venues_from()}</span>
-					<!-- "From" -->
-					<input type="datetime-local" bind:value={from} required />
-				</label>
-				<label>
-					<span>{m.venues_until()}</span>
-					<!-- "Until" -->
-					<input type="datetime-local" bind:value={until} required />
-				</label>
-				<label>
-					<span>{m.venues_headcount()}</span>
-					<!-- "People expected" -->
-					<input type="text" inputmode="numeric" pattern="[0-9]*" bind:value={headcount} />
-				</label>
-				<label class="wide">
-					<span>{m.venues_purpose()}</span>
-					<!-- "What it is for" -->
-					<input type="text" bind:value={purpose} maxlength="300" />
-				</label>
-				{#if chosenRoom}
-					<p class="hint wide">
-						{m.venues_seated()}
-						<!-- "Seats" -->
-						{chosenRoom.seatedCapacity} · {m.venues_fire()}
-						<!-- "Fire capacity" -->
-						{chosenRoom.fireCapacity}
-						{#if chosenRoom.accessible}· {m.venues_accessible()}{/if}
-						<!-- "Step-free access" -->
-						{#if chosenRoom.hasAv}· {m.venues_hasAv()}{/if}
-						<!-- "AV equipment" -->
-					</p>
-				{/if}
-				<button type="submit" class="wide" disabled={busy || !roomId}>
-					{busy ? m.venues_requesting() : m.venues_request()}
-					<!-- "Asking…" / "Ask for this room" -->
-				</button>
-			</form>
-		{/if}
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
-	</section>
+			{#if canOrganise}
+				<form class="ask" onsubmit={ask}>
+					<label>
+						<span>{m.venues_pickVenue()}</span>
+						<!-- "Building" -->
+						<select value={venueId} onchange={(e) => pickVenue(e.currentTarget.value)}>
+							<option value="">{m.venues_pickPrompt()}</option>
+							<!-- "Choose…" -->
+							{#each venues as venue (venue.id)}
+								<option value={venue.id}>{venue.name}</option>
+							{/each}
+						</select>
+					</label>
+					<label>
+						<span>{m.venues_pickRoom()}</span>
+						<!-- "Room" -->
+						<select bind:value={roomId} disabled={rooms.length === 0}>
+							<option value="">{m.venues_pickPrompt()}</option>
+							<!-- "Choose…" -->
+							{#each rooms as room (room.id)}
+								<option value={room.id}>
+									{room.name} — {m.venues_fire()}
+									<!-- "Fire capacity" -->
+									{room.fireCapacity}
+								</option>
+							{/each}
+						</select>
+					</label>
+					<label>
+						<span>{m.venues_from()}</span>
+						<!-- "From" -->
+						<input type="datetime-local" bind:value={from} required />
+					</label>
+					<label>
+						<span>{m.venues_until()}</span>
+						<!-- "Until" -->
+						<input type="datetime-local" bind:value={until} required />
+					</label>
+					<label>
+						<span>{m.venues_headcount()}</span>
+						<!-- "People expected" -->
+						<input type="text" inputmode="numeric" pattern="[0-9]*" bind:value={headcount} />
+					</label>
+					<label class="wide">
+						<span>{m.venues_purpose()}</span>
+						<!-- "What it is for" -->
+						<input type="text" bind:value={purpose} maxlength="300" />
+					</label>
+					{#if chosenRoom}
+						<p class="hint wide">
+							{m.venues_seated()}
+							<!-- "Seats" -->
+							{chosenRoom.seatedCapacity} · {m.venues_fire()}
+							<!-- "Fire capacity" -->
+							{chosenRoom.fireCapacity}
+							{#if chosenRoom.accessible}· {m.venues_accessible()}{/if}
+							<!-- "Step-free access" -->
+							{#if chosenRoom.hasAv}· {m.venues_hasAv()}{/if}
+							<!-- "AV equipment" -->
+						</p>
+					{/if}
+					<button type="submit" class="wide" disabled={busy || !roomId}>
+						{busy ? m.venues_requesting() : m.venues_request()}
+						<!-- "Asking…" / "Ask for this room" -->
+					</button>
+				</form>
+			{/if}
+			{#if error}<p class="error" role="alert">{error}</p>{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// Card chrome, the heading and the spacing above are `FoldSection`'s since 2026-10-08 — the
+	// event page is a flex column with its own gap, so the old `margin-top` was double-counting it.
 	.venue-panel {
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.9rem 1rem;
-		margin-top: 1rem;
-	}
-	h3 {
-		margin: 0 0 0.25rem;
+		display: grid;
+		gap: 0.5rem;
 	}
 	.hint {
 		font-size: 0.85rem;

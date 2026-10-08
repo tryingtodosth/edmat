@@ -309,6 +309,71 @@ class RoomBookingTests(VenueTestCase):
         booking.refresh_from_db()
         self.assertEqual(booking.status, 'cancelled')
 
+    def test_a_withdrawal_records_who_made_it(self):
+        """`decided_by` was null here while `_decide` set it, which is the one fact that makes a
+        withdrawal auditable now that an organiser is not the only person who can perform one."""
+        booking = RoomBooking.objects.create(
+            event=self.event, room=self.room, starts_at=self.start, ends_at=self.end
+        )
+        self.client.force_authenticate(self.organiser)
+        self.client.post(f'/api/room-bookings/{booking.pk}/cancel/')
+        booking.refresh_from_db()
+        self.assertEqual(booking.decided_by, self.organiser)
+        self.assertIsNotNone(booking.decided_at)
+
+    def test_platform_staff_may_withdraw_a_booking_they_do_not_organise(self):
+        """The owner's report, 2026-10-08: an `is_staff` operator is shown every booking by
+        `get_queryset`'s admin bypass and was then refused when they acted on one. Seeing it and
+        being able to act on it are now the same permission."""
+        operator = make_user('platform-operator', is_staff=True)
+        booking = RoomBooking.objects.create(
+            event=self.event, room=self.room, starts_at=self.start, ends_at=self.end,
+            status='approved',
+        )
+        self.client.force_authenticate(operator)
+        res = self.client.post(f'/api/room-bookings/{booking.pk}/cancel/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'cancelled')
+        # And the record says it was the operator, not the organiser, who took the room back.
+        self.assertEqual(booking.decided_by, operator)
+
+    def test_withdrawing_does_not_make_platform_staff_an_organiser(self):
+        """The bypass is one withdrawal, not a promotion: `Event.can_organise` is untouched, so the
+        operator still cannot change the event or decide for the building."""
+        operator = make_user('platform-operator-2', is_staff=True)
+        self.assertFalse(self.event.can_organise(operator))
+
+    def test_a_stranger_still_cannot_withdraw(self):
+        booking = RoomBooking.objects.create(
+            event=self.event, room=self.room, starts_at=self.start, ends_at=self.end
+        )
+        self.client.force_authenticate(self.stranger)
+        res = self.client.post(f'/api/room-bookings/{booking.pk}/cancel/')
+        # 404: `get_queryset` never shows them the row, so there is nothing to refuse.
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'requested')
+
+    def test_the_building_cannot_withdraw_a_booking_it_already_approved(self):
+        """Named rather than quietly left: a venue administrator may answer a REQUEST and nothing
+        else, so once a room is approved only the organiser (or a platform operator) can hand it
+        back. `todo.md` carries the owner's decision about whether the building should be able to
+        revoke, which would be a new status rather than a reuse of `cancelled`."""
+        booking = RoomBooking.objects.create(
+            event=self.event, room=self.room, starts_at=self.start, ends_at=self.end,
+            status='approved',
+        )
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(
+            self.client.post(f'/api/room-bookings/{booking.pk}/cancel/').status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.assertEqual(
+            self.client.post(f'/api/room-bookings/{booking.pk}/reject/').status_code,
+            status.HTTP_409_CONFLICT,
+        )
+
     def test_a_stranger_never_sees_the_booking_in_any_list(self):
         RoomBooking.objects.create(
             event=self.event, room=self.room, starts_at=self.start, ends_at=self.end

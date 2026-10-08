@@ -15,6 +15,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { formatDateTime, formatClock } from '$lib/utils/datetime';
 	import { cancelEvent, getEvent, getEventAttendees, respondToEvent } from '$lib/services/events';
 	import { createAvailabilityException, getMySchedule } from '$lib/services/booking';
@@ -380,23 +381,24 @@
 			{/if}
 
 			{#if event.subEvents.length > 0}
-				<section class="sub-events">
-					<h2>{m.events_subEvents()}</h2>
-					<ul>
-						{#each event.subEvents as sub (sub.id)}
-							<li>
-								<a href={resolve('/events/[id]', { id: sub.id })}>{sub.title}</a>
-								{#if sub.startsAt}
-									<span class="sub-events__when">{formatDateTime(sub.startsAt)}</span>
-								{:else if sub.eventTime}
-									<span class="sub-events__when">
-										{m.events_timeOnlyDisplay({ time: formatClock(sub.eventTime) })}
-									</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				</section>
+				<FoldSection key="subEvents" title={m.events_subEvents()} count={event.subEvents.length}>
+					<div class="sub-events">
+						<ul>
+							{#each event.subEvents as sub (sub.id)}
+								<li>
+									<a href={resolve('/events/[id]', { id: sub.id })}>{sub.title}</a>
+									{#if sub.startsAt}
+										<span class="sub-events__when">{formatDateTime(sub.startsAt)}</span>
+									{:else if sub.eventTime}
+										<span class="sub-events__when">
+											{m.events_timeOnlyDisplay({ time: formatClock(sub.eventTime) })}
+										</span>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					</div>
+				</FoldSection>
 			{/if}
 
 			{#if !previewing}
@@ -632,34 +634,35 @@
 			{#if !previewing}
 				<EventUpdates eventId={event.id} isHost={event.isHost} />
 
-				<section class="roster">
-					<h2>{m.events_attendees()}</h2>
-					{#if attendees.length === 0}
-						<p class="status">
-							{authStore.isAuthenticated && (event.isHost || event.myAttendance === 'going')
-								? m.events_attendeesEmpty()
-								: m.events_attendeesPrivate()}
-						</p>
-					{:else}
-						<ul>
-							{#each attendees as row (row.id)}
-								<li>
-									{#if row.attendee.id}
-										<a href={resolve('/users/[id]', { id: row.attendee.id })}>
-											{row.attendee.displayName}
-										</a>
-									{:else}
-										<!-- The organiser's masked public list carries no ids on purpose. -->
-										<span>{row.attendee.displayName}</span>
-									{/if}
-									{#if row.status === 'not_going'}
-										<span class="declined">{m.events_notGoing()}</span>
-									{/if}
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</section>
+				<FoldSection key="attendees" title={m.events_attendees()} count={attendees.length}>
+					<div class="roster">
+						{#if attendees.length === 0}
+							<p class="status">
+								{authStore.isAuthenticated && (event.isHost || event.myAttendance === 'going')
+									? m.events_attendeesEmpty()
+									: m.events_attendeesPrivate()}
+							</p>
+						{:else}
+							<ul>
+								{#each attendees as row (row.id)}
+									<li>
+										{#if row.attendee.id}
+											<a href={resolve('/users/[id]', { id: row.attendee.id })}>
+												{row.attendee.displayName}
+											</a>
+										{:else}
+											<!-- The organiser's masked public list carries no ids on purpose. -->
+											<span>{row.attendee.displayName}</span>
+										{/if}
+										{#if row.status === 'not_going'}
+											<span class="declined">{m.events_notGoing()}</span>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+				</FoldSection>
 			{/if}
 		{/if}
 	</div>
@@ -730,10 +733,6 @@
 		color: var(--text-secondary);
 	}
 	.sub-events {
-		h2 {
-			font-size: var(--font-size-base);
-			margin-bottom: var(--space-2);
-		}
 		ul {
 			list-style: none;
 			display: flex;
@@ -807,10 +806,6 @@
 		font-size: var(--font-size-sm);
 	}
 	.roster {
-		h2 {
-			font-size: var(--font-size-lg);
-			margin-bottom: var(--space-2);
-		}
 		ul {
 			list-style: none;
 			display: flex;

@@ -14919,3 +14919,138 @@ founded by the association"* with both fields filled.
   manager's act and `can_manage_node` has no `is_staff` bypass, so platform staff are not owners of
   the `edmat` organisation. That is the rule working, not a gap, but it does mean the script is not
   runnable from the seeded accounts alone.
+
+---
+
+## 17CA — Withdrawing a room booking: the operator who could see it could not do it (2026-10-08, `ux/colour-pass`)
+
+The owner, mid-session: *"i dont seem to be able to withdraw reservation for a room in
+https://edmat.net/events/6"*. Reproduced locally against both real servers in two probes, which is
+what turned one report into two separate findings.
+
+**The bug.** `RoomBookingViewSet.get_queryset` has had an `is_staff` bypass since the conference
+layer landed — platform staff see every booking, because somebody has to be able to answer "what is
+this building holding" without being on the event's staff list. `cancel` asked
+`booking.event.can_organise(request.user)` and nothing else. So the two halves disagreed: an
+operator was *shown* every booking on an event they do not organise and told `not_allowed` the
+moment they acted on one — and the button was not drawn either, because `VenuePanel` gated it on
+the same `canOrganise`, so the refusal was invisible until somebody POSTed by hand. Measured:
+
+```
+LIST  as superuser  200  12 rows        ← you see them
+EVENT can_organise= false               ← no button
+CANCEL as superuser 403 {"detail":"not_allowed"}
+```
+
+Seeing a row and being able to act on it are now the same permission. `is_staff` is this project's
+one operator bypass (the same one `feature_gate` uses) so it is the one used here rather than a new
+rule; `Event.can_organise` is **untouched**, because running an event and operating the platform are
+different jobs and only this one withdrawal needs the second. The frontend mirrors it in
+`canWithdraw`, exactly as `venuesOn` already mirrors the feature gate.
+
+**The second finding, which nobody reported.** `cancel` set `status` and `decided_at` but never
+`decided_by`, while `_decide` (approve/reject) sets all three. That was survivable while an
+organiser was the only person who could withdraw; the moment two different people can, the record
+stops answering *who took the room back*. It is set now — house rule 12: the record of a decision is
+part of the trust model.
+
+### Left open — and it needs the owner's decision, not a patch
+
+**A building cannot revoke a booking it has already approved.** `_decide`'s update is WHERE-anchored
+on `status='requested'`, and `/venues/[slug]/manage` draws a decided row as a pill with no control.
+So once a room is granted, only the organiser (or now an operator) can hand it back — the building
+itself cannot. That is defensible (the organiser holds the room; the building said yes) and it is
+also how a venue administrator would describe exactly the owner's complaint. Fixing it is not a
+bypass but a new status: `cancelled` reads *"Withdrawn by the organiser"*, and "the building took it
+back" is a different fact that a reader of the row needs told apart from it — so it is a choices
+change, a migration and a control on the manage page. `todo.md` carries it.
+
+### Verified
+
+`manage.py test venues.tests.RoomBookingTests --keepdb` 15 OK (5 new: the operator's withdrawal,
+the record of who made it, the stranger still getting 404 rather than 403, the operator still not
+being an organiser, and the building's own refusal, which is the left-open written down as a test so
+that changing it is a deliberate act).
+
+---
+
+## 17CB — A node page folds: every panel is one line until you open it (2026-10-08, `ux/colour-pass`)
+
+The owner: *"simplify and clean as rn its overwehalming: most things should be hidden under some
+kind of expandable sth"* — and, asked which surface and what should be open to start with: **an
+event or a course page**, **everything shut but the first**, remembered.
+
+It was not an exaggeration. `/events/[id]` mounts sixteen panels below the hero — programme,
+contributions, registration fields, registrations, staff, venue, checklist, documents, tickets,
+rota, cloakroom, the seven management panels, deck placements, related courses, updates, roster —
+and every one of them drew at full height. On the demo conference the attendee list was four
+screens below the date. Measured on that event: **1646px shut against 6064px with two sections
+opened**, and the whole page now fits on one screen as eight labelled lines.
+
+### `FoldSection`, and the one rule about where it goes
+
+One component (`lib/components/shared/FoldSection.svelte`) plus one rune store
+(`lib/state/foldedSections.svelte.ts`). The rule that shaped it:
+
+**It is used INSIDE a panel, never wrapped around one from the page.** A panel decides for itself
+whether it has anything to draw — its own kill switch, and whether this reader may see what it
+holds — and house rule 3 says a killed feature takes its own surface away rather than leaving a sign
+where it used to be. A fold wrapped around a panel from the outside cannot know that, and would
+leave a header with nothing behind it. A panel that loads first and then renders the fold can also
+put its own **count** on the line, which is the entire value of a shut section: the reader decides
+whether to open it from what the line says (*Program 20*, *Kto się wybiera 130*, *Dokumenty 3 · 2
+still to read*). The one deliberate exception is `CourseClaims` on the course page, wrapped from
+outside because `ClaimGroups` always draws its two groups and is shared with `/exercises/[id]` and
+`/materials/[id]`, which the owner did not ask to change.
+
+Three smaller decisions, each with a reason:
+
+- **The body is destroyed while shut**, not hidden with `hidden`. The data is already loaded by the
+  panel above, so what is saved is DOM, KaTeX typesetting and layout — the cost the owner was
+  actually complaining about. A panel that only fetches what it shows gets `onopen`, because it can
+  no longer see the click itself (`CourseReports` is the one).
+- **Keyed by SECTION, not by object.** `fold:documents`, not `fold:event:6:documents`: a reader who
+  opens Documents on one event is telling us something about themselves, not about that event, and
+  a per-object key would make them say it again on the next one and grow one localStorage entry per
+  row they ever looked at.
+- **Nothing here is `<details>`.** The native element cannot carry a count and an action menu on its
+  summary line without nesting interactive content inside `<summary>` — a real a11y problem, not a
+  style one — and its open state does not survive a reload. A button with `aria-expanded` and
+  `aria-controls` is the same promise, kept.
+
+An "open by default" section needs a stored **no** rather than the absence of a yes, or shutting it
+would be forgotten on the next load; that is the `-key` prefix in the store.
+
+### What folded
+
+The six management panels (`goals` `organizations` `tasks` `needs` `plans` `polls`), which are
+shared — so `/about`, `/organizations/[slug]` and every material page got the same treatment for
+free. Eleven event panels, the event page's own sub-events and attendee sections, and on the course
+page: coverage, reports, completions and the two always-open "add" forms. `CourseReports` had
+**written its own disclosure** — a button, a `▾`/`▸` and a count — before there was a shared one; it
+is now the shared one, and the reader's choice is remembered, which the local one never did.
+
+The course page carries a warning from the last time something like this was tried: *"it used to be
+four collapsed drawers here… an instructor found the thing they came to do always shut."* The
+answer to it is that a fold now **remembers**: an instructor who opens the contribute form once
+finds it open on every course after that.
+
+### Verified
+
+`npm run check` 0/0, `npm run lint` clean, `npm run build` OK, both catalogues identical at 4068
+keys (four new: `fold_expand`, `fold_collapse`, `polls_panelHeading`, `course_coverageHeading`).
+`e2e/folded-sections.mjs` 12/12 against both real servers — every panel shut with its count, the
+page height before and after, `aria-expanded` moving, and the choice surviving a reload in both
+directions — **and the screenshots were looked at**: the whole conference page is one screen of
+eight labelled lines.
+
+### Left open
+
+- **Nothing folds on `/exercises/[id]` or `/materials/[id]`.** They have the same management panels
+  (so those fold) but their own sections do not, because the owner named two surfaces and those are
+  not them.
+- **No "collapse all" / "expand all".** The store has `reset()` and nothing calls it.
+- **The tabs on the course page are untouched.** Five tabs are already a disclosure; folding inside
+  one would be hiding the same thing twice.
+- **A count is not always the right line.** `Zaświadczenia o ukończeniu` and `Co obejmuje i czego
+  wymaga` have no number, so their lines say less than the others'.

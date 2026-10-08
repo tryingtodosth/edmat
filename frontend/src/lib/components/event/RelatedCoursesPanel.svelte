@@ -22,6 +22,7 @@
 	 */
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { getRelatedCourses } from '$lib/services/events';
@@ -71,46 +72,45 @@
 </script>
 
 {#if organizationsOn && courses.length > 0}
-	<section class="related-courses">
-		<h2>{m.takehome_relatedHeading()}</h2>
+	<FoldSection key="relatedCourses" title={m.takehome_relatedHeading()} count={courses.length}>
 		<!-- "Courses from the same organisations" -->
-		{#if runners.length > 0}
-			<p class="behind">
-				<span class="behind__label">{m.takehome_relatedRunBy()}</span>
-				<!-- "Run by" -->
-				{#each runners as link, i (link.id)}{i > 0 ? ', ' : ''}<a
-						href={resolve('/organizations/[slug]', { slug: link.organization.slug })}
-						>{link.organization.name}</a
-					>{/each}
-			</p>
-		{/if}
-		{#if supporters.length > 0}
-			<p class="behind">
-				<span class="behind__label">{m.takehome_relatedSupportedBy()}</span>
-				<!-- "Supported by" -->
-				{#each supporters as link, i (link.id)}{i > 0 ? ', ' : ''}<a
-						href={resolve('/organizations/[slug]', { slug: link.organization.slug })}
-						>{link.organization.name}</a
-					>{/each}
-			</p>
-		{/if}
-		<p class="note">{m.takehome_relatedNote()}</p>
-		<!-- "This event and these courses are connected through the body that stands behind both — there is no direct link between them." -->
-		<div class="grid">
-			{#each courses as course (course.id)}
-				<CourseCard {course} />
-			{/each}
+		<div class="related-courses">
+			{#if runners.length > 0}
+				<p class="behind">
+					<span class="behind__label">{m.takehome_relatedRunBy()}</span>
+					<!-- "Run by" -->
+					{#each runners as link, i (link.id)}{i > 0 ? ', ' : ''}<a
+							href={resolve('/organizations/[slug]', { slug: link.organization.slug })}
+							>{link.organization.name}</a
+						>{/each}
+				</p>
+			{/if}
+			{#if supporters.length > 0}
+				<p class="behind">
+					<span class="behind__label">{m.takehome_relatedSupportedBy()}</span>
+					<!-- "Supported by" -->
+					{#each supporters as link, i (link.id)}{i > 0 ? ', ' : ''}<a
+							href={resolve('/organizations/[slug]', { slug: link.organization.slug })}
+							>{link.organization.name}</a
+						>{/each}
+				</p>
+			{/if}
+			<p class="note">{m.takehome_relatedNote()}</p>
+			<!-- "This event and these courses are connected through the body that stands behind both — there is no direct link between them." -->
+			<div class="grid">
+				{#each courses as course (course.id)}
+					<CourseCard {course} />
+				{/each}
+			</div>
 		</div>
-	</section>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
+	// The card, the heading and the spacing above are `FoldSection`'s since 2026-10-08.
 	.related-courses {
-		margin-top: 1.5rem;
-	}
-	h2 {
-		margin: 0 0 var(--space-1);
-		font-size: var(--font-size-base);
+		display: grid;
+		gap: var(--space-1);
 	}
 	.behind {
 		margin: 0 0 var(--space-1);

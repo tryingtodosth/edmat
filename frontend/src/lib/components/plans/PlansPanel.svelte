@@ -6,6 +6,7 @@
 	// node (the CoopPanel precedent: an empty panel is not a box with nothing in it).
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { createPlan, getNodePlans } from '$lib/services/plans';
@@ -94,107 +95,93 @@
 </script>
 
 {#if enabled && (plans.length > 0 || node.canManage)}
-	<section class="plans-panel" data-plans-panel>
-		<header class="head">
-			<h2>{m.plans_panel_heading()}</h2>
-			<!-- "Plans" -->
+	<FoldSection key="plans" title={m.plans_panel_heading()} count={plans.length}>
+		<!-- "Plans" -->
+		{#snippet actions()}
 			{#if node.canManage}
 				<button type="button" class="secondary" onclick={() => (creating = !creating)}>
 					{creating ? m.plans_panel_cancel() : m.plans_panel_new()}
 					<!-- "Cancel" / "New plan" -->
 				</button>
 			{/if}
-		</header>
+		{/snippet}
+		<div class="plans-panel" data-plans-panel>
+			{#if creating}
+				<form class="create-form" onsubmit={submit}>
+					<input
+						type="text"
+						bind:value={title}
+						placeholder={m.plans_panel_titlePlaceholder()}
+						disabled={busy}
+						maxlength="200"
+					/>
+					<!-- "Roadmap title" -->
+					<button type="submit" disabled={busy || !title.trim()}>{m.plans_panel_create()}</button>
+					<!-- "Create" -->
+				</form>
+				{#if error}<p class="error">{error}</p>{/if}
+			{/if}
 
-		{#if creating}
-			<form class="create-form" onsubmit={submit}>
-				<input
-					type="text"
-					bind:value={title}
-					placeholder={m.plans_panel_titlePlaceholder()}
-					disabled={busy}
-					maxlength="200"
-				/>
-				<!-- "Roadmap title" -->
-				<button type="submit" disabled={busy || !title.trim()}>{m.plans_panel_create()}</button>
-				<!-- "Create" -->
-			</form>
-			{#if error}<p class="error">{error}</p>{/if}
-		{/if}
-
-		{#if plans.length > 0}
-			<ul class="plan-list">
-				{#each plans as plan (plan.id)}
-					<li class="plan-row" class:plan-row--over={plan.status === 'archived'}>
-						<a class="plan-link" data-plan-card href={resolve('/plans/[id]', { id: plan.id })}>
-							<span class="plan-title">{plan.title}</span>
-							<span class="plan-status status-{plan.status}"
-								>{PLAN_STATUS_LABELS[plan.status]()}</span
-							>
-						</a>
-						<div class="progress-track" aria-hidden="true">
-							<div class="progress-fill" style={`width: ${plan.progress.percent}%`}></div>
-						</div>
-						<span class="progress-text">{plan.progress.done}/{plan.progress.total}</span>
-						{#if plan.canEdit}
-							<!-- A plan already has a full edit page at `/plans/[id]`; this is the one thing
+			{#if plans.length > 0}
+				<ul class="plan-list">
+					{#each plans as plan (plan.id)}
+						<li class="plan-row" class:plan-row--over={plan.status === 'archived'}>
+							<a class="plan-link" data-plan-card href={resolve('/plans/[id]', { id: plan.id })}>
+								<span class="plan-title">{plan.title}</span>
+								<span class="plan-status status-{plan.status}"
+									>{PLAN_STATUS_LABELS[plan.status]()}</span
+								>
+							</a>
+							<div class="progress-track" aria-hidden="true">
+								<div class="progress-fill" style={`width: ${plan.progress.percent}%`}></div>
+							</div>
+							<span class="progress-text">{plan.progress.done}/{plan.progress.total}</span>
+							{#if plan.canEdit}
+								<!-- A plan already has a full edit page at `/plans/[id]`; this is the one thing
 							     that page's form cannot do — write the title and the description in both
 							     languages in a single submission. -->
-							<ManagementTextMenu
-								kind="plan"
-								id={plan.id}
-								versions={plan.textVersions}
-								fallbackHeading={plan.title}
-								fallbackBody={plan.description}
-								headingLabel={m.plans_detail_titleLabel()}
-								bodyLabel={m.plans_detail_descriptionLabel()}
-								label={m.plans_rowActionsLabel()}
-								onSaved={(written) => applyText(plan.id, written)}
+								<ManagementTextMenu
+									kind="plan"
+									id={plan.id}
+									versions={plan.textVersions}
+									fallbackHeading={plan.title}
+									fallbackBody={plan.description}
+									headingLabel={m.plans_detail_titleLabel()}
+									bodyLabel={m.plans_detail_descriptionLabel()}
+									label={m.plans_rowActionsLabel()}
+									onSaved={(written) => applyText(plan.id, written)}
+								/>
+							{/if}
+							<LanguageNote language={plan.language} />
+							{#if nextOpenStep(plan)}
+								<span class="next-step"
+									>{m.plans_panel_next({ title: nextOpenStep(plan) ?? '' })}</span
+								>
+								<!-- "Next: {title}" -->
+							{/if}
+							<RowDiscussion
+								policy={rowDiscussions.byKey[discussionKeyFor('plans', plan.id)]}
+								title={plan.title}
 							/>
-						{/if}
-						<LanguageNote language={plan.language} />
-						{#if nextOpenStep(plan)}
-							<span class="next-step"
-								>{m.plans_panel_next({ title: nextOpenStep(plan) ?? '' })}</span
-							>
-							<!-- "Next: {title}" -->
-						{/if}
-						<RowDiscussion
-							policy={rowDiscussions.byKey[discussionKeyFor('plans', plan.id)]}
-							title={plan.title}
-						/>
-					</li>
-				{/each}
-			</ul>
-		{:else if node.canManage}
-			<p class="empty">{m.plans_panel_empty()}</p>
-			<!-- "No roadmap yet." -->
-		{/if}
-	</section>
+						</li>
+					{/each}
+				</ul>
+			{:else if node.canManage}
+				<p class="empty">{m.plans_panel_empty()}</p>
+				<!-- "No roadmap yet." -->
+			{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// Card chrome and the heading are `FoldSection`'s since 2026-10-08; this is its body.
 	.plans-panel {
-		@include mix.card-surface;
-		padding: var(--space-4);
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-	}
-	.head {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		h2 {
-			margin: 0;
-			font-size: var(--font-size-sm);
-			text-transform: uppercase;
-			letter-spacing: 0.04em;
-			color: var(--text-secondary);
-			flex: 1;
-		}
 	}
 	.secondary {
 		@include mix.button-secondary;

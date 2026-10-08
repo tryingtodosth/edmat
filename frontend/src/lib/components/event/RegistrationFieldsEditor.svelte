@@ -1,6 +1,7 @@
 <script lang="ts">
 	/** The organiser's own questions for a `form` event, edited as a list and saved whole. */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import type {
 		RegistrationField,
 		RegistrationFieldDraft,
@@ -62,60 +63,61 @@
 	}
 </script>
 
-<form class="fields-editor" onsubmit={save}>
-	<h3>{m.events_questionsHeading()}</h3>
-	<p class="hint">{m.events_questionsHint()}</p>
-	{#each rows as row, i (i)}
-		<div class="row">
-			<input
-				type="text"
-				bind:value={row.label}
-				placeholder={m.events_questionLabel()}
-				aria-label={m.events_questionLabel()}
-				maxlength="200"
-			/>
-			<select bind:value={row.kind} aria-label={m.events_questionKind()}>
-				{#each Object.keys(KINDS) as k (k)}<option value={k}
-						>{KINDS[k as RegistrationFieldKind]()}</option
-					>{/each}
-			</select>
-			{#if row.kind === 'choice' || row.kind === 'multi'}
+<FoldSection
+	key="registrationFields"
+	title={m.events_questionsHeading()}
+	count={rows.length}
+	level={3}
+>
+	<form class="fields-editor" onsubmit={save}>
+		<p class="hint">{m.events_questionsHint()}</p>
+		{#each rows as row, i (i)}
+			<div class="row">
 				<input
 					type="text"
-					bind:value={row.optionsText}
-					placeholder={m.events_questionOptions()}
-					aria-label={m.events_questionOptions()}
+					bind:value={row.label}
+					placeholder={m.events_questionLabel()}
+					aria-label={m.events_questionLabel()}
+					maxlength="200"
 				/>
-			{/if}
-			<label class="req"
-				><input type="checkbox" bind:checked={row.required} /> {m.events_questionRequired()}</label
-			>
-			<button
-				type="button"
-				class="x"
-				aria-label={m.common_remove()}
-				onclick={() => (rows = rows.filter((_, j) => j !== i))}>×</button
-			>
+				<select bind:value={row.kind} aria-label={m.events_questionKind()}>
+					{#each Object.keys(KINDS) as k (k)}<option value={k}
+							>{KINDS[k as RegistrationFieldKind]()}</option
+						>{/each}
+				</select>
+				{#if row.kind === 'choice' || row.kind === 'multi'}
+					<input
+						type="text"
+						bind:value={row.optionsText}
+						placeholder={m.events_questionOptions()}
+						aria-label={m.events_questionOptions()}
+					/>
+				{/if}
+				<label class="req"
+					><input type="checkbox" bind:checked={row.required} />
+					{m.events_questionRequired()}</label
+				>
+				<button
+					type="button"
+					class="x"
+					aria-label={m.common_remove()}
+					onclick={() => (rows = rows.filter((_, j) => j !== i))}>×</button
+				>
+			</div>
+		{/each}
+		{#if error}<p class="error">{error}</p>{/if}
+		<div class="actions">
+			<button type="button" onclick={add}>{m.events_questionAdd()}</button>
+			<button type="submit" class="primary" disabled={busy}>{m.common_save()}</button>
 		</div>
-	{/each}
-	{#if error}<p class="error">{error}</p>{/if}
-	<div class="actions">
-		<button type="button" onclick={add}>{m.events_questionAdd()}</button>
-		<button type="submit" class="primary" disabled={busy}>{m.common_save()}</button>
-	</div>
-</form>
+	</form>
+</FoldSection>
 
 <style lang="scss">
+	// Card chrome, the heading and the spacing above are `FoldSection`'s since 2026-10-08.
 	.fields-editor {
 		display: grid;
 		gap: 0.5rem;
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.9rem 1rem;
-		margin-top: 1rem;
-	}
-	h3 {
-		margin: 0;
 	}
 	.hint,
 	.error {

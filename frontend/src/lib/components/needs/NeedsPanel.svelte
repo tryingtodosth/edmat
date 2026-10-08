@@ -5,6 +5,7 @@
 	 * cannot see the node at all — `ManagementPanels` itself already withheld `node` in the second
 	 * case, so the only thing left to check here is the flag. */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { resolve } from '$app/paths';
 	import type { NodeRef } from '$lib/types/node';
 	import type { Need, NeedDraft, NeedKind, SkillLevel } from '$lib/types/need';
@@ -151,150 +152,135 @@
 </script>
 
 {#if canSee}
-	<section class="needs-panel" data-needs-panel>
-		<div class="head">
-			<h2>{m.needs_panelHeading()}</h2>
+	<FoldSection key="needs" title={m.needs_panelHeading()} count={needs.length}>
+		{#snippet actions()}
 			{#if node.canManage && !showForm}
 				<button type="button" class="primary" onclick={() => (showForm = true)}>
 					{m.needs_addNeed()}
 				</button>
 			{/if}
-		</div>
-
-		{#if showForm}
-			<form class="add-form" onsubmit={submit}>
-				<label class="field grow">
-					<span>{m.needs_formTitleLabel()}</span>
-					<input type="text" bind:value={title} required maxlength="200" />
-				</label>
-				<label class="field">
-					<span>{m.needs_formKindLabel()}</span>
-					<select bind:value={kind}>
-						{#each NEED_KINDS as k (k)}
-							<option value={k}>{NEED_KIND_LABELS[k]()}</option>
-						{/each}
-					</select>
-				</label>
-				<label class="field">
-					<span>{m.needs_formSkillLevelLabel()}</span>
-					<select bind:value={skillLevel}>
-						{#each SKILL_LEVELS as level (level)}
-							<option value={level}>{SKILL_LEVEL_LABELS[level]()}</option>
-						{/each}
-					</select>
-				</label>
-				<label class="field grow">
-					<span>{m.needs_formDescriptionLabel()}</span>
-					<textarea rows="3" bind:value={description}></textarea>
-				</label>
-				<label class="field">
-					<span>{m.needs_formEstimatedHoursLabel()}</span>
-					<input type="text" inputmode="numeric" bind:value={estimatedHours} />
-				</label>
-				<label class="field">
-					<span>{m.needs_formDeadlineLabel()}</span>
-					<input type="datetime-local" bind:value={deadline} />
-				</label>
-				<label class="field">
-					<span>{m.needs_formWantedCountLabel()}</span>
-					<input type="text" inputmode="numeric" bind:value={wantedCount} />
-				</label>
-				<label class="checkbox">
-					<input type="checkbox" bind:checked={isRemote} />
-					<span>{m.needs_formRemoteLabel()}</span>
-				</label>
-				{#if error}<p class="error" role="alert">{error}</p>{/if}
-				<div class="actions">
-					<button type="submit" class="primary" disabled={busy}>{m.common_save()}</button>
-					<button
-						type="button"
-						onclick={() => {
-							showForm = false;
-							resetForm();
-						}}>{m.common_cancel()}</button
-					>
-				</div>
-			</form>
-		{/if}
-
-		{#if loading}
-			<p class="status">{m.common_loading()}</p>
-		{:else if needs.length === 0}
-			<p class="status">{m.needs_panelEmpty()}</p>
-		{:else}
-			<ul class="list">
-				{#each needs as need (need.id)}
-					<li
-						class="row"
-						class:row--over={need.status === 'cancelled' || need.status === 'fulfilled'}
-					>
-						<a class="title" href={resolve('/needs/[id]', { id: need.id })}>{need.title}</a>
-						<span class="kind">{NEED_KIND_LABELS[need.kind]()}</span>
-						<span class="pill pill--{need.status}">{NEED_STATUS_LABELS[need.status]()}</span>
-						<span class="count"
-							>{m.needs_acceptedOfWanted({
-								accepted: need.acceptedCount,
-								wanted: need.wantedCount
-							})}</span
+		{/snippet}
+		<div class="needs-panel" data-needs-panel>
+			{#if showForm}
+				<form class="add-form" onsubmit={submit}>
+					<label class="field grow">
+						<span>{m.needs_formTitleLabel()}</span>
+						<input type="text" bind:value={title} required maxlength="200" />
+					</label>
+					<label class="field">
+						<span>{m.needs_formKindLabel()}</span>
+						<select bind:value={kind}>
+							{#each NEED_KINDS as k (k)}
+								<option value={k}>{NEED_KIND_LABELS[k]()}</option>
+							{/each}
+						</select>
+					</label>
+					<label class="field">
+						<span>{m.needs_formSkillLevelLabel()}</span>
+						<select bind:value={skillLevel}>
+							{#each SKILL_LEVELS as level (level)}
+								<option value={level}>{SKILL_LEVEL_LABELS[level]()}</option>
+							{/each}
+						</select>
+					</label>
+					<label class="field grow">
+						<span>{m.needs_formDescriptionLabel()}</span>
+						<textarea rows="3" bind:value={description}></textarea>
+					</label>
+					<label class="field">
+						<span>{m.needs_formEstimatedHoursLabel()}</span>
+						<input type="text" inputmode="numeric" bind:value={estimatedHours} />
+					</label>
+					<label class="field">
+						<span>{m.needs_formDeadlineLabel()}</span>
+						<input type="datetime-local" bind:value={deadline} />
+					</label>
+					<label class="field">
+						<span>{m.needs_formWantedCountLabel()}</span>
+						<input type="text" inputmode="numeric" bind:value={wantedCount} />
+					</label>
+					<label class="checkbox">
+						<input type="checkbox" bind:checked={isRemote} />
+						<span>{m.needs_formRemoteLabel()}</span>
+					</label>
+					{#if error}<p class="error" role="alert">{error}</p>{/if}
+					<div class="actions">
+						<button type="submit" class="primary" disabled={busy}>{m.common_save()}</button>
+						<button
+							type="button"
+							onclick={() => {
+								showForm = false;
+								resetForm();
+							}}>{m.common_cancel()}</button
 						>
-						{#if node.canManage}
-							<!-- The menu the owner asked for: until this, a need's own words could only be
+					</div>
+				</form>
+			{/if}
+
+			{#if loading}
+				<p class="status">{m.common_loading()}</p>
+			{:else if needs.length === 0}
+				<p class="status">{m.needs_panelEmpty()}</p>
+			{:else}
+				<ul class="list">
+					{#each needs as need (need.id)}
+						<li
+							class="row"
+							class:row--over={need.status === 'cancelled' || need.status === 'fulfilled'}
+						>
+							<a class="title" href={resolve('/needs/[id]', { id: need.id })}>{need.title}</a>
+							<span class="kind">{NEED_KIND_LABELS[need.kind]()}</span>
+							<span class="pill pill--{need.status}">{NEED_STATUS_LABELS[need.status]()}</span>
+							<span class="count"
+								>{m.needs_acceptedOfWanted({
+									accepted: need.acceptedCount,
+									wanted: need.wantedCount
+								})}</span
+							>
+							{#if node.canManage}
+								<!-- The menu the owner asked for: until this, a need's own words could only be
 							     changed in Django admin — `updateNeed` had been in the service with no call
 							     site since the needs board was built. -->
-							<ManagementTextMenu
-								kind="need"
-								id={need.id}
-								versions={need.textVersions}
-								fallbackHeading={need.title}
-								fallbackBody={need.description}
-								headingLabel={m.needs_formTitleLabel()}
-								bodyLabel={m.needs_formDescriptionLabel()}
-								label={m.needs_rowActionsLabel()}
-								items={[
-									{
-										label:
-											need.status === 'cancelled' ? m.needs_reopenNeed() : m.needs_cancelNeed(),
-										danger: need.status !== 'cancelled',
-										onselect: () => void toggleCancelled(need)
-									}
-								]}
-								onSaved={(written) => applyText(need.id, written)}
+								<ManagementTextMenu
+									kind="need"
+									id={need.id}
+									versions={need.textVersions}
+									fallbackHeading={need.title}
+									fallbackBody={need.description}
+									headingLabel={m.needs_formTitleLabel()}
+									bodyLabel={m.needs_formDescriptionLabel()}
+									label={m.needs_rowActionsLabel()}
+									items={[
+										{
+											label:
+												need.status === 'cancelled' ? m.needs_reopenNeed() : m.needs_cancelNeed(),
+											danger: need.status !== 'cancelled',
+											onselect: () => void toggleCancelled(need)
+										}
+									]}
+									onSaved={(written) => applyText(need.id, written)}
+								/>
+							{/if}
+							<LanguageNote language={need.language} />
+							<RowDiscussion
+								policy={rowDiscussions.byKey[discussionKeyFor('needs', need.id)]}
+								title={need.title}
 							/>
-						{/if}
-						<LanguageNote language={need.language} />
-						<RowDiscussion
-							policy={rowDiscussions.byKey[discussionKeyFor('needs', need.id)]}
-							title={need.title}
-						/>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</section>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// Card chrome and the heading are `FoldSection`'s since 2026-10-08; this is its body.
 	.needs-panel {
-		@include mix.card-surface;
 		display: grid;
 		gap: var(--space-3, 0.75rem);
-		padding: var(--space-3);
-	}
-	.head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-2, 0.5rem);
-		flex-wrap: wrap;
-	}
-	.head h2 {
-		margin: 0;
-		font-size: var(--font-size-sm);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--text-secondary);
 	}
 	button {
 		min-height: 40px;

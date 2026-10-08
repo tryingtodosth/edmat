@@ -347,13 +347,28 @@ class RoomBookingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         """The organiser withdrawing. A state, not a delete — the building's own record of who asked
-        for Thursday and then did not need it is part of why the room was held."""
+        for Thursday and then did not need it is part of why the room was held.
+
+        **Platform staff may withdraw too** (owner, 2026-10-08: "i dont seem to be able to withdraw
+        reservation for a room"). Until then this asked `can_organise` alone, which made the admin
+        bypass in `get_queryset` half a permission: an `is_staff` operator was shown every booking on
+        an event they do not organise and then told `not_allowed` when they acted on one — and the
+        button was hidden besides, so the refusal was invisible until somebody called the endpoint by
+        hand. `is_staff` is this project's one operator bypass (root CLAUDE.md, `feature_gate`), so
+        it is the one used here rather than a new rule; it deliberately does NOT widen
+        `Event.can_organise`, because running an event and operating the platform are different
+        jobs and only this one withdrawal needs the second.
+
+        **Who withdrew it is recorded.** `decided_by` was left null here while `_decide` set it,
+        which lost exactly the fact that makes a withdrawal auditable now that two different people
+        can perform one (house rule 12: the record of a decision is part of the trust model).
+        """
         booking = self.get_object()
-        if not booking.event.can_organise(request.user):
+        if not (booking.event.can_organise(request.user) or request.user.is_staff):
             return Response({'detail': 'not_allowed'}, status=status.HTTP_403_FORBIDDEN)
         changed = RoomBooking.objects.filter(
             pk=booking.pk, status__in=['requested', 'approved']
-        ).update(status='cancelled', decided_at=timezone.now())
+        ).update(status='cancelled', decided_by=request.user, decided_at=timezone.now())
         if not changed:
             return Response({'detail': 'already_decided'}, status=status.HTTP_409_CONFLICT)
         booking.refresh_from_db()

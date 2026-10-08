@@ -50,6 +50,10 @@ BOOKING_STATUS_CHOICES = [
     ('requested', 'Requested'),
     ('approved', 'Approved'),
     ('rejected', 'Rejected'),
+    # The label says "the organiser" because that is who withdraws one in every ordinary case; since
+    # 2026-10-08 platform staff may withdraw as well (`views.RoomBookingViewSet.cancel` argues it),
+    # and `decided_by` is what says which of the two it was. Left as it reads rather than widened to
+    # "Withdrawn", because changing a choice label is a migration that alters no SQL.
     ('cancelled', 'Withdrawn by the organiser'),
 ]
 #: The one status that occupies a room. Two `approved` bookings on one room may not overlap; a

@@ -17,6 +17,7 @@
 	 */
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import {
@@ -138,87 +139,82 @@
 </script>
 
 {#if organizationsOn && applies && loaded && (links.length > 0 || node.canManage)}
-	<section class="orgs-panel" aria-labelledby="orgs-panel-heading">
-		<h2 id="orgs-panel-heading">{m.orgs_panelTitle()}</h2>
+	<FoldSection key="organizations" title={m.orgs_panelTitle()} count={links.length}>
 		<!-- "Organisations" -->
+		<div class="orgs-panel">
+			{#if links.length === 0}
+				<p class="empty">{m.orgs_panelEmpty()}</p>
+				<!-- "No organisation stands behind this yet." -->
+			{:else}
+				<ul class="badges">
+					{#each links as link (link.id)}
+						<li class="badge">
+							<a href={resolve('/organizations/[slug]', { slug: link.organization.slug })}>
+								{link.organization.name}
+							</a>
+							<span class="claim">{ORGANIZATION_LINK_KIND_LABELS[link.kind]?.() ?? link.kind}</span>
+							<span class="kind">
+								{ORGANIZATION_KIND_LABELS[link.organization.kind]?.() ?? link.organization.kind}
+							</span>
+							{#if node.canManage}
+								<button type="button" class="unlink" disabled={busy} onclick={() => remove(link)}>
+									{m.orgs_unlinkAction()}
+									<!-- "Unlink" -->
+								</button>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
 
-		{#if links.length === 0}
-			<p class="empty">{m.orgs_panelEmpty()}</p>
-			<!-- "No organisation stands behind this yet." -->
-		{:else}
-			<ul class="badges">
-				{#each links as link (link.id)}
-					<li class="badge">
-						<a href={resolve('/organizations/[slug]', { slug: link.organization.slug })}>
-							{link.organization.name}
-						</a>
-						<span class="claim">{ORGANIZATION_LINK_KIND_LABELS[link.kind]?.() ?? link.kind}</span>
-						<span class="kind">
-							{ORGANIZATION_KIND_LABELS[link.organization.kind]?.() ?? link.organization.kind}
-						</span>
-						{#if node.canManage}
-							<button type="button" class="unlink" disabled={busy} onclick={() => remove(link)}>
-								{m.orgs_unlinkAction()}
-								<!-- "Unlink" -->
+			{#if node.canManage}
+				<form class="link-form" onsubmit={submit}>
+					<h3>{m.orgs_panelLinkHeading()}</h3>
+					<!-- "Link an organisation you run" -->
+					{#if linkable.length === 0}
+						<p class="empty">{m.orgs_panelNoneManaged()}</p>
+						<!-- "You do not run an organisation yet." -->
+					{:else}
+						<div class="row">
+							<label class="field">
+								<span>{m.orgs_panelTitle()}</span>
+								<!-- "Organisations" -->
+								<select bind:value={chosen}>
+									<option value="">{m.orgs_panelChoosePlaceholder()}</option>
+									<!-- "Choose an organisation" -->
+									{#each linkable as org (org.id)}
+										<option value={org.id}>{org.name}</option>
+									{/each}
+								</select>
+							</label>
+							<label class="field">
+								<span>{m.orgs_fieldLinkKind()}</span>
+								<!-- "The claim" -->
+								<select bind:value={claim}>
+									<option value="runs">{m.orgs_linkKind_runs()}</option>
+									<!-- "Runs" -->
+									<option value="supports">{m.orgs_linkKind_supports()}</option>
+									<!-- "Supports" -->
+								</select>
+							</label>
+							<button type="submit" disabled={busy || !chosen}>
+								{m.orgs_linkAction()}
+								<!-- "Link it" -->
 							</button>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-
-		{#if node.canManage}
-			<form class="link-form" onsubmit={submit}>
-				<h3>{m.orgs_panelLinkHeading()}</h3>
-				<!-- "Link an organisation you run" -->
-				{#if linkable.length === 0}
-					<p class="empty">{m.orgs_panelNoneManaged()}</p>
-					<!-- "You do not run an organisation yet." -->
-				{:else}
-					<div class="row">
-						<label class="field">
-							<span>{m.orgs_panelTitle()}</span>
-							<!-- "Organisations" -->
-							<select bind:value={chosen}>
-								<option value="">{m.orgs_panelChoosePlaceholder()}</option>
-								<!-- "Choose an organisation" -->
-								{#each linkable as org (org.id)}
-									<option value={org.id}>{org.name}</option>
-								{/each}
-							</select>
-						</label>
-						<label class="field">
-							<span>{m.orgs_fieldLinkKind()}</span>
-							<!-- "The claim" -->
-							<select bind:value={claim}>
-								<option value="runs">{m.orgs_linkKind_runs()}</option>
-								<!-- "Runs" -->
-								<option value="supports">{m.orgs_linkKind_supports()}</option>
-								<!-- "Supports" -->
-							</select>
-						</label>
-						<button type="submit" disabled={busy || !chosen}>
-							{m.orgs_linkAction()}
-							<!-- "Link it" -->
-						</button>
-					</div>
-				{/if}
-				{#if error}<p class="error" role="alert">{error}</p>{/if}
-			</form>
-		{/if}
-	</section>
+						</div>
+					{/if}
+					{#if error}<p class="error" role="alert">{error}</p>{/if}
+				</form>
+			{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
+	// Card chrome and the heading are `FoldSection`'s since 2026-10-08; this is its body.
 	.orgs-panel {
-		border: 1px solid var(--border-color);
-		border-radius: 12px;
-		padding: var(--space-4);
-		background: var(--bg-surface);
-	}
-	h2 {
-		margin: 0 0 0.6rem;
-		font-size: 1.05rem;
+		display: grid;
+		gap: var(--space-2);
 	}
 	h3 {
 		margin: 0 0 0.4rem;

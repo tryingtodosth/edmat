@@ -12,6 +12,7 @@
 	// event has no desk and the reader could not open one.
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { getEventCloakroomDesks } from '$lib/services/cloakroom';
@@ -46,37 +47,32 @@
 </script>
 
 {#if enabled && (desks.length > 0 || event.canOrganise)}
-	<section class="cloakroom" data-cloakroom-panel>
-		<h2>{m.cloakroom_heading()}</h2>
-		{#each desks as desk (desk.id)}
-			<p class="line">
-				{desk.status === 'open'
-					? m.cloakroom_attendeeLine({ name: desk.name }) // "There is a cloakroom at {name}."
-					: m.cloakroom_attendeeClosed({ name: desk.name })}
-				{#if desk.opensNote}<span class="note">{desk.opensNote}</span>{/if}
-			</p>
-		{/each}
-		{#if canWorkDesk}
-			<p class="staff">
-				<a href={resolve('/events/[id]/cloakroom', { id: event.id })}>
-					{desks.length > 0 ? m.cloakroom_deskLink() : m.cloakroom_openFirstDesk()}
-				</a>
-			</p>
-		{/if}
-	</section>
+	<FoldSection key="cloakroom" title={m.cloakroom_heading()} count={desks.length}>
+		<div class="cloakroom" data-cloakroom-panel>
+			{#each desks as desk (desk.id)}
+				<p class="line">
+					{desk.status === 'open'
+						? m.cloakroom_attendeeLine({ name: desk.name }) // "There is a cloakroom at {name}."
+						: m.cloakroom_attendeeClosed({ name: desk.name })}
+					{#if desk.opensNote}<span class="note">{desk.opensNote}</span>{/if}
+				</p>
+			{/each}
+			{#if canWorkDesk}
+				<p class="staff">
+					<a href={resolve('/events/[id]/cloakroom', { id: event.id })}>
+						{desks.length > 0 ? m.cloakroom_deskLink() : m.cloakroom_openFirstDesk()}
+					</a>
+				</p>
+			{/if}
+		</div>
+	</FoldSection>
 {/if}
 
 <style lang="scss">
+	// Card chrome, the heading and the spacing around are `FoldSection`'s since 2026-10-08.
 	.cloakroom {
-		margin: var(--space-4) 0;
-		padding: var(--space-3) var(--space-4);
-		border: 1px solid var(--border-color);
-		border-radius: var(--radius-lg);
-		background: var(--bg-surface);
-	}
-	h2 {
-		margin: 0 0 var(--space-2);
-		font-size: var(--font-size-lg);
+		display: grid;
+		gap: var(--space-2);
 	}
 	.line {
 		margin: 0 0 var(--space-1);

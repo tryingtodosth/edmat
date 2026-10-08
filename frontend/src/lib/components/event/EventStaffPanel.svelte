@@ -3,6 +3,7 @@
 	 * profile URL's number), the same honest stopgap the course panel documents: there is no
 	 * people search yet. The host's row is shown but never removable (the backend refuses too). */
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { resolve } from '$app/paths';
 	import type { EventStaffMember, EventStaffRole } from '$lib/types/event';
 
@@ -36,60 +37,57 @@
 	}
 </script>
 
-<section class="staff-panel">
-	<h3>{m.events_staffHeading()}</h3>
-	<p class="hint">{m.events_staffHint()}</p>
-	<ul class="staff-list">
-		{#each staff as row (row.id)}
-			<li>
-				<a href={resolve('/users/[id]', { id: row.user.id })}>{row.user.displayName}</a>
-				{#if row.isHost}
-					<span class="pill">{m.events_role_host()}</span>
-				{:else}
-					<select
-						value={row.role}
-						aria-label={m.events_staffRoleFor({ name: row.user.displayName })}
-						onchange={(e) => onrole(row.id, e.currentTarget.value as EventStaffRole)}
-					>
-						{#each Object.keys(roleLabels) as r (r)}
-							<option value={r}>{roleLabels[r as EventStaffRole]()}</option>
-						{/each}
-					</select>
-					<button type="button" class="link danger" onclick={() => onremove(row.id)}>
-						{m.common_remove()}
-					</button>
-				{/if}
-			</li>
-		{/each}
-	</ul>
-	<form class="add" onsubmit={add}>
-		<input
-			type="text"
-			inputmode="numeric"
-			pattern="[0-9]*"
-			placeholder={m.events_staffUserIdPlaceholder()}
-			bind:value={newUserId}
-			aria-label={m.events_staffUserIdPlaceholder()}
-		/>
-		<select bind:value={newRole} aria-label={m.events_staffRole()}>
-			{#each Object.keys(roleLabels) as r (r)}
-				<option value={r}>{roleLabels[r as EventStaffRole]()}</option>
+<FoldSection key="eventStaff" title={m.events_staffHeading()} count={staff.length} level={3}>
+	<div class="staff-panel">
+		<p class="hint">{m.events_staffHint()}</p>
+		<ul class="staff-list">
+			{#each staff as row (row.id)}
+				<li>
+					<a href={resolve('/users/[id]', { id: row.user.id })}>{row.user.displayName}</a>
+					{#if row.isHost}
+						<span class="pill">{m.events_role_host()}</span>
+					{:else}
+						<select
+							value={row.role}
+							aria-label={m.events_staffRoleFor({ name: row.user.displayName })}
+							onchange={(e) => onrole(row.id, e.currentTarget.value as EventStaffRole)}
+						>
+							{#each Object.keys(roleLabels) as r (r)}
+								<option value={r}>{roleLabels[r as EventStaffRole]()}</option>
+							{/each}
+						</select>
+						<button type="button" class="link danger" onclick={() => onremove(row.id)}>
+							{m.common_remove()}
+						</button>
+					{/if}
+				</li>
 			{/each}
-		</select>
-		<button type="submit">{m.events_staffAdd()}</button>
-	</form>
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
-</section>
+		</ul>
+		<form class="add" onsubmit={add}>
+			<input
+				type="text"
+				inputmode="numeric"
+				pattern="[0-9]*"
+				placeholder={m.events_staffUserIdPlaceholder()}
+				bind:value={newUserId}
+				aria-label={m.events_staffUserIdPlaceholder()}
+			/>
+			<select bind:value={newRole} aria-label={m.events_staffRole()}>
+				{#each Object.keys(roleLabels) as r (r)}
+					<option value={r}>{roleLabels[r as EventStaffRole]()}</option>
+				{/each}
+			</select>
+			<button type="submit">{m.events_staffAdd()}</button>
+		</form>
+		{#if error}<p class="error" role="alert">{error}</p>{/if}
+	</div>
+</FoldSection>
 
 <style lang="scss">
+	// Card chrome, the heading and the spacing above are `FoldSection`'s since 2026-10-08.
 	.staff-panel {
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.9rem 1rem;
-		margin-top: 1rem;
-	}
-	h3 {
-		margin: 0 0 0.25rem;
+		display: grid;
+		gap: 0.4rem;
 	}
 	.hint,
 	.error {

@@ -12,6 +12,7 @@
 	// not started" and "what is waiting on a check" at a glance. `done` and `cancelled` are folded
 	// away behind a toggle: they are the two columns that only grow.
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { createNodeTask, getNodeTasks, reasonOf } from '$lib/services/tasks';
@@ -159,78 +160,86 @@
 </script>
 
 {#if shown}
-	<section class="tasks-panel" data-testid="tasks-panel">
-		<header class="head">
-			<h2>{m.tasks_panelTitle()}</h2>
-			<!-- "Team tasks" -->
-			<div class="filters" role="group" aria-label={m.tasks_panelTitle()}>
-				<button type="button" class:on={filter === 'all'} onclick={() => (filter = 'all')}>
-					{m.tasks_filterAll()}
-					<!-- "All" -->
-				</button>
+	<FoldSection key="tasks" title={m.tasks_panelTitle()} count={tasks.length}>
+		<!-- "Team tasks" -->
+		<div class="tasks-panel" data-testid="tasks-panel">
+			<!-- The filter row stays in the BODY rather than moving up to the fold's own action slot:
+			     it is three buttons plus an overdue badge, and a shut section whose line carried a
+			     filter group would be offering to filter something nobody can see. -->
+			<header class="head">
+				<div class="filters" role="group" aria-label={m.tasks_panelTitle()}>
+					<button type="button" class:on={filter === 'all'} onclick={() => (filter = 'all')}>
+						{m.tasks_filterAll()}
+						<!-- "All" -->
+					</button>
+					{#if node.isStaff}
+						<button type="button" class:on={filter === 'mine'} onclick={() => (filter = 'mine')}>
+							{m.tasks_filterMine()}
+							<!-- "Mine" -->
+						</button>
+					{/if}
+					<button
+						type="button"
+						class:on={filter === 'overdue'}
+						onclick={() => (filter = 'overdue')}
+					>
+						{m.tasks_filterOverdue()}
+						{#if overdueCount > 0}<span class="count count--badge">{overdueCount}</span>{/if}
+						<!-- "Overdue" -->
+					</button>
+				</div>
 				{#if node.isStaff}
-					<button type="button" class:on={filter === 'mine'} onclick={() => (filter = 'mine')}>
-						{m.tasks_filterMine()}
-						<!-- "Mine" -->
+					<button type="button" class="add" onclick={() => (adding = !adding)}>
+						{m.tasks_addTitle()}
+						<!-- "Add a task" -->
 					</button>
 				{/if}
-				<button type="button" class:on={filter === 'overdue'} onclick={() => (filter = 'overdue')}>
-					{m.tasks_filterOverdue()}
-					{#if overdueCount > 0}<span class="count count--badge">{overdueCount}</span>{/if}
-					<!-- "Overdue" -->
-				</button>
-			</div>
-			{#if node.isStaff}
-				<button type="button" class="add" onclick={() => (adding = !adding)}>
-					{m.tasks_addTitle()}
-					<!-- "Add a task" -->
-				</button>
+			</header>
+
+			{#if adding}
+				<TaskForm
+					{busy}
+					submitLabel={m.tasks_add()}
+					onsubmit={add}
+					oncancel={() => (adding = false)}
+				/>
+				<!-- "Add task" -->
 			{/if}
-		</header>
 
-		{#if adding}
-			<TaskForm
-				{busy}
-				submitLabel={m.tasks_add()}
-				onsubmit={add}
-				oncancel={() => (adding = false)}
-			/>
-			<!-- "Add task" -->
-		{/if}
+			{#if problem}
+				<p class="problem" role="alert">{problem}</p>
+			{/if}
 
-		{#if problem}
-			<p class="problem" role="alert">{problem}</p>
-		{/if}
-
-		{#if !loaded}
-			<p class="status-line">{m.tasks_loading()}</p>
-			<!-- "Loading…" -->
-		{:else if tasks.length === 0}
-			<p class="status-line">{m.tasks_empty()}</p>
-			<!-- "Nothing on the board yet." -->
-		{:else}
-			{#each columns as status (status)}
-				{@const rows = inStatus(status)}
-				{#if rows.length > 0}
-					<section class="column">
-						<h3>{TASK_STATUS_LABELS[status]()} <span class="count">{rows.length}</span></h3>
-						<div class="rows">
-							{#each rows as task (task.id)}
-								<TaskRow {task} onopen={open} />
-							{/each}
-						</div>
-					</section>
+			{#if !loaded}
+				<p class="status-line">{m.tasks_loading()}</p>
+				<!-- "Loading…" -->
+			{:else if tasks.length === 0}
+				<p class="status-line">{m.tasks_empty()}</p>
+				<!-- "Nothing on the board yet." -->
+			{:else}
+				{#each columns as status (status)}
+					{@const rows = inStatus(status)}
+					{#if rows.length > 0}
+						<section class="column">
+							<h3>{TASK_STATUS_LABELS[status]()} <span class="count">{rows.length}</span></h3>
+							<div class="rows">
+								{#each rows as task (task.id)}
+									<TaskRow {task} onopen={open} />
+								{/each}
+							</div>
+						</section>
+					{/if}
+				{/each}
+				{#if closedCount > 0}
+					<button type="button" class="toggle" onclick={() => (showClosed = !showClosed)}>
+						{showClosed ? m.tasks_filterAll() : m.tasks_status_done()}
+						<!-- "All" / "Done" -->
+						<span class="count">{closedCount}</span>
+					</button>
 				{/if}
-			{/each}
-			{#if closedCount > 0}
-				<button type="button" class="toggle" onclick={() => (showClosed = !showClosed)}>
-					{showClosed ? m.tasks_filterAll() : m.tasks_status_done()}
-					<!-- "All" / "Done" -->
-					<span class="count">{closedCount}</span>
-				</button>
 			{/if}
-		{/if}
-	</section>
+		</div>
+	</FoldSection>
 
 	{#if openTask}
 		<ModalShell title={openTask.title} onClose={close} size="wide">
@@ -252,22 +261,16 @@
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
 
+	// Card chrome and the heading are `FoldSection`'s since 2026-10-08; this is its body.
 	.tasks-panel {
-		@include mix.card-surface;
 		display: grid;
 		gap: 0.7rem;
-		padding: var(--space-3);
 	}
 	.head {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.6rem;
-	}
-	h2 {
-		margin: 0;
-		font-size: 1.05rem;
-		flex: 1 1 auto;
 	}
 	.filters {
 		display: flex;

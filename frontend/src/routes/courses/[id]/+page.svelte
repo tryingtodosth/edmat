@@ -5,6 +5,7 @@
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
+	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import {
 		addLesson,
 		createChapter,
@@ -538,8 +539,16 @@
 
 		<!-- What the course teaches and what it expects you to know first — the same claims a
 		     material carries, rendered by the same components. Above the enrol block: it is what
-		     somebody weighs before deciding to join. -->
-		<CourseClaims {course} />
+		     somebody weighs before deciding to join.
+
+		     Folded from the OUTSIDE, which is the one place that is allowed: `ClaimGroups` always
+		     draws its two groups, so there is no "it decided to draw nothing" case for a fold header
+		     to lie about (house rule 3), and it is shared with `/exercises/[id]` and
+		     `/materials/[id]`, which the owner did not ask to change. -->
+		<FoldSection key="courseCoverage" title={m.course_coverageHeading()}>
+			<!-- "What it covers and expects" -->
+			<CourseClaims {course} />
+		</FoldSection>
 
 		<!-- Joining, leaving, or the reason neither is on offer. -->
 		<section class="enrol">
@@ -783,27 +792,28 @@
 		     the button's own label, so nothing said what the fields below it were for until you'd
 		     already read the button past them. -->
 				{#if course.canCurate}
-					<section class="add-panel">
-						<h3>{m.course_chapters_add()}</h3>
-						<form class="add-panel__form" onsubmit={addChapter}>
-							<div class="add-panel__grid">
-								<label class="field">
-									<span>{m.course_chapters_title()}</span>
-									<input type="text" bind:value={newChapterTitle} maxlength="200" required />
-								</label>
-								<label class="field">
-									<span>{m.course_chapters_unlocksAt()}</span>
-									<!-- Optional, and empty means never gated — genuinely different from a date
+					<FoldSection key="courseAddChapter" title={m.course_chapters_add()} level={3}>
+						<div class="add-panel">
+							<form class="add-panel__form" onsubmit={addChapter}>
+								<div class="add-panel__grid">
+									<label class="field">
+										<span>{m.course_chapters_title()}</span>
+										<input type="text" bind:value={newChapterTitle} maxlength="200" required />
+									</label>
+									<label class="field">
+										<span>{m.course_chapters_unlocksAt()}</span>
+										<!-- Optional, and empty means never gated — genuinely different from a date
 									     that has already passed, which is why it is not defaulted to today. -->
-									<input type="datetime-local" bind:value={newChapterUnlocksAt} />
-								</label>
-							</div>
-							<p class="add-panel__hint">{m.course_chapters_unlocksAtHint()}</p>
-							<button type="submit" class="primary" disabled={busy || !newChapterTitle.trim()}>
-								{m.course_chapters_add()}
-							</button>
-						</form>
-					</section>
+										<input type="datetime-local" bind:value={newChapterUnlocksAt} />
+									</label>
+								</div>
+								<p class="add-panel__hint">{m.course_chapters_unlocksAtHint()}</p>
+								<button type="submit" class="primary" disabled={busy || !newChapterTitle.trim()}>
+									{m.course_chapters_add()}
+								</button>
+							</form>
+						</div>
+					</FoldSection>
 				{/if}
 
 				<!-- Lessons. Titles and blurbs are public so somebody can judge whether to join; the notes
@@ -1134,16 +1144,11 @@
 	// A real card, and the shape both "add" panels in this tab now share — see the identical
 	// .add-panel* block in CourseContribute.svelte. Not pulled into a shared mixin: two occurrences
 	// is the threshold this codebase leaves alone, per its own "three strikes" convention.
+	// The card and the heading are `FoldSection`'s since 2026-10-08; this is its body.
 	.add-panel {
-		@include mix.card-surface;
-		padding: var(--space-4);
-		margin-top: var(--space-2);
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-	}
-	.add-panel h3 {
-		font-size: var(--font-size-base);
 	}
 	.add-panel__form {
 		display: flex;
