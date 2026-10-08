@@ -240,6 +240,13 @@ def node_staff_users(node):
     return get_user_model().objects.none()
 
 
+def is_open_board(node) -> bool:
+    """Whether this node's tasks and polls are readable by anyone who can view it — an
+    organisation's own `open_board` (2026-10-08), False for every other kind. The task and poll
+    rule modules ask this beside `is_node_staff`; nothing else about standing changes."""
+    return kind_of(node) == 'organization' and bool(getattr(node, 'open_board', False))
+
+
 def node_ref(node, user) -> dict:
     """What `GET /api/nodes/{kind}/{id}/` answers, and what a serializer embeds for a row's node."""
     return {
@@ -249,4 +256,5 @@ def node_ref(node, user) -> dict:
         'is_staff': is_node_staff(user, node),
         'is_member': is_node_member(user, node),
         'can_manage': can_manage_node(user, node),
+        'open_board': is_open_board(node),
     }

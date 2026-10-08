@@ -48,8 +48,11 @@
 		featureFlagsStore.isEnabled('decisions') || authStore.isModerator
 	);
 
+	// Results for every poll the server says this reader may see: a closed one (anyone eligible),
+	// and since 2026-10-08 an open one on an organisation whose board is open — the tally, never
+	// the ballots, which `results` hands to managers alone.
 	async function loadClosedResults(pollList: Poll[]) {
-		const closed = pollList.filter((p) => p.status === 'closed');
+		const closed = pollList.filter((p) => p.can_see_results);
 		await Promise.all(
 			closed.map(async (p) => {
 				try {
@@ -187,6 +190,20 @@
 	}
 </script>
 
+{#snippet tally(results: PollResults)}
+	<div class="poll-results">
+		{#each results.options as option (option.id)}
+			<div class="result-item">
+				<span class="result-label">{option.text}</span>
+				<span class="result-count">{option.count}</span>
+			</div>
+		{/each}
+	</div>
+	<p class="poll-turnout">
+		{pollTurnout(results.ballots.length, results.eligible_count)}
+	</p>
+{/snippet}
+
 {#if !canUseDecisions}
 	<!-- Poll feature is disabled -->
 {:else if loading}
@@ -237,7 +254,7 @@
 				{:else if poll.status === 'open'}
 					{#if poll.has_voted}
 						<p class="poll-note">{POLL_REFUSAL_LABELS.already_voted()}</p>
-					{:else}
+					{:else if poll.can_vote}
 						<form onsubmit={(e) => e.preventDefault()}>
 							{#each poll.options as option (option.id)}
 								<label>
@@ -267,6 +284,17 @@
 								{m.polls_vote()}
 							</button>
 						</form>
+					{:else if authStore.isAuthenticated}
+						<!-- an open board: a reader who is not a member sees the question, not a form -->
+						<p class="poll-note">{POLL_REFUSAL_LABELS.not_eligible()}</p>
+					{:else}
+						<p class="poll-note">{m.polls_signInToVote()}</p>
+						<!-- "Sign in to vote." -->
+					{/if}
+					{#if closedResults[poll.id]}
+						<p class="poll-note">{m.polls_resultsSoFar()}</p>
+						<!-- "Results so far" -->
+						{@render tally(closedResults[poll.id])}
 					{/if}
 
 					{#if node.canManage}
@@ -292,18 +320,7 @@
 						</div>
 					{/if}
 					{#if closedResults[poll.id]}
-						{@const results = closedResults[poll.id]}
-						<div class="poll-results">
-							{#each results.options as option (option.id)}
-								<div class="result-item">
-									<span class="result-label">{option.text}</span>
-									<span class="result-count">{option.count}</span>
-								</div>
-							{/each}
-						</div>
-						<p class="poll-turnout">
-							{pollTurnout(results.ballots.length, results.eligible_count)}
-						</p>
+						{@render tally(closedResults[poll.id])}
 					{:else}
 						<p class="poll-note">{m.polls_loadingResults()}</p>
 					{/if}

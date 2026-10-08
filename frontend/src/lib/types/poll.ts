@@ -33,6 +33,10 @@ export interface Poll {
 	object_id: number;
 	/** Whether the requesting user has already cast a ballot — false for an anonymous reader. */
 	has_voted: boolean;
+	/** The vote form is drawn only when the server says so: open now, eligible, not yet voted. */
+	can_vote: boolean;
+	/** The tally may be shown: a manager, a closed poll, or an organisation's open board. */
+	can_see_results: boolean;
 }
 
 export interface PollResults {

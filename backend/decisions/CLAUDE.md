@@ -135,3 +135,13 @@ dev `db.sqlite3`, which 500s the one endpoint that touches it while everything e
 - A caller that names an `order` an option already has still gets a 500 (`IntegrityError` on
   `(poll, order)`). Only the omitted-order case was fixed; refusing a collision with a word
   would be a new refusal vocabulary nothing asks for yet.
+
+## The open board (2026-10-08)
+
+`visible_polls` treats an organisation with `open_board=True` (`config.nodes.is_open_board`) like
+its staff for READING: open and closed polls, never drafts, to anyone who can view the body — the
+docstring’s "a question put to the room is not put to the street" still holds for every other
+node. `can_see_results` is true there too, for the tally; the ballots stay manager-only in
+`results`. Voting is unchanged (`is_eligible`), so a stranger gets `not_eligible`. The serializer
+now carries `can_vote` and `can_see_results`, which is what `PollsPanel` draws the form and the
+"results so far" from — a form the API would refuse is never offered (house rule 6).

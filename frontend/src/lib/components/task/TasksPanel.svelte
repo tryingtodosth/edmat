@@ -26,7 +26,9 @@
 	// The same reading `FeatureGate` and the header use, including the moderator bypass that mirrors
 	// the backend's own `is_staff` exemption in `feature_gate`.
 	const enabled = $derived(featureFlagsStore.isEnabled('tasks') || authStore.isModerator);
-	const shown = $derived(enabled && node.isStaff);
+	// …or the node is an organisation whose board is open (`node.openBoard`, 2026-10-08): then
+	// anyone reads it, and only the roster's buttons are drawn (`isStaff` below, `canEdit` on a card).
+	const shown = $derived(enabled && (node.isStaff || node.openBoard));
 
 	type Filter = 'all' | 'mine' | 'overdue';
 	let filter = $state<Filter>('all');
@@ -111,20 +113,24 @@
 					{m.tasks_filterAll()}
 					<!-- "All" -->
 				</button>
-				<button type="button" class:on={filter === 'mine'} onclick={() => (filter = 'mine')}>
-					{m.tasks_filterMine()}
-					<!-- "Mine" -->
-				</button>
+				{#if node.isStaff}
+					<button type="button" class:on={filter === 'mine'} onclick={() => (filter = 'mine')}>
+						{m.tasks_filterMine()}
+						<!-- "Mine" -->
+					</button>
+				{/if}
 				<button type="button" class:on={filter === 'overdue'} onclick={() => (filter = 'overdue')}>
 					{m.tasks_filterOverdue()}
 					{#if overdueCount > 0}<span class="count count--badge">{overdueCount}</span>{/if}
 					<!-- "Overdue" -->
 				</button>
 			</div>
-			<button type="button" class="add" onclick={() => (adding = !adding)}>
-				{m.tasks_addTitle()}
-				<!-- "Add a task" -->
-			</button>
+			{#if node.isStaff}
+				<button type="button" class="add" onclick={() => (adding = !adding)}>
+					{m.tasks_addTitle()}
+					<!-- "Add a task" -->
+				</button>
+			{/if}
 		</header>
 
 		{#if adding}

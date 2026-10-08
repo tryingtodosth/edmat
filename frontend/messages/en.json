@@ -3936,5 +3936,11 @@
 	"discussions_heldLink": "Show the comments waiting at {key}",
 	"discussions_filterShowingAt": "Showing only the comments waiting at {key}.",
 	"discussions_filterShowAll": "show all reports",
-	"featureFlags_label_aboutDiscussions": "Discussions under the standing pages (/about and the manual)"
+	"featureFlags_label_aboutDiscussions": "Discussions under the standing pages (/about and the manual)",
+	"about_researchHeading": "The association: the legal report and its reading",
+	"about_researchIntro": "The Gemini Deep Research report of 6 October 2026 on registering the association, pasted by the team as it arrived under the google-gemini account — and under every point Claude’s reading (anthropic-claude): what was accepted, what was rejected and why. Neither is a lawyer’s opinion.",
+	"orgs_openBoardLabel": "Open board: anyone can read the tasks and the polls",
+	"orgs_openBoardHelp": "Anyone who can see the organisation reads its tasks and its open and closed polls. Adding, moving and voting stay with the members.",
+	"polls_signInToVote": "Sign in to vote.",
+	"polls_resultsSoFar": "Results so far"
 }

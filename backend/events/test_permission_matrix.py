@@ -1630,7 +1630,8 @@ MATRIX = [
     ('volunteer', 'POST', '/nodes/event/{event}/tasks/', _NEW_TASK, 201,
      'any staff member writes a task; only a manager puts somebody on it'),
 
-    ('anonymous', 'GET', '/tasks/{task}/', None, 401, 'the detail route is authenticated'),
+    ('anonymous', 'GET', '/tasks/{task}/', None, 404,
+     'readable since the open board (2026-10-08), but an event is never one: the rule says 404'),
     ('stranger', 'GET', '/tasks/{task}/', None, 404, 'for them it does not exist'),
     ('attendee', 'GET', '/tasks/{task}/', None, 404, 'same'),
     ('volunteer', 'GET', '/tasks/{task}/', None, 200, 'they are carrying it'),

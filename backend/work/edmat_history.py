@@ -95,6 +95,7 @@ SUBPROJECT_BY_REF = {
     '17BT.D': 'platform', '17BT.E': 'community',
     '17BU': 'platform', '17BU.A': 'interface', '17BU.B': 'learning', '17BU.C': 'platform',
     '17BU.D': 'learning', '17BV': 'interface', '17BW': 'management', '17BW.B': 'management',
+    '17BW.C': 'management',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

@@ -74,6 +74,7 @@
 	let city = $state('');
 	let website = $state('');
 	let description = $state('');
+	let openBoard = $state(false);
 
 	// The roster form. `type="text" inputmode="numeric"` on purpose — `bind:value` on a real
 	// `<input type="number">` binds a number or `undefined`, which is frontend/CLAUDE.md's trap 1 and
@@ -111,6 +112,7 @@
 			city = found.city;
 			website = found.website;
 			description = found.description;
+			openBoard = found.openBoard;
 			const [roster, badges] = await Promise.all([
 				getMembers(found.id),
 				getOrganizationLinks(found.id)
@@ -146,6 +148,7 @@
 				kind,
 				city: city.trim(),
 				website: website.trim(),
+				openBoard,
 				description
 			});
 			saved = true;
@@ -311,6 +314,13 @@
 						<!-- "Website" -->
 						<input type="url" bind:value={website} placeholder="https://" />
 					</label>
+					<label class="field field--check">
+						<input type="checkbox" bind:checked={openBoard} />
+						<span>{m.orgs_openBoardLabel()}</span>
+						<!-- "Open board: anyone can read the tasks and the polls" -->
+					</label>
+					<p class="hint">{m.orgs_openBoardHelp()}</p>
+					<!-- "Anyone who can see the organisation reads its tasks and its open and closed polls. Adding, moving and voting stay with the members." -->
 					<label class="field">
 						<span>{m.orgs_fieldDescription()}</span>
 						<!-- "About" -->

@@ -476,6 +476,9 @@ its date is set, two research accounts and the Gemini Deep Research thread under
 `manage.py export_edmat_history` turn `HISTORY.md` into `work/edmat_history.json` (one dated row
 per section, filed under a goal by hand), which is what ships; `work/edmat_research_thread.json` is
 the thread. `backend/work/CLAUDE.md` has the rules.
+Since 2026-10-08 `/about` IS that organisation's page (`lib/components/organization/OrganizationPage.svelte`,
+shared with `/organizations/[slug]`) plus the research thread's section, the feature grid, the showcase
+index and the manual link; `Organization.open_board` opens a body's tasks and polls to every reader.
 
 ### `flashcards` — decks, cards, SM-2 review, and where a deck is placed (2026-10-05)
 The learning cycle's one new app (`prompts/02-flashcards.md`, `backend/flashcards/CLAUDE.md`). `Deck` (owner, nullable

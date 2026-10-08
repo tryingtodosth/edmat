@@ -13,7 +13,8 @@ function mapNodeRef(raw: any): NodeRef {
 		title: raw.title ?? '',
 		isStaff: raw.is_staff ?? false,
 		isMember: raw.is_member ?? false,
-		canManage: raw.can_manage ?? false
+		canManage: raw.can_manage ?? false,
+		openBoard: raw.open_board ?? false
 	};
 }
 

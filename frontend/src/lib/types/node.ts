@@ -19,6 +19,10 @@ export interface NodeRef {
 	/** May run the thing: can_administer|can_curate, can_organise, a project's governors, an
 	 *  organisation's owners and admins. */
 	canManage: boolean;
+	/** An organisation whose task board and polls are readable by anyone who can view it
+	 * (`Organization.open_board`, 2026-10-08). Reading only: `isStaff`/`canManage` still gate every
+	 * button. Always false for a course, an event or a material. */
+	openBoard: boolean;
 }
 
 // One person on a node's roster, as `GET /api/nodes/{kind}/{id}/staff/` lists them — the

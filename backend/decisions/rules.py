@@ -12,6 +12,7 @@ from config.nodes import (
     can_view_node,
     is_node_member,
     is_node_staff,
+    is_open_board,
     kind_of,
     node_content_type,
     node_staff_users,
@@ -57,8 +58,8 @@ def visible_polls(user, node):
         return qs  # Managers see all, drafts included
 
     live = qs.filter(status__in=['open', 'closed'])
-    if is_node_staff(user, node):
-        return live
+    if is_node_staff(user, node) or is_open_board(node):
+        return live  # staff; or an organisation that works in the open (2026-10-08)
     if is_node_member(user, node):
         return live.filter(eligibility='members')
     return qs.none()
@@ -162,12 +163,13 @@ def can_see_results(user, poll) -> bool:
     """Who may see the poll results.
 
     - Managers: always
+    - Anyone, on an organisation whose board is open (2026-10-08) — the tally, never the ballots
     - Everyone else: only after the poll is closed
     """
     node = poll_node(poll)
     if not node:
         return False
-    return can_manage_node(user, node) or poll.status == 'closed'
+    return can_manage_node(user, node) or poll.status == 'closed' or is_open_board(node)
 
 
 def eligible_count(poll, node) -> int:

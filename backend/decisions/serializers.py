@@ -22,6 +22,8 @@ class PollSerializer(serializers.ModelSerializer):
 
     options = PollOptionSerializer(many=True, read_only=True)
     has_voted = serializers.SerializerMethodField()
+    can_vote = serializers.SerializerMethodField()
+    can_see_results = serializers.SerializerMethodField()
 
     class Meta:
         model = Poll
@@ -44,6 +46,8 @@ class PollSerializer(serializers.ModelSerializer):
             'content_type_id',
             'object_id',
             'has_voted',
+            'can_vote',
+            'can_see_results',
         ]
         read_only_fields = [
             'id',
@@ -55,6 +59,8 @@ class PollSerializer(serializers.ModelSerializer):
             'content_type_id',
             'object_id',
             'has_voted',
+            'can_vote',
+            'can_see_results',
         ]
 
     def validate_description(self, value):
@@ -70,6 +76,27 @@ class PollSerializer(serializers.ModelSerializer):
         if not user or not user.is_authenticated:
             return False
         return obj.ballots.filter(user=user).exists()
+
+    def _reader(self):
+        request = self.context.get('request')
+        return getattr(request, 'user', None) if request else None
+
+    def get_can_vote(self, obj) -> bool:
+        """Whether the vote form should be drawn for this reader: the poll is open now and the
+        reader is eligible and has not voted — the same answer `rules.vote_block_reason` gives
+        before the option check, asked once here so an open board (where strangers read the poll)
+        does not draw a form the API will refuse (house rule 6: say why, or do not offer)."""
+        from . import rules
+
+        user = self._reader()
+        if not user or not user.is_authenticated:
+            return False
+        return rules.vote_block_reason(user, obj, [-1]) == rules.UNKNOWN_OPTION
+
+    def get_can_see_results(self, obj) -> bool:
+        from . import rules
+
+        return rules.can_see_results(self._reader(), obj)
 
 
 class PollCreateSerializer(serializers.ModelSerializer):

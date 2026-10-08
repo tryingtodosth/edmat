@@ -1285,5 +1285,16 @@
   "summary": "The owner's four asks of the afternoon, in order: check for other worktrees and merge them in; extend the project management script so the project runs as an open volunteer cooperative and meets what the association and the Faculty ask of it — then import the tasks and problems we have already solved, with their time, from the general project's history — then be inspired by 2donet: the modules as…",
   "subproject": "management",
   "listed": true
+ },
+ {
+  "ref": "17BW.C",
+  "title": "/about is the organisation page, and the board is open",
+  "heading": "17BW.C — `/about` is the organisation page, and the board is open (2026-10-08, `ux/colour-pass`)",
+  "line": 14221,
+  "date": "2026-10-08",
+  "date_source": "heading",
+  "summary": "The owner, the morning after §17BW.B: move /organizations/edmat to be the new about, make polls and tasks visible to anyone, and prepare a new deployment package.",
+  "subproject": "management",
+  "listed": true
  }
 ]

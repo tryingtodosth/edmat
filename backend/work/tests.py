@@ -435,6 +435,7 @@ class EdmatProjectSeedTests(APITestCase):
         self.assertTrue(built['organization_created'])
         self.assertEqual(built['organization'].slug, ORGANIZATION_SLUG)
         self.assertEqual(built['organization'].created_by, self.owner)
+        self.assertTrue(built['organization'].open_board)
         self.assertEqual(
             OrganizationMember.objects.get(organization=built['organization'], user=self.owner).role, 'owner'
         )
@@ -563,7 +564,13 @@ class EdmatProjectSeedTests(APITestCase):
         self.assertNotIn(phase_two.title, titles)
         self.assertEqual(self.client.get(f'/api/plans/{phase_one.pk}/').status_code, 200)
         self.assertEqual(self.client.get(f'/api/plans/{phase_two.pk}/').status_code, 404)
-        self.assertEqual(self.client.get(f'{node}/polls/').json(), [])
+        # the board is open (2026-10-08): the polls and the tasks are readable, not usable
+        open_polls = self.client.get(f'{node}/polls/').json()
+        self.assertEqual(len(open_polls), 2)
+        self.assertFalse(any(row['can_vote'] for row in open_polls))
+        self.assertTrue(all(row['can_see_results'] for row in open_polls))
+        self.assertEqual(self.client.get(f'{node}/tasks/').status_code, 200)
+        self.assertEqual(self.client.get(f'/api/tasks/{built["tasks"].first().pk}/').status_code, 200)
         board = self.client.get('/api/needs/')
         self.assertEqual(board.status_code, 200)
         self.assertEqual({row['id'] for row in board.json()} & set(built['needs'].values_list('id', flat=True)),
@@ -572,19 +579,28 @@ class EdmatProjectSeedTests(APITestCase):
         self.assertEqual(thread.status_code, 200)
         self.assertEqual(len(thread.json()['comments']), 5)
 
-        # a signed-in stranger: the same, plus 404 on a task
+        # a signed-in stranger: the same reading, and still no vote and no edit
         stranger = make_user('stranger')
         self.client.force_authenticate(stranger)
         self.assertEqual(self.client.get(f'/api/plans/{phase_two.pk}/').status_code, 404)
-        self.assertEqual(self.client.get(f'/api/tasks/{built["tasks"].first().pk}/').status_code, 404)
-        self.assertEqual(self.client.get(f'{node}/polls/').json(), [])
+        task_row = self.client.get(f'/api/tasks/{built["tasks"].first().pk}/')
+        self.assertEqual(task_row.status_code, 200)
+        self.assertFalse(task_row.json()['can_edit'])
+        stranger_polls = self.client.get(f'{node}/polls/').json()
+        self.assertEqual(len(stranger_polls), 2)
+        self.assertFalse(any(row['can_vote'] for row in stranger_polls))
+        self.assertEqual(
+            self.client.post(f'/api/polls/{stranger_polls[0]["id"]}/vote/', {'options': [stranger_polls[0]['options'][0]['id']]}, format='json').status_code,
+            409,
+        )
 
-        # the owner: the draft, the tasks, the polls — and one vote, once
+        # the owner: the draft, the tasks with their buttons, the polls — and one vote, once
         self.client.force_authenticate(self.owner)
         self.assertEqual(self.client.get(f'/api/plans/{phase_two.pk}/').status_code, 200)
-        self.assertEqual(self.client.get(f'/api/tasks/{built["tasks"].first().pk}/').status_code, 200)
+        self.assertTrue(self.client.get(f'/api/tasks/{built["tasks"].first().pk}/').json()['can_edit'])
         polls = self.client.get(f'{node}/polls/').json()
         self.assertEqual(len(polls), 2)
+        self.assertTrue(all(row['can_vote'] for row in polls))
         option = polls[0]['options'][0]['id']
         self.assertEqual(self.client.post(f'/api/polls/{polls[0]["id"]}/vote/', {'options': [option]}, format='json').status_code, 201)
         self.assertEqual(self.client.post(f'/api/polls/{polls[0]["id"]}/vote/', {'options': [option]}, format='json').status_code, 409)

@@ -95,6 +95,12 @@ class Organization(models.Model):
     website = models.URLField(max_length=300, blank=True)
     city = models.CharField(max_length=120, blank=True)
     is_active = models.BooleanField(default=True)
+    # The open board (2026-10-08, owner's decision for the project's own organisation): when True,
+    # the body's tasks and its open and closed polls are readable by anyone who can view the body —
+    # a cooperative that works in the open. Writes, votes and drafts are unchanged; the rule lives
+    # in `tasks.rules` and `decisions.rules`, which ask `config.nodes.is_open_board`. False for
+    # every other body, where a task board stays the inside of a team.
+    open_board = models.BooleanField(default=False)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

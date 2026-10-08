@@ -336,7 +336,8 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /my-set /sets/[id] /submit /submit-material /search           study + contribute
 /settings /settings/profile /users/[id] /login /register      account
 /moderation /legal/queue /issues                              staff + reports
-/privacy /about /legal /levels                                standing pages
+/privacy /legal /levels                                       standing pages
+/about                                                        the project itself: the EdMat organisation's page (goals, needs, open board), the research thread, the showcase index
 /about/<feature> /about/guide /about/guide/[chapter]          the design showcase (sample data) and the manual
 ```
 

@@ -408,7 +408,7 @@ node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with i
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
-node e2e/about-page.mjs               # the /about landing page: both locales, both themes, phone width, the tutoring kill switch hiding its card; signs in kasia through the API only to flip the flag and restore it
+node e2e/about-page.mjs               # /about as the project's organisation page (2026-10-08): both locales, both themes, phone width, the open board drawn for a stranger with nothing to press, the tutoring kill switch hiding its card; needs the EdMat seed; kasia's token or login only to flip the flag
 node e2e/showcase.mjs                 # the seven design-showcase pages under /about/<feature>; signs nobody in and needs no backend data (set E2E_NO_BACKEND=1 to run with the API down)
 node e2e/exercise-claims.mjs          # E2E_EXERCISE=<published exercise id>, default 51
 node e2e/exercise-card-click.mjs      # E2E_BASE=http://localhost:5173, E2E_BRANCH=<slug>, default analiza-matematyczna; signs nobody in, saves to the guest working set only
@@ -1772,13 +1772,15 @@ a name-shaped `{name}` slot cannot decline) in a screenshot.
 
     cd frontend && E2E_BASE=http://localhost:5232 E2E_API=http://127.0.0.1:8132/api node e2e/learning-record.mjs
 
-**`e2e/about-page.mjs` (15 checks)** — the landing page at `/about` (2026-09-24). Polish desktop
-(the base locale): the h1, nine feature cards (eight until the showcase index of 2026-10-05; the script's counts were set to the page on 2026-10-07), seven audience bands, ten sections, exactly one
-`<title>` shaped by PageHead, the register CTA for a stranger and the footer link; the same page
-under `data-theme="dark"`; English at 390px with a `scrollWidth` overflow check; then the
-`tutoring` flag flipped off through the API as kasia and the page reloaded as a stranger — its card
-must be gone and seven remain — and flipped back. Zero console/page errors. Four screenshots in
-`e2e/screens/about-*.png`, meant to be looked at: the light, dark and phone renders were.
+**`e2e/about-page.mjs` (17 checks, rewritten 2026-10-08)** — `/about` is the project's own organisation page
+(`OrganizationPage` for the `edmat` body; HISTORY §17BW.C) with the research thread's section, the
+nine-card feature grid, the showcase index and the manual link. Polish desktop, anonymous: the h1 is
+the organisation's name, at least fifteen goals (plan rows), nine cards, one `<title>` shaped by
+PageHead, the footer link — and the open board: the task panel drawn with no "add" button, the two
+polls drawn with no vote button, the thread toggle present; a light and a dark screenshot. English at
+phone width: the same h1 and cards, no horizontal overflow. Tutoring off (kasia's token via
+`E2E_TOKEN`, else login): its card gone and eight left, nine again after. Needs
+`manage.py seed_edmat_project --owner <username>` on the database first. Ran 2026-10-08: 17/0.
 
 ## Management step D — `plans`
 
@@ -2340,3 +2342,14 @@ parse (run `manage.py export_edmat_history` when it does not) and that the threa
 Run `manage.py test work --keepdb` (23 tests). The seed itself was run twice against the
 development database and the pages looked at (`/organizations/edmat`, a goal, `/work`, the thread
 under `/about`).
+
+**2026-10-08, the open board (`organizations/test_open_board.py`, 4 tests).** A body with
+`open_board=True` beside one without: the field is read by anyone and set by a manager only (a
+stranger's PATCH is 403); `node_ref` carries it; its tasks are listed and retrieved by an anonymous
+reader and a stranger with `can_edit` false, while the closed body's stay 404, and a stranger's
+create and transition are refused; its open and closed polls are listed with `can_vote` false and
+`can_see_results` true, the draft and the closed body's poll 404, the results carry the tally and an
+empty ballot list, and a stranger's vote is `409 not_eligible` while the owner's row says
+`can_vote`. `work.tests` adjusted: the seeded organisation's board is open, so the anonymous and
+stranger readings of its tasks and polls are 200 with no vote or edit. Run `manage.py test
+organizations tasks decisions work --keepdb`.

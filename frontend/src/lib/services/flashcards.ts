@@ -40,7 +40,8 @@ function mapPlacement(raw: any): DeckPlacement {
 					title: raw.node.title ?? '',
 					isStaff: raw.node.is_staff ?? false,
 					isMember: raw.node.is_member ?? false,
-					canManage: raw.node.can_manage ?? false
+					canManage: raw.node.can_manage ?? false,
+					openBoard: raw.node.open_board ?? false
 				}
 			: null,
 		order: Number(raw.order ?? 0),

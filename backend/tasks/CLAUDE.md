@@ -101,3 +101,13 @@ including the lost race, the one level of subtasks, the derived numbers, the thr
 sanitizer, `mine`, `work_items` and the kill switch. `databases` includes the telemetry log shards
 — a 404 walks through the request logger, and without them the failure is about `logs_0` rather
 than about tasks.
+
+## The open board (2026-10-08)
+
+`visible_tasks` / `visible_task` and `NodeTasksView._node_or_404` ask `nodes.is_open_board(node)`
+beside `is_node_staff`: an organisation with `open_board=True` (`organizations.Organization`, the
+project’s own body sets it in `work/edmat_project.py`) lets anyone who can view it read the whole
+board — list and detail — while `can_create`, `can_edit`, `can_assign` and every transition stay
+with the roster, and `can_edit` in the row is what the panel draws buttons from. For a course, an
+event or a material the answer is always False, so nothing there changed. `organizations/
+test_open_board.py` asserts both the open body and the closed one side by side.

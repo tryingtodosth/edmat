@@ -42,6 +42,8 @@ export interface Organization extends OrganizationSummary {
 	createdAt: string;
 	myRole: OrganizationRole | null;
 	canManage: boolean;
+	/** Anyone who can see the body may read its tasks and polls (2026-10-08). */
+	openBoard: boolean;
 }
 
 export interface OrganizationMember {
@@ -83,4 +85,5 @@ export interface OrganizationDraft {
 	description?: string;
 	website?: string;
 	city?: string;
+	openBoard?: boolean;
 }

@@ -14217,3 +14217,60 @@ for the founders' and officials' surnames, for e-mails, phone numbers and addres
 - **The `.st`/`.md` linkifier** is a general trap for any content that mentions a file name or
   the court's abbreviation; worth a rule in `renderContent.ts` (no linkify for TLDs that are also
   file extensions) rather than per-text workarounds.
+
+## 17BW.C — `/about` is the organisation page, and the board is open (2026-10-08, `ux/colour-pass`)
+
+The owner, the morning after §17BW.B: *move `/organizations/edmat` to be the new about*, *make
+polls and tasks visible to anyone*, *and prepare a new deployment package*.
+
+**`/about`.** The organisation page's body — the load keyed on slug and reader, the head, the
+roster, what it stands behind, the management panel stack — moved as it was into
+`lib/components/organization/OrganizationPage.svelte`, with `slug` and the two head texts as
+props; `/organizations/[slug]` is now a four-line wrapper around it, and `/about` renders it for the
+project's own body (`work/edmat_project.py: ORGANIZATION_SLUG`). Under that, what a first-time
+visitor still needs from the brochure (§17BG) and nothing else: the research thread's section
+(`DiscussableSection` on the same `about#money-and-openness` key the seed posts under, so the
+sixty-four comments did not move), the nine-card "what you can do here" grid with its kill-switch
+filtering, the showcase index (§17BR.G) and the one link into the manual (§17BR.H). The brochure's
+six prose sections and their discussion keys are no longer drawn; the copy stays in
+`lib/content/about.ts` (the grid still reads it), and any rows at those keys stay in the moderation
+list. The page is prerendered as before — `pack.sh` still finds `about.html` — but the body paints
+after the SPA boots, which is the trade the owner chose over the brochure's first paint.
+
+**The open board.** The rule modules argued the other way — `tasks.rules`: "a task board is the
+inside of a team"; `decisions.rules`: "a question put to the room is not put to the street" — and
+they still do for every course, event and material. The owner's ask is about the project's own
+body, so it became a setting rather than a flip: `Organization.open_board` (migration 0002, False
+by default, a manager sets it through the detail PATCH or the manage page's new checkbox). With it
+on, `config.nodes.is_open_board` answers True and three rules widen their *reading* half:
+`visible_tasks` / `visible_task` (and `NodeTasksView._node_or_404`) admit anyone who can view the
+body; `visible_polls` lists open and closed polls to them, never drafts; `can_see_results` shows the
+tally, while the ballots stay manager-only in `results`. Nothing on the writing side moved:
+`can_create`, `can_edit`, `can_assign`, the transitions, `is_eligible`, so a stranger's vote is
+`409 not_eligible` and a stranger's task row says `can_edit: false`. `TaskViewSet.retrieve` takes
+`AllowAny` so a reader with no account can open a task the rule admits; every write still needs an
+account. `node_ref` carries `open_board`; the frontend `NodeRef.openBoard` is what the task panel
+keys "draw for a stranger" on, and the panel hides "add" and the "mine" filter below `isStaff`.
+The poll serializer gained `can_vote` and `can_see_results`, so `PollsPanel` draws the vote form
+only when the API would accept it, says "sign in to vote" or "not eligible" otherwise, and shows
+"results so far" for an open poll on an open board — the tally markup became a snippet rendered in
+both the open and the closed branch. The seed sets `open_board` on EdMat.
+
+**Verified.** `npm run check` 0/0 over 6351 files, `npm run lint` clean, `npm run build` ok with `about.html` prerendered; `manage.py check` clean, `makemigrations --check` empty (0002 is the one migration); `manage.py test organizations tasks work --keepdb` 152 OK after the open-board test had caught a real hole — a stranger could POST a task to an open board because `NodeTasksView.post` left authority to the 404 gate (house rule 4; now `rules.can_create` → `403 not_staff`); the full suite `--parallel 4 --keepdb` **2722 tests, 2 failures** both expectation updates (`node_ref`'s key set, the events matrix row "anonymous GET /tasks/{id} → 401") and **310 OK** on config + events after them; `e2e/about-page.mjs` rewritten, **17/0**; `check:a11y` **48 pages, 0 load problems, 0 violations** on a restarted dev server (the first run lost `/concepts` and the concept editor to the usual `ERR_INSUFFICIENT_RESOURCES` plus stale `?t=` modules, and its only four moderate nodes were axe reading those two 500 shells); the seed re-run on the development database with `open_board` on; screenshots looked at: `/about` anonymous at 1280 and 390 (the body, the board with seventeen tasks and no "add", the needs, the goals, the two polls with no form, the thread section, the grid, the showcase index, the manual link), `/about` as the owner, and the manage page with the new checkbox on.
+
+### Left open
+
+- **The old brochure's six discussion keys** (`mission`, `origin`, `features`, `trust`,
+  `audiences`, `closing`) are no longer mounted anywhere; any comments under them on production
+  are reachable only through the moderation list. Nothing on the live site has written there as
+  far as this VM can tell, but it cannot tell.
+- **First paint on `/about`** is the organisation shell's "loading" until the SPA boots; the
+  brochure painted its prose from HTML. A static lead paragraph above the body would give the
+  page back a first impression — one block, from `lib/content/about.ts`.
+- **The open board is all-or-nothing per body**: tasks and polls together. A body that wants its
+  polls public and its tasks private has no switch for that.
+- **A task's detail page for a stranger** shows the row with no buttons, which is right, but the
+  page's own copy still speaks to a team member in places ("assign", "move"); a read-only wording
+  pass is owed.
+- **Production**: migration 0002 runs with `apply-on-server.sh`; the seed (re-run) sets the
+  flag on EdMat; the bundle is `FUW/UPDATE-20261008.tar.gz`.

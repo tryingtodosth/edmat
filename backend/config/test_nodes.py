@@ -93,7 +93,10 @@ class NodeDispatchTests(TestCase):
     def test_node_ref_shape(self):
         event = _event(self.host)
         ref = nodes.node_ref(event, self.host)
-        self.assertEqual(set(ref), {'kind', 'id', 'title', 'is_staff', 'is_member', 'can_manage'})
+        self.assertEqual(
+            set(ref), {'kind', 'id', 'title', 'is_staff', 'is_member', 'can_manage', 'open_board'}
+        )
+        self.assertFalse(ref['open_board'])  # only an organisation can open its board (2026-10-08)
         self.assertEqual(ref['kind'], 'event')
         self.assertEqual(ref['title'], 'Seminar')
         self.assertTrue(ref['can_manage'])

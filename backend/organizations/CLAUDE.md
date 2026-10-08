@@ -176,3 +176,13 @@ the only honest row this app has.
 - **No `organization` target in `community/targets.py`**, so a body has no discussion thread; §7 of
   the brief lists that as a deliberate later step for all six apps at once.
 - **Members are added by account id** (no people search — root `CLAUDE.md`, known gaps).
+
+## `open_board` (2026-10-08)
+
+A boolean on `Organization`, False by default, writable by a manager through the detail PATCH
+(`OrganizationWriteSerializer`) and the manage page’s checkbox. True means: the body’s tasks and
+its open and closed polls are readable by anyone who can view it (`tasks.rules`, `decisions.rules`
+via `config.nodes.is_open_board`); writing, voting and drafts are unchanged. `node_ref` carries it
+as `open_board`, the frontend as `NodeRef.openBoard`, which is what the task panel keys its
+"draw for a stranger" on. The project’s own organisation has it set by the seed; `/about` renders
+that organisation (`OrganizationPage`). Tests: `test_open_board.py`.

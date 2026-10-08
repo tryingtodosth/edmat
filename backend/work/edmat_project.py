@@ -98,6 +98,8 @@ ORGANIZATION = {
     'kind': 'other',
     'website': 'https://edmat.net',
     'city': 'Warszawa',
+    # The board is open: anyone may read the tasks and the polls (owner, 2026-10-08).
+    'open_board': True,
     'description': _pl_en(
         'Społecznościowa baza zadań i materiałów dydaktycznych, i platforma wokół niej. '
         'Ta organizacja to sam projekt EdMat, prowadzony na EdMacie: jego plany, zadania, '

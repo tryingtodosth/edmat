@@ -142,6 +142,7 @@ class OrganizationSerializer(OrganizationSummarySerializer):
         fields = OrganizationSummarySerializer.Meta.fields + [
             'description',
             'website',
+            'open_board',
             'created_by',
             'created_at',
             'my_role',
@@ -177,7 +178,7 @@ class OrganizationWriteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organization
-        fields = ['name', 'kind', 'description', 'website', 'city']
+        fields = ['name', 'kind', 'description', 'website', 'city', 'open_board']
 
     def validate_name(self, value: str) -> str:
         value = (value or '').strip()

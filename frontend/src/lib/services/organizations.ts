@@ -60,7 +60,8 @@ function mapNode(raw: any): NodeRef | null {
 		title: raw.title ?? '',
 		isStaff: Boolean(raw.is_staff),
 		isMember: Boolean(raw.is_member),
-		canManage: Boolean(raw.can_manage)
+		canManage: Boolean(raw.can_manage),
+		openBoard: Boolean(raw.open_board)
 	};
 }
 
@@ -85,7 +86,8 @@ function mapOrganization(raw: any): Organization {
 		createdBy: mapPerson(raw.created_by),
 		createdAt: raw.created_at ?? '',
 		myRole: (raw.my_role ?? null) as OrganizationRole | null,
-		canManage: Boolean(raw.can_manage)
+		canManage: Boolean(raw.can_manage),
+		openBoard: Boolean(raw.open_board)
 	};
 }
 
@@ -178,6 +180,7 @@ export async function updateOrganization(
 	if (patch.description !== undefined) body.description = patch.description;
 	if (patch.website !== undefined) body.website = patch.website;
 	if (patch.city !== undefined) body.city = patch.city;
+	if (patch.openBoard !== undefined) body.open_board = patch.openBoard;
 	try {
 		return mapOrganization(await apiClient.patch(`/organizations/${id}/`, body));
 	} catch (error) {

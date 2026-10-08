@@ -100,7 +100,7 @@ class NodeTasksView(APIView):
         node = nodes.resolve_node(kind, pk)
         if node is None or not nodes.can_view_node(request.user, node):
             raise Http404
-        if not nodes.is_node_staff(request.user, node):
+        if not (nodes.is_node_staff(request.user, node) or nodes.is_open_board(node)):
             raise Http404
         return node
 
@@ -114,6 +114,11 @@ class NodeTasksView(APIView):
     def post(self, request, kind, pk):
         node = self._node_or_404(request, kind, pk)
         # Any staff member may write a task; only a manager may put somebody on it (rules.can_assign).
+        # Asked here and not left to `_node_or_404`: since the open board (2026-10-08) a reader who
+        # passed that gate may be a stranger, and house rule 4 wants the authority check on the
+        # action itself. `not_staff` is the word the frontend has a sentence for.
+        if not rules.can_create(request.user, node):
+            return Response({'detail': rules.NOT_STAFF}, status=status.HTTP_403_FORBIDDEN)
         serializer = TaskWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         task = Task.objects.create(
@@ -144,6 +149,15 @@ class TaskViewSet(
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated, _TasksGate]
+
+    def get_permissions(self):
+        # A single task is readable by whoever `rules.visible_task` admits — since the open board
+        # (2026-10-08) that includes a reader with no account on an organisation that works in the
+        # open — so `retrieve` takes AllowAny and lets `get_object` answer 404 or the row. Every
+        # write and every listing of "mine" still needs an account.
+        if self.action == 'retrieve':
+            return [permissions.AllowAny(), _TasksGate()]
+        return super().get_permissions()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

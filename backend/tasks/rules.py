@@ -63,14 +63,18 @@ def node_of(task):
 
 
 def visible_tasks(user, node):
-    """The tasks on one node, for one reader: **node staff only**, and nobody else.
+    """The tasks on one node, for one reader: **node staff only** — unless the node is an
+    organisation with its board open (`config.nodes.is_open_board`, 2026-10-08), in which case
+    anyone who can view the body reads the whole board; writing stays with the roster.
 
-    A task board is the inside of a team — who is behind on what is not something a course's
+    Otherwise a task board is the inside of a team — who is behind on what is not something a course's
     participants or an event's attendees are shown. Anyone below staff gets an empty queryset here
     and a 404 on the list itself (house rule 4: for them it does not exist), which is also why
     `visible_task` below answers the same question for a single id.
     """
-    if node is None or not nodes.can_view_node(user, node) or not nodes.is_node_staff(user, node):
+    if node is None or not nodes.can_view_node(user, node):
+        return Task.objects.none()
+    if not (nodes.is_node_staff(user, node) or nodes.is_open_board(node)):
         return Task.objects.none()
     return Task.objects.filter(
         content_type=nodes.node_content_type(node), object_id=node.pk
@@ -88,7 +92,9 @@ def visible_task(user, task) -> bool:
     node = node_of(task)
     if node is None:
         return False
-    return nodes.can_view_node(user, node) and nodes.is_node_staff(user, node)
+    return nodes.can_view_node(user, node) and (
+        nodes.is_node_staff(user, node) or nodes.is_open_board(node)
+    )
 
 
 # ---- authority --------------------------------------------------------------------------------

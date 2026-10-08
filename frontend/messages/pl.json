@@ -3936,5 +3936,11 @@
 	"discussions_heldLink": "Pokaż komentarze oczekujące w {key}",
 	"discussions_filterShowingAt": "Pokazane są tylko komentarze oczekujące w {key}.",
 	"discussions_filterShowAll": "pokaż wszystkie zgłoszenia",
-	"featureFlags_label_aboutDiscussions": "Dyskusje pod stronami stałymi (/about i podręcznik)"
+	"featureFlags_label_aboutDiscussions": "Dyskusje pod stronami stałymi (/about i podręcznik)",
+	"about_researchHeading": "Stowarzyszenie: raport prawny i jego lektura",
+	"about_researchIntro": "Raport Gemini Deep Research z 6.10.2026 o rejestracji stowarzyszenia, wklejony przez zespół tak, jak przyszedł, pod kontem google-gemini — i pod każdym punktem lektura Claude’a (anthropic-claude): co przyjęto, co odrzucono i dlaczego. Ani jedno, ani drugie nie jest opinią prawnika.",
+	"orgs_openBoardLabel": "Otwarta tablica: zadania i głosowania widzi każdy",
+	"orgs_openBoardHelp": "Każdy, kto widzi organizację, czyta jej zadania oraz otwarte i zamknięte głosowania. Dodają, przesuwają i głosują nadal tylko członkowie.",
+	"polls_signInToVote": "Zaloguj się, aby zagłosować.",
+	"polls_resultsSoFar": "Dotychczasowe wyniki"
 }
