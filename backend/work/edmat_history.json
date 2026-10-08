@@ -1318,5 +1318,60 @@
   "summary": "Three things the owner asked for in three messages on the same morning, built together because they land on the same two pages and because the second and third are one feature once you look at them.",
   "subproject": "community",
   "listed": true
+ },
+ {
+  "ref": "17BY",
+  "title": "The project board is commentable: a task, a plan, a need or a poll is a discussion location",
+  "heading": "17BY — The project board is commentable: a task, a plan, a need or a poll is a discussion location (2026-10-08, `ux/colour-pass`)",
+  "line": 14630,
+  "date": "2026-10-08",
+  "date_source": "heading",
+  "summary": "The owner, once the \"AI-assisted\" mark and the bilingual board had shipped: \"all the edmat about/project info section with tasks, plans, needs etc should be commentable, reviable, etc: lets allow users as we wanted to do that with the previous version of about meaning replies and moderation/flags different settings\". The previous version of /about (§17BS) had DiscussionLocation rows under its…",
+  "subproject": "management",
+  "listed": true
+ },
+ {
+  "ref": "17BZ",
+  "title": "Goals and their definitions of done; the description is commentable; the plan step editor exists",
+  "heading": "17BZ — Goals and their definitions of done; the description is commentable; the plan step editor exists (2026-10-08, `ux/colour-pass`)",
+  "line": 14796,
+  "date": "2026-10-08",
+  "date_source": "heading",
+  "summary": "Three asks from the owner in one afternoon, in the order they arrived.",
+  "subproject": "management",
+  "listed": true
+ },
+ {
+  "ref": "17CA",
+  "title": "Withdrawing a room booking: the operator who could see it could not do it",
+  "heading": "17CA — Withdrawing a room booking: the operator who could see it could not do it (2026-10-08, `ux/colour-pass`)",
+  "line": 14925,
+  "date": "2026-10-08",
+  "date_source": "heading",
+  "summary": "The owner, mid-session: \"i dont seem to be able to withdraw reservation for a room in https://edmat.net/events/6\". Reproduced locally against both real servers in two probes, which is what turned one report into two separate findings.",
+  "subproject": "conference",
+  "listed": true
+ },
+ {
+  "ref": "17CB",
+  "title": "A node page folds: every panel is one line until you open it",
+  "heading": "17CB — A node page folds: every panel is one line until you open it (2026-10-08, `ux/colour-pass`)",
+  "line": 14977,
+  "date": "2026-10-08",
+  "date_source": "heading",
+  "summary": "The owner: \"simplify and clean as rn its overwehalming: most things should be hidden under some kind of expandable sth\" — and, asked which surface and what should be open to start with: an event or a course page, everything shut but the first, remembered.",
+  "subproject": "interface",
+  "listed": true
+ },
+ {
+  "ref": "17CC",
+  "title": "The admin registers what it was missing; the EdMat description is the owner's words; the conference demo is twelve people",
+  "heading": "17CC — The admin registers what it was missing; the EdMat description is the owner's words; the conference demo is twelve people (2026-10-08, `ux/colour-pass`)",
+  "line": 15060,
+  "date": "2026-10-08",
+  "date_source": "heading",
+  "summary": "Three of the owner's asks from the same evening, each small on its own.",
+  "subproject": "platform",
+  "listed": true
  }
 ]

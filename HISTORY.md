@@ -15141,6 +15141,31 @@ Two things the shrink broke, both found by running it:
 `/about` was loaded in a browser and **looked at**: the new sentence, one paragraph, with the folded
 panels under it.
 
+### The one thing that was *not* reproduced, and the one fix it produced anyway
+
+The owner, the same evening: *"troubleshoot why have i killed the about by changing the description
+of the orgazniation by deleting what have you seeded today/yest … plain regular input with polish
+letters"*. It could not be reproduced:
+
+- production `/about` renders correctly for an anonymous reader **right now**, with 10,260
+  characters of content and no console error;
+- every endpoint that page calls answers 200 — the organisation, its members and links, the node
+  ref, goals, decks, tasks, needs, plans, polls, the flags, the discussions;
+- the description on production is **still the seeded text**, so the edit never persisted;
+- driving the real editor locally — open ⋯, *Edit in both languages*, clear the box, type a plain
+  Polish sentence, Save — works, and the page redraws with the new text.
+
+**What was found instead is a dead end that looks exactly like a broken page.** `TranslateFields`
+disables Save when the ORIGINAL pane's body is empty, and said nothing about why: clear the box to
+retype the description and the button goes grey with no sentence beside it. That is house rule 6
+unanswered — and it is worse than a plain missing message, because the OTHER pane carries the hint
+*"leave both boxes empty to take this translation down"*, so emptying a box reads like a delete
+everywhere except the one pane where it is not one. There is now a line under the form saying which
+language needs something written in it and that clearing the field is not how to delete the text.
+
+To settle the original report somebody still needs two facts that only the owner can give: **what
+`/about` shows them while signed in**, and any error in the browser console.
+
 ### Left open
 
 - **The ~44 accounts left behind by browser scripts** (`ehost-…`, `owner-…`, `e2e-…`, `gatekid…`,

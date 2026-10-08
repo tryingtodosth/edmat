@@ -57,6 +57,13 @@
 
 	type Draft = { heading: string; body: string };
 
+	/** Declared as a function so the `$derived` refusal above can call it — `const upper = …` lower
+	 *  down is not hoisted, and a derived that reads it would be referencing a binding before its
+	 *  initialisation. */
+	function upperOf(locale: string): string {
+		return locale.toUpperCase();
+	}
+
 	// The interface locales, which are the languages this editor offers. A third one needs a
 	// Paraglide catalogue and appears here on its own — `locale` is a free string server-side, so
 	// nothing below is capped at two.
@@ -121,6 +128,22 @@
 		!busy &&
 			(withHeading ? originalDraft.heading.trim().length > 0 : originalDraft.body.trim().length > 0)
 	);
+	/** Why Save is grey, in a sentence (house rule 6: a refusal carries its reason).
+	 *
+	 * It used to be nothing at all — clear the original box to retype the text and the button went
+	 * grey with no explanation, which is a dead end that looks exactly like a broken page. It is the
+	 * best candidate found for the owner's report of 2026-10-08 ("why have i killed the about by
+	 * changing the description"), which could not be reproduced any other way. It also answers the
+	 * question somebody will actually have here, because the OTHER pane says "leave both boxes empty
+	 * to take this translation down" — so emptying a box reads like a delete, and in the original's
+	 * pane it is not one. */
+	const blockedReason = $derived.by(() => {
+		if (canSave) return '';
+		const locale = upperOf(originalLocale);
+		return withHeading
+			? m.translate_cannotSaveHeading({ locale })
+			: m.translate_cannotSaveBody({ locale });
+	});
 	// Said plainly rather than left to be discovered: this is the state the whole feature exists to
 	// avoid, and it is avoidable right here, in this form.
 	const otherEmpty = $derived(
@@ -156,7 +179,7 @@
 		}
 	}
 
-	const upper = (locale: string) => locale.toUpperCase();
+	const upper = upperOf;
 </script>
 
 <form class="translate" onsubmit={(event) => (event.preventDefault(), save())}>
@@ -249,6 +272,10 @@
 	</div>
 
 	{#if error}<p class="error">{error}</p>{/if}
+	{#if blockedReason}
+		<p class="blocked">{blockedReason}</p>
+		<!-- "Write something in {locale} before saving — that is the language this is written in." -->
+	{/if}
 
 	<div class="actions">
 		<button type="button" class="secondary" onclick={onCancel} disabled={busy}>
@@ -269,6 +296,13 @@
 		margin: 0;
 		font-size: var(--font-size-sm);
 		color: var(--text-secondary);
+	}
+	// "Near / stuck / short / drifted" is what warning means in this codebase's colour vocabulary;
+	// a form that will not submit yet is stuck, not wrong, so this is not `--status-danger`.
+	.blocked {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		color: var(--status-warning);
 	}
 	.panes {
 		display: grid;

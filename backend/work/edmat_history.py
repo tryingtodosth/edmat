@@ -100,6 +100,12 @@ SUBPROJECT_BY_REF = {
     # (`community`) and the bilingual text is the `management` layer's — and a section gets one
     # key. Filed under the headline; its own §17BX.C says the other half out loud.
     '17BX': 'community',
+    # 17BY/17BZ: the board's own threads and goals — the management layer.
+    '17BY': 'management', '17BZ': 'management',
+    # 17CA is the conference layer's room booking; 17CB is a change to how every node page is read,
+    # which is `interface`; 17CC is three operator-facing chores and is filed under `platform`,
+    # where "the admin, the seeds and the deployment" already live.
+    '17CA': 'conference', '17CB': 'interface', '17CC': 'platform',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,
