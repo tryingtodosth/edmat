@@ -30,7 +30,7 @@ this module from its side (house rule 13: say it in both files).
 """
 
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -77,6 +77,12 @@ class Task(models.Model):
     # Sanitized on write (`config/sanitize.py`) and rendered through the ordinary content pipeline,
     # so a task description carries the same Markdown + LaTeX a statement does — house rule 8.
     description = models.TextField(blank=True)
+    #: Every language this row's text has been written in (`translations.TextVersion`).
+    #: A reverse accessor only — it adds no column and so needs no migration — and it is what keeps
+    #: resolution off the N+1 path: a view prefetches it once and `translations.resolve` then does
+    #: no queries at all. The two text fields on this model stay the ORIGINAL language; see
+    #: `translations/models.py` for why they survive.
+    text_versions = GenericRelation('translations.TextVersion')
 
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='todo')
     priority = models.PositiveSmallIntegerField(choices=PRIORITY_CHOICES, default=3)

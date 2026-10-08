@@ -4,6 +4,7 @@
 // for each value lives in `lib/utils/labels.ts`, which says the same thing again from its side.
 
 import type { NodeRef } from './node';
+import type { LanguageReading, TextVersion } from '$lib/types/translation';
 
 export type OrganizationKind =
 	'university' | 'faculty' | 'school' | 'student_circle' | 'ngo' | 'company' | 'other';
@@ -44,6 +45,11 @@ export interface Organization extends OrganizationSummary {
 	canManage: boolean;
 	/** Anyone who can see the body may read its tasks and polls (2026-10-08). */
 	openBoard: boolean;
+	/** Which language `description` above actually is, and whether a newer one is waiting
+	 *  (backend `translations/`, 2026-10-08). The `name` is NOT translated — it is a registered
+	 *  name and the same in every language. */
+	language: LanguageReading;
+	textVersions: TextVersion[];
 }
 
 export interface OrganizationMember {

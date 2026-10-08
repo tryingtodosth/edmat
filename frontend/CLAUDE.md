@@ -140,6 +140,23 @@ needed that nothing else here does, each found by a browser run and invisible to
   fetched from esm.sh; `editor/sketchImage.ts` extends `ChemImage` (one Tiptap node type per name).
   `tldraw` is not MIT and must not be added.
 
+## One control for "which language is this written in?"
+
+`components/shared/ContentLocaleSelect.svelte` (2026-10-08) is the only place that answers it. Five
+forms asked separately before — two as **free text boxes** (`SolutionEntrySection`'s hint/solution
+composer and `TranslateForm`) and three as hand-written `<option value="pl">PL</option>` pairs
+(`/submit`, `/submit-material`, `CatalogueForm`). Its options are `SUPPORTED_CONTENT_LOCALES` plus
+the reader's own opted-in extras plus whatever the row already is, and **`exclude` narrows the list
+but may never empty it** — an exercise already published in every offered language would otherwise
+get a select with no options, which is exactly what the first wiring of `TranslateForm` produced.
+
+**The default is the INTERFACE language, everywhere.** The composer used to seed itself from
+`contentLocale` — the language the exercise was being *read* in — so a Polish-interface reader
+looking at the English rendering got `en` pre-filled for the Polish solution they were typing. What
+somebody is about to write is better guessed by the language they are reading the site in, and it is
+a picker, so a wrong guess costs one click. The list is bounded **for now** by the owner's own word:
+a content locale is a free string server-side and the content axis is unbounded on purpose.
+
 ## Hand-maintained mirrors of backend enums
 
 `lib/utils/labels.ts` (notification types/categories, currencies, donation platforms, …) —

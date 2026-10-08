@@ -18,6 +18,14 @@
 	import type { NodeRef } from '$lib/types/node';
 	import type { Poll, PollResults } from '$lib/types/poll';
 	import * as pollsService from '$lib/services/polls';
+	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
+	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import {
+		mapLanguageReading,
+		mapTextVersions,
+		type WrittenText
+	} from '$lib/services/textVersions';
+	import { NO_LANGUAGE_READING } from '$lib/types/translation';
 
 	let { node }: { node: NodeRef } = $props();
 
@@ -130,6 +138,48 @@
 		}
 	}
 
+	/** Patched in place rather than refetched: the write endpoint answers with the new reading for
+	 *  exactly this reason. */
+	function applyPollText(pollId: number, written: WrittenText) {
+		polls = polls.map((poll) =>
+			poll.id === pollId
+				? {
+						...poll,
+						question: written.heading,
+						description: written.body,
+						language: {
+							locale: written.language.locale,
+							requested_locale: written.language.requestedLocale,
+							is_fallback: written.language.isFallback,
+							available: written.language.available,
+							original_locale: written.language.originalLocale,
+							newer_elsewhere: written.language.newerElsewhere
+						},
+						text_versions: written.textVersions.map((version) => ({
+							locale: version.locale,
+							is_original: version.isOriginal,
+							heading: version.heading,
+							body: version.body,
+							updated_at: version.updatedAt
+						}))
+					}
+				: poll
+		);
+	}
+
+	/** A draft poll only — the server refuses the rest, and the menu does not offer it. */
+	async function handleDelete(poll: Poll) {
+		actionBusy = { ...actionBusy, [poll.id]: true };
+		try {
+			await pollsService.deletePoll(poll.id);
+			polls = polls.filter((row) => row.id !== poll.id);
+		} catch {
+			actionError = { ...actionError, [poll.id]: m.common_error_generic() };
+		} finally {
+			actionBusy = { ...actionBusy, [poll.id]: false };
+		}
+	}
+
 	async function handleOpenPoll(pollId: number) {
 		actionBusy = { ...actionBusy, [pollId]: true };
 		try {
@@ -234,7 +284,39 @@
 						<a href={resolve('/polls/[id]', { id: String(poll.id) })}>{poll.question}</a>
 					</h3>
 					<span class="poll-status-badge">{POLL_STATUSES[poll.status]()}</span>
+					{#if node.canManage}
+						<!-- The menu the owner asked for. `updatePoll` and `deletePoll` had been in the
+						     service with NO call site anywhere, so a poll's question and a draft poll's
+						     existence really were Django-admin-only. Editing the text is refused
+						     server-side once a poll leaves `draft` (409 `poll_not_draft`) — an open
+						     poll's question is what people have already voted on — so the item is only
+						     offered on a draft. -->
+						<ManagementTextMenu
+							kind="poll"
+							id={String(poll.id)}
+							versions={mapTextVersions(poll.text_versions)}
+							fallbackHeading={poll.question}
+							fallbackBody={poll.description}
+							headingLabel={m.polls_question()}
+							bodyLabel={m.polls_description()}
+							label={m.polls_rowActionsLabel()}
+							canEdit={poll.status === 'draft'}
+							items={poll.status === 'draft'
+								? [
+										{
+											label: m.polls_deleteDraft(),
+											danger: true,
+											onselect: () => void handleDelete(poll)
+										}
+									]
+								: []}
+							onSaved={(written) => applyPollText(poll.id, written)}
+						/>
+					{/if}
 				</div>
+				<LanguageNote
+					language={poll.language ? mapLanguageReading(poll.language) : NO_LANGUAGE_READING}
+				/>
 				{#if poll.description}
 					<p class="poll-description">{poll.description}</p>
 				{/if}

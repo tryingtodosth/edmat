@@ -1254,6 +1254,8 @@ class FeatureFlagTests(ApiTestCase):
                 'events',
                 'issues',
                 'posts',
+                # The "AI-assisted" mark (provenance/, migration 0050).
+                'ai_assisted',
                 'chemistry',
                 'galleries',
                 'age_verification',

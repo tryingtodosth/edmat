@@ -3,7 +3,9 @@
 // snake_case <-> camelCase mapping, like every other service here, so a field rename breaks in
 // exactly one file.
 
+import { getLocale } from '$lib/paraglide/runtime';
 import { apiClient } from '$lib/api/client';
+import { mapLanguageReading, mapTextVersions } from '$lib/services/textVersions';
 import type { NodeKind, NodeRef } from '$lib/types/node';
 import type {
 	Need,
@@ -51,7 +53,9 @@ function mapNeed(raw: any): Need {
 		acceptedCount: raw.accepted_count ?? 0,
 		createdBy: mapPerson(raw.created_by),
 		createdAt: raw.created_at ?? '',
-		updatedAt: raw.updated_at ?? ''
+		updatedAt: raw.updated_at ?? '',
+		language: mapLanguageReading(raw.language),
+		textVersions: mapTextVersions(raw.text_versions)
 	};
 }
 
@@ -88,6 +92,10 @@ function boardQuery(filters: NeedBoardFilters): string {
 	if (filters.remote) params.set('remote', '1');
 	if (filters.q) params.set('q', filters.q);
 	if (filters.nodeKind) params.set('node_kind', filters.nodeKind);
+	// On every read, filtered or not — the `services/taxonomy.ts` pattern. Without it the backend's
+	// `request_locale` falls back to 'pl' and an English reader silently gets the Polish
+	// (translations/, 2026-10-08).
+	params.set('lang', getLocale());
 	const query = params.toString();
 	return query ? `?${query}` : '';
 }
@@ -100,12 +108,12 @@ export async function getNeeds(filters: NeedBoardFilters = {}): Promise<Need[]> 
 }
 
 export async function getNeed(id: string): Promise<Need> {
-	return mapNeed(await apiClient.get(`/needs/${id}/`));
+	return mapNeed(await apiClient.get(`/needs/${id}/${boardQuery({})}`));
 }
 
 /** The needs of one node — course, event or material — for `NeedsPanel`. */
 export async function getNodeNeeds(kind: NodeKind, nodeId: string): Promise<Need[]> {
-	const raw = await apiClient.get<unknown[]>(`/nodes/${kind}/${nodeId}/needs/`);
+	const raw = await apiClient.get<unknown[]>(`/nodes/${kind}/${nodeId}/needs/${boardQuery({})}`);
 	return raw.map(mapNeed);
 }
 

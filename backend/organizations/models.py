@@ -27,7 +27,7 @@ and `LINK_KIND_CHOICES` below, and names this module from its side (house rule 1
 """
 
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -92,6 +92,10 @@ class Organization(models.Model):
     # says why that is the right place: every write path is then covered, including the admin and
     # any future seed command.
     description = models.TextField(blank=True)
+    #: Every language this organisation's description has been written in
+    #: (`translations.TextVersion`). A reverse accessor only — no column, no migration. The `name`
+    #: is deliberately NOT translated: it is a registered name and the same in every language.
+    text_versions = GenericRelation('translations.TextVersion')
     website = models.URLField(max_length=300, blank=True)
     city = models.CharField(max_length=120, blank=True)
     is_active = models.BooleanField(default=True)

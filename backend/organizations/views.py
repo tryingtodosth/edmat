@@ -71,7 +71,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     serializer_class = OrganizationSerializer
 
     def get_queryset(self):
-        qs = visible_organizations(self.request.user).select_related('created_by__profile')
+        # `text_versions` is the bilingual description (translations/, 2026-10-08): prefetched so
+        # `translations.resolve` answers in memory rather than once per row.
+        qs = (
+            visible_organizations(self.request.user)
+            .select_related('created_by__profile')
+            .prefetch_related('text_versions')
+        )
         if self.action == 'list':
             qs = qs.annotate(
                 member_count_annotated=Count('members', distinct=True),

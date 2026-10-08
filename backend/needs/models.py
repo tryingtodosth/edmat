@@ -19,7 +19,7 @@ and the conversation moves to a message to the node's staff, not a second form.
 """
 
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -75,6 +75,12 @@ class Need(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    #: Every language this row's text has been written in (`translations.TextVersion`).
+    #: A reverse accessor only — it adds no column and so needs no migration — and it is what keeps
+    #: resolution off the N+1 path: a view prefetches it once and `translations.resolve` then does
+    #: no queries at all. The two text fields on this model stay the ORIGINAL language; see
+    #: `translations/models.py` for why they survive.
+    text_versions = GenericRelation('translations.TextVersion')
     kind = models.CharField(max_length=10, choices=NEED_KIND_CHOICES, default='help')
     status = models.CharField(max_length=12, choices=NEED_STATUS_CHOICES, default='open')
     skill_level = models.CharField(max_length=12, choices=SKILL_LEVEL_CHOICES, default='none')

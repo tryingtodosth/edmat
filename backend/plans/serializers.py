@@ -16,6 +16,7 @@ from .models import PLAN_STATUS_CHOICES, Plan, PlanStep, PlanSuggestion
 from .rules import can_edit as plan_can_edit
 from .rules import progress as plan_progress
 from .rules import suggest_block_reason
+from translations.serializers import TranslatedTextMixin
 
 
 def _display_name(user) -> str:
@@ -26,7 +27,14 @@ def _display_name(user) -> str:
     return name or user.get_username()
 
 
-class PlanStepSerializer(serializers.ModelSerializer):
+class PlanStepSerializer(TranslatedTextMixin, serializers.ModelSerializer):
+    # Bilingual management text (translations/, 2026-10-08): `title`/`description` answer in the
+    # reader's `?lang=`, and `language`/`text_versions` say which language that actually is, what
+    # else exists and whether a newer version is waiting in another one. The mixin does all of it.
+    translated_heading_field = 'title'
+    translated_body_field = 'description'
+    language = serializers.SerializerMethodField()
+    text_versions = serializers.SerializerMethodField()
     done_by_name = serializers.SerializerMethodField()
     substeps = serializers.SerializerMethodField()
 
@@ -35,6 +43,9 @@ class PlanStepSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'plan', 'parent', 'title', 'description', 'order', 'status',
             'due_at', 'done_by', 'done_by_name', 'done_at', 'substeps',
+        
+            'language',
+            'text_versions',
         ]
         read_only_fields = ['id', 'plan', 'done_by', 'done_at']
 
@@ -50,7 +61,14 @@ class PlanStepSerializer(serializers.ModelSerializer):
         return PlanStepSerializer(rows, many=True, context=self.context).data
 
 
-class PlanSerializer(serializers.ModelSerializer):
+class PlanSerializer(TranslatedTextMixin, serializers.ModelSerializer):
+    # Bilingual management text (translations/, 2026-10-08): `title`/`description` answer in the
+    # reader's `?lang=`, and `language`/`text_versions` say which language that actually is, what
+    # else exists and whether a newer version is waiting in another one. The mixin does all of it.
+    translated_heading_field = 'title'
+    translated_body_field = 'description'
+    language = serializers.SerializerMethodField()
+    text_versions = serializers.SerializerMethodField()
     node = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     steps = serializers.SerializerMethodField()
@@ -64,6 +82,9 @@ class PlanSerializer(serializers.ModelSerializer):
             'id', 'node', 'title', 'description', 'status',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
             'steps', 'progress', 'can_edit', 'suggest_block_reason',
+        
+            'language',
+            'text_versions',
         ]
         read_only_fields = [
             'id', 'node', 'status', 'created_by', 'created_by_name', 'created_at', 'updated_at',

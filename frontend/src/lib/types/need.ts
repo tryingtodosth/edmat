@@ -2,6 +2,7 @@
 // models.py`'s choices; say so in both files (root CLAUDE.md house rule 13).
 
 import type { NodeRef } from './node';
+import type { LanguageReading, TextVersion } from '$lib/types/translation';
 
 export type NeedKind = 'help' | 'expertise' | 'equipment' | 'venue' | 'other';
 export type NeedStatus = 'open' | 'in_progress' | 'fulfilled' | 'cancelled';
@@ -32,6 +33,11 @@ export interface Need {
 	createdBy: NeedPerson | null;
 	createdAt: string;
 	updatedAt: string;
+	/** Which language the text above actually is, and whether a newer version is waiting in
+	 *  another one (backend `translations/`, 2026-10-08). */
+	language: LanguageReading;
+	/** Every written version, for the side-by-side editor. */
+	textVersions: TextVersion[];
 }
 
 export interface NeedDraft {

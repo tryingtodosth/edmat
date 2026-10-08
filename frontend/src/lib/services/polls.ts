@@ -3,13 +3,21 @@
  * The single seam between routes/components and the backend
  */
 
+import { getLocale } from '$lib/paraglide/runtime';
 import { apiClient } from '$lib/api/client';
 import type { NodeKind } from '$lib/types/node';
 import type { Poll, PollOption, PollResults } from '$lib/types/poll';
 
+/** `?lang=<interface locale>` on every read — the `services/taxonomy.ts` pattern. Without it the
+ *  backend's `request_locale` falls back to 'pl' and an English reader silently gets the Polish
+ *  (translations/, 2026-10-08). */
+function langQuery(): string {
+	return `?lang=${encodeURIComponent(getLocale())}`;
+}
+
 // Get polls for a node
 export async function getNodePolls(nodeKind: NodeKind, nodeId: number): Promise<Poll[]> {
-	return await apiClient.get<Poll[]>(`/nodes/${nodeKind}/${nodeId}/polls/`);
+	return await apiClient.get<Poll[]>(`/nodes/${nodeKind}/${nodeId}/polls/${langQuery()}`);
 }
 
 // Create a new poll (draft)
@@ -31,7 +39,7 @@ export async function createPoll(
 
 // Get a single poll
 export async function getPoll(pollId: number): Promise<Poll> {
-	return await apiClient.get<Poll>(`/polls/${pollId}/`);
+	return await apiClient.get<Poll>(`/polls/${pollId}/${langQuery()}`);
 }
 
 // Update a draft poll

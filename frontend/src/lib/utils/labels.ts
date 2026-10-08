@@ -424,6 +424,8 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	flashcards: m.featureFlags_label_flashcards, // "Flashcards: decks and spaced review"
 	learning_record: m.featureFlags_label_learningRecord, // "Learning record on public profiles"
 	creation_requires_verification: m.featureFlags_label_creationRequiresVerification, // "Creating courses, events, listings and organisations: verified contributors only"
+	// The "AI-assisted" mark (provenance/, 2026-10-08) — mirrors moderation/models.py's 0050 key.
+	ai_assisted: m.featureFlags_label_aiAssisted, // "The \"AI-assisted\" mark: author marks and community votes"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 

@@ -30,6 +30,7 @@
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import TaxonomyOptions, { OTHER_VALUE } from '$lib/components/shared/TaxonomyOptions.svelte';
+	import ContentLocaleSelect from '$lib/components/shared/ContentLocaleSelect.svelte';
 
 	let {
 		mode,
@@ -319,10 +320,10 @@
 			<!-- "Language" -->
 			<!-- Only while drafting: after the first publication the versions' language is what the
 			     material's original-locale translation row says, and moving it is a different job. -->
-			<select bind:value={locale} disabled={mode === 'edit' && project?.materialId !== null}>
-				<option value="pl">PL</option>
-				<option value="en">EN</option>
-			</select>
+			<ContentLocaleSelect
+				bind:value={locale}
+				disabled={mode === 'edit' && project?.materialId !== null}
+			/>
 		</label>
 
 		<AudienceSelect bind:value={audience} />

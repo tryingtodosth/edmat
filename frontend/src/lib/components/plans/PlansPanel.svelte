@@ -9,6 +9,9 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { createPlan, getNodePlans } from '$lib/services/plans';
+	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
+	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import type { WrittenText } from '$lib/services/textVersions';
 	import type { NodeRef } from '$lib/types/node';
 	import type { Plan, PlanStep } from '$lib/types/plan';
 	import { PLAN_STATUS_LABELS } from '$lib/utils/labels';
@@ -36,6 +39,22 @@
 			.then((found) => (plans = found))
 			.catch(() => (plans = []));
 	});
+
+	/** Patched in place: the write endpoint answers with the reading already resolved for this
+	 *  reader, so there is nothing to refetch. */
+	function applyText(id: string, written: WrittenText) {
+		plans = plans.map((plan) =>
+			plan.id === id
+				? {
+						...plan,
+						title: written.heading,
+						description: written.body,
+						language: written.language,
+						textVersions: written.textVersions
+					}
+				: plan
+		);
+	}
 
 	function nextOpenStep(plan: Plan): string | null {
 		const flat: PlanStep[] = plan.steps.flatMap((step) => [step, ...step.substeps]);
@@ -105,6 +124,23 @@
 							<div class="progress-fill" style={`width: ${plan.progress.percent}%`}></div>
 						</div>
 						<span class="progress-text">{plan.progress.done}/{plan.progress.total}</span>
+						{#if plan.canEdit}
+							<!-- A plan already has a full edit page at `/plans/[id]`; this is the one thing
+							     that page's form cannot do — write the title and the description in both
+							     languages in a single submission. -->
+							<ManagementTextMenu
+								kind="plan"
+								id={plan.id}
+								versions={plan.textVersions}
+								fallbackHeading={plan.title}
+								fallbackBody={plan.description}
+								headingLabel={m.plans_detail_titleLabel()}
+								bodyLabel={m.plans_detail_descriptionLabel()}
+								label={m.plans_rowActionsLabel()}
+								onSaved={(written) => applyText(plan.id, written)}
+							/>
+						{/if}
+						<LanguageNote language={plan.language} />
 						{#if nextOpenStep(plan)}
 							<span class="next-step"
 								>{m.plans_panel_next({ title: nextOpenStep(plan) ?? '' })}</span

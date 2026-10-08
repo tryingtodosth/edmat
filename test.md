@@ -2353,3 +2353,95 @@ empty ballot list, and a stranger's vote is `409 not_eligible` while the owner's
 `can_vote`. `work.tests` adjusted: the seeded organisation's board is open, so the anonymous and
 stranger readings of its tasks and polls are 200 with no vote or edit. Run `manage.py test
 organizations tasks decisions work --keepdb`.
+
+## The "AI-assisted" mark and bilingual management text (2026-10-08, `HISTORY.md` §17BX)
+
+### `provenance/tests.py` — 28 tests
+
+**The formula first, with no database.** `rules._derive` is a function over an already-gathered row
+for exactly this reason: the thing hardest to notice going wrong is not "a vote was saved" but "the
+three-people icon lit on one person's opinion", and that is a table of numbers rather than a request.
+Nine rows: nothing claimed, one confident vote (which must NOT light the community mark — that is
+`MIN_VOTES_FOR_COMMUNITY_MARK`), enough votes above and below the threshold, the author's mark
+reading 100 whatever the votes say, an author's denial NOT pulling the community reading down, and a
+lock replacing the community reading while leaving the author's mark alone.
+
+**Then the refusals, before any happy path:** the author voting on their own work (403
+`author_marks_instead`), a stranger answering as the author (403 `not_the_author`), an anonymous
+visitor reading but not voting, a confidence outside 0–100, a lock with no reason, an ordinary reader
+locking, a removed comment **omitted from the batch rather than described** (house rule 4) and still
+described to staff, an unknown kind dropped from a batch and 404 on a write, the kill switch closing
+the surface to a non-staff reader, and a minor's mark counting while their free text does not.
+
+Then: a vote as an upsert (the count is people, never opinions), retraction, three readers lighting
+the community mark, the author mark recording who answered and at which version, "the author says no"
+being a different state from "nobody has asked", a moderator locking and unlocking without erasing
+who said what, a branch governor locking inside their own branch, one batch answering for four kinds
+at once, the batch saying what this reader may do with each row, and the batch cap.
+
+### `translations/tests.py` — 24 tests
+
+**The resolution first, with no database and no models**: `resolve.pick` takes plain values, which is
+why these are a table. (An earlier draft faked a *model* and got an empty heading, because
+`targets.own_text` asks the registry what a row's text columns are called and a fake is in no
+registry.) Six rows: a row with no versions reading its own columns and saying nothing else — which
+is every management row written before this existed, and what makes the change additive; the reader's
+own language when it exists; the original with `is_fallback` when it does not; **two languages
+written together reporting nothing newer**; a newer version in another language reporting the gap in
+seconds; and the reader already on the newest one being told nothing.
+
+Then the refusals (an outsider gets 404 not 403 — writes are owner-scoped; anonymous; an unknown
+kind; an **open poll** refusing 409 `poll_not_draft`, the same refusal `decisions/views.py` already
+makes because an open poll's question is what people voted on; an original language missing from the
+payload; an empty original heading), then the happy paths — including the end-to-end one that caught
+a real bug: a task listed with `?lang=en` must answer `title` in English, which it did not until
+`tasks/views.py` started passing `request` in the serializer context.
+
+Also: changing which language is the original (the partial unique index is immediate, so the previous
+original has to stop being one FIRST — an earlier draft of the service got this wrong), a blanked
+translation being deleted while an unmentioned one is left alone, a task **assignee** translating the
+thing they are carrying, every kind in the registry, a poll option's heading-and-no-body, an
+organisation's body-and-no-heading, and the mirrored column being sanitized like the version row.
+
+`SeedDeGluingTests` / `SeedLookupTests` cover `work/edmat_project.py`'s own splitting: the body rule,
+the title separator (including `tak/nie? / yes/no?`, the case that made a naive split risky), an
+assertion that **every** title in that file still splits into at most two halves, and the lookup
+finding a row whether an earlier run left it glued or this run rewrote it to the Polish half — without
+which a second run duplicates every task, plan, need and poll.
+
+### `frontend/e2e/ai-assist-and-bilingual.mjs` — 31 checks
+
+Both features in one script because they land on the same two pages.
+
+```bash
+E2E_BASE=http://localhost:5183 E2E_API=http://127.0.0.1:8100/api \
+  E2E_OWNER_TOKEN=<the EdMat organisation owner's DRF token> \
+  node e2e/ai-assist-and-bilingual.mjs
+```
+
+Needs `seed_demo_users` and `seed_edmat_project --owner <username>`. Part C needs a token because the
+organisation's owner is a real person's account rather than a demo one; without it those six checks
+are skipped rather than failed.
+
+- **A** — the content menu on the statement, a hint/solution and a review, with the ORDER asserted as
+  an order (reply above the AI mark, report below it) and not as a set; the confidence slider writing
+  a real vote; and the chip appearing only once **three** readers agree — one vote lights neither
+  mark, so the script votes twice more through the API and then asserts that exactly one of the two
+  icons is lit and that the label names the community.
+- **A2** — the `ai_assisted` kill switch **as a non-staff reader** (trap 10): the AI item and the chip
+  go, reply and report stay, because they belong to other features (house rule 3).
+- **B** — `/about` in English and in Polish, asserting both that the right language is there and that
+  the other one is NOT, which is what "glued" would look like.
+- **C** — the owner's "Edit in both languages…" on the organisation description and on a need row,
+  and the editor's two panes carrying the Polish and the English.
+
+Three traps this script re-learned, each now written into it:
+
+- the token key is **`edmat-auth-token`** (`token.svelte.ts`'s `STORAGE_KEY`); an earlier draft
+  guessed `edmat.token` and the symptom was a menu with only "Reply" in it, because every other item
+  needs `authStore.isAuthenticated`;
+- it **resets its own vote through the API at the start**, or the second run finds the first one's
+  and looks for a button that now reads "Change my opinion";
+- an entry needs **two** clicks to reach — the reveal toggle, and "show N more in other languages",
+  because the script reads the English interface and the corpus entries are Polish (trap 16, one
+  layer in: it bites inside a page as well as on a list).

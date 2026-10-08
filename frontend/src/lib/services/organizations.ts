@@ -10,6 +10,8 @@
 // them, so a component catches `OrganizationRefusedError` and looks the word up — it never has to
 // know the word travelled inside an HTTP body.
 
+import { getLocale } from '$lib/paraglide/runtime';
+import { mapLanguageReading, mapTextVersions } from '$lib/services/textVersions';
 import { apiClient, ApiError } from '$lib/api/client';
 import type { NodeKind, NodeRef } from '$lib/types/node';
 import type {
@@ -87,7 +89,9 @@ function mapOrganization(raw: any): Organization {
 		createdAt: raw.created_at ?? '',
 		myRole: (raw.my_role ?? null) as OrganizationRole | null,
 		canManage: Boolean(raw.can_manage),
-		openBoard: Boolean(raw.open_board)
+		openBoard: Boolean(raw.open_board),
+		language: mapLanguageReading(raw.language),
+		textVersions: mapTextVersions(raw.text_versions)
 	};
 }
 
@@ -134,7 +138,12 @@ export async function getOrganizations(
 }
 
 export async function getOrganization(id: string): Promise<Organization> {
-	return mapOrganization(await apiClient.get(`/organizations/${id}/`));
+	// `?lang=` — the `services/taxonomy.ts` pattern. Without it the backend's `request_locale`
+	// falls back to 'pl' and an English reader silently gets the Polish description
+	// (translations/, 2026-10-08).
+	return mapOrganization(
+		await apiClient.get(`/organizations/${id}/?lang=${encodeURIComponent(getLocale())}`)
+	);
 }
 
 /** `/organizations/[slug]` resolves through this: the numeric pk stays the API's own id (root

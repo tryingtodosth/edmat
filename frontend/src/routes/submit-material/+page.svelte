@@ -8,6 +8,7 @@
 	// verified contributor or a governor of the branch publish at once; anybody else's first
 	// publication waits in the moderation queue's Materials tab for a person to read it.
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
+	import { getLocale } from '$lib/paraglide/runtime';
 	import type { Audience } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
@@ -34,6 +35,7 @@
 	import ProposeNodeButton from '$lib/components/discipline/ProposeNodeButton.svelte';
 	import TaxonomyOptions, { OTHER_VALUE } from '$lib/components/shared/TaxonomyOptions.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import ContentLocaleSelect from '$lib/components/shared/ContentLocaleSelect.svelte';
 
 	// "exams, tests, etc. — usually a PDF/PNG, but a whole LaTeX/Word document should be accepted
 	// too, scanned and kept safe" — the actual real content-type sniffing + optional malware scan
@@ -77,7 +79,13 @@
 	// `example.edu/handout.pdf` typed without a scheme. Normalized in handleSubmit instead.
 	let author = $state('');
 	let sourceUrl = $state('');
-	let locale = $state('pl');
+	// The language this is WRITTEN in, opening on the one the submitter is reading the site in
+	// (owner, 2026-10-08). It was hard-coded `'pl'`, which is right for a Polish reader and quietly
+	// wrong for an English one — the same mismatch the owner reported on the hint/solution composer,
+	// where the default came from the exercise instead. One rule everywhere now: what somebody is
+	// about to write is best guessed by the language they are reading in, and it is a picker, so a
+	// wrong guess costs one click.
+	let locale = $state(getLocale());
 	let audience = $state<Audience | ''>('');
 	// **Several files at once (owner, 2026-10-01: "adding material form should allow multiple
 	// files").** They become several MATERIALS, one per file, not one material with several files
@@ -656,10 +664,7 @@
 					</div>
 					<label class="field">
 						<span>{m.submitMaterial_field_language()}</span>
-						<select bind:value={locale}>
-							<option value="pl">PL</option>
-							<option value="en">EN</option>
-						</select>
+						<ContentLocaleSelect bind:value={locale} />
 						{@render fieldNote(['locale'])}
 					</label>
 					<AudienceSelect bind:value={audience} />

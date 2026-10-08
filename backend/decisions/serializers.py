@@ -4,21 +4,39 @@ from rest_framework import serializers
 
 from config.sanitize import sanitize_content
 from .models import Ballot, Poll, PollOption
+from translations.serializers import TranslatedTextMixin
 
 
-class PollOptionSerializer(serializers.ModelSerializer):
+class PollOptionSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     """A poll option — `poll`, `text`, `order`. No vote count here: counts are only ever answered
     by `/api/polls/{id}/results/`, which is the one place `rules.can_see_results` is checked
     (house rule 4 — results are hidden until close for non-managers; embedding a live tally in
     the plain poll representation would leak it to anyone who can merely see the poll)."""
 
+    # Bilingual management text (translations/, 2026-10-08). The ONE target with a heading and no
+    # body: an option is a line of text, so `translated_body_field` is None and the mixin leaves
+    # whatever `body` a version carries unread. Translated at all because the EdMat seed's own
+    # options were written glued — "Liczba 0–1, głosy ją przesuwają / A number 0–1, moved by
+    # votes" — which is the thing this app exists to undo.
+    translated_heading_field = 'text'
+    translated_body_field = None
+    language = serializers.SerializerMethodField()
+    text_versions = serializers.SerializerMethodField()
+
     class Meta:
         model = PollOption
-        fields = ['id', 'text', 'order']
+        fields = ['id', 'text', 'order', 'language', 'text_versions']
 
 
-class PollSerializer(serializers.ModelSerializer):
+class PollSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     """A poll with its options. `has_voted` needs `context={'request': request}`."""
+    # Bilingual management text (translations/, 2026-10-08): `question`/`description` answer in the
+    # reader's `?lang=`, and `language`/`text_versions` say which language that actually is, what
+    # else exists and whether a newer version is waiting in another one. The mixin does all of it.
+    translated_heading_field = 'question'
+    translated_body_field = 'description'
+    language = serializers.SerializerMethodField()
+    text_versions = serializers.SerializerMethodField()
 
     options = PollOptionSerializer(many=True, read_only=True)
     has_voted = serializers.SerializerMethodField()
@@ -48,6 +66,9 @@ class PollSerializer(serializers.ModelSerializer):
             'has_voted',
             'can_vote',
             'can_see_results',
+        
+            'language',
+            'text_versions',
         ]
         read_only_fields = [
             'id',

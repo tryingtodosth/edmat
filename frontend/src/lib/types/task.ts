@@ -15,6 +15,7 @@
  */
 
 import type { NodeRef } from './node';
+import type { LanguageReading, TextVersion } from '$lib/types/translation';
 
 /** One `status`, never two booleans. `done` and `cancelled` are two different ends. */
 export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
@@ -76,6 +77,11 @@ export interface Task {
 	canEdit: boolean;
 	/** Node manager only — putting somebody on a task is running the thing. */
 	canAssign: boolean;
+	/** Which language `title`/`description` above actually are, and whether a newer version is
+	 *  waiting in another one (backend `translations/`, 2026-10-08). */
+	language: LanguageReading;
+	/** Every written version, for the side-by-side editor. */
+	textVersions: TextVersion[];
 }
 
 /** `GET /api/tasks/mine/` — two lists, because they answer different questions: work waiting on

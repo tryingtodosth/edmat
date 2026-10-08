@@ -71,6 +71,11 @@ urlpatterns = [
     path('api/', include('work.urls')),
     # The learning cycle (prompts/00-DESIGN.md §3), included EMPTY by the prep commit.
     path('api/', include('flashcards.urls')),
+    # The "AI-assisted" mark on content (provenance/urls.py) — `ai-assistance/`, named for the
+    # question it answers rather than for the app.
+    path('api/', include('provenance.urls')),
+    # Writing a management row's text in every language at once (translations/urls.py).
+    path('api/', include('translations.urls')),
 ]
 
 if settings.DEBUG:

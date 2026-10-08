@@ -25,7 +25,7 @@ the step it produced can later be retitled or completed on its own.
 """
 
 from django.conf import settings
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -58,6 +58,12 @@ class Plan(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    #: Every language this row's text has been written in (`translations.TextVersion`).
+    #: A reverse accessor only — it adds no column and so needs no migration — and it is what keeps
+    #: resolution off the N+1 path: a view prefetches it once and `translations.resolve` then does
+    #: no queries at all. The two text fields on this model stay the ORIGINAL language; see
+    #: `translations/models.py` for why they survive.
+    text_versions = GenericRelation('translations.TextVersion')
     status = models.CharField(max_length=10, choices=PLAN_STATUS_CHOICES, default='draft')
 
     created_by = models.ForeignKey(
@@ -93,6 +99,12 @@ class PlanStep(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    #: Every language this row's text has been written in (`translations.TextVersion`).
+    #: A reverse accessor only — it adds no column and so needs no migration — and it is what keeps
+    #: resolution off the N+1 path: a view prefetches it once and `translations.resolve` then does
+    #: no queries at all. The two text fields on this model stay the ORIGINAL language; see
+    #: `translations/models.py` for why they survive.
+    text_versions = GenericRelation('translations.TextVersion')
     order = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=12, choices=STEP_STATUS_CHOICES, default='pending')
     due_at = models.DateTimeField(null=True, blank=True)

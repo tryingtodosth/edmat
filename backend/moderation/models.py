@@ -412,6 +412,17 @@ FEATURE_FLAG_CHOICES = [
     # exists, founding things is for people the site can vouch for. Reads, joining and everything
     # already created are untouched. The day USOS lands, a moderator flips this off.
     ('creation_requires_verification', 'Creating courses, events, listings and organisations: verified contributors only'),
+    # The "AI-assisted" mark (provenance/, 2026-10-08): the author's own disclosure, one
+    # confidence vote per person per piece of content, and a moderator's lock. A plain kill switch
+    # like the rows above it, seeded ON by migration 0050 — nothing on the platform carries a mark
+    # or a vote the moment it runs, so switching it on takes nothing away from anybody.
+    #
+    # Off, `/api/ai-assistance/` closes to a non-staff caller and the frontend takes the whole
+    # surface with it (house rule 3): the chip leaves every statement, hint, solution, comment and
+    # review, and the two menu items ("mark as AI-assisted", and a moderator's "lock the score")
+    # leave the content menu — which keeps its reply, report and remove items, because those belong
+    # to other features and must go on working with this one off.
+    ('ai_assisted', 'The "AI-assisted" mark: author marks and community votes'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

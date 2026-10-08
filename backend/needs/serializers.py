@@ -5,6 +5,7 @@ from rest_framework import serializers
 from config import nodes as node_seam
 
 from .models import MAX_SPOKEN_LANGUAGES, Need, NeedApplication, VolunteeringOffer
+from translations.serializers import TranslatedTextMixin
 
 
 def _display_name(user) -> str:
@@ -21,11 +22,18 @@ def _person(user) -> dict | None:
     return {'id': user.pk, 'display_name': _display_name(user)}
 
 
-class NeedSerializer(serializers.ModelSerializer):
+class NeedSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     """`node` is read-only and computed (`config.nodes.node_ref`) — the need's node is set once, at
     creation, from the URL it was posted under (`NodeNeedsView.post`), never from the request body:
     a client-chosen `content_type`/`object_id` would let anybody pin a need on a node they do not
     run."""
+    # Bilingual management text (translations/, 2026-10-08): `title`/`description` answer in the
+    # reader's `?lang=`, and `language`/`text_versions` say which language that actually is, what
+    # else exists and whether a newer version is waiting in another one. The mixin does all of it.
+    translated_heading_field = 'title'
+    translated_body_field = 'description'
+    language = serializers.SerializerMethodField()
+    text_versions = serializers.SerializerMethodField()
 
     node = serializers.SerializerMethodField()
     accepted_count = serializers.SerializerMethodField()
@@ -37,6 +45,9 @@ class NeedSerializer(serializers.ModelSerializer):
             'id', 'node', 'title', 'description', 'kind', 'status', 'skill_level',
             'estimated_hours', 'deadline', 'is_remote', 'wanted_count', 'accepted_count',
             'created_by', 'created_at', 'updated_at',
+        
+            'language',
+            'text_versions',
         ]
         read_only_fields = ['id', 'node', 'accepted_count', 'created_by', 'created_at', 'updated_at']
 

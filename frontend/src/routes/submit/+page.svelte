@@ -1,5 +1,6 @@
 <script lang="ts">
 	import RichEditor from '$lib/components/editor/RichEditor.svelte';
+	import { getLocale } from '$lib/paraglide/runtime';
 	import InsertStrip from '$lib/components/editor/InsertStrip.svelte';
 	import AudienceSelect from '$lib/components/shared/AudienceSelect.svelte';
 	import type { Audience } from '$lib/types';
@@ -39,6 +40,7 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import TaxonomyOptions, { OTHER_VALUE } from '$lib/components/shared/TaxonomyOptions.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import ContentLocaleSelect from '$lib/components/shared/ContentLocaleSelect.svelte';
 
 	let fields = $state<Discipline[]>([]);
 	let branches = $state<Branch[]>([]);
@@ -78,7 +80,13 @@
 	let answerStrip = $state<InsertStrip | null>(null);
 	let solutionEditor = $state<RichEditor | null>(null);
 	let solutionStrip = $state<InsertStrip | null>(null);
-	let locale = $state('pl');
+	// The language this is WRITTEN in, opening on the one the submitter is reading the site in
+	// (owner, 2026-10-08). It was hard-coded `'pl'`, which is right for a Polish reader and quietly
+	// wrong for an English one — the same mismatch the owner reported on the hint/solution composer,
+	// where the default came from the exercise instead. One rule everywhere now: what somebody is
+	// about to write is best guessed by the language they are reading in, and it is a picker, so a
+	// wrong guess costs one click.
+	let locale = $state(getLocale());
 	let tagsInput = $state('');
 	// Free-text prerequisite/"skill tag" chips — same add-one-at-a-time interaction
 	// submit-material/+page.svelte's own requirements editor already establishes for a Material,
@@ -427,10 +435,7 @@
 					</label>
 					<label class="field">
 						<span>{m.submit_field_language()}</span>
-						<select bind:value={locale}>
-							<option value="pl">PL</option>
-							<option value="en">EN</option>
-						</select>
+						<ContentLocaleSelect bind:value={locale} />
 					</label>
 				</div>
 

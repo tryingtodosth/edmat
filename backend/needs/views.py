@@ -67,7 +67,8 @@ class NodeNeedsView(APIView):
 
     def get(self, request, kind, pk):
         node = self._node(request, kind, pk)
-        qs = rules.node_needs(request.user, node)
+        # `text_versions` is the bilingual text — translations/, 2026-10-08.
+        qs = rules.node_needs(request.user, node).prefetch_related('text_versions')
         return Response(NeedSerializer(qs, many=True, context={'request': request}).data)
 
     def post(self, request, kind, pk):
@@ -96,7 +97,7 @@ class NeedViewSet(
     serializer_class = NeedSerializer
 
     def get_queryset(self):
-        return rules.public_needs(self.request.user)
+        return rules.public_needs(self.request.user).prefetch_related('text_versions')
 
     def list(self, request, *args, **kwargs):
         qs = self.get_queryset()

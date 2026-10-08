@@ -16,6 +16,9 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import AssigneePicker from './AssigneePicker.svelte';
 	import TaskForm from './TaskForm.svelte';
+	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
+	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import type { WrittenText } from '$lib/services/textVersions';
 	import {
 		createSubtask,
 		deleteTask,
@@ -68,6 +71,18 @@
 		} finally {
 			busy = false;
 		}
+	}
+
+	/** The text came back already resolved for this reader, so the card is handed straight up
+	 *  through `onchanged` rather than refetching the board. */
+	function applyText(written: WrittenText) {
+		onchanged({
+			...task,
+			title: written.heading,
+			description: written.body,
+			language: written.language,
+			textVersions: written.textVersions
+		});
 	}
 
 	function saveEdit(draft: TaskDraft) {
@@ -147,6 +162,8 @@
 		<AssigneePicker {task} node={task.node} onchanged={(updated) => onchanged(updated)} />
 	{/if}
 
+	<LanguageNote language={task.language} />
+
 	<div class="actions">
 		{#each moves as to (to)}
 			<button type="button" disabled={busy} onclick={() => move(to)}
@@ -177,6 +194,22 @@
 				<!-- "Open the task" -->
 			</a>
 		{/if}
+		<!-- The buttons above stay buttons: they are this card's own work and are better visible
+		     than folded into a menu. The menu adds the one thing they cannot do — write the title
+		     and the description in both languages in a single submission, so that translating is
+		     never a second, later edit that leaves the other language "4 minutes" behind. -->
+		<ManagementTextMenu
+			kind="task"
+			id={task.id}
+			versions={task.textVersions}
+			fallbackHeading={task.title}
+			fallbackBody={task.description}
+			headingLabel={m.tasks_fieldTitle()}
+			bodyLabel={m.tasks_fieldDescription()}
+			label={m.tasks_rowActionsLabel()}
+			canEdit={task.canEdit}
+			onSaved={applyText}
+		/>
 	</div>
 
 	{#if confirmingDelete}

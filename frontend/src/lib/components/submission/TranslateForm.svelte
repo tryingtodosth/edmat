@@ -2,20 +2,42 @@
 	import { untrack } from 'svelte';
 	import type { TranslationDraft } from '$lib/services/translations';
 	import { m } from '$lib/paraglide/messages.js';
+	import { getLocale } from '$lib/paraglide/runtime';
+	import { SUPPORTED_CONTENT_LOCALES } from '$lib/state/contentLocales.svelte';
+	import ContentLocaleSelect from '$lib/components/shared/ContentLocaleSelect.svelte';
 
 	let {
 		sourceValues,
+		existingLocales = [],
 		onSubmit,
 		onCancel
 	}: {
 		sourceValues: Omit<TranslationDraft, 'locale'>;
+		/** The languages this exercise is already published in. Offering one of them is offering to
+		 *  translate something into the language it is already in, so the picker leaves them out. */
+		existingLocales?: string[];
 		onSubmit: (draft: TranslationDraft) => void;
 		onCancel: () => void;
 	} = $props();
 
 	// Deliberate one-time read of the props (see EditSuggestionForm's identical note) — a real,
 	// editable scaffold the translator then edits freely, not a live mirror of the source.
-	let locale = $state('');
+	//
+	// The language was a free text box until 2026-10-08 (owner: *"lets have a pick choose one
+	// from"*). It opens on the reader's own interface language when that is one this exercise does
+	// not have yet — you most often translate INTO the language you are reading the site in — and
+	// otherwise on the first language it is missing.
+	let locale = $state(
+		untrack(() => {
+			const missing = SUPPORTED_CONTENT_LOCALES.filter((one) => !existingLocales.includes(one));
+			const reader = getLocale();
+			if (missing.includes(reader)) return reader;
+			// Nothing missing — this exercise already has every language on offer. The picker then
+			// shows the whole list (see `ContentLocaleSelect`), so this has to land on a real value
+			// rather than on `''`, which would have rendered a select with nothing selected.
+			return missing[0] ?? reader;
+		})
+	);
 	let title = $state(untrack(() => sourceValues.title));
 	let statement = $state(untrack(() => sourceValues.statement));
 	let answer = $state(untrack(() => sourceValues.answer));
@@ -35,7 +57,7 @@
 
 	<label class="field">
 		<span>{m.translate_field_locale()}</span>
-		<input type="text" maxlength="8" bind:value={locale} required />
+		<ContentLocaleSelect bind:value={locale} exclude={existingLocales} />
 	</label>
 	<label class="field">
 		<span>{m.submit_field_title()}</span>

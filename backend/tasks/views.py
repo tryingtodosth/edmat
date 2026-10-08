@@ -63,8 +63,14 @@ def _refusal(reason):
 
 
 def _tasks_for_reading(queryset):
+    # `text_versions` is the bilingual text (translations/, 2026-10-08): prefetched here, with
+    # everything else a row needs, so `translations.resolve` answers in memory and a board of fifty
+    # tasks costs the same two extra queries as a board of one.
     return queryset.select_related('created_by__profile', 'content_type').prefetch_related(
-        'assignees__user__profile', 'subtasks__assignees__user__profile'
+        'assignees__user__profile',
+        'subtasks__assignees__user__profile',
+        'text_versions',
+        'subtasks__text_versions',
     )
 
 
@@ -108,7 +114,7 @@ class NodeTasksView(APIView):
         node = self._node_or_404(request, kind, pk)
         queryset = rules.visible_tasks(request.user, node).filter(parent__isnull=True)
         queryset = _apply_filters(_tasks_for_reading(queryset), request)
-        serializer = TaskSerializer(queryset, many=True, context={'user': request.user})
+        serializer = TaskSerializer(queryset, many=True, context={'user': request.user, 'request': request})
         return Response(serializer.data)
 
     def post(self, request, kind, pk):
@@ -128,7 +134,7 @@ class NodeTasksView(APIView):
             **serializer.validated_data,
         )
         return Response(
-            TaskSerializer(task, context={'user': request.user}).data,
+            TaskSerializer(task, context={'user': request.user, 'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -180,7 +186,7 @@ class TaskViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save()
         task.refresh_from_db()
-        return Response(TaskSerializer(task, context={'user': request.user}).data)
+        return Response(TaskSerializer(task, context={'user': request.user, 'request': request}).data)
 
     def destroy(self, request, *args, **kwargs):
         task = self.get_object()
@@ -219,7 +225,7 @@ class TaskViewSet(
         if not changed:
             return _refusal(rules.ILLEGAL_TRANSITION)
         task.refresh_from_db()
-        return Response(TaskSerializer(task, context={'user': request.user}).data)
+        return Response(TaskSerializer(task, context={'user': request.user, 'request': request}).data)
 
     # ---- staffing -----------------------------------------------------------------------------
 
@@ -239,7 +245,7 @@ class TaskViewSet(
             return _refusal(reason)
         TaskAssignee.objects.create(task=task, user=target, assigned_by=request.user)
         task.refresh_from_db()
-        return Response(TaskSerializer(task, context={'user': request.user}).data)
+        return Response(TaskSerializer(task, context={'user': request.user, 'request': request}).data)
 
     @action(detail=True, methods=['post'])
     def unassign(self, request, pk=None):
@@ -250,7 +256,7 @@ class TaskViewSet(
             return _refusal(reason)
         task.assignees.filter(user=target).delete()
         task.refresh_from_db()
-        return Response(TaskSerializer(task, context={'user': request.user}).data)
+        return Response(TaskSerializer(task, context={'user': request.user, 'request': request}).data)
 
     # ---- subtasks -----------------------------------------------------------------------------
 
@@ -273,7 +279,7 @@ class TaskViewSet(
             **serializer.validated_data,
         )
         return Response(
-            TaskSerializer(child, context={'user': request.user}).data,
+            TaskSerializer(child, context={'user': request.user, 'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -306,7 +312,10 @@ class TaskViewSet(
                 created.append(task)
         assigned.sort(key=_mine_order)
         created.sort(key=_mine_order)
-        context = {'user': user}
+        # `request` as well as `user` since 2026-10-08: `TranslatedTextMixin` reads `?lang=` off it
+        # to answer `title`/`description` in the reader's language. `user` stays the explicit one
+        # this serializer's own docstring insists on.
+        context = {'user': user, 'request': request}
         return Response(
             {
                 'assigned': TaskSerializer(assigned, many=True, context=context).data,

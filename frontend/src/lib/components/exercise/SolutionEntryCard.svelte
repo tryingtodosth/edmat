@@ -25,7 +25,8 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import PdfViewer from '$lib/components/material/PdfViewer.svelte';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
-	import ReportButton from '$lib/components/shared/ReportButton.svelte';
+	import ContentActionsMenu from '$lib/components/shared/ContentActionsMenu.svelte';
+	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
 
 	let {
 		entry,
@@ -221,6 +222,13 @@
 		usersById = next;
 	}
 
+	/** The menu's "reply" OPENS the thread rather than toggling it: a reader who has just chosen
+	 *  "reply" from a menu means to write one, and a toggle would close the thread for anybody who
+	 *  already had it open. */
+	async function openComments() {
+		if (!showComments) await toggleComments();
+	}
+
 	async function toggleComments() {
 		showComments = !showComments;
 		if (showComments && !commentsLoaded) {
@@ -285,6 +293,7 @@
 				<span class="badge badge--rejected">{m.entry_rejectedBadge()}</span>
 			{/if}
 			<span class="badge badge--lang">{entry.locale.toUpperCase()}</span>
+			<AiAssistChip kind="solution_entry" id={entry.id} />
 			{#if entry.authorId}
 				<a class="entry__author" href={resolve('/users/[id]', { id: entry.authorId })}
 					>{entry.authorDisplayName}</a
@@ -374,7 +383,21 @@
 			<button type="button" class="action" onclick={toggleComments}
 				>{m.entry_commentsToggle({ count: entry.commentCount })}</button
 			>
-			<ReportButton kind="solution_entry" objectId={entry.id} />
+			<!-- The content menu, in place of what was a bare "report" link: reply (which is this
+			     entry's own thread, right here), the "AI-assisted" mark, report, and a moderator's
+			     quick remove/restore. The buttons beside it stay buttons on purpose — pinning,
+			     accepting and suggesting an edit are this surface's own work and are better visible
+			     than folded into a menu nobody has opened. -->
+			<ContentActionsMenu
+				kind="solution_entry"
+				id={entry.id}
+				label={entry.kind === 'hint'
+					? m.content_actionsLabel_hint()
+					: m.content_actionsLabel_solution()}
+				onReply={openComments}
+				reportable={!isOwn}
+				hidden={entry.status !== 'published'}
+			/>
 		</footer>
 
 		{#if showDenyForm}

@@ -3,7 +3,9 @@
 // fetch. Hand-written snake_case ↔ camelCase mapping, like every other service here, so a field
 // rename breaks in exactly one file.
 
+import { getLocale } from '$lib/paraglide/runtime';
 import { apiClient } from '$lib/api/client';
+import { mapLanguageReading, mapTextVersions } from '$lib/services/textVersions';
 import type { NodeKind, NodeRef } from '$lib/types/node';
 import type {
 	Plan,
@@ -41,7 +43,9 @@ function mapStep(raw: any): PlanStep {
 		doneById: raw.done_by != null ? String(raw.done_by) : null,
 		doneByName: raw.done_by_name ?? '',
 		doneAt: raw.done_at ?? null,
-		substeps: Array.isArray(raw.substeps) ? raw.substeps.map(mapStep) : []
+		substeps: Array.isArray(raw.substeps) ? raw.substeps.map(mapStep) : [],
+		language: mapLanguageReading(raw.language),
+		textVersions: mapTextVersions(raw.text_versions)
 	};
 }
 
@@ -64,7 +68,9 @@ function mapPlan(raw: any): Plan {
 			percent: raw.progress?.percent ?? 0
 		},
 		canEdit: raw.can_edit ?? false,
-		suggestBlockReason: (raw.suggest_block_reason ?? null) as PlanBlockReason | null
+		suggestBlockReason: (raw.suggest_block_reason ?? null) as PlanBlockReason | null,
+		language: mapLanguageReading(raw.language),
+		textVersions: mapTextVersions(raw.text_versions)
 	};
 }
 
@@ -85,8 +91,15 @@ function mapSuggestion(raw: any): PlanSuggestion {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/** `?lang=<interface locale>` on every read — the `services/taxonomy.ts` pattern. Without it the
+ *  backend's `request_locale` falls back to 'pl' and an English reader silently gets the Polish
+ *  (translations/, 2026-10-08). */
+function langQuery(): string {
+	return `?lang=${encodeURIComponent(getLocale())}`;
+}
+
 export async function getNodePlans(kind: NodeKind, nodeId: string): Promise<Plan[]> {
-	const raw = await apiClient.get<unknown[]>(`/nodes/${kind}/${nodeId}/plans/`);
+	const raw = await apiClient.get<unknown[]>(`/nodes/${kind}/${nodeId}/plans/${langQuery()}`);
 	return raw.map(mapPlan);
 }
 
@@ -100,7 +113,7 @@ export async function createPlan(kind: NodeKind, nodeId: string, draft: PlanDraf
 }
 
 export async function getPlan(planId: string): Promise<Plan> {
-	return mapPlan(await apiClient.get(`/plans/${planId}/`));
+	return mapPlan(await apiClient.get(`/plans/${planId}/${langQuery()}`));
 }
 
 export async function updatePlan(

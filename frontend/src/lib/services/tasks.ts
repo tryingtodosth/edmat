@@ -12,7 +12,9 @@
 // `reasonOf` below is how a caller reads it; `TASK_BLOCK_REASON_LABELS` (utils/labels.ts) has the
 // sentence.
 
+import { getLocale } from '$lib/paraglide/runtime';
 import { ApiError, apiClient } from '$lib/api/client';
+import { mapLanguageReading, mapTextVersions } from '$lib/services/textVersions';
 import type { NodeKind, NodeRef } from '$lib/types/node';
 import type {
 	MyTasks,
@@ -57,6 +59,8 @@ function mapTask(raw: any): Task {
 	return {
 		id: String(raw.id),
 		node: mapNode(raw.node),
+		// Already resolved for `?lang=` server-side — `language` below says in which language, and
+		// whether a newer version is waiting in another (backend translations/resolve.py).
 		title: raw.title ?? '',
 		description: raw.description ?? '',
 		status: raw.status as TaskStatus,
@@ -73,7 +77,9 @@ function mapTask(raw: any): Task {
 		progress: { done: raw.progress?.done ?? 0, total: raw.progress?.total ?? 0 },
 		isOverdue: raw.is_overdue ?? false,
 		canEdit: raw.can_edit ?? false,
-		canAssign: raw.can_assign ?? false
+		canAssign: raw.can_assign ?? false,
+		language: mapLanguageReading(raw.language),
+		textVersions: mapTextVersions(raw.text_versions)
 	};
 }
 
@@ -104,11 +110,15 @@ export interface TaskFilters {
 }
 
 function query(filters?: TaskFilters): string {
-	if (!filters) return '';
+	// No early return on a missing `filters`: `lang` below has to go out on EVERY read, including
+	// the unfiltered ones, which is what an early `return ''` here quietly prevented.
 	const params = new URLSearchParams();
-	if (filters.status) params.set('status', filters.status);
-	if (filters.assignedToMe) params.set('assignee', 'me');
-	if (filters.overdue) params.set('overdue', '1');
+	if (filters?.status) params.set('status', filters.status);
+	if (filters?.assignedToMe) params.set('assignee', 'me');
+	if (filters?.overdue) params.set('overdue', '1');
+	// Every read carries the interface locale, the `services/taxonomy.ts` pattern: the backend's
+	// `request_locale` otherwise falls back to 'pl' and an English reader silently gets the Polish.
+	params.set('lang', getLocale());
 	const text = params.toString();
 	return text ? `?${text}` : '';
 }
@@ -129,7 +139,7 @@ export async function createNodeTask(kind: NodeKind, id: string, draft: TaskDraf
 }
 
 export async function getTask(id: string): Promise<Task> {
-	return mapTask(await apiClient.get(`/tasks/${id}/`));
+	return mapTask(await apiClient.get(`/tasks/${id}/${query()}`));
 }
 
 export async function updateTask(id: string, draft: Partial<TaskDraft>): Promise<Task> {
@@ -159,7 +169,9 @@ export async function createSubtask(parentId: string, draft: TaskDraft): Promise
 
 /** `/tasks` — two lists, and nothing appears in both. */
 export async function getMyTasks(): Promise<MyTasks> {
-	const raw = await apiClient.get<{ assigned?: unknown[]; created?: unknown[] }>('/tasks/mine/');
+	const raw = await apiClient.get<{ assigned?: unknown[]; created?: unknown[] }>(
+		`/tasks/mine/${query()}`
+	);
 	return {
 		assigned: (raw?.assigned ?? []).map(mapTask),
 		created: (raw?.created ?? []).map(mapTask)

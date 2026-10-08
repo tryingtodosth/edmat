@@ -2,6 +2,7 @@
 // (MANAGEMENT-BRIEF.md §3.D).
 
 import type { NodeRef } from './node';
+import type { LanguageReading, TextVersion } from '$lib/types/translation';
 
 /** One field, never a pair of booleans (root CLAUDE.md). `draft` is visible only to the node's own
  * managers; `active` is what makes it readable by anyone who can see the node at all, and openable
@@ -52,6 +53,11 @@ export interface PlanStep {
 	doneByName: string;
 	doneAt: string | null;
 	substeps: PlanStep[];
+	/** Which language the text above actually is, and whether a newer version is waiting in
+	 *  another one (backend `translations/`, 2026-10-08). */
+	language: LanguageReading;
+	/** Every written version, for the side-by-side editor. */
+	textVersions: TextVersion[];
 }
 
 export interface Plan {
@@ -74,6 +80,11 @@ export interface Plan {
 	/** `plans/rules.py: suggest_block_reason()` for THIS reader, or `null` meaning the suggestion
 	 * box is open. */
 	suggestBlockReason: PlanBlockReason | null;
+	/** Which language the text above actually is, and whether a newer version is waiting in
+	 *  another one (backend `translations/`, 2026-10-08). */
+	language: LanguageReading;
+	/** Every written version, for the side-by-side editor. */
+	textVersions: TextVersion[];
 }
 
 export interface PlanSuggestion {

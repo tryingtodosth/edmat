@@ -35,7 +35,10 @@ class NodePollsView(APIView):
         if not node or not can_view_node(request.user, node):
             return Response({'detail': 'not_found'}, status=status.HTTP_404_NOT_FOUND)
 
-        polls = rules.visible_polls(request.user, node)
+        # `text_versions` (and each option's own) is the bilingual text — translations/, 2026-10-08.
+        polls = rules.visible_polls(request.user, node).prefetch_related(
+            'text_versions', 'options__text_versions'
+        )
         serializer = PollSerializer(polls, many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -70,7 +73,14 @@ class PollViewSet(viewsets.GenericViewSet):
 
     def get_queryset(self):
         """All polls — visibility is checked per-object."""
-        return Poll.objects.select_related('created_by', 'closed_by').prefetch_related('options', 'ballots', 'votes')
+        return Poll.objects.select_related('created_by', 'closed_by').prefetch_related(
+            'options',
+            'ballots',
+            'votes',
+            # The bilingual text — translations/, 2026-10-08.
+            'text_versions',
+            'options__text_versions',
+        )
 
     def retrieve(self, request, pk=None):
         """GET /api/polls/{id}/"""

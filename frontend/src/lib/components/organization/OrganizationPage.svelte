@@ -18,6 +18,8 @@
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import ManagementPanels from '$lib/components/management/ManagementPanels.svelte';
+	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
+	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import {
 		getMembers,
@@ -122,8 +124,37 @@
 			{/if}
 
 			<section class="block">
-				<h2>{m.orgs_aboutHeading()}</h2>
-				<!-- "About" -->
+				<div class="block__head">
+					<h2>{m.orgs_aboutHeading()}</h2>
+					<!-- "About" -->
+					{#if organization.canManage}
+						<!-- The first paragraph on `/about` is this one, and until 2026-10-08 it was a
+						     single field with the Polish and the English glued together by hand
+						     (`work/edmat_project.py: _pl_en`). This writes them as two. There is no
+						     heading pane: an organisation's NAME is a registered name and the same in
+						     every language. -->
+						<ManagementTextMenu
+							kind="organization"
+							id={organization.id}
+							versions={organization.textVersions}
+							fallbackBody={organization.description}
+							withHeading={false}
+							headingLabel={m.orgs_aboutHeading()}
+							bodyLabel={m.orgs_descriptionLabel()}
+							label={m.orgs_aboutActionsLabel()}
+							onSaved={(written) => {
+								if (!organization) return;
+								organization = {
+									...organization,
+									description: written.body,
+									language: written.language,
+									textVersions: written.textVersions
+								};
+							}}
+						/>
+					{/if}
+				</div>
+				<LanguageNote language={organization.language} />
 				{#if organization.description}
 					<MathContent source={organization.description} />
 				{:else}
@@ -258,6 +289,12 @@
 		border: 1px solid var(--border-color);
 		border-radius: 12px;
 		padding: var(--space-4);
+	}
+	.block__head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-2);
 	}
 	.facts,
 	.roster,

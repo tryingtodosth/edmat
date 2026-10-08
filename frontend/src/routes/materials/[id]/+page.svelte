@@ -59,6 +59,13 @@
 	import LinkedConcepts from '$lib/components/concept/LinkedConcepts.svelte';
 	import ApplyToGovern from '$lib/components/governance/ApplyToGovern.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import { provideAiAssistance } from '$lib/components/provenance/aiAssistance.svelte';
+
+	// The "AI-assisted" mark's page-level holder (provenance/, 2026-10-08). One line, because this
+	// page renders a comment thread and `community.Comment` is a target: without it
+	// `ContentActionsMenu` hides the item rather than opening a dialog nothing would answer. The
+	// holder batches every chip's reading into one request; `setContext` may only run during init.
+	provideAiAssistance();
 
 	let material = $state<Material | undefined>(undefined);
 	let branch = $state<Branch | undefined>(undefined);

@@ -206,6 +206,17 @@ INSTALLED_APPS = [
     # The learning cycle (prompts/00-DESIGN.md), registered EMPTY by the prep commit for the same
     # reason: flashcards — decks, cards, spaced review, and placements on a course or an event.
     'flashcards',
+    # Where a piece of content came from: the author's "AI-assisted" disclosure, one confidence
+    # vote per reader, and a moderator's lock (provenance/models.py, 2026-10-08). Its own app and
+    # not a third concern inside `moderation`, because the author's mark is a fact about the work
+    # rather than a complaint about it — `moderation` is reports and queues.
+    'provenance',
+    # The management layer's text in every language somebody has written it in
+    # (translations/models.py, 2026-10-08). One table behind `tasks`, `plans`, `needs` and
+    # `decisions`, rather than a near-identical translation table in each of the four — and
+    # deliberately NOT `ExerciseTranslation`'s shape, which carries a review workflow this does not
+    # need (the people writing management text are the people who already run the thing).
+    'translations',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting

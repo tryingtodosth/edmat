@@ -1,3 +1,5 @@
+import type { RawLanguageReading, RawTextVersion } from '$lib/types/translation';
+
 /**
  * Poll types — decisions step (MANAGEMENT-BRIEF.md §3.E)
  * Mirrored from backend: decisions/models.py
@@ -7,6 +9,10 @@ export interface PollOption {
 	id: number;
 	text: string;
 	order: number;
+	/** An option is one line of text, so it has a heading and no body — the one translatable kind
+	 *  shaped that way (backend `translations/targets.py`). */
+	language?: RawLanguageReading;
+	text_versions?: RawTextVersion[];
 }
 
 export type PollMode = 'single' | 'multiple';
@@ -37,6 +43,11 @@ export interface Poll {
 	can_vote: boolean;
 	/** The tally may be shown: a manager, a closed poll, or an organisation's open board. */
 	can_see_results: boolean;
+	/** The bilingual text blocks (backend `translations/`, 2026-10-08). RAW snake_case, unlike
+	 *  every other management type, because this service has no mapper — see the note beside
+	 *  `RawLanguageReading` in `types/translation.ts`. */
+	language?: RawLanguageReading;
+	text_versions?: RawTextVersion[];
 }
 
 export interface PollResults {

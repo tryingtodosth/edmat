@@ -9,6 +9,9 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import StarRating from '$lib/components/shared/StarRating.svelte';
 	import ReportButton from '$lib/components/shared/ReportButton.svelte';
+	import ContentActionsMenu from '$lib/components/shared/ContentActionsMenu.svelte';
+	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
+	import type { AssistanceTargetKind } from '$lib/types/provenance';
 	import DiscussionThread from '$lib/components/discussion/DiscussionThread.svelte';
 
 	// A structural shape (id/userId/rating/body/createdAt), not the full exercise-specific `Review`
@@ -28,7 +31,8 @@
 		usersById,
 		showReportButton = true,
 		kind = 'review',
-		commentTarget
+		commentTarget,
+		assistKind
 	}: {
 		reviews: ReviewLike[];
 		usersById: Record<string, User>;
@@ -37,6 +41,13 @@
 		// page passes 'service_review' — a genuinely different backend model/report kind sharing
 		// this exact same list shape, per `ReviewLike`'s own doc comment above.
 		kind?: ReportKind;
+		// Which `provenance` target these rows are, when they are one at all. EXPLICIT and not
+		// derived from `kind`, deliberately: `kind` defaults to `'review'` and a MATERIAL review
+		// falls through to that default (see its own note above), so deriving it would write an
+		// "AI-assisted" mark against the `community.Review` that happens to share the pk. Only the
+		// exercise page passes this; the other two call sites keep the plain report link, which is
+		// the honest shape of a registry that is deliberately shorter than the report one.
+		assistKind?: AssistanceTargetKind;
 		// Which backend thread a reply here belongs to. Optional because it says which of the three
 		// review kinds these rows actually are — something `kind` cannot answer (a material review
 		// has no report kind at all and falls back to the default). Left out, the rows render
@@ -77,6 +88,12 @@
 		}
 	}
 
+	/** The menu's "reply" opens the thread; it never closes one somebody already had open.
+	 *  Named `openThread` rather than `open`, which would shadow `window.open`. */
+	async function openThread(reviewId: string) {
+		if (!openIds[reviewId]) await toggle(reviewId);
+	}
+
 	async function toggle(reviewId: string) {
 		const nowOpen = !openIds[reviewId];
 		openIds = { ...openIds, [reviewId]: nowOpen };
@@ -112,6 +129,9 @@
 						<span class="review__author">—</span>
 					{/if}
 					<StarRating value={review.rating} />
+					{#if assistKind}
+						<AiAssistChip kind={assistKind} id={review.id} />
+					{/if}
 					<span class="review__date">{formatRelativeDate(review.createdAt, getLocale())}</span>
 				</div>
 				{#if review.body}
@@ -128,7 +148,15 @@
 							{replyLabel(review)}
 						</button>
 					{/if}
-					{#if showReportButton}
+					{#if assistKind}
+						<ContentActionsMenu
+							kind={assistKind}
+							id={review.id}
+							label={m.content_actionsLabel_review()}
+							onReply={() => openThread(review.id)}
+							reportable={showReportButton && authStore.user?.id !== review.userId}
+						/>
+					{:else if showReportButton}
 						<ReportButton {kind} objectId={review.id} />
 					{/if}
 				</div>

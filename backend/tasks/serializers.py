@@ -18,6 +18,7 @@ from config.sanitize import sanitize_content
 
 from . import rules
 from .models import STATUS_CHOICES, Task, TaskAssignee
+from translations.serializers import TranslatedTextMixin
 
 
 def display_name(user) -> str:
@@ -49,11 +50,25 @@ class TaskAssigneeSerializer(serializers.ModelSerializer):
         return person(obj.assigned_by)
 
 
-class TaskSerializer(serializers.ModelSerializer):
+class TaskSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     """A task as its reader is allowed to know it — which, since only node staff ever see one at
     all, is all of it. `user` comes in through the serializer context, never from `request` inside a
     method: an `@action` that forgot to pass it should fail loudly rather than answer `can_edit`
-    with a silent False."""
+    with a silent False.
+
+    The context also carries `request` since 2026-10-08, and that is NOT a softening of the rule
+    above: `TranslatedTextMixin` reads `?lang=` off it to answer `title`/`description` in the
+    reader's language (`config.i18n_utils.request_locale`), and `user` remains the explicit key
+    every authority answer here comes from. Without the request the locale falls back to 'pl' and
+    an English reader silently gets the Polish — which is exactly what happened, and what a test
+    in `translations/` caught."""
+    # Bilingual management text (translations/, 2026-10-08): `title`/`description` answer in the
+    # reader's `?lang=`, and `language`/`text_versions` say which language that actually is, what
+    # else exists and whether a newer version is waiting in another one. The mixin does all of it.
+    translated_heading_field = 'title'
+    translated_body_field = 'description'
+    language = serializers.SerializerMethodField()
+    text_versions = serializers.SerializerMethodField()
 
     created_by = serializers.SerializerMethodField()
     assignees = TaskAssigneeSerializer(many=True, read_only=True)
@@ -70,6 +85,9 @@ class TaskSerializer(serializers.ModelSerializer):
             'id', 'node', 'title', 'description', 'status', 'priority', 'due_at',
             'parent', 'order', 'created_by', 'created_at', 'updated_at', 'done_at',
             'assignees', 'subtasks', 'progress', 'is_overdue', 'can_edit', 'can_assign',
+        
+            'language',
+            'text_versions',
         ]
 
     @property

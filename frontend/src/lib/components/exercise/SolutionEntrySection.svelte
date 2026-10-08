@@ -13,6 +13,8 @@
 	import { submitSolutionEntry, uploadEntryAttachment } from '$lib/services/exercises';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import SolutionEntryCard from './SolutionEntryCard.svelte';
+	import ContentLocaleSelect from '$lib/components/shared/ContentLocaleSelect.svelte';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	let {
 		kind,
@@ -136,7 +138,13 @@
 					onclick={() => {
 						showComposer = !showComposer;
 						composerNotice = null;
-						if (!composerLocale) composerLocale = contentLocale;
+						// The INTERFACE language, not `contentLocale` (owner, 2026-10-08). The old
+						// default was the language the exercise happened to be being read in, so a
+						// reader with a Polish interface looking at the English rendering got `en`
+						// pre-filled for the Polish solution they were about to type. What somebody
+						// is about to write is far better guessed by the language they are reading
+						// the site in — and it is a picker now, so a wrong guess costs one click.
+						if (!composerLocale) composerLocale = getLocale();
 					}}
 				>
 					{kind === 'hint' ? m.entry_addHint() : m.entry_addSolution()}
@@ -154,7 +162,7 @@
 			<div class="composer">
 				<label>
 					<span>{m.entry_composerLanguage()}</span>
-					<input type="text" bind:value={composerLocale} maxlength="8" />
+					<ContentLocaleSelect bind:value={composerLocale} />
 				</label>
 				<RichEditor
 					bind:this={editorRef}
@@ -296,23 +304,16 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+		// The language row. Its control is `ContentLocaleSelect` since 2026-10-08 and that component
+		// styles its own `<select>`, so the `input` rules that used to sit here (a 5rem text box and
+		// its border) now match nothing and are gone — `svelte-check`'s unused-selector warning is
+		// what said so, and this file is held at zero warnings.
 		label {
 			display: flex;
 			align-items: center;
 			gap: var(--space-2);
 			font-size: var(--font-size-xs);
 			color: var(--text-secondary);
-			input {
-				width: 5rem;
-			}
-		}
-		input {
-			font: inherit;
-			padding: var(--space-1);
-			border: 1px solid var(--border-color);
-			border-radius: var(--radius-sm);
-			background: var(--bg-surface);
-			color: var(--text-primary);
 		}
 	}
 	// The pending-file row, the same shape `CommentForm` draws — three strikes before extracting a

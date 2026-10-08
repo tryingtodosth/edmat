@@ -87,16 +87,17 @@ taxonomy. An untracked `backend/classroom/` directory may still exist on disk �
 frontend/  SvelteKit 2 + Svelte 5 runes + TS, adapter-static (SPA fallback), Paraglide i18n
              routes/ + components  →  lib/services/*.ts  →  lib/api/client.ts  →  HTTP
                    (never fetch)         (the only seam)      (the only fetch())
-backend/   Django 5.2 + DRF, SQLite, 35 local apps + config/ + testing/ + imaging.py
+backend/   Django 5.2 + DRF, SQLite, 37 local apps + config/ + testing/ + imaging.py
              views  →  <app>/services.py or a rule module  →  models
 deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 35 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 37 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
 `courses` `booking` `activity` `events` `coauthoring` `materials_coop` `concepts` `sketches` `venues` `documents`
-`shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `flashcards`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
+`shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `flashcards`
+`provenance` `translations`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
 (`CONFERENCE-BRIEF.md`, 2026-09-23), each hung off `events.Event` by a row of its own so that
 `events` kept its schema while seven branches were built at once. The last six — `organizations` `tasks` `needs` `plans` `decisions` `work` — are the
 management layer (`MANAGEMENT-BRIEF.md`, 2026-09-24), each hanging its rows off a course, an event, a
@@ -106,6 +107,11 @@ a per-person SM-2 schedule, and placements on a course or an event through the s
 The rest of that cycle lives inside existing apps — the learning record in `identity/record.py`, school
 mode and completion certificates in `courses`, prerequisite paths in `concepts/paths.py`, take-home decks
 in `events/takehome.py`, and the creation gate in `config/creation.py` — all briefed in `prompts/`.
+The last two are the owner's list of 2026-10-08: **`provenance`** is the "AI-assisted" mark (the
+author's own disclosure, one confidence vote per reader per piece of content, a moderator's lock)
+and **`translations`** is the management layer's text in every language somebody has written it in —
+one table behind `tasks`, `plans`, `needs`, `decisions` and an organisation's description, and
+deliberately NOT `ExerciseTranslation`'s shape, which carries a review workflow this does not need.
 
 **Two boundaries are load-bearing and everything else follows from them:**
 
@@ -143,7 +149,9 @@ Learn these five and most of the schema reads itself.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-three exist today (counted against `/api/feature-flags/` on production, 2026-10-06 — this number had drifted twice before, so count it rather than increment it) — `exercise_submissions` `material_submissions`
+  with an `is_staff` bypass. Thirty-four exist today (counted against `/api/feature-flags/` on the dev
+  database, 2026-10-08 — this number had drifted twice before, so count it rather than increment it,
+  which is how the "thirty-three" above it turned out to be two short rather than one) — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
   `venues` `event_documents` `tickets` `shifts` `cloakroom` `role_preview` (seeded together by
@@ -154,7 +162,10 @@ Learn these five and most of the schema reads itself.
   the two boards answer two questions) and the learning cycle's three (0047, `prompts/01-prep.md`):
   `flashcards`, `learning_record`, and `creation_requires_verification`, which is INVERTED like
   `material_uploads_verified_only` (on = founding a course, an event, a listing or an organisation
-  needs a verified contributor; `config/creation.py`) and seeded ON by owner decision — and the
+  needs a verified contributor; `config/creation.py`) and seeded ON by owner decision, plus
+  `ai_assisted` (0050, the "AI-assisted" mark — `provenance/`; off, the chip leaves every statement,
+  hint, solution, comment and review and the two menu items it owns leave the content menu, while
+  reply, report and the moderator's remove stay, because those belong to other features) — and the
   `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
@@ -278,6 +289,15 @@ already allows. Storage does not change.
   (`ExerciseTranslation` and friends). A reader's interface language and the content language they
   are reading are genuinely independent — somebody may read the English UI and want the Polish
   original.
+- **Management text is a THIRD case, and it has its own table** (`translations/`, 2026-10-08): a
+  task, a plan, a need, a poll, a poll option and an organisation's description, one row per
+  language, resolved for the reader's INTERFACE language (`?lang=`) with a reading that says which
+  language they actually got and whether a newer version is waiting in another one. It is not
+  `ExerciseTranslation`'s shape because there is no review queue — the people writing it are the
+  people who already run the thing — and the editor writes every language in ONE submission, which
+  is what keeps the "the Polish is 4 minutes newer" note from ever appearing on content somebody
+  just wrote. Before it, `work/edmat_project.py: _pl_en()` glued both languages into one field and
+  every reader of `/about` got both at once.
 
 Routing these through one mechanism does not work: a message catalogue is bounded and curated;
 content translations need their own review workflow.
@@ -301,6 +321,8 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/needs/ /api/volunteering-offers/                                 help wanted, and who is offering
 /api/decks/ /api/cards/ /api/flashcards/due/ /api/nodes/{kind}/{id}/decks/  flashcards (prompts/02-flashcards.md)
 /api/creation/ /api/users/{id}/learning-record/ /api/courses/{id}/completions/  the creation gate, the learning record, certificates
+/api/ai-assistance/ /api/ai-assistance/{kind}/{id}/{vote,author-mark,lock}/   the "AI-assisted" mark (provenance/)
+/api/text-versions/{kind}/{id}/                                       one management row's text in every language at once
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
 /api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)

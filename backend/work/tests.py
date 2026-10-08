@@ -418,7 +418,17 @@ class EdmatProjectSeedTests(APITestCase):
 
     @staticmethod
     def _plan(built, title_start):
-        return next(plan for plan in built['plans'] if plan.title.startswith(title_start))
+        """Find a seeded plan by the start of its title.
+
+        `title_start` may be a GLUED "PL / EN" title straight out of `SUBPROJECTS`, which is no
+        longer what the row's own column holds: since 2026-10-08 the seed splits its two languages
+        into `translations.TextVersion` rows and mirrors the POLISH half onto `Plan.title`
+        (`HISTORY.md` §17BX.C). So the Polish half is what we match on.
+        """
+        from work.edmat_project import _split_title
+
+        wanted = _split_title(title_start)[0]
+        return next(plan for plan in built['plans'] if plan.title.startswith(wanted))
 
     @staticmethod
     def _phase_one_rows():
@@ -497,6 +507,18 @@ class EdmatProjectSeedTests(APITestCase):
         self.assertEqual(len(built['waiting']), 2)
 
     def test_a_second_run_refreshes_text_and_leaves_state_alone(self):
+        """Still true, and deliberately NOT contradicted by
+        `translations.tests.KeepEditedTests` — the two draw a line that matters.
+
+        The edits below are made with `.update()` straight onto the model's own column, which is
+        what an admin poking the database does. Those are refreshed, because the seed is the owner
+        of that text. An edit made through the BILINGUAL EDITOR is a different thing: it writes a
+        `translations.TextVersion` carrying `written_by`, and `write_versions(keep_edited=True)` —
+        which the seed passes — leaves those alone for ever (owner, 2026-10-08, `HISTORY.md` §17BX).
+
+        So: the seed owns text nobody has claimed, and a person's edit through the UI wins. A raw
+        column edit is not a claim, and it never was.
+        """
         from community.models import Comment
         from decisions.models import Poll, PollOption
         from events.models import Event

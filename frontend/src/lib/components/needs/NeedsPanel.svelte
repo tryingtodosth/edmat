@@ -8,7 +8,10 @@
 	import { resolve } from '$app/paths';
 	import type { NodeRef } from '$lib/types/node';
 	import type { Need, NeedDraft, NeedKind, SkillLevel } from '$lib/types/need';
-	import { createNeed, getNodeNeeds } from '$lib/services/needs';
+	import { cancelNeed, createNeed, getNodeNeeds, reopenNeed } from '$lib/services/needs';
+	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
+	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import type { WrittenText } from '$lib/services/textVersions';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { ApiError } from '$lib/api/client';
@@ -39,6 +42,34 @@
 	let deadline = $state('');
 	let isRemote = $state(false);
 	let wantedCount = $state('1');
+
+	/** The text came back resolved for this reader, so the row is patched in place rather than
+	 *  refetching the whole panel — the write endpoint answers with the new reading for exactly
+	 *  this reason. */
+	function applyText(id: string, written: WrittenText) {
+		needs = needs.map((need) =>
+			need.id === id
+				? {
+						...need,
+						title: written.heading,
+						description: written.body,
+						language: written.language,
+						textVersions: written.textVersions
+					}
+				: need
+		);
+	}
+
+	async function toggleCancelled(need: Need) {
+		error = '';
+		try {
+			const updated =
+				need.status === 'cancelled' ? await reopenNeed(need.id) : await cancelNeed(need.id);
+			needs = needs.map((row) => (row.id === updated.id ? updated : row));
+		} catch {
+			error = m.common_error_generic();
+		}
+	}
 
 	async function load() {
 		loading = true;
@@ -195,6 +226,31 @@
 								wanted: need.wantedCount
 							})}</span
 						>
+						{#if node.canManage}
+							<!-- The menu the owner asked for: until this, a need's own words could only be
+							     changed in Django admin — `updateNeed` had been in the service with no call
+							     site since the needs board was built. -->
+							<ManagementTextMenu
+								kind="need"
+								id={need.id}
+								versions={need.textVersions}
+								fallbackHeading={need.title}
+								fallbackBody={need.description}
+								headingLabel={m.needs_formTitleLabel()}
+								bodyLabel={m.needs_formDescriptionLabel()}
+								label={m.needs_rowActionsLabel()}
+								items={[
+									{
+										label:
+											need.status === 'cancelled' ? m.needs_reopenNeed() : m.needs_cancelNeed(),
+										danger: need.status !== 'cancelled',
+										onselect: () => void toggleCancelled(need)
+									}
+								]}
+								onSaved={(written) => applyText(need.id, written)}
+							/>
+						{/if}
+						<LanguageNote language={need.language} />
 					</li>
 				{/each}
 			</ul>

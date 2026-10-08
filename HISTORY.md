@@ -14327,3 +14327,302 @@ tint reaches both side edges instead of fading inside them; that is what "bleed"
 it looks right in the 390px capture, but it is a taste call somebody may want back. Only the home
 page has a wash (`--hero-wash` has exactly one call site), so nothing else needed the same fix.
 
+
+## 17BX — The "AI-assisted" mark, and the management layer stops being glued together (2026-10-08, `ux/colour-pass`)
+
+Three things the owner asked for in three messages on the same morning, built together because they
+land on the same two pages and because the second and third are one feature once you look at them.
+
+### A — The "AI-assisted" mark (`provenance/`)
+
+The owner, 2026-10-08:
+
+> *"cant mark/vote on AI-assisted exercises and its contents (the exercise itelsf, tip, solution,
+> and even comments and reviews: make sure each has a meatballs menu where mark as AI-assisted and
+> how % sure are you about that, also report, reply, etc (reply higher than AI-assisted, also some
+> quick mod actions)"*
+
+**This had a spec already, written by the owner and seeded into the platform itself.**
+`work/edmat_project.py: TASKS[0]` is a task on the EdMat organisation, dated 2026-10-07, titled
+*"Wskaźnik „z pomocą AI" — autor oznacza, społeczność głosuje"*, and its first line was **"to do;
+nothing exists in the code yet"**. It names six deliverables and leaves three questions to the
+organisation's own poll (`POLLS[1]`, still open). The message above settles one of them: a vote is
+**how sure you are, 0–100%**, not a yes/no — which also picks the third of the three options the
+poll offers ("store the facts, derive both readings"), because a confidence is a fact and both the
+badge and a filter can be derived from it.
+
+**Three tables, not one**, because three different people are speaking and conflating them is how a
+badge starts lying about who claimed what:
+
+- `AuthorMark` — the author's own disclosure. One row per target; `assisted=False` is a real stored
+  answer and deliberately not the same as having no row ("the author says no" and "nobody has asked
+  the author" read identically to a boolean and completely differently to a person).
+- `AssistanceVote` — one reader's confidence, 0–100, one row per person per target, changeable.
+  Zero means "I am not at all convinced", which is a vote against on the same scale rather than a
+  second field.
+- `ScoreLock` — a moderator ending the argument at a value, with a reason that is not blank-able
+  (house rule 6). It replaces the community reading and never the author's mark: that is a record
+  of something a person said about their own work.
+
+**The reading is two marks and one number** — the owner's decision of 2026-10-07, kept as the shape
+of `rules.summaries_for`'s return value: a three-people icon (the community), a single-person icon
+(the author), each lighting on its own, and one percent for a filter to use. **The chip draws only
+once one of the two marks is lit** (or a moderator has fixed the reading, which is also a person
+standing behind it). An earlier cut drew it as soon as anybody had voted, and the screenshot is what
+settled it: a chip reading "80%" off ONE vote looks exactly like a figure the community arrived at,
+which is the thing `MIN_VOTES_FOR_COMMUNITY_MARK` exists to prevent. Below the threshold there is no
+claim to show — the dialog says "not enough people have looked" to whoever opens it, and the person
+who voted still sees their own vote there. The author's mark is
+final (votes can only add the badge, never remove it) and an author's *denial* does not pull the
+community reading down — it is recorded, it is shown, and the reader weighs both. A denial that
+silently erased every reader's reading would make the signal worthless on exactly the content it
+matters most on.
+
+`MIN_VOTES_FOR_COMMUNITY_MARK = 3` is the same safety rail, for the same reason, as
+`moderation/services.py: MIN_REPORTS_FOR_AUTO_HIDE`: a mean over one vote is one person's opinion
+wearing the word "community". It and `COMMUNITY_MARK_THRESHOLD` are named constants in one module
+because the owner's task lists "the vote weight and threshold" as undecided and the poll is where
+they get decided.
+
+**One batched read, not a field on four serializers.** `GET /api/ai-assistance/?targets=exercise:12,
+comment:9,…` answers for every chip a page has just drawn, in four queries per kind. A
+`SerializerMethodField` on `Exercise`, `SolutionEntry`, `Comment` and `Review` would have been a
+GenericForeignKey aggregate per row — the N+1 — and would have put this app's import into three
+others. `provideAiAssistance()` is the page-level holder the chips read from, the
+`providePageDiscussions` shape, and it coalesces registrations in waves because the chips do not all
+mount at once (the statement is there on first paint, the reviews land with their own fetch, the
+thread after that).
+
+**`ContentActionsMenu` is where the order lives.** Reply → mark as AI-assisted → whatever this
+surface adds → report → a moderator's quick remove/restore, fixed once rather than at five call
+sites, and asserted as an ORDER in the browser script rather than as a set. `CommentNode`'s own
+bespoke menu was folded into it (it keeps save / link to course / copy link as its `items`), which
+is what gave a comment the AI item and the quick moderator action it did not have.
+
+`provideAiAssistance()` is called by all eight routes that render a comment thread, not just the
+exercise page — a comment is a target wherever it is written, even where the material or the concept
+article it hangs under is not one yet. `ContentActionsMenu` hides the AI item on a page that provided
+no holder rather than opening a dialog nothing would answer, which is what makes adding a route one
+line and what keeps a half-wired page from looking broken.
+
+**The registry is deliberately shorter than `REPORT_KIND_MODELS`** — four kinds, because everything
+here is a judgement about who wrote a piece of **prose**, and a tag or a venue has none. A hint and
+a solution are one kind (`SolutionEntry` differs by its own `kind` field), so the four cover the
+five surfaces the owner named.
+
+**One trap worth the paragraph.** `ReviewList.svelte` renders three different review models and its
+`kind` prop defaults to `'review'`, so a *material* review already falls through to that default.
+Deriving the provenance target from it would have written an "AI-assisted" mark against whichever
+`community.Review` happened to share the pk. The chip is gated on a separate explicit `assistKind`
+prop that only the exercise page passes; both files say so.
+
+### B — Editing a need or a poll without Django admin (`translations/`, the frontend half)
+
+> *"cant edit task etc from aboutsubpage from frontend (has to be done using django admin - add
+> meatball menu here as well)"*
+
+Checked before building, and the answer was narrower and sharper than the complaint: the backend was
+**complete** (`PlanViewSet` partial_update/destroy/transition/steps/reorder, `PollViewSet`
+partial_update/destroy/options, `NeedViewSet` update) and so were the frontend services
+(`updateNeed`, `updatePoll`, `deletePoll`, …) — **with no call site anywhere in the app**. A task had
+its Edit on `TaskCard`, a plan had a whole edit page at `/plans/[id]`; a **need's words and a poll's
+question genuinely could only be changed in Django admin**, and a draft poll could only be deleted
+there. That is the "tasks etc" in the complaint.
+
+### C — Bilingual management text, and the editor that keeps the two in step
+
+> *"all of the tasks and other project management stuff should be bilingual: User sees the version
+> in their UI language by default, if there's a newer version in a different language it says how
+> much newer. mods/admins can edit and submit edit/new stuff also using translate interface you need
+> to make now: side by side original and the translation (up and bottom for mobiles), so that if a
+> user translates and edit/update/new content, there's no sth like "newer in PL by 4 minutes""*
+
+B and C are one feature: the thing the meatballs "Edit" should open **is** the translate interface,
+so writing a change and translating it is one submission.
+
+What was wrong: each model had ONE `title` and ONE `description`, so being bilingual was something
+you did by hand, in the field. `work/edmat_project.py: _pl_en()` is what that looked like — Polish
+and English glued with a `/` and a `---` rule, and every reader of `/about` got both at once
+whichever language they had chosen.
+
+**`translations.TextVersion`**: one row per (target, locale), `is_original` marking the language it
+was written in, `heading`/`body` named for their shape rather than for any one model's field
+(the seven targets call them four different things). A `GenericForeignKey` plus a registry, not seven
+near-identical tables in five apps — and **not** `ExerciseTranslation`'s shape, which carries a review
+workflow this does not need: the people writing management text are the people who already run the
+thing, and `tasks.rules.can_edit` and its siblings are already the right answer to "may you write
+this". `authority.py` asks each app rather than answering, which is why a task's **assignee** may
+translate the thing they are carrying.
+
+**Five decisions worth keeping:**
+
+1. **The model's own column survives, holding the original**, mirrored on every write. That is what
+   keeps every existing reader of `Task.title` correct and untouched — the work dashboard, a
+   notification body, the activity feed, an export, a `__str__`, Django admin. A target with no rows
+   here behaves exactly as it did before, which is why **nothing had to be migrated and nothing had
+   to guess what language a task written in 2026-09 was in**.
+2. **`updated_at` is not `auto_now`.** `write_versions` stamps one timestamp across every language it
+   writes, so two written together are exactly equal and there is nothing to report. Under `auto_now`
+   they would save microseconds apart and the page would say "newer by 0 minutes" about content
+   somebody had just written in one go — the precise thing the owner asked to be rid of.
+3. **One endpoint, writing every language at once.** There is deliberately no per-language write: an
+   editor that saved one language at a time would *manufacture* the staleness it exists to avoid.
+4. **No read endpoint.** Every version arrives embedded in the row it belongs to, through a queryset
+   that has already applied that row's own visibility — five visibility answers that would otherwise
+   have needed a second copy here.
+5. **No kill switch of its own.** A flag guards a feature *surface*; this is a property of five
+   surfaces that each already have one.
+
+**Two mirror-image kinds.** A poll option has a heading and no body; an organisation has a body and
+no heading (its `name` is a registered name and the same in every language). The "say something in
+the language you wrote it in" rule therefore falls on the body for an organisation
+(`original_body_empty`), and `TranslateFields` draws one pane or two accordingly.
+
+**The seed splits; it does not store split.** `work/edmat_project.py` still writes `_pl_en(...)` and
+`'PL / EN'` — a good way to keep a bilingual source readable in one file — and now splits it on the
+way in. Checked first: 58 of the 59 titles in that file contain exactly one ` / ` and the 59th is the
+founding meeting's, which is an `events.Event` and not a translatable kind; `tak/nie` and `yes/no`
+carry no spaces round their slash. `_find_by_title` recognises **both** the glued title an earlier
+run left and the Polish one this run writes — without that, a second run against a database seeded
+before the change would have duplicated every task, plan, need and poll. A test asserts the "at most
+one separator" claim rather than trusting it. One real wart it uncovered: a goal's
+`*Aplikacje / apps: …*` line was concatenated **after** `_pl_en`'s own rule, so splitting filed it
+under English alone; it goes through `body_suffix` and is appended to both.
+
+### D — "Which language is this written in?" becomes a picker
+
+> *"change the way adding new exercises work: rn adding it has en language text_input by default
+> even for pl interface (that's default for now btw), lets have a pick choose one from for now"*
+
+Two forms asked for the content language as a **free text box**, and one of them pre-filled it
+wrongly. Adding a hint or a solution (`SolutionEntrySection`) seeded the box from `contentLocale` —
+the language the EXERCISE was being read in — so a reader with a Polish interface looking at the
+English rendering got `en` pre-filled for the Polish solution they were about to type, and a typo
+there is a row filed under a language nobody reads. Submitting a translation (`TranslateForm`) had
+the same box with no default at all.
+
+`ContentLocaleSelect` is now the one control, and it also replaced three hand-written
+`<option value="pl">PL</option>` pairs (`/submit`, `/submit-material`, `CatalogueForm`). Five call
+sites is well past house rule 13's three strikes, and the thing they duplicated — *which languages
+may content be in* — is exactly the kind of list that drifts. The options are
+`SUPPORTED_CONTENT_LOCALES` plus the reader's own opted-in extras plus whatever the row is already
+in, which is the shape `ArticleEditor` had worked out first and this now owns.
+
+**One rule for the default everywhere: the language you are reading the site in.** What somebody is
+about to write is far better guessed by their interface than by whichever rendering of somebody
+else's exercise they happen to be looking at — and it is a picker now, so a wrong guess costs one
+click. `/submit` and `/submit-material` moved from a hard-coded `'pl'` to the same rule; for a
+Polish reader (the default interface) that changes nothing, and for an English one it stops being
+quietly wrong.
+
+`TranslateForm` additionally takes `existingLocales` and leaves out what the exercise already has —
+offering to translate something into the language it is already in is not an offer. **`exclude` may
+never empty the list**, though, and the first wiring did exactly that: the test exercise was
+published in both languages, every option was filtered out, and the select rendered with nothing in
+it. A re-translation of an existing language is a legitimate pending row anyway (the backend's
+partial unique constraint only ever allows one PUBLISHED row per locale), so the component falls
+back to the whole list rather than to none.
+
+**"For now" is the owner's own word and is the honest limit**, recorded in the component: a content
+locale is a free string server-side and the root CLAUDE.md says that axis is unbounded on purpose.
+A bounded picker is better than an unbounded text box today; it is not a schema decision.
+
+A browser probe confirmed all three (and caught e2e trap 6 doing it — the first `select` on
+`/submit` is the HEADER's interface-language picker, which has the same EN/PL options and whose
+value *is* the interface locale, so an unscoped locator reported the header as if it were the form
+field): `/submit` opens on the interface language, the hint composer opens on `pl` for a Polish
+interface even while the exercise is being read in English, and the translate form offers only the
+language the exercise is missing.
+
+### The one the owner caught before it shipped
+
+The runbook for this bundle has to say "re-run `seed_edmat_project` after applying", because that is
+what splits the already-seeded production rows. The owner read that and asked the right question:
+
+> *"wdym? each time we apply on server we will rerun the seed script?! its going to overwrite my
+> edits i do on production on the desc of edmat"*
+
+It would have. The seed is idempotent in the sense of "creates nothing twice", and it refreshes its
+text on every run — which was harmless while nobody could edit that text, and this is the very
+bundle that makes it editable. Every deployment would have thrown the owner's own words away.
+
+**`write_versions(keep_edited=True)`** is the fix, and `seed_edmat_project` is its only caller.
+`TextVersion.written_by` is null for a row the seed wrote and set for one a person saved through the
+editor, so the two are told apart by the data rather than by a flag somebody has to remember to set.
+With it on, every language with a person's name on it is skipped entirely — not updated, not
+deleted, not even re-stamped, so its `updated_at` keeps saying when the PERSON wrote it and the
+staleness reading stays honest. It is per LANGUAGE and not per row: rewrite the Polish of a task and
+the seed keeps your Polish and goes on maintaining the English.
+
+Two things fell out of testing it rather than reasoning about it:
+
+- **The column drifted from the version.** A protected original is skipped by the write loop, so the
+  first cut simply did not mirror anything — and a column an earlier run had already clobbered would
+  have stayed wrong for ever. It now reads the person's row back and mirrors from *that*, which also
+  self-healed the dev VM's stale description.
+- **The organisation's `description` was being refreshed behind `keep_edited`'s back**, by the
+  `Organization.objects.update_or_create(defaults={**ORGANIZATION})` that founds the body. The two
+  `TextVersion` rows survived a seed run and the column did not. `description` is out of those
+  defaults now; name, kind, city, website and `open_board` are still seed-owned.
+
+Proven on the dev VM the way the owner would experience it: edit the description through the
+editor, run the seed, read it back — the edit is there, in both languages and in the column — then
+delete the rows and run the seed again to get the seeded wording back, which is the documented and
+only route. Four tests cover it (`translations.tests.KeepEditedTests`), including three consecutive
+seed runs over an edit.
+
+**And two bugs the same exercise found**, both of which would have reached production:
+
+- **A heading was being entity-escaped.** `TextVersion.save()` ran `config.sanitize` over both
+  halves, and `bleach` escapes rather than strips: `i18n & content` became `i18n &amp; content`,
+  which a reader sees literally. Worse, the seed looks its rows up by title and the mirrored title
+  no longer matched the file's, so a second run created a **duplicate of every plan step whose
+  heading contained an `&`** — ten of them on the dev VM, found by running the seed twice. The body
+  is still sanitized; a heading is plain text everywhere it is read and mirrors onto `Task.title`
+  and friends, none of which has ever been sanitized in this codebase.
+- **History step titles were being split on ` / `.** Two `HISTORY.md` headings contain a real one
+  ("Follow / Notify / Save for Later", "Report issue / Zgłoś błąd"), so the title was truncated and
+  the remainder filed as English. The split is opt-in now and the log's own headings are excluded;
+  a test asserts that every title in the seed file still splits into at most two halves.
+
+### What the tests found
+
+- **`tasks/views.py` passed `user` in the serializer context and not `request`** — deliberate there
+  (its serializer's docstring says why), but `TranslatedTextMixin` reads `?lang=` off the request, so
+  the locale fell back to `pl` and an English reader silently got the Polish. Fixed at all eight call
+  sites; the serializer now records why `request` is there and that `user` is still the explicit key.
+- **The partial unique index is immediate, not deferred.** `write_versions` cleared the previous
+  original *after* writing the new one and failed inside its own transaction. Cleanup moved first.
+- **The mirror copied the payload rather than the saved row**, so the model's own column would have
+  held the one unsanitized copy on the platform — a real gap on `Task`, which sanitizes in its
+  serializer rather than in `save()` (house rule 8).
+- **A test had the author of a review voting on their own review** and quietly counted 2 instead
+  of 3, which is `rules.can_vote` working. The fixture was wrong, not the rule.
+- **`services/translations.ts` already existed** — the exercise-translation workflow — and was
+  silently replaced for about an hour. `svelte-check` is what said so; the new seam is
+  `services/textVersions.ts`, named for its endpoint, and both files now say why.
+
+**Verified** (house rule 2, with both servers up on :8100/:5183). Backend: `manage.py check` clean,
+`makemigrations --check` clean, the full suite **PENDING**. Frontend: `npm run check` 6368
+files 0 errors 0 warnings, `npm run lint` clean, key sets identical at 4007 each.
+`e2e/ai-assist-and-bilingual.mjs` — **31/31**, as a non-staff reader for the kill switch (trap 10),
+and the screenshots looked at — which is what produced the chip change above: the menu order, the
+confidence dialog, the chip after three readers agree (amber, the three-people icon lit and the
+author's faint, reading 80%), `/about` in English and in Polish with no glue anywhere, and the
+two-pane editor with the Polish on the left and the English on the right.
+
+**Left open, not built** (each app's `CLAUDE.md` has the full list):
+
+- **No list filter on the "AI-assisted" score.** The owner's task asks for "hide above X" / "only
+  above X" with an `X-EdMat-Hidden-Languages`-shaped count. The threshold it would filter on is the
+  number the organisation's poll has not decided, and a filter with a guessed threshold is worse than
+  none. The endpoint already answers `score`.
+- **No author mark at write time.** The task asks for the choice in `/submit`, `/submit-material` and
+  the editors; today the author marks content *after* it exists, from its own menu — one component
+  reaching all five surfaces instead of five forms. The write-time question is the better moment and
+  is its own change.
+- **`material`, `concept_article` and `post` are not provenance targets**, and plan steps and poll
+  options have no `⋯` of their own yet (both translate correctly through the endpoint).
+- **116 of the 151 plan steps are Polish-only**, because they come from the project log, which is.
+  They are the one place a reader will meet the fallback note in quantity, and no step row draws one
+  today.

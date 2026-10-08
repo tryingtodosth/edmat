@@ -1296,5 +1296,27 @@
   "summary": "The owner, the morning after §17BW.B: move /organizations/edmat to be the new about, make polls and tasks visible to anyone, and prepare a new deployment package.",
   "subproject": "management",
   "listed": true
+ },
+ {
+  "ref": "17BV.A",
+  "title": "The hero wash stops being a rectangle",
+  "heading": "17BV.A — The hero wash stops being a rectangle (2026-10-08, `ux/colour-pass`)",
+  "line": 14278,
+  "date": "2026-10-08",
+  "date_source": "heading",
+  "summary": "The one wash §17BV added was painted by .hero::before with inset: 0, so its box was the hero, and the hero sits inside .page — max-width: 1100px; margin: 0 auto; padding: var(--space-4). The gradient is an ellipse centred at 28% of that box's height reaching 36% of it, which puts its top edge 8% ABOVE the box: clipped. On the home page that drew a straight horizontal line across the full width of…",
+  "subproject": "interface",
+  "listed": true
+ },
+ {
+  "ref": "17BX",
+  "title": "The \"AI-assisted\" mark, and the management layer stops being glued together",
+  "heading": "17BX — The \"AI-assisted\" mark, and the management layer stops being glued together (2026-10-08, `ux/colour-pass`)",
+  "line": 14331,
+  "date": "2026-10-08",
+  "date_source": "heading",
+  "summary": "Three things the owner asked for in three messages on the same morning, built together because they land on the same two pages and because the second and third are one feature once you look at them.",
+  "subproject": "community",
+  "listed": true
  }
 ]

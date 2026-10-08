@@ -81,7 +81,14 @@ class NodePlansView(APIView):
         qs = (
             rules.visible_plans(request.user, node)
             .select_related('created_by')
-            .prefetch_related('steps', 'steps__substeps')
+            # `text_versions` (and each step's own) is the bilingual text — translations/, 2026-10-08.
+            .prefetch_related(
+                'steps',
+                'steps__substeps',
+                'text_versions',
+                'steps__text_versions',
+                'steps__substeps__text_versions',
+            )
         )
         return Response(PlanSerializer(qs, many=True, context={'request': request}).data)
 
@@ -111,7 +118,14 @@ class PlanViewSet(viewsets.GenericViewSet):
     serializer_class = PlanSerializer
 
     def get_queryset(self):
-        return Plan.objects.select_related('created_by').prefetch_related('steps', 'steps__substeps')
+        return Plan.objects.select_related('created_by').prefetch_related(
+            'steps',
+            'steps__substeps',
+            # The bilingual text — translations/, 2026-10-08.
+            'text_versions',
+            'steps__text_versions',
+            'steps__substeps__text_versions',
+        )
 
     def get_object(self):
         plan = get_object_or_404(self.get_queryset(), pk=self.kwargs['pk'])

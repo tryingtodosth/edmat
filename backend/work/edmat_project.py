@@ -90,7 +90,104 @@ FIRST_GENERAL_MEETING_DUE = date(2027, 6, 30)
 
 
 def _pl_en(pl: str, en: str) -> str:
-    return f'{pl}\n\n---\n\n{en}'
+    return f'{pl}{_BODY_RULE}{en}'
+
+
+#: What `_pl_en` joins a body with, and what `_split_body` splits one on.
+_BODY_RULE = '\n\n---\n\n'
+
+#: What every title and question in this file joins its two languages with. Checked when the
+#: de-gluing below was written: 58 of the 59 titles in this file contain EXACTLY one of these, and
+#: the 59th is the founding meeting's, which is an `events.Event` and not a translatable kind. So
+#: the split is unambiguous for this data — `tak/nie` and `yes/no` carry no spaces round the slash.
+_TITLE_RULE = ' / '
+
+
+def _split_body(text: str) -> tuple[str, str]:
+    """`"pl\n\n---\n\nen"` -> `('pl', 'en')`; anything else -> `(text, '')`."""
+    pl, rule, en = (text or '').partition(_BODY_RULE)
+    return (pl.strip(), en.strip()) if rule else ((text or '').strip(), '')
+
+
+def _split_title(text: str) -> tuple[str, str]:
+    """`"PL / EN"` -> `('PL', 'EN')`; anything else -> `(text, '')`."""
+    pl, rule, en = (text or '').partition(_TITLE_RULE)
+    return (pl.strip(), en.strip()) if rule else ((text or '').strip(), '')
+
+
+def _find_by_title(model, filters: dict, glued: str, *, split: bool = True):
+    """A row this seed wrote before, whichever state it is in.
+
+    Idempotence used to be "find it by its title", and the title used to be the two languages glued
+    together. Since 2026-10-08 the languages are stored as their own rows (`translations/`) and the
+    model's own column holds the POLISH half alone — so a second run has to recognise both: the
+    glued title an earlier run left, and the Polish one this run writes. Without the first, a run
+    against a database seeded before this change would duplicate every task, plan, need and poll.
+    """
+    queryset = model.objects.filter(**filters)
+    found = queryset.filter(title=glued).first()
+    if found is not None or not split:
+        return found
+    pl, _en = _split_title(glued)
+    return queryset.filter(title=pl).first() if pl != glued else None
+
+
+def _write_bilingual(obj, glued_heading: str, glued_body: str = '', *, heading=True, body=True,
+                     suffix: str = '', bilingual: bool = True):
+    """Store this row's two languages as two `translations.TextVersion` rows, Polish the original.
+
+    This is what undoes the gluing: the file keeps writing `_pl_en(...)` and `'PL / EN'`, because
+    that is a perfectly good way to keep a bilingual source readable in one place — and the seed
+    splits it on the way in, so a reader of `/about` gets their own language instead of both at
+    once. `write_versions` mirrors the Polish back onto the row's own column, so every other reader
+    of `Task.title` is unaffected.
+
+    `suffix` is appended to BOTH languages, for the one call site that adds a line after the glue
+    (a goal's `*Aplikacje / apps: …*`); appending before the split would have filed it under
+    English only.
+
+    **`bilingual=False` writes the text as ONE Polish version and splits nothing**, and it is not an
+    optimisation — it is a correctness rule. Only the data IN THIS FILE is glued. A history step's
+    title comes from `edmat_history.json`, i.e. from `HISTORY.md`'s own headings, and two of those
+    contain a real ` / ` of their own:
+
+        17C. … the Tag Hover-Menu — Follow / Notify / Save for Later …
+        17AG. "Report issue / Zgłoś błąd" …
+
+    Splitting those would have truncated the title and filed the remainder as English. The full test
+    suite is what caught it; `_upsert_step` passes `bilingual=not history` for exactly this.
+    """
+    from translations.services import write_versions
+
+    if bilingual:
+        pl_heading, en_heading = _split_title(glued_heading)
+        pl_body, en_body = _split_body(glued_body)
+    else:
+        pl_heading, en_heading = (glued_heading or '').strip(), ''
+        pl_body, en_body = (glued_body or '').strip(), ''
+    if suffix:
+        pl_body = f'{pl_body}{suffix}' if pl_body else suffix.strip()
+        en_body = f'{en_body}{suffix}' if en_body else en_body
+
+    def half(one_heading: str, one_body: str) -> dict:
+        out = {}
+        if heading:
+            out['heading'] = one_heading
+        if body:
+            out['body'] = one_body
+        return out
+
+    versions = {'pl': half(pl_heading, pl_body)}
+    if en_heading or en_body:
+        # An English half that is only a translation of the heading still gets a row, so a reader
+        # of the English interface sees the English name rather than the Polish one.
+        versions['en'] = half(en_heading or pl_heading, en_body)
+    # `keep_edited=True` is the whole reason this seed is safe to re-run after every deployment
+    # (owner, 2026-10-08: *"its going to overwrite my edits i do on production on the desc of
+    # edmat"* — and it would have). A language somebody saved through the bilingual editor carries
+    # `written_by`; this seed's rows do not, so the service can tell them apart and leaves a
+    # person's words alone. The seed fills in what nobody has touched, for ever.
+    write_versions(obj, original_locale='pl', versions=versions, user=None, keep_edited=True)
 
 
 ORGANIZATION = {
@@ -1047,19 +1144,23 @@ def _history_step(entry: dict) -> dict:
 
 def _upsert_task(node: dict, owner, entry: dict, counts: Counter, *, due_at=None, parent=None):
     """A task by title on the node: text refreshed, state left alone, the owner seated at creation."""
-    from config.sanitize import sanitize_content
     from tasks.models import Task, TaskAssignee
 
-    task, created = Task.objects.get_or_create(
-        **node, title=entry['title'],
-        defaults={'created_by': owner, 'status': entry.get('status', 'todo'), 'parent': parent},
-    )
-    # `Task` sanitizes in its serializer, not in `save()` (tasks/serializers.py); the ORM is a second
-    # entry point, so the same sanitizer runs here (house rule 8).
-    task.description = sanitize_content(entry['description'])
+    task = _find_by_title(Task, node, entry['title'])
+    created = task is None
+    if created:
+        pl_title, _en = _split_title(entry['title'])
+        task = Task.objects.create(
+            **node, title=pl_title, created_by=owner,
+            status=entry.get('status', 'todo'), parent=parent,
+        )
     task.priority = entry.get('priority', 3)
     task.due_at = due_at
-    task.save(update_fields=['description', 'priority', 'due_at', 'updated_at'])
+    task.save(update_fields=['priority', 'due_at', 'updated_at'])
+    # The two languages as two rows, Polish mirrored back onto `title`/`description`. The explicit
+    # `sanitize_content` that used to stand here is gone because `TextVersion.save()` does it and
+    # `write_versions` mirrors the SANITIZED row onto the column — one sanitizer, one copy.
+    _write_bilingual(task, entry['title'], entry['description'])
     if created and entry.get('assign_owner', True):
         TaskAssignee.objects.get_or_create(task=task, user=owner, defaults={'assigned_by': owner})
     counts['tasks_created'] += created
@@ -1069,20 +1170,23 @@ def _upsert_task(node: dict, owner, entry: dict, counts: Counter, *, due_at=None
 def _upsert_step(plan, entry: dict, order: int, counts: Counter, *, parent=None, history=False):
     from plans.models import PlanStep
 
-    step = PlanStep.objects.filter(plan=plan, title=entry['title']).first()
+    # A history step's title is the log's own heading and is never glued, so it is neither split
+    # nor looked up by half (`_write_bilingual`'s own note has the two headings that proved it).
+    step = _find_by_title(PlanStep, {'plan': plan}, entry['title'], split=not history)
     created = step is None
     if created:
-        step = PlanStep(plan=plan, title=entry['title'], status=entry.get('status', 'pending'))
+        pl_title = entry['title'] if history else _split_title(entry['title'])[0]
+        step = PlanStep(plan=plan, title=pl_title, status=entry.get('status', 'pending'))
         done_on = entry.get('done_on')
         if entry.get('status') == 'done' and done_on:
             step.done_at = _midday(done_on)
     step.parent = parent
     step.order = order
-    step.description = entry.get('description', '')
     step.due_at = due_at_for(entry.get('due'))
     if history and entry.get('done_on') and step.status == 'done':
         step.done_at = _midday(entry['done_on'])  # a fact of the log, so refreshed
     step.save()
+    _write_bilingual(step, entry['title'], entry.get('description', ''), bilingual=not history)
     counts['steps_created'] += created
     return step
 
@@ -1093,12 +1197,14 @@ def _upsert_plan(node: dict, owner, entry: dict, counts: Counter, *, history_ste
     tasks with the same titles and deadlines."""
     from plans.models import Plan
 
-    plan, created = Plan.objects.get_or_create(
-        **node, title=entry['title'],
-        defaults={'created_by': owner, 'status': entry.get('status', 'active')},
-    )
-    plan.description = entry['description']
-    plan.save()
+    plan = _find_by_title(Plan, node, entry['title'])
+    created = plan is None
+    if created:
+        pl_title, _en = _split_title(entry['title'])
+        plan = Plan.objects.create(
+            **node, title=pl_title, created_by=owner, status=entry.get('status', 'active')
+        )
+    _write_bilingual(plan, entry['title'], entry['description'], suffix=entry.get('body_suffix', ''))
     counts['plans_created'] += created
 
     order = 0
@@ -1126,34 +1232,48 @@ def _upsert_plan(node: dict, owner, entry: dict, counts: Counter, *, history_ste
 def _upsert_need(node: dict, owner, entry: dict, counts: Counter):
     from needs.models import Need
 
-    need, created = Need.objects.get_or_create(
-        **node, title=entry['title'], defaults={'created_by': owner}
-    )
-    need.description = entry['description']
+    need = _find_by_title(Need, node, entry['title'])
+    created = need is None
+    if created:
+        pl_title, _en = _split_title(entry['title'])
+        need = Need.objects.create(**node, title=pl_title, created_by=owner, kind=entry['kind'])
     need.kind = entry['kind']
     need.skill_level = entry['skill_level']
     need.is_remote = entry['is_remote']
     need.wanted_count = entry['wanted_count']
     need.save()
+    _write_bilingual(need, entry['title'], entry['description'])
     counts['needs_created'] += created
     return need
 
 
 def _upsert_poll(node: dict, owner, entry: dict, counts: Counter, now):
-    from config.sanitize import sanitize_content
     from decisions.models import Poll, PollOption
 
-    poll, created = Poll.objects.get_or_create(
-        **node, question=entry['question'],
-        defaults={'created_by': owner, 'status': 'open', 'opens_at': now},
+    # A poll is found by its QUESTION, which `_find_by_title` cannot help with (it looks at
+    # `title`), so the same two-state lookup is written out here.
+    pl_question, _en_question = _split_title(entry['question'])
+    poll = (
+        Poll.objects.filter(**node, question=entry['question']).first()
+        or Poll.objects.filter(**node, question=pl_question).first()
     )
-    poll.description = sanitize_content(entry['description'])
+    created = poll is None
+    if created:
+        poll = Poll.objects.create(
+            **node, question=pl_question, created_by=owner, status='open', opens_at=now
+        )
     poll.mode = entry['mode']
     poll.eligibility = entry['eligibility']
     poll.anonymous = entry['anonymous']
-    poll.save(update_fields=['description', 'mode', 'eligibility', 'anonymous'])
+    poll.save(update_fields=['mode', 'eligibility', 'anonymous'])
+    _write_bilingual(poll, entry['question'], entry['description'])
     for order, text in enumerate(entry['options'], start=1):
-        PollOption.objects.update_or_create(poll=poll, order=order, defaults={'text': text})
+        pl_text, _en_text = _split_title(text)
+        option, _made = PollOption.objects.update_or_create(
+            poll=poll, order=order, defaults={'text': pl_text}
+        )
+        # An option is one line of text: a heading and no body (translations/targets.py).
+        _write_bilingual(option, text, heading=True, body=False)
     counts['polls_created'] += created
     return poll
 
@@ -1301,13 +1421,27 @@ def build_edmat_project(owner_username: str, *, history: list[dict] | None = Non
     counts: Counter = Counter()
     now = timezone.now()
     with transaction.atomic():
+        # `description` is deliberately NOT in these defaults, and that is the one line standing
+        # between a deployment and the owner's own words. Everything else here (name, kind, city,
+        # website, open_board) is seed-owned and refreshed on every run; the description is the one
+        # field the bilingual editor exposes on `/about`, so refreshing it from this file would undo
+        # an edit made on production — which `_write_bilingual`'s `keep_edited` otherwise prevents,
+        # and which THIS call would have gone on doing behind its back (found by editing the
+        # description on the dev VM and re-running the seed: the two `TextVersion` rows survived and
+        # the column did not).
+        org_defaults = {k: v for k, v in ORGANIZATION.items() if k != 'description'}
         organization, org_created = Organization.objects.update_or_create(
             slug=ORGANIZATION_SLUG,
-            defaults={**ORGANIZATION, 'is_active': True},
+            defaults={**org_defaults, 'is_active': True},
         )
         if org_created:
             organization.created_by = owner
             organization.save(update_fields=['created_by'])
+        # Its description in both languages — the first paragraph on `/about`, glued by hand until
+        # 2026-10-08. No heading: an organisation's NAME is a registered name and the same in every
+        # language (translations/targets.py). This is the ONLY writer of the description now, and it
+        # leaves alone any language a person has saved.
+        _write_bilingual(organization, '', ORGANIZATION['description'], heading=False)
         OrganizationMember.objects.update_or_create(
             organization=organization, user=owner, defaults={'role': 'owner'}
         )
@@ -1318,7 +1452,10 @@ def build_edmat_project(owner_username: str, *, history: list[dict] | None = Non
         for goal in reversed(SUBPROJECTS):
             _upsert_plan(
                 node, owner,
-                {**goal, 'description': goal['description'] + f"\n\n*Aplikacje / apps: {goal['apps']}*", 'status': 'active'},
+                # The apps line goes through `body_suffix` so `_write_bilingual` can append it to
+                # BOTH languages; concatenating it here (as this did until 2026-10-08) filed it
+                # under the English half alone, because it landed after `_pl_en`'s own rule.
+                {**goal, 'body_suffix': f"\n\n*Aplikacje / apps: {goal['apps']}*", 'status': 'active'},
                 counts, history_steps=by_goal.get(goal['key'], ()),
             )
         for plan_entry in reversed(ASSOCIATION_PLANS):

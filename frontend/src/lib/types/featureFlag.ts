@@ -109,6 +109,12 @@ export type FeatureFlagKey =
 	// founding a course, an event, a tutoring listing or an organisation needs a verified
 	// contributor (backend config/creation.py). The Add… menu reads `GET /api/creation/` rather
 	// than this flag, because the answer is per account, not per site.
+	// The "AI-assisted" mark on content (backend provenance/, 2026-10-08): the author's own
+	// disclosure, one confidence vote per reader, a moderator's lock. Off: `/api/ai-assistance/`
+	// closes for a non-staff caller, the chip leaves every statement, hint, solution, comment and
+	// review, and the two menu items it owns leave the content menu — which keeps reply, report and
+	// the remove/restore actions, because those belong to other features (house rule 3).
+	| 'ai_assisted'
 	| 'creation_requires_verification'
 	| 'material_uploads_verified_only';
 

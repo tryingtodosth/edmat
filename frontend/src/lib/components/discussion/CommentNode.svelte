@@ -18,8 +18,8 @@
 		voteOnComment
 	} from '$lib/services/comments';
 	import { commentAnchorId } from '$lib/utils/contentLinks';
-	import MeatballsMenu from '$lib/components/shared/MeatballsMenu.svelte';
-	import ReportModal from '$lib/components/shared/ReportModal.svelte';
+	import ContentActionsMenu from '$lib/components/shared/ContentActionsMenu.svelte';
+	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
 	import LinkCommentToCourseModal from './LinkCommentToCourseModal.svelte';
 	import CommentHistoryModal from './CommentHistoryModal.svelte';
 	import CommentForm from './CommentForm.svelte';
@@ -42,7 +42,6 @@
 	let replying = $state(false);
 	let editing = $state(false);
 	let confirmingDelete = $state(false);
-	let reporting = $state(false);
 	let linkingToCourse = $state(false);
 	let showingHistory = $state(false);
 	let busy = $state(false);
@@ -73,11 +72,13 @@
 	let hidden = $derived(comment.isRemoved || comment.isAutoHidden);
 	let openPdf = $state<string | null>(null);
 
+	// This comment's OWN items only. Reply, report, the "AI-assisted" mark and a moderator's quick
+	// remove/restore all come from `ContentActionsMenu`, which fixes their order across every piece
+	// of content on the site (owner, 2026-10-08: reply above the AI mark). What is left here is
+	// what only a comment has.
 	let menuItems = $derived.by<MenuItem[]>(() => {
 		if (!authStore.isAuthenticated || hidden) return [];
-		const items: MenuItem[] = [
-			{ label: m.discussion_reply(), onselect: () => ((editing = false), (replying = true)) }
-		];
+		const items: MenuItem[] = [];
 		if (isAuthor) {
 			items.push({
 				label: m.comment_edit(),
@@ -90,11 +91,10 @@
 				// this is not undoable — the body is gone even though the row stays as a tombstone.
 				onselect: () => (confirmingDelete = true)
 			});
-		} else {
-			// Reporting your own comment is not a thing anybody means to do, so it is left out
-			// rather than offered and then refused.
-			items.push({ label: m.report_action(), onselect: () => (reporting = true) });
 		}
+		// "Report" is not pushed here any more: `ContentActionsMenu` adds it, and is told not to on
+		// your own comment — reporting yourself is not a thing anybody means to do, so it is left
+		// out rather than offered and then refused.
 
 		// Keeping it, and filing it. Offered on your own comment as much as on anybody else's: the
 		// first is a bookmark and there is nothing odd about keeping your own explanation, and the
@@ -257,11 +257,21 @@
 					>{m.comment_editedMarker()}</button
 				>
 			{/if}
-			{#if menuItems.length > 0}
-				<span class="comment__menu">
-					<MeatballsMenu items={menuItems} label={m.comment_actionsLabel()} />
-				</span>
-			{/if}
+			<AiAssistChip kind="comment" id={comment.id} />
+			<span class="comment__menu">
+				<!-- Rendered even on a hidden comment, where `menuItems` is empty: a moderator still
+				     needs the quick "restore" from here, and `ContentActionsMenu` draws nothing at all
+				     when it ends up with no items (an anonymous reader on a removed comment). -->
+				<ContentActionsMenu
+					kind="comment"
+					id={comment.id}
+					label={m.comment_actionsLabel()}
+					onReply={hidden ? undefined : () => ((editing = false), (replying = true))}
+					items={menuItems}
+					reportable={!isAuthor && !hidden}
+					{hidden}
+				/>
+			</span>
 		</div>
 
 		{#if comment.isRemoved}
@@ -353,10 +363,6 @@
 
 {#if linkingToCourse}
 	<LinkCommentToCourseModal commentId={comment.id} onClose={() => (linkingToCourse = false)} />
-{/if}
-
-{#if reporting}
-	<ReportModal kind="comment" objectId={comment.id} onClose={() => (reporting = false)} />
 {/if}
 
 {#if showingHistory}

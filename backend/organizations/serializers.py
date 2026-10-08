@@ -22,6 +22,7 @@ from .models import (
     OrganizationLink,
     OrganizationMember,
 )
+from translations.serializers import TranslatedTextMixin
 
 
 class PersonSerializer(serializers.Serializer):
@@ -129,10 +130,18 @@ class OrganizationSummarySerializer(serializers.ModelSerializer):
         return annotated if annotated is not None else obj.links.count()
 
 
-class OrganizationSerializer(OrganizationSummarySerializer):
+class OrganizationSerializer(TranslatedTextMixin, OrganizationSummarySerializer):
     """The detail shape. `my_role` and `can_manage` are the server's own answers, never re-derived
     by the frontend — a page that decided for itself who may edit it is how a control appears for
     somebody the API will then refuse."""
+
+    # Bilingual text (translations/, 2026-10-08). The one target with a BODY and no heading: `name`
+    # is a registered name and the same in every language, so only `description` is written twice.
+    # It is translated at all because it is the first paragraph on `/about`.
+    translated_heading_field = ''
+    translated_body_field = 'description'
+    language = serializers.SerializerMethodField()
+    text_versions = serializers.SerializerMethodField()
 
     my_role = serializers.SerializerMethodField()
     can_manage = serializers.SerializerMethodField()
@@ -147,6 +156,8 @@ class OrganizationSerializer(OrganizationSummarySerializer):
             'created_at',
             'my_role',
             'can_manage',
+            'language',
+            'text_versions',
         ]
         read_only_fields = fields
 

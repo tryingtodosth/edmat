@@ -503,6 +503,36 @@ certificate, `seed_school_demo`); `concepts/paths.py` (the bounded prerequisite 
 Frontend: the showcase under `/about/<feature>` from `lib/content/showcase/` and the manual under `/about/guide` from
 `lib/content/guide/` with real screenshots in `static/guide/`, both prerendered.
 
+### `provenance` — the "AI-assisted" mark (2026-10-08)
+Where a piece of content came from (`backend/provenance/CLAUDE.md`, `HISTORY.md` §17BX.A). Three tables because three
+different people are speaking: `AuthorMark` (the author's own disclosure, one per target, `assisted=False` a real stored
+answer and not the same as no row), `AssistanceVote` (one reader's confidence 0–100, one per person per target,
+changeable) and `ScoreLock` (a moderator freezing the community reading, with a reason that is not blank-able).
+`targets.py` is the registry — `exercise`, `solution_entry`, `comment`, `review`, deliberately shorter than
+`REPORT_KIND_MODELS` because everything here is a judgement about who wrote a piece of **prose**. `rules.py` is the one
+formula every endpoint asks: two marks (a three-people icon for the community, a single-person icon for the author, each
+lighting on its own) and one percent; the author's mark is final and an author's denial does not pull the community
+reading down. One BATCHED read (`GET /api/ai-assistance/?targets=…`, four queries per kind) plus three per-target
+writes; flag `ai_assisted` (migration 0050). Frontend: `AiAssistChip` (draws nothing until something is claimed),
+`AiAssistModal`, `ContentActionsMenu` (the shared "⋯" whose ORDER is the owner's instruction: reply → the AI mark → this
+surface's own items → report → a moderator's quick remove/restore) and `provideAiAssistance()`, the page-level holder
+that coalesces every chip's registration into one request.
+
+### `translations` — the management layer's text, per language (2026-10-08)
+`TextVersion`, one row per (target, locale) with `is_original` (`backend/translations/CLAUDE.md`, `HISTORY.md` §17BX.C).
+Seven targets through a registry — task, plan, plan step, need, poll, poll option, and an organisation's description —
+with `heading`/`body` named for their SHAPE because the seven call them four different things, and two of them are mirror
+images (a poll option has a heading and no body; an organisation has a body and no heading, because its `name` is a
+registered name). **Not `ExerciseTranslation`'s shape**: no review queue, because the people writing management text are
+the people who already run the thing, and `authority.py` asks each app's own `can_edit` rather than answering. The
+model's own column survives holding the original, mirrored on every write, so every existing reader of `Task.title` is
+untouched and a row with no versions behaves exactly as before. `updated_at` is deliberately NOT `auto_now`:
+`services.write_versions` stamps ONE timestamp across every language it writes, which is what keeps "the Polish is 4
+minutes newer" off content somebody just wrote. One endpoint (`PUT /api/text-versions/{kind}/{id}/`, every language at
+once), no read endpoint (the versions ride on the row they belong to), no kill switch of its own. Frontend:
+`TranslateFields` (original beside translation, stacked below 800px), `LanguageNote` ("a newer version exists in PL — 4
+min newer") and `ManagementTextMenu`, which is also the "⋯" a need and a poll had never had.
+
 ### `telemetry` — request logging and audit
 `RequestLog`, `AuditEvent`, `middleware.py`, `routers.py` (`LogShardRouter`), `checks.py`. Logs are written to **separate SQLite
 databases** (`logs_*` shards under `backend/logdata/`, sized by `EDMAT_LOG_SHARD_SIZE`/`COUNT`), with an anonymous shard

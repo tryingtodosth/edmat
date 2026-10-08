@@ -94,8 +94,12 @@ SUBPROJECT_BY_REF = {
     '17BT': 'platform', '17BT.A': 'platform', '17BT.B': 'learning', '17BT.C': 'interface',
     '17BT.D': 'platform', '17BT.E': 'community',
     '17BU': 'platform', '17BU.A': 'interface', '17BU.B': 'learning', '17BU.C': 'platform',
-    '17BU.D': 'learning', '17BV': 'interface', '17BW': 'management', '17BW.B': 'management',
-    '17BW.C': 'management',
+    '17BU.D': 'learning', '17BV': 'interface', '17BV.A': 'interface', '17BW': 'management',
+    '17BW.B': 'management', '17BW.C': 'management',
+    # 17BX genuinely spans two goals — the "AI-assisted" mark is about trusting content
+    # (`community`) and the bilingual text is the `management` layer's — and a section gets one
+    # key. Filed under the headline; its own §17BX.C says the other half out loud.
+    '17BX': 'community',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

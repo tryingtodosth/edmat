@@ -36,6 +36,9 @@
 	import LearnFirst from '$lib/components/concept/LearnFirst.svelte';
 	import ClaimGroups from '$lib/components/material/ClaimGroups.svelte';
 	import SolutionEntrySection from '$lib/components/exercise/SolutionEntrySection.svelte';
+	import ContentActionsMenu from '$lib/components/shared/ContentActionsMenu.svelte';
+	import AiAssistChip from '$lib/components/provenance/AiAssistChip.svelte';
+	import { provideAiAssistance } from '$lib/components/provenance/aiAssistance.svelte';
 	import GallerySection from '$lib/components/gallery/GallerySection.svelte';
 	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import StarRating from '$lib/components/shared/StarRating.svelte';
@@ -45,6 +48,12 @@
 	let exercise = $state<ResolvedExercise | undefined>(undefined);
 	let branch = $state<Branch | undefined>(undefined);
 	let topics = $state<Topic[]>([]);
+	// One batched "AI-assisted" request for every chip on this page — the statement, every hint and
+	// solution, every review and every comment register themselves and this coalesces them (see
+	// `aiAssistance.svelte.ts`). Provided here because `setContext` may only run during init, and
+	// this route is the common ancestor of all four surfaces.
+	provideAiAssistance();
+
 	let reviews = $state<Review[]>([]);
 	let comments = $state<Comment[]>([]);
 	let usersById = $state<Record<string, User>>({});
@@ -177,6 +186,18 @@
 		loadAll(id);
 	});
 
+	/** The statement's "reply" (`ContentActionsMenu` puts it top of the menu): the discussion is on
+	 *  this same page, so it scrolls there rather than opening a second composer somewhere else. */
+	function scrollToDiscussion() {
+		document.getElementById('exercise-discussion')?.scrollIntoView({ behavior: 'smooth' });
+	}
+
+	/** After a moderator's quick remove/restore from the statement's menu: refetch, because the
+	 *  decision changes `published` and with it everything this page draws. */
+	function reload() {
+		loadAll(page.params.id!);
+	}
+
 	function topicName(topicId: string): string {
 		return topics.find((t) => t.id === topicId)?.name ?? topicId;
 	}
@@ -289,6 +310,9 @@
 					<DifficultyBadge difficulty={exercise.difficulty} />
 					<SourceTypeBadge sourceType={exercise.source.type} />
 					<VerifiedBadge verified={exercise.verified} />
+					<!-- Draws nothing until somebody has actually claimed something (AiAssistChip's
+					     own docstring); the way to make a claim is the statement's own menu below. -->
+					<AiAssistChip kind="exercise" id={exercise.id} />
 					<TranslationBadge
 						isOriginal={exercise.isOriginal}
 						translatorName={exercise.translatedByUserId
@@ -425,7 +449,17 @@
 			     save-targets store on the exercise card, NOT here; the marker records that decision. -->
 
 			<section class="content-section">
-				<h2>{m.exercise_statement()}</h2>
+				<div class="section-head">
+					<h2>{m.exercise_statement()}</h2>
+					<ContentActionsMenu
+						kind="exercise"
+						id={exercise.id}
+						label={m.content_actionsLabel_statement()}
+						onReply={scrollToDiscussion}
+						hidden={!exercise.published}
+						onModerated={reload}
+					/>
+				</div>
 				<MathContent source={exercise.statement} />
 			</section>
 
@@ -527,6 +561,7 @@
 						statement: exercise.statement,
 						answer: exercise.answer
 					}}
+					existingLocales={exercise.availableLocales}
 					onSubmit={handleTranslationSubmit}
 					onCancel={() => (showTranslateForm = false)}
 				/>
@@ -537,7 +572,7 @@
 			     thread. Only when there are any — an empty "be the first" block here would be a second
 			     empty state competing with the one in the rating dialog, which is where writing a
 			     review actually happens. -->
-			<section class="content-section">
+			<section class="content-section" id="exercise-discussion">
 				<h2>{m.discussion_heading()}</h2>
 				{#if reviews.length > 0}
 					<h3 class="subheading">{m.review_heading()}</h3>
@@ -547,7 +582,7 @@
 							count: reviews.length
 						})}
 					</p>
-					<ReviewList {reviews} {usersById} commentTarget="review" />
+					<ReviewList {reviews} {usersById} commentTarget="review" assistKind="review" />
 					<h3 class="subheading">{m.discussion_comments()}</h3>
 				{/if}
 				<DiscussionThread {comments} {usersById} onSubmit={handleCommentSubmit} />
@@ -563,7 +598,7 @@
 							count: reviews.length
 						})}
 					</p>
-					<ReviewList reviews={topReviews} {usersById} commentTarget="review" />
+					<ReviewList reviews={topReviews} {usersById} commentTarget="review" assistKind="review" />
 					{#if reviews.length > topReviews.length}
 						<p class="review-summary">{m.review_topOnly({ count: reviews.length })}</p>
 					{/if}
@@ -585,6 +620,13 @@
 
 <style lang="scss">
 	@use '../../../lib/styles/mixins' as mix;
+	// The statement's heading row: the title, and the "⋯" pushed to the end of the line.
+	.section-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-2);
+	}
 
 	.contributors {
 		display: flex;
