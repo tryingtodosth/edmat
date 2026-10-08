@@ -639,7 +639,8 @@ class DiscussionPolicyView(APIView):
             if not candidate:
                 continue
             if not discussions.SECTION_RE.match(candidate) or discussions.management_kind(page):
-                # A management row has one thread and no sections (`discussions.parse_key`).
+                # A management row and an organisation's page have one thread and no sections
+                # (`discussions.parse_key`).
                 return Response({'detail': 'section'}, status=status.HTTP_400_BAD_REQUEST)
             if candidate not in sections:
                 sections.append(candidate)

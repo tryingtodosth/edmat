@@ -165,7 +165,27 @@ table or queue; the moderation tab lists them unchanged and `report_location_key
 - **The serializer refuses a row that does not exist** (`tasks/999`) and any section under a row;
   a moderator configuring a location ahead of its first comment is the one caller who types a page.
 - `frontend/src/lib/utils/discussionKeys.ts` mirrors `MANAGEMENT_PAGE_RE` (house rule 13, said in
-  both files): a word added here and not there is a row the moderation tab cannot link to.
+  both files): a word added here and not there is a row the moderation tab cannot link to. It is
+  also where a new kind needs a `ROW_KIND_LABELS` entry — `svelte-check` refuses the index without
+  one, which is the one thing stopping a kind from being added in two files and forgotten in a third.
+- **`goals/5` is one too** (2026-10-08, §17BZ), with `goals.rules.can_view_goal` as its rule and the
+  `goals` flag above its thread. One line in `MANAGEMENT_KINDS`, one branch in `_row_visible`.
+
+### An organisation's own page is a location, and it is addressed by SLUG (2026-10-08, §17BZ)
+
+`organizations/edmat` (`ORGANIZATION_PAGE_RE`) is the `page` of a `DiscussionLocation`, with no
+section: the thread under an organisation's description, which on `/about` is the one the owner
+asked for. `organizations.access.can_view_organization` is the rule, so a dissolved organisation's
+thread is members-only exactly as its page is.
+
+**The slug, not the pk**, and `SLUG_KINDS` is the one-line split in `management_rows`. The slug is
+this one model's stable public address (read-only on the serializer, "allocated once from the name
+and never moves under a link somebody already sent"), it is what `/organizations/[slug]` resolves,
+and a key is also an href. A task has no such address; its route is `/tasks/17`.
+
+It is **not** the board ceiling `todo.md` asks for. This row is the organisation's own thread, not a
+switch over the threads of its tasks and plans; making it both is one branch in `effective_policy`
+and a decision nobody has taken.
 
 ## Verify
 
@@ -181,7 +201,11 @@ read a held comment, the moderator's list, that a refused write leaves no row, t
 conditions `sweep_discussion_locations` requires, and the `discussion_location` field on a report
 row. The browser half is `e2e/about-discussions.mjs`.
 
-`manage.py test community.test_management_discussions` (30) covers a row as a location: the key
+`manage.py test community.test_management_discussions` (41) covers a row as a location, and an
+organisation's own page as one (the slug key and what it refuses, an active body's public thread, a
+closed BOARD not closing the page's own thread, a dissolved body's 404 and its roster's 200, the
+`organizations` flag above it, the batched read answering a page beside its board, and the
+moderator's add form). It also covers: the key
 shape and what it refuses, the 404s (a missing row, a stranger on a closed board's task, a draft
 plan, a non-open need, a members poll off an open board) and their roster twins, that
 `can_view_need` agrees with `public_needs`, the two settings and the hold on a row, the report-queue

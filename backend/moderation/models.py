@@ -423,6 +423,13 @@ FEATURE_FLAG_CHOICES = [
     # leave the content menu — which keeps its reply, report and remove items, because those belong
     # to other features and must go on working with this one off.
     ('ai_assisted', 'The "AI-assisted" mark: author marks and community votes'),
+    # Goals and their definitions of done (goals/, 2026-10-08). A plain kill switch, seeded ON by
+    # migration 0051 — nothing on the platform has a goal the moment it runs, so switching it on
+    # takes nothing away from anybody. Off, `/api/goals/` and `/api/nodes/{kind}/{id}/goals/` close
+    # to a non-staff caller and the frontend takes the whole surface with it (house rule 3): the
+    # Goals panel leaves every node page and `/about`, the "serves this goal" line leaves every task
+    # and plan, and the thread under a goal closes with it (`community/discussions.py`).
+    ('goals', 'Goals and their definitions of done'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

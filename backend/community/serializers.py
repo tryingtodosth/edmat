@@ -370,21 +370,30 @@ class DiscussionLocationSerializer(serializers.ModelSerializer):
         page = (attrs.get('page') or getattr(self.instance, 'page', '') or '').strip()
         section = (attrs.get('section') or getattr(self.instance, 'section', '') or '').strip()
         if management_kind(page):
-            # A task, a plan, a need or a poll (`discussions.py`, "A task … is a location too"):
-            # the row has to exist — a moderator configuring `tasks/999` ahead of a task that
-            # was never created would be a row nobody could ever reach — and it has no sections.
+            # A task, a plan, a need, a poll or an organisation (`discussions.py`, "A task … is a
+            # location too" and "And so is an organisation's own page"): the row has to exist — a
+            # moderator configuring `tasks/999` ahead of a task that was never created would be a
+            # row nobody could ever reach — and it has no sections.
             if section:
                 raise serializers.ValidationError(
-                    {'section': ['A task, a plan, a need or a poll has one thread and no sections.']}
+                    {
+                        'section': [
+                            'A task, a plan, a need, a poll or an organisation has one thread '
+                            'and no sections.'
+                        ]
+                    }
                 )
             if page not in management_rows([page]):
-                raise serializers.ValidationError({'page': ['No such task, plan, need or poll.']})
+                raise serializers.ValidationError(
+                    {'page': ['No such task, plan, need, poll or organisation.']}
+                )
         elif not PAGE_RE.match(page):
             raise serializers.ValidationError(
                 {
                     'page': [
                         'A page is `about`, `about/<segment>`, `about/<segment>/<segment>`, '
-                        'or a row: `tasks/<id>`, `plans/<id>`, `needs/<id>`, `polls/<id>`.'
+                        'or a row: `tasks/<id>`, `plans/<id>`, `needs/<id>`, `polls/<id>`, '
+                        '`organizations/<slug>`.'
                     ]
                 }
             )

@@ -27,6 +27,8 @@
 	import TaskForm from './TaskForm.svelte';
 	import { RowDiscussions } from '$lib/components/discussion/rowDiscussions.svelte';
 	import { discussionKeyFor } from '$lib/utils/discussionKeys';
+	import { getNodeGoals } from '$lib/services/goals';
+	import type { Goal } from '$lib/types/goal';
 
 	let { node }: { node: NodeRef } = $props();
 
@@ -55,6 +57,25 @@
 		if (key === loadedFor) return;
 		loadedFor = key;
 		load(key);
+	});
+
+	// The node's goals, once per panel, so every card's "Serves: …" is a picker rather than a label
+	// and no card asks for itself (`GoalServes` argues it). A failure leaves the list empty, which
+	// degrades to the read-only line — a board must render whether or not the goals load.
+	let goals = $state<Goal[]>([]);
+	let goalsFor = $state('');
+	$effect(() => {
+		const key = `${node.kind}:${node.id}:${authStore.user?.id ?? 'anon'}`;
+		if (key === goalsFor) return;
+		goalsFor = key;
+		getNodeGoals(node.kind, node.id).then(
+			(rows) => {
+				if (goalsFor === key) goals = rows;
+			},
+			() => {
+				if (goalsFor === key) goals = [];
+			}
+		);
 	});
 
 	// Every row's thread policy in ONE request (`rowDiscussions.svelte.ts`), re-asked when the
@@ -216,6 +237,7 @@
 			<TaskCard
 				task={openTask}
 				discussion={rowDiscussions.byKey[discussionKeyFor('tasks', openTask.id)]}
+				{goals}
 				onchanged={(updated) => {
 					replace(updated, openTask);
 					// The row is gone (deleted): there is nothing left to show, so the dialog goes

@@ -1,6 +1,6 @@
 """May this person write this row's text?
 
-**Asked of the target's own app, never answered here.** Each of the four management apps already
+**Asked of the target's own app, never answered here.** Each of the five management apps already
 has the real answer, each one different in a way that matters, and a second copy of any of them in
 this app would be the start of two surfaces disagreeing about who may edit a task:
 
@@ -9,6 +9,7 @@ this app would be the start of two surfaces disagreeing about who may edit a tas
 | `task` | `tasks.rules.can_edit` | the node's manager, the task's author, **or whoever is carrying it** |
 | `plan`, `plan_step` | `plans.rules.can_edit` | the node's manager, or the plan's own author |
 | `need` | `needs.rules.can_manage` | the node's manager |
+| `goal`, `goal_criterion` | `goals.rules.can_edit` | the node's manager, or the goal's own author |
 | `poll`, `poll_option` | `config.nodes.can_manage_node` on the poll's node, **and only while it is a draft** | the node's manager |
 | `organization` | `organizations.access.can_manage_organization` | its owners and admins |
 
@@ -62,6 +63,18 @@ def write_block_reason(user, obj) -> str | None:
         from needs import rules as need_rules
 
         return None if need_rules.can_manage(user, obj) else NOT_ALLOWED
+
+    if kind in ('goal', 'goal_criterion'):
+        from goals import rules as goal_rules
+
+        # The words of a goal, and the words of one line of its definition of done, are the same
+        # question: `goals.rules.can_edit` — the node's manager or the goal's own author. NOT
+        # `can_tick`, which is wider on purpose (staff may record that a criterion is met) and has
+        # nothing to do with rewriting what it says.
+        goal = obj if kind == 'goal' else getattr(obj, 'goal', None)
+        if goal is None:
+            return NOT_ALLOWED
+        return None if goal_rules.can_edit(user, goal) else NOT_ALLOWED
 
     if kind == 'organization':
         from organizations.access import can_manage_organization

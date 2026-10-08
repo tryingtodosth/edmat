@@ -41,9 +41,18 @@ export interface TextVersion {
 
 /** The kinds `backend/translations/targets.py` knows. Two of them are the mirror image of each
  *  other: a poll option has a heading and no body, an organisation a body and no heading (its
- *  `name` is a registered name and the same in every language). */
+ *  `name` is a registered name and the same in every language); a goal's criterion is the poll
+ *  option's shape again, one text field and no second one (`goals/`, 2026-10-08). */
 export type TranslatableKind =
-	'task' | 'plan' | 'plan_step' | 'need' | 'poll' | 'poll_option' | 'organization';
+	| 'task'
+	| 'plan'
+	| 'plan_step'
+	| 'need'
+	| 'poll'
+	| 'poll_option'
+	| 'organization'
+	| 'goal'
+	| 'goal_criterion';
 
 /** A row that carries the two blocks. Every management type extends this, so one editor and one
  *  note component serve all six. */

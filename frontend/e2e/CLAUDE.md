@@ -168,6 +168,17 @@ cache; cache.clear()"`, through the API and never by deleting `cachedata/` (trap
     the comment's words fails on both, which is how `management-discussions.mjs` first reported
     two failures on a feature that was working.
 
+32. **Platform staff are not a node's managers, and `is_staff` does not bypass that.**
+    `feature_gate` has a staff bypass; `config/nodes.py: can_manage_node` deliberately does not — a
+    moderator may moderate an organisation's content and still not speak for it. So a script that
+    writes anything a node MANAGER owns (a goal, a need, a plan, an organisation's links) cannot use
+    the seeded `admin` token: on the dev database the `edmat` organisation's only owner is
+    `piotrek`, whose password is not `password123`, so there is no login to fall back to either.
+    `e2e/goals.mjs` takes `E2E_OWNER_TOKEN` and says plainly, when it is unset, that the
+    `not_manager` refusals that follow are this and not a regression. Read the token the way trap 30
+    describes. Found 2026-10-08 (§17BZ), by the first run of that script failing its very first
+    write.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

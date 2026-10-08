@@ -1300,6 +1300,8 @@ class FeatureFlagTests(ApiTestCase):
                 'creation_requires_verification',
                 # The standing pages' discussions, migration 0048 (`community/discussions.py`).
                 'about_discussions',
+                # Goals and their definitions of done, migration 0051 (`goals/`, 2026-10-08).
+                'goals',
                 'material_uploads_verified_only',
             },
         )

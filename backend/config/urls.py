@@ -69,6 +69,9 @@ urlpatterns = [
     path('api/', include('plans.urls')),
     path('api/', include('decisions.urls')),
     path('api/', include('work.urls')),
+    # Goals and their definitions of done (goals/urls.py, 2026-10-08) — the seventh management
+    # module, hung off a node through config/nodes.py like the six above it.
+    path('api/', include('goals.urls')),
     # The learning cycle (prompts/00-DESIGN.md §3), included EMPTY by the prep commit.
     path('api/', include('flashcards.urls')),
     # The "AI-assisted" mark on content (provenance/urls.py) — `ai-assistance/`, named for the

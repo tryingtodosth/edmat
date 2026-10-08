@@ -24,13 +24,17 @@
 	import type { DiscussionAudience, DiscussionLocationRow } from '$lib/types/discussion';
 	import { discussionLocationHref, managementDiscussionKind } from '$lib/utils/discussionKeys';
 
-	/** What a row's key stands for when it is not a page: "a task", "a plan"… A standing page's
-	 *  row says "the whole page" or names its section, as before. */
+	/** What a row's key stands for when it is not a page: "a task", "a plan", "an organisation"… A
+	 *  standing page's row says "the whole page" or names its section, as before. Every member of
+	 *  `MANAGEMENT_DISCUSSION_KINDS` needs an entry here or `svelte-check` refuses the index — which
+	 *  is the one thing stopping this from being the third place a kind is added and forgotten. */
 	const ROW_KIND_LABELS = {
 		tasks: m.discussions_rowTask, // "a task"
 		plans: m.discussions_rowPlan, // "a plan"
 		needs: m.discussions_rowNeed, // "a need"
-		polls: m.discussions_rowPoll // "a poll"
+		polls: m.discussions_rowPoll, // "a poll"
+		goals: m.discussions_rowGoal, // "a goal"
+		organizations: m.discussions_rowOrganization // "an organisation"
 	};
 
 	let rows = $state<DiscussionLocationRow[]>([]);

@@ -125,7 +125,9 @@ class NodeTasksView(APIView):
         # action itself. `not_staff` is the word the frontend has a sentence for.
         if not rules.can_create(request.user, node):
             return Response({'detail': rules.NOT_STAFF}, status=status.HTTP_403_FORBIDDEN)
-        serializer = TaskWriteSerializer(data=request.data)
+        # `node` in the context is what lets `ServesGoalMixin` check a `goal` sent at creation
+        # time: a node-nested POST does not carry its node in the body.
+        serializer = TaskWriteSerializer(data=request.data, context={'node': node})
         serializer.is_valid(raise_exception=True)
         task = Task.objects.create(
             content_type=nodes.node_content_type(node),
@@ -269,7 +271,7 @@ class TaskViewSet(
         reason = rules.subtask_block_reason(request.user, parent)
         if reason:
             return _refusal(reason)
-        serializer = TaskWriteSerializer(data=request.data)
+        serializer = TaskWriteSerializer(data=request.data, context={'node': parent.node})
         serializer.is_valid(raise_exception=True)
         child = Task.objects.create(
             content_type_id=parent.content_type_id,

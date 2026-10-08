@@ -203,6 +203,12 @@ INSTALLED_APPS = [
     'plans',
     'decisions',
     'work',
+    # A goal, and the criteria that say when it has been reached (owner, 2026-10-08: "we also need
+    # goal class which is going to be used as a definition of done and also commentable"). Its own
+    # app and not more of `plans` because what it owns is a DERIVED status — `met` comes from its
+    # criteria and nothing else writes it — where a plan's status is a person's decision; `/about`
+    # calling the twelve module plans "goals" was the convention this replaces. See goals/models.py.
+    'goals',
     # The learning cycle (prompts/00-DESIGN.md), registered EMPTY by the prep commit for the same
     # reason: flashcards — decks, cards, spaced review, and placements on a course or an event.
     'flashcards',

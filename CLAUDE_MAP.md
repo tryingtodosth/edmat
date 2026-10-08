@@ -200,9 +200,10 @@ own: `discussions.py` is the rule module (who may write, what is held, what "N c
 `report_location_key()` is what `moderation/services.py` reads to put a `discussion_location` key on a held comment's report row,
 and `manage.py sweep_discussion_locations [--dry-run]` deletes rows nobody decided anything about (no comments, default
 settings, `updated_by IS NULL`). The row is created only after a write is accepted, so a refused post leaves nothing behind.
-Since 2026-10-08 (§17BY) a management row is a page here too — `tasks/17`, `plans/3`, `needs/2`, `polls/1` — so the project
-board's rows carry the same threads, settings and holds; the read 404s where the row's own app would, and `?keys=` answers a
-whole panel in one request.
+Since 2026-10-08 (§17BY) a management row is a page here too — `tasks/17`, `plans/3`, `needs/2`, `polls/1`, and `goals/5`
+since `goals` landed (§17BZ) — so the project board's rows carry the same threads, settings and holds; the read 404s where
+the row's own app would, and `?keys=` answers a whole panel in one request. An **organisation's own page** is one as well
+(`organizations/edmat`, addressed by SLUG because that is its public address): the thread under its description on `/about`.
 
 ### `moderation` — the queue, the scoped role, and the kill switches
 Models: `ExerciseSubmission` (a JSON `payload` draft), `EditSuggestion`,
@@ -452,6 +453,18 @@ a node the reader can view is readable by anyone; editing is the node's managers
 `suggest_block_reason` (`not_active`, `minor`, `own_plan`), `complete_block_reason` (`steps_pending`), `progress`
 (done over total − skipped, recounted), `reorder` (exactly the top-level ids, else 400). Kill switch `plans`. Frontend:
 `PlansPanel`, `/plans/[id]` (up/down reorder, no drag library).
+
+### `goals` — a goal, and the criteria that say when it is reached (2026-10-08)
+`Goal` (open / met / abandoned; hung off a node through `config/nodes.py`; `order`) and `GoalCriterion` (one checkable line;
+its state is the single nullable `met_at`, with `met_by`). **The criteria ARE the definition of done**: `goals/rules.py:
+recount` is the only writer of `met`, a goal with no criteria can never reach it, `met -> open` by hand is 409 and a
+hand-written `met` is 400 with the reason. Two authority tiers: `can_edit` (node manager or the goal's author) writes the
+words and the list; `can_tick` (node staff) records a line as met. Visible to anyone who can view the node, abandoned ones
+included — a goal is the outside of a team where a task board is the inside. `destroy` is bounded by
+`delete_block_reason` (`has_work`, `has_comments`), the `sweep_discussion_locations` test applied to a goal. The "serves"
+link is `tasks.Task.goal` and `plans.Plan.goal`, both nullable `SET_NULL`, both asking `rules.goal_for_node` for the
+same-node rule. Kill switch `goals`. Frontend: `GoalsPanel` (above the other six on every node page and `/about`),
+`GoalCard` (shared with the page), `GoalServes`, `/goals/[id]`.
 
 ### `decisions` — polls, and the decision that closes them (2026-09-24)
 `Poll` (single / multiple; `anonymous`; eligibility staff / members via the seam; draft / open / closed; `decision_note`),

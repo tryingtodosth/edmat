@@ -186,3 +186,16 @@ via `config.nodes.is_open_board`); writing, voting and drafts are unchanged. `no
 as `open_board`, the frontend as `NodeRef.openBoard`, which is what the task panel keys its
 "draw for a stranger" on. The project’s own organisation has it set by the seed; `/about` renders
 that organisation (`OrganizationPage`). Tests: `test_open_board.py`.
+
+## Its description is commentable (2026-10-08, `HISTORY.md` §17BZ)
+
+`organizations/<slug>` is a `DiscussionLocation` page (`community/discussions.py`, "And so is an
+organisation's own page"): one thread per organisation, drawn under its description by
+`OrganizationPage.svelte`, on every organisation page and not only on `/about`. Nothing in this app
+changed — `access.can_view_organization` is what the thread 404s on, which is why a dissolved
+organisation's thread is members-only exactly as its page is.
+
+The **slug** is the key, not the pk, and that leans on this app's own promise that the slug is
+read-only and allocated once (`serializers.py`). If that ever stops being true, every thread written
+at the old key is orphaned.
+

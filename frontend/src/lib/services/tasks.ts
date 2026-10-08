@@ -78,6 +78,10 @@ function mapTask(raw: any): Task {
 		subtasks: (raw.subtasks ?? []).map(mapTask),
 		progress: { done: raw.progress?.done ?? 0, total: raw.progress?.total ?? 0 },
 		isOverdue: raw.is_overdue ?? false,
+		// The goal this is work towards (`goals/`, 2026-10-08). `null` rather than `''` so "no goal"
+		// and "a goal whose title is empty" stay different things.
+		goal: raw.goal === null || raw.goal === undefined ? null : String(raw.goal),
+		goalTitle: raw.goal_title ?? '',
 		canEdit: raw.can_edit ?? false,
 		canAssign: raw.can_assign ?? false,
 		language: mapLanguageReading(raw.language),
@@ -146,6 +150,13 @@ export async function getTask(id: string): Promise<Task> {
 
 export async function updateTask(id: string, draft: Partial<TaskDraft>): Promise<Task> {
 	return mapTask(await apiClient.patch(`/tasks/${id}/`, toPayload(draft as TaskDraft)));
+}
+
+/** Which goal this task is work towards — `null` clears it (`goals/`, 2026-10-08). Its own call
+ * rather than a field on `TaskDraft`, because `toPayload` is the shape of the task FORM and a goal
+ * is not something anybody types; the server refuses a goal on another node with `other_node`. */
+export async function setTaskGoal(id: string, goalId: string | null): Promise<Task> {
+	return mapTask(await apiClient.patch(`/tasks/${id}/`, { goal: goalId ? Number(goalId) : null }));
 }
 
 export async function deleteTask(id: string): Promise<void> {

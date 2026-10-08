@@ -50,7 +50,8 @@ about/project info section with tasks, plans, needs etc should be commentable �
 that with the previous version of about meaning replies and moderation/flags different settings".
 The previous version's mechanism IS this module, so the answer was to let a management row be a
 page here rather than to give four apps a comment endpoint each: a key of `tasks/17`, `plans/3`,
-`needs/2` or `polls/1` (`MANAGEMENT_PAGE_RE`) is the `page` of a `DiscussionLocation`, with no
+`needs/2` or `polls/1` — and, since `goals/` landed the same day, `goals/5` — (`MANAGEMENT_PAGE_RE`)
+is the `page` of a `DiscussionLocation`, with no
 section — one thread per row, one row of settings per row, held comments through the same queue,
 and the moderation tab lists them beside the standing pages without learning anything.
 
@@ -59,16 +60,37 @@ Two things ARE different about such a page, and both are answered here so the vi
 - **It can be private.** A standing page is prose anybody can open; a task hangs off a node with a
   roster, and a stranger may not see it at all. `can_read_location` asks the row's own app
   (`tasks.rules.visible_task`, `plans.rules.can_view_plan`, `needs.rules.can_view_need`,
-  `decisions.rules.can_view_poll`) and the views turn a refusal into 404 — the same answer the
+  `decisions.rules.can_view_poll`, `goals.rules.can_view_goal`) and the views turn a refusal into 404 — the same answer the
   row's own endpoint gives (house rule 4). A missing row is the same 404.
 - **It answers to two kill switches.** `about_discussions` for the thread, and the row's own
-  (`tasks`, `plans`, `needs`, `decisions`): a killed board must not keep a live thread under rows
+  (`tasks`, `plans`, `needs`, `decisions`, `goals`): a killed board must not keep a live thread under rows
   nobody can reach (house rule 3). `effective_policy` folds the second in for these pages only.
 
 There is no ceiling row for a management page — the node is not a page and no row of this table
 stands for it — so "close every thread on this organisation's board" is N switches today, named
 in `todo.md`. Plan steps and poll options have no thread of their own; the plan's and the poll's
 thread is where that talk goes.
+
+## And so is an organisation's own page (2026-10-08)
+
+The owner's next sentence, the same afternoon: "after the header, the description should be
+commentable as well". The header and the description in question are `/about`'s, which is the EdMat
+organisation's page (`OrganizationPage.svelte`) — so the thing to make commentable is not a block of
+prerendered prose but a row of `organizations.Organization`, and the mechanism is the one the
+paragraph above just built. `organizations/edmat` is the `page`, with no section: one thread per
+organisation, drawn under its description, and every organisation page gets it rather than `/about`
+alone — a student circle's "what we are" is the same kind of text and wants the same thread.
+
+It is addressed by **slug** where the four above are addressed by pk, and that is not an
+inconsistency: the slug is this one model's stable public address (`organizations/serializers.py` —
+read-only, "allocated once from the name and never moves under a link somebody already sent"), it is
+what `/organizations/[slug]` resolves, and a key is also an href (`utils/discussionKeys.ts`). A task
+has no such address; its route is `/tasks/17`.
+
+What this deliberately is NOT is the board ceiling the paragraph above says is missing. This row is
+the organisation's own thread, not a switch over the threads of its tasks and plans. Making it both
+is a defensible future move — "no talking on this organisation" plausibly should mean its board too
+— and it is one branch in `effective_policy`; it is left in `todo.md` rather than decided here.
 
 ## Refusal words
 
@@ -150,7 +172,12 @@ SECTION_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 #: A management row's own thread: `tasks/17`, `plans/3`, `needs/2`, `polls/1`. Plural words because
 #: they are the frontend's route segments (`/tasks/17`), which is where the key sends a reader.
 #: A leading zero or an id with more than ten digits is malformed rather than merely absent.
-MANAGEMENT_PAGE_RE = re.compile(r'^(tasks|plans|needs|polls)/[1-9][0-9]{0,9}$')
+MANAGEMENT_PAGE_RE = re.compile(r'^(tasks|plans|needs|polls|goals)/[1-9][0-9]{0,9}$')
+
+#: An organisation's own page: `organizations/edmat`. A SLUG, not a pk — the module docstring argues
+#: why this one model is addressed by its public address and the four above by their id. The shape is
+#: `organizations/services.allocate_slug`'s output: lowercase letters, digits and hyphens.
+ORGANIZATION_PAGE_RE = re.compile(r'^(organizations)/[a-z0-9-]{1,60}$')
 
 #: The word in the key -> (app_label, model, the kill switch that row answers to). Hand-written
 #: like `community/targets.py` and `config/nodes.py`: `polls` live in the `decisions` app and
@@ -160,7 +187,13 @@ MANAGEMENT_KINDS = {
     'plans': ('plans', 'plan', 'plans'),
     'needs': ('needs', 'need', 'needs'),
     'polls': ('decisions', 'poll', 'decisions'),
+    'organizations': ('organizations', 'organization', 'organizations'),
+    'goals': ('goals', 'goal', 'goals'),
 }
+
+#: The kinds whose key carries a slug rather than a pk. One set rather than a fifth element on every
+#: tuple above, so that adding an id-addressed kind stays a one-line change.
+SLUG_KINDS = frozenset({'organizations'})
 
 AUDIENCE_ANYONE = 'anyone'
 AUDIENCE_USERS = 'users'
@@ -190,8 +223,9 @@ def parse_key(key: str) -> tuple[str, str]:
     """
     raw = (key or '').strip()
     page, _, section = raw.partition('#')
-    if MANAGEMENT_PAGE_RE.match(page):
-        # One thread per row: a section under `tasks/17` would be a thread on nothing.
+    if MANAGEMENT_PAGE_RE.match(page) or ORGANIZATION_PAGE_RE.match(page):
+        # One thread per row: a section under `tasks/17` would be a thread on nothing, and an
+        # organisation's page has one thread under its description for the same reason.
         if section:
             raise ValueError('section')
         return page, ''
@@ -203,8 +237,9 @@ def parse_key(key: str) -> tuple[str, str]:
 
 
 def management_kind(page: str) -> str | None:
-    """`'tasks'` for `tasks/17`, `None` for a standing page."""
-    match = MANAGEMENT_PAGE_RE.match(page or '')
+    """`'tasks'` for `tasks/17`, `'organizations'` for `organizations/edmat`, `None` for a standing
+    page."""
+    match = MANAGEMENT_PAGE_RE.match(page or '') or ORGANIZATION_PAGE_RE.match(page or '')
     return match.group(1) if match else None
 
 
@@ -217,18 +252,24 @@ def management_rows(pages) -> dict:
     """
     from django.apps import apps
 
-    ids_by_kind: dict[str, set[int]] = {}
+    refs_by_kind: dict[str, set[str]] = {}
     for page in pages:
         kind = management_kind(page)
         if kind:
-            ids_by_kind.setdefault(kind, set()).add(int(page.split('/', 1)[1]))
+            refs_by_kind.setdefault(kind, set()).add(page.split('/', 1)[1])
     found = {}
-    for kind, ids in ids_by_kind.items():
+    for kind, refs in refs_by_kind.items():
         app_label, model_name, _flag = MANAGEMENT_KINDS[kind]
         model = apps.get_model(app_label, model_name)
+        if kind in SLUG_KINDS:
+            # An organisation IS a node (`config/nodes.py`), so there is nothing to prefetch: its
+            # own row is what its visibility rule reads.
+            for row in model.objects.filter(slug__in=refs):
+                found[f'{kind}/{row.slug}'] = row
+            continue
         # The node comes with the rows — one query per content type rather than one per row, so
         # that the visibility rules' first question (`node_of`, `.node`) costs nothing per row.
-        for row in model.objects.filter(pk__in=ids).prefetch_related('node'):
+        for row in model.objects.filter(pk__in={int(ref) for ref in refs}).prefetch_related('node'):
             found[f'{kind}/{row.pk}'] = row
     return found
 
@@ -252,6 +293,16 @@ def _row_visible(user, kind: str, row) -> bool:
         from decisions.rules import can_view_poll
 
         return can_view_poll(user, row)
+    if kind == 'goals':
+        from goals.rules import can_view_goal
+
+        return can_view_goal(user, row)
+    if kind == 'organizations':
+        from organizations.access import can_view_organization
+
+        # A dissolved organisation is a tombstone its own members may still open (`is_active`), so
+        # the thread under its description follows the page: visible to them, 404 to everybody else.
+        return can_view_organization(user, row)
     return False
 
 
@@ -259,8 +310,9 @@ def readable_pages(user, pages, rows: dict | None = None) -> set:
     """The subset of `pages` this reader may open a thread on.
 
     A standing page is always readable — the prose is public and so is the talk about it. A
-    management page is readable when its row exists and the row's own app says so; a stranger on
-    a private course's task is told nothing, exactly as `/api/tasks/17/` tells them nothing.
+    management page, and an organisation's own page, is readable when its row exists and the row's
+    own app says so; a stranger on a private course's task is told nothing, exactly as
+    `/api/tasks/17/` tells them nothing.
     """
     rows = management_rows(pages) if rows is None else rows
     allowed = set()

@@ -20,6 +20,9 @@
 	import ManagementPanels from '$lib/components/management/ManagementPanels.svelte';
 	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
 	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import RowDiscussion from '$lib/components/discussion/RowDiscussion.svelte';
+	import { RowDiscussions } from '$lib/components/discussion/rowDiscussions.svelte';
+	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 	import { authStore } from '$lib/state/auth.svelte';
 	import {
 		getMembers,
@@ -45,6 +48,20 @@
 	let links = $state<OrganizationLink[]>([]);
 	let loading = $state(true);
 	let missing = $state(false);
+
+	// The organisation's own thread, drawn under its description (`community/discussions.py`, "And
+	// so is an organisation's own page"). One key, so the batched read is a request for one row —
+	// used anyway because `RowDiscussions` carries the reader-keyed guard this page needs for the
+	// same reason its own load does (`frontend/CLAUDE.md` trap 2): `can_post` changes the moment a
+	// session resolves. Keyed on the SLUG, which is what `organizations/<slug>` spells over there and
+	// what `/organizations/[slug]` resolves here.
+	const rowDiscussions = new RowDiscussions();
+	const discussionKey = $derived(
+		organization ? discussionKeyFor('organizations', organization.slug) : ''
+	);
+	$effect(() =>
+		rowDiscussions.load(discussionKey ? [discussionKey] : [], authStore.user?.id ?? 'anon')
+	);
 
 	let loadedFor = $state('');
 	$effect(() => {
@@ -182,6 +199,12 @@
 						</li>
 					{/if}
 				</ul>
+				<!-- The thread the owner asked for: "after the header, the description should be
+				     commentable as well". Named by the organisation rather than by the heading —
+				     "Comments on EdMat.net" says what the talk is about, where "Comments on About"
+				     would not. Draws nothing until the policy lands and nothing when the location is
+				     off (house rule 3, which `SectionDiscussion` keeps). -->
+				<RowDiscussion policy={rowDiscussions.byKey[discussionKey]} title={organization.name} />
 			</section>
 
 			<section class="block">

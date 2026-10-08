@@ -111,3 +111,12 @@ board — list and detail — while `can_create`, `can_edit`, `can_assign` and e
 with the roster, and `can_edit` in the row is what the panel draws buttons from. For a course, an
 event or a material the answer is always False, so nothing there changed. `organizations/
 test_open_board.py` asserts both the open body and the closed one side by side.
+
+## `Task.goal` — which goal this is work towards (2026-10-08, `HISTORY.md` §17BZ)
+
+One nullable `SET_NULL` FK to `goals.Goal`, written through `TaskWriteSerializer` (create and PATCH).
+**The rule is not here**: a task may only serve a goal on its OWN node, that cannot be a database
+constraint (two generic targets, no shared column), and `goals.rules.goal_for_node` is the one place
+it lives — `ServesGoalMixin` asks it, and `plans` asks the same function. A cross-node goal is 400
+`{"goal": ["other_node"]}`. `NodeTasksView.post` and the subtask action pass `context={'node': …}`
+so the mixin can check a goal sent at creation time, when there is no instance to read the node from.

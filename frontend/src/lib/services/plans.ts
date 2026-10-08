@@ -69,6 +69,10 @@ function mapPlan(raw: any): Plan {
 			skipped: raw.progress?.skipped ?? 0,
 			percent: raw.progress?.percent ?? 0
 		},
+		// The goal this is work towards (`goals/`, 2026-10-08). `null` rather than `''` so "no goal"
+		// and "a goal whose title is empty" stay different things.
+		goal: raw.goal === null || raw.goal === undefined ? null : String(raw.goal),
+		goalTitle: raw.goal_title ?? '',
 		canEdit: raw.can_edit ?? false,
 		suggestBlockReason: (raw.suggest_block_reason ?? null) as PlanBlockReason | null,
 		language: mapLanguageReading(raw.language),
@@ -123,6 +127,15 @@ export async function updatePlan(
 	patch: { title?: string; description?: string }
 ): Promise<Plan> {
 	return mapPlan(await apiClient.patch(`/plans/${planId}/`, patch));
+}
+
+/** Which goal this roadmap is work towards — `null` clears it (`goals/`, 2026-10-08). The plan's
+ * own `partial_update` takes it beside title and description, and refuses a goal hanging off
+ * another node with `other_node`. */
+export async function setPlanGoal(planId: string, goalId: string | null): Promise<Plan> {
+	return mapPlan(
+		await apiClient.patch(`/plans/${planId}/`, { goal: goalId ? Number(goalId) : null })
+	);
 }
 
 export async function deletePlan(planId: string): Promise<void> {

@@ -426,8 +426,51 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	creation_requires_verification: m.featureFlags_label_creationRequiresVerification, // "Creating courses, events, listings and organisations: verified contributors only"
 	// The "AI-assisted" mark (provenance/, 2026-10-08) — mirrors moderation/models.py's 0050 key.
 	ai_assisted: m.featureFlags_label_aiAssisted, // "The \"AI-assisted\" mark: author marks and community votes"
+	// Goals and their definitions of done (goals/, 2026-10-08) — mirrors moderation/models.py's
+	// 0051 key. A key is a THREE-file change and this is the third (root CLAUDE.md).
+	goals: m.featureFlags_label_goals, // "Goals and their definitions of done"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
+
+// ---- goals (backend `goals/models.py: GOAL_STATUS_CHOICES`) ------------------------------------
+import type { GoalStatus } from '$lib/types/goal';
+//
+// A hand-maintained mirror, said in both files (house rule 13). `met` is in the list because the
+// server sends it, NOT because anything here may ask for it: it is derived from the goal's criteria
+// (`goals/rules.py: recount`) and a PATCH asking for it comes back 400 with its reason.
+export const GOAL_STATUS_LABELS: Record<GoalStatus, () => string> = {
+	open: m.goals_status_open, // "Open"
+	met: m.goals_status_met, // "Met"
+	abandoned: m.goals_status_abandoned // "Abandoned"
+};
+
+/** The refusal words `backend/goals/rules.py` answers with, as sentences (house rule 6). */
+const GOAL_REFUSAL_LABELS: Record<string, () => string> = {
+	not_manager: m.goals_reason_notManager, // "Only the people who run this body, or whoever wrote the goal, can change it."
+	not_staff: m.goals_reason_notStaff, // "Only somebody on this body can record a condition as met."
+	illegal_transition: m.goals_reason_illegalTransition, // "That move is not available from here."
+	other_node: m.goals_reason_otherNode, // "That goal belongs to something else."
+	has_work: m.goals_reason_hasWork, // "A task or a plan is work towards this goal, so it is abandoned rather than deleted."
+	has_comments: m.goals_reason_hasComments // "People have talked under this goal, so it is abandoned rather than deleted."
+};
+
+/** Reads a refusal word off a goal action's `ApiError` — `{detail: '<word>'}` for an action and
+ * `{goal: ['<word>']}` for the "serves this goal" link — and returns its sentence. Falls back to
+ * the error's own message, the `pollRefusalMessage` shape it is modelled on. */
+export function goalRefusalMessage(err: unknown, fallback: string): string {
+	if (err instanceof ApiError && err.body && typeof err.body === 'object') {
+		const body = err.body as Record<string, unknown>;
+		const detail = body.detail;
+		if (typeof detail === 'string' && detail in GOAL_REFUSAL_LABELS) {
+			return GOAL_REFUSAL_LABELS[detail]();
+		}
+		const field = body.goal;
+		if (Array.isArray(field) && typeof field[0] === 'string' && field[0] in GOAL_REFUSAL_LABELS) {
+			return GOAL_REFUSAL_LABELS[field[0]]();
+		}
+	}
+	return err instanceof Error ? err.message : fallback;
+}
 
 // The concepts app's own closed enums (revision status, block kind, relation, link refusal reason)
 // are deliberately NOT mirrored here: they live beside the components that read them, in

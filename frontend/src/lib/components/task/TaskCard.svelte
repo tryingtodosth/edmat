@@ -25,10 +25,13 @@
 		createSubtask,
 		deleteTask,
 		reasonOf,
+		setTaskGoal,
 		transitionTask,
 		updateTask
 	} from '$lib/services/tasks';
 	import { formatDateTime } from '$lib/utils/datetime';
+	import GoalServes from '$lib/components/goal/GoalServes.svelte';
+	import type { Goal } from '$lib/types/goal';
 	import {
 		TASK_BLOCK_REASON_LABELS,
 		TASK_MOVE_LABELS,
@@ -42,10 +45,14 @@
 		allowSubtasks = true,
 		showNode = false,
 		discussion = undefined,
+		goals = [],
 		onchanged
 	}: {
 		task: Task;
 		allowSubtasks?: boolean;
+		/** The node's goals, so "Serves: …" can be a picker rather than a label (`goals/`,
+		 *  2026-10-08). Empty on `/tasks` and on a subtask, which then draw the read-only line. */
+		goals?: Goal[];
 		/** `/tasks` says what each task hangs on; a node's own board does not need telling. */
 		showNode?: boolean;
 		/** This task's own thread (`tasks/<id>` to `community/discussions.py`), fetched by whoever
@@ -164,6 +171,18 @@
 	{#if task.description && !editing}
 		<div class="description"><MathContent source={task.description} /></div>
 	{/if}
+
+	<!-- Which goal this task is work towards. A picker for whoever may edit the task and the node
+	     has goals; a plain line otherwise; nothing at all when there is no goal and none to pick
+	     (house rule 3's shape, applied to an affordance that would do nothing). -->
+	<GoalServes
+		{goals}
+		value={task.goal}
+		title={task.goalTitle}
+		canEdit={task.canEdit}
+		{busy}
+		onselect={(goalId) => run(() => setTaskGoal(task.id, goalId))}
+	/>
 
 	{#if task.node}
 		<AssigneePicker {task} node={task.node} onchanged={(updated) => onchanged(updated)} />

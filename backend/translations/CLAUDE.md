@@ -120,3 +120,14 @@ near-identical tables in five apps.
 - **`volunteering_offers`, `events` and `courses` are not in the registry** and have the same
   single-field problem. They are not "project management stuff" in the sense the owner named, and
   each needs its own authority branch.
+
+## Two more kinds: `goal` and `goal_criterion` (2026-10-08, `HISTORY.md` §17BZ)
+
+`goal` is the ordinary (`title`, `description`) shape; `goal_criterion` is the `poll_option` shape
+again — one text field (`text`) and no second one. Both answer to `goals.rules.can_edit` in
+`authority.py`: the node's manager or the goal's own author. **Not `can_tick`**, which is wider on
+purpose (node staff may record that a condition is met) and has nothing to do with rewriting what it
+says — translating is editing.
+
+`frontend/src/lib/types/translation.ts: TranslatableKind` is the other half, as always.
+

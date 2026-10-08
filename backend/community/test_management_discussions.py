@@ -39,7 +39,7 @@ class ManagementLocationBase(APITestCase):
     databases = set(all_log_shards()) | {'default'}
 
     def setUp(self):
-        for key in ('about_discussions', 'tasks', 'plans', 'needs', 'decisions'):
+        for key in ('about_discussions', 'tasks', 'plans', 'needs', 'decisions', 'organizations'):
             _flag(key, True)
         self.owner = make_user('ml-owner')
         self.member = make_user('ml-member')
@@ -120,6 +120,26 @@ class KeyShapeTests(APITestCase):
     def test_a_standing_page_is_not_a_management_page(self):
         self.assertIsNone(discussions.management_kind('about'))
         self.assertIsNone(discussions.management_kind('about/guide/courses'))
+
+    def test_an_organisation_key_carries_a_slug_not_an_id(self):
+        """The one kind addressed by its public address (`discussions.py`, "And so is an
+        organisation's own page"). A pk-shaped key is legal too — a numeric slug is a legal slug —
+        and it is simply the slug that happens to look like a number."""
+        for key in ['organizations/edmat', 'organizations/kolo-naukowe-2', 'organizations/17']:
+            with self.subTest(key=key):
+                self.assertEqual(discussions.parse_key(key), (key, ''))
+                self.assertEqual(discussions.management_kind(key), 'organizations')
+
+    def test_an_organisation_has_no_sections_and_a_bad_slug_is_a_page(self):
+        with self.assertRaises(ValueError) as caught:
+            discussions.parse_key('organizations/edmat#description')
+        self.assertEqual(str(caught.exception), 'section')
+        for bad in ['organizations/', 'organizations/EdMat', 'organizations/ed_mat',
+                    'organization/edmat', 'organizations/edmat/x']:
+            with self.subTest(key=bad):
+                with self.assertRaises(ValueError) as caught:
+                    discussions.parse_key(bad)
+                self.assertEqual(str(caught.exception), 'page')
 
 
 class VisibilityTests(ManagementLocationBase):
@@ -431,3 +451,126 @@ class ModeratorAddTests(ManagementLocationBase):
         rows = {row['key']: row for row in self.client.get(self.locations_url).data}
         self.assertEqual(rows[page]['held_count'], 1)
         self.assertEqual(rows[page]['comment_count'], 0)
+
+
+class OrganizationLocationTests(ManagementLocationBase):
+    """An organisation's own page as a location (`discussions.py`, "And so is an organisation's own
+    page", 2026-10-08) — the thread the owner asked for under `/about`'s description.
+
+    The four kinds above hang off a node and ask the node who may see them; this one IS the node,
+    and its own `is_active` is the whole visibility rule. It is also the one kind whose key carries
+    a slug, so every test here is as much about that as about the thread.
+    """
+
+    def org_key(self, org):
+        return f'organizations/{org.slug}'
+
+    def test_an_active_organisations_thread_is_readable_by_a_visitor(self):
+        page = self.org_key(self.closed_org)
+        response = self.policy(page)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = response.data['locations'][0]
+        self.assertEqual(row['key'], page)
+        self.assertEqual(row['section'], '')
+        self.assertTrue(row['is_enabled'])
+        self.assertEqual(self.thread(page).status_code, status.HTTP_200_OK)
+
+    def test_a_closed_board_does_not_close_the_organisations_own_thread(self):
+        """`open_board` governs the rows ON the board, not the page itself: an organisation's
+        description is public while it is active, and so is the talk under it."""
+        self.assertEqual(
+            self.policy(self.key('tasks', self.closed_org.task)).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertEqual(self.policy(self.org_key(self.closed_org)).status_code, status.HTTP_200_OK)
+
+    def test_a_dissolved_organisation_is_404_to_a_stranger_and_open_to_its_roster(self):
+        self.open_org.is_active = False
+        self.open_org.save(update_fields=['is_active'])
+        page = self.org_key(self.open_org)
+        self.assertEqual(self.policy(page).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.policy(page, self.stranger).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.thread(page, self.stranger).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.post(page, user=self.stranger).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.policy(page, self.member).status_code, status.HTTP_200_OK)
+        self.assertEqual(self.thread(page, self.member).status_code, status.HTTP_200_OK)
+
+    def test_no_such_slug_is_404_everywhere_and_leaves_no_row(self):
+        page = 'organizations/nothing-here'
+        self.assertEqual(self.policy(page).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.thread(page).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(self.post(page, user=self.staff).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(DiscussionLocation.objects.count(), 0)
+
+    def test_a_member_writes_under_the_description_and_the_row_appears(self):
+        page = self.org_key(self.open_org)
+        response = self.post(page, 'This says what we are well.', user=self.member)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertFalse(response.data['is_held'])
+        row = DiscussionLocation.objects.get(page=page, section='')
+        self.assertEqual(
+            Comment.objects.filter(
+                content_type=ContentType.objects.get_for_model(DiscussionLocation),
+                object_id=row.pk,
+            ).count(),
+            1,
+        )
+
+    def test_the_organizations_flag_sits_above_the_thread(self):
+        page = self.org_key(self.open_org)
+        _flag('organizations', False)
+        policy = self.policy(page, self.member).data['locations'][0]
+        self.assertFalse(policy['is_enabled'])
+        self.assertEqual(policy['post_block_reason'], 'off')
+        self.assertEqual(self.post(page, user=self.member).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_the_batched_read_answers_a_page_beside_its_board(self):
+        """What `OrganizationPage.svelte` and its panels ask for between them — and the shape the
+        panels' own `?keys=` read already had."""
+        keys = [
+            self.org_key(self.open_org),
+            self.key('tasks', self.open_org.task),
+            self.org_key(self.closed_org),
+            self.key('tasks', self.closed_org.task),
+        ]
+        self.client.force_authenticate(None)
+        response = self.client.get(self.policies_url, {'keys': ','.join(keys)})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [row['key'] for row in response.data['locations']],
+            [keys[0], keys[1], keys[2]],
+        )
+
+    def test_a_moderator_configures_an_organisations_thread_and_is_refused_a_bad_one(self):
+        self.client.force_authenticate(self.staff)
+        page = self.org_key(self.open_org)
+        response = self.client.post(
+            self.locations_url, {'page': page, 'audience': 'anyone'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['key'], page)
+        refused = self.client.post(
+            self.locations_url, {'page': 'organizations/nothing-here'}, format='json'
+        )
+        self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('page', refused.data)
+        sectioned = self.client.post(
+            self.locations_url, {'page': page, 'section': 'description'}, format='json'
+        )
+        self.assertEqual(sectioned.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('section', sectioned.data)
+
+    def test_the_report_queue_carries_the_organisations_key(self):
+        page = self.org_key(self.open_org)
+        DiscussionLocation.objects.create(page=page, section='', audience='anyone')
+        posted = self.post(page, 'From the street')
+        self.assertEqual(posted.status_code, status.HTTP_201_CREATED, posted.data)
+        self.assertTrue(posted.data['is_held'])
+        comment = Comment.objects.get()
+        rows = [
+            row for row in build_report_queue()
+            if row['kind'] == 'comment' and row['object_id'] == comment.pk
+        ]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['discussion_location'], page)
+

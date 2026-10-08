@@ -102,6 +102,14 @@ class Task(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, related_name='tasks_created', on_delete=models.CASCADE
     )
+    #: The goal this task serves, or None (`goals/`, 2026-10-08). Nullable and `SET_NULL`: a task
+    #: outlives the goal it was filed under, and losing the link is not losing the task. The goal
+    #: must hang off the SAME node as the task — a rule, not a constraint, because the two ends are
+    #: two generic targets with no shared column: `goals.rules.goal_for_node` is where it lives and
+    #: this app's serializer asks it (house rule 13 — said in both files).
+    goal = models.ForeignKey(
+        'goals.Goal', related_name='tasks', null=True, blank=True, on_delete=models.SET_NULL
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

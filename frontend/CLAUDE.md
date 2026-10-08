@@ -64,6 +64,17 @@ node's page.
    `a11y_no_noninteractive_element_interactions`; `<article>` is a non-interactive ELEMENT, so the
    static-element rule is not the one that fires.)
 
+## A form with no heading cannot say what it is doing
+
+`/plans/[id]` reuses ONE `stepForm` snippet for three jobs — a new top-level step, a new sub-step
+under a row, and editing a row — and until 2026-10-08 the edit case had **no render condition at
+all**: `openEditForm` set `formOpenFor = 'edit:<id>'`, the markup only tested `'top'`, `step.id` and
+`sub.id`, so clicking Edit set state and drew nothing. Present since the plans app landed, invisible
+to `svelte-check`, `eslint` and the build, because every handler was correct (house rule 2 again:
+verify by running it). It is fixed, and the snippet now takes a **caption** naming the job, which is
+the part worth copying: a reused form needs to say which of its jobs it is doing, or its absence
+looks the same as its presence.
+
 ## Rendering math (`lib/utils/renderContent.ts`) — the pipeline ORDER is the point
 
 **The renderer is loaded on demand** (`lib/utils/mathRender.ts`): `MathTitle`/`MathContent` never

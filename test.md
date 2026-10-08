@@ -324,7 +324,7 @@ prints the candidates and changes nothing. On the development database on 2026-1
 locations and 0 candidates — every one of them had been configured through the moderator API by
 `about-discussions.mjs`, which is the "somebody decided this" condition doing its job.
 
-**Django: `../.venv/bin/python3 manage.py test community.test_management_discussions`** — 30 tests
+**Django: `../.venv/bin/python3 manage.py test community.test_management_discussions`** — 41 tests
 (2026-10-08, `HISTORY.md` §17BY): a task, a plan, a need or a poll as a location. The key shape
 and what it refuses; a missing row, a stranger on a closed board's task, a draft plan, a non-open
 need and a members poll are each **404** on the policy read, the thread read and the write, with the
@@ -2481,3 +2481,63 @@ Three traps this script re-learned, each now written into it:
 - an entry needs **two** clicks to reach — the reveal toggle, and "show N more in other languages",
   because the script reads the English interface and the corpus entries are Polish (trap 16, one
   layer in: it bites inside a page as well as on a list).
+
+## Goals and their definitions of done (2026-10-08, `HISTORY.md` §17BZ)
+
+### `goals/tests.py` — 31 tests
+
+`../.venv/bin/python3 manage.py test goals`. One organisation is the node, because its three roles
+map exactly onto the three tiers this app distinguishes: an `owner` manages it, a `member` is node
+staff, a stranger may read it and touch nothing.
+
+- **`DefinitionOfDoneTests`** — the derived `met` in every direction: a goal with no criteria stays
+  open however often it is recounted; ticking the last of two meets it and records who and when;
+  un-ticking re-opens it and clears the moment; ADDING an open criterion to a met goal re-opens it
+  (the prefetch-cache bug — `Goal.criteria.count()` answered from the cache and the goal stayed
+  met); removing the last OPEN criterion meets it; `abandoned` survives a recount in both
+  directions; a hand-written `met` is 400 carrying *"tick the criteria"*.
+- **`TransitionTests`** — `open ↔ abandoned` by hand; `met -> open` refused 409 while un-ticking
+  works; a PATCH to the status a row already has is a 200 no-op while the rule module still calls it
+  illegal (which is what a future status would hit).
+- **`AuthorityTests`** — a manager writes and a stranger is refused `not_manager`; node staff tick
+  but may not rewrite the goal or a criterion; a non-staff reader is refused `not_staff`; the goal's
+  own author edits without managing the node.
+- **`VisibilityTests`** — public on any node you can view, including one whose BOARD is closed (the
+  line that separates a goal from a task); a dissolved organisation's goals are 404 to a stranger
+  and 200 to its roster; an abandoned goal is still listed.
+- **`KillSwitchTests`** — `goals` off closes the surface for everybody but staff.
+- **`ServesGoalTests`** — a task and a plan may serve a goal on their own node and say its title; a
+  goal on another node is 400 `other_node`; the link survives the goal being abandoned.
+- **`ReorderTests`** — the whole list of criterion ids or 400.
+- **`GoalDiscussionTests`** — `goals/<id>` answers, writes and creates its row; a goal nobody may
+  see has no thread; the `goals` flag closes the thread with the surface.
+- **deletion** — a goal nobody relied on deletes (204); one a task serves is 409 `has_work`; one
+  with a comment under it is 409 `has_comments`; a stranger gets `not_manager`.
+
+### `frontend/e2e/goals.mjs` — 30 checks, zero page errors
+
+```bash
+cd frontend
+E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 \
+  E2E_OWNER_TOKEN=<token of somebody who MANAGES the edmat organisation> \
+  node e2e/goals.mjs
+```
+
+**`E2E_OWNER_TOKEN` is required and cannot be logged in for** — writing a goal is a node manager's
+act and `can_manage_node` has no `is_staff` bypass (`e2e/CLAUDE.md` trap 32). Unset, the script says
+so and every goal write is refused `not_manager`.
+
+Through the API: the derived `met` in both directions, the 400 on a hand-written `met`, the 409 on
+`met -> open`, the goal's thread and the **organisation description's** thread (`organizations/edmat`),
+a section under an organisation page refused 400, an unknown slug 404. In the browser: the Goals
+panel on `/about` with the goal, its conditions as checkboxes and a collapsed thread line; the
+description's own collapsed line; `/goals/<id>`; and `/plans/<id>`, where clicking a step's **Edit**
+opens a form captioned with that step's title — the bug of §17BZ.C, which drew nothing at all.
+
+It cleans up after itself: the goal it writes is deleted at the end, which the server allows only
+because nothing points at it and nobody commented under it. It posts **no** comment for exactly that
+reason — the collapsed line is drawn whether or not the thread has anything in it, so the check does
+not need one.
+
+Screenshots: `e2e/screens/goals-1-about.png`, `goals-2-goal-page.png`, `goals-3-plan-step-edit.png`.
+

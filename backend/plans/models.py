@@ -65,6 +65,14 @@ class Plan(models.Model):
     #: `translations/models.py` for why they survive.
     text_versions = GenericRelation('translations.TextVersion')
     status = models.CharField(max_length=10, choices=PLAN_STATUS_CHOICES, default='draft')
+    #: The goal this roadmap serves, or None (`goals/`, 2026-10-08). The same nullable `SET_NULL`
+    #: link `tasks.Task` carries, with the same same-node rule asked of
+    #: `goals.rules.goal_for_node` rather than re-checked here (house rule 13 — said in both files).
+    #: It is what lets `/about` show the twelve module plans under the goals they serve without any
+    #: of those plans moving — the owner's own call, 2026-10-08.
+    goal = models.ForeignKey(
+        'goals.Goal', related_name='plans', null=True, blank=True, on_delete=models.SET_NULL
+    )
 
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, related_name='plans_created', null=True, blank=True,

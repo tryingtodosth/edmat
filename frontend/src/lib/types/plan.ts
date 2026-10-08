@@ -76,6 +76,10 @@ export interface Plan {
 	/** `plans/rules.py: can_edit()`, computed server-side — the node's manager, or the plan's own
 	 * creator. Never re-derived client-side (house rule: a rule more than one endpoint needs lives
 	 * in one module). */
+	/** The goal this roadmap is work towards, or `null` (`goals/`, 2026-10-08). The owner's call
+	 *  that day: the twelve module plans on `/about` stay where they are and point UP at a goal. */
+	goal: string | null;
+	goalTitle: string;
 	canEdit: boolean;
 	/** `plans/rules.py: suggest_block_reason()` for THIS reader, or `null` meaning the suggestion
 	 * box is open. */

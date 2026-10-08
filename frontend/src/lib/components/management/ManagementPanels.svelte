@@ -1,7 +1,8 @@
 <script lang="ts">
 	/** The management layer's one mount (MANAGEMENT-BRIEF.md §2): sits once on a course, an event, a
 	 * material and an organisation page, asks the API what this node is and where the reader stands
-	 * on it, and hands that `NodeRef` to six panels — one per parallel step, one marker each below.
+	 * on it, and hands that `NodeRef` to seven panels — one per parallel step, one marker each
+	 * below, plus `GoalsPanel` above them (2026-10-08).
 	 *
 	 * It renders NOTHING when the node 404s (a stranger on a draft — house rule 4: for them it does
 	 * not exist, so neither does anything hung on it) and nothing while loading, so the page above
@@ -24,6 +25,10 @@
 	import TasksPanel from '$lib/components/task/TasksPanel.svelte';
 
 	import OrganizationsPanel from '$lib/components/organization/OrganizationsPanel.svelte';
+
+	// Goals and their definitions of done (goals/, 2026-10-08) — the seventh panel, added after the
+	// six parallel steps had landed, so it is a plain import rather than one of their markers.
+	import GoalsPanel from '$lib/components/goal/GoalsPanel.svelte';
 
 	let { nodeKind, nodeId }: { nodeKind: NodeKind; nodeId: string } = $props();
 
@@ -53,6 +58,12 @@
 		     each replaced by its own component on its own branch and given `{node}`. Kept apart by
 		     blank lines so that six branches editing this file merge without touching each other's
 		     lines. F mounts nothing here (its surface is /work); its marker stays so the file has six. -->
+
+		<!-- Goals first: the tasks, needs and plans below are work TOWARDS something, and a reader
+		     who meets the board before the goals meets a list of chores with no reason attached
+		     (`GoalsPanel` argues it). On `/about` the ordering is the owner's own call — the twelve
+		     module plans stay where they are and the goals go above them. -->
+		<GoalsPanel {node} />
 
 		<!-- management: organizations (A) -->
 		<OrganizationsPanel {node} />

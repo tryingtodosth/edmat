@@ -14792,3 +14792,130 @@ pre-fix shape assertion.
   Bounded by the panel; a node with hundreds of tasks would want the roster answered once per node.
 - **Comment notifications** do not fire for a thread under a management row, exactly as they do
   not for a standing page (§17BT.E's left-open). The task's assignee is the obvious recipient.
+
+## 17BZ — Goals and their definitions of done; the description is commentable; the plan step editor exists (2026-10-08, `ux/colour-pass`)
+
+Three asks from the owner in one afternoon, in the order they arrived.
+
+### A. "after the header, the description should be commentable as well"
+
+The header and the description in question are `/about`'s, which since §17BX is the EdMat
+organisation's page (`OrganizationPage.svelte`) — so the thing to make commentable was not a block
+of prerendered prose but a row of `organizations.Organization`. §17BY had just built the mechanism
+for exactly that, so the answer was one more kind rather than anything new: **`organizations/edmat`
+is the `page` of a `DiscussionLocation`**, with no section — one thread per organisation, drawn
+under its description, on every organisation page rather than on `/about` alone, because a student
+circle's "what we are" is the same kind of text and wants the same thread.
+
+It is addressed by **slug** where the four management kinds are addressed by pk, and that is not an
+inconsistency: the slug is this one model's stable public address (`organizations/serializers.py` —
+read-only, "allocated once from the name and never moves under a link somebody already sent"), it is
+what `/organizations/[slug]` resolves, and a key is also an href (`utils/discussionKeys.ts`). A task
+has no such address. `SLUG_KINDS` is the one-line split in `management_rows`, and
+`organizations.access.can_view_organization` is what the thread 404s on — so a dissolved
+organisation's thread is members-only exactly as its page is.
+
+What it deliberately is NOT is the board ceiling §17BY's "Left open" asks for. This row is the
+organisation's own thread, not a switch over the threads of its tasks and plans. Making it both is a
+defensible future move and is one branch in `effective_policy`; it stays in `todo.md`.
+
+### B. "we also need goal class which is going to be used as a definition of done and also commentable"
+
+The word was already in use as a **convention**: `/about` has always called the twelve module plans
+the project's goals (`work/edmat_project.py`, "a goal is a plan on the EdMat organisation"). That
+convention is what the new `goals/` app replaces. The owner chose the shape from four put to them:
+a node-level goal whose ordered criteria are the definition of done, with tasks and plans pointing
+at the goal they serve — and, separately, that **the twelve module plans do not move**. Goals are a
+new, shorter list above them; nothing seeded was rewritten and there is no data migration.
+
+**The one decision everything else follows from: `met` is derived.** Nothing writes
+`Goal.status = 'met'`; `goals.rules.recount` does, from the criteria, and it is the only writer —
+the `needs.rules.recount` shape and the same argument (house rule 5). Every criterion met and at
+least one → `met`; one re-opened → `open`; **no criteria at all → open forever, by construction**,
+which is the refusal the ask needs and needs no refusal word, because there is nothing to have met.
+`met -> open` is not a hand transition (409 `illegal_transition`: un-tick the line that is not
+actually true), and a hand-written `met` is 400 carrying *"tick the criteria"* rather than being
+silently dropped (house rule 10). A criterion's own state is **one nullable `met_at`**, not a boolean
+and not a `status`: two states, and `met_at IS NULL` is already the honest spelling of one of them.
+
+**The bug the test suite found, and why it is worth reading twice.** `criteria_counts()` was
+`self.criteria.count()`. A related manager whose relation has been **prefetched answers from the
+prefetch cache**, so a goal loaded by a view that prefetched its criteria and then had one ADDED
+counted the old list and stayed `met` — a recount that reads a cache is not a recount. It is now two
+methods: `criteria_counts()` queries and is what `recount` decides from; `criteria_counts_cached()`
+reads the prefetched list and is what the serializer prints, which is the same list the response is
+about to contain. Pinned by `test_adding_an_open_criterion_reopens_a_met_goal`.
+
+**Two authority tiers, because they are two acts.** `can_edit` (the node's manager, or the goal's
+own author — the `plans` pair) writes the words, the criteria and the order and abandons the goal;
+`can_tick` (the node's **staff**) records a line as met. Widened on purpose: somebody doing the work
+is who knows a criterion is now true, and making them ask a manager to record it is how a definition
+of done goes stale. `translations/authority.py` asks `can_edit` for both new kinds — translating is
+editing, never ticking.
+
+**Visibility is the node's and nothing narrower.** A goal is a public statement of what a body is
+trying to achieve, which is the whole point of the list on `/about`; `abandoned` ones stay visible
+(house rule 12). It deliberately does not follow `tasks`, which is staff-only unless the board is
+open — a task board is the inside of a team and a goal is the outside.
+
+**`destroy` is bounded rather than absent**, and that was a late change driven by writing the
+browser script: with no delete at all, a goal typed by mistake could only ever be abandoned, and a
+board accumulating "Abandoned: Untitlde" forever is a board people stop reading. `delete_block_reason`
+is the `sweep_discussion_locations` test applied to a goal — no task or plan serving it and no
+comment of **any** kind under it (tombstones and held rows included: a thread that exists has to
+resolve), else 409 `has_work` / `has_comments`, and abandoning is what to do with those.
+
+**The "serves" link** is `tasks.Task.goal` and `plans.Plan.goal`, nullable `SET_NULL`. The rule that
+a row may only serve a goal on its **own node** cannot be a database constraint — two generic targets,
+no shared column — so it is `goals.rules.goal_for_node`, asked by `ServesGoalMixin` on
+`TaskWriteSerializer` and by `PlanViewSet.partial_update`'s own hand-rolled field list. A cross-node
+goal is 400 `{"goal": ["other_node"]}`.
+
+And it is commentable the same way everything else on that board is: `goals/5` is a
+`DiscussionLocation` page, one more line in `MANAGEMENT_KINDS` and one more branch in
+`_row_visible`. No new endpoint, table or queue.
+
+### C. "in plans edit steps doesnt launch any input"
+
+A real bug, and **not** a regression from §17BY: `openEditForm` has set `formOpenFor = 'edit:<id>'`
+since the plans app landed (`8ddfeef`, management step D), and the only render conditions on that
+page were `formOpenFor === 'top'`, `=== step.id` and `=== sub.id`. Nothing ever matched `edit:<id>`,
+so clicking **Edit** on a step set some state and drew nothing — a button that did nothing, which
+every check in the suite passed over because the form's *handlers* were all correct.
+
+Fixed by drawing it, and then by answering the question the bug makes obvious: one form reused for
+three different jobs with no heading cannot say which job it is doing. `stepForm` now takes a
+caption — *New step* / *New sub-step under "X"* / *Editing "X"* — and its two fields got real
+labels, the title's having been a placeholder and the description's nothing at all. The dead
+`formOpenFor === sub.id` branch (one level of nesting, so a sub-step has no "add a sub-step" of its
+own) is gone.
+
+### Verified
+
+`manage.py test goals` 31, `community.test_management_discussions` 41 (11 new, for the organisation
+page as a location), `moderation.tests.FeatureFlagTests` 9 — and the full suite. `npm run check`
+0/0, `npm run lint` clean, `npm run build` OK, `npm run check:a11y` 48 pages 0 violations, the two
+catalogues identical at 4064 keys. `e2e/goals.mjs` 30/30 against both real servers, **and the three
+screenshots were looked at**: the collapsed "Comment on EdMat" line sits under the description where
+the ask put it; the goal card reads "1 of 2 met" with the met line struck through and "recorded by
+piotrek" beside it; the plan step's Edit opens a form captioned *Editing "The EdMat Foundation
+founded by the association"* with both fields filled.
+
+### Left open
+
+- **No draft state for a goal.** A goal is short and you write it when you mean it, so there is no
+  `draft` the way a plan has one — but there is also no way to prepare one out of sight.
+- **A goal is not in the `?keys=` batch on its own page.** `/goals/[id]` uses `PageDiscussion`,
+  which fetches its one policy itself; that is the right trade for one thread, but it means the
+  page pays a request the panel would have had anyway.
+- **`order` is writable but nothing drags.** A goal's position is a PATCH; there is no up/down pair
+  on the panel the way `/plans/[id]` has one for steps.
+- **A goal cannot be set at creation time from the UI.** `TaskWriteSerializer` accepts `goal` on a
+  create (the view passes the node in context), but neither the task form nor the plan form offers
+  it — you file the work under a goal afterwards, with the picker on the card.
+- **Nothing notifies anybody** when a goal is met, when a criterion they wrote is ticked, or when
+  somebody comments under a goal — the same gap §17BT.E and §17BY both name.
+- **`e2e/goals.mjs` needs `E2E_OWNER_TOKEN`** and cannot log in for it: writing a goal is a node
+  manager's act and `can_manage_node` has no `is_staff` bypass, so platform staff are not owners of
+  the `edmat` organisation. That is the rule working, not a gap, but it does mean the script is not
+  runnable from the seeded accounts alone.

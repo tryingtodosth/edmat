@@ -75,6 +75,13 @@ class PlanSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     progress = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     suggest_block_reason = serializers.SerializerMethodField()
+    #: The goal this roadmap serves (`goals/`, 2026-10-08). The owner's call that day was to leave
+    #: the twelve module plans on `/about` exactly as they are and let each one point UP at a goal,
+    #: which is this field and nothing else — no data moved. Read-only here: this serializer never
+    #: writes (`PlanViewSet.partial_update` sets the three fields it allows by hand, and asks
+    #: `goals.rules.goal_for_node` for this one).
+    goal = serializers.PrimaryKeyRelatedField(read_only=True)
+    goal_title = serializers.SerializerMethodField()
 
     class Meta:
         model = Plan
@@ -82,18 +89,22 @@ class PlanSerializer(TranslatedTextMixin, serializers.ModelSerializer):
             'id', 'node', 'title', 'description', 'status',
             'created_by', 'created_by_name', 'created_at', 'updated_at',
             'steps', 'progress', 'can_edit', 'suggest_block_reason',
-        
+            'goal', 'goal_title',
             'language',
             'text_versions',
         ]
         read_only_fields = [
             'id', 'node', 'status', 'created_by', 'created_by_name', 'created_at', 'updated_at',
-            'can_edit', 'suggest_block_reason',
+            'can_edit', 'suggest_block_reason', 'goal', 'goal_title',
         ]
 
     def _user(self):
         request = self.context.get('request')
         return getattr(request, 'user', None) if request is not None else None
+
+    def get_goal_title(self, plan) -> str:
+        goal = plan.goal
+        return goal.title if goal is not None else ''
 
     def get_node(self, plan) -> dict | None:
         node = plan.node

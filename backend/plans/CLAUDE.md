@@ -127,3 +127,14 @@ transitions, nesting, reorder, the suggestion lifecycle, `work_items`). `manage.
   just-submitted suggestion (with a Withdraw button) from the POST response; there is no "my
   suggestions" endpoint, so navigating away and back loses that receipt until a "my suggestions
   across every plan" surface exists (not specified for this step).
+
+## `Plan.goal` — which goal this roadmap is work towards (2026-10-08, `HISTORY.md` §17BZ)
+
+One nullable `SET_NULL` FK to `goals.Goal`. Written by `PlanViewSet.partial_update`, which sets its
+three fields by name rather than through a serializer, and which asks `goals.rules.goal_for_node` —
+the same function `tasks` asks — for the same-node rule. `null` clears it; a cross-node goal is 400
+`{"goal": ["other_node"]}`.
+
+This is the whole of the owner's 2026-10-08 call that the twelve module plans on `/about` **stay
+where they are** and point UP at a goal: no plan moved, nothing was re-seeded, and
+`work/edmat_project.py` is untouched.

@@ -34,12 +34,17 @@
 		PLAN_BLOCK_REASON_LABELS,
 		PLAN_STATUS_LABELS,
 		PLAN_STEP_STATUS_LABELS,
-		PLAN_SUGGESTION_STATUS_LABELS
+		PLAN_SUGGESTION_STATUS_LABELS,
+		goalRefusalMessage
 	} from '$lib/utils/labels';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import PageDiscussion from '$lib/components/discussion/PageDiscussion.svelte';
 	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 	import { nodeHref } from '$lib/utils/nodeHref';
+	import GoalServes from '$lib/components/goal/GoalServes.svelte';
+	import { getNodeGoals } from '$lib/services/goals';
+	import { setPlanGoal } from '$lib/services/plans';
+	import type { Goal } from '$lib/types/goal';
 
 	const STEP_STATUSES: PlanStepStatus[] = ['pending', 'in_progress', 'done', 'skipped'];
 
@@ -48,6 +53,39 @@
 	let mySuggestion = $state<PlanSuggestion | null>(null);
 	let loading = $state(true);
 	let notFound = $state(false);
+
+	// The node's goals, for the "Serves: …" picker — one request, not one per row, and an empty
+	// list degrades to the read-only line (`GoalServes`).
+	let nodeGoals = $state<Goal[]>([]);
+	let goalsFor = $state('');
+	let goalBusy = $state(false);
+	$effect(() => {
+		const node = plan?.node;
+		if (!node) return;
+		const key = `${node.kind}:${node.id}`;
+		if (key === goalsFor) return;
+		goalsFor = key;
+		getNodeGoals(node.kind, node.id).then(
+			(rows) => {
+				if (goalsFor === key) nodeGoals = rows;
+			},
+			() => {
+				if (goalsFor === key) nodeGoals = [];
+			}
+		);
+	});
+
+	async function setGoal(goalId: string | null) {
+		if (!plan) return;
+		goalBusy = true;
+		try {
+			plan = await setPlanGoal(plan.id, goalId);
+		} catch (e) {
+			editError = goalRefusalMessage(e, m.common_error());
+		} finally {
+			goalBusy = false;
+		}
+	}
 
 	let editingDetails = $state(false);
 	let editTitle = $state('');
@@ -359,6 +397,17 @@
 					})}
 					· {m.plans_detail_progress({ done: plan.progress.done, total: plan.progress.total })}
 				</p>
+				<!-- Which goal this roadmap is work towards (`goals/`, 2026-10-08). The owner's call
+				     that day was that the twelve module plans on `/about` stay exactly where they are
+				     and point UP at a goal — this line is the whole of that. -->
+				<GoalServes
+					goals={nodeGoals}
+					value={plan.goal}
+					title={plan.goalTitle}
+					canEdit={plan.canEdit}
+					busy={goalBusy}
+					onselect={setGoal}
+				/>
 			</header>
 
 			{#if plan.canEdit}
@@ -408,7 +457,8 @@
 				</div>
 
 				{#if formOpenFor === 'top'}
-					{@render stepForm()}
+					{@render stepForm(m.plans_detail_formNewStep())}
+					<!-- "New step" -->
 				{/if}
 
 				{#if plan.steps.length === 0}
@@ -418,16 +468,31 @@
 						{#each plan.steps as step, index (step.id)}
 							<li class="step">
 								{@render stepRow(step, index, plan.steps, null)}
-								{#if formOpenFor === step.id}
-									{@render stepForm()}
+								<!-- Two forms open in the same place under a step and they are not the same form:
+								     `edit:<id>` edits THIS step, a bare id adds a sub-step under it. Until
+								     2026-10-08 only the second was drawn, so `openEditForm` set its state and
+								     nothing appeared — Edit looked like a button that did nothing (owner: "in
+								     plans edit steps doesnt launch any input"). The caption is why it could look
+								     like that at all: one reused form with no heading says nothing about which
+								     of the three things it is doing. -->
+								{#if formOpenFor === `edit:${step.id}`}
+									{@render stepForm(m.plans_detail_formEditStep({ title: step.title }))}
+									<!-- "Editing “{title}”" -->
+								{:else if formOpenFor === step.id}
+									{@render stepForm(m.plans_detail_formNewSubstep({ title: step.title }))}
+									<!-- "New sub-step under “{title}”" -->
 								{/if}
 								{#if step.substeps.length > 0}
 									<ol class="substeps">
 										{#each step.substeps as sub, subIndex (sub.id)}
 											<li class="step substep">
 												{@render stepRow(sub, subIndex, step.substeps, step.id)}
-												{#if formOpenFor === sub.id}
-													{@render stepForm()}
+												<!-- Edit only: one level of nesting (`plans/rules.py` refuses a
+												     second), so a sub-step has no "add a sub-step" of its own and a
+												     bare `formOpenFor === sub.id` was a branch nothing could reach. -->
+												{#if formOpenFor === `edit:${sub.id}`}
+													{@render stepForm(m.plans_detail_formEditStep({ title: sub.title }))}
+													<!-- "Editing “{title}”" -->
 												{/if}
 											</li>
 										{/each}
@@ -596,16 +661,25 @@
 	</ModalShell>
 {/if}
 
-{#snippet stepForm()}
+{#snippet stepForm(caption: string)}
 	<form class="step-form" onsubmit={submitForm}>
-		<input
-			type="text"
-			bind:value={formTitle}
-			placeholder={m.plans_detail_stepTitlePlaceholder()}
-			maxlength="200"
-			disabled={formBusy}
-		/>
-		<textarea bind:value={formDescription} rows="2" disabled={formBusy}></textarea>
+		<p class="step-form__caption">{caption}</p>
+		<label class="field">
+			<span>{m.plans_detail_titleLabel()}</span>
+			<!-- "Title" -->
+			<input
+				type="text"
+				bind:value={formTitle}
+				placeholder={m.plans_detail_stepTitlePlaceholder()}
+				maxlength="200"
+				disabled={formBusy}
+			/>
+		</label>
+		<label class="field">
+			<span>{m.plans_detail_descriptionLabel()}</span>
+			<!-- "Description" -->
+			<textarea bind:value={formDescription} rows="2" disabled={formBusy}></textarea>
+		</label>
 		<label class="due-field">
 			<span>{m.plans_detail_dueLabel()}</span>
 			<input type="datetime-local" bind:value={formDueAt} disabled={formBusy} />
@@ -777,7 +851,18 @@
 			color: var(--text-primary);
 		}
 	}
-	.due-field {
+	// What the form is doing — the one line that tells an editor whether they are adding a step,
+	// adding a sub-step or editing the row above. Not a heading element: it sits inside a form in
+	// the middle of an ordered list, where an <h3> would land under the plan's own <h2> and claim a
+	// place in the outline it does not have.
+	.step-form__caption {
+		margin: 0;
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		color: var(--text-secondary);
+	}
+	.due-field,
+	.step-form .field {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;

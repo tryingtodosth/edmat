@@ -73,6 +73,10 @@ export interface Task {
 	subtasks: Task[];
 	progress: TaskProgress;
 	isOverdue: boolean;
+	/** The goal this task is work towards, or `null` (`goals/`, 2026-10-08). `goalTitle` comes with
+	 *  it so a card can draw "Serves: …" without a second request; it is `''` when `goal` is null. */
+	goal: string | null;
+	goalTitle: string;
 	/** Node manager, creator, or assignee. */
 	canEdit: boolean;
 	/** Node manager only — putting somebody on a task is running the thing. */

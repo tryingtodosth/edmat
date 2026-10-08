@@ -115,6 +115,10 @@ export type FeatureFlagKey =
 	// review, and the two menu items it owns leave the content menu — which keeps reply, report and
 	// the remove/restore actions, because those belong to other features (house rule 3).
 	| 'ai_assisted'
+	// Goals and their definitions of done (backend goals/, 2026-10-08). Off: `/api/goals/` closes
+	// for a non-staff caller, the Goals panel leaves every node page and /about, the "Serves: …"
+	// line leaves every task and plan, and the thread under a goal closes with it (house rule 3).
+	| 'goals'
 	| 'creation_requires_verification'
 	| 'material_uploads_verified_only';
 

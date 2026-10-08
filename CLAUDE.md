@@ -93,10 +93,10 @@ deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 37 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 38 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
 `courses` `booking` `activity` `events` `coauthoring` `materials_coop` `concepts` `sketches` `venues` `documents`
-`shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `flashcards`
+`shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `goals` `flashcards`
 `provenance` `translations`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
 (`CONFERENCE-BRIEF.md`, 2026-09-23), each hung off `events.Event` by a row of its own so that
 `events` kept its schema while seven branches were built at once. The last six — `organizations` `tasks` `needs` `plans` `decisions` `work` — are the
@@ -107,7 +107,13 @@ a per-person SM-2 schedule, and placements on a course or an event through the s
 The rest of that cycle lives inside existing apps — the learning record in `identity/record.py`, school
 mode and completion certificates in `courses`, prerequisite paths in `concepts/paths.py`, take-home decks
 in `events/takehome.py`, and the creation gate in `config/creation.py` — all briefed in `prompts/`.
-The last two are the owner's list of 2026-10-08: **`provenance`** is the "AI-assisted" mark (the
+**`goals`** (2026-10-08, the same afternoon) is a goal hung off a node and the ordered criteria that
+say when it has been reached: the criteria ARE the definition of done, `status='met'` is DERIVED
+from them and nothing else writes it, and a task or a plan points at the goal it serves. It replaces
+a *convention* — `/about` has always called the twelve module plans the project's goals — and by the
+owner's own call those plans did not move: goals sit above them.
+
+The other two are the owner's list of 2026-10-08: **`provenance`** is the "AI-assisted" mark (the
 author's own disclosure, one confidence vote per reader per piece of content, a moderator's lock)
 and **`translations`** is the management layer's text in every language somebody has written it in —
 one table behind `tasks`, `plans`, `needs`, `decisions` and an organisation's description, and
@@ -148,10 +154,14 @@ Learn these five and most of the schema reads itself.
   claims), with shared vote, importance and thread handling in `materials/claims.py`.
 - **A lifecycle is one `status` field, never two booleans.** Two booleans make an illegal state
   representable — finished but never published — that every read site then has to defend against.
+  Where the terminal state is a *fact about other rows* rather than a decision, it is **derived and
+  nothing else writes it**: `needs.rules.recount` for `fulfilled`, `goals.rules.recount` for `met`
+  (and a request for it comes back 400 with the reason — house rule 10). A status people can set by
+  hand is a status that stops meaning anything.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-four exist today (counted against `/api/feature-flags/` on the dev
+  with an `is_staff` bypass. Thirty-five exist today (counted against `/api/feature-flags/` on the dev
   database, 2026-10-08 — this number had drifted twice before, so count it rather than increment it,
-  which is how the "thirty-three" above it turned out to be two short rather than one) — `exercise_submissions` `material_submissions`
+  which is how the "thirty-three" that preceded "thirty-four" turned out to be two short rather than one) — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
   `venues` `event_documents` `tickets` `shifts` `cloakroom` `role_preview` (seeded together by
@@ -165,8 +175,10 @@ Learn these five and most of the schema reads itself.
   needs a verified contributor; `config/creation.py`) and seeded ON by owner decision, plus
   `ai_assisted` (0050, the "AI-assisted" mark — `provenance/`; off, the chip leaves every statement,
   hint, solution, comment and review and the two menu items it owns leave the content menu, while
-  reply, report and the moderator's remove stay, because those belong to other features) — and the
-  `legal` notice channel is the one deliberate exception
+  reply, report and the moderator's remove stay, because those belong to other features) and `goals`
+  (0051, goals and their definitions of done — `goals/`; off, the Goals panel leaves every node page
+  and `/about`, the "Serves: …" line leaves every task and plan, and the thread under a goal closes
+  with it) — and the `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
   has been forgotten twice, each time taking the whole Flags tab down. `age_verification` is also
@@ -319,6 +331,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/material-projects/ /api/material-versions/ /api/project-invites/ co-authoring (COAUTHORING-BRIEF.md)
 /api/concepts/ /api/concept-articles/ /api/concept-revisions/ /api/concept-links/  concepts (CONCEPTS-BRIEF.md)
 /api/needs/ /api/volunteering-offers/                                 help wanted, and who is offering
+/api/goals/ /api/goal-criteria/ /api/nodes/{kind}/{id}/goals/          a goal and its definition of done
 /api/decks/ /api/cards/ /api/flashcards/due/ /api/nodes/{kind}/{id}/decks/  flashcards (prompts/02-flashcards.md)
 /api/creation/ /api/users/{id}/learning-record/ /api/courses/{id}/completions/  the creation gate, the learning record, certificates
 /api/ai-assistance/ /api/ai-assistance/{kind}/{id}/{vote,author-mark,lock}/   the "AI-assisted" mark (provenance/)
@@ -350,6 +363,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /exercises/[id] /materials/[id]                               content detail
 /courses … /events … /tutoring … /bookings                    user-run surfaces
 /needs … /volunteering …                                      help wanted, and who is offering
+/goals/[id]                                                   one goal and its definition of done
 /flashcards /flashcards/[id] /flashcards/[id]/review            decks and spaced review
 /courses/[id]/certificate/[completionId]                       a completion certificate, printed by the browser
 /material-projects … /project-invites/[token]                 co-authoring a material

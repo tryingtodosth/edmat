@@ -137,8 +137,9 @@ class PlanViewSet(viewsets.GenericViewSet):
         return Response(PlanSerializer(self.get_object(), context={'request': request}).data)
 
     def partial_update(self, request, pk=None):
-        """Title/description only — status moves through `transition/` so every change is checked
-        against the same table, never a stray `PATCH {"status": …}` that skips it."""
+        """Title, description and the goal it serves — status moves through `transition/` so every
+        change is checked against the same table, never a stray `PATCH {"status": …}` that skips
+        it."""
         plan = self.get_object()
         if not rules.can_edit(request.user, plan):
             return _forbidden(rules.NOT_EDITOR)
@@ -148,7 +149,27 @@ class PlanViewSet(viewsets.GenericViewSet):
             raise DRFValidationError({'title': 'A plan needs a title.'})
         plan.title = str(title).strip()[:200]
         plan.description = description
-        plan.save(update_fields=['title', 'description', 'updated_at'])
+        fields = ['title', 'description', 'updated_at']
+        # The goal this roadmap serves (`goals/`, 2026-10-08). `null` clears it; anything else is
+        # checked by the ONE rule both this app and `tasks` ask, which refuses a goal hanging off a
+        # different node (`goals.rules.goal_for_node` — a cross-node link cannot be a database
+        # constraint, so it has to be a rule, and two copies of it is how one of the two surfaces
+        # starts allowing it).
+        if 'goal' in request.data:
+            wanted = request.data.get('goal')
+            if wanted in (None, ''):
+                plan.goal = None
+            else:
+                from goals import rules as goal_rules
+
+                try:
+                    plan.goal = goal_rules.goal_for_node(
+                        wanted, plan.content_type_id, plan.object_id
+                    )
+                except (ValueError, TypeError) as exc:
+                    raise DRFValidationError({'goal': [str(exc) or goal_rules.NOT_ALLOWED]}) from exc
+            fields.append('goal')
+        plan.save(update_fields=fields)
         return Response(PlanSerializer(plan, context={'request': request}).data)
 
     def destroy(self, request, pk=None):

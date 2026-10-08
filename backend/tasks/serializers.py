@@ -18,6 +18,7 @@ from config.sanitize import sanitize_content
 
 from . import rules
 from .models import STATUS_CHOICES, Task, TaskAssignee
+from goals.serializers import ServesGoalMixin
 from translations.serializers import TranslatedTextMixin
 
 
@@ -78,6 +79,11 @@ class TaskSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     can_edit = serializers.SerializerMethodField()
     can_assign = serializers.SerializerMethodField()
     node = serializers.SerializerMethodField()
+    #: The goal this task serves (`goals/`, 2026-10-08) — the id, plus its title so a card can
+    #: draw "Serves: …" without a second request. Read-only HERE: every write path on this model
+    #: goes through `TaskWriteSerializer`, which is where `ServesGoalMixin` sits.
+    goal = serializers.PrimaryKeyRelatedField(read_only=True)
+    goal_title = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -85,10 +91,14 @@ class TaskSerializer(TranslatedTextMixin, serializers.ModelSerializer):
             'id', 'node', 'title', 'description', 'status', 'priority', 'due_at',
             'parent', 'order', 'created_by', 'created_at', 'updated_at', 'done_at',
             'assignees', 'subtasks', 'progress', 'is_overdue', 'can_edit', 'can_assign',
-        
+            'goal', 'goal_title',
             'language',
             'text_versions',
         ]
+
+    def get_goal_title(self, task) -> str:
+        goal = task.goal
+        return goal.title if goal is not None else ''
 
     @property
     def _user(self):
@@ -128,14 +138,20 @@ class TaskSerializer(TranslatedTextMixin, serializers.ModelSerializer):
         return nodes.node_ref(node, self._user)
 
 
-class TaskWriteSerializer(serializers.ModelSerializer):
-    """The five fields a person may type. `description` is sanitized here rather than in the view,
+class TaskWriteSerializer(ServesGoalMixin, serializers.ModelSerializer):
+    """The six fields a person may type. `description` is sanitized here rather than in the view,
     so every write path — create, subtask create, patch — passes through the same bleach pass
-    (house rule 8: on write as well as on read)."""
+    (house rule 8: on write as well as on read).
+
+    `goal` is the sixth (`goals/`, 2026-10-08), and `ServesGoalMixin` is the one rule it needs: the
+    goal has to hang off the same node as the task. On a PATCH the node comes from the instance; on
+    a create the view passes it in the context, because a node-nested POST does not carry its node
+    in the body.
+    """
 
     class Meta:
         model = Task
-        fields = ['title', 'description', 'priority', 'due_at', 'order']
+        fields = ['title', 'description', 'priority', 'due_at', 'order', 'goal']
         extra_kwargs = {
             'title': {'required': True, 'allow_blank': False},
             'description': {'required': False},
