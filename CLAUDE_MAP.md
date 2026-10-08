@@ -200,6 +200,9 @@ own: `discussions.py` is the rule module (who may write, what is held, what "N c
 `report_location_key()` is what `moderation/services.py` reads to put a `discussion_location` key on a held comment's report row,
 and `manage.py sweep_discussion_locations [--dry-run]` deletes rows nobody decided anything about (no comments, default
 settings, `updated_by IS NULL`). The row is created only after a write is accepted, so a refused post leaves nothing behind.
+Since 2026-10-08 (§17BY) a management row is a page here too — `tasks/17`, `plans/3`, `needs/2`, `polls/1` — so the project
+board's rows carry the same threads, settings and holds; the read 404s where the row's own app would, and `?keys=` answers a
+whole panel in one request.
 
 ### `moderation` — the queue, the scoped role, and the kill switches
 Models: `ExerciseSubmission` (a JSON `payload` draft), `EditSuggestion`,

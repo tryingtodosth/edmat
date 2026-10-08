@@ -92,6 +92,23 @@ def public_needs(user):
     return Need.objects.filter(pk__in=visible_ids).order_by('-created_at', '-id')
 
 
+def can_view_need(user, need: Need) -> bool:
+    """`public_needs` for ONE need that arrives with its id somewhere other than this app's own
+    URLs — house rule 4's object-level half, written when a need became a discussion location
+    (`community/discussions.py`, 2026-10-08) and the thread endpoint had to ask "may this reader
+    see the row the thread hangs off?" without loading every need on the site to find out.
+
+    The same three conditions `public_needs` applies per row, deliberately restated rather than
+    `public_needs(user).filter(pk=need.pk).exists()`: that would resolve every node on the board to
+    answer about one row. `NeedViewSet` itself still scopes through `public_needs`, which is the
+    list-shaped answer to the same question; the two must keep agreeing, and a test pins that.
+    """
+    node = need.node
+    if node is None or not node_seam.can_view_node(user, node):
+        return False
+    return need.status == 'open' or node_seam.is_node_staff(user, node)
+
+
 def node_needs(user, node):
     """The needs of one node, for the nested `/api/nodes/{kind}/{id}/needs/` — staff see
     everything hung off it, everybody else (who already passed `can_view_node` to reach this) sees

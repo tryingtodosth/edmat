@@ -29,6 +29,8 @@
 	} from '$lib/utils/labels';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import { pageTitle } from '$lib/utils/pageTitle';
+	import PageDiscussion from '$lib/components/discussion/PageDiscussion.svelte';
+	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 	import type { ApplyBlockReason } from '$lib/types/need';
 
 	const id = $derived(page.params.id!);
@@ -257,6 +259,10 @@
 					{/if}
 				</section>
 			{/if}
+
+			<!-- The need's own thread (`needs/<id>` to `community/discussions.py`). Applying is the
+			     form above; this is for the questions somebody has before they do. -->
+			<PageDiscussion page={discussionKeyFor('needs', need.id)} title={need.title} />
 		{/if}
 	</div>
 </FeatureGate>

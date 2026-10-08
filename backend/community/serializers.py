@@ -365,13 +365,28 @@ class DiscussionLocationSerializer(serializers.ModelSerializer):
         """The key's shape is checked here rather than in the view, because a moderator CREATING a
         location is the one caller who types a page and section by hand — every other path parses
         them out of a key the frontend built."""
-        from .discussions import PAGE_RE, SECTION_RE
+        from .discussions import PAGE_RE, SECTION_RE, management_kind, management_rows
 
         page = (attrs.get('page') or getattr(self.instance, 'page', '') or '').strip()
         section = (attrs.get('section') or getattr(self.instance, 'section', '') or '').strip()
-        if not PAGE_RE.match(page):
+        if management_kind(page):
+            # A task, a plan, a need or a poll (`discussions.py`, "A task … is a location too"):
+            # the row has to exist — a moderator configuring `tasks/999` ahead of a task that
+            # was never created would be a row nobody could ever reach — and it has no sections.
+            if section:
+                raise serializers.ValidationError(
+                    {'section': ['A task, a plan, a need or a poll has one thread and no sections.']}
+                )
+            if page not in management_rows([page]):
+                raise serializers.ValidationError({'page': ['No such task, plan, need or poll.']})
+        elif not PAGE_RE.match(page):
             raise serializers.ValidationError(
-                {'page': ['A page is `about` or `about/<segment>` or `about/<segment>/<segment>`.']}
+                {
+                    'page': [
+                        'A page is `about`, `about/<segment>`, `about/<segment>/<segment>`, '
+                        'or a row: `tasks/<id>`, `plans/<id>`, `needs/<id>`, `polls/<id>`.'
+                    ]
+                }
             )
         if section and not SECTION_RE.match(section):
             raise serializers.ValidationError(

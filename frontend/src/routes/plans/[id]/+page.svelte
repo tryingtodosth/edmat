@@ -6,10 +6,10 @@
 	// (`plan.canEdit`, `plan.suggestBlockReason`) rather than a client-side guess — house rule 4:
 	// only the server holds both halves of a rule (the queryset filter AND the object check), and a
 	// frontend that re-derived "may I edit this" would be drawing a button that then 403s.
-	import { goto } from '$app/navigation';
+	import { goto, pushState } from '$app/navigation';
+	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { localizedPath } from '$lib/utils/localizedPath';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
@@ -29,7 +29,6 @@
 		updatePlanStep,
 		withdrawPlanSuggestion
 	} from '$lib/services/plans';
-	import type { NodeRef } from '$lib/types/node';
 	import type { Plan, PlanStep, PlanStepStatus, PlanSuggestion } from '$lib/types/plan';
 	import {
 		PLAN_BLOCK_REASON_LABELS,
@@ -38,6 +37,9 @@
 		PLAN_SUGGESTION_STATUS_LABELS
 	} from '$lib/utils/labels';
 	import { formatDateTime } from '$lib/utils/datetime';
+	import PageDiscussion from '$lib/components/discussion/PageDiscussion.svelte';
+	import { discussionKeyFor } from '$lib/utils/discussionKeys';
+	import { nodeHref } from '$lib/utils/nodeHref';
 
 	const STEP_STATUSES: PlanStepStatus[] = ['pending', 'in_progress', 'done', 'skipped'];
 
@@ -66,17 +68,40 @@
 	let formBusy = $state(false);
 	let formError = $state('');
 
+	// Steps are folded by default (owner, 2026-10-08): the list is one line per step, and a step's
+	// description opens in a modal. The modal is a SHALLOW ROUTE keyed by `?step=<id>`: `pushState`
+	// changes the address bar without leaving this page, and the dialog is derived from TWO places
+	// because SvelteKit deliberately keeps `page.url` at the page's own URL across a shallow push
+	// (the history entry stores it as `sveltekit:pageurl`) — so while this page is open the id is
+	// in `page.state`, and after a refresh or on a shared link it is in the query. Found by a
+	// browser run: the first version read the query alone and the click changed the URL and drew
+	// nothing. Closing is `history.back()` when this page pushed the state, and a `replaceState`
+	// navigation to the bare plan URL after a reload (there is no entry to go back to), which is
+	// the "return to the parent content easily" the owner asked for either way.
+	const openStepId = $derived(page.state.stepModal ?? page.url.searchParams.get('step'));
+	const openStep = $derived.by(() => {
+		if (!plan || !openStepId) return null;
+		for (const step of plan.steps) {
+			if (step.id === openStepId) return step;
+			const sub = step.substeps.find((row) => row.id === openStepId);
+			if (sub) return sub;
+		}
+		return null;
+	});
+	const planHref = $derived(resolve('/plans/[id]', { id: page.params.id ?? '' }));
+	function openStepModal(step: PlanStep) {
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- planHref is resolve()d; the rule cannot see through the query string
+		pushState(`${planHref}?step=${encodeURIComponent(step.id)}`, { stepModal: step.id });
+	}
+	function closeStepModal() {
+		if (page.state.stepModal) history.back();
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- planHref is resolve()d
+		else goto(planHref, { replaceState: true, noScroll: true, keepFocus: true });
+	}
+
 	let suggestText = $state('');
 	let suggestBusy = $state(false);
 	let suggestError = $state('');
-
-	function nodeHref(node: NodeRef | null): string {
-		if (!node) return resolve('/');
-		if (node.kind === 'course') return resolve('/courses/[id]', { id: node.id });
-		if (node.kind === 'event') return resolve('/events/[id]', { id: node.id });
-		if (node.kind === 'material') return localizedPath(resolve('/materials/[id]', { id: node.id }));
-		return resolve('/');
-	}
 
 	function reasonFromError(e: unknown): string {
 		const body = (e as { body?: { detail?: string } } | undefined)?.body;
@@ -484,6 +509,10 @@
 					{/if}
 				</section>
 			{/if}
+
+			<!-- The plan's own thread (`plans/<id>` to `community/discussions.py`): where talk about
+			     the roadmap and its steps goes — a step has no thread of its own. -->
+			<PageDiscussion page={discussionKeyFor('plans', plan.id)} title={plan.title} />
 		{/if}
 	</div>
 </FeatureGate>
@@ -499,7 +528,18 @@
 				<option value={s}>{PLAN_STEP_STATUS_LABELS[s]()}</option>
 			{/each}
 		</select>
-		<span class="step-title" class:done={step.status === 'done'}>{step.title}</span>
+		{#if step.description}
+			<button
+				type="button"
+				class="step-title step-title--opens"
+				class:done={step.status === 'done'}
+				aria-label={m.plans_detail_stepOpen({ title: step.title })}
+				onclick={() => openStepModal(step)}>{step.title}</button
+			>
+			<!-- "Open the step “{title}”" -->
+		{:else}
+			<span class="step-title" class:done={step.status === 'done'}>{step.title}</span>
+		{/if}
 		{#if step.dueAt}
 			<span class="due">{m.plans_detail_dueLabel()}: {formatDateTime(step.dueAt)}</span>
 		{/if}
@@ -529,8 +569,32 @@
 			</div>
 		{/if}
 	</div>
-	{#if step.description}<MathContent source={step.description} tag="div" />{/if}
 {/snippet}
+
+{#if openStep}
+	<ModalShell title={openStep.title} onClose={closeStepModal}>
+		<p class="step-modal__meta">
+			{PLAN_STEP_STATUS_LABELS[openStep.status]()}
+			{#if openStep.dueAt}
+				· {m.plans_detail_dueLabel()}: {formatDateTime(openStep.dueAt)}
+			{/if}
+		</p>
+		<MathContent source={openStep.description} tag="div" />
+		{#if openStep.substeps.length > 0}
+			<ol class="step-modal__substeps">
+				{#each openStep.substeps as sub (sub.id)}
+					<li class:done={sub.status === 'done'}>{sub.title}</li>
+				{/each}
+			</ol>
+		{/if}
+		<p class="step-modal__back">
+			<button type="button" class="link" onclick={closeStepModal}
+				>{m.plans_detail_backToPlan()}</button
+			>
+			<!-- "Back to the plan" -->
+		</p>
+	</ModalShell>
+{/if}
 
 {#snippet stepForm()}
 	<form class="step-form" onsubmit={submitForm}>
@@ -655,6 +719,38 @@
 			color: var(--text-secondary);
 			font-weight: 400;
 		}
+	}
+	// A step with something behind it reads as a link: the one visual difference between a step
+	// that opens and one that is only its title.
+	.step-title--opens {
+		@include mix.focus-ring;
+		background: none;
+		border: 0;
+		padding: 0;
+		font: inherit;
+		font-weight: 600;
+		color: var(--accent);
+		text-align: left;
+		cursor: pointer;
+		&:hover {
+			text-decoration: underline;
+		}
+	}
+	.step-modal__meta {
+		margin: 0 0 var(--space-3);
+		color: var(--text-secondary);
+		font-size: var(--font-size-sm);
+	}
+	.step-modal__substeps {
+		margin: var(--space-3) 0 0;
+		padding-left: 1.2rem;
+		li.done {
+			text-decoration: line-through;
+			color: var(--text-secondary);
+		}
+	}
+	.step-modal__back {
+		margin: var(--space-4) 0 0;
 	}
 	.due {
 		font-size: var(--font-size-xs);

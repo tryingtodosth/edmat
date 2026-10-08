@@ -324,7 +324,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/ai-assistance/ /api/ai-assistance/{kind}/{id}/{vote,author-mark,lock}/   the "AI-assisted" mark (provenance/)
 /api/text-versions/{kind}/{id}/                                       one management row's text in every language at once
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
-/api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page
+/api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page — or under a task, a plan, a need or a poll (`tasks/17` as the page; `?keys=` for a whole board)
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
 ```

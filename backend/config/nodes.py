@@ -257,4 +257,9 @@ def node_ref(node, user) -> dict:
         'is_member': is_node_member(user, node),
         'can_manage': can_manage_node(user, node),
         'open_board': is_open_board(node),
+        # An organisation's page is `/organizations/<slug>`, not `/organizations/<id>` — the one
+        # node kind whose route is not its pk, which the frontend's `utils/nodeHref.ts` needs to
+        # know to send a reader back from a task to the board it came from (2026-10-08). `None`
+        # for the three kinds addressed by id, so a client can tell "no slug" from "slug missing".
+        'slug': getattr(node, 'slug', None) if kind_of(node) == 'organization' else None,
     }

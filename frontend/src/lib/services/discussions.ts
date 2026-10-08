@@ -69,6 +69,23 @@ export async function policiesForPage(
 	return bySection;
 }
 
+/** One policy per key, for the rows a panel draws — `?keys=tasks/17,plans/3,…`, keyed by key.
+ *
+ * The management rows' form of `policiesForPage` (`backend/community/discussions.py`, "A task, a
+ * plan, a need or a poll is a location too"): each row is its own page to the server, so a board
+ * asking per row would be the N+1 the page form was shaped to avoid. A key this reader may not
+ * open — a row on a node they cannot see — is simply absent from the answer, the way the row is
+ * absent from the board.
+ */
+export async function policiesForKeys(keys: string[]): Promise<Record<string, DiscussionPolicy>> {
+	if (keys.length === 0) return {};
+	const query = new URLSearchParams({ keys: keys.join(',') });
+	const raw = await apiClient.get<{ locations: RawPolicy[] }>(`/discussions/?${query.toString()}`);
+	const byKey: Record<string, DiscussionPolicy> = {};
+	for (const entry of raw.locations) byKey[entry.key] = mapPolicy(entry);
+	return byKey;
+}
+
 export interface DiscussionThread extends DiscussionPolicy {
 	comments: Comment[];
 }

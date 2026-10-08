@@ -94,12 +94,23 @@ class NodeDispatchTests(TestCase):
         event = _event(self.host)
         ref = nodes.node_ref(event, self.host)
         self.assertEqual(
-            set(ref), {'kind', 'id', 'title', 'is_staff', 'is_member', 'can_manage', 'open_board'}
+            set(ref),
+            {'kind', 'id', 'title', 'is_staff', 'is_member', 'can_manage', 'open_board', 'slug'},
         )
         self.assertFalse(ref['open_board'])  # only an organisation can open its board (2026-10-08)
+        # `slug` is an organisation's route segment (`/organizations/[slug]`) and `None` for the
+        # three kinds addressed by id — so a client can tell "no slug" from "slug missing"
+        # (`frontend/src/lib/utils/nodeHref.ts`, 2026-10-08).
+        self.assertIsNone(ref['slug'])
         self.assertEqual(ref['kind'], 'event')
         self.assertEqual(ref['title'], 'Seminar')
         self.assertTrue(ref['can_manage'])
+
+    def test_an_organisation_ref_carries_its_slug(self):
+        from organizations.models import Organization
+
+        org = Organization.objects.create(name='Koło', slug='kolo', created_by=self.host)
+        self.assertEqual(nodes.node_ref(org, self.host)['slug'], 'kolo')
 
 
 class NodeEndpointTests(TestCase):

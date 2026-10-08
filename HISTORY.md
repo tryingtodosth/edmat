@@ -14626,3 +14626,169 @@ two-pane editor with the Polish on the left and the English on the right.
 - **116 of the 151 plan steps are Polish-only**, because they come from the project log, which is.
   They are the one place a reader will meet the fallback note in quantity, and no step row draws one
   today.
+
+## 17BY — The project board is commentable: a task, a plan, a need or a poll is a discussion location (2026-10-08, `ux/colour-pass`)
+
+The owner, once the "AI-assisted" mark and the bilingual board had shipped: "all the edmat
+about/project info section with tasks, plans, needs etc should be commentable, reviable, etc: lets
+allow users as we wanted to do that with the previous version of about meaning replies and
+moderation/flags different settings". The previous version of `/about` (§17BS) had `DiscussionLocation`
+rows under its sections: an audience and a `moderated` switch per location, replies, an anonymous
+comment always held, the hold going through the report queue a moderator already reads, and a
+moderation tab listing every location with its held count. The ask was that mechanism, under every
+row of the board.
+
+### The decision: a row IS a page
+
+The obvious build was a comment endpoint on each of four apps — `tasks`, `plans`, `needs`,
+`decisions` added to `community/targets.py` and a `comments` action on each viewset. That gives
+threads and gives none of the rest: the two settings live on `DiscussionLocation`, the hold lives in
+`discussions.held_for`, the moderation tab reads `/api/discussion-locations/`. Four apps would each
+have had to grow a settings row and a hold rule, or the owner would have got threads without the
+"different settings" he named.
+
+So a management row is a **page** to `community/discussions.py`: a key of `tasks/17`, `plans/3`,
+`needs/2` or `polls/1` (`MANAGEMENT_PAGE_RE`, plural because those are the frontend's route
+segments) is the `page` of a `DiscussionLocation`, with no section — one thread per row, one row
+of settings per row. **No new endpoint, no new table, no new queue.** The moderation tab lists
+`tasks/17` beside `about#money-and-openness` without having learned anything, and "Held: 3" next to
+it links to the same filtered report queue.
+
+Two things ARE different about such a page, and both are answered in the rule module so the views
+stayed thin:
+
+- **It can be private.** A standing page is prose anybody can open; a task hangs off a node with a
+  roster. `discussions.can_read_location` asks the row's own app — `tasks.rules.visible_task`,
+  `plans.rules.can_view_plan`, `decisions.rules.can_view_poll`, and a new `needs.rules.can_view_need`
+  (the needs app only had the list-shaped `public_needs`; the new function restates its three
+  conditions per row and a test keeps the two agreeing) — and both reading endpoints turn a refusal
+  into **404**, the answer `/api/tasks/17/` gives the same reader (house rule 4). A row that is gone
+  is the same 404. The write path goes through the same check, so a stranger learns nothing from a
+  403 either.
+- **It answers to two kill switches.** `about_discussions` for the thread and the row's own
+  (`tasks`, `plans`, `needs`, `decisions`): `effective_policy` folds the second in for management
+  pages only, so a killed board does not keep a live thread under rows nobody can reach (house
+  rule 3).
+
+### One request per panel
+
+`/about` draws forty-odd rows across four panels, and each is its own page to the policy endpoint.
+`DiscussionPolicyView` grew a second form, `?keys=tasks/1,tasks/2,plans/3,…` (capped at 200), that
+answers one policy per key in the order asked, from one query for the location rows, one for the
+counts and one per KIND for the management rows — 12 queries for five keys in the test, however many
+rows a panel has. A key the reader may not open is simply absent, the queryset-filter shape of house
+rule 4; the single-key forms keep their 404. The frontend half is `rowDiscussions.svelte.ts`: a
+panel owns ONE `RowDiscussions`, loads it from an `$effect` keyed on its rows and the reader, and
+hands each row its policy. The browser script asserts the count of policy requests on the network.
+
+### Where it is drawn
+
+`RowDiscussion.svelte` wraps `SectionDiscussion` (§17BS's collapsed line and lazy thread, unchanged)
+in a child that takes a full line of its own — a grid row spans every column, a wrapping flex row
+wraps — because the five hosts are laid out five ways. It sits at the foot of a `TaskCard` (a new
+optional `discussion` prop; subtasks and `/tasks` draw none), under every plan, need and poll row on
+the panels, and on the four detail pages — `/tasks/[id]` through the card, `/plans/[id]`,
+`/needs/[id]` and `/polls/[id]` through `PageDiscussion`, which already fetched a policy by page key
+and needed no change. The moderation tab makes a management key a link to the row's page and says
+what kind of row it is ("a task", "zadanie") where a standing page's row says "the whole page";
+`utils/discussionKeys.ts` is the frontend's half of `MANAGEMENT_PAGE_RE` and says so.
+
+"Reviable" was read as **reportable and reviewed by a moderator** — the hold queue, the `⋯` on each
+comment with reply / the "AI-assisted" mark / report / a moderator's remove — not star ratings. A
+task is not something you rate, and the exercise `Review` model is exercise-only by FK.
+
+### What the tests found
+
+- **A held comment is listed with a placeholder body, not hidden.** The first browser run asserted
+  the held comment's WORDS in the staff thread and in the author's view, and both failed: the row is
+  there, its body is blanked behind "hidden until a moderator reviews it", because a held comment is
+  an auto-hidden one and `CommentSerializer` has always done that. The script now asserts the id for
+  staff and the placeholder for the author; `e2e/CLAUDE.md` trap 31.
+- **`{@const}` must be the immediate child of the block**, not of an element inside it —
+  `svelte-check` refused the first placement in the moderation panel.
+- **An exact query count hides the N+1 it was meant to catch.** `assertNumQueries(12)` held in
+  one run and read 21 in another, and I first blamed cache warmth. Replacing it with the property —
+  three rows must cost what one row costs — showed the batch paying **three queries per key**:
+  `is_feature_enabled` reads its row on every call (a kill switch must take effect at once), so the
+  thread flag and the kind's flag were read once per key, and each row loaded its node through the
+  `GenericForeignKey`. Now `discussions.memoised_flags()` remembers each flag for the life of one
+  request and `management_rows` prefetches the node per kind: 6 queries for three tasks, 7 for one.
+  A signed-in reader still pays one roster query per row inside each app's own rule
+  (`is_node_staff`), which is the honest remainder and is named under "Left open".
+
+**Verified** (house rule 2, both servers up on :8100/:5183). Backend: `manage.py check` and
+`makemigrations --check` clean (no model changed), `check_databases_declared` 0;
+`community.test_management_discussions` **30 OK**; `community needs moderation` together **323
+tests, 1 failure** — my own exact-query-count assertion, replaced by the property it stood in for
+(three rows cost what one row costs), which then found a real N+1 — see below — and is green since.
+Frontend: `npm run check` 0 errors 0 warnings, `eslint` clean on every touched file, key sets
+identical at **4011** each, `check:a11y` **48 pages, 0 violations**.
+`e2e/management-discussions.mjs` — **30/30**, screenshots looked at: the line under the task on
+`/about` with the exact count and the thread open in place, the plan page's one line at its foot,
+the moderation tab's new lead and placeholder.
+
+### Folded by default: a task opens in a modal, a step opens in a modal, and the URL survives a refresh
+
+The owner, while the above was being verified: "both steps and tasks should be folded by default
+e.g. by hiding behind a modal and then full page if refreshed with modal opened with returning to
+previous page/parent content easily". The board on `/about` had been drawing every task as a full
+card — description, assignees, subtasks, actions, and now a discussion line — so a reader scrolled
+past a page of prose to find the next task.
+
+- **A task on a board is one line** (`TaskRow.svelte`: priority, title, due date, step count,
+  status), the whole line a button. Clicking it opens the full `TaskCard` — subtasks and thread
+  included — in a `ModalShell` over the board. The modal is a **shallow route**: `pushState` from
+  `$app/navigation` makes the address bar say `/tasks/<id>` while the board stays mounted and draws
+  the dialog from `page.state.taskModal`. A refresh therefore lands on the real `/tasks/[id]` page
+  (the same card, full size), which now carries a **link back to the node** the task hangs on;
+  Escape, the × and the browser's back button are all `history.back()`. `App.PageState` in
+  `app.d.ts` names the two keys.
+- **A plan's steps are one line each**; a step with a description is a button that opens it in a
+  modal keyed by `?step=<id>`, so a refresh re-opens the same dialog over the plan and a pasted
+  link does the same. Closing is `back()` when the page pushed the state and a `replaceState`
+  navigation to the bare plan URL after a reload, where there is no entry to go back to.
+- **`utils/nodeHref.ts`** is the one answer to "where is this node's page" — the plan page and the
+  work dashboard each had their own, and the dashboard's sent an organisation to
+  `/organizations/<id>`, which is not a route. An organisation's page is its **slug**, so
+  `config/nodes.py: node_ref` now carries `slug` for that kind (and `None` for the three addressed
+  by id), the four frontend node mappers copy it, and the project's own organisation resolves to
+  `/about`.
+
+**What the browser run found.** SvelteKit keeps `page.url` at the page's own URL across a shallow
+push (the history entry records it as `sveltekit:pageurl`), so a step modal derived from the query
+alone changed the address bar and drew nothing. The id is read from `page.state` first and the
+query second — one covers the click, the other the refresh. And the task card draws its subtasks as
+nested `article.task`s, so a locator for "the card in the modal" matched three.
+
+**Verified**: `e2e/management-discussions.mjs` grew to **43/43** — the row carries no description
+and no card is on the board; the click opens the card in a modal with the URL at `/tasks/<id>`;
+Escape returns to `/about`; the task page links back to `/about`; a step's description is absent
+from the list, present in the modal, `?step=` in the URL, still open after a reload, and "Back to
+the plan" leaves a clean URL. Screenshots looked at. `npm run check` 0 errors 0 warnings, `lint`
+clean (Prettier reflowed three files), production build OK, `check:a11y` **48 pages, 0
+violations** (one run that overlapped the build reported a load problem and two minor nodes; the
+run after it, alone, reported none). Backend: `config.test_nodes` **10 OK** with the shape test
+taught `slug`; `config tasks plans needs decisions organizations` 306 tests green bar that one
+pre-fix shape assertion.
+
+### Left open
+
+- **`/tasks` (my tasks) still draws full cards**, by choice: a personal list a person reads top to
+  bottom is not a board, and it already links each card to its page. Fold it if it grows.
+- **A need and a poll are already one line on the panels**; their full content is their page.
+  A poll's ballot stays inline on the panel because that is where people vote.
+- **No ceiling over a board.** A standing page's own row narrows every section on it; a management
+  row has no page above it, because the node is not a page and no row of this table stands for it.
+  "Close every thread on this organisation's board" is N switches today. The shape that would do it
+  is a `organizations/edmat`-style page row consulted by `effective_policy` for every row whose
+  node it is — one more branch there, and a line in the serializer's allowlist.
+- **Plan steps and poll options have no thread of their own.** The plan's and the poll's thread is
+  where that talk goes; a step would be the next key kind if anybody asks.
+- **Subtasks draw no line**, by choice: a subtask's card is drawn by its parent and a thread per
+  subtask under a thread per task is noise. `tasks/<subtask id>` is a legal key all the same.
+- **A signed-in reader pays one roster query per row** in the batched read, inside each app's
+  own rule (`nodes.is_node_staff` → the organisation's member table), because the rule is asked
+  per row and the module does not re-implement it. An anonymous reader pays nothing per row.
+  Bounded by the panel; a node with hundreds of tasks would want the roster answered once per node.
+- **Comment notifications** do not fire for a thread under a management row, exactly as they do
+  not for a standing page (§17BT.E's left-open). The task's assignee is the obvious recipient.

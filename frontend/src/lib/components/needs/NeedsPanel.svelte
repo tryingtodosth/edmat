@@ -11,6 +11,9 @@
 	import { cancelNeed, createNeed, getNodeNeeds, reopenNeed } from '$lib/services/needs';
 	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
 	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import RowDiscussion from '$lib/components/discussion/RowDiscussion.svelte';
+	import { RowDiscussions } from '$lib/components/discussion/rowDiscussions.svelte';
+	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 	import type { WrittenText } from '$lib/services/textVersions';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
@@ -28,6 +31,14 @@
 	const canSee = $derived(featureFlagsStore.isEnabled('needs') || authStore.isModerator);
 
 	let needs = $state<Need[]>([]);
+	// Every row's thread policy in ONE request (`rowDiscussions.svelte.ts`).
+	const rowDiscussions = new RowDiscussions();
+	$effect(() =>
+		rowDiscussions.load(
+			needs.map((row) => discussionKeyFor('needs', row.id)),
+			authStore.user?.id ?? 'anon'
+		)
+	);
 	let loading = $state(true);
 	let loadedFor = $state('');
 	let showForm = $state(false);
@@ -251,6 +262,10 @@
 							/>
 						{/if}
 						<LanguageNote language={need.language} />
+						<RowDiscussion
+							policy={rowDiscussions.byKey[discussionKeyFor('needs', need.id)]}
+							title={need.title}
+						/>
 					</li>
 				{/each}
 			</ul>

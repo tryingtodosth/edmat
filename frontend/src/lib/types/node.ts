@@ -23,6 +23,9 @@ export interface NodeRef {
 	 * (`Organization.open_board`, 2026-10-08). Reading only: `isStaff`/`canManage` still gate every
 	 * button. Always false for a course, an event or a material. */
 	openBoard: boolean;
+	/** An organisation's route segment (`/organizations/[slug]`); absent for the three kinds that
+	 *  are addressed by id. `utils/nodeHref.ts` is the one reader. */
+	slug?: string;
 }
 
 // One person on a node's roster, as `GET /api/nodes/{kind}/{id}/staff/` lists them — the

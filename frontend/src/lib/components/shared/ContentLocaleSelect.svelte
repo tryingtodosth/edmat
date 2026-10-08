@@ -46,9 +46,7 @@
 	// `pl` and `en`. A re-translation of an existing language is a legitimate pending row anyway (the
 	// backend's partial unique constraint only ever allows one PUBLISHED row per locale), so falling
 	// back to the whole list is both the safe and the correct answer.
-	const narrowed = $derived(
-		all.filter((option) => option === value || !exclude.includes(option))
-	);
+	const narrowed = $derived(all.filter((option) => option === value || !exclude.includes(option)));
 	const options = $derived(narrowed.length > 0 ? narrowed : all);
 </script>
 

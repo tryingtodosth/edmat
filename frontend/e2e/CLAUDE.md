@@ -160,6 +160,14 @@ django.contrib.auth import get_user_model; print(Token.objects.get(user=get_user
     key. Clearing the throttle counters is `manage.py shell -c "from django.core.cache import
 cache; cache.clear()"`, through the API and never by deleting `cachedata/` (trap 28).
 
+31. **A held comment is LISTED, with a placeholder where its body was.** Holding is
+    `auto_hidden_at` (`accounts.minors.hold_for_review`), and `CommentSerializer` blanks every
+    auto-hidden row's body for everybody — staff and the author included, who are the only ones
+    the thread lists it for. So "visible to staff" is the comment's **id** in the staff thread,
+    and "shown to its author" is the "hidden until reviewed" sentence in the page text; asserting
+    the comment's words fails on both, which is how `management-discussions.mjs` first reported
+    two failures on a feature that was working.
+
 ## Conventions
 
 Zero console/page errors is part of every script's pass condition. Clean up scratch data through

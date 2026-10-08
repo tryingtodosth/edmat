@@ -11,12 +11,24 @@
 	import { createPlan, getNodePlans } from '$lib/services/plans';
 	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
 	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import RowDiscussion from '$lib/components/discussion/RowDiscussion.svelte';
+	import { RowDiscussions } from '$lib/components/discussion/rowDiscussions.svelte';
+	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 	import type { WrittenText } from '$lib/services/textVersions';
 	import type { NodeRef } from '$lib/types/node';
 	import type { Plan, PlanStep } from '$lib/types/plan';
 	import { PLAN_STATUS_LABELS } from '$lib/utils/labels';
 
 	let { node }: { node: NodeRef } = $props();
+
+	// Every row's thread policy in ONE request (`rowDiscussions.svelte.ts`).
+	const rowDiscussions = new RowDiscussions();
+	$effect(() =>
+		rowDiscussions.load(
+			plans.map((row) => discussionKeyFor('plans', row.id)),
+			authStore.user?.id ?? 'anon'
+		)
+	);
 
 	let plans = $state<Plan[]>([]);
 	let creating = $state(false);
@@ -147,6 +159,10 @@
 							>
 							<!-- "Next: {title}" -->
 						{/if}
+						<RowDiscussion
+							policy={rowDiscussions.byKey[discussionKeyFor('plans', plan.id)]}
+							title={plan.title}
+						/>
 					</li>
 				{/each}
 			</ul>

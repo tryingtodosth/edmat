@@ -20,6 +20,9 @@
 	import * as pollsService from '$lib/services/polls';
 	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
 	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import RowDiscussion from '$lib/components/discussion/RowDiscussion.svelte';
+	import { RowDiscussions } from '$lib/components/discussion/rowDiscussions.svelte';
+	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 	import {
 		mapLanguageReading,
 		mapTextVersions,
@@ -30,6 +33,14 @@
 	let { node }: { node: NodeRef } = $props();
 
 	let polls = $state<Poll[]>([]);
+	// Every poll's thread policy in ONE request (`rowDiscussions.svelte.ts`).
+	const rowDiscussions = new RowDiscussions();
+	$effect(() =>
+		rowDiscussions.load(
+			polls.map((row) => discussionKeyFor('polls', row.id)),
+			authStore.user?.id ?? 'anon'
+		)
+	);
 	let loading = $state(true);
 	let loadError = $state<string | null>(null);
 	let closedResults = $state<Record<number, PollResults>>({});
@@ -411,6 +422,11 @@
 				{#if actionError[poll.id]}
 					<p class="poll-action-error">{actionError[poll.id]}</p>
 				{/if}
+
+				<RowDiscussion
+					policy={rowDiscussions.byKey[discussionKeyFor('polls', poll.id)]}
+					title={poll.question}
+				/>
 			</div>
 		{/each}
 

@@ -7,6 +7,7 @@ rule and the whole frontend `DiscussionThread` come for free here.
 """
 
 from django.contrib.contenttypes.models import ContentType
+from django.http import Http404
 from django.db.models import Count
 from django.core.exceptions import ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -572,7 +573,9 @@ def _location_for(page: str, section: str, *, create: bool):
     return DiscussionLocation.objects.filter(page=page, section=section).first()
 
 
-def _policy_payload(request, page: str, section: str) -> dict:
+def _policy_payload(
+    request, page: str, section: str, rows: dict | None = None, flag_enabled=None
+) -> dict:
     """The effective policy plus what it means FOR THIS READER.
 
     `can_post` and `post_block_reason` are both here on purpose (house rule 6): the frontend draws
@@ -583,7 +586,7 @@ def _policy_payload(request, page: str, section: str) -> dict:
     """
     from . import discussions
 
-    policy = discussions.effective_policy(page, section)
+    policy = discussions.effective_policy(page, section, rows=rows, flag_enabled=flag_enabled)
     reason = discussions.post_block_reason(request.user, policy)
     return {
         **policy,
@@ -614,11 +617,20 @@ class DiscussionPolicyView(APIView):
         from . import discussions
         from .models import DiscussionLocation
 
+        if 'keys' in request.query_params:
+            return self._many(request)
+
         page = (request.query_params.get('page') or '').strip()
         try:
             discussions.parse_key(page)
         except ValueError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        if discussions.management_kind(page) and not discussions.can_read_location(
+            request.user, page
+        ):
+            # The same answer `/api/tasks/17/` gives this reader (house rule 4): a thread on a row
+            # they may not see does not exist for them, and neither does the row.
+            raise Http404
 
         raw = (request.query_params.get('sections') or '').strip()
         sections = []
@@ -626,7 +638,8 @@ class DiscussionPolicyView(APIView):
             candidate = candidate.strip()
             if not candidate:
                 continue
-            if not discussions.SECTION_RE.match(candidate):
+            if not discussions.SECTION_RE.match(candidate) or discussions.management_kind(page):
+                # A management row has one thread and no sections (`discussions.parse_key`).
                 return Response({'detail': 'section'}, status=status.HTTP_400_BAD_REQUEST)
             if candidate not in sections:
                 sections.append(candidate)
@@ -653,6 +666,75 @@ class DiscussionPolicyView(APIView):
             entry['comment_count'] = counts.get(row.pk, 0) if row is not None else 0
             payload.append(entry)
         return Response({'page': page, 'locations': payload})
+
+
+    #: How many keys one `?keys=` read may ask about. A board is bounded by construction — the
+    #: project's own has fewer than fifty rows across its four panels — and a client asking for
+    #: more than this is not drawing a page.
+    MAX_KEYS = 200
+
+    def _many(self, request):
+        """`GET /api/discussions/?keys=tasks/17,plans/3,needs/2` — one request per PANEL.
+
+        The management rows' counterpart of the `page=…&sections=…` form: a board draws dozens of
+        rows and each is its own page here, so the frontend sends the keys it is drawing and gets
+        one policy per key. A key the reader may not open (a row on a node they cannot see, or a
+        row that is gone) is simply absent from the answer — the queryset-filter shape of house
+        rule 4, which is the right one for a list; the single-key reads above answer 404.
+        """
+        from . import discussions
+        from .models import DiscussionLocation
+
+        raw = (request.query_params.get('keys') or '').strip()
+        keys = []
+        for candidate in raw.split(','):
+            candidate = candidate.strip()
+            if not candidate:
+                continue
+            try:
+                page, section = discussions.parse_key(candidate)
+            except ValueError as exc:
+                return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            key = discussions.location_key(page, section)
+            if key not in keys:
+                keys.append(key)
+        if len(keys) > self.MAX_KEYS:
+            return Response({'detail': 'too_many_keys'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pairs = [discussions.parse_key(key) for key in keys]
+        pages = sorted({page for page, _section in pairs})
+        readable = discussions.readable_pages(request.user, pages)
+        flag_enabled = discussions.memoised_flags()
+
+        # One query for every row on every page asked about, one for the counts — not one per key
+        # inside `effective_policy`, which is the N+1 this form exists to avoid.
+        rows_by_page: dict[str, dict] = {}
+        for row in DiscussionLocation.objects.filter(page__in=pages):
+            rows_by_page.setdefault(row.page, {})[row.section] = row
+        content_type = ContentType.objects.get_for_model(DiscussionLocation)
+        counts = dict(
+            Comment.objects.filter(
+                content_type=content_type,
+                object_id__in=[
+                    row.pk for rows in rows_by_page.values() for row in rows.values()
+                ],
+                is_removed=False,
+                auto_hidden_at__isnull=True,
+            )
+            .values_list('object_id')
+            .annotate(n=Count('id'))
+        )
+
+        payload = []
+        for page, section in pairs:
+            if page not in readable:
+                continue
+            rows = rows_by_page.get(page, {})
+            entry = _policy_payload(request, page, section, rows=rows, flag_enabled=flag_enabled)
+            row = rows.get(section)
+            entry['comment_count'] = counts.get(row.pk, 0) if row is not None else 0
+            payload.append(entry)
+        return Response({'locations': payload})
 
 
 class DiscussionThreadView(APIView):
@@ -683,6 +765,12 @@ class DiscussionThreadView(APIView):
             )
         except ValueError as exc:
             return None, None, Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        if discussions.management_kind(parsed_page) and not discussions.can_read_location(
+            request.user, parsed_page
+        ):
+            # Read AND write: a stranger must not learn from a 403 that the row exists, and a
+            # row that is gone has no thread to write into. The answer its own endpoint gives.
+            raise Http404
         return parsed_page, parsed_section, None
 
     def get_throttles(self):

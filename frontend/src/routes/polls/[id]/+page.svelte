@@ -16,6 +16,8 @@
 	} from '$lib/utils/labels';
 	import { getPoll, getPollResults, vote } from '$lib/services/polls';
 	import type { Poll, PollResults } from '$lib/types/poll';
+	import PageDiscussion from '$lib/components/discussion/PageDiscussion.svelte';
+	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 
 	let poll = $state<Poll | null>(null);
 	let results = $state<PollResults | null>(null);
@@ -170,6 +172,10 @@
 					{/if}
 				</div>
 			{/if}
+
+			<!-- The poll's own thread (`polls/<id>` to `community/discussions.py`): the argument
+			     about the question, kept apart from the ballot. -->
+			<PageDiscussion page={discussionKeyFor('polls', poll.id)} title={poll.question} />
 		</div>
 	</div>
 {/if}

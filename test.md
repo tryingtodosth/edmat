@@ -324,6 +324,42 @@ prints the candidates and changes nothing. On the development database on 2026-1
 locations and 0 candidates — every one of them had been configured through the moderator API by
 `about-discussions.mjs`, which is the "somebody decided this" condition doing its job.
 
+**Django: `../.venv/bin/python3 manage.py test community.test_management_discussions`** — 30 tests
+(2026-10-08, `HISTORY.md` §17BY): a task, a plan, a need or a poll as a location. The key shape
+and what it refuses; a missing row, a stranger on a closed board's task, a draft plan, a non-open
+need and a members poll are each **404** on the policy read, the thread read and the write, with the
+roster's twin answering 200; `needs.rules.can_view_need` agreeing with `public_needs` for three
+readers; the two settings and the hold applying to a row; the report-queue key; both kill switches
+(the row's own and `about_discussions`); the batched `?keys=` read — order, absence of unreadable
+keys, dedupe, the 200-key cap, and that four keys cost the same queries as two (the exact count
+this started as hid a real three-queries-per-key N+1 — the property, not the number, is what
+matters); and the moderator's add form refusing a row that does not exist and a section under a row.
+
+**Browser: `frontend/e2e/management-discussions.mjs`** — 43 checks, zero console errors (30 for the
+threads; 13 added the same day for the folded board: the row carries no description, the modal
+opens with `/tasks/<id>` in the address bar, Escape returns to `/about`, the task page links back,
+a plan step's description is hidden from the list and shown in a `?step=` modal that survives a
+reload and closes to a clean URL).
+
+```bash
+cd frontend && E2E_BASE=http://localhost:5173 E2E_API=http://localhost:8000 \
+  E2E_STAFF_TOKEN=<admin's token> E2E_USER_TOKEN=<student1's token> \
+  node e2e/management-discussions.mjs
+```
+
+Finds the project's own organisation and one task, plan, need and poll on it through the API;
+reads four policies in one request; 400 for `tasks/0`, 404 for `tasks/999999`; a member's comment
+under the task counted exactly; the location row appearing in the moderation list; `staff` refusing
+with its word and `moderated` holding — the held row listed for staff by id and shown to its author
+as the placeholder (trap 31); the `tasks` flag taking the task's thread down and leaving the plan's;
+then in the browser the line under the task on `/about` with the exact count, ONE policy request for
+the whole tasks panel (asserted on the network), the thread open in place, the same line on
+`/tasks/<id>`, one line at the foot of `/plans/<id>`, and the moderation tab linking `tasks/<id>` to
+the task and naming the kind. Cleans up by deleting both comments as their author and re-reads the
+count. Tokens from `manage.py shell` (trap 30), falling back to the form. On `/about` the task is
+folded, so the script clicks `[data-task-row=<id>]` first and finds the discussion line inside
+`.modal-panel` — with `.first()`, because the card draws its subtasks as nested `article.task`s.
+
 **Browser: `frontend/e2e/about-discussions.mjs`** — 35 checks, zero console errors (31 until 2026-10-06; closing step E added the held-count link and the clean-up re-query, and made the count assertion exact).
 
 ```bash

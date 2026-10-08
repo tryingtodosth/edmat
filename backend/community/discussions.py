@@ -43,6 +43,33 @@ is validated here and the frontend declares what it draws, the same division `co
 settles for comment target names. What it costs is named in `todo.md`: a junk-but-well-formed key
 creates a location row nobody will ever read, visible to moderators as a row with no comments.
 
+## A task, a plan, a need or a poll is a location too (2026-10-08)
+
+The owner's ask once `/about` had become the project's own organisation page: "all the edmat
+about/project info section with tasks, plans, needs etc should be commentable … as we wanted to do
+that with the previous version of about meaning replies and moderation/flags different settings".
+The previous version's mechanism IS this module, so the answer was to let a management row be a
+page here rather than to give four apps a comment endpoint each: a key of `tasks/17`, `plans/3`,
+`needs/2` or `polls/1` (`MANAGEMENT_PAGE_RE`) is the `page` of a `DiscussionLocation`, with no
+section — one thread per row, one row of settings per row, held comments through the same queue,
+and the moderation tab lists them beside the standing pages without learning anything.
+
+Two things ARE different about such a page, and both are answered here so the views stay thin:
+
+- **It can be private.** A standing page is prose anybody can open; a task hangs off a node with a
+  roster, and a stranger may not see it at all. `can_read_location` asks the row's own app
+  (`tasks.rules.visible_task`, `plans.rules.can_view_plan`, `needs.rules.can_view_need`,
+  `decisions.rules.can_view_poll`) and the views turn a refusal into 404 — the same answer the
+  row's own endpoint gives (house rule 4). A missing row is the same 404.
+- **It answers to two kill switches.** `about_discussions` for the thread, and the row's own
+  (`tasks`, `plans`, `needs`, `decisions`): a killed board must not keep a live thread under rows
+  nobody can reach (house rule 3). `effective_policy` folds the second in for these pages only.
+
+There is no ceiling row for a management page — the node is not a page and no row of this table
+stands for it — so "close every thread on this organisation's board" is N switches today, named
+in `todo.md`. Plan steps and poll options have no thread of their own; the plan's and the poll's
+thread is where that talk goes.
+
 ## Refusal words
 
 `post_block_reason` returns one word, the vocabulary the other rule modules use (house rule 6):
@@ -120,6 +147,21 @@ PAGE_RE = re.compile(r'^about(?:/[a-z0-9-]{1,40}){0,2}$')
 #: see `effective_policy`, where a page-level row acts as the ceiling over its sections.
 SECTION_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 
+#: A management row's own thread: `tasks/17`, `plans/3`, `needs/2`, `polls/1`. Plural words because
+#: they are the frontend's route segments (`/tasks/17`), which is where the key sends a reader.
+#: A leading zero or an id with more than ten digits is malformed rather than merely absent.
+MANAGEMENT_PAGE_RE = re.compile(r'^(tasks|plans|needs|polls)/[1-9][0-9]{0,9}$')
+
+#: The word in the key -> (app_label, model, the kill switch that row answers to). Hand-written
+#: like `community/targets.py` and `config/nodes.py`: `polls` live in the `decisions` app and
+#: answer to the `decisions` flag, which no convention would have produced.
+MANAGEMENT_KINDS = {
+    'tasks': ('tasks', 'task', 'tasks'),
+    'plans': ('plans', 'plan', 'plans'),
+    'needs': ('needs', 'need', 'needs'),
+    'polls': ('decisions', 'poll', 'decisions'),
+}
+
 AUDIENCE_ANYONE = 'anyone'
 AUDIENCE_USERS = 'users'
 AUDIENCE_VERIFIED = 'verified'
@@ -148,11 +190,93 @@ def parse_key(key: str) -> tuple[str, str]:
     """
     raw = (key or '').strip()
     page, _, section = raw.partition('#')
+    if MANAGEMENT_PAGE_RE.match(page):
+        # One thread per row: a section under `tasks/17` would be a thread on nothing.
+        if section:
+            raise ValueError('section')
+        return page, ''
     if not PAGE_RE.match(page):
         raise ValueError('page')
     if section and not SECTION_RE.match(section):
         raise ValueError('section')
     return page, section
+
+
+def management_kind(page: str) -> str | None:
+    """`'tasks'` for `tasks/17`, `None` for a standing page."""
+    match = MANAGEMENT_PAGE_RE.match(page or '')
+    return match.group(1) if match else None
+
+
+def management_rows(pages) -> dict:
+    """`{page: row}` for every management page in `pages` whose row exists — one query per KIND,
+    not per page, which is what lets the policy endpoint answer for a whole board at once.
+
+    A page whose row is gone is simply absent from the result; the caller treats absent as 404.
+    Standing pages are ignored here, not refused.
+    """
+    from django.apps import apps
+
+    ids_by_kind: dict[str, set[int]] = {}
+    for page in pages:
+        kind = management_kind(page)
+        if kind:
+            ids_by_kind.setdefault(kind, set()).add(int(page.split('/', 1)[1]))
+    found = {}
+    for kind, ids in ids_by_kind.items():
+        app_label, model_name, _flag = MANAGEMENT_KINDS[kind]
+        model = apps.get_model(app_label, model_name)
+        # The node comes with the rows — one query per content type rather than one per row, so
+        # that the visibility rules' first question (`node_of`, `.node`) costs nothing per row.
+        for row in model.objects.filter(pk__in=ids).prefetch_related('node'):
+            found[f'{kind}/{row.pk}'] = row
+    return found
+
+
+def _row_visible(user, kind: str, row) -> bool:
+    """Each app's own object-level rule, dispatched by kind. Imported lazily because this module
+    is imported by `moderation/services.py`, which those apps import in turn."""
+    if kind == 'tasks':
+        from tasks.rules import visible_task
+
+        return visible_task(user, row)
+    if kind == 'plans':
+        from plans.rules import can_view_plan
+
+        return can_view_plan(user, row)
+    if kind == 'needs':
+        from needs.rules import can_view_need
+
+        return can_view_need(user, row)
+    if kind == 'polls':
+        from decisions.rules import can_view_poll
+
+        return can_view_poll(user, row)
+    return False
+
+
+def readable_pages(user, pages, rows: dict | None = None) -> set:
+    """The subset of `pages` this reader may open a thread on.
+
+    A standing page is always readable — the prose is public and so is the talk about it. A
+    management page is readable when its row exists and the row's own app says so; a stranger on
+    a private course's task is told nothing, exactly as `/api/tasks/17/` tells them nothing.
+    """
+    rows = management_rows(pages) if rows is None else rows
+    allowed = set()
+    for page in pages:
+        kind = management_kind(page)
+        if kind is None:
+            allowed.add(page)
+            continue
+        row = rows.get(page)
+        if row is not None and _row_visible(user, kind, row):
+            allowed.add(page)
+    return allowed
+
+
+def can_read_location(user, page: str) -> bool:
+    return page in readable_pages(user, [page])
 
 
 def location_key(page: str, section: str) -> str:
@@ -202,7 +326,9 @@ def _is_verified(user) -> bool:
     return bool(getattr(getattr(user, 'profile', None), 'is_verified_contributor', False))
 
 
-def effective_policy(page: str, section: str) -> dict:
+def effective_policy(
+    page: str, section: str, rows: dict | None = None, flag_enabled=None
+) -> dict:
     """What this exact location currently allows, page-level row included.
 
     A row with `section=''` is the page's own setting and acts as a **ceiling** over every section
@@ -215,19 +341,33 @@ def effective_policy(page: str, section: str) -> dict:
     wins. A page set to `anyone` with one section set to `staff` leaves that section staff-only; a
     page set to `staff` with a section left at the default does not widen that section back out.
     `moderated` is an OR for the same reason — if either says "hold it", it is held.
+
+    `rows` is `{section: row}` for THIS page, already fetched, when the caller has many pages to
+    answer for at once (`DiscussionPolicyView`'s `keys=` form); left `None`, this fetches its own.
+    `flag_enabled` is a stand-in for `is_feature_enabled` for the same caller: that reader asks the
+    database every time it is called, so forty keys would be eighty flag reads — the batch passes
+    one that remembers (`memoised_flags`).
     """
+    if flag_enabled is None:
+        flag_enabled = is_feature_enabled
     from .models import DiscussionLocation
 
-    rows = {
-        row.section: row
-        for row in DiscussionLocation.objects.filter(page=page, section__in=['', section])
-    }
+    if rows is None:
+        rows = {
+            row.section: row
+            for row in DiscussionLocation.objects.filter(page=page, section__in=['', section])
+        }
     page_row = rows.get('')
     section_row = rows.get(section) if section else None
 
     present = [row for row in (page_row, section_row) if row is not None]
 
-    enabled = is_feature_enabled(FEATURE_KEY) and all(row.is_enabled for row in present)
+    enabled = flag_enabled(FEATURE_KEY) and all(row.is_enabled for row in present)
+    kind = management_kind(page)
+    if kind is not None and enabled:
+        # The row's own kill switch sits above its thread (module docstring): a killed board must
+        # not keep a live thread under rows nobody can reach.
+        enabled = flag_enabled(MANAGEMENT_KINDS[kind][2])
     # The default is what applies when NOBODY has decided — it is not a floor the rows then narrow
     # from. Folding it into the same `_narrower` chain as the rows was the first version of this
     # function and it was wrong in the one direction that matters: with `DEFAULT_AUDIENCE = 'users'`
@@ -248,6 +388,24 @@ def effective_policy(page: str, section: str) -> dict:
         'audience': audience,
         'moderated': moderated,
     }
+
+
+def memoised_flags():
+    """An `is_feature_enabled` that asks the database once per key for the life of one request.
+
+    `moderation.services.is_feature_enabled` deliberately reads the row every call (a kill switch
+    must take effect at once), and a view answering one policy per row of a board would ask it
+    twice per row. One request is the right lifetime: a flag flipped mid-request is a race nobody
+    is waiting on, and the memo dies with the view.
+    """
+    seen: dict[str, bool] = {}
+
+    def enabled(key: str) -> bool:
+        if key not in seen:
+            seen[key] = is_feature_enabled(key)
+        return seen[key]
+
+    return enabled
 
 
 #: Widest first. `_narrower` is an index comparison over this, so the order IS the rule.

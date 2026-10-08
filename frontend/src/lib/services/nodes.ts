@@ -14,7 +14,9 @@ function mapNodeRef(raw: any): NodeRef {
 		isStaff: raw.is_staff ?? false,
 		isMember: raw.is_member ?? false,
 		canManage: raw.can_manage ?? false,
-		openBoard: raw.open_board ?? false
+		openBoard: raw.open_board ?? false,
+		// An organisation's route is its slug (`utils/nodeHref.ts`); the other kinds send none.
+		...(raw.slug ? { slug: String(raw.slug) } : {})
 	};
 }
 

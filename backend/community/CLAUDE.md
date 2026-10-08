@@ -139,6 +139,34 @@ at. `DiscussionLocation` is that row — one per place on one of those pages —
   only, in all three places that print it. The collapsed line used to take `thread.comments.length`
   and so counted tombstones and, for staff, held rows.
 
+### A task, a plan, a need or a poll is a location too (2026-10-08, `HISTORY.md` §17BY)
+
+The project board's rows got the same threads by letting a row BE a page here: `tasks/17`,
+`plans/3`, `needs/2`, `polls/1` (`MANAGEMENT_PAGE_RE`, the frontend's route words) is the `page`
+of a `DiscussionLocation`, with no section — one thread, one row of settings. No new endpoint,
+table or queue; the moderation tab lists them unchanged and `report_location_key` already works.
+
+- **A row's page can be PRIVATE**, unlike a standing page. `can_read_location` asks the row's own
+  app (`tasks.rules.visible_task`, `plans.rules.can_view_plan`, `needs.rules.can_view_need`,
+  `decisions.rules.can_view_poll`) and both reading endpoints and the write answer **404** when it
+  refuses, or when the row is gone — never 403, which would confirm the row exists (house rule 4).
+  `MANAGEMENT_KINDS` is the dispatch table; a kind added there needs its rule named in `_row_visible`.
+- **Two kill switches.** `effective_policy` also folds in the row's own flag (`tasks`, `plans`,
+  `needs`, `decisions`) for these pages, so a killed board keeps no live thread.
+- **`?keys=a,b,c` is the batched read** (`DiscussionPolicyView._many`, 200 keys at most): one
+  policy per readable key, unreadable ones simply absent; one query for the location rows, one
+  for the counts, one per KIND for the management rows WITH their node prefetched, and the flags
+  through `discussions.memoised_flags()` — `is_feature_enabled` reads the database every call, and
+  the first version paid it twice per key. A signed-in reader still pays one roster query per row
+  inside the app's own rule. The frontend's `rowDiscussions.svelte.ts` is the one caller. Don't add
+  a per-row policy fetch anywhere — that is the N+1 this form exists to avoid.
+- **No ceiling.** There is no page row above a management row; "close every thread on this board"
+  is N switches. Named in `todo.md`.
+- **The serializer refuses a row that does not exist** (`tasks/999`) and any section under a row;
+  a moderator configuring a location ahead of its first comment is the one caller who types a page.
+- `frontend/src/lib/utils/discussionKeys.ts` mirrors `MANAGEMENT_PAGE_RE` (house rule 13, said in
+  both files): a word added here and not there is a row the moderation tab cannot link to.
+
 ## Verify
 
 `manage.py test community` — tombstone blanking, resubmit-updates, threading, anonymous
@@ -152,3 +180,10 @@ parsing, the page-as-ceiling rule, every refusal word, what is held and what is 
 read a held comment, the moderator's list, that a refused write leaves no row, the three
 conditions `sweep_discussion_locations` requires, and the `discussion_location` field on a report
 row. The browser half is `e2e/about-discussions.mjs`.
+
+`manage.py test community.test_management_discussions` (30) covers a row as a location: the key
+shape and what it refuses, the 404s (a missing row, a stranger on a closed board's task, a draft
+plan, a non-open need, a members poll off an open board) and their roster twins, that
+`can_view_need` agrees with `public_needs`, the two settings and the hold on a row, the report-queue
+key, both kill switches, the batched read (order, absence, dedupe, the cap, the query count) and the
+moderator's add form. The browser half is `e2e/management-discussions.mjs`.

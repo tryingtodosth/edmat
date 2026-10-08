@@ -36,7 +36,14 @@ and nothing here computes a cost.
 
 ## Rules live in `rules.py`, and the endpoints ask
 
-`can_manage`, `public_needs`, `node_needs`, `apply_block_reason`, `decide_block_reason`, `recount`.
+`can_manage`, `public_needs`, `node_needs`, `can_view_need`, `apply_block_reason`,
+`decide_block_reason`, `recount`.
+
+**`can_view_need(user, need)`** (2026-10-08) is `public_needs` restated for ONE row — the same three
+conditions, without resolving every node on the board to answer about one need. Written for
+`community/discussions.py`, which hangs a thread under a need (`needs/<id>`) and has to ask "may this
+reader see the row?" before it answers; `NeedViewSet` itself still scopes through `public_needs`.
+`community.test_management_discussions` keeps the two agreeing.
 
 Every refusal is a word, not a boolean (house rule 6): `not_open`, `own_node`, `minor`,
 `already_applied`, `full` (`apply_block_reason`); `already_decided` (`decide_block_reason`, and

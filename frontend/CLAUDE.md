@@ -19,6 +19,18 @@ its own boundary). `mappers.ts`: one raw-JSON→TS function per type. **Id conve
 Discipline/Branch ids are the backend slug; everything else `String(pk)`, opaque outside
 `lib/api/`. `lib/services/tutoring.ts` is deliberately not named `services.ts`.
 
+## Shallow routing: `page.url` does NOT follow `pushState`
+
+A modal that should survive a refresh is a shallow route (`pushState` from `$app/navigation`,
+`App.PageState` in `app.d.ts`): the task board pushes `/tasks/<id>` and draws the card in a
+`ModalShell`; the plan page pushes `?step=<id>`. Two things to know, both found by a browser run
+(2026-10-08, HISTORY §17BY): **SvelteKit keeps `page.url` at the page's own URL across a shallow
+push** (the entry stores it as `sveltekit:pageurl`), so read the id from `page.state` while the
+page is open and from the query only for the reload case; and closing is `history.back()` when
+you pushed the state, but after a reload there is no entry to go back to — `goto(bare, {
+replaceState: true })` instead. `utils/nodeHref.ts` is where "back to the parent" resolves a
+node's page.
+
 ## Svelte 5 traps (each has produced a live production-path bug; svelte-check catches NONE)
 
 1. **`bind:value` on `<input type="number">` binds a real `number` (or `undefined`)**, not the

@@ -18,6 +18,8 @@
 	import TaskForm from './TaskForm.svelte';
 	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
 	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
+	import RowDiscussion from '$lib/components/discussion/RowDiscussion.svelte';
+	import type { DiscussionPolicy } from '$lib/types/discussion';
 	import type { WrittenText } from '$lib/services/textVersions';
 	import {
 		createSubtask,
@@ -39,12 +41,17 @@
 		task,
 		allowSubtasks = true,
 		showNode = false,
+		discussion = undefined,
 		onchanged
 	}: {
 		task: Task;
 		allowSubtasks?: boolean;
 		/** `/tasks` says what each task hangs on; a node's own board does not need telling. */
 		showNode?: boolean;
+		/** This task's own thread (`tasks/<id>` to `community/discussions.py`), fetched by whoever
+		 *  draws the card — the board asks for every row's in one request. Absent on a subtask and
+		 *  on `/tasks`, which draw none. */
+		discussion?: DiscussionPolicy;
 		/** `null` means the row is gone — the parent drops it from its list. */
 		onchanged: (updated: Task | null) => void;
 	} = $props();
@@ -268,6 +275,8 @@
 			{/if}
 		</section>
 	{/if}
+
+	<RowDiscussion policy={discussion} title={task.title} />
 </article>
 
 <style lang="scss">

@@ -18,8 +18,15 @@
 	import { TASK_BLOCK_REASON_LABELS, TASK_STATUS_LABELS } from '$lib/utils/labels';
 	import { TASK_STATUS_ORDER, type Task, type TaskDraft, type TaskStatus } from '$lib/types/task';
 	import type { NodeRef } from '$lib/types/node';
+	import { page } from '$app/state';
+	import { pushState } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import TaskCard from './TaskCard.svelte';
+	import TaskRow from './TaskRow.svelte';
 	import TaskForm from './TaskForm.svelte';
+	import { RowDiscussions } from '$lib/components/discussion/rowDiscussions.svelte';
+	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 
 	let { node }: { node: NodeRef } = $props();
 
@@ -49,6 +56,16 @@
 		loadedFor = key;
 		load(key);
 	});
+
+	// Every row's thread policy in ONE request (`rowDiscussions.svelte.ts`), re-asked when the
+	// rows or the reader change. Top-level rows only: a subtask's card is drawn by its parent.
+	const rowDiscussions = new RowDiscussions();
+	$effect(() =>
+		rowDiscussions.load(
+			tasks.map((row) => discussionKeyFor('tasks', row.id)),
+			authStore.user?.id ?? 'anon'
+		)
+	);
 
 	async function load(key: string) {
 		try {
@@ -100,6 +117,23 @@
 
 	function inStatus(status: TaskStatus): Task[] {
 		return tasks.filter((row) => row.status === status);
+	}
+
+	// Folded by default (owner, 2026-10-08): the board is one line per task, and a task opens in a
+	// modal over the board. The modal is a SHALLOW ROUTE (`pushState`): the URL becomes the task's
+	// own page, `/tasks/<id>`, while this panel stays mounted and draws the dialog from
+	// `page.state.taskModal`. A refresh therefore lands on the real `/tasks/[id]` page — the same
+	// card, full size, with a link back to this node — and closing is `history.back()`, which is
+	// also what the browser's own back button does. `page.state` is empty after a reload, which is
+	// exactly when the real route should render instead of this dialog.
+	const openTask = $derived(
+		page.state.taskModal ? (tasks.find((row) => row.id === page.state.taskModal) ?? null) : null
+	);
+	function open(task: Task) {
+		pushState(resolve('/tasks/[id]', { id: task.id }), { taskModal: task.id });
+	}
+	function close() {
+		history.back();
 	}
 </script>
 
@@ -161,7 +195,7 @@
 						<h3>{TASK_STATUS_LABELS[status]()} <span class="count">{rows.length}</span></h3>
 						<div class="rows">
 							{#each rows as task (task.id)}
-								<TaskCard {task} onchanged={(updated) => replace(updated, task)} />
+								<TaskRow {task} onopen={open} />
 							{/each}
 						</div>
 					</section>
@@ -176,6 +210,21 @@
 			{/if}
 		{/if}
 	</section>
+
+	{#if openTask}
+		<ModalShell title={openTask.title} onClose={close} size="wide">
+			<TaskCard
+				task={openTask}
+				discussion={rowDiscussions.byKey[discussionKeyFor('tasks', openTask.id)]}
+				onchanged={(updated) => {
+					replace(updated, openTask);
+					// The row is gone (deleted): there is nothing left to show, so the dialog goes
+					// too, the same way it goes on Escape.
+					if (updated === null) close();
+				}}
+			/>
+		</ModalShell>
+	{/if}
 {/if}
 
 <style lang="scss">

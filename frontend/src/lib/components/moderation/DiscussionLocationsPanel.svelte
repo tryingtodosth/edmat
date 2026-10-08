@@ -22,6 +22,16 @@
 		updateDiscussionLocation
 	} from '$lib/services/discussions';
 	import type { DiscussionAudience, DiscussionLocationRow } from '$lib/types/discussion';
+	import { discussionLocationHref, managementDiscussionKind } from '$lib/utils/discussionKeys';
+
+	/** What a row's key stands for when it is not a page: "a task", "a plan"… A standing page's
+	 *  row says "the whole page" or names its section, as before. */
+	const ROW_KIND_LABELS = {
+		tasks: m.discussions_rowTask, // "a task"
+		plans: m.discussions_rowPlan, // "a plan"
+		needs: m.discussions_rowNeed, // "a need"
+		polls: m.discussions_rowPoll // "a poll"
+	};
 
 	let rows = $state<DiscussionLocationRow[]>([]);
 	let loading = $state(true);
@@ -147,12 +157,25 @@
 	{:else}
 		<ul class="locations-list">
 			{#each rows as row (row.id)}
+				{@const rowKind = managementDiscussionKind(row.key)}
+				{@const rowHref = discussionLocationHref(row.key)}
 				<li class="location-row">
 					<div class="location-row__who">
-						<span class="location-row__key">{row.key}</span>
-						{#if !row.section}
-							<span class="location-row__scope">{m.discussions_wholePage()}</span>
-							<!-- "the whole page" — this row is also the ceiling over every section on it. -->
+						{#if rowKind && rowHref}
+							<!-- A task, a plan, a need or a poll (`utils/discussionKeys.ts`): the key links
+							     to the page the thread sits on, because a moderator reading "Held: 3" next
+							     to `tasks/17` wants to see which task that is. -->
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- discussionLocationHref() calls resolve() itself; the rule only sees this attribute -->
+							<a class="location-row__key" href={rowHref} title={m.discussions_openRow()}
+								>{row.key}</a
+							>
+							<span class="location-row__scope">{ROW_KIND_LABELS[rowKind]()}</span>
+						{:else}
+							<span class="location-row__key">{row.key}</span>
+							{#if !row.section}
+								<span class="location-row__scope">{m.discussions_wholePage()}</span>
+								<!-- "the whole page" — this row is also the ceiling over every section on it. -->
+							{/if}
 						{/if}
 						<span class="location-row__counts">
 							{m.discussions_colComments()}: {row.commentCount}

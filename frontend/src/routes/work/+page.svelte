@@ -3,7 +3,7 @@
 	import { m } from '$lib/paraglide/messages';
 	import { getWorkDashboard } from '$lib/services/work';
 	import type { WorkDashboard, WorkItem } from '$lib/types/work';
-	import type { NodeKind, NodeRef } from '$lib/types/node';
+	import { nodeHref } from '$lib/utils/nodeHref';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import UrgencyDot from '$lib/components/UrgencyDot.svelte';
 	import { formatDateTime } from '$lib/utils/datetime';
@@ -12,16 +12,8 @@
 	// 'material', 'organization'), singular; every one of their frontend routes is plural. Building
 	// `/{node.kind}/{node.id}` directly 404s — found by `e2e/work.mjs` actually clicking the link,
 	// not by reading the code (house rule 2).
-	const NODE_ROUTE_PREFIX: Record<NodeKind, string> = {
-		course: '/courses',
-		event: '/events',
-		material: '/materials',
-		organization: '/organizations'
-	};
-
-	function nodeHref(node: NodeRef): string {
-		return `${NODE_ROUTE_PREFIX[node.kind]}/${node.id}`;
-	}
+	// `utils/nodeHref.ts` (2026-10-08) — this page's own copy sent an organisation to
+	// `/organizations/<id>`, which is not a route; the shared one knows the slug.
 
 	let dashboard = $state<WorkDashboard | null>(null);
 	let loading = $state(true);
