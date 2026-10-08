@@ -88,3 +88,19 @@ class ProjectJoinRequestAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'status', 'created_at', 'decided_at']
     list_filter = ['status']
     readonly_fields = ['project', 'user', 'statement', 'created_at']
+
+
+@admin.register(ProjectMember)
+class ProjectMemberAdmin(admin.ModelAdmin):
+    """Who is on a material project and in what capacity.
+
+    It is already an inline on the project (`ProjectMemberInline`), and this is a page of its own
+    as well, registered 2026-10-08: an inline answers "who is on THIS project", and the question a
+    support request actually asks — "why can this person not push a version?" — is about the
+    person, so it needs the table.
+    """
+
+    list_display = ['project', 'user', 'role', 'added_by', 'added_at']
+    list_filter = ['role']
+    search_fields = ['project__title', 'user__username']
+    raw_id_fields = ['project', 'user', 'added_by']

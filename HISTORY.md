@@ -15054,3 +15054,100 @@ eight labelled lines.
   one would be hiding the same thing twice.
 - **A count is not always the right line.** `Zaświadczenia o ukończeniu` and `Co obejmuje i czego
   wymaga` have no number, so their lines say less than the others'.
+
+---
+
+## 17CC — The admin registers what it was missing; the EdMat description is the owner's words; the conference demo is twelve people (2026-10-08, `ux/colour-pass`)
+
+Three of the owner's asks from the same evening, each small on its own.
+
+### "django admin lacks funcionalities"
+
+Counted rather than guessed: **72 of this project's 174 models had an admin page. Eleven apps had
+no `admin.py` at all** — `flashcards` `goals` `needs` `organizations` `provenance` `translations`
+`decisions` `telemetry` and three with nothing to register — and `services` had one with zero
+registrations, so a tutoring listing could not be looked at either. `courses` had 3 pages against
+19 models, `events` 3 against 15.
+
+**161 of 174 now.** The thirteen that are not registered are each edited as an inline on the row
+they belong to (the five taxonomy translations, a set's items, a profile's CV rows, the two
+availability windows, a post's links) — an inline answers the only question those tables are asked.
+
+Three rules shaped the pages rather than a template:
+
+- **A derived status is `readonly_fields`.** `goals.Goal.status` and `needs.Need.fulfilled` are
+  recounted from other rows and the API answers 400 if you try to set them by hand (house rule 5,
+  root CLAUDE.md shape 4). The admin must not become the one surface that can make `met` mean
+  nothing — so it shows `met_by`/`met_at` beside the status, which is the evidence, not the
+  decision. The same for `MaterialView` (the input a view count is recounted from) and for the
+  door log and the export log, which are evidence and are add/change-disabled outright.
+- **A ballot and a vote stay apart.** `decisions` registers both, and `BallotAdmin` shows who voted
+  and never what they chose while `VoteAdmin` shows what was chosen and never by whom. Joining them
+  helpfully in one changelist would undo in a list view exactly what the schema separates for an
+  anonymous poll.
+- **Every FK to a person is `raw_id_fields`.** A select holding every account is slow and is a way
+  to pick the wrong person.
+
+**And one page was deliberately un-registered again.** `RequestLog` and `AuditEvent` live on the log
+shards, not on `default`, so the `ModelAdmin` written for them opened to
+`OperationalError: no such table: telemetry_requestlog` — registered, `manage.py check` clean, and
+broken on the first click. `telemetry/admin.py` is now a module that explains why there is no page
+and what the three real options would cost (house rule 10: flag it, don't fake it). Found by a
+throwaway script that opened all 164 changelists as a superuser; after the fix, **162 open, 0
+fail**, which is the check worth keeping in mind next time somebody adds a model on a shard.
+
+### The organisation's description is the owner's sentence
+
+The owner, the same evening: *"prepare the desc of edmat org on about to be Edukacja potrzebuje
+usprawnień. EdMat.net to otwarte miejsce współpracy nad materiałami edukacyjnymi i oprogramowaniem:
+buduje je społeczność, każda zmiana jest widoczna, a każde rozwiązanie ma osobę, która za nie
+odpowiada"*. It replaces the two paragraphs the seed wrote the day before, in both languages; a full
+stop was added and nothing else changed.
+
+**`seed_edmat_project --retake-description` is new, and it exists because the protection written
+yesterday is also a trap.** `_write_bilingual` passes `keep_edited=True` so that a deployment never
+silently undoes an edit the owner made on production — correct, and it also means the seed can never
+again change that field once anybody has touched it. The flag is how a NEW description from the file
+is allowed to win, said out loud on the command line rather than by quietly weakening the rule.
+**This matters for tomorrow's deploy:** if the description on production has ever been saved through
+the editor, `seed_edmat_project --owner <name>` alone will leave it exactly as it is.
+
+### Twelve people at the conference, not a hundred and fifty
+
+The owner: *"lets also have only 6 test users"* — and, asked which of the three things that could
+mean, **shrink the demo seeds**. The dev database held **217 accounts and 157 of them were the
+conference demo**. `N_ATTENDEE_ACCOUNTS` 144 → 12, with every other number re-derived around it so
+the SHAPES survive: full with a waiting list (capacity 10 = 6 going + 2 promoted + the two
+personas), open seat offers, people who said no, a door log that is not everybody, a cloakroom with
+returns. **217 → 85 accounts.**
+
+Two things the shrink broke, both found by running it:
+
+- **The door log quietly lost a result class.** The lunch exits were a slice of the first hour's
+  batch (`first[5:8]`), which at twelve accounts is empty — so nobody went out for lunch, `exited`
+  never appeared, and "fewer inside than have been let in" stopped being demonstrated. Rebuilt from
+  `arrivals` instead, which also fixes the subtler half: that batch carries the collision duplicate
+  and the two tokens nobody issued, so an exit scan built from one of those is refused and "three
+  out" could silently be two.
+- **The tests restated the numbers.** `waitlisted == 6`, `checked_in == 100`, `coats_returned == 9`
+  are now `N_WAITLISTED`, `DAY_ONE_CHECKED_IN`, `N_LUNCH_RETURNS`, and `inside_count == 99` is now
+  the relationship it was standing for (`inside < checked_in`, `> 0`) — a test that hard-codes a
+  demo's size fails for the size being changed on purpose rather than for the shape being wrong.
+
+### Verified
+
+`manage.py check` clean, `events.test_conference_demo` 17 OK, `work` + `translations` 61 OK,
+`venues.tests.RoomBookingTests` 15 OK, the full suite green, and the 162-changelist smoke above.
+`/about` was loaded in a browser and **looked at**: the new sentence, one paragraph, with the folded
+panels under it.
+
+### Left open
+
+- **The ~44 accounts left behind by browser scripts** (`ehost-…`, `owner-…`, `e2e-…`, `gatekid…`,
+  `bugtest`) are still there. They are safe to delete and nothing shows them; a
+  `purge_test_accounts --dry-run` command is the honest shape and was not written, because the owner
+  picked the seed shrink and not this.
+- **The eleven named volunteers were not shrunk.** The rota is the thing they exist for and a rota
+  with one volunteer on it demonstrates nothing; the shift `needed` counts still carry the report's
+  ratios for a 150-person event.
+- **No admin page can reach a log shard**, as above.

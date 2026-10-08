@@ -4,7 +4,7 @@
 is the right fixture for a table of who-may-do-what and the wrong thing to screenshot: every
 conference page — the checklist, the documents, the rota, the scanner log, the cloakroom desk —
 stares at an empty table. This module builds the thing the follow-up research prompt asked for
-(`CONFERENCE-RESEARCH-PROMPT.md`, "sample data for a demo conference"): a two-day, ~150-person
+(`CONFERENCE-RESEARCH-PROMPT.md`, "sample data for a demo conference"): a two-day, small-but-complete
 teaching conference at a real-shaped Warsaw physics building, with a venue and rooms, an approved
 set of bookings, a checklist cut from the seeded two-day template with items in every state,
 documents in every visibility tier with a partly-read acknowledgement ledger, a programme with
@@ -308,25 +308,25 @@ SESSION_LINKS = [
 #: The call for contributions, as it stands on day one. (submitter index into attendees, kind,
 #: title, abstract, status, reason_code, review_note, scheduled session title or None)
 CONTRIBUTIONS = [
-    (3, 'talk', 'Optyka na telefonie: pomiary z aparatem',
+    (2, 'talk', 'Optyka na telefonie: pomiary z aparatem',
      'Dyfrakcja na płycie CD, prawo Malusa z dwóch par okularów — pomiary ilościowe telefonem.',
      'scheduled', '', 'Świetnie pasuje do sesji dydaktycznej.', 'Optyka na telefonie: pomiary z aparatem'),
-    (7, 'talk', 'Jak studenci czytają wykresy — badanie 300 kolokwiów',
+    (3, 'talk', 'Jak studenci czytają wykresy — badanie 300 kolokwiów',
      'Analiza błędów w odczytywaniu wykresów v(t) i a(t) na kolokwiach z trzech uczelni.',
      'scheduled', '', '', 'Jak studenci czytają wykresy — badanie 300 kolokwiów'),
-    (11, 'talk', 'Laboratorium I pracowni po pandemii',
+    (4, 'talk', 'Laboratorium I pracowni po pandemii',
      'Co zostało z laboratoriów zdalnych, a co wróciło do stołu.',
      'scheduled', '', '', 'Laboratorium I pracowni po pandemii'),
-    (15, 'talk', 'Symulacja gazu doskonałego w przeglądarce',
+    (5, 'talk', 'Symulacja gazu doskonałego w przeglądarce',
      'Prosty model cząsteczkowy w JavaScript i jak studenci sami odkrywają rozkład Maxwella.',
      'accepted', '', 'Przyjęte; czekamy na wolny slot w sesji krótkich wystąpień.', None),
-    (19, 'workshop', 'Kurs przygotowawczy do olimpiady online',
+    (6, 'workshop', 'Kurs przygotowawczy do olimpiady online',
      'Jak prowadzić kółko olimpijskie zdalnie dla uczniów z małych miejscowości.',
      'rejected', 'no_room', 'Bardzo dobry temat, ale w tym roku mamy tylko dwa sloty warsztatowe. Zapraszamy za rok.', None),
-    (23, 'talk', 'Doświadczenia z ciekłym azotem na dniu otwartym',
+    (7, 'talk', 'Doświadczenia z ciekłym azotem na dniu otwartym',
      'Bezpieczeństwo, logistyka i co naprawdę zapamiętują uczniowie.',
      'under_review', '', '', None),
-    (27, 'poster', 'Plakat: błędne wyobrażenia o sile tarcia',
+    (8, 'poster', 'Plakat: błędne wyobrażenia o sile tarcia',
      'Wyniki ankiety wśród 200 uczniów pierwszej klasy liceum.',
      'submitted', '', '', None),
 ]
@@ -338,20 +338,29 @@ CONTRIBUTIONS = [
 # events see ~4 %; free events far more), so ~78 % checked in by the end of day one.
 # ---------------------------------------------------------------------------------------------
 
-N_ATTENDEE_ACCOUNTS = 144
-CAPACITY = 134
-N_GOING = 128          # + persona.attendee + persona.child = 130 going
-N_PROMOTED = 4         # 24-hour seat offers still open
-N_WAITLISTED = 6
-N_NOT_GOING = 6          # 128 + 4 + 6 + 6 = 144 accounts; going + promoted + the two personas = 134 = capacity
+# **Shrunk from 144 accounts to 12 on 2026-10-08, by the owner's decision** (*"lets also have only
+# 6 test users"*, then, asked which of the three things that could mean: shrink the demo seeds). The
+# dev database held 217 accounts and 157 of them were this conference. Every RELATIONSHIP the demo
+# demonstrates survives the shrink — full with a waiting list, open seat offers, people who said no,
+# a day-one door log that is not everybody, a cloakroom with returns — because each of these numbers
+# is a *shape*, and the shapes are what the screens show. What does not survive is the feel of a
+# 150-person event, which is the price the owner chose to pay.
+N_ATTENDEE_ACCOUNTS = 12
+CAPACITY = 10
+N_GOING = 6            # + persona.attendee + persona.child = 8 going
+N_PROMOTED = 2         # 24-hour seat offers still open
+N_WAITLISTED = 2
+N_NOT_GOING = 2          # 6 + 2 + 2 + 2 = 12 accounts; going + promoted + the two personas = 10 = capacity
 #: Attendees (by index) whose door scan happens on day one, with the minute offset from 08:00 they
 #: arrive. Peak 08:30–09:10 (report: arrivals peak in the 15 minutes before the opening).
-DAY_ONE_CHECKED_IN = 100
+DAY_ONE_CHECKED_IN = 6   # of 8 going — the same ~78 % the report gives for a free event
 DAY_ONE_DOOR_START = time(8, 5)
 
 # ---------------------------------------------------------------------------------------------
-# The rota. Stations and shifts synthesised for 150 people; ratios from the report (one
-# registration lane per 150–200 arrivals, one cloakroom attendant per 80 garments).
+# The rota. Stations and shifts keep the SHAPE the report gives (one registration lane per
+# 150–200 arrivals, one cloakroom attendant per 80 garments) rather than being rescaled to the
+# twelve accounts the demo now has: a rota with one volunteer on it demonstrates nothing, and the
+# eleven named volunteers are each a person with a record, not a row of filler.
 # ---------------------------------------------------------------------------------------------
 
 #: name, kind, location, briefing, minors_permitted, requires_adult, needs_confirmation
@@ -451,9 +460,9 @@ ASSIGNMENTS = {
 # ---------------------------------------------------------------------------------------------
 
 DESK_NAME = 'Szatnia — hol główny'
-RACKS = [f'A{i:02d}' for i in range(1, 61)] + [f'B{i:02d}' for i in range(1, 61)]
-N_DEPOSITS = 62
-N_LUNCH_RETURNS = 9
+RACKS = [f'A{i:02d}' for i in range(1, 13)] + [f'B{i:02d}' for i in range(1, 13)]
+N_DEPOSITS = 6
+N_LUNCH_RETURNS = 2
 _ITEMS = ['kurtka czarna', 'płaszcz beżowy', 'plecak', 'kurtka granatowa', 'parasol i torba', 'płaszcz szary',
           'kurtka czerwona', 'walizka kabinowa', 'kurtka zielona', 'torba na laptopa', 'płaszcz czarny', 'kurtka szara']
 
@@ -479,7 +488,7 @@ DOCUMENTS = [
     ('Rejestr ryzyka', 'organisers', 'file', False, 1,
      ['Rejestr ryzyka (5×5): prawdopodobieństwo × skutek.', 'Awaria zasilania w Auli — 2×4=8: rzutnik zapasowy, sesja bez slajdów.', 'Reakcja alergiczna na poczęstunku — 3×4=12: oznaczenie 14 alergenów, apteczka, 112.', 'Tłok przy rejestracji 8:30–9:10 — 3×3=9: trzecia osoba na stanowisku, kolejka po nazwisku.', 'Brak sieci przy skanowaniu — 4×2=8: skaner działa offline, synchronizacja później.', 'Nieletni wolontariusz po 22:00 — 2×3=6: rota odmawia; dorosły na tej samej zmianie.']),
     ('Catering — liczba porcji', 'organisers', 'file', False, 1,
-     ['Zamówienie na dzień 1: 130 obiadów (standard 96, wege 22, wegańskie 5, bezglutenowe 5, inne 2).', 'Dzień 2: 105 obiadów.', 'Poczęstunek sesji plakatowej: 150 osób.', 'Liczby zagregowane z formularza — bez nazwisk.']),
+     ['Zamówienie na dzień 1: 10 obiadów (standard 6, wege 2, wegańskie 1, bezglutenowe 1).', 'Dzień 2: 8 obiadów.', 'Poczęstunek sesji plakatowej: 12 osób.', 'Liczby zagregowane z formularza — bez nazwisk.']),
     ('Protokół przekazania sal', 'venue', 'file', False, 1,
      ['Protokół przekazania sal — Pasteura 5.', 'Odbiór: dzień 1, 7:00. Zdanie: dzień 2, 18:00.', 'Stan: Aula 0.03 — bez uwag; Sala 1.01 — 1 gniazdko uszkodzone (zgłoszone wcześniej).', 'Podpisy: organizator / administracja budynku.']),
 ]
@@ -725,8 +734,8 @@ def make_conference_demo(password: str = DEFAULT_PASSWORD, *, day_one: date | No
     bookings = [
         ('Aula 0.03', 0, '08:00', '18:00', 'approved', 240, 'Sesje plenarne i panel', ''),
         ('Aula 0.03', 1, '08:30', '16:00', 'approved', 200, 'Sesje plenarne, zamknięcie', ''),
-        ('Hol główny', 0, '07:00', '21:00', 'approved', 150, 'Rejestracja, szatnia, przerwy, sesja plakatowa', 'Stojaki na plakaty z magazynu 0.22.'),
-        ('Hol główny', 1, '07:30', '18:00', 'approved', 150, 'Rejestracja, szatnia, przerwy', ''),
+        ('Hol główny', 0, '07:00', '21:00', 'approved', 12, 'Rejestracja, szatnia, przerwy, sesja plakatowa', 'Stojaki na plakaty z magazynu 0.22.'),
+        ('Hol główny', 1, '07:30', '18:00', 'approved', 12, 'Rejestracja, szatnia, przerwy', ''),
         ('Sala 0.06', 0, '10:00', '16:00', 'approved', 100, 'Sesja dydaktyczna', ''),
         ('Sala 0.06', 1, '10:00', '12:30', 'approved', 100, 'Sesja dydaktyczna', ''),
         ('Sala 1.01', 0, '13:00', '16:00', 'approved', 24, 'Warsztat Arduino', ''),
@@ -753,7 +762,7 @@ def make_conference_demo(password: str = DEFAULT_PASSWORD, *, day_one: date | No
         items = list(checklist.items.order_by('order', 'id'))
         # In order of the template: -30 d, -14 d, -1 d, -2 h, +3 h, +1 d.
         plans = [
-            ('done', 'Zgłoszenie z listą sal i szacowaną liczbą 150 osób złożone w administracji.', 'https://example.org/ddf2026/zgloszenie', True),
+            ('done', 'Zgłoszenie z listą sal i szacowaną liczbą 12 osób złożone w administracji.', 'https://example.org/ddf2026/zgloszenie', True),
             ('done', 'Potwierdzenie: Aula 0.03 — 240 miejsc siedzących, ewakuacyjnie 300. Poniżej progu imprezy masowej.', '', True),
             ('done', 'Instrukcja BHP (wersja 2) i plan ewakuacji wgrane; 13 z 15 wolontariuszy potwierdziło.', '', False),
             ('in_progress', 'Obchód sal rozpoczęty 7:10; Aula i 0.06 odebrane, 1.01 czeka na klucz.', '', False),
@@ -858,7 +867,7 @@ def make_conference_demo(password: str = DEFAULT_PASSWORD, *, day_one: date | No
 
     # The capped workshops: day one full, day two with seats left.
     SessionAttendance.objects.filter(session__event=event).delete()
-    for title, n in (('Warsztat: Arduino w pracowni fizycznej', 24), ('Warsztat: Tworzenie zadań z rozwiązaniami dla EdMat', 14)):
+    for title, n in (('Warsztat: Arduino w pracowni fizycznej', 5), ('Warsztat: Tworzenie zadań z rozwiązaniami dla EdMat', 3)):
         for row in going_rows[:n]:
             SessionAttendance.objects.get_or_create(session=sessions[title], attendance=row)
     for title in ('Fizyka kwantowa w liceum — co da się uczciwie powiedzieć', 'Warsztat: Arduino w pracowni fizycznej', 'Panel: Czy wykład jeszcze ma sens?'):
@@ -1009,10 +1018,30 @@ def make_conference_demo(password: str = DEFAULT_PASSWORD, *, day_one: date | No
                                         'client_at': first[0]['client_at'] + timedelta(minutes=20 + n), 'device_label': 'Drzwi A', 'is_offline_sync': False})
         lunch = clock.at(0, '12:20')
         if clock.happened(lunch):
-            for n, entry in enumerate(first[5:8]):
-                batches.setdefault(12, []).append(dict(entry, direction='exit', client_nonce=nonce(f'out-{n}'), client_at=lunch + timedelta(minutes=3 * n)))
-            for n, entry in enumerate(first[5:7]):
-                batches.setdefault(13, []).append(dict(entry, client_nonce=nonce(f'back-{n}'), client_at=clock.at(0, '13:25', 2 * n)))
+            # Three out, two back — the `exited` result and "fewer inside than have been let in"
+            # are the two states this produces, and both are what the door console exists to show.
+            #
+            # Built from `arrivals` (real tickets, really admitted) rather than by slicing the
+            # first hour's batch, which is what this did until 2026-10-08 and which broke twice over
+            # when the demo shrank to twelve accounts: that batch is shorter than six entries, so
+            # `first[5:8]` was empty and the log lost a result class — and it also carries the
+            # collision duplicate and, later, the two tokens nobody issued, so an exit scan built
+            # from one of those is refused and "three out" quietly becomes two or none.
+            came = [(moment, token, i) for moment, token, i in arrivals if clock.happened(moment)]
+            leaving = came[-3:]
+            returning = leaving[:-1]
+            for n, (_moment, token, i) in enumerate(leaving):
+                batches.setdefault(12, []).append({
+                    'token': token, 'direction': 'exit', 'client_nonce': nonce(f'out-{i}'),
+                    'client_at': lunch + timedelta(minutes=3 * n), 'device_label': 'Drzwi A',
+                    'is_offline_sync': False,
+                })
+            for n, (_moment, token, i) in enumerate(returning):
+                batches.setdefault(13, []).append({
+                    'token': token, 'direction': 'entry', 'client_nonce': nonce(f'back-{i}'),
+                    'client_at': clock.at(0, '13:25', 2 * n), 'device_label': 'Drzwi A',
+                    'is_offline_sync': False,
+                })
     scans_written = 0
     for hour in sorted(batches):
         scanner = door_staff[hour % len(door_staff)]

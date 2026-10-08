@@ -22,7 +22,11 @@ from shifts.models import Assignment, Shift, Station
 from shifts.rules import claim_block_reason, coverage
 from testing.conference_demo import (
     CONTAINMENT_MODELS,
+    DAY_ONE_CHECKED_IN,
     DEMO_TITLE,
+    N_ATTENDEE_ACCOUNTS,
+    N_LUNCH_RETURNS,
+    N_WAITLISTED,
     assert_contained,
     make_conference_demo,
     seeded_accounts,
@@ -63,15 +67,26 @@ class ConferenceDemoTests(TestCase):
         self.assertEqual(self.event.title, DEMO_TITLE)
         self.assertFalse(self.event.is_past)
         self.assertEqual(self.event.seat_holder_count(), self.event.capacity, 'full, with a waiting list')
-        self.assertEqual(report['waitlisted'], 6)
+        # Derived from the demo's own constants rather than restated: the numbers were shrunk
+        # from a 144-account conference to a 12-account one on 2026-10-08 (owner's decision), and a
+        # test that hard-codes them fails for the shape being changed on purpose rather than for
+        # the shape being wrong.
+        self.assertEqual(report['waitlisted'], N_WAITLISTED)
         self.assertEqual(report['sessions'], Session.objects.filter(event=self.event).count())
-        self.assertEqual(report['checked_in'], 100)
-        self.assertEqual(inside_count(self.event), 99, 'three out for lunch, two back in')
+        self.assertEqual(report['checked_in'], DAY_ONE_CHECKED_IN)
+        # Some of the first hour's arrivals step out at lunch and some of those come back, so the
+        # number inside is below the number checked in and above zero. Asserted as that
+        # RELATIONSHIP: the exact figure is a slice of the first-hour batch and moves with the
+        # demo's size, while "fewer inside than have been let in" is the fact the door log exists
+        # to show.
+        inside = inside_count(self.event)
+        self.assertLess(inside, report['checked_in'], 'somebody is out for lunch')
+        self.assertGreater(inside, 0)
         self.assertEqual(
             set(ScanEvent.objects.filter(event=self.event).values_list('result', flat=True)),
             {'admitted', 'already_in', 'collision', 'unknown', 'exited'},
         )
-        self.assertEqual(report['coats_returned'], 9)
+        self.assertEqual(report['coats_returned'], N_LUNCH_RETURNS)
         self.assertEqual(report['coats_exception'], 2)
         self.assertEqual(report['checklist_items'], 6)
         self.assertEqual(RoomBooking.objects.filter(event=self.event, status='approved').count(), 8)
@@ -191,7 +206,9 @@ class DemoAccountsAreContainedTests(TestCase):
     def test_a_clean_build_is_contained(self):
         summary = assert_contained(self.event, self.venue)
         self.assertEqual(summary['accounts_checked'], seeded_accounts().count())
-        self.assertGreater(summary['accounts_checked'], 100, 'the attendees should be in scope too')
+        self.assertGreater(
+            summary['accounts_checked'], N_ATTENDEE_ACCOUNTS, 'the attendees should be in scope too'
+        )
 
     def test_no_seeded_account_is_platform_staff(self):
         elevated = seeded_accounts().filter(Q(is_staff=True) | Q(is_superuser=True))

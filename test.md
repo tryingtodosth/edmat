@@ -2541,3 +2541,66 @@ not need one.
 
 Screenshots: `e2e/screens/goals-1-about.png`, `goals-2-goal-page.png`, `goals-3-plan-step-edit.png`.
 
+
+---
+
+## Folded panels on an event and a course page (2026-10-08, `HISTORY.md` §17CB)
+
+### `backend` — `venues.tests.RoomBookingTests`, 15 tests
+
+Five of them new with §17CA, around withdrawing a room booking:
+
+- **`test_platform_staff_may_withdraw_a_booking_they_do_not_organise`** — the owner's report. An
+  `is_staff` operator is shown every booking by `get_queryset`'s admin bypass and was then refused
+  when they acted on one; seeing a row and acting on it are the same permission now.
+- **`test_a_withdrawal_records_who_made_it`** — `decided_by` was null here while `_decide` set it,
+  which is the one fact that makes a withdrawal auditable now that two kinds of person can make one.
+- **`test_withdrawing_does_not_make_platform_staff_an_organiser`** — the bypass is one withdrawal,
+  not a promotion: `Event.can_organise` is untouched.
+- **`test_a_stranger_still_cannot_withdraw`** — 404, not 403: the queryset never showed them the row.
+- **`test_the_building_cannot_withdraw_a_booking_it_already_approved`** — **a left-open written down
+  as a test.** A venue administrator may answer a REQUEST and nothing else, so a granted room can be
+  handed back only by the organiser or an operator. Changing that is a new status and a migration;
+  this test is what makes changing it deliberate rather than accidental.
+
+### `frontend/e2e/folded-sections.mjs` — 12 checks, zero page errors
+
+```bash
+cd frontend
+E2E_BASE=http://localhost:5173 E2E_API=http://127.0.0.1:8000/api node e2e/folded-sections.mjs
+```
+
+The event and the course it looks at are **resolved from the API**, not hard-coded:
+`seed_conference_demo --reset` re-creates the demo with a new id every time. `E2E_EVENT` /
+`E2E_COURSE` override them.
+
+Per page: every panel draws folded with a count; every one is shut on a first visit (the script
+clears `edmat-open-sections` first, so a previous run cannot make it pass vacuously); opening the
+first one grows the page and moves `aria-expanded` to `true`; the choice survives a reload **in both
+directions** — still open after one reload, still shut after shutting it and reloading again.
+
+`openPage` retries once: a long chain of full reloads exhausts the Vite dev server and times out a
+navigation that works perfectly on its own (`e2e/CLAUDE.md` trap 3), which it did here twice before
+the retry went in.
+
+Screenshots: `e2e/screens/folded-event-shut.png`, `folded-event-one-open.png`,
+`folded-course-shut.png`, `folded-course-one-open.png` — the event one is the check that matters and
+is meant to be looked at: the whole demo conference as eight labelled lines on one screen.
+
+### The admin, by hand (§17CC)
+
+Not a suite, and worth re-running whenever a model is added on a shard. It opened every registered
+changelist as a superuser and is how `RequestLog`/`AuditEvent` were found to be broken from the
+moment they were registered (they live on the log shards; the admin reads one database):
+
+```python
+from django.contrib import admin
+from django.test import Client
+from django.urls import reverse
+# force_login a superuser, then for every model in admin.site._registry:
+#   reverse(f'admin:{m._meta.app_label}_{m._meta.model_name}_changelist') and assert 200
+```
+
+**162 changelists, 0 failures** as of 2026-10-08. `manage.py check` validates `list_display`,
+`list_filter` and `raw_id_fields` against the model but does **not** open the page, so it passed on
+both broken ones.

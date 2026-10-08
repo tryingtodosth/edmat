@@ -133,7 +133,7 @@ def _find_by_title(model, filters: dict, glued: str, *, split: bool = True):
 
 
 def _write_bilingual(obj, glued_heading: str, glued_body: str = '', *, heading=True, body=True,
-                     suffix: str = '', bilingual: bool = True):
+                     suffix: str = '', bilingual: bool = True, keep_edited: bool = True):
     """Store this row's two languages as two `translations.TextVersion` rows, Polish the original.
 
     This is what undoes the gluing: the file keeps writing `_pl_en(...)` and `'PL / EN'`, because
@@ -187,7 +187,11 @@ def _write_bilingual(obj, glued_heading: str, glued_body: str = '', *, heading=T
     # edmat"* — and it would have). A language somebody saved through the bilingual editor carries
     # `written_by`; this seed's rows do not, so the service can tell them apart and leaves a
     # person's words alone. The seed fills in what nobody has touched, for ever.
-    write_versions(obj, original_locale='pl', versions=versions, user=None, keep_edited=True)
+    # `keep_edited=False` is the one deliberate exception, asked for by name and never by default:
+    # `seed_edmat_project --retake-description` is how the owner puts a NEW description from this
+    # file onto a production row they have already edited by hand. Without it the protection above
+    # is also a trap — the seed can never again change a field once anybody has touched it.
+    write_versions(obj, original_locale='pl', versions=versions, user=None, keep_edited=keep_edited)
 
 
 ORGANIZATION = {
@@ -197,29 +201,18 @@ ORGANIZATION = {
     'city': 'Warszawa',
     # The board is open: anyone may read the tasks and the polls (owner, 2026-10-08).
     'open_board': True,
+    # The owner's own words, 2026-10-08 evening, replacing the two paragraphs the seed wrote the
+    # day before: *"prepare the desc of edmat org on about to be Edukacja potrzebuje usprawnień…"*.
+    # Short on purpose — it is the first thing a visitor reads on `/about`, and the "how it works"
+    # paragraph that used to follow it is now what the goals, the board and the needs below say for
+    # themselves. A full stop was added to the end of the sentence; nothing else was changed.
     'description': _pl_en(
-        'Społecznościowa baza zadań i materiałów dydaktycznych, i platforma wokół niej. '
-        'Ta organizacja to sam projekt EdMat, prowadzony na EdMacie: jego plany, zadania, '
-        'decyzje, wydarzenia i potrzeby są tutaj — każdy może przeczytać, co powstaje i gdzie przyda '
-        'się pomoc.\n\n'
-        '**Jak to działa.** Projekt jest otwartą spółdzielnią wolontariuszy. Każdy moduł serwisu jest '
-        'osobnym celem: planem z opisem, z tym, co już zbudowano (krok po kroku, z datami z dziennika '
-        'projektu) i z tym, co otwarte. Pomoc zgłasza się przez tablicę „szukamy pomocy” albo własną '
-        'ofertą na tablicy wolontariatu; osoba przyjęta do organizacji widzi tablicę zadań i głosuje '
-        'w decyzjach; czytelnik może zgłosić sugestię pod każdym planem. Osobą prawną projektu ma '
-        'zostać stowarzyszenie rejestrowe (plany „Stowarzyszenie — faza 1–3”), z radą programową z '
-        'Wydziału Fizyki UW jako zewnętrznym okiem.',
-        'A community database of exercises and teaching materials, and the platform grown around '
-        'it. This organisation is the EdMat project itself, run on EdMat: its plans, tasks, '
-        'decisions, events and needs live here, so anybody can read what is being built and where '
-        'help is wanted.\n\n'
-        '**How it works.** The project is an open volunteer cooperative. Each module of the site is '
-        'a goal of its own: a plan with a summary, what has been built (step by step, dated from the '
-        'project log) and what is open. Help is offered through the help-wanted board or an offer on '
-        'the volunteering board; a person admitted to the organisation sees the task board and votes '
-        'in decisions; any reader may leave a suggestion under any plan. The project’s legal body '
-        'is to be a registered association (the plans "The association — phases 1–3"), with an '
-        'advisory council from the Faculty of Physics as the outside eye.',
+        'Edukacja potrzebuje usprawnień. EdMat.net to otwarte miejsce współpracy nad materiałami '
+        'edukacyjnymi i oprogramowaniem: buduje je społeczność, każda zmiana jest widoczna, '
+        'a każde rozwiązanie ma osobę, która za nie odpowiada.',
+        'Education needs fixing. EdMat.net is an open place to work together on teaching materials '
+        'and software: the community builds it, every change is visible, and every solution has '
+        'somebody who answers for it.',
     ),
 }
 
@@ -1393,7 +1386,13 @@ def _upsert_thread(thread: dict, accounts: dict, counts: Counter) -> dict:
     return {'page': page, 'section': section, 'comments': len(thread['items']), 'replies': replies, 'created': created}
 
 
-def build_edmat_project(owner_username: str, *, history: list[dict] | None = None, thread: dict | None = None) -> dict:
+def build_edmat_project(
+    owner_username: str,
+    *,
+    history: list[dict] | None = None,
+    thread: dict | None = None,
+    retake_description: bool = False,
+) -> dict:
     """Write (or refresh) the organisation, its owner, the goals, the association's plans, the
     tasks, the needs, the polls and the founding meeting. One transaction, so a missing user or a
     bad entry leaves nothing half-made. Returns what it touched, with counts a command can print
@@ -1441,7 +1440,10 @@ def build_edmat_project(owner_username: str, *, history: list[dict] | None = Non
         # 2026-10-08. No heading: an organisation's NAME is a registered name and the same in every
         # language (translations/targets.py). This is the ONLY writer of the description now, and it
         # leaves alone any language a person has saved.
-        _write_bilingual(organization, '', ORGANIZATION['description'], heading=False)
+        _write_bilingual(
+            organization, '', ORGANIZATION['description'], heading=False,
+            keep_edited=not retake_description,
+        )
         OrganizationMember.objects.update_or_create(
             organization=organization, user=owner, defaults={'role': 'owner'}
         )

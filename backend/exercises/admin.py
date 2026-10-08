@@ -2,10 +2,18 @@ from django.contrib import admin
 
 from .models import (
     Exercise,
+    ExerciseClaim,
+    ExerciseClaimImportanceVote,
+    ExerciseClaimVote,
+    ExerciseMaterialLink,
+    ExerciseRequirement,
+    ExerciseRequirementVote,
     ExerciseSource,
     ExerciseSourceTranslation,
     ExerciseTranslation,
     SolutionEntry,
+    SolutionEntryAttachment,
+    SolutionEntryVote,
     Tag,
     TagFollow,
 )
@@ -58,3 +66,77 @@ class SolutionEntryAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'kind', 'locale', 'status', 'pinned', 'author', 'created_at']
     list_filter = ['kind', 'status', 'pinned', 'locale']
     raw_id_fields = ['exercise', 'author', 'reviewed_by']
+
+
+# ---- registered 2026-10-08 (owner: *"django admin lacks funcionalities"*) ----------------------
+
+
+@admin.register(ExerciseMaterialLink)
+class ExerciseMaterialLinkAdmin(admin.ModelAdmin):
+    """"This exercise is worked in that script, at that page." `locator` is the page or section,
+    free text because a material is a PDF, a video or a set of notes and none of them number the
+    same way."""
+
+    list_display = ['exercise', 'material', 'role', 'locator', 'added_by', 'created_at']
+    list_filter = ['role']
+    search_fields = ['locator', 'material__title']
+    raw_id_fields = ['exercise', 'material', 'added_by']
+
+
+@admin.register(SolutionEntryAttachment)
+class SolutionEntryAttachmentAdmin(admin.ModelAdmin):
+    """`original_name` is the uploader's own name for the file and is untrusted input (house rule
+    7); what it is stored under is random."""
+
+    list_display = ['entry', 'kind', 'original_name', 'size_bytes', 'order', 'created_at']
+    list_filter = ['kind']
+    search_fields = ['original_name']
+    raw_id_fields = ['entry']
+    readonly_fields = ['size_bytes', 'created_at']
+
+
+@admin.register(SolutionEntryVote)
+class SolutionEntryVoteAdmin(admin.ModelAdmin):
+    list_display = ['entry', 'voter', 'value', 'created_at']
+    list_filter = ['value']
+    raw_id_fields = ['entry', 'voter']
+
+
+@admin.register(ExerciseRequirement)
+class ExerciseRequirementAdmin(admin.ModelAdmin):
+    """`is_removed` rather than a delete: a requirement people have voted on is a thread of
+    opinion, and deleting the row would delete the votes with it."""
+
+    list_display = ['label', 'exercise', 'order', 'is_removed']
+    list_filter = ['is_removed']
+    search_fields = ['label']
+    raw_id_fields = ['exercise']
+
+
+@admin.register(ExerciseRequirementVote)
+class ExerciseRequirementVoteAdmin(admin.ModelAdmin):
+    list_display = ['requirement', 'voter', 'value', 'created_at']
+    list_filter = ['value']
+    raw_id_fields = ['requirement', 'voter']
+
+
+@admin.register(ExerciseClaim)
+class ExerciseClaimAdmin(admin.ModelAdmin):
+    list_display = ['exercise', 'kind', 'topic', 'subtopic', 'level', 'proposed_by', 'created_at']
+    list_filter = ['kind']
+    search_fields = ['subtopic']
+    raw_id_fields = ['exercise', 'topic', 'proposed_by']
+
+
+@admin.register(ExerciseClaimVote)
+class ExerciseClaimVoteAdmin(admin.ModelAdmin):
+    list_display = ['claim', 'voter', 'value', 'created_at']
+    list_filter = ['value']
+    raw_id_fields = ['claim', 'voter']
+
+
+@admin.register(ExerciseClaimImportanceVote)
+class ExerciseClaimImportanceVoteAdmin(admin.ModelAdmin):
+    list_display = ['claim', 'voter', 'value', 'created_at']
+    list_filter = ['value']
+    raw_id_fields = ['claim', 'voter']

@@ -27,11 +27,24 @@ class Command(BaseCommand):
         parser.add_argument(
             '--owner', required=True, help='Username of the account that owns the EdMat organisation.'
         )
+        parser.add_argument(
+            '--retake-description',
+            action='store_true',
+            help=(
+                "Overwrite the organisation's description even if somebody has edited it through "
+                'the bilingual editor on /about. Off by default, because the whole point of '
+                "`keep_edited` is that a deployment never silently undoes the owner's own words — "
+                'but when the NEW text in `work/edmat_project.py` is the one that should win, this '
+                'is how to say so out loud.'
+            ),
+        )
 
     def handle(self, *args, **options):
         try:
             with transaction.atomic():
-                built = build_edmat_project(options['owner'])
+                built = build_edmat_project(
+                    options['owner'], retake_description=options['retake_description']
+                )
         except RuntimeError as exc:
             raise CommandError(str(exc)) from exc
 

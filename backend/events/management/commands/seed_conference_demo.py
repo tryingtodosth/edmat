@@ -6,7 +6,7 @@
     manage.py seed_conference_demo --reset            # remove it (accounts, event, venue) and stop
 
 Builds on `seed_conference_personas` (the seven accounts and the Sandbox conference are made or
-refreshed first) and adds "Dni Dydaktyki Fizyki 2026": a two-day, ~150-person teaching conference
+refreshed first) and adds "Dni Dydaktyki Fizyki 2026": a two-day teaching conference
 at a demo venue shaped like Pasteura 5, with rooms, approved bookings, a checklist, documents in
 every tier, a programme, registrations with tickets, a day-one scan log, a rota and a cloakroom.
 `testing/conference_demo.py` holds the content and says what is synthesised (nearly all of it) and
@@ -22,6 +22,7 @@ from django.db import transaction
 from moderation.models import FeatureFlag
 from testing.conference_demo import (
     DEFAULT_PASSWORD,
+    N_ATTENDEE_ACCOUNTS,
     FLAGS_NEEDED,
     PREFIX,
     VOLUNTEERS,
@@ -79,7 +80,7 @@ class Command(BaseCommand):
             (f'{PREFIX}volunteer.09', 'volunteer who read version 1 of the briefing, not the corrected version 2'),
             ('persona.child', 'a 15-year-old volunteer on the information desk, consent on file (guardian: persona.guardian)'),
             (f'{PREFIX}child.02', 'a second minor on staff with NO consent on file — cannot claim a shift'),
-            (f'{PREFIX}attendee.001 … {PREFIX}attendee.144', 'attendees; the first few are speakers or proposers'),
+            (f'{PREFIX}attendee.001 … {PREFIX}attendee.{N_ATTENDEE_ACCOUNTS:03d}', 'attendees; the first few are speakers or proposers'),
         ):
             self.stdout.write(f'    {username:36} {note}')
         self.stdout.write(f'    {len(VOLUNTEERS)} more volunteers: {PREFIX}volunteer.01 … {PREFIX}volunteer.{len(VOLUNTEERS):02d}')

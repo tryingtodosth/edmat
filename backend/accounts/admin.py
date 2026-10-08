@@ -2,7 +2,14 @@ from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import DonationLink, Profile
+from .models import (
+    Certificate,
+    DonationLink,
+    ExperienceEntry,
+    Guardianship,
+    Profile,
+    SkillEntry,
+)
 
 User = get_user_model()
 
@@ -10,6 +17,31 @@ User = get_user_model()
 class DonationLinkInline(admin.TabularInline):
     model = DonationLink
     extra = 0
+
+
+# The profile's own CV rows (2026-10-08). Inlines rather than four more entries in the sidebar:
+# every one of them is meaningless away from the profile it belongs to, and an administrator looking
+# at somebody's skills is already looking at that person.
+class ExperienceEntryInline(admin.TabularInline):
+    model = ExperienceEntry
+    extra = 0
+    fields = ('order', 'kind', 'title', 'organisation', 'started_on', 'ended_on')
+    ordering = ('order',)
+
+
+class SkillEntryInline(admin.TabularInline):
+    model = SkillEntry
+    extra = 0
+    fields = ('order', 'label', 'level', 'evidence', 'discipline', 'branch')
+    raw_id_fields = ('discipline', 'branch')
+    ordering = ('order',)
+
+
+class CertificateInline(admin.TabularInline):
+    model = Certificate
+    extra = 0
+    fields = ('order', 'title', 'issuer', 'issued_on', 'expires_on', 'credential_id')
+    ordering = ('order',)
 
 
 @admin.register(Profile)
@@ -36,7 +68,7 @@ class ProfileAdmin(admin.ModelAdmin):
     ]
     list_editable = ['max_courses', 'material_upload_quota_bytes']
     list_filter = ['is_verified_contributor', 'preferred_locale']
-    inlines = [DonationLinkInline]
+    inlines = [DonationLinkInline, ExperienceEntryInline, SkillEntryInline, CertificateInline]
 
     @admin.display(description='Material uploads (used / allowed)')
     def material_upload_used(self, obj):
@@ -114,3 +146,19 @@ class UserAdmin(DjangoUserAdmin):
             f'{updated} user(s) deactivated. They can no longer log in; every review, comment and '
             'study set they wrote is untouched. Re-activate by setting "Active" again.',
         )
+
+
+@admin.register(Guardianship)
+class GuardianshipAdmin(admin.ModelAdmin):
+    """Who answers for a child's account, and the consent that says so.
+
+    Listed on its own rather than only as an inline because the question an operator actually has is
+    "which children have nobody on file" — a question about the TABLE, not about one profile. The
+    consent fields are shown and `revoked_at` is the lifecycle: a revoked guardianship is kept
+    (house rule 12), because who was responsible last March is part of the record.
+    """
+
+    list_display = ('child', 'guardian', 'consent_method', 'consent_given_at', 'revoked_at')
+    list_filter = ('consent_method', 'revoked_at')
+    search_fields = ('child__username', 'guardian__username')
+    raw_id_fields = ('child', 'guardian')

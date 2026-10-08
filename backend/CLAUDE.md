@@ -121,3 +121,29 @@ password hash) for decorative FK-target users; `make_user` only when something l
 one change alone cut a suite from 52s to 12s. DRF derives uniqueness validators from
 `unique_together` but NOT from `Meta.constraints` — add serializer-level checks or duplicates
 500 instead of 400.
+
+## The Django admin (2026-10-08 — 161 of 174 models have a page)
+
+It is a real operator surface here, not scaffolding, and three rules keep it from becoming a hole in
+the rules the API enforces:
+
+1. **A derived field is `readonly_fields`.** `goals.Goal.status`, `needs.Need.fulfilled`, every
+   recounted score, `MaterialView` — the API answers 400 if you try to set these by hand (house
+   rule 5), and the admin must not be the one surface that can. Show the EVIDENCE beside it
+   (`met_by`, `met_at`) rather than the decision.
+2. **Evidence is add/change-disabled, not merely read-only-ish.** `events.ScanEvent`,
+   `events.ExportLog`, `telemetry.*`: a door log somebody can edit answers nothing it was written
+   to answer. Deletion is a retention command with a policy behind it, never a button.
+3. **Every FK to a person or to a big table is `raw_id_fields`.** A select holding every account is
+   slow and is a way to pick the wrong person.
+
+**A model on a log shard cannot have an admin page.** The admin reads one database and
+`telemetry/routers.py` spreads these across `logs_1 … logs_7` + `logs_anon`, so a registered
+`RequestLog` opens to `no such table` — `manage.py check` validates `list_display` and friends but
+never opens the page. `telemetry/admin.py` is a module explaining this instead of a registration.
+**The check that would have caught it** (and that is worth re-running after adding models): open
+every `admin.site._registry` changelist as a superuser and assert 200. 162 pass today.
+
+The thirteen models with no page of their own are each an inline on the row they belong to — the
+taxonomy translations, a set's items, a profile's CV rows, the availability windows, a post's links.
+An inline answers the only question those tables are ever asked.
