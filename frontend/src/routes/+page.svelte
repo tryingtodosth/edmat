@@ -472,14 +472,33 @@
 	// door" — the brand's own soft tint, not a warning-adjacent peach. Fades out by 70% of the
 	// ellipse, above the audience chips and the hidden-languages notice, which are INSIDE .hero and
 	// sit on its transparent tail. Measured at the centre: light 14.85 / 5.96 / 5.10 (text-primary /
-	// text-secondary / the browse link), dark 8.91 / 5.12 / 5.00. High contrast hides it.
+	// text-secondary / the browse link), dark 8.91 / 5.12 / 5.00. High contrast hides it. The
+	// 2026-10-08 full bleed below does not move those: it changes where the wash ENDS, not the tint
+	// at its centre, which samples the same rgb(214,233,233) light / rgb(27,67,67) dark either way.
 	.hero::before {
 		content: '';
 		position: absolute;
-		inset: 0;
+		// Full bleed, because a wash that stops where the content column stops is not a wash. The
+		// ellipse is centred at 28% of the box and reaches 36% of its height, so bounded by `.hero`
+		// it was cut off flat 8% above its own centre line — a straight horizontal edge across the
+		// page immediately under the header — and bounded by `.page` it ended at 1100px on any
+		// wider window. So: up over `.page`'s own top padding, and out to both window edges.
+		// `50% - 50vw` is the full-bleed idiom (50% of this box's width is its own half, 50vw the
+		// window's, and the box is centred). `vw` counts the scrollbar, so the handful of pixels of
+		// overhang is clipped by `.app-main`'s `overflow-x: clip` — see `+layout.svelte`, which
+		// explains why that is `clip` and not `hidden` — rather than putting a horizontal scrollbar
+		// on the home page.
+		inset-block: calc(-1 * var(--space-4)) 0;
+		inset-inline: calc(50% - 50vw);
 		z-index: -1;
 		pointer-events: none;
-		background: radial-gradient(ellipse 60% 50% at 50% 28%, var(--hero-wash) 0%, transparent 72%);
+		// The horizontal radius is a length now, not the old `60%`: measured against a 100vw box a
+		// percentage grows with the window (1536px on a 2560px monitor) and flattens the glow into a
+		// band across the top of the page. 40rem is what 60% of the 1100px column already came to,
+		// so the shape over the column is the one the colour pass measured — it simply no longer
+		// stops at the column's edge. The vertical radius stays a percentage: it should follow the
+		// hero's own height, which is what it is lighting.
+		background: radial-gradient(ellipse 40rem 50% at 50% 28%, var(--hero-wash) 0%, transparent 72%);
 	}
 	:global(:root[data-contrast='high']) .hero::before {
 		display: none;

@@ -14274,3 +14274,56 @@ both the open and the closed branch. The seed sets `open_board` on EdMat.
   pass is owed.
 - **Production**: migration 0002 runs with `apply-on-server.sh`; the seed (re-run) sets the
   flag on EdMat; the bundle is `FUW/UPDATE-20261008.tar.gz`.
+
+## 17BV.A — The hero wash stops being a rectangle (2026-10-08, `ux/colour-pass`)
+
+The one wash §17BV added was painted by `.hero::before` with `inset: 0`, so its box was the hero,
+and the hero sits inside `.page` — `max-width: 1100px; margin: 0 auto; padding: var(--space-4)`.
+The gradient is an ellipse centred at 28% of that box's height reaching 36% of it, which puts its
+top edge 8% ABOVE the box: clipped. On the home page that drew a straight horizontal line across
+the full width of the content column, 24px below the header, where the tint began all at once.
+Measured on a 1920×430 capture at the page centre, the background went 247,247,251 at y=82 to
+239,243,246 at y=86 — a step, not a gradient. Nobody had looked at the top strip on its own.
+
+**The fix is two properties and one line in the layout.** `.hero::before` keeps its stops and gets
+a box that is not the content column: `inset-block: calc(-1 * var(--space-4)) 0` carries it up over
+`.page`'s own top padding so the clip lands exactly on the header's bottom edge, where it is not an
+edge at all, and `inset-inline: calc(50% - 50vw)` takes it out to both window edges. `vw` counts the
+scrollbar, so the box overhangs the visible width by a scrollbar; `.app-main` gets `overflow-x:
+clip` to absorb it. **`clip`, not `hidden`** — `hidden` would make `.app-main` a scroll container and
+every `position: sticky` inside a page (the branch page's filters sidebar, the booking week's day
+header) would then stick to a box that never scrolls, which looks exactly like sticky having been
+deleted; `overflow-x: hidden` also coerces `overflow-y` to `auto` and takes the same sticky away,
+where `overflow-x: clip` leaves `overflow-y: visible` alone.
+
+The horizontal radius became a length (`40rem`) rather than `60%`. Measured against a 100vw box a
+percentage grows with the window — 1536px of radius on a 2560px monitor — and flattens the glow into
+a band across the top of the page. 40rem is what 60% of the 1100px column already came to, so the
+shape over the column is the one the colour pass judged; it simply no longer stops at the column's
+edge. The vertical radius stays a percentage, because it should follow the height of the thing it
+is lighting.
+
+**Verified** (house rule 2, with both servers up): `npm run check` 6355 files 0/0, `npm run lint`
+clean, `npm run build` exit 0. A browser pass at 1280×900 light and dark, 1920×1000 and 390×844:
+20/20 checks — no horizontal page scroll at any of the four (`scrollWidth == clientWidth`), the
+wash's box reaching x=0 and the right edge exactly, `inset-block-start` resolving to -24px, no page
+errors — plus the screenshots looked at, including the top strip at 3× where the old edge was. The
+before/after pair was captured by re-imposing the old rule in the page itself, so the two shots
+differ in nothing else. Sticky: on `/branches/analiza-matematyczna` the real `.filters` sidebar sits
+at `top: 80` after a 1000px scroll (its own offset), `.app-main` computes `overflow-x: clip` with
+`overflow-y: visible`, and an injected sticky probe pins at 0. A `position: fixed` overlay appended
+inside `.app-main` still measures 0,0,1280,800 — the Lightbox/modal shape is not clipped.
+
+**Contrast is unmoved**, which is the point worth recording: the bleed changes where the wash ends,
+not the tint at its centre, and the centre samples the same rgb(214,233,233) light / rgb(27,67,67)
+dark before and after. At the elements themselves the worst ratio is 5.46 (the browse link, which
+sits on the transparent tail and did not change at all); the h1 reads 13.54 light / 10.29 dark and
+the subtitle 5.76 / 7.00.
+
+**Left open.** The wash still ends in a straight line *at the header's bottom edge* rather than
+continuing behind it — invisible today because the header's background is opaque, and a real edge
+again the day it becomes translucent. On a phone the ellipse is now wider than the screen, so the
+tint reaches both side edges instead of fading inside them; that is what "bleed" was asked for and
+it looks right in the 390px capture, but it is a taste call somebody may want back. Only the home
+page has a wash (`--hero-wash` has exactly one call site), so nothing else needed the same fix.
+

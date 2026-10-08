@@ -86,5 +86,14 @@
 	}
 	.app-main {
 		width: 100%;
+		// The home hero's wash bleeds to both window edges with `calc(50% - 50vw)`, and `vw` counts
+		// the scrollbar — so it overhangs the visible width by the scrollbar and would otherwise put
+		// a horizontal scrollbar on the home page.
+		// `clip`, never `hidden`: `hidden` would make this element a scroll container, and then every
+		// `position: sticky` inside a page (the branch page's topic rail, the booking week's day
+		// header) would stick to a box that never scrolls — which looks exactly like sticky having
+		// been removed. `overflow-x: clip` leaves `overflow-y: visible` alone, where `overflow-x:
+		// hidden` silently coerces it to `auto` and takes the same sticky away.
+		overflow-x: clip;
 	}
 </style>
