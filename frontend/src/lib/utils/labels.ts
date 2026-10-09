@@ -429,6 +429,7 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	// Goals and their definitions of done (goals/, 2026-10-08) — mirrors moderation/models.py's
 	// 0051 key. A key is a THREE-file change and this is the third (root CLAUDE.md).
 	goals: m.featureFlags_label_goals, // "Goals and their definitions of done"
+	attachments: m.featureFlags_label_attachments, // "Attachments on courses, events, board rows and comments"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 
@@ -698,6 +699,22 @@ export const DOCUMENT_TIERS: import('$lib/types/document').DocumentTier[] = [
 	'organisers',
 	'venue'
 ];
+/** The attachment ladder (backend `attachments/models.py: VISIBILITY_CHOICES`, 2026-10-08). A
+ *  hand-maintained mirror of a backend enum, which is what this whole file is and what the root
+ *  CLAUDE.md's house rule 13 asks to be said out loud in BOTH files — the backend's own module
+ *  docstring names this one. `venue` is off the ladder on purpose: a building's administrators are
+ *  neither above nor below an organiser. */
+export const ATTACHMENT_TIER_LABELS: Record<
+	import('$lib/types/attachment').AttachmentTier,
+	() => string
+> = {
+	public: m.attachments_tier_public, // "Anybody who can see this page"
+	members: m.attachments_tier_members, // "People in the room"
+	staff: m.attachments_tier_staff, // "The people running it"
+	managers: m.attachments_tier_managers, // "Whoever may manage it"
+	venue: m.attachments_tier_venue // "The building's administrators"
+};
+
 export const DOCUMENT_TIER_LABELS: Record<
 	import('$lib/types/document').DocumentTier,
 	() => string

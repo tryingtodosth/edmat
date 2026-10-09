@@ -119,6 +119,10 @@ export type FeatureFlagKey =
 	// for a non-staff caller, the Goals panel leaves every node page and /about, the "Serves: …"
 	// line leaves every task and plan, and the thread under a goal closes with it (house rule 3).
 	| 'goals'
+	// Attachments on anything (backend attachments/, 2026-10-08). Off: every
+	// `/api/<kind>/<id>/attachments/` closes for a non-staff caller, the panel leaves every page it
+	// is mounted on, and the "Attach something" item goes with it (house rule 3).
+	| 'attachments'
 	| 'creation_requires_verification'
 	| 'material_uploads_verified_only';
 

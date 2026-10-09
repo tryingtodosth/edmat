@@ -1302,6 +1302,8 @@ class FeatureFlagTests(ApiTestCase):
                 'about_discussions',
                 # Goals and their definitions of done, migration 0051 (`goals/`, 2026-10-08).
                 'goals',
+                # Attachments on anything, migration 0052 (`attachments/`, 2026-10-08).
+                'attachments',
                 'material_uploads_verified_only',
             },
         )

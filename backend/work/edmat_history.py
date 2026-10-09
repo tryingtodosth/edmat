@@ -106,6 +106,9 @@ SUBPROJECT_BY_REF = {
     # which is `interface`; 17CC is three operator-facing chores and is filed under `platform`,
     # where "the admin, the seeds and the deployment" already live.
     '17CA': 'conference', '17CB': 'interface', '17CC': 'platform',
+    # 17CD is attachments on anything — one table superseding three. Filed under `materials`, which
+    # is where "files people put here" lives; its reach is wider, and a section gets one key.
+    '17CD': 'materials',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

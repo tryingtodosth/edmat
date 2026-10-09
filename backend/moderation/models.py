@@ -430,6 +430,13 @@ FEATURE_FLAG_CHOICES = [
     # Goals panel leaves every node page and `/about`, the "serves this goal" line leaves every task
     # and plan, and the thread under a goal closes with it (`community/discussions.py`).
     ('goals', 'Goals and their definitions of done'),
+    # Attachments on anything (attachments/, 2026-10-08). A plain kill switch, seeded ON by
+    # migration 0052 because the surface it governs is one the project already had in three
+    # narrower forms — a course's files, an event's documents, a comment's pictures — and turning it
+    # off would take those away rather than leave them as they were. Off, every
+    # `/api/<kind>/<id>/attachments/` closes to a non-staff caller, the panel leaves every page it
+    # is mounted on, and the "Attach…" item leaves the menus (house rule 3).
+    ('attachments', 'Attachments on courses, events, board rows and comments'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

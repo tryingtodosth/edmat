@@ -223,6 +223,14 @@ INSTALLED_APPS = [
     # deliberately NOT `ExerciseTranslation`'s shape, which carries a review workflow this does not
     # need (the people writing management text are the people who already run the thing).
     'translations',
+    # One table for "what is attached to this", whatever "this" is (attachments/models.py,
+    # 2026-10-08). The owner's own words were ".md files, docs, etc, sketches etc … in multiple
+    # places we lack this funcionality"; asked what to do about `courses.Attachment`,
+    # `documents.EventDocument` and `community.CommentAttachment`, which each answered a piece of
+    # it, they chose one table that supersedes all three. It is its own app and not more of
+    # `documents` because `documents` is an EVENT's tiered briefing pack with a read ledger, and
+    # widening it in place would have made every one of its rules conditional on a kind.
+    'attachments',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
@@ -667,6 +675,12 @@ REST_FRAMEWORK = {
         # a 25 MB PDF past a virus scanner — the same CPU-and-IO lever a drawing is, and an organiser
         # posting a conference's whole paperwork in one sitting is a few dozen files, not hundreds.
         'event_document': '60/hour',
+        # Uploading an attachment (attachments/files.py) decodes and re-encodes a picture, or reads
+        # a 25 MB office document past a virus scanner — the same CPU-and-IO lever an event document
+        # is, and the same budget for the same reason. It covers nine target kinds now, so it is a
+        # little looser: somebody filling in a course's files and a conference's paperwork in one
+        # sitting is a hundred files, not thousands.
+        'attachment': '120/hour',
         # A picture embedded in the body being written (community/inline_images.py). The same
         # decode-and-re-encode cost as a gallery picture, and the same reason for a rate: somebody
         # illustrating a long answer uploads several, a loop uploads thousands.

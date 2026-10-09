@@ -15176,3 +15176,107 @@ To settle the original report somebody still needs two facts that only the owner
   with one volunteer on it demonstrates nothing; the shift `needed` counts still carry the report's
   ratios for a 150-person event.
 - **No admin page can reach a log shard**, as above.
+
+---
+
+## 17CD — Attachments on anything: one table that supersedes three (2026-10-09, `ux/colour-pass`)
+
+The owner, 2026-10-08 evening: *".md files, docs, etc, sketches etc for files when creating an event
+for attachements (in multiple places we lack this funcionality)"* — and, asked where: events at
+creation, courses, tasks, plans, needs, goals, materials, organisations **and comments**,
+"EVERYWHERE". Two decisions were put to them before anything was written, because both were theirs
+to make and neither could be guessed:
+
+1. **What to do about the three tables that already answered a piece of it** — `documents.EventDocument`
+   (an event's tiered briefing pack with a read ledger), `courses.Attachment` (a course's files with
+   ratings) and `community.CommentAttachment` (a picture on a comment). They chose **one table,
+   supersede the others**, over the cheaper "new table, leave the two alone".
+2. **Whether an office document may be stored at all**, given house rule 7 — *never store the bytes
+   that were uploaded*. They chose **yes, the same path as a PDF**, which is the carve-out the rule's
+   own text already makes: *"What cannot be re-encoded (a PDF) gets the sniff, the size cap and a
+   ClamAV scan."* Modern OOXML only; `.doc`/`.xls`/`.ppt` and the macro formats refused **by name**.
+
+### The shape
+
+One `Attachment` with a `GenericForeignKey` and a registry of nine legal targets
+(`attachments/targets.py`), which is this project's standing shape for a polymorphic target. The
+registry has three halves that behave differently, and that is why it is written out rather than
+derived:
+
+- a **node** (course, event, material, organisation) answers the whole ladder through `config/nodes.py`;
+- a **board row** (task, plan, need, goal) has no standing of its own and resolves to the node it
+  hangs off — exactly as its own discussion thread does, so four more apps did not have to learn a
+  permission model;
+- a **comment** has no node at all, so only `public` is legal and `tier_block_reason` refuses the
+  rest rather than quietly treating them as public.
+
+**The ladder is `EventDocument`'s, generalised**: `public ⊂ members ⊂ staff ⊂ managers`, plus `venue`
+which is deliberately NOT on it — a building's administrators are neither above nor below an
+organiser. The old event tiers map onto it exactly (`attendees → members`, `organisers → managers`),
+which is what makes the absorption a rename and not a reinterpretation.
+
+**Four file paths, and which one a file takes is decided by what it IS, never by what it was
+called.** An image is re-encoded from pixels, so nothing of the upload survives and a polyglot is not
+a question this path has to answer. **`.md`/`.txt` become characters in a TEXT column** — house rule
+7 answered by not having the question — and render through `renderContent.ts` like every other body,
+maths included. A PDF is stored as-is behind the sniff, the cap and the honest `scanned=False`. An
+office document takes the PDF's path plus the zip-container member check, because libmagic can only
+ever answer "it is a zip" for all four OOXML kinds, so an arbitrary archive renamed `.docx` would
+otherwise pass.
+
+### The two warnings, which say two different things
+
+The owner also asked for *"two popups with warning before downloading a file"*. Two dialogs with the
+same words would be a click to dismiss twice, so they carry different facts: the first is about
+**provenance** — who put this here, that EdMat did not make it and cannot see inside it, and whether
+a scanner was even running — and the second is about **this file**: its name, its type, its size, and
+the one sentence that changes behaviour (*open it only if you trust whoever put it here*). The
+download fires only after the second, and cancelling either one downloads nothing.
+
+### The absorption is a command, not a migration
+
+`manage.py absorb_legacy_attachments`, dry by default, `--apply` to write, `--verify` to check. A
+data migration runs itself on the next deploy, in whatever order the deploy reaches it, with no dry
+run and nobody looking — the wrong shape for a step whose whole risk is in the data rather than in
+the schema. It is idempotent by the legacy row's id, carries the acknowledgements and the ratings
+across, fixes the supersession chain in a second pass, and **shares the file path rather than copying
+bytes**, which has a consequence worth stating rather than discovering: while both rows exist,
+deleting either takes the shared file with it. That is why `--apply` does not delete the legacy rows.
+
+On this dev database it absorbed **11 event documents and 30 acknowledgements**; a second run
+reported 11 already done.
+
+### Two bugs found by running it
+
+- **`is_reencodable_image` takes the UPLOAD, not the sniffed string.** It does its own sniff, which
+  is what keeps "is this an image we re-encode" in `imaging.py` rather than in five callers. Passing
+  it the string is an `AttributeError` on `.seek` — five tests, one cause.
+- **A test asserted `len(response.data) == 0` for a stranger** and passed against the wrong thing: a
+  404's body is a dict and `len()` of it is 1. It asserts the status now.
+
+### Verified
+
+`attachments` 31 tests OK — the tiers in both directions, the file endpoint refusing a tier you do
+not have, the legacy Office refusal, a zip renamed `.docx`, a real `.docx` served as a download, a
+replacement keeping the old row's acknowledgements, a withdrawal that is not a delete, a 409 on an
+acknowledgement of superseded text, the kill switch, and a board row inheriting its node.
+`manage.py check` clean. Frontend `npm run check` 0/0, both catalogues identical at 4110 keys.
+`e2e/attachments.mjs` **14/14** against both real servers, and the screenshots were looked at: the
+`.md` renders with its maths typeset, and the two dialogs say different things.
+
+### Left open
+
+- **Nothing is mounted on a course or an event page yet**, and the condition that holds it back is
+  one line in `ManagementPanels`. Both still have their older surfaces, and two attachment UIs on one
+  page is worse than one in the wrong place; the line goes on the day `--apply` runs on production.
+- **The legacy tables are still there** and still serve their own endpoints. That is the second half
+  of "supersede", and it is deliberately not in the same change as the first.
+- **Sketch and chem attachments have no picker.** The kinds exist, the API takes them, the panel
+  renders them; nothing offers to choose an existing drawing.
+- **No replacement from the UI.** The endpoint exists and is tested; the panel offers withdraw.
+- **A course attachment's discussion thread is not moved** by the absorb command — a thread is
+  addressed by `(content_type, object_id)` and moving one is a `community` change. The command counts
+  them and says so rather than leaving it to be discovered.
+- **`MATERIAL_SCAN_REQUIRED` is still off.** With office documents now accepted, that is the setting
+  the owner should turn on before this is open to anybody but the people running the thing — without
+  it, an unscannable upload is stored with an honest `scanned=False` rather than refused.

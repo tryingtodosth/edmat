@@ -79,6 +79,11 @@ urlpatterns = [
     path('api/', include('provenance.urls')),
     # Writing a management row's text in every language at once (translations/urls.py).
     path('api/', include('translations.urls')),
+    # Attachments on anything (attachments/urls.py, 2026-10-08). ONE pattern covers all nine target
+    # kinds, because the kind is a word in `attachments/targets.py` and not a route each app adds.
+    # Included LAST of the `api/` group on purpose: its `<str:kind>/<int:pk>/attachments/` is a
+    # broad pattern, and every app's own routes must get the first look.
+    path('api/', include('attachments.urls')),
 ]
 
 if settings.DEBUG:

@@ -87,17 +87,17 @@ taxonomy. An untracked `backend/classroom/` directory may still exist on disk �
 frontend/  SvelteKit 2 + Svelte 5 runes + TS, adapter-static (SPA fallback), Paraglide i18n
              routes/ + components  →  lib/services/*.ts  →  lib/api/client.ts  →  HTTP
                    (never fetch)         (the only seam)      (the only fetch())
-backend/   Django 5.2 + DRF, SQLite, 37 local apps + config/ + testing/ + imaging.py
+backend/   Django 5.2 + DRF, SQLite, 39 local apps + config/ + testing/ + imaging.py
              views  →  <app>/services.py or a rule module  →  models
 deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 38 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 39 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
 `courses` `booking` `activity` `events` `coauthoring` `materials_coop` `concepts` `sketches` `venues` `documents`
 `shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `goals` `flashcards`
-`provenance` `translations`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
+`provenance` `translations` `attachments`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
 (`CONFERENCE-BRIEF.md`, 2026-09-23), each hung off `events.Event` by a row of its own so that
 `events` kept its schema while seven branches were built at once. The last six — `organizations` `tasks` `needs` `plans` `decisions` `work` — are the
 management layer (`MANAGEMENT-BRIEF.md`, 2026-09-24), each hanging its rows off a course, an event, a
@@ -159,8 +159,8 @@ Learn these five and most of the schema reads itself.
   (and a request for it comes back 400 with the reason — house rule 10). A status people can set by
   hand is a status that stops meaning anything.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-five exist today (counted against `/api/feature-flags/` on the dev
-  database, 2026-10-08 — this number had drifted twice before, so count it rather than increment it,
+  with an `is_staff` bypass. Thirty-six exist today (counted against `/api/feature-flags/` on the dev
+  database, 2026-10-09 — this number had drifted twice before, so count it rather than increment it,
   which is how the "thirty-three" that preceded "thirty-four" turned out to be two short rather than one) — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
@@ -178,7 +178,9 @@ Learn these five and most of the schema reads itself.
   reply, report and the moderator's remove stay, because those belong to other features) and `goals`
   (0051, goals and their definitions of done — `goals/`; off, the Goals panel leaves every node page
   and `/about`, the "Serves: …" line leaves every task and plan, and the thread under a goal closes
-  with it) — and the `legal` notice channel is the one deliberate exception
+  with it) and `attachments` (0052, attachments on anything — `attachments/`; off, every
+  `/api/<kind>/<id>/attachments/` closes for a non-staff caller, the panel leaves every page it is
+  mounted on, and "Attach something" goes with it) — and the `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
   has been forgotten twice, each time taking the whole Flags tab down. `age_verification` is also
@@ -336,6 +338,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/creation/ /api/users/{id}/learning-record/ /api/courses/{id}/completions/  the creation gate, the learning record, certificates
 /api/ai-assistance/ /api/ai-assistance/{kind}/{id}/{vote,author-mark,lock}/   the "AI-assisted" mark (provenance/)
 /api/text-versions/{kind}/{id}/                                       one management row's text in every language at once
+/api/{kind}/{id}/attachments/ /api/attachments/{id}/{file,acknowledge,replace,withdraw,receipts}/  attachments on any of nine kinds
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
 /api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page — or under a task, a plan, a need or a poll (`tasks/17` as the page; `?keys=` for a whole board)
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)

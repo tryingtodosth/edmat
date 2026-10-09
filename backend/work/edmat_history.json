@@ -1373,5 +1373,16 @@
   "summary": "Three of the owner's asks from the same evening, each small on its own.",
   "subproject": "platform",
   "listed": true
+ },
+ {
+  "ref": "17CD",
+  "title": "Attachments on anything: one table that supersedes three",
+  "heading": "17CD — Attachments on anything: one table that supersedes three (2026-10-09, `ux/colour-pass`)",
+  "line": 15182,
+  "date": "2026-10-09",
+  "date_source": "heading",
+  "summary": "The owner, 2026-10-08 evening: \".md files, docs, etc, sketches etc for files when creating an event for attachements (in multiple places we lack this funcionality)\" — and, asked where: events at creation, courses, tasks, plans, needs, goals, materials, organisations and comments, \"EVERYWHERE\". Two decisions were put to them before anything was written, because both were theirs to make and neither…",
+  "subproject": "materials",
+  "listed": true
  }
 ]

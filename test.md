@@ -2604,3 +2604,68 @@ from django.urls import reverse
 **162 changelists, 0 failures** as of 2026-10-08. `manage.py check` validates `list_display`,
 `list_filter` and `raw_id_fields` against the model but does **not** open the page, so it passed on
 both broken ones.
+
+---
+
+## Attachments on anything (2026-10-09, `HISTORY.md` §17CD)
+
+### `backend` — `attachments`, 31 tests
+
+Refusals first, as this app's own file says at the top, because it replaced three narrower tables
+and what has to be proven is that every rule each of them carried still holds.
+
+- **`TierTests`** — a stranger sees only `public`; an attendee sees `members` and not `staff`; staff
+  see `members` too, because the ladder is a ladder; a manager sees everything including `venue`; and
+  **the file endpoint 404s for a tier you do not have**, which is the one that matters, since a
+  `/media/` URL would have made every other check decorative.
+- **`WriteTests`** — a stranger cannot attach; a member cannot attach to the node (an attachment on
+  an event page is the event's own pile of files, and a participant has the comment thread); staff
+  can; **only a manager may make a reading mandatory**, because that is an instruction to everybody
+  else; the `venue` tier is refused on anything but an event; an unknown kind is 404 and not 500.
+- **`FileKindTests`** — a `.md` upload becomes TEXT whatever the caller said `kind` was; a PNG is
+  re-encoded to WebP; a PDF is stored as-is and reports honestly whether a scanner saw it;
+  **`.doc`/`.xls`/`.ppt` are refused by name**; a zip renamed `.docx` is refused by its member list;
+  a real `.docx` is accepted and served with `Content-Disposition: attachment` and `nosniff`;
+  anything else is refused with a sentence listing what was wanted; non-UTF-8 text says so.
+- **`LifecycleTests`** — a replacement is a new row and the old one keeps its acknowledgements
+  (which is what makes "who had read the fire plan that morning" answerable); replacing twice is a
+  409; a withdrawal is a state and the row survives; acknowledging superseded text is a 409 that
+  points at the new row; acknowledging twice is idempotent; only a manager reads the receipts.
+- **`RowAndCommentTests`** — a board row inherits the node behind it; a comment takes only `public`;
+  nobody attaches to somebody else's comment.
+- **`KillSwitchTests`** — 403 signed in, 401 as a guest, 200 for platform staff, and the event page
+  it is mounted on keeps working with the flag off (house rule 3 cuts both ways).
+
+### `frontend/e2e/attachments.mjs` — 14 checks, zero page errors
+
+```bash
+cd frontend
+E2E_BASE=http://localhost:5173 E2E_API=http://127.0.0.1:8000/api \
+  E2E_OWNER_TOKEN=<token of somebody who MANAGES the edmat organisation> node e2e/attachments.mjs
+```
+
+**`E2E_OWNER_TOKEN` is required and cannot be logged in for** — attaching is a node staff member's
+act and `can_manage_node` has no `is_staff` bypass (`e2e/CLAUDE.md` trap 32). The script says so and
+exits rather than failing fourteen checks for the rule working.
+
+It attaches a `.md` and asserts it is **rendered with its maths typeset** rather than offered as a
+download; attaches a PDF and asserts the row says whether a scanner saw it; then drives the two
+warnings — that the second says something **different** from the first, that it names this file's
+own name, type and size, that cancelling either downloads nothing, and that the download fires only
+after the second. It withdraws both attachments at the end and asserts they are gone.
+
+Screenshots: `e2e/screens/attachments-list.png`, `attachments-warn1.png`, `attachments-warn2.png`.
+
+### The absorb command
+
+```bash
+manage.py absorb_legacy_attachments            # say what would happen, change nothing
+manage.py absorb_legacy_attachments --apply    # do it
+manage.py absorb_legacy_attachments --verify   # check every legacy row has a counterpart
+```
+
+Exercised by hand on the dev database, 2026-10-09: 11 event documents and 30 acknowledgements
+absorbed, `--verify` clean, and a second dry run reported 11 already done. **It shares the file path
+rather than copying bytes**, so while both rows exist, deleting either takes the shared file with it
+— which is why `--apply` does not delete the legacy rows and why `--verify` should be clean before
+anybody does.

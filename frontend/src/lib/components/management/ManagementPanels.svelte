@@ -30,6 +30,15 @@
 	// six parallel steps had landed, so it is a plain import rather than one of their markers.
 	import GoalsPanel from '$lib/components/goal/GoalsPanel.svelte';
 
+	// Attachments on anything (attachments/, 2026-10-08). Mounted here because this component is
+	// already the one place that reaches all four node kinds with a `NodeRef` in hand — and it is
+	// deliberately NOT drawn on a course or an event yet: both still have their own, older
+	// attachment surfaces (`courses.Attachment`'s Files tab, `documents.EventDocument`'s panel),
+	// and two attachment UIs on one page is worse than one in the wrong place. Those two are
+	// absorbed by `manage.py absorb_legacy_attachments`, which the owner runs when they choose; the
+	// line below loses its condition on the same day.
+	import AttachmentsPanel from '$lib/components/attachments/AttachmentsPanel.svelte';
+
 	let { nodeKind, nodeId }: { nodeKind: NodeKind; nodeId: string } = $props();
 
 	let node = $state<NodeRef | null>(null);
@@ -79,6 +88,15 @@
 
 		<!-- management: polls (E) -->
 		<PollsPanel {node} />
+
+		{#if node.kind !== 'course' && node.kind !== 'event'}
+			<AttachmentsPanel
+				targetKind={node.kind}
+				targetId={node.id}
+				canAttach={node.isStaff || node.canManage}
+				canManage={node.canManage}
+			/>
+		{/if}
 
 		<!-- management: work (F) — nothing is mounted here by design -->
 	</div>
