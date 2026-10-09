@@ -15280,3 +15280,77 @@ acknowledgement of superseded text, the kill switch, and a board row inheriting 
 - **`MATERIAL_SCAN_REQUIRED` is still off.** With office documents now accepted, that is the setting
   the owner should turn on before this is open to anybody but the people running the thing — without
   it, an unscannable upload is stored with an honest `scanned=False` rather than refused.
+
+## 17CE. Contests (*konkursy*) — the prep (2026-10-09)
+
+The owner, the afternoon of 2026-10-09: *"add contests. personalize all current modules to this use
+case. each subagent can have 1 haiku. research law for konkursy in poland and add presets with
+making it possible by prefilling with current users"* — the interface to be built by an Opus agent
+from a detailed brief, with the interface tasks spelled out. `CONTESTS-BRIEF.md` is that brief's
+design half; `prompts/18-contests-a-core.md` and `prompts/19-contests-b-personalise.md` are the two
+agents' halves; `CONTESTS-LAW.md` is the research. This section records the prep; §17CE.A and
+§17CE.B are the two steps' own records, appended by them; the preamble tying them together is the
+integrator's, after the merges.
+
+### Why a new app, in one paragraph
+
+A course has no jury and an event has no ranking. A contest's one property neither has — the
+participants are judged and the judging produces a ranking that outlives it — is exactly the
+property Polish law attaches consequences to the moment a prize is promised: a *przyrzeczenie
+publiczne* (KC art. 919–921) that is *bezskuteczne* without a claim deadline, a lottery if chance
+decides any stage, 10% tax with somebody as *płatnik*, a guardian's consent for a minor, a separate
+consent to publish a name. So `contests` is its own app and gets everything else — a venue and a
+rota for its final, tasks, a plan, a goal, needs, polls, attachments, a practice deck, a discussion,
+a bilingual description — by being a **node**.
+
+### The research, and what it corrected
+
+An Opus research agent with web access wrote `CONTESTS-LAW.md` (14 sections, every claim with its
+act, article and URL, and one of four markers). Two premises in the brief it was given were wrong
+and it said so: there is **no article of the Polish data-protection act transposing GDPR art. 8**
+(Poland dropped the lowering to 13, so 16 applies directly — cite GDPR art. 8 only), and the
+**2002 MENiS regulation does not fix szkolny → rejonowy → wojewódzki for a konkurs** (that ladder is
+kuratoria practice; only olympiads have three fixed stages). Both are in the presets as the research
+left them: the kurator ladder is editable, the olympiad's is locked. The thing worth recording for
+`LEGAL.md` beyond contests: **Poland's DSA implementing act was signed 25 September 2026 and applies
+from 6 November 2026**, with the Prezes UKE as the Digital Services Coordinator.
+
+### What the prep landed
+
+- **Flag `contests`** (`moderation` 0053, seeded ON, the three frontend files, both catalogues).
+- **`backend/contests/`**: `Contest` + `ContestStaff` (migration 0001), `access.py` (the four node
+  answers; `_registered` is the one body step A replaces), **`presets.py`** (ten presets —
+  `challenge` the prize-free default, `school`, `staged`, `university`, `student_circle`,
+  `organization`, `open_online`, `team`, and the staff-only `kuratorium` and `olympiad`; the
+  12-section regulamin skeleton; the 24-item legal checklist; the `LAW` table where every citation
+  carries its marker so the frontend never presents an unverified article as settled), three stubs
+  with fixed signatures (`personalize.apply_preset`, `work.work_items`, `record.placements_for`),
+  `GET /api/contest-presets/` answering `{law, presets}` filtered by who asks, seven prep tests.
+- **The seam**: kind `contest` in `config/nodes.py`; `contest` as the fifth `CREATION_KINDS` entry
+  (three files + `gate_hub_contest` in both catalogues); `contest` as an attachment target on both
+  halves; `'contest'` in `NodeKind` and `nodeHref`; three header markers and one flag line; a marker
+  on `/about` and in the prerender list; two placeholder routes so that `/contests/[id]` resolves and
+  `ManagementPanels` already mounts on a contest.
+- **Decisions baked into the presets** (§1 of the brief; each the owner's to overturn): no prize
+  by default; no draw anywhere; a jury required; licence presets only, never a transfer checkbox;
+  initials by default on the results list; kurator and olympiad presets staff-only with the external
+  reference mandatory; the tax copy shows the "science" limb and the 10%, never the disputed
+  mass-media limb; community voting not built until a lawyer answers.
+
+### Verified
+
+`manage.py test contests config.test_nodes config.test_creation attachments moderation.tests` —
+149 tests; the first run found four failures, two of them mine (an `assertIs` on two ORM instances,
+and an anonymous caller refused by the gate gets 401 not 403) and two existing tests that count
+creation kinds and flags by hand and had to learn the new ones; the re-run of those three suites
+is 44/44 OK. `manage.py check` clean;
+`makemigrations --check` clean. `npm run check` 0/0; `npx eslint .` clean; `npm run build` OK
+(`npm run lint` fails on `frontend/CLAUDE.md`'s Prettier formatting — pre-existing at `b6aa58a`, not
+touched here). Both catalogues identical at 4114 keys.
+
+### Left open — for the two steps and the integrator
+
+Everything in `CONTESTS-BRIEF.md` §3 and §5. Named here so it is not rediscovered: the compliance
+panel is A's; the translations panel and the discussion under a contest page are mounted by the
+integrator at A's markers; the DPA template and the four notifications are nobody's yet.
+

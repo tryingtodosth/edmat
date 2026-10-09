@@ -430,6 +430,9 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	// 0051 key. A key is a THREE-file change and this is the third (root CLAUDE.md).
 	goals: m.featureFlags_label_goals, // "Goals and their definitions of done"
 	attachments: m.featureFlags_label_attachments, // "Attachments on courses, events, board rows and comments"
+	// Contests (contests/, 2026-10-09) — mirrors moderation/models.py's 0053 key; the third file of
+	// the three-file change.
+	contests: m.featureFlags_label_contests, // "Contests: staged competitions with a jury, results and the obligations a prize brings"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 
@@ -1148,7 +1151,8 @@ export const GATE_HUB_SENTENCES: Record<CreationKind, () => string> = {
 	course: m.gate_hub_course, // "Until the university sign-in exists, new courses are started by verified contributors. Ask a moderator."
 	event: m.gate_hub_event, // "Until the university sign-in exists, new events are hosted by verified contributors. Ask a moderator."
 	service: m.gate_hub_service, // "Until the university sign-in exists, new tutoring listings are posted by verified contributors. Ask a moderator."
-	organization: m.gate_hub_organization // "Until the university sign-in exists, new organisations are founded by verified contributors. Ask a moderator."
+	organization: m.gate_hub_organization, // "Until the university sign-in exists, new organisations are founded by verified contributors. Ask a moderator."
+	contest: m.gate_hub_contest // "Until the university sign-in exists, new contests are organised by verified contributors. Ask a moderator."
 };
 
 /** The sentence for one kind. The map above is typed `Record<CreationKind, …>`, so a fifth kind

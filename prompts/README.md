@@ -242,3 +242,25 @@ What the board said on 2026-10-06 and what was true an hour later, for the recor
 `npm run lint` was red on four files and six eslint errors. At `4a57d6d` eslint is clean and
 Prettier rejects exactly one file, `e2e/about-discussions.mjs` — the §17BS commit fixed the rest
 without saying so. The lint sweep is therefore one line of step E, not a step of its own.
+
+## 11. Contests (2026-10-09) — `CONTESTS-BRIEF.md` and briefs 18–19
+
+The owner's ask of that afternoon: *"add contests. personalize all current modules to this use
+case. each subagent can have 1 haiku. research law for konkursy in poland and add presets with
+making it possible by prefilling with current users"*, with the interface built by an Opus agent and
+its tasks spelled out. The law was researched first (`CONTESTS-LAW.md`, a sourced note with every
+claim marked verified / secondary / unverified / disputed); the prep turned it into
+`contests/presets.py` (ten presets, the 12-section regulamin, a 24-item legal checklist, a `LAW`
+table with markers) and the seam of `CONTESTS-BRIEF.md` §2; then two branches at once:
+
+| Step | Brief | Model | Owns |
+|---|---|---|---|
+| prep | `CONTESTS-BRIEF.md` §2 | the orchestrating session (Fable 5.1) | flag 0053, the app skeleton, the node kind, the creation kind, the attachment target, the markers, the presets |
+| A core + interface | `18-contests-a-core.md` | Opus | `contests/` (minus presets, personalize), `routes/contests/**`, the fourteen interface tasks |
+| B personalise | `19-contests-b-personalise.md` | Opus | `presets.py`, `personalize.py`, every registry in every other app, `/about/contests`, the manual chapter, `LEGAL.md`, the labels |
+| integration | `CONTESTS-BRIEF.md` §5 | the orchestrating session | merge B then A, mount B's panels at A's markers, the matrix rows, the counts |
+
+Ports 8171/5271 (A) and 8172/5272 (B). Each agent may spawn **one Haiku** for a bounded side task
+and must re-run whatever it reports — §2's rule about Haiku stands. The two cross-branch seams are
+stubs the prep wrote with the signature fixed: `personalize.apply_preset` (A calls, B writes),
+`work.work_items` and `record.placements_for` (A writes, B registers).

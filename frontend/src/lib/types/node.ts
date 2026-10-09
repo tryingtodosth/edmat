@@ -2,7 +2,8 @@
 // MIRRORS `backend/config/nodes.py`'s `NODE_KINDS`, and that file says so from its side; adding a
 // kind is a change to both, in the same commit (house rule 13). `organization` is listed here from
 // the start so that step A's page compiles against the same type everybody else reads.
-export type NodeKind = 'course' | 'event' | 'material' | 'organization';
+// `contest` (2026-10-09, CONTESTS-BRIEF.md §2): a contest's page is `/contests/[id]`, by id.
+export type NodeKind = 'course' | 'event' | 'material' | 'organization' | 'contest';
 
 // What `GET /api/nodes/{kind}/{id}/` answers: enough for a panel to know what it is sitting on and
 // whether to show its controls, and nothing a stranger could not already see on the node's own

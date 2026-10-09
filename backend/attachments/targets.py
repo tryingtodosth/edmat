@@ -38,6 +38,9 @@ TARGET_KINDS: dict[str, tuple[str, str]] = {
     'event': ('events', 'event'),
     'material': ('materials', 'material'),
     'organization': ('organizations', 'organization'),
+    # A contest (contests/, 2026-10-09): a node kind, so its standing is its own — the regulamin as a
+    # PDF, a stage's problem sheet, the jury's protocol all hang here.
+    'contest': ('contests', 'contest'),
     'task': ('tasks', 'task'),
     'plan': ('plans', 'plan'),
     'need': ('needs', 'need'),

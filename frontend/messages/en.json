@@ -3770,6 +3770,7 @@
 	"gate_hub_event": "Until the university sign-in exists, new events are hosted by verified contributors. Ask a moderator.",
 	"gate_hub_service": "Until the university sign-in exists, new tutoring listings are posted by verified contributors. Ask a moderator.",
 	"gate_hub_organization": "Until the university sign-in exists, new organisations are founded by verified contributors. Ask a moderator.",
+	"gate_hub_contest": "Until the university sign-in exists, new contests are organised by verified contributors. Ask a moderator.",
 	"gate_whatIsVerified": "What a verified contributor is",
 	"gate_askAboutVerification": "Ask about verification",
 	"school_runByPrefix": "Organised by",
@@ -4108,5 +4109,8 @@
 	"attachments_warn2Body": "You are about to save “{title}” ({type}, {size}) to your computer. Open a file only if you trust whoever put it here.",
 	"attachments_warn2Confirm": "Save the file",
 	"attachments_error": "That did not work.",
-	"featureFlags_label_attachments": "Attachments on courses, events, board rows and comments"
+	"featureFlags_label_attachments": "Attachments on courses, events, board rows and comments",
+	"featureFlags_label_contests": "Contests: staged competitions with a jury, results and the obligations a prize brings",
+	"contests_title": "Contests",
+	"contests_placeholder": "Contests are being built. Nothing to see here yet."
 }

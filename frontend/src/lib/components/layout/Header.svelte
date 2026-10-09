@@ -111,6 +111,9 @@
 	// F the creation gate — F reads `GET /api/creation/`, not a flag). Nothing else in this block
 	// is touched by a step.
 	let canFlashcards = $derived(can('flashcards'));
+	// Contests flag (CONTESTS-BRIEF.md §4 rule 4): the prep added this one line; step A reads it at
+	// its three markers and ALSO wraps "New contest" in the creation gate's `contest` answer.
+	let canContests = $derived(can('contests'));
 
 	// Step F, the creation gate (prompts/07-creation-gate.md). NOT a flag read: the flag
 	// (`creation_requires_verification`) is read server-side, because the answer also depends on
@@ -383,6 +386,9 @@
 	<!-- Learning nav marker (prompts/README.md §5 rule 4): NO learning step appends a main-bar link —
 	     the bar was trimmed by owner decision on 2026-10-01 and stays trimmed. Decks live in the
 	     account menu (marker below). The marker exists so that the question is answered here. -->
+	<!-- Contests nav marker (CONTESTS-BRIEF.md §4 rule 4): step A appends ONE "Contests" link
+	     (→ /contests, behind `contests`) directly below this comment, with an inline icon like the
+	     others in this bar. Step B does not touch the nav. -->
 	{#if canNeeds}
 		<a
 			class="nav-link nav-link--needs"
@@ -522,6 +528,10 @@
 	     left this menu on 2026-10-01 and are founded from their hubs, which F gates the same way),
 	     by appending its `creation` state in the script block and wrapping nothing but those two
 	     `{#if}`s. No learning step ADDS an entry here. -->
+	<!-- Contests Add… marker (CONTESTS-BRIEF.md §4 rule 4): step A appends "New contest" (→
+	     /contests/new) directly below this comment, behind `contests`, for adults only, and hidden
+	     for an account `GET /api/creation/` refuses for the `contest` kind — the same wrapping step
+	     F gave "New event". Step B does not touch this menu. -->
 {/snippet}
 
 {#snippet accountItems(itemClass: string, onclick: () => void)}
@@ -594,6 +604,9 @@
 	<!-- Learning account-menu marker (prompts/README.md §5 rule 4): step A appends "My decks"
 	     (→ /flashcards, behind `flashcards`) directly below this comment. No other learning step
 	     touches the account menu. -->
+	<!-- Contests account-menu marker (CONTESTS-BRIEF.md §4 rule 4): step A appends "My contests"
+	     (→ /contests?mine=1, behind `contests`) directly below this comment. Step B does not touch
+	     the account menu. -->
 	{#if canFlashcards}
 		<!-- A thing of theirs to come back to, like "My tasks" below, rather than something to make —
 		     which is why it is here and not in the Add… menu. A deck is created from a set, a lesson

@@ -1298,6 +1298,9 @@ class FeatureFlagTests(ApiTestCase):
                 'flashcards',
                 'learning_record',
                 'creation_requires_verification',
+                # Contests (contests/, migration 0053, CONTESTS-BRIEF.md §2) — seeded by the prep
+                # commit before the surface existed, so that two parallel branches never each add one.
+                'contests',
                 # The standing pages' discussions, migration 0048 (`community/discussions.py`).
                 'about_discussions',
                 # Goals and their definitions of done, migration 0051 (`goals/`, 2026-10-08).

@@ -231,6 +231,11 @@ INSTALLED_APPS = [
     # `documents` because `documents` is an EVENT's tiered briefing pack with a read ledger, and
     # widening it in place would have made every one of its rules conditional on a kind.
     'attachments',
+    # Contests (konkursy) — staged competitions with a jury, results and the Polish legal
+    # obligations a prize brings (CONTESTS-BRIEF.md, 2026-10-09). Its own app and not a kind of
+    # event: an event has no ranking and a course has no jury. Hangs everything else it needs off
+    # the node seam (`config/nodes.py`, kind `contest`).
+    'contests',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting

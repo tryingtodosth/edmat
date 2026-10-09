@@ -9,7 +9,7 @@
 /** `CREATION_KINDS` in `backend/config/creation.py`, in the same order. `service` is a tutoring
  *  listing: the backend app is still `services` even though its address is `/tutoring` (`/korki`
  *  for a Polish reader) — root CLAUDE.md, "Frontend routes". */
-export const CREATION_KINDS = ['course', 'event', 'service', 'organization'] as const;
+export const CREATION_KINDS = ['course', 'event', 'service', 'organization', 'contest'] as const;
 
 export type CreationKind = (typeof CREATION_KINDS)[number];
 

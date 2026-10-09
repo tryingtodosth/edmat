@@ -21,6 +21,8 @@ export function nodeHref(node: NodeRef | null | undefined): string {
 			return resolve('/events/[id]', { id: node.id });
 		case 'material':
 			return localizedPath(resolve('/materials/[id]', { id: node.id }));
+		case 'contest':
+			return resolve('/contests/[id]', { id: node.id });
 		case 'organization':
 			if (!node.slug) return resolve('/organizations');
 			if (node.slug === PROJECT_SLUG) return resolve('/about');

@@ -83,6 +83,8 @@ urlpatterns = [
     # kinds, because the kind is a word in `attachments/targets.py` and not a route each app adds.
     # Included LAST of the `api/` group on purpose: its `<str:kind>/<int:pk>/attachments/` is a
     # broad pattern, and every app's own routes must get the first look.
+    # Contests (CONTESTS-BRIEF.md §2): the prep registers `contest-presets/`; step A fills the router.
+    path('api/', include('contests.urls')),
     path('api/', include('attachments.urls')),
 ]
 

@@ -437,6 +437,14 @@ FEATURE_FLAG_CHOICES = [
     # `/api/<kind>/<id>/attachments/` closes to a non-staff caller, the panel leaves every page it
     # is mounted on, and the "Attach…" item leaves the menus (house rule 3).
     ('attachments', 'Attachments on courses, events, board rows and comments'),
+    # Contests (contests/, 2026-10-09; CONTESTS-BRIEF.md). A plain kill switch, seeded ON by
+    # migration 0053 before the surface existed, for the reason the management flags were seeded
+    # by 0044: two parallel branches must never each add one. Off, every `/api/contests/…` and
+    # `/api/contest-presets/` closes to a non-staff caller, the contests hub, the Add… entry, the
+    # account-menu item and every "contest" row on the work dashboard and the activity feed go with
+    # it (house rule 3); a contest node's tasks, plans, goals and attachments stay reachable by
+    # their own ids for its staff, because those belong to other features.
+    ('contests', 'Contests: staged competitions with a jury, results and the obligations a prize brings'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

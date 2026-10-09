@@ -3770,6 +3770,7 @@
 	"gate_hub_event": "Dopóki nie ma logowania uniwersyteckiego, nowe wydarzenia organizują zweryfikowani współtwórcy. Napisz do moderatora.",
 	"gate_hub_service": "Dopóki nie ma logowania uniwersyteckiego, nowe ogłoszenia o korepetycjach dodają zweryfikowani współtwórcy. Napisz do moderatora.",
 	"gate_hub_organization": "Dopóki nie ma logowania uniwersyteckiego, nowe organizacje zakładają zweryfikowani współtwórcy. Napisz do moderatora.",
+	"gate_hub_contest": "Dopóki nie ma logowania uczelnianego, nowe konkursy organizują zweryfikowani współtwórcy. Poproś moderatora.",
 	"gate_whatIsVerified": "Kim jest zweryfikowany współtwórca",
 	"gate_askAboutVerification": "Zapytaj o weryfikację",
 	"school_runByPrefix": "Organizator:",
@@ -4108,5 +4109,8 @@
 	"attachments_warn2Body": "Zaraz zapiszesz na swoim komputerze „{title}” ({type}, {size}). Otwieraj plik tylko wtedy, gdy ufasz osobie, która go tu umieściła.",
 	"attachments_warn2Confirm": "Zapisz plik",
 	"attachments_error": "Nie udało się.",
-	"featureFlags_label_attachments": "Załączniki na kursach, wydarzeniach, tablicach i w komentarzach"
+	"featureFlags_label_attachments": "Załączniki na kursach, wydarzeniach, tablicach i w komentarzach",
+	"featureFlags_label_contests": "Konkursy: etapy, jury, wyniki i obowiązki, które niesie nagroda",
+	"contests_title": "Konkursy",
+	"contests_placeholder": "Konkursy są w budowie. Jeszcze nic tu nie ma."
 }

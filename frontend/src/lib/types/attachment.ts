@@ -21,7 +21,16 @@
 // them live in `lib/utils/labels.ts`, and both files name each other (house rule 13).
 
 export type AttachmentTargetKind =
-	'course' | 'event' | 'material' | 'organization' | 'task' | 'plan' | 'need' | 'goal' | 'comment';
+	| 'course'
+	| 'event'
+	| 'material'
+	| 'organization'
+	| 'contest'
+	| 'task'
+	| 'plan'
+	| 'need'
+	| 'goal'
+	| 'comment';
 
 export type AttachmentTier = 'public' | 'members' | 'staff' | 'managers' | 'venue';
 

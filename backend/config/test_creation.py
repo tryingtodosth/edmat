@@ -326,7 +326,10 @@ class CreationStatusEndpointTests(TestCase):
         set_gate(False)
         self.assertEqual(self.get(self.ordinary), {kind: None for kind in CREATION_KINDS})
 
-    def test_the_body_carries_exactly_the_four_kinds(self):
-        """The frontend reads four fixed keys off this body; a fifth kind is a frontend change too,
-        so the shape is pinned here rather than inferred."""
-        self.assertEqual(sorted(self.get(self.ordinary)), ['course', 'event', 'organization', 'service'])
+    def test_the_body_carries_exactly_the_five_kinds(self):
+        """The frontend reads five fixed keys off this body; another kind is a frontend change too,
+        so the shape is pinned here rather than inferred. `contest` became the fifth on
+        2026-10-09 (CONTESTS-BRIEF.md §2): founding one promises a prize to strangers."""
+        self.assertEqual(
+            sorted(self.get(self.ordinary)), ['contest', 'course', 'event', 'organization', 'service']
+        )

@@ -38,6 +38,9 @@ NODE_KINDS = {
     'event': ('events', 'event'),
     'material': ('materials', 'material'),
     'organization': ('organizations', 'organization'),  # step A (organizations/access.py)
+    # A contest (contests/access.py, CONTESTS-BRIEF.md §2, 2026-10-09): answered the way the
+    # organisation is, by a lazy dispatch into that app's own rule module.
+    'contest': ('contests', 'contest'),
 }
 NODE_KIND_OF_MODEL = {v: k for k, v in NODE_KINDS.items()}
 
@@ -168,6 +171,15 @@ def _org(name):
     return getattr(access, name)
 
 
+# ---- contest — answered by `contests/access.py` (CONTESTS-BRIEF.md §2) ---------------------------
+
+
+def _contest(name):
+    from contests import access
+
+    return getattr(access, name)
+
+
 # ---- the public face ----------------------------------------------------------------------------
 
 
@@ -181,6 +193,8 @@ def can_view_node(user, node) -> bool:
         return True  # a material is public content; its project's visibility gates the project, not it
     if kind == 'organization':
         return _org('can_view_organization')(user, node)
+    if kind == 'contest':
+        return _contest('can_view_contest')(user, node)
     return False
 
 
@@ -196,6 +210,8 @@ def is_node_staff(user, node) -> bool:
         return _material_staff(user, node)
     if kind == 'organization':
         return _org('is_organization_member')(user, node)
+    if kind == 'contest':
+        return _contest('is_contest_staff')(user, node)
     return False
 
 
@@ -207,6 +223,9 @@ def is_node_member(user, node) -> bool:
         return node.is_member(user)
     if kind == 'event':
         return _event_member(user, node)
+    if kind == 'contest':
+        # Staff, or a registered participant once step A's registration model exists.
+        return _contest('is_contest_member')(user, node)
     # A material's "members" are its project's members; an organisation's are its roster.
     return is_node_staff(user, node)
 
@@ -223,6 +242,8 @@ def can_manage_node(user, node) -> bool:
         return _material_manage(user, node)
     if kind == 'organization':
         return _org('can_manage_organization')(user, node)
+    if kind == 'contest':
+        return _contest('can_manage_contest')(user, node)
     return False
 
 
@@ -237,6 +258,8 @@ def node_staff_users(node):
         return _material_staff_users(node)
     if kind == 'organization':
         return _org('organization_member_users')(node)
+    if kind == 'contest':
+        return _contest('contest_staff_users')(node)
     return get_user_model().objects.none()
 
 

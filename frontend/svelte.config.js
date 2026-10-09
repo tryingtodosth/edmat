@@ -59,6 +59,8 @@ const config = {
 				'/about/schools',
 				'/about/concepts',
 				'/about/events',
+				// contests: showcase (B) appends '/about/contests' directly below this comment, and the
+				// manual chapter it writes under H's list further down.
 
 				// learning: guide (H) appends its /about/guide/** pages here, after G's.
 				// The manual: the hub is an ordinary route and `'*'` would reach it, but the eleven

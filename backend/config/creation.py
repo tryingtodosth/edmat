@@ -80,7 +80,10 @@ to be one, so this module does not import it.
 #: `frontend/src/lib/types/creation.ts` carries `CREATION_KINDS` and the three words as types;
 #: `frontend/src/lib/utils/labels.ts` carries one sentence per word and one per kind. A fifth kind
 #: or a fourth word is a change in all three files, and a reader of any one of them is told that.
-CREATION_KINDS = ('course', 'event', 'service', 'organization')
+# `contest` (2026-10-09, CONTESTS-BRIEF.md): founding a contest promises a prize to strangers under
+# KC art. 919–921, which is the most consequential founding act on the site — so it is the fifth
+# kind, gated the same way, and `contests/views.py: ContestViewSet.create` asks it (step A).
+CREATION_KINDS = ('course', 'event', 'service', 'organization', 'contest')
 
 #: The flag that governs the third refusal. INVERTED: `is_enabled=True` means the RESTRICTION is
 #: on. Seeded ON by `moderation` migration 0047; the day USOS lands a moderator turns it off and
