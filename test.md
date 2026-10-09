@@ -2669,3 +2669,69 @@ absorbed, `--verify` clean, and a second dry run reported 11 already done. **It 
 rather than copying bytes**, so while both rows exist, deleting either takes the shared file with it
 — which is why `--apply` does not delete the legacy rows and why `--verify` should be clean before
 anybody does.
+
+---
+
+## Contests, step B: the preset as rows, and the nine registries (2026-10-09, `HISTORY.md` §17CE.B)
+
+Two new backend modules beside the prep's own `contests/tests.py`, which that file's docstring asks
+for by name. **`contests/test_personalize.py` (29 tests)** drives `personalize.apply_preset` as one
+sentence per test: a `school` contest with every flag on gets the plan with its timeline and real due
+dates, the goal whose criteria are the preset's and whose status is derived, one task per checklist
+item assigned by role and carrying its citation, its verification marker and "this is not legal
+advice", the needs and one draft poll; a second call creates nothing and says `already_personalised`;
+each of the five flags off on its own leaves exactly its own word in `skipped` and everything else
+created; a prize-free `challenge` has no prize task, no prize criterion and no prize step anywhere; a
+stranger creates nothing, a jury member creates only tasks (`tasks.rules.can_create` admits any node
+staff), an unknown preset is a word rather than a crash, and a contest with no dates gets its rows
+with no due dates at all. A `PresetDataTests` class checks the table itself with no database behind
+it — every checklist citation resolves in `LAW`, every `LAW` row has a known marker and a Polish
+citation, no preset advances by chance, and every bilingual pair in the file has both halves.
+
+**`contests/test_registries.py` (49 tests)** is the nine registries, each with the test its
+neighbours have: a `TableTests` class reading the lines straight off `TARGET_TYPE_BY_MODEL`,
+`REPORT_KIND_MODELS`, `GALLERY_TARGETS`, `TRANSLATABLE_KIND_MODELS`, `PLACEABLE_NODE_KINDS`,
+`MANAGEMENT_KINDS`, `work.providers._REGISTRY` and `identity.record.PLACEMENT_PROVIDERS` — the
+cheapest possible guard on a line somebody drops in a merge — and then one class per surface
+asserting that **a stranger 404s on everything hung off a draft contest** and that the same thing
+opens once it is announced. The activity class is the one worth reading: a draft never announces
+itself, an announced-and-public contest announces itself exactly once and not again on every save,
+announcing a PRIVATE contest writes nothing, `results_published` is its own second row, and
+cancelling or pulling it back to private forgets both.
+
+Run them with the apps they touch:
+
+```bash
+cd backend && ../.venv/bin/python3 manage.py test \
+  contests community moderation galleries translations flashcards activity work identity \
+  tasks needs plans decisions goals config --parallel 4 --keepdb
+```
+
+### `frontend/e2e/contests-personalise.mjs`
+
+```bash
+export PATH=/home/bob/.cache/edmat-tools/node24/bin:$PATH
+E2E_BASE=http://localhost:5272 E2E_API=http://127.0.0.1:8172/api \
+  E2E_OWNER_TOKEN=<a token for the account that founds the contest> \
+  node e2e/contests-personalise.mjs
+```
+
+**It founds its own contest through the ORM and that is not a shortcut.** On step B's branch there
+is no `POST /api/contests/` — step A is building it at the same time — so the script shells out to
+`manage.py shell` in the backend beside the checkout, creates one `Contest`, calls `apply_preset`
+twice and reads the two reports back as JSON. That is also the honest exercise of the seam step A
+will call, invoked the way `ContestViewSet.create` will invoke it. `E2E_OWNER_TOKEN` is required and
+cannot be logged in for (`e2e/CLAUDE.md` trap 32): every panel it drives is a node MANAGER's, and the
+script reads `/auth/me/` so the browser's account and the ORM setup's can never disagree.
+
+It then drives `/contests/<id>` — the prep's placeholder, which mounts `ManagementPanels` — and
+asserts the count on each of the five folded panel lines is the number `apply_preset` reported,
+opens all five and screenshots them; reads the rows back through the real API in both languages;
+checks `/about/contests` draws ten preset cards, six law rows and a marker on each, with exactly one
+prize-free chip and exactly two staff-only ones; checks `/about` now lists eight showcase cards and
+the manual's hub lists the contests chapter; and loads `/work` and a profile. **Two checks are
+deliberately negative and say so in the script:** none of the four contest work sections is drawn,
+because `contests/work.py` is step A's and answers `[]`, and `collect()` drops an empty section. It
+deletes the contest and every row it hung off it at the end and re-queries to prove it.
+
+Screenshots: `e2e/screens/contests-personalise-1-panels.png` through `-5-profile.png`.

@@ -47,6 +47,10 @@ interface RawActivityItem {
 	// reads as "nothing here" rather than as a field this mapper relies on; the numeric `concept`
 	// pk is deliberately not read, since `/concepts/[slug]` cannot be built from one.
 	concept_slug?: string | null;
+	// The contest, for the two contest kinds. A numeric pk, unlike the concept above it, because
+	// `/contests/[id]` IS keyed by the pk (`utils/nodeHref.ts`) — the slug exception is the
+	// organisation's alone.
+	contest?: number | null;
 	branch: string | null;
 	discipline: string | null;
 	tags: string[];
@@ -99,6 +103,7 @@ function mapItem(json: RawActivityItem): FeedItem {
 		postId: idOr(json.post),
 		post: json.post_detail ? mapPost(json.post_detail) : undefined,
 		conceptSlug: json.concept_slug ?? undefined,
+		contestId: idOr(json.contest),
 		branchId: json.branch ?? undefined,
 		disciplineId: json.discipline ?? undefined,
 		tags: json.tags ?? [],

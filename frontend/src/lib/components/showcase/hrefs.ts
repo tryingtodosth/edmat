@@ -1,4 +1,4 @@
-// The seven showcase routes, resolved once.
+// The eight showcase routes, resolved once.
 //
 // `resolve()` is per-route and typed, so a loop over `SHOWCASE_PAGES` cannot call it with a slug —
 // this record is the bridge, and it is the reason a renamed route breaks the BUILD rather than
@@ -17,5 +17,6 @@ export const SHOWCASE_HREF: Record<ShowcaseSlug, string> = {
 	courses: resolve('/about/courses'),
 	schools: resolve('/about/schools'),
 	concepts: resolve('/about/concepts'),
-	events: resolve('/about/events')
+	events: resolve('/about/events'),
+	contests: resolve('/about/contests')
 };

@@ -11,6 +11,7 @@
  * the feature is off here, which is the honest version of house rule 3 for a page that is only
  * writing. `null` is for the chapters that describe things no switch can remove.
  */
+import { m } from '$lib/paraglide/messages.js';
 import type { FeatureFlagKey } from '$lib/types';
 import type { GuideChapterDoc } from './types';
 import { startChapterFor } from './start';
@@ -24,6 +25,7 @@ import { helpChapterFor } from './help';
 import { messagesChapterFor } from './messages';
 import { moderationChapterFor } from './moderation';
 import { flashcardsChapterFor } from './flashcards';
+import { contestsChapterFor } from './contests';
 
 export interface GuideChapterEntry {
 	/** The URL segment: `/about/guide/<slug>`. */
@@ -86,6 +88,10 @@ const BLURBS: Record<string, { en: string; pl: string }> = {
 		en: 'Decks of cards, the four grades, and placing a deck where other people study.',
 		pl: 'Talie kart, cztery oceny i postawienie talii tam, gdzie uczą się inni.'
 	}
+	// `contests` is deliberately NOT here: step B's i18n keys are prefixed (`CONTESTS-BRIEF.md` §4
+	// rule 5), so its blurb is `guide_contests_blurb` in both catalogues and the entry below reads
+	// it through `m.*()` instead of `entry()`'s `BLURBS` lookup. One line of prose either way; the
+	// prefix rule is what decides where it lives.
 };
 
 function entry(
@@ -115,7 +121,22 @@ export const GUIDE_CHAPTERS: GuideChapterEntry[] = [
 	entry('help', helpChapterFor, 'needs'),
 	entry('messages', messagesChapterFor, 'messaging'),
 	entry('moderation', moderationChapterFor, null),
-	entry('flashcards', flashcardsChapterFor, 'flashcards', { showcase: '/about/flashcards' })
+	entry('flashcards', flashcardsChapterFor, 'flashcards', { showcase: '/about/flashcards' }),
+	// Contests (`contests/`, 2026-10-09). Built by hand rather than through `entry()` for one
+	// reason: its blurb is a catalogue key, not a row of `BLURBS` (see that object's tail).
+	//
+	// `pending` is NOT set. The chapter is written in full against the pages as step A's brief
+	// describes them; what is missing is its screenshots, which its own closing note says and which
+	// the integrator takes after the merge. Marking it pending would tell a reader there is nothing
+	// there to read, which is the opposite of true.
+	{
+		slug: 'contests',
+		docFor: contestsChapterFor,
+		titleFor: (locale: string) => contestsChapterFor(locale).title,
+		blurbFor: () => m.guide_contests_blurb(),
+		flag: 'contests',
+		showcase: '/about/contests'
+	}
 ];
 
 export function chapterBySlug(slug: string): GuideChapterEntry | undefined {

@@ -59,6 +59,18 @@ ACTIVITY_KIND_CHOICES = [
     # their own; the concept is where they should land) and carry the article or the revision as the
     # generic `source`, so deleting one takes exactly its own row out of the feed.
     ('concept_revision', 'New concept revision'),
+    # Contests (contests/, CONTESTS-BRIEF.md §3.B). Two kinds, the `concept`/`concept_revision`
+    # split: 'contest' is an announcement — a contest leaving draft into public view, which is the
+    # moment somebody can decide to enter — and 'contest_results' is the ranking being published,
+    # which is a different thing to a reader (one is "you can take part", the other is "it is
+    # over"). Both link through the `contest` FK.
+    #
+    # Public by construction, strictly (house rule 9): `activity/signals.py` writes a row only on
+    # the transition INTO `Contest.is_public`, and `remove_activity_for` takes both rows away the
+    # moment a contest is cancelled or pulled back to private. A contest's rows are never written
+    # from its draft state, so there is no window in which one exists for something private.
+    ('contest', 'New contest'),
+    ('contest_results', 'Contest results published'),
 ]
 
 
@@ -110,6 +122,13 @@ class ActivityEvent(models.Model):
     # other. (CONCEPTS-BRIEF.md §2 specifies SET_NULL; this note is why it is not an oversight.)
     concept = models.ForeignKey(
         'concepts.Concept', null=True, blank=True, related_name='+', on_delete=models.SET_NULL
+    )
+    # A contest (contests/). CASCADE like the first six links and unlike `concept`: a contest is a
+    # row somebody can really delete while it is still a draft, and a feed row pointing at a page
+    # that 404s is the one thing this table must not hold. Its own forgetting path is
+    # `remove_activity_for`, which runs on cancellation long before deletion is ever on the table.
+    contest = models.ForeignKey(
+        'contests.Contest', null=True, blank=True, related_name='+', on_delete=models.CASCADE
     )
 
     # WHAT PRODUCED the row, precisely — the generic source is what lets `remove_activity_for(obj)`

@@ -339,7 +339,7 @@ class SourceRefSerializer(serializers.Serializer):
 
 
 class NodeRefSerializer(serializers.Serializer):
-    """`{kind, id}` — a course or an event. The kind allowlist is `PLACEABLE_NODE_KINDS`, shorter
+    """`{kind, id}` — a course, an event or a contest. The kind allowlist is `PLACEABLE_NODE_KINDS`, shorter
     than `config.nodes.NODE_KINDS` on purpose (`flashcards/models.py` says why)."""
 
     kind = serializers.ChoiceField(choices=list(PLACEABLE_NODE_KINDS))

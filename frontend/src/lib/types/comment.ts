@@ -72,7 +72,16 @@ export type CommentTargetType =
 	// ReviewList.svelte renders all three from one component.
 	| 'review'
 	| 'materialReview'
-	| 'serviceReview';
+	| 'serviceReview'
+	// A contest (contests/, CONTESTS-BRIEF.md §3.B). Plain `contest` and not `runContest` the way
+	// `courses.Course` had to become `taughtCourse`: there is no second thing on this platform
+	// called a contest, so the flat namespace has room for the obvious word.
+	//
+	// NOT in the backend's `PRIVATE_TARGET_TYPES`, and the reason is the test that table applies: a
+	// contest is invisible until announced and public from then on, which is a per-ROW answer in the
+	// same shape a draft exercise's is. The queryset a thread is reached through
+	// (`contests.access.visible_contests`) is what 404s a stranger on a draft.
+	| 'contest';
 
 export interface Comment {
 	id: string;

@@ -15,7 +15,10 @@ Split out of `CLAUDE.md` on 2026-09-19.
 **There is no payment processing in this codebase.** No provider, no webhook, no order, no
 invoice, no refund, no escrow. This is a standing decision, not an unbuilt feature — `AUDIENCE-BRIEF.md`
 §10 records it as "no payments — prices stay display-only everywhere, as they are today", and it has
-survived every feature that looked like it wanted one.
+survived every feature that looked like it wanted one — most recently **contests** (2026-10-09),
+where the thing being promised is a prize somebody else pays for and the answer is still that no
+money passes through here. `LEGAL.md` §9 sets out the three separations that keep this sentence true
+of a prize contest, and each of them is an absence of code rather than a policy.
 
 What exists instead:
 
@@ -24,6 +27,7 @@ What exists instead:
 | `Service.hourly_rate` + `currency` | A number a tutor types onto their listing so a student knows roughly what to expect | A charge. Booking an hour moves no money; a completed session is connected to nothing |
 | `Material.price_amount` + `price_currency` | The same, on a teaching material | Same |
 | `courses.Course` price | The same, on a user-run course. The form says so on screen | Same |
+| `contests.Contest.prize_total_value_pln` | A number an organiser types so the tax paragraph of their own rules can be written — the 2 000 zł exemption line and the in-kind gross-up are arithmetic on it (`LEGAL.md` §9) | A charge, a pot, or anything EdMat holds. There is no entry fee field, no prize pool and no payment: the organiser hands the prize over directly, and the module refuses any paid condition of entry — which is also what keeps a contest out of *loteria promocyjna* |
 
 `price_currency` is a curated four-value `choices=` field — **PLN / EUR / USD / GBP** — mirrored by
 hand in `frontend/src/lib/utils/labels.ts` as `MATERIAL_CURRENCIES`. The tradeoff was named when it

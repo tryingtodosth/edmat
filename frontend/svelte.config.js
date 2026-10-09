@@ -61,6 +61,7 @@ const config = {
 				'/about/events',
 				// contests: showcase (B) appends '/about/contests' directly below this comment, and the
 				// manual chapter it writes under H's list further down.
+				'/about/contests',
 
 				// learning: guide (H) appends its /about/guide/** pages here, after G's.
 				// The manual: the hub is an ordinary route and `'*'` would reach it, but the eleven
@@ -77,7 +78,10 @@ const config = {
 				'/about/guide/help',
 				'/about/guide/messages',
 				'/about/guide/moderation',
-				'/about/guide/flashcards'
+				'/about/guide/flashcards',
+				// contests: showcase (B) — the manual's contests chapter, written against step A's
+				// pages. The integrator re-shoots its screenshots after the merge.
+				'/about/guide/contests'
 			]
 		}
 	}

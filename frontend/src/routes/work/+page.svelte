@@ -33,7 +33,16 @@
 		plan_step: () => m.work_section_plan_step(), // "Plan steps due"
 		plan_suggestion: () => m.work_section_plan_suggestion(), // "Plan suggestions"
 		poll: () => m.work_section_poll(), // "Open polls"
-		cards_due: () => m.work_section_cards_due() // "Flashcards due"
+		cards_due: () => m.work_section_cards_due(), // "Flashcards due"
+		// Contests (contests/, CONTESTS-BRIEF.md §3.B). Four sections because they are four
+		// different things waiting on a person; the keys are `contests/work.py`'s own four kinds,
+		// and the labels are step B's (`contestLabel_*`) because step A, which yields the rows,
+		// does not own this page. A section with no rows is dropped by `collect()`, so none of
+		// these appears for somebody who is not running or entering a contest.
+		contest_registration: () => m.contestLabel_workSection_registration(), // "Contest entries to decide"
+		contest_judging: () => m.contestLabel_workSection_judging(), // "Contest work to score"
+		contest_complaint: () => m.contestLabel_workSection_complaint(), // "Contest complaints to answer"
+		contest_stage: () => m.contestLabel_workSection_stage() // "Contest stages coming up"
 	};
 
 	// Map of kind to label functions
@@ -49,7 +58,11 @@
 		proposal: () => m.work_kind_proposal(), // "Material proposal"
 		shift: () => m.work_kind_shift(), // "Shift"
 		booking: () => m.work_kind_booking(), // "Tutoring booking"
-		cards_due: () => m.work_kind_cardsDue() // "Flashcards"
+		cards_due: () => m.work_kind_cardsDue(), // "Flashcards"
+		contest_registration: () => m.contestLabel_workKind_registration(), // "Contest entry"
+		contest_judging: () => m.contestLabel_workKind_judging(), // "Work to score"
+		contest_complaint: () => m.contestLabel_workKind_complaint(), // "Complaint"
+		contest_stage: () => m.contestLabel_workKind_stage() // "Contest stage"
 	};
 
 	onMount(async () => {

@@ -189,7 +189,21 @@ export interface LearningRecordActivityRow {
 	extra: Record<string, number>;
 }
 
-/** The two blocks, and they are never merged.
+/** One result somebody was awarded in a contest another person ran
+ * (`backend/contests/record.py: placements_for`, CONTESTS-BRIEF.md §3.B).
+ *
+ * `resultTitle` is the contest's own word — laureate, finalist, distinction, participant — and NOT
+ * a score: the organiser decided it against published criteria, and EdMat was the medium
+ * (`LEGAL.md`, "Contests"). `publishedAt` is null while the organiser has not published the
+ * ranking, which is why the row can exist without a date. */
+export interface LearningRecordPlacement {
+	contestId: string;
+	title: string;
+	resultTitle: string;
+	publishedAt: string | null;
+}
+
+/** The three blocks, and they are never merged.
  *
  * `prompts/00-DESIGN.md` §1 rule 3: an EdMat activity count is never drawn beside an institutional
  * grade as if it were one. Two lists, two headings, two consents — a single list with a nullable
@@ -204,4 +218,10 @@ export interface LearningRecord {
 	withheldReason: 'minor' | null;
 	grades: LearningRecordGradeRow[] | null;
 	activity: LearningRecordActivityRow[] | null;
+	/** Contest results, behind the SAME consent as `activity` — both answer "what has this person
+	 * done here", and asking for a second tick for the half that has titles in it would be a
+	 * setting nobody could explain. A third list rather than a column on `activity`, because a
+	 * placement is named and dated and is not a count per subject. `null` means "not shared";
+	 * `[]` means shared and empty. */
+	placements: LearningRecordPlacement[] | null;
 }

@@ -40,15 +40,33 @@ from config.i18n_utils import DEFAULT_FALLBACK_LOCALE
 
 
 def _versions(obj):
-    """Every written version of this row, from the prefetched `GenericRelation` when the view set
-    one up (`.prefetch_related('text_versions')`) and from a query otherwise.
+    """Every written version of this row, from the prefetched `GenericRelation` when the model has
+    one (`.prefetch_related('text_versions')`) and from a query otherwise.
 
     The relation is what keeps this off the N+1 path: a serializer resolving fifty tasks does no
-    queries at all once the view has prefetched, which is why each of the six models carries a
+    queries at all once the view has prefetched, which is why the management models each carry a
     `GenericRelation` rather than this module querying per object.
+
+    **The query fallback is not dead code.** It used to be `[]`, which silently meant "this row has
+    no translations" for any model that had not declared the relation — and `contests.Contest`
+    (2026-10-09) is the first registered kind that has not: a `GenericRelation` adds no column and so
+    needs no migration, but it is a line in `contests/models.py`, which step B of the contests cycle
+    does not own (`CONTESTS-BRIEF.md` §4). Answering with the row's own columns for a contest
+    somebody HAD translated would have been a silent wrong answer rather than a missing
+    optimisation. One query per object is the honest cost, and it disappears the moment the relation
+    is added.
     """
     related = getattr(obj, 'text_versions', None)
-    return list(related.all()) if related is not None else []
+    if related is not None:
+        return list(related.all())
+    from .models import TextVersion
+    from .targets import content_type_for, kind_of
+
+    kind = kind_of(obj)
+    content_type = content_type_for(kind) if kind else None
+    if content_type is None:
+        return []
+    return list(TextVersion.objects.filter(content_type=content_type, object_id=obj.pk))
 
 
 def resolve(obj, locale: str | None) -> dict:

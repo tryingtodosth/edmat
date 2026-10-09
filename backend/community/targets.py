@@ -60,6 +60,16 @@ TARGET_TYPE_BY_MODEL = {
     # it has sections and one thread across all of them would mix a question about enrolling with
     # one about certificates.
     ('community', 'discussionlocation'): 'discussionLocation',
+    # A contest (contests/, CONTESTS-BRIEF.md §3.B, 2026-10-09). Named plainly `contest` and not
+    # `runContest` the way `courses.Course` had to become `taughtCourse`: there is no second thing
+    # on this platform called a contest, so the flat namespace has room for the obvious word.
+    #
+    # NOT in `PRIVATE_TARGET_TYPES` below, and the reason is the one that table applies: a contest
+    # is invisible until it is announced and public from then on (`contests.models.PUBLIC_STATUSES`
+    # × `PUBLIC_VISIBILITY`), which is a per-ROW answer in the same shape an exercise's is — a draft
+    # exercise's thread is not in there either. The queryset a thread is reached through
+    # (`contests.access.visible_contests`) is what 404s a stranger on a draft.
+    ('contests', 'contest'): 'contest',
 }
 
 # The targets whose own threads are NOT public: a course's discussion, and a week's or a session's

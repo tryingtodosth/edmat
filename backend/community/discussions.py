@@ -66,6 +66,14 @@ Two things ARE different about such a page, and both are answered here so the vi
   (`tasks`, `plans`, `needs`, `decisions`, `goals`): a killed board must not keep a live thread under rows
   nobody can reach (house rule 3). `effective_policy` folds the second in for these pages only.
 
+**And a contest's own page (2026-10-09).** `contests/5` joins the list, and it belongs with the
+organisation rather than with the four board rows: a contest IS a node, so the thread is the talk
+under the thing itself and not under one row of work hung off it. `can_read_location` asks
+`contests.access.can_view`, which means a draft contest's thread 404s to everybody but its staff —
+the same answer its own endpoint gives — and the `contests` switch closes it with the feature.
+Addressed by **pk**, because `/contests/5` is the route (`utils/nodeHref.ts`); the organisation is
+the one kind addressed by a slug.
+
 There is no ceiling row for a management page — the node is not a page and no row of this table
 stands for it — so "close every thread on this organisation's board" is N switches today, named
 in `todo.md`. Plan steps and poll options have no thread of their own; the plan's and the poll's
@@ -172,7 +180,10 @@ SECTION_RE = re.compile(r'^[a-z0-9-]{1,60}$')
 #: A management row's own thread: `tasks/17`, `plans/3`, `needs/2`, `polls/1`. Plural words because
 #: they are the frontend's route segments (`/tasks/17`), which is where the key sends a reader.
 #: A leading zero or an id with more than ten digits is malformed rather than merely absent.
-MANAGEMENT_PAGE_RE = re.compile(r'^(tasks|plans|needs|polls|goals)/[1-9][0-9]{0,9}$')
+#: `contests/5` (2026-10-09) is here rather than under its own regex for one reason: a contest is a
+#: NODE, like an organisation, and a node's own page wanting one thread under it is the question
+#: this regex already answers. See `NODE_KINDS_HERE` below for the one thing that is different.
+MANAGEMENT_PAGE_RE = re.compile(r'^(tasks|plans|needs|polls|goals|contests)/[1-9][0-9]{0,9}$')
 
 #: An organisation's own page: `organizations/edmat`. A SLUG, not a pk — the module docstring argues
 #: why this one model is addressed by its public address and the four above by their id. The shape is
@@ -189,11 +200,20 @@ MANAGEMENT_KINDS = {
     'polls': ('decisions', 'poll', 'decisions'),
     'organizations': ('organizations', 'organization', 'organizations'),
     'goals': ('goals', 'goal', 'goals'),
+    # A contest's own page (`contests/`, CONTESTS-BRIEF.md §3.B, 2026-10-09): one thread under the
+    # contest, read by whoever `contests.access.can_view` admits, closed by the `contests` switch.
+    'contests': ('contests', 'contest', 'contests'),
 }
 
 #: The kinds whose key carries a slug rather than a pk. One set rather than a fifth element on every
 #: tuple above, so that adding an id-addressed kind stays a one-line change.
 SLUG_KINDS = frozenset({'organizations'})
+
+#: The kinds whose row IS a node (`config/nodes.py`) rather than something hung off one. Their
+#: visibility rule reads the row itself, so there is nothing to prefetch — and `prefetch_related
+#: ('node')` would raise, because a `Contest` and an `Organization` have no such relation. One set
+#: rather than a sixth tuple element, for the same reason `SLUG_KINDS` is one.
+NODE_KINDS_HERE = frozenset({'organizations', 'contests'})
 
 AUDIENCE_ANYONE = 'anyone'
 AUDIENCE_USERS = 'users'
@@ -267,9 +287,13 @@ def management_rows(pages) -> dict:
             for row in model.objects.filter(slug__in=refs):
                 found[f'{kind}/{row.slug}'] = row
             continue
-        # The node comes with the rows — one query per content type rather than one per row, so
-        # that the visibility rules' first question (`node_of`, `.node`) costs nothing per row.
-        for row in model.objects.filter(pk__in={int(ref) for ref in refs}).prefetch_related('node'):
+        queryset = model.objects.filter(pk__in={int(ref) for ref in refs})
+        if kind not in NODE_KINDS_HERE:
+            # The node comes with the rows — one query per content type rather than one per row, so
+            # that the visibility rules' first question (`node_of`, `.node`) costs nothing per row.
+            # A kind that IS a node has no `node` relation to prefetch; asking for one raises.
+            queryset = queryset.prefetch_related('node')
+        for row in queryset:
             found[f'{kind}/{row.pk}'] = row
     return found
 
@@ -297,6 +321,12 @@ def _row_visible(user, kind: str, row) -> bool:
         from goals.rules import can_view_goal
 
         return can_view_goal(user, row)
+    if kind == 'contests':
+        from contests.access import can_view
+
+        # A draft contest does not exist for anybody but its staff, so neither does the thread under
+        # it — the same 404 `/api/contests/5/` gives them (house rule 4).
+        return can_view(user, row)
     if kind == 'organizations':
         from organizations.access import can_view_organization
 

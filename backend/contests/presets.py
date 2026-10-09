@@ -25,8 +25,11 @@ Three decisions baked in, each from the research and each the owner's to overtur
    harms pupils who believe they are earning an exam exemption (CONTESTS-LAW.md §14 item 9), so
    only a platform operator may found one, and the external reference is mandatory.
 
-`frontend/src/lib/utils/labels.ts` mirrors `PRESET_KEYS` and the three enums at the bottom
-(house rule 13) — say so there. Step B owns this file after the prep; step A reads it only.
+`frontend/src/lib/utils/labels.ts` mirrors `PRESET_KEYS`, `PRIZE_REGIMES`, `ORGANISER_KINDS` and
+`LAW_MARKERS`/`MARKER_WORDS` — as `PRESET_LABELS`, `PRIZE_REGIME_LABELS`, `ORGANISER_KIND_LABELS`
+and `LAW_MARKER_LABELS`, under a comment naming this file (house rule 13: said in both, because
+this is where drift creeps in). A value added here and not there shows a reader the raw key.
+Step B owns this file after the prep; step A reads it only.
 """
 
 from __future__ import annotations
@@ -71,6 +74,46 @@ LAW: dict[str, tuple[str, str]] = {
     'uonpr_7': ('Ustawa o przeciwdziałaniu nieuczciwym praktykom rynkowym art. 7 pkt 16–17 — only when the organiser is a business', 'unverified'),
     'dostepnosc_2019': ('Ustawa o zapewnianiu dostępności (2019) — binds a public organiser (kurator, public school), not a private one', 'verified'),
     'dsa_hosting': ('DSA arts. 6, 14, 16, 17 — EdMat is the hosting service, never the przyrzekający; the Polish act applies from 6.11.2026', 'secondary'),
+}
+
+#: The same citations in Polish. A separate table rather than a third element on every tuple above,
+#: because step A reads `LAW` and `law_as_api()` and a changed tuple shape would break it mid-build;
+#: a reader of the Polish interface being shown an English gloss of a Polish statute is the drift
+#: this closes (house rule 1 — a user-facing string is never one language). A key missing here falls
+#: back to the English line rather than printing nothing.
+LAW_PL: dict[str, str] = {
+    'kc_919': 'Kodeks cywilny art. 919 §1–2 — przyrzeczenie publiczne; odwołanie tym samym kanałem, co ogłoszenie',
+    'kc_920_3': 'Kodeks cywilny art. 920 §3 — nagrodę wspólną dzieli sąd, jeśli regulamin nie mówi jak',
+    'kc_921_1': 'Kodeks cywilny art. 921 §1 — bez terminu ubiegania się o nagrodę przyrzeczenie jest bezskuteczne',
+    'kc_921_2': 'Kodeks cywilny art. 921 §2 — ocenia przyrzekający, chyba że regulamin powołał jury',
+    'kc_921_3': 'Kodeks cywilny art. 921 §3 — prawa do nagrodzonej pracy przechodzą tylko wtedy, gdy to zastrzeżono; spór z art. 53 pr.aut.',
+    'kc_15_17': 'Kodeks cywilny art. 15 i 17 — osoba w wieku 13–17 lat potrzebuje zgody opiekuna na czynność prawną',
+    'kc_384': 'Kodeks cywilny art. 384 §1 i 4 — regulamin musi być dostępny przed zgłoszeniem i możliwy do zachowania',
+    'ugh_2': 'Ustawa o grach hazardowych art. 2 ust. 1 — jeśli o którymkolwiek etapie decyduje los, to gra losowa',
+    'ugh_89_kks_108': 'u.g.h. art. 89 (kary pieniężne) i Kodeks karny skarbowy art. 108 (240 stawek) — kumulują się',
+    'pit_30_1_2': 'PIT art. 30 ust. 1 pkt 2 — 10% podatku zryczałtowanego od nagród w konkursach',
+    'pit_21_1_68': 'PIT art. 21 ust. 1 pkt 68 — nagrody do 2 000 zł w konkursach „w dziedzinie nauki" zwolnione; człon o środkach masowego przekazu jest sporny w internecie',
+    'pit_21_1_115': 'PIT art. 21 ust. 1 pkt 115 — nagrody uczniów w konkursach na podstawie przepisów o systemie oświaty zwolnione bez limitu',
+    'pit_41_4': 'PIT art. 41 ust. 4 — płatnikiem jest organizator będący osobą prawną; deklaracja PIT-8AR',
+    'pit_41_7': 'PIT art. 41 ust. 7 — nagroda rzeczowa: laureat wpłaca podatek przed odbiorem, stąd ubruttowienie (÷ 0,9)',
+    'gdpr_6': 'RODO art. 6 ust. 1 lit. b/c dla przeprowadzenia i rozliczenia; lit. a (zgoda) tylko dla publikacji imienia, wizerunku i pracy',
+    'gdpr_8': 'RODO art. 8 — poniżej 16 lat zgodę wyraża opiekun; Polska nie obniżyła tego wieku',
+    'gdpr_13': 'RODO art. 13 — klauzula informacyjna; ten serwis wskazany jako podmiot przetwarzający',
+    'gdpr_28': 'RODO art. 28 — serwis przetwarza na zlecenie organizatora; ryzyko współadministrowania z art. 26',
+    'uodo_model': 'Wzorcowy regulamin konkursu dla uczniów samego UODO — publikacja imienia i nazwiska to osobna, odwołalna zgoda',
+    'praut_41_53_67': 'Prawo autorskie art. 41 ust. 2 i 4, art. 53, art. 67 ust. 5 — przeniesienie praw i licencja wyłączna wymagają formy pisemnej; licencja niewyłączna nie',
+    'praut_16': 'Prawo autorskie art. 16 — autorskich praw osobistych nie można się zrzec',
+    'praut_81': 'Prawo autorskie art. 81 — rozpowszechnianie wizerunku wymaga zezwolenia; w przypadku dziecka — opiekunów',
+    'menis_2002': 'Rozporządzenie MENiS z 29.01.2002 (t.j. Dz.U. 2020 poz. 1036) §3 ust. 2, §4 ust. 2 — konkursy organizuje kurator, a etapy ustala regulamin',
+    'menis_2002_olimp': 'To samo rozporządzenie §8, §9 ust. 1 i 4, §13 — olimpiady: trzy stałe etapy, komitet główny, tryb odwoławczy',
+    'uso_44zx': 'Ustawa o systemie oświaty art. 44zx — laureat wojewódzkiego konkursu przedmiotowego jest zwolniony z tej części egzaminu ósmoklasisty',
+    'uso_44zzh': 'Ustawa o systemie oświaty art. 44zzh — laureat lub finalista olimpiady z wykazu jest zwolniony z matury z tego przedmiotu',
+    'po_132': 'Prawo oświatowe art. 132 — laureaci i finaliści w rekrutacji do szkół ponadpodstawowych; liczba punktów niesprawdzona',
+    'pswin_70_6': 'Prawo o szkolnictwie wyższym i nauce art. 70 ust. 6 — senat publikuje z wyprzedzeniem zasady przyjęć laureatów olimpiad',
+    'uokik_14_days': 'Rejestr klauzul niedozwolonych UOKiK — 7-dniowy termin reklamacji uznano za abuzywny; co najmniej 14 dni na złożenie i 14 na odpowiedź, gdy organizator jest przedsiębiorcą',
+    'uonpr_7': 'Ustawa o przeciwdziałaniu nieuczciwym praktykom rynkowym art. 7 pkt 16–17 — tylko gdy organizator jest przedsiębiorcą',
+    'dostepnosc_2019': 'Ustawa o zapewnianiu dostępności (2019) — wiąże organizatora publicznego (kuratora, szkołę publiczną), nie prywatnego',
+    'dsa_hosting': 'Akt o usługach cyfrowych art. 6, 14, 16, 17 — serwis jest usługą hostingu, nigdy przyrzekającym; polska ustawa obowiązuje od 6.11.2026',
 }
 
 LAW_MARKERS = ('verified', 'secondary', 'unverified', 'disputed')
@@ -274,6 +317,11 @@ _GOAL_COMMON = (
     ('The complaints window has closed with every complaint answered', 'Okno reklamacji zamknęło się, a każda reklamacja ma odpowiedź'),
 )
 _GOAL_PRIZE = (('Every prize has been handed over and its tax settled', 'Każda nagroda została wydana, a podatek rozliczony'),)
+#: The criteria that only mean something when a prize is promised — the `goal_criteria` twin of
+#: `PRIZE_ONLY_CHECKLIST`. `goal_criteria_for` drops them when the contest itself says there is no
+#: prize, which is the case a preset cannot know: `has_prize` is a field on the row (step A), and a
+#: founder may turn it off on a preset that normally promises one.
+PRIZE_ONLY_GOAL_CRITERIA = frozenset(_GOAL_PRIZE)
 
 _JURY_NEED = ('expertise', 'Jury member wanted', 'Poszukiwany członek jury', 2)
 _PROCTOR_NEED = ('help', 'Proctor for the on-site stage', 'Opiekun etapu stacjonarnego', 2)
@@ -410,6 +458,208 @@ PIT_68_THRESHOLD_PLN = 2000
 GROSS_UP_DIVISOR = 0.9
 
 
+# ---- what the preset becomes on the contest node (personalize.py) -------------------------------
+#
+# `personalize.apply_preset` turns a preset into rows in the OTHER apps — one `plans.Plan` with the
+# timeline, one `goals.Goal` whose criteria are the definition of done, one `tasks.Task` per
+# checklist item, the `needs.Need`s and one draft `decisions.Poll`. The MECHANISM is that module's;
+# the WORDS are here, with everything else a preset says, so that the two languages of a sentence
+# sit on one line and a reviewer can see that the Polish still says what the English does (the
+# `content/about.ts` reasoning, applied to a seed).
+#
+# Polish first in every pair below, because Polish is this platform's base interface language and
+# the original a `translations.TextVersion` row carries (`write_versions(original_locale='pl')`).
+
+
+@dataclass(frozen=True)
+class PlanPhase:
+    """One step of the contest's timeline, as a `plans.PlanStep`.
+
+    `anchor` says where its due date comes from, and the five values are the only dates a contest
+    has before step A's stage rows exist: `starts_at`, `registration_opens_at`,
+    `registration_closes_at`, `ends_at`, and `ends_at` plus the complaints window. A stage's own
+    two steps are generated per `StageTemplate` instead and carry its offsets.
+    """
+
+    key: str
+    title_en: str
+    title_pl: str
+    body_en: str
+    body_pl: str
+    #: `start` · `registration_opens` · `registration_closes` · `end` · `complaints_close` ·
+    #: `handover` (the prize-handover date, 30 days after the end) — or `none` for a step whose
+    #: date nobody can know yet.
+    anchor: str
+    #: False for a step that only exists when a prize is promised.
+    prize_only: bool = False
+
+
+#: The plan `apply_preset` writes, and the steps every contest's timeline has whatever its preset.
+#: The per-stage steps are inserted between `registration_closes` and `judging`, in stage order.
+PLAN_TITLE = ('Running the contest', 'Przeprowadzenie konkursu')
+PLAN_DESCRIPTION = (
+    'The timeline this kind of contest runs on, written from its preset when the contest was '
+    'founded. Dates come from the contest\'s own dates; a step whose date is not knowable yet is '
+    'left open. Edit it freely — this is a starting point, not a rule.',
+    'Kalendarz, według którego biegnie konkurs tego rodzaju, zapisany z wariantu w chwili '
+    'założenia konkursu. Terminy pochodzą z dat samego konkursu; krok, którego daty jeszcze nie '
+    'da się ustalić, pozostaje bez terminu. Można go dowolnie zmieniać — to punkt wyjścia, '
+    'nie reguła.',
+)
+
+PLAN_PHASES: tuple[PlanPhase, ...] = (
+    PlanPhase(
+        'announce', 'Announce the contest', 'Ogłoszenie konkursu',
+        'The rules are published and the contest leaves draft. Until it does, nobody but its staff '
+        'can see that it exists.',
+        'Regulamin jest opublikowany i konkurs wychodzi z wersji roboczej. Dopóki tego nie zrobi, '
+        'nikt poza organizatorami nie widzi, że istnieje.',
+        'start',
+    ),
+    PlanPhase(
+        'registration_opens', 'Registration opens', 'Otwarcie zapisów',
+        'Entrants can register from this moment. A minor needs a guardian\'s consent recorded on '
+        'the registration where the rules allow minors at all.',
+        'Od tej chwili można się zapisywać. Osoba niepełnoletnia potrzebuje zgody opiekuna '
+        'zapisanej przy zgłoszeniu — tam, gdzie regulamin dopuszcza udział niepełnoletnich.',
+        'registration_opens',
+    ),
+    PlanPhase(
+        'registration_closes', 'Registration closes', 'Zamknięcie zapisów',
+        'The last moment to enter. After it the list of entrants is the list of entrants.',
+        'Ostatni moment na zgłoszenie. Po nim lista uczestników jest już listą uczestników.',
+        'registration_closes',
+    ),
+    PlanPhase(
+        'judging', 'Judging', 'Ocenianie',
+        'Every stage is closed and the jury scores against the published criteria. A tie is broken '
+        'on merit and never by drawing lots.',
+        'Wszystkie etapy są zamknięte, a jury ocenia według opublikowanych kryteriów. Remis '
+        'rozstrzyga się merytorycznie, nigdy losowaniem.',
+        'end',
+    ),
+    PlanPhase(
+        'results', 'Publish the results', 'Ogłoszenie wyników',
+        'The ranking goes out in the form the rules promised — initials by default; a full name '
+        'only where the entrant consented to one separately.',
+        'Ranking idzie w świat w formie obiecanej w regulaminie — domyślnie inicjały; pełne imię '
+        'i nazwisko tylko tam, gdzie uczestnik zgodził się na to osobno.',
+        'end',
+    ),
+    PlanPhase(
+        'complaints_close', 'The complaints window closes', 'Zamknięcie okna reklamacji',
+        'Every complaint lodged within the window has an answer with reasons by this date.',
+        'Każda reklamacja złożona w terminie ma do tego dnia odpowiedź z uzasadnieniem.',
+        'complaints_close',
+    ),
+    PlanPhase(
+        'prizes_handed', 'Hand over the prizes', 'Wydanie nagród',
+        'Every prize is handed over by the date the rules give, and the tax on it is settled.',
+        'Każda nagroda jest wydana w terminie z regulaminu, a podatek od niej rozliczony.',
+        'handover', True,
+    ),
+    PlanPhase(
+        'close', 'Close the contest', 'Zamknięcie konkursu',
+        'Complaints decided, prizes handed over, certificates issued. Nothing more is owed.',
+        'Reklamacje rozstrzygnięte, nagrody wydane, zaświadczenia wystawione. Nic więcej nie jest '
+        'należne.',
+        'handover',
+    ),
+)
+
+#: A stage becomes two steps, so that "opens" and "closes" can be ticked apart — which is what the
+#: jury's work actually hangs on.
+STAGE_STEP_OPENS = ('{name} opens', 'Otwarcie: {name}')
+STAGE_STEP_CLOSES = ('{name} closes', 'Zamknięcie: {name}')
+
+GOAL_TITLE = (
+    'The contest is run the way its rules promise',
+    'Konkurs przeprowadzony tak, jak obiecuje regulamin',
+)
+GOAL_DESCRIPTION = (
+    'The lines below are what "done" means for this contest, and nothing else sets it: the status '
+    'is derived from them. They come from the contest\'s preset and are the organiser\'s to edit.',
+    'Poniższe punkty są definicją ukończenia tego konkursu i nic innego jej nie ustala: status '
+    'wynika z nich. Pochodzą z wariantu konkursu i organizator może je zmieniać.',
+)
+
+#: The one decision `apply_preset` opens, as a DRAFT poll: the jury confirming the ranking before it
+#: is published. A draft because a poll that opened itself would be a vote nobody was told about,
+#: and because `decisions/views.py` lets a draft's question still be edited.
+POLL_QUESTION = ('Confirm the final ranking', 'Zatwierdzenie końcowego rankingu')
+POLL_DESCRIPTION = (
+    'For the jury, before the results are published. A vote here records agreement; it does not '
+    'decide anything a criterion did not already decide — the ranking is the scores, and chance '
+    'never enters it.',
+    'Dla jury, przed opublikowaniem wyników. Głos tutaj zapisuje zgodę; nie rozstrzyga niczego, '
+    'czego nie rozstrzygnęły już kryteria — ranking to punkty, a los nigdy do niego nie wchodzi.',
+)
+POLL_OPTIONS = (
+    ('The ranking is confirmed', 'Ranking zatwierdzony'),
+    ('Not yet — it needs correcting', 'Jeszcze nie — wymaga korekty'),
+)
+
+#: A checklist item's `phase` -> how its task's due date is worked out. `complaint_window_days` is
+#: the contest's own (step A's field) or the preset's.
+TASK_PHASE_ANCHORS = {
+    'before_announce': 'start_minus_7',
+    'before_results': 'end',
+    'after_results': 'complaints_close',
+    'at_close': 'handover',
+}
+
+#: Days before `starts_at` a `before_announce` task is due, and days after `ends_at` the prizes are
+#: handed over. Both are the brief's (`prompts/19-contests-b-personalise.md`), not the law's: the
+#: law fixes the complaints window and the claim deadline, and leaves these to the organiser.
+BEFORE_ANNOUNCE_LEAD_DAYS = 7
+HANDOVER_DAYS_AFTER_END = 30
+
+#: Appended to every task description and shown by the compliance panel. CONTESTS-LAW.md §14: this
+#: project has never had a Polish lawyer read any of it, and the copy has to say so.
+NOT_LEGAL_ADVICE = (
+    'This is not legal advice. Every reference above carries how well it was checked, and nobody '
+    'on this project is a lawyer.',
+    'To nie jest porada prawna. Każde powołanie powyżej ma zapisane, jak dobrze zostało '
+    'sprawdzone, i nikt w tym projekcie nie jest prawnikiem.',
+)
+
+#: What a marker means where it is shown next to a citation. Mirrored in
+#: `frontend/src/lib/utils/labels.ts` as `LAW_MARKER_LABELS` (house rule 13, said in both).
+MARKER_WORDS = {
+    'verified': ('checked against the text', 'sprawdzone w tekście'),
+    'secondary': ('from an authoritative restatement', 'z autorytatywnego omówienia'),
+    'unverified': ('NOT checked — the number is from memory', 'NIESPRAWDZONE — numer z pamięci'),
+    'disputed': ('disputed — a lawyer must decide', 'sporne — musi rozstrzygnąć prawnik'),
+}
+
+#: The heading above the citations inside a task's description.
+LAW_HEADING = ('What this comes from', 'Z czego to wynika')
+
+
+def citation_block(law_keys, locale: str = 'en') -> str:
+    """The citations of one checklist item as Markdown, each with its marker, plus the
+    not-legal-advice sentence — the body `personalize` puts on a task.
+
+    Markers are rendered as words rather than as a bare `[UNVERIFIED]`, because the reader is an
+    organiser and not the person who wrote the research note. One bullet per citation, in the order
+    the item lists them.
+    """
+    index = 0 if locale != 'pl' else 1
+    lines = [f'**{LAW_HEADING[index]}**', '']
+    for key in law_keys:
+        entry = LAW.get(key)
+        if entry is None:
+            continue
+        citation, marker = entry
+        if index == 1:
+            citation = LAW_PL.get(key, citation)
+        word = MARKER_WORDS.get(marker, (marker, marker))[index]
+        lines.append(f'- {citation} — *{word}*')
+    lines.append('')
+    lines.append(f'*{NOT_LEGAL_ADVICE[index]}*')
+    return '\n'.join(lines)
+
+
 def get(key: str) -> Preset | None:
     return PRESETS.get(key)
 
@@ -421,11 +671,34 @@ def visible_to(user) -> list[Preset]:
     return [p for p in PRESETS.values() if is_staff or not p.staff_only]
 
 
-def checklist_for(preset: Preset) -> list[ChecklistItem]:
+def checklist_for(preset: Preset, has_prize: bool | None = None) -> list[ChecklistItem]:
+    """The legal checklist this contest owes, in order.
+
+    `has_prize` is the CONTEST's own answer when the caller has a row to ask (`personalize`, the
+    compliance panel); left `None` the preset's own default stands, which is what the presets
+    endpoint and the wizard's preview want before a contest exists. A prize turned OFF drops the
+    prize-only items; a prize turned ON on a preset that does not list them does NOT add them,
+    because a preset's `checklist` tuple is the list of what a contest of that kind owes and
+    inventing rows it never named would make the wizard's preview a lie. Turning a prize on where
+    the preset did not expect one is `open_online`'s job, and the wizard says so.
+    """
     items = [CHECKLIST[k] for k in preset.checklist]
-    if not preset.has_prize:
+    prize = preset.has_prize if has_prize is None else bool(has_prize)
+    if not prize:
         items = [c for c in items if c.key not in PRIZE_ONLY_CHECKLIST]
     return items
+
+
+def goal_criteria_for(preset: Preset, has_prize: bool | None = None) -> list[tuple[str, str]]:
+    """The goal's definition of done: `(en, pl)` per line, in order. Same `has_prize` rule as
+    `checklist_for` — "every prize handed over and its tax settled" is not a condition a prize-free
+    challenge can ever meet, and a criterion nobody can tick is a definition of done that never
+    completes (`goals.rules.recount` derives `met` from the list, house rule 5)."""
+    prize = preset.has_prize if has_prize is None else bool(has_prize)
+    criteria = list(preset.goal_criteria)
+    if not prize:
+        criteria = [c for c in criteria if c not in PRIZE_ONLY_GOAL_CRITERIA]
+    return criteria
 
 
 def sections_for(preset: Preset) -> list[RulesSection]:
@@ -435,7 +708,10 @@ def sections_for(preset: Preset) -> list[RulesSection]:
 def law_as_api() -> dict:
     """`{key: {citation, marker}}`, sent ONCE beside the presets rather than repeated on every
     checklist line — the frontend's compliance panel joins on the key."""
-    return {k: {'citation': c, 'marker': m} for k, (c, m) in LAW.items()}
+    return {
+        k: {'citation': c, 'citation_pl': LAW_PL.get(k, c), 'marker': m}
+        for k, (c, m) in LAW.items()
+    }
 
 
 def preset_to_api(preset: Preset) -> dict:

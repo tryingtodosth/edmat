@@ -1,7 +1,7 @@
 """Which management rows carry translatable text, and what their two text columns are called.
 
 The registry half of this app's polymorphic target (root CLAUDE.md: "A polymorphic target is a
-`GenericForeignKey` plus a registry"). Eight entries, and like every other registry here it is
+`GenericForeignKey` plus a registry"). Ten entries, and like every other registry here it is
 deliberately its own length: this is the MANAGEMENT layer's text (MANAGEMENT-BRIEF.md), the part
 the owner named on 2026-10-08. An exercise, a material and a concept article all have translations
 already, through their own per-model tables with a review workflow — see `translations/models.py`
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from django.contrib.contenttypes.models import ContentType
 
+from contests.models import Contest
 from decisions.models import Poll, PollOption
 from goals.models import Goal, GoalCriterion
 from needs.models import Need
@@ -44,6 +45,15 @@ TRANSLATABLE_KIND_MODELS = {
     # definition of done nobody can read is not a definition of anything.
     'goal': (Goal, 'title', 'description'),
     'goal_criterion': (GoalCriterion, 'text', None),
+    # A contest (contests/, CONTESTS-BRIEF.md §3.B, 2026-10-09). The `task` shape — a title and a
+    # description — and the first entry here that is NOT a management row but a node of its own.
+    # It belongs in this table and not in `ExerciseTranslation`'s: a contest's name and the
+    # paragraph under it are written by the people running it, in every language they run it in, and
+    # there is no review queue for an organiser translating their own announcement. The regulamin
+    # is a different matter and is NOT in here — step A's `ContestRulesSection` rows are versioned
+    # legal text whose translation is a decision somebody signs off, not a field in a side-by-side
+    # editor; `todo.md` carries it.
+    'contest': (Contest, 'title', 'description'),
 }
 
 _REVERSE_KIND_MODELS = {model: kind for kind, (model, _h, _b) in TRANSLATABLE_KIND_MODELS.items()}

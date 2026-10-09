@@ -77,9 +77,9 @@
 	<!-- learning: showcase (G) — the index of the design showcase pages under /about/<feature>. -->
 	<ShowcaseIndex />
 
-	<!-- contests: showcase (B) — step B adds its /about/contests card to ShowcaseIndex itself (the
-	     index is a list in that component); this marker only records that the page is not otherwise
-	     touched. -->
+	<!-- contests: showcase (B) — DONE. The /about/contests card is in `SHOWCASE_PAGES`
+	     (`lib/content/showcase/index.ts`), which is what `<ShowcaseIndex />` above draws, so this
+	     page needed no markup of its own. The marker is left in place as the record of that. -->
 	<!-- learning: guide (H) — the one link into the manual at /about/guide. -->
 	<section class="about__section about__manual">
 		<h2>{m.guide_aboutLink()}</h2>

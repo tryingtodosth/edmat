@@ -15354,3 +15354,187 @@ Everything in `CONTESTS-BRIEF.md` §3 and §5. Named here so it is not rediscove
 panel is A's; the translations panel and the discussion under a contest page are mounted by the
 integrator at A's markers; the DPA template and the four notifications are nobody's yet.
 
+
+---
+
+## 17CE.B. Every other module made contest-aware — the preset as rows, nine registries, `/about/contests`, the manual chapter (2026-10-09)
+
+Step B of the contests cycle (`prompts/19-contests-b-personalise.md`, `CONTESTS-BRIEF.md` §3.B),
+built on `contest/b-personalise` from the prep `75a6fea` while step A built the app and its pages on
+`contest/a-core`. The owner's ask of that afternoon was two sentences and this is the second of
+them: *"personalize all current modules to this use case"*.
+
+A contest owns almost nothing of what it takes to run one. Its timeline is a `plans.Plan`, its
+definition of done is a `goals.Goal` and its criteria, its legal checklist is one `tasks.Task` per
+item, "jury member wanted" is a `needs.Need`, and the jury confirming the ranking is a
+`decisions.Poll` — all five hung off the contest **as a node** (`config/nodes.py`), which is the
+whole reason `contests` could be a small app. This step wrote the thing that puts them there, and
+then taught nine other registries that a contest exists.
+
+### Presets and personalisation
+
+`contests/presets.py` gained the words and `contests/personalize.py` gained the mechanism, and the
+split is deliberate: a preset is DATA, so both languages of a sentence sit on one line where a
+reviewer can see that the Polish still says what the English does (`content/about.ts`'s reasoning,
+applied to a seed). What `presets.py` grew: `PLAN_TITLE`/`PLAN_DESCRIPTION` and eight `PlanPhase`
+rows (the timeline, one per phase, each with the anchor its due date comes from), `STAGE_STEP_OPENS`
+/`STAGE_STEP_CLOSES` (a stage becomes **two** steps, because that is where the jury's work starts and
+stops and a single step for a stage cannot be half done), `GOAL_TITLE`/`GOAL_DESCRIPTION`,
+`POLL_QUESTION`/`POLL_DESCRIPTION`/`POLL_OPTIONS`, `TASK_PHASE_ANCHORS`, `MARKER_WORDS`,
+`NOT_LEGAL_ADVICE`, and `citation_block()` — the Markdown a task's description carries, one bullet
+per citation with its verification marker as a WORD rather than a bracketed tag from the research
+note, and the sentence saying none of it is advice.
+
+**`LAW_PL`, 32 rows, is the one addition nobody asked for and the file needed.** `LAW`'s citations
+were English glosses of Polish statutes, and a Polish reader being shown "no claim deadline ⇒ the
+promise is bezskuteczne" next to *Kodeks cywilny art. 921 §1* is exactly the drift house rule 1
+exists to stop. A separate table rather than a third element on every tuple, because step A reads
+`LAW` and `law_as_api()` and a changed tuple shape would have broken it mid-build; `law_as_api()`
+now answers `citation_pl` beside `citation`, which is additive.
+
+`checklist_for` and the new `goal_criteria_for` both take an optional `has_prize` override, because
+the one fact a preset cannot know is whether THIS contest promises a prize — `has_prize` is a field
+on the row (step A's) and a founder may turn it off on a preset that normally promises one. Turning
+it OFF drops the prize-only items; turning it ON does not invent rows the preset never named, and
+the docstring says why.
+
+`apply_preset(contest, actor)` returns the stub's own shape and is built to three rules:
+
+1. **Through each app's own path.** Every row goes through that app's write serializer, so its
+   validation and its `sanitize_content` run (house rule 8), after that app's rule module has said
+   the actor may create it — `tasks.rules.can_create` for the tasks (any node staff), and
+   `config.nodes.can_manage_node` for the other four. A second copy of "may this person" here is how
+   two surfaces start disagreeing. `work/edmat_project.py` is the precedent for everything else
+   about the shape, including the bilingual text.
+2. **A module that is off is a word in `skipped`, never an exception** (house rule 10). The function
+   is called from `ContestViewSet.create`, so a `tasks` kill switch must not be a 500 on founding a
+   contest. `_enabled` asks whether the app is INSTALLED first, so a bare clone that dropped one
+   reads as "not here" rather than crashing.
+3. **Idempotent row by row, keyed by title on the node**, with `already_personalised` in `skipped`
+   when nothing new was created. No marker table — a title on a node is what every other seed here
+   keys on, and step B is forbidden a migration in `contests/` anyway. The useful consequence is
+   that switching `needs` back on and re-running fills in the rows the kill switch cost, which a
+   single "already done" flag could never do.
+
+Everything it writes is bilingual in ONE submission through `translations.services.write_versions`,
+Polish the original — which is what keeps a row this created from ever telling a reader that the
+Polish is four minutes newer than the English.
+
+Dates come from the contest's four datetimes and the preset's stage offsets, and **a step or task
+whose anchor is empty gets no due date at all**: an invented deadline on a legal checklist is worse
+than an open one. `complaint_window_days` and `has_prize` are read with `getattr` and fall back to
+the preset, because step A adds those fields — which is not defensiveness for its own sake but what
+let the two branches be built at once, and stays correct afterwards.
+
+### The nine registries, and the two that needed more than a line
+
+| Registry | What it took |
+|---|---|
+| `community/targets.py` | `('contests','contest'): 'contest'`, and NOT in `PRIVATE_TARGET_TYPES` — a contest's visibility is a per-ROW answer in the same shape a draft exercise's is |
+| `community/discussions.py` | `contests` in `MANAGEMENT_PAGE_RE` + `MANAGEMENT_KINDS` + `_row_visible` → `contests.access.can_view`; page key `contests/5`, by pk |
+| `moderation/services.py` | `REPORT_KIND_MODELS['contest']`, the Event posture — remove HIDES (`visibility='private'`) and never sets `cancelled` |
+| `galleries/` | `GALLERY_TARGETS` + both halves of `visibility.py`: readable as the contest is, curated by its organisers only |
+| `translations/` | `TRANSLATABLE_KIND_MODELS['contest']` = title + description, `authority.py` → `contests.access.can_manage` |
+| `flashcards/models.py` | `PLACEABLE_NODE_KINDS` gains `contest` — a practice deck for a cohort getting ready for a date, which is why an organisation still does not qualify |
+| `activity/` | two kinds, a typed `contest` FK, migration `0008`, two `post_save` receivers and the forgetting half |
+| `work/` | four sections registered under the `contests` flag, and the four keys in `_SECTION_ORDER` |
+| `identity/record.py` | a THIRD block, `placements`, with its own provider registry |
+
+**`community/discussions.py` needed a third set, `NODE_KINDS_HERE`.** `management_rows` prefetches
+`'node'` on every id-addressed kind, and a `Contest` has no such relation — asking for one raises. An
+organisation escaped it only because it is slug-addressed, which conflated two different facts; the
+new set says the real one ("this row IS a node") and `SLUG_KINDS` goes back to meaning only how the
+key is spelled.
+
+**`translations/resolve.py: _versions` had a silent wrong answer in it.** Its docstring promised a
+query fallback for a model without the `GenericRelation`; the code returned `[]`. `Contest` is the
+first registered kind that has no relation — it needs no migration but it is a line in
+`contests/models.py`, which step B does not own — so a contest somebody HAD translated would have
+read back as untranslated. The fallback is now real: one query per object, named as the cost, and it
+disappears the moment the relation is added.
+
+**The report serializer is the one place a visibility rule had to be added rather than joined.**
+`ReportCreateSerializer.validate` checked existence as "the row is in the table", which is right for
+every other kind — an exercise, a comment, a listing is public the moment it is written. A draft
+contest is not, so a reporting form that confirmed one exists would be a way to enumerate drafts by
+id (house rule 4). `_target_exists` asks `contests.access.visible_contests` for that one kind and
+answers the endpoint's existing 400 "No matching content found", which is the honest meaning.
+
+**The activity rows are public by construction, strictly.** Two kinds — `contest` on the transition
+INTO `Contest.is_public`, `contest_results` when that public row reaches `results_published` — both
+on a status transition rather than on creation, because `is_public` is `status` AND `visibility` and
+announcing a PRIVATE contest must write nothing. Cancelling or pulling it back to private calls
+`remove_activity_for`, which takes both rows. `_remember_contest` is the `pre_save` twin of the
+course's and the event's.
+
+### The pages
+
+**`/about/contests`** is the eighth showcase page and the only one whose subject is mostly law,
+which changed how it is written: the other seven describe a design, and a reader who misreads one
+loses a feature; a reader who misreads this one runs a contest that is *bezskuteczne*. So every
+article number on it carries its verification marker from `LAW_MARKER_LABELS` — the same map step A's
+compliance panel reads — and "this is not legal advice" is said twice, once under the law table and
+once in the closing paragraph, so that a reader who stops at the five rules has read it and so has
+one who reads only the end. Six sections, all discussable; ten preset cards through a new
+`ContestPresetCard` (its own component because a preset has one thing to say that no `SampleRows`
+row does: whether it promises a prize, which decides whether the whole public-promise regime
+applies).
+
+**`/about/guide/contests`** is the manual's twelfth chapter, twelve steps, written against step A's
+pages as `CONTESTS-BRIEF.md` §3.A describes them — and with **no screenshots**, which its own
+closing note says plainly. The manual's standing promise is that every picture in it is a photograph
+of the running site; a chapter with drawings would break that, and the integrator re-shoots them
+after the merge. It is NOT marked `pending`, because the text is finished and `pending` tells a
+reader there is nothing there to read.
+
+`labels.ts` gained six maps and two key lists under a comment naming `presets.py` and `models.py`;
+`presets.py` names them back. `Record<string, …>` rather than string-literal unions, deliberately: a
+type declared in both halves of a two-branch build is a merge conflict for no benefit, and the
+integrator can tighten it.
+
+### Verified
+
+From the worktree, on ports 8172/5272, with Node 24 first on `PATH`:
+
+- `manage.py test contests --keepdb` — **78 tests, OK, 64 s**. Two failures on the first run and
+  both were real: `work/providers.py` had never been edited (a Python heredoc whose later half
+  raised a `SyntaxError`, so the whole script was a no-op — the test that asserted
+  `_SECTION_ORDER` is what caught it), and `Profile.is_minor` is a stored flag, not a birth year.
+- `manage.py test contests community moderation galleries translations flashcards activity work
+  identity tasks needs plans decisions goals config --parallel 4 --keepdb` — see the board entry for
+  the number.
+- `manage.py check` — no issues. `makemigrations --check --dry-run` — no changes.
+  `testing/check_databases_declared.py` — **0 classes still unresolved, in 0 files**.
+- `npm run check` — **0 errors, 0 warnings, 6621 files**. `npm run build` — built in 50 s, with
+  `build/about/contests.html` and `build/about/guide/contests.html` both present.
+- `npx eslint .` — 2 errors, **both pre-existing at the prep commit** and reproduced there:
+  `e2e/attachments.mjs`'s unused `API` and `Header.svelte`'s `canContests`, which is the prep's own
+  marker for step A to use.
+- `e2e/contests-personalise.mjs` — see the board entry.
+
+### Left open
+
+- **No notifications.** Rule 12 of the brief forbids a new type, and four were wanted: **a
+  registration decided**, **a stage opened**, **results published**, **a complaint answered**. Each
+  is a row in `_PREFERENCE_FIELD_FOR_TYPE` and a label in `labels.ts`, and all four want the same
+  recipient logic the event app already has.
+- **A DPA (umowa powierzenia) between EdMat and an organiser** does not exist. `LEGAL.md` §9 says
+  the processor relationship requires one under GDPR art. 28(3), and §10 now names it.
+- **A contest has no `language` column**, so a reader who narrows the activity feed with
+  `?content_locales=` does not see contest rows — the same as concept rows today
+  (`activity/services.py: _content_locale_feed_filter`). Fixing it means a column on `Contest`,
+  which is step A's migration, not B's.
+- **The regulamin is not in `translations/`.** `ContestRulesSection` is versioned legal text whose
+  translation is a decision somebody signs off, not a field in a side-by-side editor;
+  `translations/targets.py` says so at the contest entry.
+- **No `GenericRelation` on `Contest`** for `text_versions`, so every contest's text resolution is
+  one extra query (above). It is one line in step A's file and adds no column.
+- **The manual hub still promises a screenshot in every chapter** and the contests chapter has none
+  until the integrator re-shoots them.
+- **The work dashboard's four sections are empty on this branch** — `contests/work.py` is step A's
+  and answers `[]` — so what B's tests pin is that the sections are registered under the right flag
+  and that registering them broke nothing. The same is true of the profile's `placements` block,
+  which is tested with a monkeypatched provider.
+- **`contests/models.py`'s mirror comment does not name the new `labels.ts` maps.** It already says
+  the file is mirrored there; naming `CONTEST_STATUS_LABELS` and `CONTEST_STAFF_ROLE_LABELS` would
+  have meant editing step A's file, so it is on the board for the integrator instead.

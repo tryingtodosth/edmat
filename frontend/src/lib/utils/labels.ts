@@ -1301,3 +1301,110 @@ export const LEARNING_RECORD_METRIC_HINTS: Record<string, () => string> = {
 export function learningRecordMetricLabel(key: string): () => string {
 	return LEARNING_RECORD_METRICS[key] ?? (() => key);
 }
+
+// Contests — a hand-maintained mirror of `backend/contests/presets.py` (`PRESET_KEYS`,
+// `PRIZE_REGIMES`, `ORGANISER_KINDS`, `LAW_MARKERS`/`MARKER_WORDS`) and of
+// `backend/contests/models.py` (`STATUS_CHOICES`, `STAFF_ROLE_CHOICES`). Both of those files say
+// so from their side (house rule 13: said in both, because this is where drift creeps in). A value
+// added on the server and not here shows a reader the raw key, which is ugly rather than broken —
+// every lookup below falls through to it on purpose.
+//
+// `Record<string, …>` and not a string-literal union, deliberately: steps A and B of the contests
+// cycle were built at the same time and a type declared in both halves is a merge conflict for no
+// benefit. The ORDER of `CONTEST_PRESET_KEYS` is `presets.PRESET_KEYS` — the safe default first,
+// the two staff-only ones last — because that is the order the wizard shows them in.
+
+export const CONTEST_PRESET_KEYS: string[] = [
+	'challenge',
+	'school',
+	'staged',
+	'university',
+	'student_circle',
+	'organization',
+	'open_online',
+	'team',
+	'kuratorium',
+	'olympiad'
+];
+
+export const PRESET_LABELS: Record<string, () => string> = {
+	challenge: m.contestPreset_challenge, // "Challenge (no prize)"
+	school: m.contestPreset_school, // "School contest"
+	staged: m.contestPreset_staged, // "Multi-stage contest"
+	university: m.contestPreset_university, // "University or faculty contest"
+	student_circle: m.contestPreset_student_circle, // "Student circle contest"
+	organization: m.contestPreset_organization, // "On behalf of an organisation"
+	open_online: m.contestPreset_open_online, // "Open online contest with prizes"
+	team: m.contestPreset_team, // "Team contest"
+	kuratorium: m.contestPreset_kuratorium, // "Kurator's subject contest"
+	olympiad: m.contestPreset_olympiad // "Subject olympiad"
+};
+
+// Not a tax calculation and never drawn as one — each label says which exemption a contest of this
+// kind PLEADS, which is the organiser's decision and not this site's. `presets.py` carries the
+// article numbers and their verification markers; the compliance panel (step A) draws those.
+export const PRIZE_REGIME_LABELS: Record<string, () => string> = {
+	none: m.contestLabel_regime_none, // "No prize, so no tax"
+	pupil_exempt_115: m.contestLabel_regime_pupil_exempt_115, // "Pupils' prizes, exempt without a cap"
+	science_68_then_10pct: m.contestLabel_regime_science_68_then_10pct, // "Up to 2 000 zł exempt as science, 10% above it"
+	flat_10pct: m.contestLabel_regime_flat_10pct // "10% withheld, no exemption claimed"
+};
+
+// WHO promised the prize — which under KC art. 919 §1 is who is bound by it, who is the data
+// controller and who is the płatnik. It is the first thing on a contest page for that reason.
+export const ORGANISER_KIND_LABELS: Record<string, () => string> = {
+	person: m.contestLabel_organiser_person, // "A person"
+	organization: m.contestLabel_organiser_organization, // "An organisation"
+	kurator: m.contestLabel_organiser_kurator, // "A kurator oświaty"
+	committee: m.contestLabel_organiser_committee // "A committee"
+};
+
+// How well a legal citation was checked (`CONTESTS-LAW.md`'s own four markers). Shown next to every
+// article number this site prints, because the research behind them was done by nobody who is a
+// lawyer and presenting an unverified number as settled would be the dishonest part.
+export const LAW_MARKER_LABELS: Record<string, () => string> = {
+	verified: m.contestLabel_marker_verified, // "Checked against the text"
+	secondary: m.contestLabel_marker_secondary, // "From an authoritative restatement"
+	unverified: m.contestLabel_marker_unverified, // "Not checked — from memory"
+	disputed: m.contestLabel_marker_disputed // "Disputed — a lawyer must decide"
+};
+
+// One lifecycle field, in the order a contest moves through it (`contests/models.py`). `cancelled`
+// is reachable from anything but `closed` and is last here because it is off the main line.
+export const CONTEST_STATUS_KEYS: string[] = [
+	'draft',
+	'announced',
+	'registration_open',
+	'running',
+	'judging',
+	'results_published',
+	'closed',
+	'cancelled'
+];
+
+export const CONTEST_STATUS_LABELS: Record<string, () => string> = {
+	draft: m.contestLabel_status_draft, // "Draft"
+	announced: m.contestLabel_status_announced, // "Announced"
+	registration_open: m.contestLabel_status_registration_open, // "Registration open"
+	running: m.contestLabel_status_running, // "Running"
+	judging: m.contestLabel_status_judging, // "Judging"
+	results_published: m.contestLabel_status_results_published, // "Results published"
+	closed: m.contestLabel_status_closed, // "Closed"
+	cancelled: m.contestLabel_status_cancelled // "Cancelled"
+};
+
+// Role presets, never a permission editor (MANAGEMENT-BRIEF.md §1). Only `organiser` manages;
+// `jury` scores and nothing else; a `proctor` supervises a stage without scoring; a `secretary`
+// handles entries and complaints.
+export const CONTEST_STAFF_ROLE_LABELS: Record<string, () => string> = {
+	organiser: m.contestLabel_role_organiser, // "Organiser"
+	jury: m.contestLabel_role_jury, // "Jury member"
+	proctor: m.contestLabel_role_proctor, // "Proctor"
+	secretary: m.contestLabel_role_secretary // "Secretary"
+};
+
+/** The label for a value this map does not know, falling back to the raw key — the
+ *  `learningRecordMetricLabel` posture: an ugly word beats a blank space. */
+export function contestLabel(map: Record<string, () => string>, key: string): string {
+	return (map[key] ?? (() => key))();
+}

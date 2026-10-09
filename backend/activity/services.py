@@ -38,6 +38,7 @@ def record_activity(
     service=None,
     post=None,
     concept=None,
+    contest=None,
     source=None,
     branch=None,
     discipline=None,
@@ -54,7 +55,9 @@ def record_activity(
     `branch`/`discipline`/`tags` scope the row for filters and the Followed view; `branch` is
     derived from the link target when not given.
     """
-    link_target = exercise or material or course or happening or service or post or concept
+    link_target = (
+        exercise or material or course or happening or service or post or concept or contest
+    )
     if source is None:
         source = link_target
     if branch is None:
@@ -78,6 +81,7 @@ def record_activity(
         service=service,
         post=post,
         concept=concept,
+        contest=contest,
         source_content_type=(
             ContentType.objects.get_for_model(type(source)) if source is not None else None
         ),
@@ -113,6 +117,7 @@ def remove_activity_for(obj) -> int:
         ('service', 'service'),
         ('post', 'post'),
         ('concept', 'concept'),
+        ('contest', 'contest'),
     ):
         if type(obj).__name__.lower() == model_name:
             q = q | Q(**{field: obj})

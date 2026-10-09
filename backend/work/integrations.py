@@ -20,6 +20,10 @@ from . import providers
 
 
 def _only(kind, work_items):
+    # `work/builtin.py: _of_kind` is the second copy of this, and that file says so from its side
+    # (house rule 13): it cannot import this module, because `work/apps.py` loads it first and this
+    # one registers the management providers — and so imports four apps' models — at import time.
+
     def provider(user):
         return [item for item in work_items(user) if item.get('kind') == kind]
 

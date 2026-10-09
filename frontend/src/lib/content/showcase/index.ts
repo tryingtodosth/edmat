@@ -23,9 +23,18 @@
  * design is and must be re-read once its feature has actually landed.
  */
 
-/** The seven pages, by their URL segment under `/about/`. */
+/** The eight pages, by their URL segment under `/about/`. `contests` is the eighth (2026-10-09,
+ *  CONTESTS-BRIEF.md §3.B) and the only one whose subject is mostly law rather than design — see
+ *  `content/showcase/contests.ts` for what that changes about how it is written. */
 export type ShowcaseSlug =
-	'exercises' | 'flashcards' | 'learning-record' | 'courses' | 'schools' | 'concepts' | 'events';
+	| 'exercises'
+	| 'flashcards'
+	| 'learning-record'
+	| 'courses'
+	| 'schools'
+	| 'concepts'
+	| 'events'
+	| 'contests';
 
 /**
  * One entry of the index. The shape is fixed by `prompts/08-about-showcase.md` because step H (the
@@ -93,14 +102,14 @@ export interface ShowcaseIndexDoc {
 const INDEX_EN: ShowcaseIndexDoc = {
 	heading: 'See how each part of it works',
 	intro:
-		'Seven pages, one per piece of the site, each drawn with the real components and sample data — so you can see what a course with a deck on it, a learning record or a school on EdMat actually looks like without signing in or joining anything. Nothing on them is live.',
+		'Eight pages, one per piece of the site, each drawn with the real components and sample data — so you can see what a course with a deck on it, a learning record, a school on EdMat or a contest with a jury actually looks like without signing in or joining anything. Nothing on them is live.',
 	cardCta: 'See the design'
 };
 
 const INDEX_PL: ShowcaseIndexDoc = {
 	heading: 'Zobacz, jak działa każda część',
 	intro:
-		'Siedem stron, jedna na każdy element serwisu, narysowanych prawdziwymi komponentami na przykładowych danych — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki albo szkoła w EdMacie, bez zakładania konta i bez dołączania do czegokolwiek. Nic na nich nie jest prawdziwe.',
+		'Osiem stron, jedna na każdy element serwisu, narysowanych prawdziwymi komponentami na przykładowych danych — żeby dało się zobaczyć, jak naprawdę wygląda kurs z talią fiszek, rejestr nauki, szkoła w EdMacie albo konkurs z jury, bez zakładania konta i bez dołączania do czegokolwiek. Nic na nich nie jest prawdziwe.',
 	cardCta: 'Zobacz'
 };
 
@@ -178,6 +187,17 @@ export const SHOWCASE_PAGES: ShowcasePage[] = [
 				l,
 				'A programme session you can take home as a deck, and the courses an event meets through the organisation that runs both.',
 				'Sesja z programu, którą można zabrać do domu jako talię, i kursy, z którymi wydarzenie spotyka się przez organizację prowadzącą jedno i drugie.'
+			)
+	},
+	{
+		slug: 'contests',
+		titleFor: (l) =>
+			pick(l, 'Contests, and what a prize brings', 'Konkursy i to, co przynosi nagroda'),
+		blurbFor: (l) =>
+			pick(
+				l,
+				'A jury, stages and a published ranking — and the Polish law that a promised prize turns on, with every citation saying how well it was checked.',
+				'Jury, etapy i publikowany ranking — oraz polskie prawo, które włącza przyrzeczona nagroda, z informacją przy każdym powołaniu, jak dobrze zostało sprawdzone.'
 			)
 	}
 ];

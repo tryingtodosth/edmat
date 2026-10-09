@@ -232,6 +232,7 @@ class ActivityEventSerializer(serializers.ModelSerializer):
             'post_detail',
             'concept',
             'concept_slug',
+            'contest',
             'branch',
             'discipline',
             'tags',

@@ -54,6 +54,14 @@ _SECTION_ORDER = [
     # deadline in it (`flashcards/work.py` — urgency never reaches 3), so it reads after everything
     # somebody could actually be late for.
     'cards_due',
+    # Contests (contests/, CONTESTS-BRIEF.md §3.B). After the cards for the same reason the cards
+    # are after everything else: a contest's rows carry real dates, but this is the newest section
+    # and putting it above a reader's overdue tasks would reorder a page people already read.
+    # The four keys ARE the four kinds `contests/work.py` yields.
+    'contest_registration',
+    'contest_judging',
+    'contest_complaint',
+    'contest_stage',
 ]
 
 

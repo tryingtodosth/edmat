@@ -6,7 +6,8 @@ class IdentityConfig(AppConfig):
     name = 'identity'
 
     def ready(self):
-        """Register the activity providers other apps own (`prompts/10-integration.md` §3).
+        """Register the activity and placement providers other apps own
+        (`prompts/10-integration.md` §3; CONTESTS-BRIEF.md §3.B for the placements).
 
         A provider lives in the app that owns the rows it counts and never imports `identity`
         (`prompts/README.md` §5 rule 13); this is the one place that wires them together, so the
@@ -27,10 +28,16 @@ class IdentityConfig(AppConfig):
         app registry), which is why `register_activity_provider` is idempotent and why registering
         here is safe rather than another way to double a count.
         """
+        from contests.record import placements_for as contest_placements
         from courses.record import activity_by_branch as courses_activity
         from flashcards.record import activity_by_branch as flashcards_activity
 
-        from .record import register_activity_provider
+        from .record import register_activity_provider, register_placement_provider
 
         register_activity_provider(courses_activity)
         register_activity_provider(flashcards_activity)
+        # The third block (CONTESTS-BRIEF.md §3.B): what this person was awarded in a contest
+        # somebody else ran. A PLACEMENT provider and not an activity one — see `record.py`'s own
+        # "Why it is a third block and not a third column". Step A writes the body (it owns the
+        # result rows); on its own branch it answers `[]`, so the block is simply empty.
+        register_placement_provider(contest_placements)

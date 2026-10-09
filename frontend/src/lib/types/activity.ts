@@ -20,7 +20,14 @@ export type FeedKind =
 	// a new published revision. "This idea now has a page" and "a page you may have read has
 	// changed" are different things to a reader. Both link through the concept.
 	| 'concept'
-	| 'concept_revision';
+	| 'concept_revision'
+	// Contests (contests/). Two kinds, the `concept`/`concept_revision` split: 'contest' is an
+	// announcement — a contest leaving draft into public view, the moment somebody can decide to
+	// enter — and 'contest_results' is the ranking being published, which is a different thing to a
+	// reader (one says "you can take part", the other says "it is over"). Both link through the
+	// contest, and both leave the feed the moment it is cancelled or pulled back to private.
+	| 'contest'
+	| 'contest_results';
 
 /** One anchored micro-post: your words + exactly one discipline/branch/tag anchor + optionally one
  * referenced exercise/material/course + optionally one (re-encoded) image. A removed/auto-hidden
@@ -71,6 +78,8 @@ export interface FeedItem {
 	/** The concept a 'concept'/'concept_revision' row is about, as its SLUG — `/concepts/[slug]`
 	 * is keyed by the slug, and an article or a revision has no page of its own. */
 	conceptSlug?: string;
+	/** The contest a 'contest'/'contest_results' row is about — `/contests/[id]`, by id. */
+	contestId?: string;
 	branchId?: string;
 	disciplineId?: string;
 	tags: string[];

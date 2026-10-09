@@ -42,6 +42,13 @@ GALLERY_TARGETS = {
     ('materials', 'material'): 'material',
     ('exercises', 'exercise'): 'exercise',
     ('activity', 'post'): 'post',
+    # A contest (contests/, CONTESTS-BRIEF.md §3.B, 2026-10-09): photographs of the final — the
+    # room, the board, the people who came. The first target here that is a NODE rather than a
+    # piece of content, and the reason it earns a place where a coverage claim does not is that an
+    # on-site stage is a real afternoon in a real hall, which is exactly the thing people take
+    # pictures of. `galleries/visibility.py` carries the per-target readability rule, and the two
+    # files have to change together.
+    ('contests', 'contest'): 'contest',
 }
 GALLERY_TARGET_MODELS = {name: key for key, name in GALLERY_TARGETS.items()}
 

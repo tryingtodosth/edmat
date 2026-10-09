@@ -214,7 +214,7 @@ def place_block_reason(user, deck: Deck, node) -> str | None:
 
     1. `not_owner` — placing somebody else's deck is not yours to do, even on a course you run.
        (Staff bypass, as everywhere.)
-    2. `kind` — only a course or an event (`PLACEABLE_NODE_KINDS`); a deck on a material or an
+    2. `kind` — only a course, an event or a contest (`PLACEABLE_NODE_KINDS`); a deck on a material or an
        organisation answers no question anybody asked, and `None` for an unknown kind too.
     3. `cannot_manage` — putting study material on a course is running it, not joining it.
     4. `already_placed` — the deck is already there. The *world moved*, not a question about who is

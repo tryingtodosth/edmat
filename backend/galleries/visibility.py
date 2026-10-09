@@ -34,6 +34,15 @@ def target_is_readable(target, user) -> bool:
             user.is_staff or target.author_id == user.pk
         )
 
+    if (app_label, model) == ('contests', 'contest'):
+        # A contest's album is exactly as visible as the contest (`contests.access.can_view`): a
+        # draft does not exist for a stranger, so neither do its pictures. Asked of that app rather
+        # than re-derived from `status`/`visibility` here, which is the one way this answer and the
+        # contest page's could ever disagree.
+        from contests.access import can_view
+
+        return can_view(user, target)
+
     # A target type nobody has taught this function about is not readable, rather than readable by
     # default. `GALLERY_TARGETS` and this file have to be changed together and the failure of
     # forgetting should be "no gallery" rather than "an unguarded one".
@@ -68,5 +77,13 @@ def can_curate(target, user) -> bool:
 
     if (app_label, model) == ('exercises', 'exercise'):
         return is_governor_of_course(user, target.branch)
+
+    if (app_label, model) == ('contests', 'contest'):
+        # Its organisers put the pictures of their own final in order. NOT every staff member: a
+        # jury member scores and nothing else (`contests/models.py: ORGANISING_ROLES`), and
+        # curating is the narrower right on every other target here too.
+        from contests.access import can_manage
+
+        return can_manage(user, target)
 
     return False

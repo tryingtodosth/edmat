@@ -217,6 +217,17 @@
 					<option value="concept">{m.activity_kind_concept()}</option>
 					<!-- "New concept" -->
 				{/if}
+				<!-- Contests, the opposite choice from the one above it and for the same reason: an
+				     announcement and a result are two things a reader filters to SEPARATELY ("what
+				     can I enter" and "who won"), where a new concept and a changed one are one
+				     subject. Behind the flag, so a killed feature loses its filter options too
+				     (house rule 3). -->
+				{#if featureFlagsStore.isEnabled('contests')}
+					<option value="contest">{m.contestLabel_activityKind_contest()}</option>
+					<!-- "New contest" -->
+					<option value="contest_results">{m.contestLabel_activityKind_results()}</option>
+					<!-- "Contest results" -->
+				{/if}
 			</select>
 		</label>
 		<label class="filter">

@@ -82,7 +82,14 @@ NAME_MAX_LENGTH = 120
 #: is "study this before week 3" / "take this home"; a deck on a *material* or an *organisation*
 #: answers no question anybody asked, and a kind nobody can see the point of is a kind whose
 #: visibility rule nobody checks.
-PLACEABLE_NODE_KINDS = ('course', 'event')
+#:
+#: `contest` joined on 2026-10-09 (CONTESTS-BRIEF.md §3.B) and earns it for the same reason an event
+#: does: a contest has people getting ready for a specific afternoon, and "practise these before the
+#: first stage" is the deck an organiser already wants to hand them. `can_study` then makes it
+#: studyable by everybody who can VIEW the contest, which for a draft is nobody but its staff and
+#: after the announcement is anyone — exactly the contest's own visibility, with no second rule.
+#: An `organization` and a `material` are still out: neither has a cohort getting ready for a date.
+PLACEABLE_NODE_KINDS = ('course', 'event', 'contest')
 
 
 class Deck(models.Model):

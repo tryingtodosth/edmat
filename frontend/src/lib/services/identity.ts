@@ -13,6 +13,7 @@ import type {
 	LearningRecord,
 	LearningRecordActivityRow,
 	LearningRecordGradeRow,
+	LearningRecordPlacement,
 	ProviderState,
 	PublicEducation,
 	School
@@ -321,7 +322,19 @@ function mapLearningRecord(raw: any): LearningRecord | null {
 					count: row.count ?? 0
 				}))
 			: null,
-		activity: raw.activity ? raw.activity.map(mapActivityRow) : null
+		activity: raw.activity ? raw.activity.map(mapActivityRow) : null,
+		placements: raw.placements ? raw.placements.map(mapPlacement) : null
+	};
+}
+
+/** A contest result. `contest_id` is a number on the wire and a string here, the id convention
+ * every non-taxonomy reference in this app follows. */
+function mapPlacement(row: any): LearningRecordPlacement {
+	return {
+		contestId: String(row?.contest_id ?? ''),
+		title: row?.title ?? '',
+		resultTitle: row?.result_title ?? '',
+		publishedAt: row?.published_at ?? null
 	};
 }
 

@@ -46,6 +46,8 @@
 				return localizedPath(resolve('/tutoring/[id]', { id: row.targetId })) + anchor;
 			case 'taughtCourse':
 				return resolve('/courses/[id]', { id: row.targetId }) + anchor;
+			case 'contest':
+				return resolve('/contests/[id]', { id: row.targetId }) + anchor;
 			default:
 				return null;
 		}

@@ -16,7 +16,12 @@ export const MANAGEMENT_DISCUSSION_KINDS = [
 	'needs',
 	'polls',
 	'goals',
-	'organizations'
+	'organizations',
+	// A contest's own page (`contests/`, 2026-10-09). It belongs with the organisation rather than
+	// with the four board rows: a contest IS a node, so the thread is the talk under the thing
+	// itself, not under one row of work hung off it. Addressed by id, because `/contests/5` is the
+	// route; the organisation is the one kind addressed by a slug.
+	'contests'
 ] as const;
 export type ManagementDiscussionKind = (typeof MANAGEMENT_DISCUSSION_KINDS)[number];
 
@@ -68,5 +73,7 @@ export function discussionLocationHref(key: string): string | null {
 			return resolve('/goals/[id]', { id });
 		case 'organizations':
 			return resolve('/organizations/[slug]', { slug: id });
+		case 'contests':
+			return resolve('/contests/[id]', { id });
 	}
 }

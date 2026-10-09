@@ -230,7 +230,7 @@ class ReportCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         model = REPORT_KIND_MODELS[attrs['kind']]
-        if not model.objects.filter(pk=attrs['object_id']).exists():
+        if not self._target_exists(attrs['kind'], model, attrs['object_id']):
             raise serializers.ValidationError({'object_id': ['No matching content found.']})
 
         request = self.context.get('request')
@@ -242,6 +242,29 @@ class ReportCreateSerializer(serializers.ModelSerializer):
             if already_reported:
                 raise serializers.ValidationError({'detail': ['You already reported this.']})
         return attrs
+
+    def _target_exists(self, kind: str, model, object_id: int) -> bool:
+        """Whether there is anything here for THIS reporter to report.
+
+        Existence, for every kind but one, is the row being in the table: an exercise, a comment, a
+        listing is public the moment it is written, so "does it exist" and "can this person see it"
+        are the same question. A **contest** is the exception and the reason this is a method: it is
+        invisible until announced (`contests.models.PUBLIC_STATUSES`), so for a stranger a draft
+        does not exist — and a reporting form that confirmed otherwise would be a way to enumerate
+        drafts by id (house rule 4). `visible_contests` is the contest app's own queryset, asked
+        rather than re-implemented, so this answer and `/api/contests/5/`'s cannot drift.
+
+        The refusal is this endpoint's existing one — 400 with "No matching content found" — rather
+        than a 404, because that is what every other absent target here already answers and the
+        honest meaning is the same.
+        """
+        if kind == 'contest':
+            from contests.access import visible_contests
+
+            request = self.context.get('request')
+            user = getattr(request, 'user', None)
+            return visible_contests(user).filter(pk=object_id).exists()
+        return model.objects.filter(pk=object_id).exists()
 
     def create(self, validated_data):
         kind = validated_data.pop('kind')

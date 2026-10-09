@@ -11,11 +11,22 @@
 	// follow rules — ECTS-weighted, and no number at all for a subject mixing grading scales — that
 	// already live in Python. Re-deriving them here is how this figure and the transcript's own start
 	// disagreeing on one screen, which is why `TranscriptView` says the same thing.
+	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import { getLocale } from '$lib/paraglide/runtime.js';
+	import { formatDate } from '$lib/utils/format';
 	import { LEARNING_RECORD_METRIC_HINTS, learningRecordMetricLabel } from '$lib/utils/labels';
+	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import type { LearningRecord, LearningRecordActivityRow } from '$lib/types/identity';
 
 	let { record }: { record: LearningRecord } = $props();
+
+	// The contests block answers to the `contests` switch as well as to the consent: a killed
+	// feature takes its block away rather than leaving a heading over an empty table (house rule 3).
+	// The other two blocks are unaffected, which is the neighbouring-endpoints half of that rule.
+	const showPlacements = $derived(
+		record.placements !== null && featureFlagsStore.isEnabled('contests')
+	);
 
 	/** The activity table's columns, in the order the server listed them: the three metrics this
 	 * cycle declares, then anything a later provider registered. Derived from the ROWS rather than
@@ -139,6 +150,54 @@
 	{/if}
 </section>
 
+{#if showPlacements}
+	<!-- The third block (`backend/identity/record.py`). Its own section with its own lead for the
+	     reason the first two have theirs: a laureate title drawn in the grades table would read as a
+	     mark an institution gave, and drawn in the activity table it would read as something this
+	     site measured. Neither is true — the organiser decided it and EdMat was the medium. -->
+	<section class="block">
+		<h3>{m.contestLabel_recordHeading()}</h3>
+		<!-- "Contests" -->
+		<p class="lead">{m.contestLabel_recordLead()}</p>
+		<!-- "What this account was awarded in contests other people ran…" -->
+		{#if record.placements === null || record.placements.length === 0}
+			<p class="muted">{m.record_emptyBlock()}</p>
+			<!-- "Nothing to show here yet." -->
+		{:else}
+			<table>
+				<thead>
+					<tr>
+						<th scope="col">{m.contestLabel_recordTableContest()}</th>
+						<!-- "Contest" -->
+						<th scope="col">{m.contestLabel_recordTableResult()}</th>
+						<!-- "Result" -->
+						<th scope="col">{m.contestLabel_recordTablePublished()}</th>
+						<!-- "Published" -->
+					</tr>
+				</thead>
+				<tbody>
+					{#each record.placements as row (row.contestId + row.resultTitle)}
+						<tr>
+							<th scope="row">
+								<a href={resolve('/contests/[id]', { id: row.contestId })}>{row.title}</a>
+							</th>
+							<td>{row.resultTitle}</td>
+							<td>
+								{#if row.publishedAt}
+									{formatDate(row.publishedAt, getLocale())}
+								{:else}
+									<span class="muted-inline">{m.contestLabel_recordUndated()}</span>
+									<!-- "Not published yet" -->
+								{/if}
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		{/if}
+	</section>
+{/if}
+
 <style lang="scss">
 	.block {
 		margin-bottom: var(--space-4);
@@ -172,6 +231,11 @@
 	}
 	.owner-note--empty {
 		color: var(--text-primary);
+	}
+	// Dimmed to `--text-secondary` rather than with opacity (frontend/CLAUDE.md: never opacity on
+	// content) — "not published yet" is a fact about the row, not a disabled control.
+	.muted-inline {
+		color: var(--text-secondary);
 	}
 	.minor-note {
 		color: var(--text-primary);

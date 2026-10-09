@@ -21,6 +21,7 @@ from community.models import Comment, Review
 from exercises.models import Exercise, ExerciseTranslation, SolutionEntry, Tag
 from materials.models import Material, MaterialRequirement
 from concepts.models import ConceptArticle
+from contests.models import Contest
 from galleries.models import GalleryImage
 from services.models import Service, ServiceReview
 from taxonomy.models import Branch, Discipline
@@ -71,6 +72,15 @@ REPORT_KIND_MODELS = {
     # (`concepts.access.visible_articles`) and, when it was the concept's last visible article,
     # takes the concept and its backlinks with it by construction.
     'concept_article': ConceptArticle,
+    # A contest (contests/, CONTESTS-BRIEF.md §3.B, 2026-10-09). DSA art. 16 is why: a contest
+    # announcement is user-generated content disseminated to the public, and a fraudulent one — a
+    # prize that does not exist, a kurator's name somebody is not entitled to use — has to be
+    # reportable through the same notice-and-action mechanism as everything else here
+    # (CONTESTS-LAW.md §11). The Event posture exactly: no viewer pool of its own, so reports
+    # gather for a human rather than tripping auto-hide arithmetic with nothing to divide by, and a
+    # moderator's remove HIDES it (`visibility='private'`) rather than cancelling it — cancelling is
+    # the organiser's act and carries the same-channel notice KC art. 919 §2 wants.
+    'contest': Contest,
 }
 _REVERSE_KIND_MODELS = {model: kind for kind, model in REPORT_KIND_MODELS.items()}
 
@@ -169,6 +179,11 @@ def _content_owner(target):
         return target.provider
     if isinstance(target, Material):
         return target.submitted_by
+    if isinstance(target, Contest):
+        # The organiser who founded it, not a staff row: under KC art. 919 §1 the person who
+        # publicly promised is the one bound by it, and that is who a statement of reasons is owed
+        # to (`contests/models.py`).
+        return target.organiser
     return getattr(target, 'author', None)
 
 
@@ -282,7 +297,7 @@ def _describe(target, kind: str) -> tuple[str, int | None, str | None]:
         # branch), so `check_auto_hide` correctly never auto-hides a reported listing (no view-count
         # denominator to measure against); it still queues normally for a moderator's own decision.
         return target.title[:150], None, None
-    if kind in ('event', 'contribution'):
+    if kind in ('event', 'contribution', 'contest'):
         return target.title[:150], None, None
 
     if kind == 'tag':
@@ -374,7 +389,7 @@ def resolve_report_decision(model, pk, decision: str, *, resolved_by, note: str 
         if isinstance(target, (Exercise, Material)):
             target.published = True
             update_fields.append('published')
-        if isinstance(target, Event):
+        if isinstance(target, (Event, Contest)):
             target.visibility = 'public'
             update_fields.append('visibility')
         if isinstance(target, Contribution) and target.status == 'withdrawn':
@@ -387,8 +402,11 @@ def resolve_report_decision(model, pk, decision: str, *, resolved_by, note: str 
         if isinstance(target, (Exercise, Material)):
             target.published = False
             update_fields.append('published')
-        if isinstance(target, Event):
-            # Hidden, not cancelled — see ReportActionView's own comment on this distinction.
+        if isinstance(target, (Event, Contest)):
+            # Hidden, not cancelled — see ReportActionView's own comment on this distinction. It
+            # matters more for a contest than for an event: `cancelled` is a status the ORGANISER
+            # moves to, and it carries the same-channel revocation KC art. 919 §2 requires. A
+            # moderator taking a contest down is not the przyrzekający revoking his promise.
             target.visibility = 'private'
             update_fields.append('visibility')
         if isinstance(target, Contribution):

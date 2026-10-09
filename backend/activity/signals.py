@@ -26,7 +26,10 @@ from .services import record_activity, remove_activity_for
 
 # Comment targets whose threads are public-by-construction. Deliberately absent: every course
 # target (private by policy), 'issue' (an issue can be staff-only), 'service'/'serviceReview'
-# (a listing can be paused into invisibility), 'courseClaim' (its course can be a draft), and
+# (a listing can be paused into invisibility), 'courseClaim' (its course can be a draft),
+# 'contest' (a draft contest is its staff's own, and an announced one can be pulled back to
+# private or cancelled — the contest's own two feed rows below are written on the TRANSITION
+# into publicness, which is the shape this list cannot express), and
 # 'materialVersion' (a version's thread is a REVIEW thread — a draft's or a proposal's is visible
 # only to its author and the people who may decide it, so it is never public by construction; see
 # `community.targets.PRIVATE_TARGET_TYPES`, which holds the same answer for the same reason).
@@ -173,6 +176,9 @@ def source_deleted(sender, instance, **kwargs):
 # through — unlike the moderation flows above, whose claims are queryset updates. The pre_save
 # hooks remember what the row used to say so only the genuine transition records, never every save.
 
+from contests.models import PUBLIC_STATUSES as PUBLIC_CONTEST_STATUSES  # noqa: E402
+from contests.models import PUBLIC_VISIBILITY as PUBLIC_CONTEST_VISIBILITY  # noqa: E402
+from contests.models import Contest  # noqa: E402
 from courses.models import Course as TaughtCourse  # noqa: E402
 from events.models import Event as OneOffEvent  # noqa: E402
 from services.models import Service  # noqa: E402
@@ -231,6 +237,75 @@ def _remember_event(sender, instance, **kwargs):
         instance._activity_was_public = False
 
 
+# --- a contest: announced, and its results published (contests/, 2026-10-09) --------------------
+#
+# Two rows rather than one, and both on a status transition for the reason the block above gives:
+# a `QuerySet.update()` fires no signal, but every status move a contest makes goes through
+# `save()` (step A's `transition`/`announce`/`publish_results` actions all read the row first).
+#
+# `Contest.is_public` is the model's OWN definition of public (`status in PUBLIC_STATUSES` and
+# `visibility in PUBLIC_VISIBILITY`), asked rather than restated here, so "is this in the feed"
+# and "can a stranger open it" cannot drift apart (house rule 9: public by construction).
+
+
+def _contest_is_public(contest) -> bool:
+    return bool(contest.is_public)
+
+
+def _contest_results_are_public(contest) -> bool:
+    return _contest_is_public(contest) and contest.status in ('results_published', 'closed')
+
+
+@receiver(post_save, sender=Contest)
+def contest_feed_row(sender, instance, created, **kwargs):
+    was_public = getattr(instance, '_activity_was_public', False)
+    was_published = getattr(instance, '_activity_results_were_public', False)
+    is_public = _contest_is_public(instance)
+    knows_previous = created or hasattr(instance, '_activity_was_public')
+
+    if is_public and not was_public and knows_previous:
+        record_activity(
+            'contest',
+            actor=instance.organiser,
+            target_label=instance.title,
+            contest=instance,
+        )
+    elif was_public and not is_public:
+        # Cancelled, or pulled back to private. Both rows go — the forgetting half, which is what
+        # keeps "public by construction" true over time rather than only at the moment of writing.
+        remove_activity_for(instance)
+        return
+
+    if _contest_results_are_public(instance) and not was_published and knows_previous:
+        record_activity(
+            'contest_results',
+            actor=instance.organiser,
+            target_label=instance.title,
+            contest=instance,
+        )
+
+
+def _remember_contest(sender, instance, **kwargs):
+    if instance.pk:
+        row = sender.objects.filter(pk=instance.pk).values('status', 'visibility').first()
+        if row is None:
+            instance._activity_was_public = False
+            instance._activity_results_were_public = False
+            return
+        public = (
+            row['status'] in PUBLIC_CONTEST_STATUSES
+            and row['visibility'] in PUBLIC_CONTEST_VISIBILITY
+        )
+        instance._activity_was_public = public
+        instance._activity_results_were_public = public and row['status'] in (
+            'results_published',
+            'closed',
+        )
+    else:
+        instance._activity_was_public = False
+        instance._activity_results_were_public = False
+
+
 @receiver(post_save, sender=Service)
 def service_feed_row(sender, instance, created, **kwargs):
     if created and instance.is_active:
@@ -250,3 +325,4 @@ from django.db.models.signals import pre_save  # noqa: E402
 
 pre_save.connect(_remember_course, sender=TaughtCourse)
 pre_save.connect(_remember_event, sender=OneOffEvent)
+pre_save.connect(_remember_contest, sender=Contest)

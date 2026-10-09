@@ -38,6 +38,10 @@
 				return m.activity_kind_concept(); // "New concept"
 			case 'concept_revision':
 				return m.activity_kind_conceptRevision(); // "Concept updated"
+			case 'contest':
+				return m.contestLabel_activityKind_contest(); // "New contest"
+			case 'contest_results':
+				return m.contestLabel_activityKind_results(); // "Contest results"
 			default:
 				return m.activity_kind_post(); // "Post"
 		}
@@ -50,6 +54,7 @@
 		if (item.eventId) return resolve('/events/[id]', { id: item.eventId });
 		if (item.serviceId) return localizedPath(resolve('/tutoring/[id]', { id: item.serviceId }));
 		if (item.postId) return resolve('/posts/[id]', { id: item.postId });
+		if (item.contestId) return resolve('/contests/[id]', { id: item.contestId });
 		// The concept page, which is where the article, its pool and its history are reachable from.
 		// Without a slug the hub is the honest fallback rather than a row that does not move.
 		if (item.conceptSlug) return resolve('/concepts/[slug]', { slug: item.conceptSlug });

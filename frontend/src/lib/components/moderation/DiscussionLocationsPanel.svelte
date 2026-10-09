@@ -34,7 +34,10 @@
 		needs: m.discussions_rowNeed, // "a need"
 		polls: m.discussions_rowPoll, // "a poll"
 		goals: m.discussions_rowGoal, // "a goal"
-		organizations: m.discussions_rowOrganization // "an organisation"
+		organizations: m.discussions_rowOrganization, // "an organisation"
+		// Contests (`contests/`, 2026-10-09) — step B's own key prefix, because the two contest
+		// branches were built at once and `discussions_*` is not B's to add to.
+		contests: m.contestLabel_rowContest // "a contest"
 	};
 
 	let rows = $state<DiscussionLocationRow[]>([]);

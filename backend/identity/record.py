@@ -2,7 +2,7 @@
 
 `prompts/00-DESIGN.md` §1 rule 3 is the whole of this module, and it is one sentence: *an EdMat
 activity count is never presented next to an institutional grade as if it were one.* So the record
-is two blocks, computed separately, gated separately, and handed to the frontend as two lists that
+is three blocks, computed separately, gated separately, and handed to the frontend as lists that
 cannot be concatenated by accident:
 
 * **grades** — `identity.CourseGrade` rows the registry attested, grouped by the
@@ -10,6 +10,19 @@ cannot be concatenated by accident:
   without the institution that gave it is not a claim about anything).
 * **activity** — counts of what this person did on EdMat, grouped by the same `Branch`. Behind
   `share_activity`, which is its own consent and defaults to off.
+* **placements** — what this person ACHIEVED in a contest somebody else ran: laureate, finalist,
+  distinction, participant (`contests/record.py: placements_for`, CONTESTS-BRIEF.md §3.B, 2026-10-09).
+  Behind the same `share_activity` consent, and that is the only one it could sit behind: it is not
+  an institutional grade, so it must not borrow the grades' gate and read as one.
+
+  **Why it is a third block and not a third column.** A placement is not per-branch and not a count.
+  "Laureate of the Mazovian mathematics konkurs, 14 March" is a named, dated result about one
+  contest — rows the grades block cannot hold (nobody awarded a mark) and the activity block cannot
+  hold either (its cells are integers per subject, and a title is not a number). Folding it into
+  either is exactly the mistake rule 3 is about, one step further out: a laureate title drawn in the
+  grades table would read as a mark an institution gave, and drawn in the activity table it would
+  read as something this site measured. Neither is true — the ORGANISER awarded it and EdMat was
+  the medium (`LEGAL.md`, "Contests").
 
 `taxonomy.Branch` is the hub that makes one table honest (§1 rule 1): "3.5 in Analiza
 Matematyczna" and "5 sets built in Analiza Matematyczna" are two different kinds of fact about the
@@ -70,6 +83,26 @@ METRIC_KEYS: tuple[str, ...] = ('sets', 'lessons_done', 'cards_reviewed')
 #: their own app and are registered by `identity/apps.py: ready()`, so this module imports no app
 #: that might not be installed.
 ACTIVITY_PROVIDERS: list[Callable[[object], dict[int, dict[str, int]]]] = []
+
+#: Every registered source of PLACEMENT rows — a result somebody was awarded in something they took
+#: part in. One list rather than a second kind of entry in `ACTIVITY_PROVIDERS`, because the shape is
+#: different: a placement provider answers with a LIST of named, dated results, not a dict of counts
+#: per branch, and a registry whose members answer two shapes is a registry every reader has to
+#: type-check at the call site.
+#:
+#: A provider is `Callable[[User], list[dict]]` and each dict carries `contest_id`, `title`,
+#: `result_title` and `published_at` (`contests/record.py: placements_for`, the shape fixed in
+#: advance by CONTESTS-BRIEF.md §3.B). `_placements_block` passes them through unchanged apart from
+#: sorting: this module does not know what a laureate is and should not learn.
+PLACEMENT_PROVIDERS: list[Callable[[object], list[dict]]] = []
+
+
+def register_placement_provider(fn: Callable[[object], list[dict]]) -> None:
+    """Add a source of placement rows, idempotently — `register_activity_provider`'s reasoning
+    exactly, and for the same reason: `AppConfig.ready()` can run more than once in one process, and
+    a provider registered twice would list every result twice."""
+    if fn not in PLACEMENT_PROVIDERS:
+        PLACEMENT_PROVIDERS.append(fn)
 
 
 def register_activity_provider(fn: Callable[[object], dict[int, dict[str, int]]]) -> None:
@@ -205,6 +238,28 @@ def _activity_block(user, locale: str) -> list[dict]:
     return rows
 
 
+def _placements_block(user) -> list[dict]:
+    """What this person was awarded in contests, newest first.
+
+    Every registered provider is asked and their rows concatenated. A provider that raises is **not**
+    caught here: unlike the work dashboard, which has a documented `unavailable` list for exactly
+    that, this function's caller is a profile page with nowhere to say "one source is down", and a
+    silently short list of somebody's results is a worse answer than an error somebody notices.
+
+    `published_at` sorts descending with the undated last — a result with no date is one step A has
+    not published yet, and it belongs at the bottom rather than at the top where a missing value
+    would otherwise put it.
+    """
+    rows: list[dict] = []
+    for provider in PLACEMENT_PROVIDERS:
+        rows.extend(provider(user) or [])
+    # One sort, descending on an ISO string: dated rows come newest first and an undated one sorts
+    # to the end, because `''` is smaller than every timestamp. The dates arrive as ISO strings from
+    # the provider, which is why this compares them as strings rather than parsing them.
+    rows.sort(key=lambda row: row.get('published_at') or '', reverse=True)
+    return rows
+
+
 def learning_record(profile_user, viewer=None, *, locale: str = DEFAULT_FALLBACK_LOCALE) -> dict | None:
     """The whole record for one account, as much of it as consent allows this viewer to see.
 
@@ -236,13 +291,18 @@ def learning_record(profile_user, viewer=None, *, locale: str = DEFAULT_FALLBACK
 
     grades = None
     activity = None
+    placements = None
     if not minor and profile is not None:
         if profile.share_school and profile.share_grades:
             grades = _grades_block(profile, locale)
         if profile.share_activity:
             activity = _activity_block(profile_user, locale)
+            # The same consent, deliberately: both blocks answer "what has this person done here",
+            # and asking somebody to tick a second box for the half of that answer that happens to
+            # have titles in it would be a setting nobody could explain.
+            placements = _placements_block(profile_user)
 
-    if grades is None and activity is None and not is_owner:
+    if grades is None and activity is None and placements is None and not is_owner:
         return None
 
     return {
@@ -253,6 +313,7 @@ def learning_record(profile_user, viewer=None, *, locale: str = DEFAULT_FALLBACK
         'withheld_reason': 'minor' if minor else None,
         'grades': grades,
         'activity': activity,
+        'placements': placements,
     }
 
 

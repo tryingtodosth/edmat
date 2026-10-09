@@ -12,6 +12,7 @@ this app would be the start of two surfaces disagreeing about who may edit a tas
 | `goal`, `goal_criterion` | `goals.rules.can_edit` | the node's manager, or the goal's own author |
 | `poll`, `poll_option` | `config.nodes.can_manage_node` on the poll's node, **and only while it is a draft** | the node's manager |
 | `organization` | `organizations.access.can_manage_organization` | its owners and admins |
+| `contest` | `contests.access.can_manage` | the organiser who founded it, and staff with the organiser role |
 
 The task row is the one worth reading twice: an assignee may fix the words of the thing they are
 doing, which `tasks/rules.py` explains is the whole point of that third party existing. Translating
@@ -80,6 +81,16 @@ def write_block_reason(user, obj) -> str | None:
         from organizations.access import can_manage_organization
 
         return None if can_manage_organization(user, obj) else NOT_ALLOWED
+
+    if kind == 'contest':
+        from contests.access import can_manage
+
+        # Its organisers, not every staff member: a jury member scores and a secretary handles
+        # registrations, and neither speaks for what the contest calls itself. Not `can_manage_node`
+        # either — that would be the same answer through one more hop, and this module's whole rule
+        # is to ask the target's own app (`contests/access.py` is what `config/nodes.py` dispatches
+        # to for this kind anyway).
+        return None if can_manage(user, obj) else NOT_ALLOWED
 
     if kind in ('poll', 'poll_option'):
         from config.nodes import can_manage_node

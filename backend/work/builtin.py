@@ -1,8 +1,17 @@
-"""Built-in providers for the work dashboard — six sections for what exists today.
+"""Built-in providers for the work dashboard — the six sections of the original six modules,
+plus the four a contest contributes.
 
 Each provider reads only its own app's models and lives behind that app's own flag key.
-Do not import tasks, needs, plans or decisions — they do not exist on this branch.
-The integrator registers their work_items at §5 of MANAGEMENT-BRIEF.md.
+Do not import tasks, needs, plans or decisions — they did not exist on the branch this file was
+written on. The integrator registers their work_items at §5 of MANAGEMENT-BRIEF.md
+(`work/integrations.py`).
+
+**The contests block at the bottom is step B of the contests cycle** (CONTESTS-BRIEF.md §3.B): the
+rows come from `contests/work.py`, which step A writes because it owns the registration, submission
+and complaint models they are counted from, and the registration is here because step A must not
+import `work` (`prompts/README.md` §5 rule 13 — a step ships a module, the other side wires it).
+On B's own branch that function returns `[]`, which is the honest answer for a model with no
+registrations: the section simply never appears, because `collect()` drops an empty one.
 """
 
 from django.utils import timezone
@@ -312,3 +321,44 @@ providers.register('course_request', 'courses', _course_requests_waiting)
 providers.register('proposal', 'coauthoring', _coauth_pending_versions)
 providers.register('shift', 'shifts', _shifts_upcoming)
 providers.register('booking', 'tutoring', _tutoring_bookings)
+
+
+# ---- Contests: the four kinds `contests/work.py` yields (CONTESTS-BRIEF.md §3.B) ----
+#
+# One registration per SECTION and not per app, the reason `work/integrations.py` gives in full:
+# `/work` groups rows by section key and labels each section by it, and these four are four
+# different things waiting on a person — a registration to decide, a submission to score, a
+# complaint to answer, a stage about to open. The item shape's `kind` and the section key are the
+# same vocabulary, which is what makes the filter below a one-liner.
+
+
+def _of_kind(kind, work_items):
+    """`integrations._only`, which this cannot import.
+
+    Two copies rather than one, deliberately, and said in both files (house rule 13 - three strikes
+    before extracting, and this is the second). `work/apps.py: ready()` imports this module FIRST,
+    and `work/integrations.py` registers the management providers at import time, which imports
+    `tasks`, `needs`, `plans` and `decisions` - pulling that in from here would reorder app loading
+    for the sake of four lines.
+    """
+
+    def provider(user):
+        return [item for item in work_items(user) if item.get('kind') == kind]
+
+    provider.__name__ = f'{kind}_items'
+    return provider
+
+
+def _register_contest_providers():
+    from contests.work import work_items as contest_items
+
+    for kind in (
+        'contest_registration',
+        'contest_judging',
+        'contest_complaint',
+        'contest_stage',
+    ):
+        providers.register(kind, 'contests', _of_kind(kind, contest_items))
+
+
+_register_contest_providers()

@@ -297,14 +297,138 @@ the command should do with each, and the integration step (`CONFERENCE-BRIEF.md`
 
 ---
 
-## 9. Still open
+## 9. Contests — the organiser promises, EdMat hosts (2026-10-09, `CONTESTS-LAW.md`)
+
+The module summarised here is `backend/contests/` and `CONTESTS-BRIEF.md`; the research it rests on
+is **`CONTESTS-LAW.md`**, a sourced note in which every claim carries one of four markers — verified
+(the text was opened), secondary (an authoritative restatement), unverified (a number from memory),
+disputed (a lawyer must pick a side). **No Polish lawyer has read any of it**, and every surface
+that quotes a citation shows its marker beside it for exactly that reason. This section is §1 and
+§11 of that note, reconciled into what the platform does.
+
+### What a contest is, legally
+
+The moment a prize is promised for the best work, a contest is a **przyrzeczenie publiczne** under
+Kodeks cywilny art. 919–921 — a unilateral promise that binds whoever made it, publicly. Five
+consequences are built into the schema rather than written into guidance:
+
+1. **A claim deadline is mandatory.** Art. 921 §1: with no deadline within which the prize may be
+   claimed, the whole promise is **bezskuteczne**. So `prize_claim_deadline` is required by rule the
+   moment `has_prize` is true, and `announce` refuses `409 claim_deadline_missing` without it.
+2. **Revocation uses the same channel as the announcement** and never defeats somebody who has
+   already performed (art. 919 §2). A contest announced here is therefore cancelled here, with the
+   same visibility.
+3. **A jury exists only because the rules create one** (art. 921 §2) — so the rules template creates
+   one, and a contest cannot be announced below the preset's minimum (`jury_missing`).
+4. **Chance may decide nothing.** Ustawa o grach hazardowych art. 2 ust. 1: a draw at any stage
+   makes the whole thing a *gra losowa* needing a permit, and art. 89 u.g.h. plus Kodeks karny
+   skarbowy art. 108 **stack**. There is no `draw` advancement anywhere, no tie-break by lot, and a
+   stage whose description says *losowanie* is refused `400 chance_element`.
+5. **A prize is income.** PIT art. 30 ust. 1 pkt 2 taxes it at 10%; art. 21 ust. 1 pkt 68 exempts up
+   to 2 000 zł in contests *w dziedzinie nauki*; pkt 115 exempts pupils' prizes without a cap in
+   contests run on the education-system basis. The tax copy shows the *nauka* limb and the 10% above
+   it, with the in-kind gross-up (÷ 0,9, art. 41 ust. 7), and **never the mass-media limb**, which is
+   genuinely disputed for an internet announcement.
+
+Two further rules are GDPR's rather than the civil code's. **Publishing a winner's full name is a
+separate, revocable consent** — the public list defaults to initials, following UODO's own model
+pupil-contest regulamin — and **a minor registers only with a guardian's consent recorded on the
+registration**, under 16 being the line (`accounts/minors.py`, GDPR art. 8 as Poland transposed it).
+
+### Where EdMat stands
+
+**The promise is the organiser's and EdMat is the medium.** Under art. 919 §1 the obligation falls
+on whoever publicly promised. EdMat promises nothing, is not a party, cannot be sued for a prize and
+cannot revoke one. Every contest page names the organiser above the fold and says so.
+
+**EdMat is a processor, not a controller, of entrants' data** (GDPR art. 4(8)): the organiser decides
+who may enter, what is kept and what the public list shows, and EdMat supplies the mechanism. That
+requires a **umowa powierzenia / DPA under art. 28(3)**, which **does not exist yet** and is named in
+§10 below. The risk this runs is **joint controllership under art. 26**: the more EdMat decides, the
+closer it drifts, and the CJEU has read that broadly. The mitigation is structural and is the design
+— the organiser sets retention, visibility and eligibility. EdMat remains separately a *controller*
+for its own account data; one person, two capacities.
+
+**Three separations keep `FINANCES.md` true**, and each is an absence of code rather than a policy:
+
+1. **No prize funds pass through EdMat.** There is no payment field, no escrow and no "prize pool".
+   A prize's value is recorded so the tax paragraph can be written and for nothing else.
+2. **No entry fee.** The module refuses any paid condition of entry — which also keeps it out of
+   *loteria promocyjna* and *sprzedaż premiowa*.
+3. **No EdMat guarantee.** The site does not verify that a prize exists or will be given, and a
+   dispute about one is between the entrant and the organiser.
+
+With those three, hosting a prize contest creates no tax, payment-services or gambling obligation
+for the platform. What remains is **co-organiser risk**, and it is a risk of facts rather than of
+words: funding or supplying a prize, taking a jury seat, breaking a tie, letting EdMat's branding
+dominate an announcement, or marketing something as "EdMat's contest" are each a step toward a court
+treating the platform as co-*przyrzekający*. None of them is built, and **two presets are staff-only**
+(`kuratorium`, `olympiad`) with the external reference mandatory, because a false claim that a
+contest is the kurator's harms pupils who believe they are earning an art. 44zx exam exemption.
+
+### DSA, and the new Polish act
+
+A contest announcement is user content disseminated to the public, so §4 above applies to it
+unchanged — and `contest` is a `REPORT_KIND_MODELS` entry, so a fraudulent contest is reportable
+through the Art. 16 channel like anything else. A moderator's remove sets `visibility='private'`;
+it never sets `cancelled`, because cancelling is the organiser's own act and carries the art. 919 §2
+same-channel revocation with it.
+
+**New since the project's last legal pass:** the **ustawa o zmianie ustawy o świadczeniu usług drogą
+elektroniczną**, implementing the DSA in Poland, was signed on **25 September 2026** and takes effect
+**6 November 2026**. The **Prezes UKE** becomes the *Koordynator ds. usług cyfrowych*, with KRRiT for
+video platforms and UOKiK for consumer-interest breaches, and a Polish user may complain to the
+Prezes UKE directly. (An earlier bill was vetoed on 9 January 2026.) Verified via secondary sources
+— UKE's own announcement and a law-firm note — not against the published text. What concrete duties
+it adds for a small hosting provider beyond the Regulation, and whether any contact-point
+notification is required, is item 4 of §10.
+
+### The terms-of-use clause this needs, which does not exist
+
+EdMat has no terms of service at all (§10), and contests make that gap concrete. The clause the
+research recommends says: the contest is organised **solely** by the user named as organiser, who is
+the *przyrzekający* under KC art. 919–921, the sole administrator of entrants' data and the sole
+*płatnik* of any PIT; EdMat provides the technical means only, is **not** a party to the
+przyrzeczenie publiczne and gives no warranty that prizes exist or will be delivered; EdMat processes
+entrants' data as processor under a DPA; EdMat may remove a contest that breaches the terms or the
+law, with a statement of reasons (DSA art. 17) and an internal appeal; organisers warrant they hold
+the rights and consents they rely on, including guardians' consents for minors; EdMat does not fund
+prizes and accepts no payment.
+
+### Ranked open questions for a lawyer
+
+In the order `CONTESTS-LAW.md` §14 ranks them, with only the ones that change what is built:
+
+1. **Is a community vote a merit criterion, or does it tip into a *gra losowa*?** The worst
+   consequences on the list. **Not built** until this is answered — preset (k) of that note.
+2. **Is an individual (non-business) organiser a PIT *płatnik*?** Getting it backwards exposes
+   individual teachers to płatnik liability from their own assets. The `school` preset's tax copy
+   says it is an open question rather than guessing.
+3. **Can an online regulamin transfer copyright under art. 921 §3, or does pr.aut. art. 53's written
+   form defeat it?** Genuinely disputed. The module offers **licence presets only** — `none` and
+   `non_exclusive` with the fields of exploitation enumerated — and says a transfer needs a signed
+   paper annex.
+4. **Processor or joint controller**, and the DPA that goes with the answer (above).
+5. **The new Polish DSA act's concrete duties** (above).
+6. **A minor's capacity to enter and to license** — whether entering is a *drobna bieżąca sprawa
+   życia codziennego* (KC art. 20), and what verification of a guardian's consent is "reasonable"
+   under GDPR art. 8(2) for a platform with no identity layer.
+
+---
+
+## 10. Still open
 
 - **The corpus question itself** (§3) — the report exists, no lawyer has reviewed it, nothing is
   implemented.
 - **The conference research behind §8** — same shape, same problem: two deep-research reports
   whose citations were lost, whose role table and retention windows are already implemented as
   defaults. A lawyer has to read §8 before any of it is quoted to anybody.
-- **No terms of service, no CLA, no outbound content licence.**
+- **No terms of service, no CLA, no outbound content licence.** §9's last-but-one block says what
+  the contests clause would have to contain; nothing of it is written anywhere a user can read.
+- **No DPA (umowa powierzenia) between EdMat and a contest organiser**, which §9 says the processor
+  relationship requires under GDPR art. 28(3). Until there is one, every contest hosted here rests
+  on an undocumented processing relationship — and the joint-controller fallback has to be drafted
+  beside it, not after it.
 - **No email backend**, which is why an anonymous DSA filer and a guardian both have gaps above, and
   why the password-reset endpoint is still an honest always-200 stub.
 - **No self-service data export or account deletion.**
