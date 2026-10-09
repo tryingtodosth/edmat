@@ -15281,7 +15281,110 @@ acknowledgement of superseded text, the kill switch, and a board row inheriting 
   the owner should turn on before this is open to anybody but the people running the thing — without
   it, an unscannable upload is stored with an honest `scanned=False` rather than refused.
 
-## 17CE. Contests (*konkursy*) — the prep (2026-10-09)
+## 17CE. Contests (*konkursy*) — the preamble, the prep, and the integration (2026-10-09)
+
+**What this section is.** The owner's ask of the afternoon of 2026-10-09 — *"add contests.
+personalize all current modules to this use case. each subagent can have 1 haiku. research law for
+konkursy in poland and add presets with making it possible by prefilling with current users"* —
+built as a research agent, a prep commit, two Opus branches at once and an integration, all in one
+day. The research is `CONTESTS-LAW.md`; the design is `CONTESTS-BRIEF.md`; the two steps' own
+records are §17CE.A (the app, its rules and every page of it) and §17CE.B (every other module made
+contest-aware), appended by the agents that built them; the prep and the integration are below,
+written by the orchestrating session. **The short version:** a contest is a new node kind with a
+jury and a ranking; ten presets carry what Polish law asks of each kind of *konkurs* (no prize by
+default; a prize unlocks the claim deadline, the no-draw rule and the tax block; kurator and
+olympiad presets staff-only); founding one through the wizard prefills the jury from the people the
+founder already works with and creates, through the other apps' own paths, a plan with the
+timeline, a goal whose criteria are the definition of done, the legal checklist as tasks, the
+"jury member wanted" needs and the jury's poll.
+
+### The integration (the orchestrating session, after A and B landed)
+
+Merge B (`e3c79d3`, a fast-forward of the prep branch) then A (`f2c2ba9`) onto `contests/prep`.
+Five "both appended" conflicts (`HISTORY.md`, both catalogues, `labels.ts`, `test.md`), resolved
+with the union resolver; the one blind spot it has — identical trailing lines folded into shared
+context — bit once, on the closing brace of step B's `contestLabel()` helper, and Prettier found it.
+Then the §5 wiring:
+
+- **One label file, not two.** Step A had written its six enum maps typed against
+  `lib/types/contest` in a temporary `utils/contestLabels.ts` because B's `Record<string>` copies
+  did not exist on its branch; B's six, with different message keys, had landed in `labels.ts`.
+  A's typed block was folded into `labels.ts` whole (with its extra maps — stage status,
+  advancement, result title, compliance state — and `complianceHint`), B's six duplicates were
+  dropped along with the 24 `contestLabel_*` catalogue keys nothing referenced any more, and
+  thirteen importers were re-pointed. `contestLabels.ts` is gone.
+- **The bilingual title and description on the contest page.** `ContestSerializer` now carries
+  `TranslatedTextMixin` (`title`/`description` answer in the reader's `?lang=`, plus `language` and
+  `text_versions`), `Contest` gained the `text_versions` `GenericRelation` B had asked for (no
+  column, no migration), `TranslatableKind` gained `contest`, and `ManagementTextMenu` is mounted
+  at A's `contests: translations` marker for a manager.
+- **The contest's own thread**, `contests/<id>` in `community/discussions.py` (B), mounted at A's
+  `contests: discussion` marker in the organisation page's shape (`RowDiscussions`, one key).
+- **Twenty matrix rows** (`events/test_permission_matrix.py`, "contests (17CE)"), on a fixture of
+  one announced public `challenge` and one draft — see `test.md`.
+- **B's "Presets and personalisation" section** appended to `backend/contests/CLAUDE.md`, as B's
+  brief said the integrator would.
+- `CLAUDE.md` (the app list 39 → 40, the flag count 36 → 37 — counted — the routes, the API, the
+  rule-module list, eight showcase and thirteen manual pages), `CLAUDE_MAP.md` (a `contests`
+  section), `deploy/fuw/pack.sh`'s prerender guard (`about/contests`, `about/guide/contests` —
+  the file is untracked on this machine and was edited in place), `test.md`.
+- **One seam the merge exposed, fixed in B's tests and not in the code:** B's `test_personalize.py`
+  created a `school` contest through the ORM and reasoned from the preset's `has_prize`; after the
+  merge A's `has_prize` column exists and defaults to False, so the factory now sets it from the
+  preset the way the wizard does. The behaviour is right — the contest's own column wins — and the
+  four assertions that counted prize-only rows were counting correctly.
+- **One matrix row the integrator had wrong:** the compliance panel is 403 `not_staff` to a
+  non-staff reader of a PUBLIC contest (a real thing, wrong party) and 404 on a draft; step A's own
+  test used a draft, and the first row assumed 404 everywhere.
+
+### Verified (integration)
+
+- **Backend, the whole suite** on the integrated tree: `manage.py test --parallel 4 --keepdb` —
+  **3069 tests, 950 s**, two failures, both understood and both fixed or owed: the four
+  `test_personalize` assertions on the `has_prize` seam (above; fixed in the factory, and the
+  one `unknown preset` case that fix first broke), and `work.tests.EdmatHistoryTests`, which is
+  red until `export_edmat_history` runs — done below, after this section was written, and
+  `contests work` re-run green.
+- `manage.py check` clean; `makemigrations --check --dry-run` no changes; `seed_contest_demo` on
+  the integrated database creates the two demo contests AND, now that `apply_preset` is real,
+  one plan, one goal, 17 tasks, one need and one poll on the school contest (10 tasks on the
+  prize-free challenge) — the first time the two halves met.
+- Frontend: `npm run check` **0 errors, 0 warnings** (7055 files); `npx eslint .` one error, the
+  pre-existing unused `API` in `e2e/attachments.mjs` (left — see below); `npm run build` OK with
+  `build/about/contests.html` and `build/about/guide/contests.html`; both catalogues identical at
+  **4583** keys after the fold.
+- Browser scripts, each alone against the integrated servers (8170/5270): `e2e/contests.mjs`
+  **58/58**, `e2e/contests-personalise.mjs` **53/53** (after its ORM setup learned `has_prize`,
+  the same seam as the tests), `e2e/events-and-nav.mjs` **88/95** — and the same script against
+  a scratch worktree at the pre-merge commit `092f80d` on its own servers: **87/95 with the same
+  seven failures plus one**, so none of the seven is this cycle's (the two `events` kill-switch
+  checks have been red since the management build; the roster, calendar and homepage-tab ones are
+  older than today and are on the board). `check:a11y` **50 pages, 0 load problems, 0 violations of any severity**.
+- Three things the browser taught that no check did: running the three scripts at once starves
+  Chromium (`ERR_INSUFFICIENT_RESOURCES`, a screenshot timeout) — run them one after another; a
+  worktree without `backend/logdata/` makes the request-logging middleware raise on every request
+  and the hub's second list request never arrives (58/58 the moment the shard files exist —
+  `e2e/CLAUDE.md` trap 33); and the `has_prize` seam showed up in B's script exactly as in B's tests.
+
+### Left open (integration)
+
+- **`ux/colour-pass` is not fast-forwarded.** The trunk checkout at `/Projects/edmat` carried 24
+  files of another session's uncommitted work (a discussion/comment pass) when the integration ran,
+  so `contests/prep` (this branch) holds the merged result and the fast-forward is the owner's, once
+  that tree is clean: `git -C /Projects/edmat merge --ff-only contests/prep`.
+- Everything in §17CE.A's and §17CE.B's "Left open": the four notifications, a DPA template, teams
+  beyond a name, community-judged contests, the `contest_answer` attachment target, a `language`
+  column on `Contest` for the feed's `?content_locales=`, the regulamin outside `translations/`, the
+  manual chapter's screenshots, `export_edmat_history`.
+- `npm run lint` still fails on two pre-existing things nobody in this cycle touched:
+  `frontend/CLAUDE.md`'s Prettier formatting and an unused `API` in `e2e/attachments.mjs` — the
+  latter is in a file another session is editing right now, so it was left to them.
+- `/contests` is not prerendered (client-rendered like `/events`); only the two `/about` pages are.
+- **No `contests` subproject on `/about` yet.** The three §17CE rows of the history table are filed
+  under `events` (A, the preamble) and `management` (B) in `work/edmat_history.py`, with a comment
+  saying so; a goal of its own is a `work/edmat_project.py` seed change the owner should decide.
+
+### The prep (what the orchestrating session landed before the two steps started)
 
 The owner, the afternoon of 2026-10-09: *"add contests. personalize all current modules to this use
 case. each subagent can have 1 haiku. research law for konkursy in poland and add presets with
@@ -15589,3 +15692,300 @@ From the worktree, on ports 8172/5272, with Node 24 first on `PATH`:
 - **`contests/models.py`'s mirror comment does not name the new `labels.ts` maps.** It already says
   the file is mirrored there; naming `CONTEST_STATUS_LABELS` and `CONTEST_STAFF_ROLE_LABELS` would
   have meant editing step A's file, so it is on the board for the integrator instead.
+
+## 17CE.A — Contests, step A: the app, its rules, and every page of it (2026-10-09)
+
+`prompts/18-contests-a-core.md` against `CONTESTS-BRIEF.md` §3.A, on `contest/a-core` from the prep
+`092f80d`. Fourteen interface tasks, all fourteen shipped. The sibling step B (`contest/b-personalise`)
+was building `presets.py`, `personalize.py`, the registries in every other app, `/about/contests`,
+the manual chapter and `LEGAL.md` at the same time; this section is only what A did.
+
+### What the law actually made us build
+
+The brief's §1 turns `CONTESTS-LAW.md` into decisions, and almost every structural choice below is
+one of those decisions rather than an engineering preference. Five are worth restating because they
+are the reason the code is shaped the way it is:
+
+1. **`has_prize` is a toggle that unlocks obligations, and it is off by default.** With no promised
+   prize there is no *przyrzeczenie publiczne* (KC art. 919 §1 needs one), so no claim deadline is
+   required, the gambling act does not apply and no PIT arises. The `challenge` preset is therefore
+   the simplest contest to run AND the safest, and `ContestSerializer.validate` silently clears
+   `prize_regime` and `prize_claim_deadline` when the toggle goes off rather than making a founder
+   clear three fields they can no longer see.
+2. **The claim deadline is the single hard field.** KC art. 921 §1 makes a prize promise with no
+   deadline *bezskuteczne* — the whole promise. It is nullable in the schema, because a draft is
+   allowed to be incomplete, and refused by `announce_block_reason` with its own word, so the
+   organiser learns which field and why instead of getting a validation error on a date.
+3. **A draw is structurally impossible rather than discouraged.** No `draw` advancement exists; ties
+   SHARE a rank (and the next rank skips) so there is nothing to break by lot; `top_n` takes
+   everybody tied at the cut-off for the same reason. `rules._looks_like_a_draw` refuses
+   `chance_element` on an announce, on a stage description as it is typed, and on the merit criteria
+   — matched on eight stems after Polish diacritics are stripped, deliberately a short list somebody
+   can read and argue with, because a false positive here blocks a real announce. Chance deciding
+   *any* stage makes the whole thing a *gra losowa*, and u.g.h. art. 89's penalty stacks with KKS
+   art. 108's 240 *stawki dzienne*.
+4. **Publishing a winner's name is its own, revocable consent.** `publish_name` defaults False, has
+   its own PATCH, and **only the participant may change it** — not the organiser, who is the party
+   it is given to. `ContestResultSerializer` then shows a full name only when the consent AND the
+   contest's `publication_default` both allow it: two separate conditions, both server-side, so no
+   page can re-assemble the rule. That separation is UODO's own lesson from its own pupil-contest
+   regulamin, and the demo seed deliberately has one entrant opted in on a contest whose default is
+   `initials`, so the page shows both halves of it at once.
+5. **A minor's consent is a NAME and a timestamp, never a boolean.** `guardian_consent: true` in the
+   request becomes `guardian_consent_at`, because a boolean cannot be shown to anybody afterwards.
+   `minor` and `guardian_consent_required` are two different words with two different sentences:
+   "this contest takes nobody your age" and "we need your guardian". And by the owner's standing
+   default a minor does not lodge a complaint themself — free text to a stranger — so
+   `complain_block_reason` answers `minor` and the page prints the sentence that says the guardian
+   writes to the organiser instead of greying a button.
+
+### The models (migration `0002_stages_registrations_scores_results`)
+
+Nineteen new fields on `Contest` and nine new models. Two shapes are worth knowing:
+
+- **Nothing stores a score.** `ContestScore` is one juror's marks for one problem of one submission;
+  a submission's points are the MEAN over the jurors who scored each problem, summed over problems,
+  recounted on every read (house rule 5). A stored total drifts the moment a juror edits a cell, and
+  a contest whose ranking disagrees with its own scoring matrix is worse than one that takes two
+  `COUNT`s longer to draw. The honest limit is stated in `submission_points` itself: a problem no
+  juror has scored contributes zero, so a half-scored submission reads low rather than unknown, and
+  `scored_problem_count` beside it is how the matrix and the ranking preview say which is which.
+- **`ContestResult` rows exist only between `publish_results` and `unpublish_results`.** There is no
+  `is_published` flag: the row's existence IS the publication, so a published result cannot secretly
+  be unpublished and a draft ranking cannot leak. Unpublishing deletes them and is allowed only
+  while the complaints window is open — after it the ranking is the record and the answer to a
+  mistake is a new version (house rule 12).
+
+`ContestSubmission.advanced` is the one derived-looking field that is deliberately a DECISION:
+`rules.advance` is its only writer, and a participant who was told they went through must not stop
+having gone through because a juror later changed a mark. It is idempotent, so re-scoring and
+advancing again is safe.
+
+There is **no `number` field on a registration.** The anonymised label the jury scores against is
+the row's position among the contest's registrations ordered by arrival, computed at serialization —
+registrations are never deleted (every terminal status keeps its row, house rule 12) so the position
+is stable, and a stored sequence allocated under SQLite's single writer would be a retry loop for
+something two queries answer.
+
+### `access._registered`, replaced
+
+The prep left it returning `False`. It is now "has a place-holding registration" —
+`requested` + `accepted`, defined once in `models.PLACE_HOLDING_STATUSES`. `requested` counting is
+the deliberate half: a request is a place held pending a decision, exactly as `events` counts a
+`pending` row, and somebody waiting on a decision must already be able to read the regulamin they
+will be judged against. `can_view` gained a third arm for it, so **a participant of a private
+contest sees it because they are a member** — without that line somebody the organiser had just
+accepted would be 404ed off the page they had been let into. `visible_contests` gained the matching
+`Q()`, and `test_rules.MembershipTests` pins the two against each other for all five registration
+statuses: a filter and an object check that disagree is exactly the shape house rule 4 warns about.
+
+### The API, and the two refusal codes
+
+Seven viewsets and two plain views, all behind `feature_gate('contests')`. 403 for "you may not",
+**409 for "the world moved"** (already announced, already published, already entered, the last
+organiser, a stage with submissions), 400 for a malformed request — and `announce_block_reason`'s
+words come back as 409 because every one of them means "the world is not ready", not "your request
+was wrong". `ContestViewSet.create` asks `creation_block_reason(user, 'contest')` like the other
+four founding paths, validates `preset_key` against `presets.visible_to(user)` (a non-staff founder
+cannot pick `kuratorium` — a false "kuratoryjny" claim harms pupils who believe they are earning an
+exam exemption), lays out the preset's own answers, the regulamin's twelve empty sections and the
+stage ladder from the preset's offsets, then calls `personalize.apply_preset` and returns its report
+under `personalisation` — which on this branch honestly says `skipped: ['not_built']`, and the
+wizard shows that rather than a promise.
+
+**A stage's problems are 404 before it opens**, to everybody but its staff. An exercise's statement
+is public content already; WHICH exercises a stage uses is the contest. 404 rather than 403, because
+for an entrant they genuinely do not exist yet. And the stage payload carries the **statement only**
+— `ContestProblemSerializer` sends no `answer`, no hint and no solution pool, enforced in the
+serializer that builds the payload rather than in a frontend that chooses not to draw them.
+
+### "Prefilling with current users"
+
+`contests/people.py: suggested_people` unions the four rosters the founder is already on — course
+staff (both arms: the instructor is denormalised onto the course row and is not necessarily a
+`CourseStaff` row), event staff (one arm: `Event.save()` creates a real `organiser` row for the
+host, and the difference between the two apps is exactly why this is four reads and not one clever
+join), organisation members, material-project members — each candidate carrying `via` entries of the
+form `'<kind>:<title>'`. **The sentence is the frontend's**, in both languages: a server that sent
+"staff with you on Analiza I" would be a third i18n axis nobody asked for. It is the honest
+substitute for the people-search gap the root `CLAUDE.md` has named for months, and the account-id
+box stays underneath, because the person a founder most wants on a jury may be somebody they have
+never shared a roster with.
+
+### The compliance panel
+
+`compliance.report(contest)` evaluates `presets.checklist_for` against the rows. **Three states, not
+two**: `ok`, `missing` (the organiser can see which field) and `warning` — something no database can
+check (has the prize actually been handed over? is the contest on the minister's wykaz? is there a
+photo consent?) — which says so rather than showing a tick it has not earned. An item this module
+has no evaluation for comes back `warning`, never a silent `ok` (house rule 10), so step B can add a
+checklist item to `presets.py` without touching this file and it shows as something to look at.
+`not_legal_advice: True` is a FIELD rather than a sentence in the copy, because the copy is the one
+thing a second surface can forget, and `CompliancePanel.svelte` refuses to draw without it. Every
+item carries its `LAW` keys and the panel draws each citation's marker — `verified`, `secondary`,
+`unverified`, `disputed` — and a test asserts that every key the panel can cite exists in
+`presets.LAW` with a marker the frontend has a label for. The tax block shows the "science" limb and
+the 2 000 zł line and the gross-up (÷ 0.9, practice not statute), and **never the mass-media limb**,
+which is disputed for an internet announcement.
+
+### The interface — nine routes, nine components
+
+`/contests` (four tabs, filters, the creation-gate note), `/contests/new` (the four-screen wizard,
+nothing saved until the last screen), `/contests/[id]`, `/contests/[id]/rules` (reader + editor +
+print), `/contests/[id]/stages/[stageId]` (the entrant's answer boxes and the organiser's problem
+picker, on one address), `/contests/[id]/judge`, `/contests/[id]/results`, `/contests/[id]/manage`,
+`/contests/[id]/certificate/[resultId]`. Components: `ContestCard`, `StatusStrip`, `StageLadder`,
+`RolePicker`, `GuardianConsentBlock`, `CompliancePanel`, `ScoringMatrix`, `RankingTable`,
+`RulesSectionEditor`.
+
+**The organiser is the first thing on the contest page, above the title.** Not a layout preference:
+EdMat is never the *przyrzekający*, and a page that showed a prize and a deadline without saying
+whose promise they were would be this site appearing to make the promise. The same sentence is on
+every hub card and on the printed certificate, which names the organiser as the issuer, says EdMat
+is only the medium, says the copy is unsigned, and says that whatever rights a laureate's title
+carries depend on that contest's own rules and the minister's list — not on this document.
+
+Three markers on `/contests/[id]` for the integrator: `contests: compliance (A)` (A's own panel,
+mounted), `contests: translations (integration)`, `contests: discussion (integration)`.
+
+### Verified — what was actually run, with the numbers
+
+- `manage.py test contests config --keepdb` — **165 tests, OK**, 239 s of tests on top of about
+  eleven minutes of setup. **That setup cost is per invocation and `--keepdb` cannot remove it**:
+  nine of the ten databases are the in-memory log shards (`file:memorydb_logs_*?mode=memory`),
+  which exist only while a connection holds them, so every run rebuilds them — the root
+  `CLAUDE.md` already says so and it is worth repeating, because a run that sits for ten minutes
+  printing "Using existing test database for alias 'logs_4'…" looks hung and is not. An earlier
+  `--parallel 4` run of the same two apps was **164 OK** in 69 s when the shards happened to still
+  be alive from a concurrent process; the serial number above is the honest one to plan around.
+  A `contests` migration also invalidates the on-disk `default` clone, so the first run after
+  `0002` additionally pays the full migrate.
+  The first run of `test_api.py` found one real bug of exactly the kind `backend/CLAUDE.md` warns
+  about: catching an `IntegrityError` on a unique-constraint collision **without its own
+  savepoint** leaves the transaction broken, so the next query answers
+  `TransactionManagementError` — a 500 on a request whose honest answer is 409. Both such inserts
+  now sit in `with transaction.atomic():`. A later run (102 in `contests` after one more test was
+  added) found a second one, in the test rather than the app: `coauthoring` creates the owner's
+  `ProjectMember` row with the project and `one_owner_per_project` is a partial unique index, so
+  writing that row by hand is an `IntegrityError`.
+- **`people.py` had a real bug that only the dev database could show**, and it is the reason that
+  test exists: the four rosters are four other apps' models and they do NOT share a field name.
+  `MaterialProject` has no `title` at all — it is a `OneToOne` on a material whose name lives in
+  that material's translations — so `suggested_people` raised `AttributeError` for anybody who
+  co-writes a material. Found by calling it against the real dev accounts rather than by any
+  assertion; the test now exercises every arm.
+- `manage.py check` clean; `makemigrations --check --dry-run` "No changes detected";
+  `testing/check_databases_declared.py` prints **0 classes still unresolved, in 0 files**.
+- `manage.py seed_contest_demo` **run twice**: the second run reports "Refreshed" for both contests
+  and creates nothing — 2 contests, 4 registrations, 4 submissions, 32 scores, 4 results
+  (laureate / finalist / distinction / participant), 1 answered complaint.
+- `npm run check` **0 errors, 0 warnings** over 7017 files (after recompiling Paraglide — a stale
+  catalogue throws `m.x is not a function` at runtime and `svelte-check` reports every key as
+  missing, which is what the first run did).
+- `npx eslint src e2e` — clean for everything this step wrote. One pre-existing error remains in
+  `e2e/attachments.mjs` (`'API' is assigned a value but never used`), present at the branch point
+  `092f80d` and left alone. `npm run build` OK.
+- Both catalogues **identical at 4547 keys**, verified programmatically; 434 new `contests_*` keys,
+  every placeholder set checked to match between `en` and `pl` before the files were written (a
+  mismatch there gives Paraglide two different signatures and breaks the call site in exactly one
+  language — the sort of thing `npm run check` cannot see).
+- `node e2e/contests.mjs` against real servers on ports 5271 / 8171 — **58 checks, 58 passed, 0
+  failed, zero page errors**, screenshots looked at. The first run reported six failures and
+  **every one of them was the script's fault, not the product's**, which is worth recording
+  because four of the six are the shapes `e2e/CLAUDE.md` already names:
+  * three were counting rows before the fetch that fills them came back (traps 25 and 27). The
+    hub reported "0 cards" while the API had three; the matrix reported "0 rows" and then went on
+    to type into those very rows, because Playwright's own locators auto-wait and a `.count()`
+    does not. All three now wait for the response or for the row, never for a timeout.
+  * one was a **vacuous pass** (trap 8): "it is anonymised — a number, not a name" passed on an
+    EMPTY heading, because "contains no name" is true of nothing at all. It now requires the
+    number to be there as well.
+  * one asserted the wrong rule: it refused the jury's view expecting `stage_open` while the
+    token holder was not yet on the jury, so the real answer was `not_juror`.
+  * one asserted **404 where the backend's own convention says 403**: an entrant CAN see the
+    contest, so the contest is not hidden from them — only the organiser's obligations are, and
+    `backend/CLAUDE.md` is explicit that a non-owner gets 404 via queryset scoping and a
+    real-but-wrong party gets 403. The script was wrong; the view was right.
+  The second run found the white-on-teal chip described below, in a screenshot, with every
+  assertion green. The third run is the 58/58.
+
+### Found outside this step's scope
+
+**`presets.LAW`'s citations are English-only, and they are drawn inside a Polish page.** The
+compliance panel, the regulamin editor and the wizard's law preview all render
+`"PIT art. 21 ust. 1 pkt 68 — prizes ≤ 2 000 zł in contests 'w dziedzinie nauki' exempt…"` under
+Polish headings — visible in `e2e/screens/contests-detail-draft.png` and impossible to miss once
+looked at. Everything else on those surfaces IS bilingual (`title_en`/`title_pl` on the checklist,
+`summary_*` and `info` on the preset, the markers and the state words from the catalogue); only the
+citation strings are single-language, because `presets.LAW` is a flat `key -> (citation, marker)`
+table. **`presets.py` is step B's file** (`CONTESTS-BRIEF.md` §3.B), so A did not widen it: the fix
+is `LAW` carrying `citation_pl` beside `citation`, one line per row, and `law_as_api()` sending
+both. Named here and in `todo.md` rather than worked around — a frontend map of thirty-two
+citations would be a second copy of the research, drifting from the one in `presets.py`.
+
+`frontend/CLAUDE.md`'s list of real theme tokens says `--text-on-accent` is NOT one of them, and it
+is right: the first draft of `ScoringMatrix` used `var(--text-on-accent, #fff)` and would have drawn
+a white-on-accent button only because of the fallback. The real token is `--accent-contrast`, and
+the `button-primary` mixin already uses it — so the fix was to use the mixin. Worth repeating here
+because the file's own warning ("an undefined custom property drops the whole declaration") is what
+made it findable in one grep.
+
+And the same file's colour vocabulary caught a second one, this time only in a screenshot:
+`RolePicker`'s "chosen person" chip wrote `--accent-contrast` on `--accent-soft` by hand and drew
+**white text on a pale teal tint** — the chosen juror's name was invisible on the wizard's third
+screen. `svelte-check`, `eslint` and the build all passed; `e2e/screens/contests-wizard-3-people.png`
+showed it immediately. The mixin that exists for exactly this is `selected-soft` (tint + accent text
++ a 1px accent border), and the chip now uses it. "A filled accent box is a command, never a
+selection" is the sentence that explains both halves of the mistake.
+
+### Left open, by design — all named rather than quietly omitted (house rule 14)
+
+- **Notifications.** No new types, per the brief's rule 12. The four that are wanted:
+  **registration decided** (accepted / declined / disqualified — the participant currently learns it
+  by looking), **stage opened** (the one with a deadline attached), **results published**, and
+  **complaint answered** (the organiser owes an answer within a window and the participant has no
+  way to know it arrived). All four are `notifications/services.notify()` calls plus a preference
+  field; none is built.
+- **Teams beyond a `team_name`.** A real roster with a captain, and `kc_920_3`'s "who receives which
+  share" as structured rows rather than a paragraph in §7. `team_size_max` exists on the model and
+  nothing enforces it.
+- **Community voting** (preset (k) in the research) — not built until a lawyer answers
+  `CONTESTS-LAW.md` §14 item 1, because community voting that decides a prize is the shape that gets
+  read as a lottery.
+- **A DPA (umowa powierzenia) template** between EdMat and an organiser. `LEGAL.md` is step B's and
+  names it; nothing generates one.
+- **Proctoring beyond a role name.** `proctor` is a role and nothing else — no camera, no lockdown,
+  and not wanted.
+- **People search** is still the known gap; `suggested_people` is the honest substitute, not a fix.
+- **An on-site stage does not create its event for you.** `ContestStage.event` is a real FK and the
+  wizard asks whether the founder will want one, but the event itself is still created from
+  `/events/new` and attached afterwards. The wizard says exactly that rather than implying a flow.
+- **`lib/utils/contestLabels.ts` is a temporary home.** `CONTESTS-BRIEF.md` §4 rule 6 gives the six
+  enum label maps to step B in `labels.ts` and says "A reads them" — but A's nine pages cannot be
+  built or run on A's own branch without them. They live in that one file, with the keys and message
+  keys the brief specifies, and **integration deletes it and re-points its eight importers at
+  `labels.ts`**. The file's own header says so. A's own `CONTEST_BLOCK_LABELS` IS in `labels.ts`,
+  under A's comment, as the brief requires.
+- **One line in `Header.svelte` outside A's three markers**: `/contests` added to
+  `SECTION_PREFIXES`, without which the `aria-current` on the nav link A appends is dead and never
+  marks itself as the current page for a screen-reader user. Step B does not touch the nav, so
+  nothing collides with it.
+- **`contests_placeholder` is now an unused catalogue key** — the prep's placeholder copy, left in
+  both catalogues because removing a key is a bigger edit than leaving one. The integrator can drop
+  it.
+- **No upload control on an answer, and the brief's suggested shape does not work.** §3.A's
+  context table proposed "attach to the contest node with tier `staff` and reference the row from
+  the answer", but `attachments/access.py: can_attach` allows attaching to a NODE only to that
+  node's STAFF — deliberately, and in a file step A does not own — while a contest participant is
+  a member. So `ContestAnswer.attachment` is a real FK the API accepts (an organiser or proctor
+  can attach a scan on somebody's behalf, which is the on-site case) and the participant-facing
+  control is not drawn, because it would be refused. **The clean fix is a `contest_answer` target
+  kind in `attachments/targets.py`**, added to `ROW_TARGET_KINDS` with the answer's own author as
+  its owner — the shape `needs` already uses for "whoever filed it may attach the photo that
+  explains it". One entry in a registry plus a two-line `node_behind`; it belongs to whoever owns
+  `attachments/` next, and `todo.md` has it.
+- **The law citations are English-only** — see "Found outside this step's scope" above. It is a
+  house-rule-1 gap on a surface A built, with the fix in a file A does not own.
+- **No permission-matrix rows** for the new endpoints (`events/test_permission_matrix.py`'s shape).
+  §5 of the brief already assigns them to the integrator; `test_api.py` covers the same ground for
+  the paths that matter, but not the systematic `/api/<thing>/undefined/` sweep.

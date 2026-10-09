@@ -52,7 +52,9 @@ export type TranslatableKind =
 	| 'poll_option'
 	| 'organization'
 	| 'goal'
-	| 'goal_criterion';
+	| 'goal_criterion'
+	// A contest's title and description (`translations/authority.py`, step B, 2026-10-09).
+	| 'contest';
 
 /** A row that carries the two blocks. Every management type extends this, so one editor and one
  *  note component serve all six. */

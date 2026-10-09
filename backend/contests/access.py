@@ -40,15 +40,41 @@ def role_of(user, contest) -> str | None:
 
 
 def _registered(user, contest) -> bool:
-    """Step A replaces this body with "has a registration in a place-holding status". Until then
-    nobody is a participant, which is the honest answer for a model that has no participants."""
-    return False
+    """Has this person a registration that holds a place? (step A, 2026-10-09.)
+
+    `PLACE_HOLDING_STATUSES` is `requested` + `accepted` and lives in `models.py` so that "is this
+    person a participant?" has exactly one definition. A declined, withdrawn or disqualified row is
+    KEPT (house rule 12 — who asked and whether it was accepted is part of the trust model) and
+    holds nothing: somebody the organiser removed must stop seeing the members-only side of the
+    contest the moment they are removed, and somebody who asked and is still waiting must already
+    see it, because otherwise they cannot read the regulamin they are being judged against.
+
+    `requested` counting is the deliberate half of that: a request is a place held pending a
+    decision, exactly as `events.SEAT_HOLDING_STATUSES` counts a `pending` row.
+
+    **Membership is not visibility.** A participant of a PRIVATE contest sees it because they are a
+    member (`is_member` → `can_view` via `role_of`? no — `can_view` asks `is_public` or a staff
+    ROLE), and that is why `can_view` below asks `_registered` too: visibility is the contest's own
+    two axes plus "you are in it". Without that line, somebody the organiser accepted into a private
+    contest would be 404ed off the page they had just been let into.
+    """
+    if not _authenticated(user):
+        return False
+    from .models import PLACE_HOLDING_STATUSES
+
+    return contest.registrations.filter(user=user, status__in=PLACE_HOLDING_STATUSES).exists()
 
 
 def can_view(user, contest) -> bool:
     if contest.is_public:
         return True
-    return role_of(user, contest) is not None
+    if role_of(user, contest) is not None:
+        return True
+    # A participant of a private contest sees it because they are in it (step A). The two axes
+    # (`status`, `visibility`) still answer "has it been announced" and "to whom" for everybody
+    # else; this is the third, narrowest arm and it is a membership check, not a widening of
+    # either axis.
+    return _registered(user, contest)
 
 
 def is_staff(user, contest) -> bool:
@@ -83,11 +109,17 @@ def visible_contests(user, qs=None):
 
     from .models import PUBLIC_STATUSES, PUBLIC_VISIBILITY, Contest
 
+    from .models import PLACE_HOLDING_STATUSES
+
     qs = Contest.objects.all() if qs is None else qs
     public = Q(status__in=PUBLIC_STATUSES, visibility__in=PUBLIC_VISIBILITY)
     if not _authenticated(user):
         return qs.filter(public)
-    return qs.filter(public | Q(organiser=user) | Q(staff__user=user)).distinct()
+    # The list-shaped half of `can_view` above, and it must stay in step with it — a test pins the
+    # two against each other, because a filter and an object check that disagree is the exact shape
+    # house rule 4 warns about.
+    mine = Q(registrations__user=user, registrations__status__in=PLACE_HOLDING_STATUSES)
+    return qs.filter(public | Q(organiser=user) | Q(staff__user=user) | mine).distinct()
 
 
 # ---- the names `config/nodes.py` imports, spelled the way the organisation ones are ----------

@@ -549,6 +549,22 @@ once), no read endpoint (the versions ride on the row they belong to), no kill s
 `TranslateFields` (original beside translation, stacked below 800px), `LanguageNote` ("a newer version exists in PL — 4
 min newer") and `ManagementTextMenu`, which is also the "⋯" a need and a poll had never had.
 
+### `contests` — konkursy: stages, a jury, results, and the law a prize brings (2026-10-09)
+`Contest` (one `status` lifecycle draft → announced → registration_open → running → judging →
+results_published → closed, plus cancelled; `preset_key`; `has_prize` with the claim deadline KC
+art. 921 §1 requires; `organiser`, optional `organization`), `ContestStaff` (organiser / jury /
+proctor / secretary), `ContestStage` (online or an `events.Event`; advancement by threshold or
+top-N, never by draw), `ContestProblem` (an exercise from the corpus, hidden until the stage opens),
+`ContestRegistration` (guardian consent recorded for a minor; `publish_name` a separate consent),
+`ContestSubmission` / `ContestAnswer` / `ContestScore` (the score is a recount over jurors),
+`ContestResult` (written only by `publish_results`), `ContestComplaint`, `ContestRulesSection` /
+`ContestRulesVersion` (the regulamin, versioned; a registration stores the version it accepted).
+`access.py` is the node kind's rule module; `rules.py` the refusal words; `presets.py` ten presets +
+the 12-section regulamin + a 24-item legal checklist + the `LAW` table with verification markers;
+`personalize.py` turns a preset into a plan, a goal, tasks, needs and a poll on the node through
+those apps' own paths; `compliance.py` evaluates the checklist against the rows; `people.py`
+suggests jurors from the rosters the founder already shares. `CONTESTS-BRIEF.md`, `CONTESTS-LAW.md`.
+
 ### `telemetry` — request logging and audit
 `RequestLog`, `AuditEvent`, `middleware.py`, `routers.py` (`LogShardRouter`), `checks.py`. Logs are written to **separate SQLite
 databases** (`logs_*` shards under `backend/logdata/`, sized by `EDMAT_LOG_SHARD_SIZE`/`COUNT`), with an anonymous shard

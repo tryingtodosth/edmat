@@ -87,17 +87,17 @@ taxonomy. An untracked `backend/classroom/` directory may still exist on disk �
 frontend/  SvelteKit 2 + Svelte 5 runes + TS, adapter-static (SPA fallback), Paraglide i18n
              routes/ + components  →  lib/services/*.ts  →  lib/api/client.ts  →  HTTP
                    (never fetch)         (the only seam)      (the only fetch())
-backend/   Django 5.2 + DRF, SQLite, 39 local apps + config/ + testing/ + imaging.py
+backend/   Django 5.2 + DRF, SQLite, 40 local apps + config/ + testing/ + imaging.py
              views  →  <app>/services.py or a rule module  →  models
 deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 39 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 40 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
 `courses` `booking` `activity` `events` `coauthoring` `materials_coop` `concepts` `sketches` `venues` `documents`
 `shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `goals` `flashcards`
-`provenance` `translations` `attachments`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
+`provenance` `translations` `attachments` `contests`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
 (`CONFERENCE-BRIEF.md`, 2026-09-23), each hung off `events.Event` by a row of its own so that
 `events` kept its schema while seven branches were built at once. The last six — `organizations` `tasks` `needs` `plans` `decisions` `work` — are the
 management layer (`MANAGEMENT-BRIEF.md`, 2026-09-24), each hanging its rows off a course, an event, a
@@ -119,19 +119,27 @@ and **`translations`** is the management layer's text in every language somebody
 one table behind `tasks`, `plans`, `needs`, `decisions` and an organisation's description, and
 deliberately NOT `ExerciseTranslation`'s shape, which carries a review workflow this does not need.
 
+**`contests`** (2026-10-09, `CONTESTS-BRIEF.md`, `CONTESTS-LAW.md`) is a *konkurs*: stages with
+problems drawn from the corpus, registrations with a guardian's consent, a jury's scores, published
+results with a complaints window, a versioned regulamin, and ten presets derived from Polish law
+(the prize-free `challenge` is the default; a prize unlocks KC art. 919–921, the gambling act and PIT;
+no draw is representable anywhere). A contest is a **node**, so tasks, plans, goals, needs, polls,
+attachments, decks and a discussion hang off it; `contests/personalize.py` turns a preset into those
+rows through the other apps' own paths. Founding one is the fifth `config/creation.py` kind.
+
 **Two boundaries are load-bearing and everything else follows from them:**
 
 1. **No component or route contains fetch logic, ever.** `lib/services/*.ts` is the only seam;
    `lib/api/client.ts` is the only `fetch()`. This is what let the entire mocked Phase-1 frontend be
    pointed at a real backend without touching a single route file, and it still pays off.
 2. **A rule that more than one endpoint needs lives in one module, and the endpoints ask it.**
-   `accounts/minors.py`, `exercises/entries.py`, `config/audience.py`, `config/creation.py`, `galleries/visibility.py`,
+   `accounts/minors.py`, `exercises/entries.py`, `config/audience.py`, `config/creation.py`, `contests/access.py`, `galleries/visibility.py`,
    `moderation/services.py`, `booking/availability.py` are all this shape. An endpoint that
    re-implements the rule is how two surfaces start disagreeing.
 
 `adapter-static` is a **deliberate non-change**, not an oversight: every request originates
-client-side against a separate-origin API, so nothing needs SSR. The hub and standing pages, the seven
-`/about/<feature>` showcase pages and the twelve manual pages are prerendered for first paint, and
+client-side against a separate-origin API, so nothing needs SSR. The hub and standing pages, the eight
+`/about/<feature>` showcase pages and the thirteen manual pages are prerendered for first paint, and
 `deploy/fuw/pack.sh` refuses a build that is missing one.
 
 ---
@@ -159,8 +167,8 @@ Learn these five and most of the schema reads itself.
   (and a request for it comes back 400 with the reason — house rule 10). A status people can set by
   hand is a status that stops meaning anything.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-six exist today (counted against `/api/feature-flags/` on the dev
-  database, 2026-10-09 — this number had drifted twice before, so count it rather than increment it,
+  with an `is_staff` bypass. Thirty-seven exist today (counted against `/api/feature-flags/` on the dev
+  database, 2026-10-09 evening — this number had drifted twice before, so count it rather than increment it,
   which is how the "thirty-three" that preceded "thirty-four" turned out to be two short rather than one) — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
@@ -180,7 +188,11 @@ Learn these five and most of the schema reads itself.
   and `/about`, the "Serves: …" line leaves every task and plan, and the thread under a goal closes
   with it) and `attachments` (0052, attachments on anything — `attachments/`; off, every
   `/api/<kind>/<id>/attachments/` closes for a non-staff caller, the panel leaves every page it is
-  mounted on, and "Attach something" goes with it) — and the `legal` notice channel is the one deliberate exception
+  mounted on, and "Attach something" goes with it) and `contests` (0053, contests — `contests/`;
+  off, every `/api/contests/…` and `/api/contest-presets/` closes for a non-staff caller, the hub,
+  the Add… entry, the account-menu item, the work-dashboard sections and the feed rows go with it,
+  while a contest node's tasks, plans and goals stay reachable by id for its staff, because those
+  belong to other features) — and the `legal` notice channel is the one deliberate exception
   (`LEGAL.md` §4). House rule 3 is what "kill switch" has to mean. A key is a **three-file**
   change — backend choices + migration, `types/featureFlag.ts`, `utils/labels.ts` — and the third
   has been forgotten twice, each time taking the whole Flags tab down. `age_verification` is also
@@ -338,7 +350,9 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/creation/ /api/users/{id}/learning-record/ /api/courses/{id}/completions/  the creation gate, the learning record, certificates
 /api/ai-assistance/ /api/ai-assistance/{kind}/{id}/{vote,author-mark,lock}/   the "AI-assisted" mark (provenance/)
 /api/text-versions/{kind}/{id}/                                       one management row's text in every language at once
-/api/{kind}/{id}/attachments/ /api/attachments/{id}/{file,acknowledge,replace,withdraw,receipts}/  attachments on any of nine kinds
+/api/{kind}/{id}/attachments/ /api/attachments/{id}/{file,acknowledge,replace,withdraw,receipts}/  attachments on any of ten kinds
+/api/contests/ /api/contest-presets/ /api/contests/{id}/{announce,stages,registrations,results,complaints,rules,compliance}/  contests (CONTESTS-BRIEF.md)
+/api/contest-stages/{id}/{problems,submission,submit,submissions,ranking,open,close,advance}/  a stage, from both sides of the desk
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
 /api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page — or under a task, a plan, a need or a poll (`tasks/17` as the page; `?keys=` for a whole board)
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
@@ -367,6 +381,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /courses … /events … /tutoring … /bookings                    user-run surfaces
 /needs … /volunteering …                                      help wanted, and who is offering
 /goals/[id]                                                   one goal and its definition of done
+/contests /contests/new /contests/[id]/{rules,stages/[s],judge,results,manage,certificate/[r]}  contests (konkursy)
 /flashcards /flashcards/[id] /flashcards/[id]/review            decks and spaced review
 /courses/[id]/certificate/[completionId]                       a completion certificate, printed by the browser
 /material-projects … /project-invites/[token]                 co-authoring a material

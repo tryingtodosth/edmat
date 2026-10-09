@@ -1384,5 +1384,38 @@
   "summary": "The owner, 2026-10-08 evening: \".md files, docs, etc, sketches etc for files when creating an event for attachements (in multiple places we lack this funcionality)\" — and, asked where: events at creation, courses, tasks, plans, needs, goals, materials, organisations and comments, \"EVERYWHERE\". Two decisions were put to them before anything was written, because both were theirs to make and neither…",
   "subproject": "materials",
   "listed": true
+ },
+ {
+  "ref": "17CE",
+  "title": "Contests (*konkursy*) — the preamble, the prep, and the integration",
+  "heading": "17CE. Contests (*konkursy*) — the preamble, the prep, and the integration (2026-10-09)",
+  "line": 15284,
+  "date": "2026-10-09",
+  "date_source": "heading",
+  "summary": "What this section is. The owner's ask of the afternoon of 2026-10-09 — \"add contests. personalize all current modules to this use case. each subagent can have 1 haiku. research law for konkursy in poland and add presets with making it possible by prefilling with current users\" — built as a research agent, a prep commit, two Opus branches at once and an integration, all in one day. The research is…",
+  "subproject": "events",
+  "listed": true
+ },
+ {
+  "ref": "17CE.B",
+  "title": "Every other module made contest-aware — the preset as rows, nine registries, /about/contests, the manual chapter",
+  "heading": "17CE.B. Every other module made contest-aware — the preset as rows, nine registries, `/about/contests`, the manual chapter (2026-10-09)",
+  "line": 15463,
+  "date": "2026-10-09",
+  "date_source": "heading",
+  "summary": "Step B of the contests cycle (prompts/19-contests-b-personalise.md, CONTESTS-BRIEF.md §3.B), built on contest/b-personalise from the prep 75a6fea while step A built the app and its pages on contest/a-core. The owner's ask of that afternoon was two sentences and this is the second of them: \"personalize all current modules to this use case\".",
+  "subproject": "management",
+  "listed": true
+ },
+ {
+  "ref": "17CE.A",
+  "title": "Contests, step A: the app, its rules, and every page of it",
+  "heading": "17CE.A — Contests, step A: the app, its rules, and every page of it (2026-10-09)",
+  "line": 15696,
+  "date": "2026-10-09",
+  "date_source": "heading",
+  "summary": "prompts/18-contests-a-core.md against CONTESTS-BRIEF.md §3.A, on contest/a-core from the prep 092f80d. Fourteen interface tasks, all fourteen shipped. The sibling step B (contest/b-personalise) was building presets.py, personalize.py, the registries in every other app, /about/contests, the manual chapter and LEGAL.md at the same time; this section is only what A did.",
+  "subproject": "events",
+  "listed": true
  }
 ]

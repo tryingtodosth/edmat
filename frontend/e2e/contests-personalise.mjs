@@ -131,6 +131,8 @@ contest = Contest.objects.create(
     title=${JSON.stringify(TITLE)},
     description='Konkurs utworzony przez e2e/contests-personalise.mjs.',
     preset_key='school',
+    # Step A's column (default False); the wizard sets it from the preset, so this setup does too.
+    has_prize=True,
     organiser=owner,
     status='announced',
     visibility='public',

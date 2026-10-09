@@ -109,6 +109,11 @@ SUBPROJECT_BY_REF = {
     # 17CD is attachments on anything — one table superseding three. Filed under `materials`, which
     # is where "files people put here" lives; its reach is wider, and a section gets one key.
     '17CD': 'materials',
+    # Contests (2026-10-09, CONTESTS-BRIEF.md). A konkurs is a happening people enter and its
+    # on-site final IS an event, so the app and its pages file under `events`; step B — the preset
+    # as a plan, a goal, tasks, needs and a poll — is management work. A `contests` subproject of
+    # its own is on the board; until the owner adds one, these three rows live here.
+    '17CE': 'events', '17CE.A': 'events', '17CE.B': 'management',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

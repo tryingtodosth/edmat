@@ -52,9 +52,13 @@ class PersonalizeBase(APITestCase):
         self.now = timezone.now()
 
     def make_contest(self, preset_key='school', **extra):
+        # `has_prize` is step A's column (default False); the wizard sets it from the preset on
+        # founding, so the factory does the same — a `school` contest promises a prize unless the
+        # test says otherwise. Before the merge this module read the preset through `getattr`.
         contest = Contest.objects.create(
             title=extra.pop('title', 'Konkurs matematyczny klas siódmych'),
             preset_key=preset_key,
+            has_prize=extra.pop('has_prize', getattr(presets.get(preset_key), 'has_prize', False)),
             organiser=self.organiser,
             starts_at=self.now + timedelta(days=30),
             ends_at=self.now + timedelta(days=60),

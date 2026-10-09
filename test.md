@@ -2744,3 +2744,76 @@ rather than an exception, so one flaky capture cannot throw away fifty checks th
 work…" and then the renderer dies, restart the Vite dev server before believing it: three runs
 failed exactly that way against a server that had survived a disk-full event, and a restart fixed
 it with no code change (`e2e/CLAUDE.md` trap 3).
+
+## Contests (`contests`, 2026-10-09, step A)
+
+Three backend modules and one browser script. `backend/contests/tests.py` is the prep's seven
+assertions (the draft-404 rule, the four roles, the node seam, the flag, the creation kind).
+**`backend/contests/test_rules.py`** is every refusal word in `rules.py` with the refusals first and
+the happy path last — the eight that block an announce (including `chance_element`, provoked both
+with and without the Polish diacritic, in a stage description and in the merit criteria), the
+transition table, the eight that block a registration, `not_advanced` from a previous stage, the
+scoring refusals, the top-N cut-off taking everybody tied, `advance` being idempotent, ties sharing a
+rank, titles meaning nothing when the maximum is zero, and `ContestResult` rows existing only between
+publish and unpublish. Those classes reach no endpoint and so stay on plain `TestCase` **without**
+the log-shard declaration, deliberately: leaving them bare is what keeps
+`testing/check_databases_declared.py` meaningful. **`backend/contests/test_api.py`** is the
+endpoints, with one base class making the log-shard declaration for the whole file — the creation
+gate's three answers, a non-staff founder refused `kuratorium`, the kill switch closing the surface
+for a non-staff caller and bypassing for a moderator, a stranger's 404 on a draft, a participant of
+a private contest seeing it because they are in it, `/api/contests/undefined/` answering 404 rather
+than 500, announce refused 409 and then accepted, a stage's problems 404 before it opens, the stage
+payload carrying no answer and no solution pool, the separate and revocable `publish-name` consent
+that the organiser cannot set for somebody else, the anonymised jury view, initials on the published
+list, the complaints window, and `every law key the panel cites exists in presets.LAW` with a marker
+the frontend has a label for.
+
+```bash
+cd backend && ../.venv/bin/python3 manage.py test contests config --keepdb --parallel 4
+../.venv/bin/python3 manage.py seed_contest_demo && ../.venv/bin/python3 manage.py seed_contest_demo
+```
+
+**`frontend/e2e/contests.mjs`** drives the whole thing in a real browser, in the order a contest
+happens: the hub (and that every card names its organiser above the fold), the four-screen wizard
+with **a suggested person put on the jury** and the "via" line that says why they were suggested,
+announce refused for the missing claim deadline *and the sentence the page shows instead of a code*,
+a registration whose `publish_name` defaults false, the problems 404 before the stage opens, an
+answer typed and handed in, the jury's anonymised matrix, published results showing initials, a
+complaint lodged and answered with reasons, and the compliance panel with its verification markers
+and its "not legal advice" line. It takes **three tokens, not logins** (`E2E_ORGANISER_TOKEN`,
+`E2E_JUROR_TOKEN`, `E2E_ENTRANT_TOKEN`) because four sign-ins would burn the login throttle
+(`e2e/CLAUDE.md` trap 30), needs `seed_contest_demo` to have run, and leaves the contest it founds
+**cancelled** rather than deleted — a contest people have entered is never deleted, which is one of
+the things it checks.
+
+```bash
+E2E_BASE=http://localhost:5271 E2E_API=http://127.0.0.1:8171/api \
+  E2E_ORGANISER_TOKEN=… E2E_JUROR_TOKEN=… E2E_ENTRANT_TOKEN=… node e2e/contests.mjs
+```
+
+Screenshots: `e2e/screens/contests-hub.png`, `contests-wizard-1.png` … `contests-wizard-4-law.png`,
+`contests-detail-draft.png`, `contests-stage-answer.png`, `contests-judge-matrix.png`,
+`contests-results.png`, `contests-manage.png`, and `contests-certificate.png` when the single entry
+places above `participant`.
+
+## Contests, integration (2026-10-09, `HISTORY.md` §17CE preamble)
+
+What the merge of steps A and B added on top of their two sections above: **twenty contest rows in
+the permission matrix** (`backend/events/test_permission_matrix.py`, the block headed "contests
+(17CE)") — a stranger 404s on a draft and on the seam's ref, a juror of the *other* contest is a
+stranger to this one, a registered participant is a member and not staff (404 on the roster
+endpoint, 403 `not_staff` on the registrations list), a juror cannot announce (403 `not_manager`),
+the compliance panel is 403 `not_staff` to a non-staff reader of a public contest and 404 on a draft, and `results/` is an empty 200 before
+publication rather than a refusal. The fixture is one announced public `challenge` with the reviewer
+on the jury and the attendee registered, and one draft. Run them with the rest of the matrix:
+
+```bash
+cd backend && ../.venv/bin/python3 manage.py test events.test_permission_matrix contests --keepdb
+```
+
+Both contest browser scripts take their ports from `E2E_BASE` / `E2E_API` (defaults 5271/8171 and
+5272/8172, the two steps' own worktrees); on the integrated tree run them against whatever ports
+its servers are on. `e2e/contests-personalise.mjs` founds its contest through the ORM and so still
+runs after the merge, now against the real `apply_preset`; `seed_contest_demo` on the integrated
+tree is the quickest proof the two halves met — its report lists the plan, goal, tasks, needs and
+poll it created.

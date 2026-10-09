@@ -45,6 +45,9 @@ import type {
 
 // The management layer's own enums, each step on its own import line for the same reason (six
 // branches in parallel, MANAGEMENT-BRIEF.md §4 rule 6).
+// `contests` (CONTESTS-BRIEF.md §4 rule 6), on its own line for the same reason — two contest
+// branches in parallel. Only the refusal words: the enum labels are step B's.
+import type { ContestBlockReason } from '$lib/types/contest';
 import type { TaskBlockReason, TaskPriority, TaskStatus } from '$lib/types/task';
 import { m } from '$lib/paraglide/messages.js';
 
@@ -1302,7 +1305,10 @@ export function learningRecordMetricLabel(key: string): () => string {
 	return LEARNING_RECORD_METRICS[key] ?? (() => key);
 }
 
-// Contests — a hand-maintained mirror of `backend/contests/presets.py` (`PRESET_KEYS`,
+// Contests — step B's key lists and helper; the six enum maps the brief gave B were folded into
+// step A's typed block at the END of this file at integration (2026-10-09), because A had written
+// them typed against `lib/types/contest` and B's `Record<string>` copies said the same thing with
+// different message keys. A hand-maintained mirror of `backend/contests/presets.py` (`PRESET_KEYS`,
 // `PRIZE_REGIMES`, `ORGANISER_KINDS`, `LAW_MARKERS`/`MARKER_WORDS`) and of
 // `backend/contests/models.py` (`STATUS_CHOICES`, `STAFF_ROLE_CHOICES`). Both of those files say
 // so from their side (house rule 13: said in both, because this is where drift creeps in). A value
@@ -1327,48 +1333,14 @@ export const CONTEST_PRESET_KEYS: string[] = [
 	'olympiad'
 ];
 
-export const PRESET_LABELS: Record<string, () => string> = {
-	challenge: m.contestPreset_challenge, // "Challenge (no prize)"
-	school: m.contestPreset_school, // "School contest"
-	staged: m.contestPreset_staged, // "Multi-stage contest"
-	university: m.contestPreset_university, // "University or faculty contest"
-	student_circle: m.contestPreset_student_circle, // "Student circle contest"
-	organization: m.contestPreset_organization, // "On behalf of an organisation"
-	open_online: m.contestPreset_open_online, // "Open online contest with prizes"
-	team: m.contestPreset_team, // "Team contest"
-	kuratorium: m.contestPreset_kuratorium, // "Kurator's subject contest"
-	olympiad: m.contestPreset_olympiad // "Subject olympiad"
-};
-
 // Not a tax calculation and never drawn as one — each label says which exemption a contest of this
 // kind PLEADS, which is the organiser's decision and not this site's. `presets.py` carries the
 // article numbers and their verification markers; the compliance panel (step A) draws those.
-export const PRIZE_REGIME_LABELS: Record<string, () => string> = {
-	none: m.contestLabel_regime_none, // "No prize, so no tax"
-	pupil_exempt_115: m.contestLabel_regime_pupil_exempt_115, // "Pupils' prizes, exempt without a cap"
-	science_68_then_10pct: m.contestLabel_regime_science_68_then_10pct, // "Up to 2 000 zł exempt as science, 10% above it"
-	flat_10pct: m.contestLabel_regime_flat_10pct // "10% withheld, no exemption claimed"
-};
-
 // WHO promised the prize — which under KC art. 919 §1 is who is bound by it, who is the data
 // controller and who is the płatnik. It is the first thing on a contest page for that reason.
-export const ORGANISER_KIND_LABELS: Record<string, () => string> = {
-	person: m.contestLabel_organiser_person, // "A person"
-	organization: m.contestLabel_organiser_organization, // "An organisation"
-	kurator: m.contestLabel_organiser_kurator, // "A kurator oświaty"
-	committee: m.contestLabel_organiser_committee // "A committee"
-};
-
 // How well a legal citation was checked (`CONTESTS-LAW.md`'s own four markers). Shown next to every
 // article number this site prints, because the research behind them was done by nobody who is a
 // lawyer and presenting an unverified number as settled would be the dishonest part.
-export const LAW_MARKER_LABELS: Record<string, () => string> = {
-	verified: m.contestLabel_marker_verified, // "Checked against the text"
-	secondary: m.contestLabel_marker_secondary, // "From an authoritative restatement"
-	unverified: m.contestLabel_marker_unverified, // "Not checked — from memory"
-	disputed: m.contestLabel_marker_disputed // "Disputed — a lawyer must decide"
-};
-
 // One lifecycle field, in the order a contest moves through it (`contests/models.py`). `cancelled`
 // is reachable from anything but `closed` and is last here because it is off the main line.
 export const CONTEST_STATUS_KEYS: string[] = [
@@ -1382,29 +1354,284 @@ export const CONTEST_STATUS_KEYS: string[] = [
 	'cancelled'
 ];
 
-export const CONTEST_STATUS_LABELS: Record<string, () => string> = {
-	draft: m.contestLabel_status_draft, // "Draft"
-	announced: m.contestLabel_status_announced, // "Announced"
-	registration_open: m.contestLabel_status_registration_open, // "Registration open"
-	running: m.contestLabel_status_running, // "Running"
-	judging: m.contestLabel_status_judging, // "Judging"
-	results_published: m.contestLabel_status_results_published, // "Results published"
-	closed: m.contestLabel_status_closed, // "Closed"
-	cancelled: m.contestLabel_status_cancelled // "Cancelled"
-};
-
 // Role presets, never a permission editor (MANAGEMENT-BRIEF.md §1). Only `organiser` manages;
 // `jury` scores and nothing else; a `proctor` supervises a stage without scoring; a `secretary`
 // handles entries and complaints.
-export const CONTEST_STAFF_ROLE_LABELS: Record<string, () => string> = {
-	organiser: m.contestLabel_role_organiser, // "Organiser"
-	jury: m.contestLabel_role_jury, // "Jury member"
-	proctor: m.contestLabel_role_proctor, // "Proctor"
-	secretary: m.contestLabel_role_secretary // "Secretary"
-};
-
 /** The label for a value this map does not know, falling back to the raw key — the
  *  `learningRecordMetricLabel` posture: an ugly word beats a blank space. */
 export function contestLabel(map: Record<string, () => string>, key: string): string {
 	return (map[key] ?? (() => key))();
+}
+
+// ---- contests: the refusal words (step A, CONTESTS-BRIEF.md §4 rule 6) ---------------------
+//
+// One sentence per word `backend/contests/rules.py` can answer with (house rule 6, said in both
+// files — that module's own "the words" block names this map). Step A appends ONLY this; the enum
+// label maps the brief assigns to step B (`PRESET_LABELS`, `PRIZE_REGIME_LABELS`,
+// `ORGANISER_KIND_LABELS`, `LAW_MARKER_LABELS`, `CONTEST_STATUS_LABELS`,
+// `CONTEST_STAFF_ROLE_LABELS`) are not here. On A's branch they live in
+// `lib/utils/contestLabels.ts`, whose header says what integration does with it.
+//
+// Why thirty-odd sentences rather than five: "this contest is full", "the organiser disqualified
+// you", "you help run this one" and "registration has not opened" are the same `false` to a
+// boolean and four completely different things to be told. Several of these are the only place a
+// person learns a legal fact about the contest they are entering — `claim_deadline_missing` is why
+// an organiser cannot announce, and the reason is that without that date the whole promise is
+// ineffective.
+export const CONTEST_BLOCK_LABELS: Record<ContestBlockReason, () => string> = {
+	// announce — what an organiser is still missing
+	claim_deadline_missing: m.contests_block_claimDeadlineMissing, // "Set the deadline within which the prize may be claimed. Without it a prize contest is ineffective in Polish law, so this cannot be announced."
+	jury_missing: m.contests_block_juryMissing, // "This kind of contest needs more people on its jury before it can be announced."
+	criteria_missing: m.contests_block_criteriaMissing, // "Write the criteria the jury will mark against. Published criteria are what keep a contest from being treated as a lottery."
+	controller_missing: m.contests_block_controllerMissing, // "Name who is responsible for the entrants' personal data, and how to reach them."
+	external_reference_missing: m.contests_block_externalReferenceMissing, // "Link the kurator's or the committee's own announcement of this contest."
+	no_stages: m.contests_block_noStages, // "Add at least one stage."
+	chance_element: m.contests_block_chanceElement, // "Something here decides an outcome by chance. A contest whose result depends on a draw is a lottery under Polish law and needs a permit, so it cannot be run here."
+	rules_missing: m.contests_block_rulesMissing, // "Publish the regulamin first. Entrants have to be able to read and keep the rules before they enter."
+	// the lifecycle
+	illegal_transition: m.contests_block_illegalTransition, // "A contest cannot move that way."
+	closed: m.contests_block_closed, // "This contest is closed. Nothing more can be changed on it."
+	stages_locked: m.contests_block_stagesLocked, // "An olympiad's three stages come from the 2002 regulation and cannot be changed here."
+	// registering
+	anonymous: m.contests_block_anonymous, // "Sign in to take part."
+	not_open: m.contests_block_notOpen, // "Registration is not open."
+	own_staff: m.contests_block_ownStaff, // "You help run this contest, so you cannot enter it."
+	minor: m.contests_block_minor, // "This contest does not accept entrants under 16."
+	guardian_consent_required: m.contests_block_guardianConsentRequired, // "An entrant under 16 needs a parent's or guardian's name and consent."
+	already_registered: m.contests_block_alreadyRegistered, // "You have already entered."
+	full: m.contests_block_full, // "This contest is full."
+	team_required: m.contests_block_teamRequired, // "Give your team a name."
+	// answering
+	stage_not_open: m.contests_block_stageNotOpen, // "This stage is not open."
+	not_accepted: m.contests_block_notAccepted, // "You are not one of this contest's entrants."
+	already_submitted: m.contests_block_alreadySubmitted, // "You have already handed this stage in."
+	not_advanced: m.contests_block_notAdvanced, // "You did not go through from the previous stage."
+	no_problems: m.contests_block_noProblems, // "Add at least one problem before opening the stage."
+	// scoring and publishing
+	not_juror: m.contests_block_notJuror, // "Only this contest's jury scores it."
+	stage_open: m.contests_block_stageOpen, // "Scoring starts when the stage closes."
+	own_submission: m.contests_block_ownSubmission, // "You cannot score your own work."
+	stage_unscored: m.contests_block_stageUnscored, // "Every stage has to be scored first."
+	already_published: m.contests_block_alreadyPublished, // "The results are already published."
+	not_published: m.contests_block_notPublished, // "The results have not been published yet."
+	window_closed: m.contests_block_windowClosed, // "The complaints window has closed."
+	// complaints
+	not_participant: m.contests_block_notParticipant, // "Only somebody who took part can do that."
+	already_open: m.contests_block_alreadyOpen, // "You already have a complaint waiting for an answer."
+	already_answered: m.contests_block_alreadyAnswered, // "That complaint has already been answered."
+	// authority
+	not_manager: m.contests_block_notManager, // "Only this contest's organiser can do that."
+	not_staff: m.contests_block_notStaff, // "Only the people running this contest can see that."
+	last_organiser: m.contests_block_lastOrganiser, // "A contest has to keep an organiser."
+	already_staff: m.contests_block_alreadyStaff, // "That person already has a role on this contest."
+	has_submissions: m.contests_block_hasSubmissions // "Somebody has already handed work in to this stage, so it cannot be removed."
+};
+
+/** The sentence for a refusal word, falling back to the generic one — so a word added on the
+ *  server shows something rather than nothing. The same shape `discussionRefusalMessage` has. */
+export function contestRefusalMessage(reason: ContestBlockReason | null | undefined): string {
+	if (reason && reason in CONTEST_BLOCK_LABELS) return CONTEST_BLOCK_LABELS[reason]();
+	return m.contests_block_generic(); // "That is not possible right now."
+}
+
+// ---- contests: the enum label maps (step A, folded in at integration — see the note above) ----
+//
+// A hand-maintained mirror of `backend/contests/models.py`'s choices and of
+// `backend/contests/presets.py`'s three enums (house rule 13: said in both files, and both of
+// those modules name `labels.ts`). Every map answers a function rather than a string, like every
+// other map here: a Paraglide message is a function, and calling it at module scope would freeze
+// the reader's language at import time.
+import type {
+	Advancement,
+	ComplianceState,
+	ContestStaffRole,
+	ContestStatus,
+	LawMarker,
+	OrganiserKind,
+	PrizeRegime,
+	ResultTitle,
+	StageStatus
+} from '$lib/types/contest';
+
+/** `contests/models.py: STATUS_CHOICES`. */
+export const CONTEST_STATUS_LABELS: Record<ContestStatus, () => string> = {
+	draft: m.contests_status_draft, // "Draft"
+	announced: m.contests_status_announced, // "Announced"
+	registration_open: m.contests_status_registrationOpen, // "Registration open"
+	running: m.contests_status_running, // "Running"
+	judging: m.contests_status_judging, // "Judging"
+	results_published: m.contests_status_resultsPublished, // "Results published"
+	closed: m.contests_status_closed, // "Closed"
+	cancelled: m.contests_status_cancelled // "Cancelled"
+};
+
+export function contestStatusLabel(status: ContestStatus): () => string {
+	return CONTEST_STATUS_LABELS[status] ?? (() => status);
+}
+
+/** `contests/models.py: STAFF_ROLE_CHOICES`. Role presets, never a permission editor. */
+export const CONTEST_STAFF_ROLE_LABELS: Record<ContestStaffRole, () => string> = {
+	organiser: m.contests_role_organiser, // "Organiser"
+	jury: m.contests_role_jury, // "Jury"
+	proctor: m.contests_role_proctor, // "Proctor"
+	secretary: m.contests_role_secretary // "Secretary"
+};
+
+export function contestStaffRoleLabel(role: ContestStaffRole): () => string {
+	return CONTEST_STAFF_ROLE_LABELS[role] ?? (() => role);
+}
+
+/** `contests/models.py: STAGE_STATUS_CHOICES`. */
+export const STAGE_STATUS_LABELS: Record<StageStatus, () => string> = {
+	scheduled: m.contests_stageStatus_scheduled, // "Not open yet"
+	open: m.contests_stageStatus_open, // "Open"
+	closed: m.contests_stageStatus_closed, // "Closed — being scored"
+	scored: m.contests_stageStatus_scored // "Scored"
+};
+
+export function stageStatusLabel(status: StageStatus): () => string {
+	return STAGE_STATUS_LABELS[status] ?? (() => status);
+}
+
+/** `presets.ADVANCEMENTS`. There is deliberately no `draw`. */
+export const ADVANCEMENT_LABELS: Record<Advancement, () => string> = {
+	all: m.contests_advancement_all, // "Everyone goes on"
+	top_n: m.contests_advancement_topN, // "The best N go on"
+	threshold: m.contests_advancement_threshold, // "Everyone above a points line goes on"
+	final: m.contests_advancement_final // "The last stage"
+};
+
+export function advancementLabel(advancement: Advancement): () => string {
+	return ADVANCEMENT_LABELS[advancement] ?? (() => advancement);
+}
+
+/** `contests/models.py: RESULT_TITLE_CHOICES`. Polish keeps the words people actually use —
+ *  *laureat*, *finalista*, *wyróżnienie* — because they are the words the regulations use. */
+export const RESULT_TITLE_LABELS: Record<ResultTitle, () => string> = {
+	participant: m.contests_title_participant, // "Took part"
+	distinction: m.contests_title_distinction, // "Distinction"
+	finalist: m.contests_title_finalist, // "Finalist"
+	laureate: m.contests_title_laureate // "Laureate"
+};
+
+export function resultTitleLabel(title: ResultTitle): () => string {
+	return RESULT_TITLE_LABELS[title] ?? (() => title);
+}
+
+/** `presets.PRIZE_REGIMES`. */
+export const PRIZE_REGIME_LABELS: Record<PrizeRegime, () => string> = {
+	none: m.contests_regime_none, // "No prize"
+	pupil_exempt_115: m.contests_regime_pupilExempt, // "A pupils' contest on the education-system basis — exempt, no cap"
+	science_68_then_10pct: m.contests_regime_science, // "The “science” exemption up to 2 000 zł, 10% above it"
+	flat_10pct: m.contests_regime_flat // "10% withheld, no exemption pleaded"
+};
+
+export function prizeRegimeLabel(regime: PrizeRegime): () => string {
+	return PRIZE_REGIME_LABELS[regime] ?? (() => regime);
+}
+
+/** `presets.ORGANISER_KINDS` — who the *przyrzekający*, the controller and the płatnik is. */
+export const ORGANISER_KIND_LABELS: Record<OrganiserKind, () => string> = {
+	person: m.contests_organiserKind_person, // "A person"
+	organization: m.contests_organiserKind_organization, // "An organisation"
+	kurator: m.contests_organiserKind_kurator, // "A kurator oświaty"
+	committee: m.contests_organiserKind_committee // "A komitet główny"
+};
+
+export function organiserKindLabel(kind: OrganiserKind): () => string {
+	return ORGANISER_KIND_LABELS[kind] ?? (() => kind);
+}
+
+/** `presets.LAW_MARKERS` — how sure the research behind a citation is. The compliance panel and
+ *  the regulamin editor both draw one of these beside every article number, because an unverified
+ *  number must never be presented as settled (CONTESTS-LAW.md §14). */
+export const LAW_MARKER_LABELS: Record<LawMarker, () => string> = {
+	verified: m.contests_marker_verified, // "text read"
+	secondary: m.contests_marker_secondary, // "restated"
+	unverified: m.contests_marker_unverified, // "unchecked"
+	disputed: m.contests_marker_disputed // "disputed"
+};
+
+export function lawMarkerLabel(marker: LawMarker): () => string {
+	return LAW_MARKER_LABELS[marker] ?? (() => marker);
+}
+
+/** `compliance.py`'s three states. */
+export const COMPLIANCE_STATE_LABELS: Record<ComplianceState, () => string> = {
+	ok: m.contests_compliance_ok, // "Done"
+	missing: m.contests_compliance_missing, // "Missing"
+	warning: m.contests_compliance_warning // "Check this"
+};
+
+export function complianceStateLabel(state: ComplianceState): () => string {
+	return COMPLIANCE_STATE_LABELS[state] ?? (() => state);
+}
+
+/** The preset's NAME. The preset payload already carries `name_pl`/`name_en`, so a page with the
+ *  preset in hand should use those; this is for a card, which has only the key. */
+export const PRESET_LABELS: Record<string, () => string> = {
+	challenge: m.contests_preset_challenge, // "Challenge (no prize)"
+	school: m.contests_preset_school, // "School contest"
+	staged: m.contests_preset_staged, // "Multi-stage"
+	university: m.contests_preset_university, // "University or faculty"
+	student_circle: m.contests_preset_studentCircle, // "Student circle"
+	organization: m.contests_preset_organization, // "On behalf of an organisation"
+	open_online: m.contests_preset_openOnline, // "Open online, with prizes"
+	team: m.contests_preset_team, // "Teams"
+	kuratorium: m.contests_preset_kuratorium, // "Kurator's subject contest"
+	olympiad: m.contests_preset_olympiad // "Subject olympiad"
+};
+
+/** Falls back to the raw key: a preset added on the server still shows something rather than
+ *  nothing, which is the same posture `learningRecordMetricLabel` takes in `labels.ts`. */
+export function presetName(key: string): () => string {
+	return PRESET_LABELS[key] ?? (() => key);
+}
+
+// ---- the compliance panel's `detail` keys ---------------------------------------------------
+//
+// `compliance.report` answers each item with a `detail` KEY rather than a sentence, so the
+// sentence can be written in both languages here. The shape is `<item key>[:<hint>[:<hint>]]`,
+// and the hints are either a word this map knows or a count (`2of3`, `14`). Anything else is
+// ignored rather than printed raw — a reader does not need to see `science_68_then_10pct`.
+
+const COMPLIANCE_HINTS: Record<string, () => string> = {
+	no_prize: m.contests_hint_noPrize, // "no prize is promised, so this does not apply"
+	no_minors: m.contests_hint_noMinors, // "this contest does not accept under-16s"
+	not_a_business: m.contests_hint_notABusiness, // "the organiser is not a business"
+	not_a_team_contest: m.contests_hint_notATeamContest, // "not a team contest"
+	manual: m.contests_hint_manual, // "only a person can check this — the site cannot"
+	galleries: m.contests_hint_galleries, // "photos of a contest live in a gallery, which asks for its own consent"
+	structural: m.contests_hint_structural, // "built in: it cannot be bundled into entry"
+	enforced: m.contests_hint_enforced, // "built in: entry is refused without it"
+	below_recommended: m.contests_hint_belowRecommended, // "fewer than the recommended number"
+	chance_element: m.contests_hint_chanceElement, // "a stage or the criteria read like a draw"
+	no_stages: m.contests_hint_noStages, // "there are no stages yet"
+	no_results: m.contests_hint_noResults, // "results have not been published"
+	closed: m.contests_hint_closed, // "the contest is closed"
+	business_short: m.contests_hint_businessShort, // "a business organiser should allow at least 14 days"
+	prizes_section: m.contests_hint_prizesSection, // "§7 of the regulamin is where the split goes"
+	adults_only: m.contests_hint_adultsOnly // "every entrant so far is an adult"
+};
+
+const COUNT = /^(\d+)of(\d+)$/;
+
+/** The sentence that goes after an item's title, or '' when the detail adds nothing. */
+export function complianceHint(detail: string, key: string): string {
+	const parts = detail.split(':');
+	// The first segment is the item's own key, already drawn as the title.
+	const hints = parts[0] === key ? parts.slice(1) : parts;
+	const out: string[] = [];
+	for (const hint of hints) {
+		const known = COMPLIANCE_HINTS[hint];
+		if (known) {
+			out.push(known());
+			continue;
+		}
+		const count = COUNT.exec(hint);
+		if (count) {
+			out.push(m.contests_hint_count({ done: count[1], total: count[2] })); // "{done} of {total}"
+		}
+	}
+	return out.join('; ');
 }

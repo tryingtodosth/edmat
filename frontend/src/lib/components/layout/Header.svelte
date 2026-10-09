@@ -127,6 +127,11 @@
 	// one alone must still take the entry away.
 	let canCreateEvent = $derived(canEvents && !isMinor && creationStore.allows('event'));
 	let canCreateService = $derived(canTutoring && creationStore.allows('service'));
+	// Founding a contest promises a prize to strangers under KC art. 919–921 — the most
+	// consequential founding act here — so it is wrapped exactly like "New event": the flag, the
+	// minors rule and the creation gate, and any one of the three takes the entry away
+	// (CONTESTS-BRIEF.md §2, the markers table).
+	let canCreateContest = $derived(canContests && !isMinor && creationStore.allows('contest'));
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -227,7 +232,7 @@
 	// pages (/flashcards, /my-set, /sets) are deliberately absent: a reader on "Moje talie" is not
 	// in "Zadania", and no current section is the honest answer there.
 	const SECTION_PREFIXES: Record<
-		'disciplines' | 'needs' | 'services' | 'events' | 'about',
+		'disciplines' | 'needs' | 'services' | 'events' | 'about' | 'contests',
 		string[]
 	> = {
 		disciplines: [
@@ -240,6 +245,11 @@
 			'/articles'
 		],
 		needs: ['/needs', '/volunteering'],
+		// Contests (step A, CONTESTS-BRIEF.md §3.A item 10). The ONE line this step adds outside
+		// its own three markers, and it is here because `aria-current` on the nav link it appends
+		// is otherwise dead: the link would never mark itself as the current page for a
+		// screen-reader user. Step B does not touch the nav, so nothing collides with it.
+		contests: ['/contests'],
 		services: ['/korki', '/tutoring', '/bookings'],
 		events: ['/events'],
 		about: ['/about', '/legal', '/privacy', '/levels']
@@ -389,6 +399,27 @@
 	<!-- Contests nav marker (CONTESTS-BRIEF.md §4 rule 4): step A appends ONE "Contests" link
 	     (→ /contests, behind `contests`) directly below this comment, with an inline icon like the
 	     others in this bar. Step B does not touch the nav. -->
+	{#if canContests}
+		<a
+			class="nav-link nav-link--contests"
+			aria-current={currentSection === 'contests' ? 'page' : undefined}
+			href={resolve('/contests')}
+			aria-label={m.contests_title()}
+			title={m.contests_title()}
+			{onclick}
+		>
+			<span class="nav-link__icon" aria-hidden="true">
+				<!-- A rosette: the one shape that reads as "judged and placed" rather than
+				     "scheduled" (a calendar) or "taught" (a book). -->
+				<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="8" r="5" />
+					<path d="M9 13l-2 8 5-3 5 3-2-8" />
+				</svg>
+			</span>
+			<span class="nav-link__text">{m.contests_title()}</span>
+			<!-- "Contests" -->
+		</a>
+	{/if}
 	{#if canNeeds}
 		<a
 			class="nav-link nav-link--needs"
@@ -532,6 +563,12 @@
 	     /contests/new) directly below this comment, behind `contests`, for adults only, and hidden
 	     for an account `GET /api/creation/` refuses for the `contest` kind — the same wrapping step
 	     F gave "New event". Step B does not touch this menu. -->
+	{#if canCreateContest}
+		<a role="menuitem" class={itemClass} href={resolve('/contests/new')} {onclick}>
+			{m.contests_newContest()}
+			<!-- "New contest" -->
+		</a>
+	{/if}
 {/snippet}
 
 {#snippet accountItems(itemClass: string, onclick: () => void)}
@@ -607,6 +644,14 @@
 	<!-- Contests account-menu marker (CONTESTS-BRIEF.md §4 rule 4): step A appends "My contests"
 	     (→ /contests?mine=1, behind `contests`) directly below this comment. Step B does not touch
 	     the account menu. -->
+	{#if canContests}
+		<!-- A thing of theirs to come back to, like "My decks" and "My tasks" below: `?mine=1` is
+		     the hub's own tab, not a second page. -->
+		<a role="menuitem" class={itemClass} href="{resolve('/contests')}?mine=1" {onclick}>
+			{m.contests_navMine()}
+			<!-- "My contests" -->
+		</a>
+	{/if}
 	{#if canFlashcards}
 		<!-- A thing of theirs to come back to, like "My tasks" below, rather than something to make —
 		     which is why it is here and not in the Add… menu. A deck is created from a set, a lesson

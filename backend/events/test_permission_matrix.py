@@ -50,6 +50,8 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from django.test import override_settings
 from django.utils import timezone
+from contests import rules as contest_rules
+from contests.models import Contest, ContestRegistration, ContestStaff
 from rest_framework.test import APITestCase
 
 from cloakroom.models import CloakroomDesk
@@ -392,6 +394,21 @@ class PermissionMatrixTests(APITestCase):
             project=project, user=built['reviewer'], role='coauthor', added_by=organiser
         )
 
+        # Contests (CONTESTS-BRIEF.md §5): one announced and public, one draft. The organiser persona
+        # founded both; the reviewer sits on the jury of the public one (staff, not a manager); the
+        # attendee holds an accepted registration (a member, not staff). A `challenge` promises no
+        # prize, so it announces with no claim deadline.
+        contest = Contest.objects.create(
+            title='Wyzwanie Sandbox', organiser=organiser, preset_key='challenge',
+            status='announced', visibility='public', merit_criteria='Poprawność i uzasadnienie.',
+            data_controller_name='Sandbox', data_controller_contact='sandbox@example.com',
+        )
+        ContestStaff.objects.create(contest=contest, user=built['reviewer'], role='jury', added_by=organiser)
+        ContestRegistration.objects.create(contest=contest, user=built['attendee'], status='accepted')
+        draft_contest = Contest.objects.create(
+            title='Szkic konkursu', organiser=organiser, preset_key='challenge'
+        )
+
         # A. An organisation with exactly ONE owner — which is what makes `last_owner` a row rather
         # than a sentence — one plain member, and a badge already on the Sandbox conference so that
         # `already_linked` has something to collide with. Plus a dissolved one, whose page exists
@@ -577,6 +594,8 @@ class PermissionMatrixTests(APITestCase):
             'private_course': private_course.pk,
             'material': material.pk,
             'bare_material': bare_material.pk,
+            'contest': contest.pk,
+            'draft_contest': draft_contest.pk,
             'org': organization.pk,
             'dissolved': dissolved.pk,
             'org_owner_row': org_owner_row.pk,
@@ -2070,4 +2089,38 @@ MATRIX = [
      'and so does the course staff who withdrew it — the record of the decision is the point'),
     ('stranger', 'GET', '/course-completions/{revoked_completion}/', None, 404,
      'a withdrawn certificate is no more public than a live one'),
+
+    # ---- contests (17CE, CONTESTS-BRIEF.md §5) ------------------------------------------------
+    # A contest is a node: the seam answers for it the way it answers for a draft event. Its own
+    # endpoints follow the project's two conventions — a stranger gets 404 on a draft, a real but
+    # wrong party gets 403 with the word — and the two staff-only reads (`registrations`,
+    # `compliance`) answer a non-staff reader of a PUBLIC contest with 403 and the word — a real
+    # thing, wrong party — and are 404 on a draft because the contest itself is.
+    ('anonymous', 'GET', '/contest-presets/', None, 200, 'the presets are what /about/contests explains'),
+    ('anonymous', 'GET', '/contests/', None, 200, 'the public list'),
+    ('anonymous', 'GET', '/contests/{contest}/', None, 200, 'announced and public'),
+    ('anonymous', 'GET', '/contests/{draft_contest}/', None, 404, 'a draft does not exist for them'),
+    ('stranger', 'GET', '/contests/{draft_contest}/', None, 404, 'nor for a signed-in stranger'),
+    ('reviewer', 'GET', '/contests/{draft_contest}/', None, 404,
+     'on the jury of the OTHER contest — a role is per contest, not per person'),
+    ('organiser', 'GET', '/contests/{draft_contest}/', None, 200, 'they founded it'),
+    ('anonymous', 'GET', '/nodes/contest/{draft_contest}/', None, 404, 'the seam agrees'),
+    ('organiser', 'GET', '/nodes/contest/{draft_contest}/', None, 200, 'and so does its ref'),
+    ('attendee', 'GET', '/nodes/contest/{contest}/staff/', None, 404,
+     'a registered participant is a member, not staff — the roster endpoint is staff-only'),
+    ('reviewer', 'GET', '/nodes/contest/{contest}/staff/', None, 200, 'the jury is on the roster'),
+    ('anonymous', 'POST', '/contests/', {'title': 'X', 'preset_key': 'challenge'}, 401,
+     'founding needs a sign-in before the creation gate is even asked'),
+    ('attendee', 'GET', '/contests/{contest}/registrations/', None, (403, contest_rules.NOT_STAFF),
+     'the roster is the contest’s inside; a participant is a real party, so 403 with the word'),
+    ('reviewer', 'GET', '/contests/{contest}/registrations/', None, 200, 'staff read it'),
+    ('reviewer', 'POST', '/contests/{contest}/announce/', None, (403, contest_rules.NOT_MANAGER),
+     'the jury scores; announcing is running it'),
+    ('stranger', 'GET', '/contests/{contest}/compliance/', None, (403, contest_rules.NOT_STAFF),
+     'the compliance panel is staff-only: a real thing, wrong party, on a public contest'),
+    ('stranger', 'GET', '/contests/{draft_contest}/compliance/', None, 404,
+     'and on a draft the contest itself does not exist for them, so neither does the panel'),
+    ('reviewer', 'GET', '/contests/{contest}/compliance/', None, 200, 'a juror may read it'),
+    ('anonymous', 'GET', '/contests/{contest}/results/', None, 200,
+     'public once published, and an EMPTY list before — "no results yet" is the true answer'),
 ]
