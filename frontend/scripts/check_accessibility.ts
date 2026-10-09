@@ -41,7 +41,8 @@ const GUIDE_CHAPTER_SLUGS = [
 	'help',
 	'messages',
 	'moderation',
-	'flashcards'
+	'flashcards',
+	'contests'
 ];
 
 interface AxeNode {
@@ -182,6 +183,10 @@ async function main() {
 		{ name: 'Showcase: schools', url: '/about/schools' },
 		{ name: 'Showcase: concepts', url: '/about/concepts' },
 		{ name: 'Showcase: events', url: '/about/events' },
+		// The eighth (contests/, 2026-10-09). Appended at the end of the block above, per its own
+		// note; it is the one showcase page with a TABLE on it, which is a shape axe has more to
+		// say about than a column of prose.
+		{ name: 'Showcase: contests', url: '/about/contests' },
 
 		// The user manual (HISTORY.md §17BR.H): the hub and every chapter. Prose and screenshots, so
 		// the only thing axe has to say about them is whether the headings nest, the images carry

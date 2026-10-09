@@ -200,6 +200,10 @@
 	}
 	.law__consequence {
 		display: block;
+		// The row header is a `<th>`, so everything in it inherits bold — which made the sentence
+		// under each citation as loud as the citation and the two unreadable together. Seen on a
+		// screenshot, not in the code (house rule 2).
+		font-weight: 400;
 		margin-top: var(--space-1);
 		color: var(--text-secondary);
 		line-height: 1.6;

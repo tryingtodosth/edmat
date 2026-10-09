@@ -15492,6 +15492,37 @@ reader there is nothing there to read.
 type declared in both halves of a two-branch build is a merge conflict for no benefit, and the
 integrator can tighten it.
 
+### Three bugs the browser found, none of them this branch's own idea
+
+House rule 2 again, and all three were invisible to `svelte-check`, `eslint` and the build.
+
+1. **`/work` rendered nothing at all** — "Loading your work…" for ever, with
+   `param_value.startsWith is not a function` thrown during render. `services/work.ts` handed the
+   raw JSON back under the `WorkDashboard` type without mapping it, and `node.id` is a NUMBER on the
+   wire (`config/nodes.py: node_ref` sends `node.pk`) where `NodeRef.id` is a string; `/work` draws
+   `nodeHref(item.node)`, which calls `resolve()`, which calls `.startsWith` on every param. It has
+   been true of EVERY work item with a node since `nodeHref` landed on 2026-10-08 — `services/
+   tasks.ts` and `services/plans.ts` have had the identical `String(raw.id)` all along — and it took
+   a preset that puts seventeen tasks on one dashboard to make somebody look. Fixed here, with the
+   mapper those two already have.
+2. **`each_key_duplicate` on `/work`**, which is what the page showed next. The item list was keyed
+   by `item.url`, and a work item has no id of its own (the §3.F shape is seven keys and none of
+   them is one), so every due step of one plan is a row keyed `/plans/28`. Possible from the start;
+   certain with a plan of eleven dated steps. Keyed by url plus title here, and a real id in the
+   item shape is named in `todo.md`.
+3. **`OrganizationsPanel.load()` reads `node.canManage` after an `await`**, and `ManagementPanels`
+   sets `node = null` whenever its key changes — which it does once on every node page, when
+   `authStore.user` resolves after the anonymous first pass. About one load in three throws. It is
+   three characters of guard (`loadedFor === key` before the read, which the same function already
+   does for every assignment) in a file this step does not own, so it is in `todo.md` and the
+   browser script counts and PRINTS it rather than failing on it.
+
+Two more came off the screenshots rather than off an error: the sentence under each law citation
+was as bold as the citation (everything in a `<th>` inherits it) and the "no prize" chip was a
+`neutral-pill` on a card whose background was the alt surface the pill itself uses, so the one chip
+that says the whole public-promise regime does not apply was invisible.
+
+
 ### Verified
 
 From the worktree, on ports 8172/5272, with Node 24 first on `PATH`:
@@ -15501,16 +15532,29 @@ From the worktree, on ports 8172/5272, with Node 24 first on `PATH`:
   raised a `SyntaxError`, so the whole script was a no-op — the test that asserted
   `_SECTION_ORDER` is what caught it), and `Profile.is_minor` is a stored flag, not a birth year.
 - `manage.py test contests community moderation galleries translations flashcards activity work
-  identity tasks needs plans decisions goals config --parallel 4 --keepdb` — see the board entry for
-  the number.
+  identity tasks needs plans decisions goals config --parallel 4 --keepdb` — **897 tests, 196 s, one
+  failure**, and that failure is `work.tests.EdmatHistoryTests
+  .test_the_checked_in_table_is_current_and_whole`, which was **already red at the prep commit**
+  (checked by running that one test in `.claude/worktrees/contests-prep`: one extra element there,
+  two here). See "Left open".
 - `manage.py check` — no issues. `makemigrations --check --dry-run` — no changes.
   `testing/check_databases_declared.py` — **0 classes still unresolved, in 0 files**.
-- `npm run check` — **0 errors, 0 warnings, 6621 files**. `npm run build` — built in 50 s, with
+- `npm run check` — **0 errors, 0 warnings, 6624 files**. `npm run build` — clean, with
   `build/about/contests.html` and `build/about/guide/contests.html` both present.
 - `npx eslint .` — 2 errors, **both pre-existing at the prep commit** and reproduced there:
   `e2e/attachments.mjs`'s unused `API` and `Header.svelte`'s `canContests`, which is the prep's own
   marker for step A to use.
-- `e2e/contests-personalise.mjs` — see the board entry.
+- `npm run check:a11y -- --base http://localhost:5272 --api http://127.0.0.1:8172` — **50 pages, 0
+  load problems, 0 violations of any severity**. `/about/contests` and `/about/guide/contests` are
+  both in `scripts/check_accessibility.ts`'s list now, appended at the end of the two blocks whose
+  own comments invite exactly that. The run before it reported two load problems and two moderate
+  violations on this page, and both were the DISK filling to 99% mid-run
+  (`net::ERR_INSUFFICIENT_RESOURCES`, Vite failing to reload modules, the SPA's own 500 shell) —
+  worth recording because the report reads like a real a11y failure and is not one.
+- `e2e/contests-personalise.mjs` — **53 checks, 0 failures**, with one `OrganizationsPanel`
+  `canManage` race counted and printed. Three earlier runs died on `/work` ("Loading your work…",
+  then a crashed renderer) against a Vite server that had survived a disk-full event; a restarted
+  dev server fixed it with no code change, which is `e2e/CLAUDE.md` trap 3 word for word.
 
 ### Left open
 
@@ -15535,6 +15579,13 @@ From the worktree, on ports 8172/5272, with Node 24 first on `PATH`:
   and answers `[]` — so what B's tests pin is that the sections are registered under the right flag
   and that registering them broke nothing. The same is true of the profile's `placements` block,
   which is tested with a monkeypatched provider.
+- **`work.tests.EdmatHistoryTests.test_the_checked_in_table_is_current_and_whole` is red, and was
+  already red at the prep commit** — verified by running that one test in `.claude/worktrees/
+  contests-prep` (1 extra element there, 2 here). The guard says `HISTORY.md` moved on and
+  `work/edmat_history.json` has not been re-exported; the prep's own §17CE is the first extra
+  element and this section is the second. `manage.py export_edmat_history` fixes it, and it is the
+  integrator's to run once — after §17CE.A lands and the §17CE preamble is written — because
+  running it now would bake in two of the three sections and go stale again on the merge.
 - **`contests/models.py`'s mirror comment does not name the new `labels.ts` maps.** It already says
   the file is mirrored there; naming `CONTEST_STATUS_LABELS` and `CONTEST_STAFF_ROLE_LABELS` would
   have meant editing step A's file, so it is on the board for the integrator instead.

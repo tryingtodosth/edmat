@@ -2734,4 +2734,13 @@ deliberately negative and say so in the script:** none of the four contest work 
 because `contests/work.py` is step A's and answers `[]`, and `collect()` drops an empty section. It
 deletes the contest and every row it hung off it at the end and re-queries to prove it.
 
-Screenshots: `e2e/screens/contests-personalise-1-panels.png` through `-5-profile.png`.
+Screenshots: `e2e/screens/contests-personalise-1-panels.png` through `-5-profile.png`. The `/work`
+one is NOT `fullPage` and the profile one is not either: with seventeen tasks and ten plan steps on
+it that page is six thousand pixels tall and a full-page capture crashed the Chromium tab outright.
+Every capture goes through a `shot()` helper that turns a failed screenshot into a failed CHECK
+rather than an exception, so one flaky capture cannot throw away fifty checks that already passed.
+
+**53 checks, 0 failures** on 2026-10-09 (ports 8172/5272). If `/work` comes back "Loading your
+work…" and then the renderer dies, restart the Vite dev server before believing it: three runs
+failed exactly that way against a server that had survived a disk-full event, and a restart fixed
+it with no code change (`e2e/CLAUDE.md` trap 3).

@@ -117,7 +117,14 @@
 							<p class="empty-section">{m.work_section_empty()}</p>
 						{:else}
 							<ul class="items">
-								{#each section.items as item (item.url)}
+								<!-- Keyed by url AND title, not by url alone (2026-10-09). A work item has no id of
+								     its own — the §3.F shape is seven keys and none of them is one — and
+								     several rows legitimately share a url: every due step of one plan links to
+								     `/plans/28`, which is `each_key_duplicate` and a page that renders nothing.
+								     It was always possible and the contests preset, whose plan has eleven dated
+								     steps, made it certain. A real id in the item shape is the proper fix and is
+								     a change to every provider; `todo.md` carries it. -->
+								{#each section.items as item (item.url + '|' + item.title)}
 									<li class="work-item">
 										<div class="item-card" data-urgency={item.urgency}>
 											<button

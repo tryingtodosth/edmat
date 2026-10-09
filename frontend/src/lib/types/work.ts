@@ -20,7 +20,15 @@ export interface WorkItem {
 		| 'need_decision'
 		| 'plan_step'
 		| 'plan_suggestion'
-		| 'poll';
+		| 'poll'
+		// Contests (`contests/work.py`, CONTESTS-BRIEF.md §3.B): a registration to decide, a
+		// submission to score, a complaint to answer, a stage about to open. Four kinds and four
+		// SECTIONS — the same vocabulary, which is what lets `work/builtin.py` register them with a
+		// one-line filter each.
+		| 'contest_registration'
+		| 'contest_judging'
+		| 'contest_complaint'
+		| 'contest_stage';
 	title: string;
 	url: string; // a FRONTEND path like '/events/12'
 	due_at: string | null; // ISO timestamp or null

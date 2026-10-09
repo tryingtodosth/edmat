@@ -48,7 +48,10 @@
 	.preset {
 		@include mix.card-surface;
 		padding: var(--space-3);
-		background: var(--bg-surface-alt);
+		// `card-surface`'s own `--bg-surface` is kept rather than the alt one these cards first
+		// used: `neutral-pill` IS the alt surface, so "bez nagrody" was an invisible pill on an
+		// identical background — and that chip is the most important thing on the card, because it
+		// is the one that says the public-promise rules do not apply. Found on the screenshot.
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
