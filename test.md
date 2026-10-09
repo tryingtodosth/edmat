@@ -2688,7 +2688,7 @@ with no due dates at all. A `PresetDataTests` class checks the table itself with
 it — every checklist citation resolves in `LAW`, every `LAW` row has a known marker and a Polish
 citation, no preset advances by chance, and every bilingual pair in the file has both halves.
 
-**`contests/test_registries.py` (49 tests)** is the nine registries, each with the test its
+**`contests/test_registries.py` (41 tests)** is the nine registries, each with the test its
 neighbours have: a `TableTests` class reading the lines straight off `TARGET_TYPE_BY_MODEL`,
 `REPORT_KIND_MODELS`, `GALLERY_TARGETS`, `TRANSLATABLE_KIND_MODELS`, `PLACEABLE_NODE_KINDS`,
 `MANAGEMENT_KINDS`, `work.providers._REGISTRY` and `identity.record.PLACEMENT_PROVIDERS` — the
