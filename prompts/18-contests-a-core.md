@@ -6,7 +6,7 @@
 | **Branch** | `contest/a-core` |
 | **Worktree** | `/Projects/edmat/.claude/worktrees/contest-a-core/` |
 | **Ports** | API `8171`, Vite `5271` |
-| **Prep commit** | `<PREP>` on `contests/prep` (branched from `ux/colour-pass` at `b6aa58a`) |
+| **Prep commit** | `75a6fea` on `contests/prep` (branched from `ux/colour-pass` at `b6aa58a`) |
 | **Boards** | `/Projects/edmat-boards/` — your `doing.md` entry is already written |
 | **Node 24** | `export PATH=/home/bob/.cache/edmat-tools/node24/bin:$PATH` |
 | **Sibling** | step B (`contest/b-personalise`) builds at the same time; it owns `contests/presets.py` and `contests/personalize.py` and every file outside `contests/` and `routes/contests/**`. You never edit those; it never edits yours. |

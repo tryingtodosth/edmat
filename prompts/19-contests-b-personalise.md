@@ -6,7 +6,7 @@
 | **Branch** | `contest/b-personalise` |
 | **Worktree** | `/Projects/edmat/.claude/worktrees/contest-b-personalise/` |
 | **Ports** | API `8172`, Vite `5272` |
-| **Prep commit** | `<PREP>` on `contests/prep` (branched from `ux/colour-pass` at `b6aa58a`) |
+| **Prep commit** | `75a6fea` on `contests/prep` (branched from `ux/colour-pass` at `b6aa58a`) |
 | **Boards** | `/Projects/edmat-boards/` — your `doing.md` entry is already written |
 | **Node 24** | `export PATH=/home/bob/.cache/edmat-tools/node24/bin:$PATH` |
 | **Sibling** | step A (`contest/a-core`) builds at the same time and owns everything in `backend/contests/` EXCEPT `presets.py` and `personalize.py`, and everything under `routes/contests/**`. On your branch a contest has only the prep's two models; design against that and against §3.A's names for what A adds. |
