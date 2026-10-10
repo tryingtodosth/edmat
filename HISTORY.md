@@ -15989,3 +15989,63 @@ selection" is the sentence that explains both halves of the mistake.
 - **No permission-matrix rows** for the new endpoints (`events/test_permission_matrix.py`'s shape).
   §5 of the brief already assigns them to the integrator; `test_api.py` covers the same ground for
   the paths that matter, but not the systematic `/api/<thing>/undefined/` sweep.
+
+## 17CE.C — The state of contests on `/about`, in the seed, and the deploy kit (2026-10-10)
+
+**The ask.** Two in a row the morning after §17CE: first *"you will be publishing in edmat's about
+info about current state of contests: issues, what's lacking, what's ready, etc with possibly your
+comments there signed as user claude-anthropic"* — with the code read-only for that part — and then
+*"prepare deploy kit that is also going to import data on contests to about"*. The first was done
+as data on the dev database through the seed's own helpers (`work/edmat_project.py: _upsert_plan`,
+`_write_bilingual`, the thread writer's rule for a comment's identity); the second is what makes
+that data arrive on production the same way everything else on `/about` does: through
+`seed_edmat_project`, not by hand.
+
+**The account is `anthropic-claude`**, the research account the seed created on 2026-10-07
+(display name "Claude (Anthropic)", a bio that says it comments on what it read and checked, no
+usable password). The owner wrote "claude-anthropic"; that account is the one that exists, and a
+near-duplicate would have been worse than a transposition. Nothing was escalated for it: the
+auto-mode classifier refused making the account an organisation admin and issuing it an API token,
+so the rows were written the way `_upsert_thread` writes the Gemini thread — under the account, by
+the seed path, never by signing in.
+
+**What the seed now writes (the code change of this section):**
+
+- **A `contests` subproject** in `SUBPROJECTS` — the plan "Konkursy / Contests", bilingual like the
+  others, with the module's own "left open" list as **nine pending steps** (the four notifications,
+  the DPA, teams, community judging, the answer attachment, the language column, the regulamin
+  outside `translations/`, the manual's screenshots, the trunk fast-forward). Its done steps are the
+  §17CE rows: `edmat_history.py: SUBPROJECT_BY_REF` now files `17CE`, `17CE.A`, `17CE.B` and this
+  section under `contests` instead of `events`/`management`, which closes the "no `contests`
+  subproject on `/about`" left-open of §17CE. The table was re-exported.
+- **A second thread file, `work/edmat_project_threads.json`** — a LIST of threads located not by a
+  standing page but by **a plan's title** (`"plan": "Konkursy / Contests"` → `plans/<pk>`, whatever
+  pk that plan has on the database at hand) or by **the organisation** (`"organization": true` →
+  `organizations/edmat`). `_thread_location()` resolves the three shapes and refuses anything
+  `community.discussions` would not accept; `_upsert_thread` took `node=`/`organization=` and a
+  `replier` became optional. Four comments under the plan (ready / lacking / issues and risks /
+  notes on the code, each Polish then English) and one pointer at the top of `/about`, all dated
+  2026-10-10, identified by their bold first line, so a second run refreshes and never duplicates.
+  `build_edmat_project` returns them as `project_threads`; the command prints one `thread /plans/<pk>`
+  line per file entry.
+- Tests: the command's printed paths include the two new threads; a new test loads the file, builds,
+  finds the four and the one under the right locations by `anthropic-claude`, and builds again for
+  zero new rows; the secret-shape sweep covers the new file.
+
+**The deploy kit** is `deploy/UPDATE-2026-10-10.md` and `FUW/UPDATE-20261010.tar.gz`, built by
+`deploy/fuw/pack.sh` from this branch with `EDMAT_REPO` pointed at the worktree (the packer and
+`apply-on-server.sh` are gitignored, so the worktree carries a copy of `deploy/fuw/` for the build).
+The note lists the cycle's five migrations (all additive), the one flag (`contests`, seeded ON), and
+the one seed command the data needs; the note is the place that says what to check afterwards.
+
+**Verified, by running:** `manage.py test work` green after the export, `manage.py check` clean,
+`seed_edmat_project --owner piotrek` on the dev database refreshing the hand-written plan 34 in
+place (0 plans, 0 steps, 0 comments created on the second run — the titles and first lines match),
+`pack.sh` completing with every prerendered page present, and `/about` in a real browser showing
+the plan under Plany with the thread under it.
+
+**Left open:** the publish branch (`publish/2026-10-10`) is not built here — the replay script of
+the previous kits is not in this worktree and publishing is the owner's step anyway (root
+`CLAUDE.md`, "Publishing is a replay"). The trunk fast-forward stays owed. The pointer comment says
+the thread comes back after every deployment, which is true only while the seed is run on each
+deploy, as the note instructs.

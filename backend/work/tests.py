@@ -680,24 +680,61 @@ class EdmatProjectSeedTests(APITestCase):
         call_command('seed_edmat_project', '--owner', 'piotr', stdout=out)
         printed = out.getvalue()
         for needle in ('Founded', '/organizations/edmat', '/plans/', '/tasks/', '/needs/', '/polls/',
-                       'account google-gemini', 'account anthropic-claude', 'thread /about#money-and-openness', 'waiting:'):
+                       'account google-gemini', 'account anthropic-claude', 'thread /about#money-and-openness',
+                       'thread /plans/', 'thread /organizations/edmat', 'waiting:'):
             self.assertIn(needle, printed)
         self.assertNotIn('unknown goal', printed)
         with self.assertRaises(CommandError):
             call_command('seed_edmat_project', '--owner', 'nobody', stdout=StringIO())
 
+    def test_the_project_threads_land_under_the_contests_plan_and_the_organisation(self):
+        """`work/edmat_project_threads.json` (2026-10-10): the state of contests as four comments
+        under the "Konkursy / Contests" plan and one pointer under the organisation's own thread,
+        all by `anthropic-claude`, located by the plan's TITLE so the thread lands on whatever id
+        the plan has on the database at hand — and written once, however many times the seed runs."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from community.models import Comment, DiscussionLocation
+        from work.edmat_project import load_project_threads
+
+        threads = load_project_threads()
+        self.assertEqual([t.get('plan') for t in threads], ['Konkursy / Contests', None])
+        self.assertTrue(threads[1]['organization'])
+        self.assertTrue(all(item['title'] and item['body'] for t in threads for item in t['items']))
+        self.assertTrue(all(t['author'] == 'anthropic-claude' and not t.get('replier') for t in threads))
+
+        built = self._build()
+        plan = self._plan(built, 'Konkursy / Contests')
+        location_type = ContentType.objects.get_for_model(DiscussionLocation)
+        for posted, page, expected in zip(
+            built['project_threads'], (f'plans/{plan.pk}', 'organizations/edmat'), (4, 1)
+        ):
+            self.assertEqual((posted['page'], posted['comments'], posted['created']), (page, expected, expected))
+            row = DiscussionLocation.objects.get(page=page, section='')
+            comments = Comment.objects.filter(content_type=location_type, object_id=row.pk)
+            self.assertEqual(comments.count(), expected)
+            self.assertEqual(set(comments.values_list('author__username', flat=True)), {'anthropic-claude'})
+            self.assertTrue(comments.order_by('created_at').first().body.startswith('**'))
+        self.assertTrue(plan.steps.filter(status='pending').exists())
+
+        second = self._build()
+        self.assertEqual([t['created'] for t in second['project_threads']], [0, 0])
+        self.assertEqual(Comment.objects.filter(author__username='anthropic-claude', parent=None).count(), 5)
+
     def test_nothing_secret_shaped_is_written_and_every_title_fits(self):
         import json
 
         from work.edmat_history import TABLE_PATH
-        from work.edmat_project import DATA_FILE_SHAPES, RESEARCH_THREAD_PATH, SECRET_SHAPES, all_seeded_text
+        from work.edmat_project import (
+            DATA_FILE_SHAPES, PROJECT_THREADS_PATH, RESEARCH_THREAD_PATH, SECRET_SHAPES, all_seeded_text,
+        )
 
         for text in all_seeded_text():
             for shape in SECRET_SHAPES:
                 self.assertIsNone(shape.search(text), f'{shape.pattern!r} in {text[:80]!r}')
         # the two data files: an address, a phone number, an id or a credential with a value must
         # not be in them either (a statutory sum of money may be — it is law, not a secret)
-        for path in (TABLE_PATH, RESEARCH_THREAD_PATH):
+        for path in (TABLE_PATH, RESEARCH_THREAD_PATH, PROJECT_THREADS_PATH):
             text = path.read_text(encoding='utf-8')
             for shape in DATA_FILE_SHAPES:
                 self.assertIsNone(shape.search(text), f'{shape.pattern!r} in {path.name}')

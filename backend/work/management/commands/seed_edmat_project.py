@@ -83,6 +83,10 @@ class Command(BaseCommand):
             f'{built["polls_created"]} poll(s) created; {built["history_count"]} history sections read. '
             'Tasks and polls are the roster’s; active plans and open needs are public.'
         )
+        for extra in built['project_threads']:
+            self.stdout.write(
+                f'  thread /{extra["page"]}   {extra["comments"]} comment(s), {extra["created"]} new'
+            )
         for line in built['waiting']:
             self.stdout.write(self.style.WARNING(f'  waiting: {line}'))
         for key in built['history_unfiled']:

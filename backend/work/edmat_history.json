@@ -1393,7 +1393,7 @@
   "date": "2026-10-09",
   "date_source": "heading",
   "summary": "What this section is. The owner's ask of the afternoon of 2026-10-09 — \"add contests. personalize all current modules to this use case. each subagent can have 1 haiku. research law for konkursy in poland and add presets with making it possible by prefilling with current users\" — built as a research agent, a prep commit, two Opus branches at once and an integration, all in one day. The research is…",
-  "subproject": "events",
+  "subproject": "contests",
   "listed": true
  },
  {
@@ -1404,7 +1404,7 @@
   "date": "2026-10-09",
   "date_source": "heading",
   "summary": "Step B of the contests cycle (prompts/19-contests-b-personalise.md, CONTESTS-BRIEF.md §3.B), built on contest/b-personalise from the prep 75a6fea while step A built the app and its pages on contest/a-core. The owner's ask of that afternoon was two sentences and this is the second of them: \"personalize all current modules to this use case\".",
-  "subproject": "management",
+  "subproject": "contests",
   "listed": true
  },
  {
@@ -1415,7 +1415,18 @@
   "date": "2026-10-09",
   "date_source": "heading",
   "summary": "prompts/18-contests-a-core.md against CONTESTS-BRIEF.md §3.A, on contest/a-core from the prep 092f80d. Fourteen interface tasks, all fourteen shipped. The sibling step B (contest/b-personalise) was building presets.py, personalize.py, the registries in every other app, /about/contests, the manual chapter and LEGAL.md at the same time; this section is only what A did.",
-  "subproject": "events",
+  "subproject": "contests",
+  "listed": true
+ },
+ {
+  "ref": "17CE.C",
+  "title": "The state of contests on /about, in the seed, and the deploy kit",
+  "heading": "17CE.C — The state of contests on `/about`, in the seed, and the deploy kit (2026-10-10)",
+  "line": 15993,
+  "date": "2026-10-10",
+  "date_source": "heading",
+  "summary": "The ask. Two in a row the morning after §17CE: first \"you will be publishing in edmat's about info about current state of contests: issues, what's lacking, what's ready, etc with possibly your comments there signed as user claude-anthropic\" — with the code read-only for that part — and then \"prepare deploy kit that is also going to import data on contests to about\". The first was done as data on…",
+  "subproject": "contests",
   "listed": true
  }
 ]

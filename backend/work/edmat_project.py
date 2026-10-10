@@ -78,6 +78,13 @@ from work.edmat_history import load_table
 #: The Gemini Deep Research thread (`FUW/association/build_thread.py` writes it from the report).
 RESEARCH_THREAD_PATH = Path(__file__).with_name('edmat_research_thread.json')
 
+#: Threads under the project's OWN rows rather than under a standing page (2026-10-10): a list, each
+#: entry located by `plan` (a `SUBPROJECTS` title — the thread lands under that plan, whatever id it
+#: gets on the database at hand) or by `organization: true` (the EdMat organisation's own thread at
+#: the top of `/about`), with `author`, `date` and `items` as the research thread has them and no
+#: `replier`. The first is the state of contests as of 2026-10-10, signed by `anthropic-claude`.
+PROJECT_THREADS_PATH = Path(__file__).with_name('edmat_project_threads.json')
+
 ORGANIZATION_SLUG = 'edmat'
 
 #: The two facts the owner states when they are known. Tz-aware datetime and a date.
@@ -318,6 +325,138 @@ SUBPROJECTS = [
             'check-in, a call for contributions, updates and take-home flashcard decks.',
         ),
         'steps': [],
+    },
+    {
+        # Contests (2026-10-09/10, CONTESTS-BRIEF.md): the sixth node kind. Its done steps are the
+        # three §17CE rows of the log; its open steps are the module's own "left open" list, kept
+        # here so `/about` says what is lacking and not only what landed. The state as of
+        # 2026-10-10, with the reasoning, is the thread under this plan (`PROJECT_THREADS_PATH`).
+        'key': 'contests',
+        'title': 'Konkursy / Contests',
+        'apps': 'contests',
+        'description': _pl_en(
+            'Konkursy (szkolne, uczelniane, koła naukowego, organizacji, otwarte online, zespołowe, '
+            'kuratoryjne, olimpiady i „challenge” bez nagrody) jako szósty rodzaj węzła: etapy, '
+            'rejestracja ze zgodą opiekuna, jury z macierzą ocen, wyniki, reklamacje w ustawowym '
+            'oknie, wersjonowany regulamin i raport zgodności z oznaczeniem, które przepisy '
+            'sprawdzono, a które nie. Dziesięć presetów wyprowadzonych z badania prawa '
+            '(`CONTESTS-LAW.md`) i personalizacja, która z presetu tworzy plan, cel, zadania, '
+            'potrzebę i głosowanie w pozostałych modułach. Zbudowane 9.10.2026 w jeden dzień: '
+            'badanie, przygotowanie, dwie równoległe gałęzie, integracja. Kroki zrobione to wpisy '
+            'dziennika; kroki otwarte to, czego świadomie nie zrobiono.',
+            'Contests (school, university, student-circle, organisation, open online, team, '
+            'kuratorium, olympiad and a no-prize "challenge") as the sixth node kind: stages, '
+            'registration with guardian consent, a jury with a scoring matrix, results, complaints '
+            'inside the statutory window, a versioned regulamin and a compliance report that marks '
+            'which provisions were verified and which were not. Ten presets derived from the legal '
+            'research (`CONTESTS-LAW.md`), and a personalisation that turns a preset into a plan, a '
+            'goal, tasks, a need and a poll in the other modules. Built on 2026-10-09 in one day: '
+            'research, prep, two parallel branches, integration. The done steps are the log '
+            'entries; the open steps are what was deliberately left undone.',
+        ),
+        'steps': [
+            {
+                'title': 'Cztery powiadomienia / Four notifications',
+                'description': _pl_en(
+                    'Decyzja o rejestracji, otwarcie etapu, publikacja wyników, odpowiedź na '
+                    'reklamację — uczestnik dziś dowiaduje się o nich, patrząc. Każde to wywołanie '
+                    '`notifications/services.notify()` plus pole preferencji i etykieta w '
+                    '`labels.ts`; logika odbiorców jest już w `events`.',
+                    'Registration decided, stage opened, results published, complaint answered — a '
+                    'participant currently learns each by looking. Each is one `notify()` call plus '
+                    'a preference field and a label in `labels.ts`; the recipient logic already '
+                    'exists in `events`.',
+                ),
+            },
+            {
+                'title': 'Umowa powierzenia (DPA) organizator–EdMat / A DPA template between an organiser and EdMat',
+                'description': _pl_en(
+                    'EdMat jest procesorem danych uczestników na rzecz organizatora (RODO art. 28 '
+                    'ust. 3); `LEGAL.md` §9–10 to nazywa, nic tego nie generuje. Wariant '
+                    'współadministrowania (art. 26) trzeba napisać obok, nie potem.',
+                    'EdMat processes participants\' data on the organiser\'s behalf (GDPR art. '
+                    '28(3)); `LEGAL.md` §9–10 names it, nothing generates it. The joint-controller '
+                    'fallback (art. 26) has to be drafted beside it, not after.',
+                ),
+            },
+            {
+                'title': 'Zespoły poza nazwą / Teams beyond a name',
+                'description': _pl_en(
+                    'Skład z kapitanem i podział nagrody wspólnej z KC art. 920 §3 jako wiersze, '
+                    'nie akapit w §7 regulaminu. `Contest.team_size_max` istnieje i nic go nie '
+                    'egzekwuje.',
+                    'A roster with a captain, and KC art. 920 §3\'s "who gets which share" as rows '
+                    'rather than a paragraph in §7 of the regulamin. `Contest.team_size_max` exists '
+                    'and nothing enforces it.',
+                ),
+            },
+            {
+                'title': 'Konkursy oceniane przez społeczność / Community-judged contests',
+                'description': _pl_en(
+                    'Preset (k) z `CONTESTS-LAW.md` nie został zbudowany, dopóki prawnik nie '
+                    'odpowie na §14 pkt 1: głosowanie społeczności decydujące o nagrodzie czyta '
+                    'się jak loterię (u.g.h. art. 2).',
+                    'Preset (k) of `CONTESTS-LAW.md` stays unbuilt until a lawyer answers §14 item '
+                    '1: community voting that decides a prize reads as a lottery (u.g.h. art. 2).',
+                ),
+            },
+            {
+                'title': 'Załącznik do odpowiedzi uczestnika / An attachment on a participant\'s answer',
+                'description': _pl_en(
+                    '`ContestAnswer.attachment` to prawdziwy klucz obcy, ale uczestnik nie ma '
+                    'przycisku: `attachments/access.py: can_attach` pozwala załączać do węzła tylko '
+                    'jego obsłudze. Naprawa to rodzaj celu `contest_answer` w '
+                    '`attachments/targets.py` z autorem odpowiedzi jako właścicielem — kształt, '
+                    'który `needs` już ma.',
+                    '`ContestAnswer.attachment` is a real FK, but a participant has no control: '
+                    '`attachments/access.py: can_attach` lets only a node\'s staff attach to the '
+                    'node. The fix is a `contest_answer` target kind in `attachments/targets.py` '
+                    'with the answer\'s author as owner — the shape `needs` already uses.',
+                ),
+            },
+            {
+                'title': 'Kolumna języka konkursu / A language column on a contest',
+                'description': _pl_en(
+                    'Bez `Contest.language` kanał aktywności nie może filtrować po '
+                    '`?content_locales=`. Jedna migracja w `contests`.',
+                    'Without `Contest.language` the activity feed cannot filter by '
+                    '`?content_locales=`. One `contests` migration.',
+                ),
+            },
+            {
+                'title': 'Regulamin poza tłumaczeniami / The regulamin outside translations',
+                'description': _pl_en(
+                    '`ContestRulesSection` to wersjonowany tekst prawny, którego tłumaczenie ktoś '
+                    'podpisuje — nie pole w edytorze obok siebie. Dziś regulamin jest w jednym '
+                    'języku.',
+                    '`ContestRulesSection` is versioned legal text whose translation somebody signs '
+                    'off — not a field in a side-by-side editor. Today the regulamin is in one '
+                    'language.',
+                ),
+            },
+            {
+                'title': 'Zrzuty ekranu w rozdziale podręcznika / Screenshots in the manual chapter',
+                'description': _pl_en(
+                    'Strona główna podręcznika obiecuje zrzut w każdym rozdziale; '
+                    '`/about/guide/contests` nie ma żadnego, dopóki ktoś nie uruchomi '
+                    '`e2e/guide-screenshots.mjs`.',
+                    'The manual\'s hub promises a screenshot in every chapter; '
+                    '`/about/guide/contests` has none until somebody re-runs '
+                    '`e2e/guide-screenshots.mjs`.',
+                ),
+            },
+            {
+                'title': 'Fast-forward gałęzi głównej / Fast-forward of the trunk',
+                'description': _pl_en(
+                    'Integracja żyje na `contests/prep`. `ux/colour-pass` nie został przesunięty, '
+                    'bo inna sesja miała niezatwierdzone pliki w głównym katalogu. Jedno polecenie '
+                    'po ich zatwierdzeniu: `git merge --ff-only contests/prep`.',
+                    'The integration lives on `contests/prep`. `ux/colour-pass` was not moved '
+                    'because another session had uncommitted files in the main checkout. One '
+                    'command once they are committed: `git merge --ff-only contests/prep`.',
+                ),
+            },
+        ],
     },
     {
         'key': 'conference',
@@ -1306,6 +1445,43 @@ def load_thread(path: Path = RESEARCH_THREAD_PATH) -> dict | None:
     return json.loads(path.read_text(encoding='utf-8'))
 
 
+def load_project_threads(path: Path = PROJECT_THREADS_PATH) -> list[dict]:
+    """The threads under the project's own rows (`PROJECT_THREADS_PATH`), or none."""
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def _thread_location(thread: dict, node: dict | None, organization) -> tuple[str, str]:
+    """Where a thread file says its comments go: a standing page (`page` + `section`), the plan
+    with a given `SUBPROJECTS` title on the node (`plan`), or the organisation's own thread
+    (`organization`). Raises where the row is missing or the key is not one `discussions` accepts —
+    a thread must never be written somewhere nobody can open it."""
+    from community import discussions
+    from plans.models import Plan
+
+    if thread.get('plan'):
+        if node is None:
+            raise RuntimeError('a plan thread needs the node its plan hangs off')
+        plan = _find_by_title(Plan, node, thread['plan'])
+        if plan is None:
+            raise RuntimeError(f"thread location: no plan titled {thread['plan']!r} on the node")
+        key = f'plans/{plan.pk}'
+    elif thread.get('organization'):
+        if organization is None:
+            raise RuntimeError('an organisation thread needs the organisation')
+        key = f'organizations/{organization.slug}'
+    else:
+        page, section = thread['page'], thread['section']
+        if not (discussions.PAGE_RE.match(page) and discussions.SECTION_RE.match(section)):
+            raise RuntimeError(f'thread location {page}#{section} is not a legal discussion key')
+        return page, section
+    try:
+        return discussions.parse_key(key)
+    except ValueError as exc:
+        raise RuntimeError(f'thread location {key} is not a legal discussion key') from exc
+
+
 def _upsert_accounts(counts: Counter) -> dict:
     from accounts.models import Profile
 
@@ -1328,26 +1504,24 @@ def _upsert_accounts(counts: Counter) -> dict:
 
 
 def _comment_body(item: dict) -> str:
-    head = f"**{item['n']}. {item['title']}**" if item['n'] else f"**{item['title']}**"
+    head = f"**{item['n']}. {item['title']}**" if item.get('n') else f"**{item['title']}**"
     return f"{head}\n\n{item['body']}"
 
 
-def _upsert_thread(thread: dict, accounts: dict, counts: Counter) -> dict:
-    """The report as one top-level comment per item under the standing-page location, each
-    reply under its item. Idempotent by the item's bold first line and by (parent, replier); the
-    text is refreshed when the file changed, and the timestamps are the report's date, a minute
-    apart so the order on the page is the report's."""
-    from community import discussions
+def _upsert_thread(thread: dict, accounts: dict, counts: Counter, *, node=None, organization=None) -> dict:
+    """The report as one top-level comment per item under the thread's location (a standing page,
+    a plan of the node, or the organisation's own thread — `_thread_location`), each reply under
+    its item where the file names a `replier`. Idempotent by the item's bold first line and by
+    (parent, replier); the text is refreshed when the file changed, and the timestamps are the
+    file's date, a minute apart so the order on the page is the file's."""
     from community.models import Comment, DiscussionLocation
     from config.sanitize import sanitize_content
 
-    page, section = thread['page'], thread['section']
-    if not (discussions.PAGE_RE.match(page) and discussions.SECTION_RE.match(section)):
-        raise RuntimeError(f'thread location {page}#{section} is not a legal discussion key')
+    page, section = _thread_location(thread, node, organization)
     row, _ = DiscussionLocation.objects.get_or_create(page=page, section=section)
     content_type = ContentType.objects.get_for_model(DiscussionLocation)
     author = accounts[thread['author']]
-    replier = accounts[thread['replier']]
+    replier = accounts[thread['replier']] if thread.get('replier') else None
     posted_at = _midday(date.fromisoformat(thread['date']))
     at_location = Comment.objects.filter(content_type=content_type, object_id=row.pk)
     created = replies = 0
@@ -1367,7 +1541,7 @@ def _upsert_thread(thread: dict, accounts: dict, counts: Counter) -> dict:
             comment.body = body
             comment.save()
         reply_text = item.get('reply')
-        if not reply_text:
+        if not reply_text or replier is None:
             continue
         reply = Comment.objects.filter(parent=comment, author=replier).first()
         if reply is None:
@@ -1391,6 +1565,7 @@ def build_edmat_project(
     *,
     history: list[dict] | None = None,
     thread: dict | None = None,
+    project_threads: list[dict] | None = None,
     retake_description: bool = False,
 ) -> dict:
     """Write (or refresh) the organisation, its owner, the goals, the association's plans, the
@@ -1471,12 +1646,18 @@ def build_edmat_project(
         event = _upsert_founding_meeting(organization, owner, counts)
         accounts = _upsert_accounts(counts)
         posted = _upsert_thread(thread, accounts, counts) if thread else None
+        # After the plans, because a plan thread is located by its plan's title on this node.
+        project_threads = [
+            _upsert_thread(extra, accounts, counts, node=node, organization=organization)
+            for extra in (load_project_threads() if project_threads is None else project_threads)
+        ]
 
     unfiled = sorted(set(by_goal) - {goal['key'] for goal in SUBPROJECTS})
     return {
         'accounts': list(accounts),
         'accounts_created': counts['accounts_created'],
         'thread': posted,
+        'project_threads': project_threads,
         'organization': organization,
         'organization_created': org_created,
         'owner': owner,

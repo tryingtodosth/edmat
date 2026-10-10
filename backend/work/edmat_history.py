@@ -109,11 +109,10 @@ SUBPROJECT_BY_REF = {
     # 17CD is attachments on anything — one table superseding three. Filed under `materials`, which
     # is where "files people put here" lives; its reach is wider, and a section gets one key.
     '17CD': 'materials',
-    # Contests (2026-10-09, CONTESTS-BRIEF.md). A konkurs is a happening people enter and its
-    # on-site final IS an event, so the app and its pages file under `events`; step B — the preset
-    # as a plan, a goal, tasks, needs and a poll — is management work. A `contests` subproject of
-    # its own is on the board; until the owner adds one, these three rows live here.
-    '17CE': 'events', '17CE.A': 'events', '17CE.B': 'management',
+    # Contests (2026-10-09, CONTESTS-BRIEF.md). Filed under `events` and `management` for one day;
+    # since 2026-10-10 a `contests` subproject of its own (`edmat_project.SUBPROJECTS`), with the
+    # state of the module as its open steps and Claude's commentary in the plan's thread.
+    '17CE': 'contests', '17CE.A': 'contests', '17CE.B': 'contests', '17CE.C': 'contests',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,
