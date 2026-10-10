@@ -95,6 +95,8 @@ check(
 const ola = await newSession();
 await login(ola, 'ola@edmat.example');
 await goto(ola, '/activity');
+// The post composer is behind its own button since 2026-10-09.
+await ola.locator('.composer-open').click();
 await ola.locator('.composer').waitFor({ timeout: 20000 });
 // The reference picker is a browse list, so the content-language rule (§17AQ) narrows it to the
 // interface language — an English-interface context would never see the Polish corpus.
@@ -107,6 +109,7 @@ await fetch(`${API}/api/auth/me/`, {
 	body: JSON.stringify({ content_locales: ['pl'] })
 });
 await ola.reload({ waitUntil: 'load' });
+await ola.locator('.composer-open').click();
 await ola.locator('.composer').waitFor({ timeout: 20000 });
 await ola
 	.locator('.composer textarea')
@@ -162,6 +165,7 @@ check(
 	(await michal.locator('.post .katex').count()) > 0 &&
 		(await michal.locator('.post__discussion').count()) === 1
 );
+await michal.locator('.post__discussion .comment-form__open').click();
 await michal.locator('.post__discussion textarea').fill('Parts works too, but this is cleaner.');
 await michal.locator('.post__discussion button[type="submit"]').first().click();
 await settle(1000);

@@ -16,13 +16,18 @@
 		onSubmit,
 		// A thread somebody may read but not post into (a public course discussion for a non-member)
 		// renders no composer rather than one whose submit silently does nothing.
-		canPost = true
+		canPost = true,
+		// Bound by a host that has another way in: the "Reply" item on a statement, a solution or a
+		// review opens the thread, and a reader who chose "reply" has to arrive at a box rather
+		// than at a button asking them to click again. Set it before (or as) the thread mounts.
+		composing = $bindable(false)
 	}: {
 		comments: Comment[];
 		usersById: Record<string, User>;
 		/** Returning the created comment is what lets attachments be uploaded onto it. */
 		onSubmit: (body: string, parentId?: string) => void | Promise<Comment | void>;
 		canPost?: boolean;
+		composing?: boolean;
 	} = $props();
 
 	// Attachments uploaded in this session, overlaid on the comments the parent owns — so none of
@@ -60,12 +65,18 @@
 <div class="discussion">
 	{#if fileError}<p class="file-error" role="alert">{fileError}</p>{/if}
 	{#if authStore.isAuthenticated && canPost}
+		<!-- Collapsed behind its own button (owner, 2026-10-09: the input is not on the page until
+		     somebody asks for it). Eighteen pages render this thread and none of them had to change
+		     for it, which is the whole reason the collapse lives in `CommentForm`. -->
 		<CommentForm
+			collapsedLabel={m.discussion_startComment()}
+			bind:composing
 			placeholder={m.discussion_composerPlaceholder()}
 			submitLabel={m.discussion_post()}
 			allowFiles={true}
 			onSubmit={(body, files) => submit(body, undefined, files)}
 		/>
+		<!-- "Write a comment" -->
 	{:else}
 		<p class="login-prompt">
 			<a href={resolve('/login')}>{m.discussion_loginToComment()}</a>
@@ -80,6 +91,7 @@
 				<CommentNode
 					{node}
 					{usersById}
+					canReply={authStore.isAuthenticated && canPost}
 					onReply={(parentId, body, files) => submit(body, parentId, files)}
 				/>
 			{/each}

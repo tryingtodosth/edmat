@@ -134,6 +134,8 @@ async function drawStroke(x0 = 0.35, y0 = 0.35) {
 
 // ---- warm Vite's optimizer on the brand-new dependency, then start for real (trap 22)
 await p.goto(`${BASE}/exercises/2`, { waitUntil: 'load' });
+// The composer is collapsed behind its own button since 2026-10-09 — one click opens it.
+await p.locator('.discussion .comment-form__open').first().click();
 await p.locator('.discussion form.comment-form .rich-editor textarea').waitFor({ timeout: 120000 });
 await openBoard(p.locator('.discussion form.comment-form').first()).catch(() => {});
 await settle(1500);
@@ -347,6 +349,7 @@ await overlay.waitFor({ state: 'detached', timeout: 15000 });
 // ---- kill switch, as a NON-staff account (trap 10)
 await setFlag(false);
 await p.reload({ waitUntil: 'load' });
+await p.locator('.discussion .comment-form__open').first().click();
 const form2 = p.locator('.discussion form.comment-form').first();
 await form2.locator('.insert-strip__row').waitFor({ timeout: 120000 });
 await settle(1500);

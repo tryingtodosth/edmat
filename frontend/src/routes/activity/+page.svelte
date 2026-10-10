@@ -125,8 +125,13 @@
 
 	function handlePostCreated(_post: Post) {
 		composerNotice = true;
+		composingPost = false;
 		load();
 	}
+	// The composer is behind a button like every other input on the site since 2026-10-09 — except
+	// when a claim chip brought the reader here with an anchor already chosen, which is somebody
+	// arriving in order to post.
+	let composingPost = $state(false);
 
 	/** Burst grouping, per fetched window: a run of ≥3 consecutive rows by the same actor and kind
 	 * collapses into one expandable row ("Ania added 12 solutions"). Grouping only WITHIN what is
@@ -176,7 +181,14 @@
 		{#if composerNotice}
 			<p class="notice">{m.post_published()}</p>
 		{/if}
-		<PostComposer onCreated={handlePostCreated} {fixedAnchor} />
+		{#if composingPost || fixedAnchor}
+			<PostComposer onCreated={handlePostCreated} {fixedAnchor} />
+		{:else}
+			<button type="button" class="composer-open" onclick={() => (composingPost = true)}
+				>{m.post_start()}</button
+			>
+			<!-- "Write a post" -->
+		{/if}
 	{/if}
 
 	<div class="controls">
@@ -294,6 +306,14 @@
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
+
+	// Stands in for the whole composer, drawn as `CommentForm`'s and `ReviewForm`'s do.
+	.composer-open {
+		@include mix.button-secondary;
+		align-self: flex-start;
+		padding: var(--space-1) var(--space-3);
+		font-size: var(--font-size-xs);
+	}
 
 	.page {
 		max-width: 780px;

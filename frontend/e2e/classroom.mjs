@@ -376,6 +376,8 @@ try {
 	);
 	await goto(student, `/courses/${courseId}`);
 	await tab(student, 'Discussion');
+	// The composer is collapsed behind its own button since 2026-10-09 — one click opens it.
+	await student.locator('.discussion-section .comment-form__open').first().click();
 	const composer = student.locator('.discussion-section form.comment-form').first();
 	await composer.locator('textarea').first().waitFor({ timeout: 20000 });
 	await composer

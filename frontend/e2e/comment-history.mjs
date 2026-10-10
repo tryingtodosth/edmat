@@ -86,6 +86,8 @@ await login(olaPage, 'ola@edmat.example');
 await olaPage.goto(`${BASE}/exercises/1`, { waitUntil: 'load' });
 const discussion = olaPage.locator('.discussion');
 await discussion.waitFor({ timeout: 90000 });
+// The composer is collapsed behind its own button since 2026-10-09 — one click opens it.
+await discussion.locator('.comment-form__open').first().click();
 const form = discussion.locator('form.comment-form').first();
 await form.locator('textarea').fill(`${MARKER} the original wording`);
 await form.locator('button[type="submit"]').click();

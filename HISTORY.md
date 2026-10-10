@@ -16049,3 +16049,97 @@ the previous kits is not in this worktree and publishing is the owner's step any
 `CLAUDE.md`, "Publishing is a replay"). The trunk fast-forward stays owed. The pointer comment says
 the thread comes back after every deployment, which is true only while the seed is run on each
 deploy, as the note instructs.
+
+---
+
+## 17CF — Every composer is behind a button: no page carries an input nobody asked for (2026-10-09, `ux/colour-pass`)
+
+Owner: *"i want inputs of comments to be disappearing unless clicking comment or reply buttons (add
+them if dont have them everywhere where a comment or sth discussable)"*.
+
+Before this, a reader who opened an exercise, a material, a tutoring listing, an issue, a concept, a
+course lesson, a conference session or a post met an empty text box between the content and the
+comments, and the activity feed opened with the whole post composer — anchor pickers, audience,
+language, reference search, image — above the first row anybody came to read. Every one of those
+boxes belongs to somebody who has decided to write; none of them belongs to the reader who has not.
+
+**The collapse lives in `CommentForm`, not in its hosts.** One prop — `collapsedLabel` — turns the
+box into a single quiet button ("Write a comment" / *„Napisz komentarz"*), and the box comes back to
+being a button after a post, so a thread that has just taken a comment looks the way it did before.
+Eighteen pages render a thread through `DiscussionThread` and not one of them had to change: the
+component that owns the input owns its reveal. Two further props came out of what the hosts needed:
+`composing` is `$bindable` so a host with another way in can open the box, and `aboveEditor` is a
+snippet drawn inside the form, which is where the standing-page composer's *"your name (optional)"*
+field had to move — a name field left sitting above a button that says "write a comment" is an input
+asking to be filled in for nothing.
+
+**Reply came out of the "⋯" menu and became a button under the comment**, for the reason the vote
+column beside each comment was never in that menu either: it is the thing most readers actually
+reach for, and a reveal nobody can find is worse than a box that is always open. The menu's fixed
+order (owner, 2026-10-08: reply above the AI mark) is untouched — it governs what a surface passes,
+and a comment now passes reply as a control of its own. **A statement, a hint, a solution and a
+review still route reply through the menu**, because none of them has a box of its own to open;
+their menu item opens (or scrolls to) the thread, and since the thread's composer is now collapsed,
+each of those three call sites binds `composing` so that "reply" ends at a box rather than at
+another button.
+
+**`CommentNode` learned `canReply`**, which is a small honesty fix that fell out of this. The reply
+box was offered to every reader of every thread, including one who could not post into it — a
+signed-out reader on an exercise, a non-member reading a public course discussion — and the refusal
+arrived after they had written their reply. The host knows the answer and now says it.
+
+**`RichEditor.focus()`** is what makes one click enough: a reveal that leaves the caret somewhere
+else costs a second click. In source mode it focuses the textarea; in rich mode the Tiptap instance
+may not exist yet, because the import is lazy, so the request is remembered (`wantFocus`) and
+honoured when the editor mounts.
+
+**Two other always-open inputs went the same way**, because leaving them would have made the
+collapsed thread below them look like an accident: the review form on `/materials/[id]` and
+`/tutoring/[id]` ("Write a review"), and the post composer on `/activity` ("Write a post"). The
+review form inside the exercise page's modal is left open — that modal is already something somebody
+opened on purpose — and the post composer still opens by itself when a claim chip brought the reader
+to `/activity` with an anchor already chosen, which is somebody arriving in order to post.
+`ReviewForm` carries the same three lines as `CommentForm` and both say so in place (house rule 13:
+strike two; a third collapsing form earns the shared one).
+
+### Verified
+
+`npm run check` 0 errors / 0 warnings, `npx eslint .` clean, `npm run build` clean, both catalogues
+identical at **4114** keys (three new: `discussion_startComment`, `review_start`, `post_start`).
+`check_accessibility.ts` against the live servers: 48 pages, **0 critical/serious** nodes (3 pages
+failed to load, on endpoints this change does not touch).
+
+A browser pass against both real dev servers, **14/14**, screenshots looked at: a thread opens with
+no box and a "Napisz komentarz" button; one click draws the box **with the caret already in it**;
+posting lands the comment and the box goes back to being a button; every comment carries a visible
+*„Odpowiedz"* that opens a reply box under it; the statement's "⋯ → Odpowiedz" lands in an **open**
+box; `/activity` and `/materials/[id]` show their buttons and open on one click. On `/about`, signed
+in: the button, 64 reply buttons, the box on one click; signed out, where that location refuses
+anonymous posting: the refusal sentence and no button at all.
+
+`e2e/activity-feed.mjs` **19/20** — the one failure is the `.post .katex` half of a conjunction on
+`/posts/[id]`, which is a timing assumption about the lazily-loaded maths chunk in a fresh context
+(the thread half of the same check is fine, and the comment it then posts lands). The same run
+surfaced a **500 from `/api/galleries/for-target/?target_type=post&target_id=6`**, which predates
+this change and was not chased.
+
+**Nine browser scripts were updated**, because a script that drove a composer now has to ask for it
+first: `comment-input-kinds`, `rich-editor`, `sketch`, `comment-attachments` (which also stops
+clicking a menu item that no longer exists and clicks the new `.comment__reply`), `comment-history`,
+`classroom`, `activity-feed`, `about-discussions` (which gained a check that there is no box before
+the click), and one unused constant in `attachments.mjs` that was failing `eslint` on `main`.
+
+### Left open
+
+- **Two scripts could not be run to completion and were left as they are:** `rich-editor.mjs`
+  asserts English copy ("Editor") without going through `e2e/english.mjs`, so it fails on the Polish
+  base locale at a line this change does not touch, and `comment-history.mjs` fills the login form
+  after 800 ms, which is below the cold-compile margin `activity-feed.mjs` uses (2500 ms). Both
+  predate this change; both are one line.
+- **The edit box and the reply box are unchanged** — they were already mounted by a button, so they
+  take no `collapsedLabel`.
+- **Cancel discards the draft**, because the collapse unmounts the editor. That is the normal
+  behaviour of a cancel button and nothing on this site persists a draft, but it is now reachable in
+  one more place.
+- **`SolutionEntrySection`'s own composer is not collapsed.** It is already behind "Dodaj
+  wskazówkę" / "Dodaj rozwiązanie", which is the same bargain by a different mechanism.

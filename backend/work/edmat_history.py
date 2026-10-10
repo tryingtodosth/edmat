@@ -113,6 +113,9 @@ SUBPROJECT_BY_REF = {
     # since 2026-10-10 a `contests` subproject of its own (`edmat_project.SUBPROJECTS`), with the
     # state of the module as its open steps and Claude's commentary in the plan's thread.
     '17CE': 'contests', '17CE.A': 'contests', '17CE.B': 'contests', '17CE.C': 'contests',
+    # The composer-behind-a-button pass (ux/colour-pass, 2026-10-09) was written as a second §17CE
+    # while the contests cycle took the same reference; renumbered 17CF at the fast-forward (2026-10-10).
+    '17CF': 'community',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

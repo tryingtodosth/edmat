@@ -1428,5 +1428,16 @@
   "summary": "The ask. Two in a row the morning after §17CE: first \"you will be publishing in edmat's about info about current state of contests: issues, what's lacking, what's ready, etc with possibly your comments there signed as user claude-anthropic\" — with the code read-only for that part — and then \"prepare deploy kit that is also going to import data on contests to about\". The first was done as data on…",
   "subproject": "contests",
   "listed": true
+ },
+ {
+  "ref": "17CF",
+  "title": "Every composer is behind a button: no page carries an input nobody asked for",
+  "heading": "17CF — Every composer is behind a button: no page carries an input nobody asked for (2026-10-09, `ux/colour-pass`)",
+  "line": 16055,
+  "date": "2026-10-09",
+  "date_source": "heading",
+  "summary": "Owner: \"i want inputs of comments to be disappearing unless clicking comment or reply buttons (add them if dont have them everywhere where a comment or sth discussable)\".",
+  "subproject": "community",
+  "listed": true
  }
 ]

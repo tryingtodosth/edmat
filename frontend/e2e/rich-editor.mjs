@@ -65,6 +65,8 @@ await p.locator('form input[type="password"]').fill('password123');
 await p.locator('form button[type="submit"]').click();
 await p.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 15000 });
 await p.goto(`${BASE}/exercises/2`, { waitUntil: 'load' });
+// The composer is collapsed behind its own button since 2026-10-09 — one click opens it.
+await p.locator('.discussion .comment-form__open').first().click();
 const form = p.locator('.discussion form.comment-form').first();
 await form.locator('.rich-editor').waitFor({ timeout: 90000 });
 check(
@@ -121,6 +123,7 @@ check(
 const me = await (await fetch(`${API}/api/auth/me/`, { headers: auth(ola) })).json();
 check('the mode is remembered on the profile', me.editor_mode === 'rich');
 await p.reload({ waitUntil: 'load' });
+await p.locator('.discussion .comment-form__open').first().click();
 const form2 = p.locator('.discussion form.comment-form').first();
 await form2.locator('.rich-editor__host .ProseMirror').waitFor({ timeout: 90000 });
 check('after a reload the box opens in Editor mode', true);

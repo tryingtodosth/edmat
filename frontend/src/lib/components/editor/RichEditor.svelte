@@ -56,6 +56,9 @@
 	let loading = $state(false);
 	let failed = $state(false);
 	let mathNodeModule: MathNodeModule | null = null;
+	// A `focus()` that arrived before the lazy Tiptap import landed, remembered rather than
+	// dropped. Not `$state`: nothing renders from it.
+	let wantFocus = false;
 
 	const PALETTE: { label: string; insert: string }[] = [
 		{ label: 'a/b', insert: '\\(\\frac{a}{b}\\)' },
@@ -142,6 +145,13 @@
 			// typed from this point on: input rules (inside mathNode.ts) only fire on a live
 			// keystroke, never on text that arrived through `content:` above.
 			mathModule.convertMathText(editor);
+			// A composer revealed by a click asks for the caret while this import is still in
+			// flight (`CommentForm`'s collapsed trigger is one click, and the editor it reveals
+			// mounts a few hundred milliseconds later).
+			if (wantFocus) {
+				wantFocus = false;
+				editor.chain().focus().run();
+			}
 		} catch {
 			failed = true;
 			mode = 'source';
@@ -199,6 +209,17 @@
 				el.setSelectionRange(start + text.length, start + text.length);
 			});
 		}
+	}
+	/** Put the caret in the box. A composer that was revealed by a click has to land the caret
+	 * itself — otherwise the reveal costs a second click — and only this component knows which of
+	 * its two modes is drawn right now. */
+	export function focus() {
+		if (mode !== 'rich') {
+			sourceEl?.focus();
+			return;
+		}
+		if (editor) editor.chain().focus().run();
+		else wantFocus = true;
 	}
 	/** Insert raw text at the cursor — a Markdown fragment in either mode. */
 	export function insertText(text: string) {

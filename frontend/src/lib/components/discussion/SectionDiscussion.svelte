@@ -116,6 +116,15 @@
 	}
 </script>
 
+<!-- The visitor's own name, drawn inside the composer rather than above it (see the call site). -->
+{#snippet nameField()}
+	<label class="section-discussion__name">
+		{m.discussions_yourName()}
+		<!-- "Your name (optional)" -->
+		<input type="text" maxlength="40" bind:value={anonName} />
+	</label>
+{/snippet}
+
 <!-- Nothing at all when the location is off: a kill switch takes the links away, not just the
      pages (house rule 3). The page's prose is unaffected. -->
 {#if policy.isEnabled}
@@ -147,6 +156,7 @@
 								<CommentNode
 									{node}
 									usersById={{}}
+									canReply={policy.canPost}
 									onReply={(parentId, body) => submit(body, parentId)}
 								/>
 							{/each}
@@ -167,18 +177,22 @@
 								<!-- "Comments here are read by a moderator before they appear." -->
 							</p>
 						{/if}
-						{#if wantsName}
-							<label class="section-discussion__name">
-								{m.discussions_yourName()}
-								<!-- "Your name (optional)" -->
-								<input type="text" maxlength="40" bind:value={anonName} />
-							</label>
-						{/if}
+						<!-- Its own key, not `discussion_composerPlaceholder`: "Ask a question or share a
+						     thought" is written for a thread under an exercise, and under /about's
+						     sections or a board row it read as if the page were a problem to solve.
+
+						     Collapsed behind its own button, like every other composer (owner,
+						     2026-10-09) — and the name field goes INSIDE it as `aboveEditor`, because
+						     a "your name (optional)" box left sitting above a button that says "write
+						     a comment" is an input asking to be filled in for nothing. -->
 						<CommentForm
-							placeholder={m.discussion_composerPlaceholder()}
+							collapsedLabel={m.discussion_startComment()}
+							placeholder={m.discussions_composerPlaceholder()}
 							submitLabel={m.discussion_post()}
+							aboveEditor={wantsName ? nameField : undefined}
 							onSubmit={(body) => submit(body)}
 						/>
+						<!-- "Write a comment" / "Join the discussion…" -->
 					{:else if policy.postBlockReason === 'anonymous'}
 						<p class="section-discussion__muted">
 							<a href={resolve('/login')}>{m.discussion_loginToComment()}</a>

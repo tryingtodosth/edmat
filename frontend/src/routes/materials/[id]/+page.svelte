@@ -495,7 +495,8 @@
 				{#if submissionNotice === 'review'}
 					<p class="notice">{m.review_thanks()}</p>
 				{/if}
-				<ReviewForm onSubmit={handleReviewSubmit} />
+				<ReviewForm collapsedLabel={m.review_start()} onSubmit={handleReviewSubmit} />
+				<!-- "Write a review" -->
 			{:else}
 				<p class="login-prompt"><a href={resolve('/login')}>{m.review_loginToReview()}</a></p>
 			{/if}

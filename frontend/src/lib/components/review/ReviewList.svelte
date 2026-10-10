@@ -91,8 +91,13 @@
 	/** The menu's "reply" opens the thread; it never closes one somebody already had open.
 	 *  Named `openThread` rather than `open`, which would shadow `window.open`. */
 	async function openThread(reviewId: string) {
+		// And the composer inside it, collapsed behind its own button since 2026-10-09 — "reply"
+		// has to end at a box, not at another button.
+		composing[reviewId] = true;
 		if (!openIds[reviewId]) await toggle(reviewId);
 	}
+	/** Per review, because every review on the page draws its own thread. */
+	let composing = $state<Record<string, boolean>>({});
 
 	async function toggle(reviewId: string) {
 		const nowOpen = !openIds[reviewId];
@@ -169,6 +174,7 @@
 							<DiscussionThread
 								comments={threads[review.id] ?? []}
 								usersById={allUsers}
+								bind:composing={composing[review.id]}
 								onSubmit={(body, parentId) => post(review.id, body, parentId)}
 							/>
 						{/if}

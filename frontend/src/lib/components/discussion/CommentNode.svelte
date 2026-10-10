@@ -28,11 +28,18 @@
 	let {
 		node,
 		usersById,
-		onReply
+		onReply,
+		// Whether a reply could actually be posted from here. The host knows and this does not: a
+		// thread on an exercise takes replies only from a signed-in reader, a standing page set to
+		// `anyone` takes them from a visitor, and a public course discussion a non-member may read
+		// takes none at all. Before this prop the reply box was offered in every one of those cases
+		// and the refusal arrived after somebody had written their reply.
+		canReply = true
 	}: {
 		node: CommentNodeT;
 		usersById: Record<string, User>;
 		onReply: (parentId: string, body: string, files?: File[]) => void;
+		canReply?: boolean;
 	} = $props();
 
 	// MeatballsMenu declares this shape in its own instance script, which cannot be imported as a
@@ -262,11 +269,17 @@
 				<!-- Rendered even on a hidden comment, where `menuItems` is empty: a moderator still
 				     needs the quick "restore" from here, and `ContentActionsMenu` draws nothing at all
 				     when it ends up with no items (an anonymous reader on a removed comment). -->
+				<!-- No `onReply` here, deliberately: "Reply" is a visible button under the body
+				     instead (below), for exactly the reason the vote column above is not in this
+				     menu either. Offering it in both places would put the same word twice on every
+				     comment. The menu's fixed order (owner, 2026-10-08) is unaffected — it governs
+				     the items a surface passes, and a comment now passes reply as a control of its
+				     own. Every other surface (a statement, a solution, a review) still routes reply
+				     through the menu, because none of them has a box of its own to open. -->
 				<ContentActionsMenu
 					kind="comment"
 					id={comment.id}
 					label={m.comment_actionsLabel()}
-					onReply={hidden ? undefined : () => ((editing = false), (replying = true))}
 					items={menuItems}
 					reportable={!isAuthor && !hidden}
 					{hidden}
@@ -322,6 +335,20 @@
 			</ul>
 		{/if}
 
+		{#if canReply && !hidden && !editing && !replying}
+			<!-- The one control a reader actually reaches for, kept out of the "⋯" for the same
+			     reason as the votes. It is also what makes the collapsed composer honest (owner,
+			     2026-10-09): the box is not on the page until a button asks for it, so the button
+			     has to sit where the eye already is — directly under the comment it answers. -->
+			<div class="comment__actions">
+				<button
+					type="button"
+					class="comment__reply"
+					onclick={() => ((editing = false), (replying = true))}>{m.discussion_reply()}</button
+				>
+			</div>
+		{/if}
+
 		{#if error}<p class="comment__error">{error}</p>{/if}
 
 		{#if confirmingDelete}
@@ -354,7 +381,7 @@
 		{#if node.replies.length > 0}
 			<ul class="comment__replies">
 				{#each node.replies as reply (reply.comment.id)}
-					<CommentNode node={reply} {usersById} {onReply} />
+					<CommentNode node={reply} {usersById} {onReply} {canReply} />
 				{/each}
 			</ul>
 		{/if}
@@ -482,6 +509,27 @@
 	@media (prefers-reduced-motion: reduce) {
 		.comment__menu {
 			transition: none;
+		}
+	}
+	.comment__actions {
+		display: flex;
+		gap: var(--space-2);
+	}
+	// A quiet text button, not a filled one: it is on every comment in the thread, and a column of
+	// filled buttons would read as the point of the page.
+	.comment__reply {
+		@include mix.focus-ring;
+		background: none;
+		border: none;
+		padding: 0;
+		font: inherit;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		color: var(--text-secondary);
+		cursor: pointer;
+		&:hover {
+			color: var(--accent);
+			text-decoration: underline;
 		}
 	}
 	.comment__body {

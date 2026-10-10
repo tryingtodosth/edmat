@@ -85,6 +85,8 @@ const settle = (ms = 700) => p.waitForTimeout(ms);
 const LIB = /(node_modules|\.vite\/deps)\/(ketcher|react)|KetcherHost/i;
 
 await p.goto(`${BASE}/exercises/2`, { waitUntil: 'load' });
+// The composer is collapsed behind its own button since 2026-10-09 — one click opens it.
+await p.locator('.discussion .comment-form__open').first().click();
 const form = p.locator('.discussion form.comment-form').first();
 await form.locator('.rich-editor textarea').waitFor({ timeout: 90000 });
 const strip = form.locator('.insert-strip');
@@ -388,6 +390,7 @@ check(
 // ---- kill switch
 await setFlag(false);
 await p.reload({ waitUntil: 'load' });
+await p.locator('.discussion .comment-form__open').first().click();
 const form2 = p.locator('.discussion form.comment-form').first();
 await form2.locator('.insert-strip__row').waitFor({ timeout: 90000 });
 await settle(1500);

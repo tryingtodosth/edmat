@@ -188,7 +188,13 @@
 
 	/** The statement's "reply" (`ContentActionsMenu` puts it top of the menu): the discussion is on
 	 *  this same page, so it scrolls there rather than opening a second composer somewhere else. */
+	// The statement's "Reply". Since 2026-10-09 the thread's composer is collapsed until somebody
+	// asks for it, so landing the reader at the thread is no longer enough — a reader who chose
+	// "reply" meant to write one, and would otherwise arrive at a button telling them to click
+	// again.
+	let composingComment = $state(false);
 	function scrollToDiscussion() {
+		composingComment = true;
 		document.getElementById('exercise-discussion')?.scrollIntoView({ behavior: 'smooth' });
 	}
 
@@ -585,7 +591,12 @@
 					<ReviewList {reviews} {usersById} commentTarget="review" assistKind="review" />
 					<h3 class="subheading">{m.discussion_comments()}</h3>
 				{/if}
-				<DiscussionThread {comments} {usersById} onSubmit={handleCommentSubmit} />
+				<DiscussionThread
+					{comments}
+					{usersById}
+					bind:composing={composingComment}
+					onSubmit={handleCommentSubmit}
+				/>
 			</section>
 		</article>
 

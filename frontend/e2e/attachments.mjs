@@ -31,7 +31,6 @@ try {
 }
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5173';
-const API = process.env.E2E_API ?? 'http://127.0.0.1:8000/api';
 const TOKEN = process.env.E2E_OWNER_TOKEN ?? '';
 const OUT = 'e2e/screens';
 mkdirSync(OUT, { recursive: true });

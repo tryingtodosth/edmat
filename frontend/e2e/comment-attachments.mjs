@@ -118,6 +118,8 @@ await p.waitForURL((u) => !u.pathname.includes('/login'), { timeout: 15000 });
 await p.goto(`${BASE}/exercises/1`, { waitUntil: 'load' });
 const discussion = p.locator('.discussion');
 await discussion.waitFor({ timeout: 90000 });
+// The composer is collapsed behind its own button since 2026-10-09 — one click opens it.
+await discussion.locator('.comment-form__open').first().click();
 const form = discussion.locator('form.comment-form').first();
 check(
 	'the composer offers a picture/PDF picker',
@@ -169,6 +171,7 @@ check(
 );
 
 // A disguised executable is refused in words.
+await discussion.locator('.comment-form__open').first().click();
 const form2 = discussion.locator('form.comment-form').first();
 await form2.locator('.insert-strip input[type="file"][accept^="image/"]').setInputFiles([EXE]);
 await form2.locator('textarea').fill(`${MARKER} with a bad file`);
@@ -183,7 +186,8 @@ check(
 
 // A reply with a picture.
 await mine.locator('.meatballs__trigger').first().click();
-await mine.locator('[role="menuitem"]', { hasText: 'Reply' }).first().click();
+// Reply is its own visible button under the comment now, not an item in the "⋯" menu.
+await mine.locator('.comment__reply').first().click();
 const replyForm = mine.locator('form.comment-form').first();
 await replyForm.waitFor();
 await replyForm.locator('.insert-strip input[type="file"][accept^="image/"]').setInputFiles([PNG]);

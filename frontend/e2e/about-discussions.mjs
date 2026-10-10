@@ -219,6 +219,17 @@ await page
 	.catch(() => {});
 check('one thread request after one click', threadCalls.length === 1, threadCalls.join(' | '));
 
+// Since 2026-10-09 the box is not on the page until somebody asks for it, and the visitor's name
+// field lives INSIDE it — so this is asserted first and then opened, and the two checks below read
+// the open composer.
+check(
+	'no input box until it is asked for',
+	(await page
+		.locator('.section-discussion__body textarea, .section-discussion__body .ProseMirror')
+		.count()) === 0
+);
+await page.locator('.section-discussion__body .comment-form__open').first().click();
+
 // `about#origin` is `anyone`, so a visitor gets a composer AND the name field.
 const nameField = page.locator('.section-discussion__name input');
 check(

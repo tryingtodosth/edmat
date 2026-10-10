@@ -224,10 +224,13 @@
 
 	/** The menu's "reply" OPENS the thread rather than toggling it: a reader who has just chosen
 	 *  "reply" from a menu means to write one, and a toggle would close the thread for anybody who
-	 *  already had it open. */
+	 *  already had it open. It also opens the composer inside it, which has been collapsed behind
+	 *  its own button since 2026-10-09. */
 	async function openComments() {
+		composingComment = true;
 		if (!showComments) await toggleComments();
 	}
+	let composingComment = $state(false);
 
 	async function toggleComments() {
 		showComments = !showComments;
@@ -472,7 +475,12 @@
 
 		{#if showComments}
 			<div class="entry__discussion">
-				<DiscussionThread {comments} {usersById} onSubmit={handleCommentSubmit} />
+				<DiscussionThread
+					{comments}
+					{usersById}
+					bind:composing={composingComment}
+					onSubmit={handleCommentSubmit}
+				/>
 			</div>
 		{/if}
 	</div>
