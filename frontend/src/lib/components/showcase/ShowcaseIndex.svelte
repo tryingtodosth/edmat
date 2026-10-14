@@ -16,7 +16,8 @@
 	const locale = $derived(getLocale());
 </script>
 
-<section class="showcase-index">
+<!-- `id="showcase"` is the homepage band's "See what EdMat can do" target (StartHere.svelte). -->
+<section class="showcase-index" id="showcase">
 	<h2>{doc.heading}</h2>
 	<p class="showcase-index__intro">{doc.intro}</p>
 	<ul class="showcase-index__grid">
@@ -35,6 +36,11 @@
 
 <style lang="scss">
 	@use '../../styles/mixins' as mix;
+
+	.showcase-index {
+		/* The sticky header would otherwise cover the heading the #showcase anchor lands on. */
+		scroll-margin-top: 5rem;
+	}
 
 	.showcase-index__intro {
 		color: var(--text-secondary);

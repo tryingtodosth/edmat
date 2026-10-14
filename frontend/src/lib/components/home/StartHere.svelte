@@ -54,7 +54,8 @@
 			key: 'showcase',
 			kicker: () => m.startHere_showcaseKicker(), // "Curious first?"
 			label: () => m.startHere_showcaseLink(), // "See what EdMat can do"
-			href: resolve('/about')
+			// The showcase index, not the top of /about — which opens on the organisation's page.
+			href: `${resolve('/about')}#showcase`
 		},
 		{
 			key: 'try',
