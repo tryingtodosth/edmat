@@ -1516,5 +1516,16 @@
   "summary": "Owner: \"bring back materials to navbar and adding, as its a crucial module. also, lets bring back courses. here we will be having people creating communities around both general topics, and specific courses on universities for all the materials to be in one place\"; then \"a default/general course, and subcourses for specific universities and faculties\". On exams: \"it's really difficult call to…",
   "subproject": "courses",
   "listed": true
+ },
+ {
+  "ref": "17CN",
+  "title": "A prototype you can find your way around: empty states with a next step, a place to start, real screens in the showcase and the manual",
+  "heading": "17CN — A prototype you can find your way around: empty states with a next step, a place to start, real screens in the showcase and the manual (2026-10-14 night, `ux/colour-pass`)",
+  "line": 16826,
+  "date": "2026-10-14",
+  "date_source": "heading",
+  "summary": "Owner: \"proceed with the next round/stage after this one's done → keep the loop going. when no tasks on the horizon improve the prototype: make it more intuitive, and add more placeholders: show-off and discuss modules - use our screens, and link them for users to be able to check them out by themselves.\" A read-only planning pass surveyed the showcase, the manual, the homepage, the navbar and…",
+  "subproject": "interface",
+  "listed": true
  }
 ]

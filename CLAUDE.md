@@ -167,7 +167,7 @@ every change a `LicenceChange` row.
    re-implements the rule is how two surfaces start disagreeing.
 
 `adapter-static` is a **deliberate non-change**, not an oversight: every request originates
-client-side against a separate-origin API, so nothing needs SSR. The hub and standing pages, the eight
+client-side against a separate-origin API, so nothing needs SSR. The hub and standing pages, the twelve
 `/about/<feature>` showcase pages and the thirteen manual pages are prerendered for first paint, and
 `deploy/fuw/pack.sh` refuses a build that is missing one.
 
@@ -434,7 +434,7 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /auth/sso/done /auth/sso/complete /auth/sso/link                the provider sign-in's return, signup and confirm-and-link pages
 /settings/account /cancel-deletion                             download my data, delete my account, change my mind
 /about                                                        the project itself: the EdMat organisation's page (goals, needs, open board), the research thread, the showcase index
-/about/<feature> /about/guide /about/guide/[chapter]          the design showcase (sample data) and the manual
+/about/<feature> /about/guide /about/guide/[chapter]          the showcase (sample data + real screenshots, twelve pages) and the manual
 ```
 
 URL segments are neutral English (`/branches/`, not `/przedmioty/`) — the app is bilingual from day

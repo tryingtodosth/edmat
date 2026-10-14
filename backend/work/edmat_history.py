@@ -144,6 +144,9 @@ SUBPROJECT_BY_REF = {
     # 17CM is courses as communities — Materials and Courses back in the bar, a general course and
     # its university/faculty versions.
     '17CM': 'courses',
+    # 17CN is the "make it intuitive" loop: empty states, the start band, real screens in the
+    # showcase and the manual, the grouped account menu. `interface`.
+    '17CN': 'interface',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

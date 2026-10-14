@@ -16822,3 +16822,88 @@ cannot be moved to another general course; terms are not filed inside one standi
 still belongs to exactly one `Branch`. Decisions waiting (`COURSES-MATERIALS-RESEARCH.md`): a corpus
 sign-off with UW, whether `Material.branch` stays required, enforcing one canonical general course per
 subject, a university as an Organization, the USOS API, recruiting course representatives.
+
+## 17CN — A prototype you can find your way around: empty states with a next step, a place to start, real screens in the showcase and the manual (2026-10-14 night, `ux/colour-pass`)
+
+Owner: *"proceed with the next round/stage after this one's done → keep the loop going. when no tasks
+on the horizon improve the prototype: make it more intuitive, and add more placeholders: show-off and
+discuss modules - use our screens, and link them for users to be able to check them out by
+themselves."* A read-only planning pass surveyed the showcase, the manual, the homepage, the navbar and
+every hub's empty state, and cut eight packages; six were built the same night, each on its own branch
+and worktree, each merged into `ux/colour-pass` after its own browser run. **None of it is in the
+2026-10-15 bundle** — that was frozen first (§17CL/§17CM, branch `deploy/2026-10-15`).
+
+### Where a first-time visitor got lost (the survey)
+
+The homepage pointed nowhere but the content; nothing linked the manual except `/about`. Thirteen hubs
+said "Nothing here yet." and offered no next step. The account menu was fourteen flat items, there was
+no Help entry anywhere, no showcase page used a single real screenshot, the contests chapter of the
+manual had none, and no manual step linked to the screen it described.
+
+### What changed
+
+- **Empty states that offer a next step** (WP1, `ux/empty-states`): one `EmptyState` component on
+  thirteen hubs — a sentence saying what the page is for, at most one action (only when the reader can
+  use it: creation gate, flag, signed in), and a "How this works →" link to a manual chapter or showcase
+  page. "Nothing matches these filters" is a separate state that offers *clear filters*, never *create*.
+  It found the flashcards due-list bug (§17CL).
+- **A place to start** (WP2): a quiet three-door band under the homepage hero — the 5-minute guide, the
+  showcase (`/about#showcase`), "just try it" (`/disciplines`) — prerendered, no service call, dismissal
+  read in `onMount` so it can only collapse; a Manual link in the footer. Plus three small fixes the
+  empty-states run saw: "New contest" shown to signed-out readers, the concepts Tag select past 390px,
+  and `/my-set` flashing its empty state before its items arrived.
+- **Real screens in the showcase** (WP3): `ShowcaseDoc` gained `tryIt` and `shots`; `ShowcaseShot` draws
+  a screenshot outside the inert sample frame with "Open the real page →", dropped when its feature is
+  off; every page has a "Try it yourself" row and its manual chapter. Stale pictures (the course pages,
+  the exercise page, the navbar) were deliberately not used — each was compared with the live page
+  first.
+- **The manual photographs contests and opens its screens** (WP4): eleven contest pictures from three
+  contests made through the real API; 25 "Open this screen →" links across all twelve chapters, typed
+  as SvelteKit pathnames so a dead route is a `svelte-check` error; the "Not written yet" list made
+  honest; the navbar pictures re-shot (one had shipped with its menu never opened).
+- **Four new showcase pages** (WP5): `/about/goals-and-work`, `/about/tutoring`, `/about/materials`,
+  `/about/conference` — twelve in all — each section a `DiscussableSection`, 13 new pictures in
+  `static/showcase/`, each page saying what is *not* built.
+- **The account menu in four groups, and Help** (WP8): Learning / Taking part / Working together / Your
+  account; a group whose items are all switched off disappears with its heading; "Help & manual" in the
+  menu and the drawer; the popover gained the arrow/Home/End keys its `role="menu"` promised.
+
+### Bugs found by doing this, and where they went
+
+- **`localizedPath()` wrote the prerenderer's origin into links**: `href="http://sveltekit-prerender/
+  korki"` (and, since §17CM, `/materialy`) on 40 prerendered pages, broken until hydration — the Tutoring
+  half probably live since 2026-10-01. Fixed, and **taken alone onto `deploy/2026-10-15`**, whose bundle
+  was rebuilt.
+- **`/contests/new` died on screen 3** for anyone who kept the pre-selected kind (the default never went
+  through `applyPreset`). Also taken onto the deploy branch.
+- `showcase.mjs`'s "zero `/api/` requests" check measured before hydration and so tested nothing; it now
+  waits and names the two boot requests and the one discussion-policy request it allows.
+- `vite.config.ts` allowed one machine's literal `node_modules` path, so KaTeX fonts 403'd in every
+  worktree elsewhere; it is now the symlink's real path.
+- `npx paraglide-js compile` writes a runtime without `vite.config.ts`'s `urlPatterns`, so a running dev
+  server serves `/en/…` and loses `/korki` until it restarts. Production builds are unaffected.
+- `pack.sh` named a bundle packed at 22:00 after the day, and overwrote the bundle applied that evening.
+  It now refuses to overwrite one; `EDMAT_PACK_DATE` names one for another day.
+
+### Verified
+
+Per package, each in both locales against a copy of the dev database, screenshots looked at:
+`empty-states.mjs` 273/273, `home-start.mjs` 57/57 (+ `fcp.mjs` 11/11 on a static serve),
+`showcase.mjs` 426/426 after WP5, `guide-try-links.mjs` 94/94, `guide-screenshots.mjs ONLY=contests`
+19/19, `account-menu.mjs` 82/82, `navbar-stages.mjs` 65/65. After every merge: `npm run check` 0/0, the
+catalogues merged as JSON three-way with no key changed on both sides (5260 = 5260), and
+`PUBLIC_API_BASE_URL=/api npm run build` with zero `sveltekit-prerender` links.
+
+### Left open
+
+- **Owner decisions:** whether a "New here?" strip may sit above the organisation page on `/about`
+  (WP7, not built); whether the homepage band shows to signed-in readers; "My contests" under Learning
+  or Taking part; whether pictures of the dev database's own rows (TEST=FAKE events, the EdMat
+  organisation's help-wanted posts) should ship; the licence wording a `/about/licences-and-data` page
+  would need (WP6, not built — `/about/account` waits with it).
+- The screenshots are English-only and in two fonts (DejaVu on this machine, Noto on the older ones):
+  one consistent set needs one re-shoot on one machine.
+- No showcase pictures yet for contests, the learning record and schools; the course and exercise
+  pictures in the manual are stale against today's pages.
+- The Add… menu is not grouped; the dismissed homepage band costs a 0.016 layout shift (an `app.html`
+  class set before paint would remove it).
