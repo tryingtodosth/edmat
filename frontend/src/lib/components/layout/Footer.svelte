@@ -37,6 +37,9 @@
 			<a href={resolve('/about')}>{m.footer_about()}</a>
 			<!-- "About EdMat" -->
 			<a href={resolve('/privacy')}>{m.footer_privacy()}</a>
+			<!-- The terms of use, next to the privacy policy: the pair every account agrees to / is told. -->
+			<a href={resolve('/terms')}>{m.footer_terms()}</a>
+			<!-- "Terms of use" -->
 			<!-- Beside the privacy link rather than in the navbar: both are standing explanations of how
 			     the site treats you, wanted occasionally and never mid-task. -->
 			<a href={resolve('/levels')}>{m.footer_levels()}</a>

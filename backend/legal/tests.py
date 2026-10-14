@@ -294,3 +294,103 @@ class CommentThreadTests(LegalNoticeTestCase):
             format='json',
         )
         self.assertEqual(res.status_code, 400)
+
+
+# ---------------------------------------------------------------------------------------------
+# Terms of use acceptance (`legal/terms.py`) — the three doors an account comes in through that
+# this app owns a test for: self-registration, a guardian creating a child's account, and the
+# version the frontend document carries. (The SSO door has its own tests in `sso/tests.py`.)
+# ---------------------------------------------------------------------------------------------
+
+import re
+from pathlib import Path
+
+from django.conf import settings
+from django.urls import reverse
+
+from .models import TermsAcceptance
+from .terms import CURRENT_TERMS_VERSION, has_accepted_current, record_acceptance
+
+
+class TermsAtRegistrationTests(TestCase):
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        cache.clear()  # the 'register' throttle counts through the process-wide cache
+        self.anon = APIClient()
+
+    def _body(self, **extra):
+        body = {'username': 'terms-new', 'email': 'terms-new@example.org', 'password': 'a-strong-passw0rd!'}
+        body.update(extra)
+        return body
+
+    def test_registration_without_acceptance_is_refused_with_its_reason(self):
+        r = self.anon.post(reverse('auth-register'), self._body(), format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.json()['accept_terms'], ['terms_required'])
+        self.assertFalse(User.objects.filter(username='terms-new').exists())
+        self.assertFalse(TermsAcceptance.objects.exists())
+
+    def test_an_explicit_false_is_the_same_refusal(self):
+        r = self.anon.post(reverse('auth-register'), self._body(accept_terms=False), format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.json()['accept_terms'], ['terms_required'])
+
+    def test_acceptance_writes_one_row_with_the_current_version_and_the_door(self):
+        r = self.anon.post(reverse('auth-register'), self._body(accept_terms=True), format='json')
+        self.assertEqual(r.status_code, 201, r.content)
+        user = User.objects.get(username='terms-new')
+        row = TermsAcceptance.objects.get(user=user)
+        self.assertEqual(row.version, CURRENT_TERMS_VERSION)
+        self.assertEqual(row.via, 'register')
+        self.assertTrue(has_accepted_current(user))
+        # …and the profile payload says which version, so a future re-accept prompt can compare.
+        self.assertEqual(r.json()['profile']['terms_accepted_version'], CURRENT_TERMS_VERSION)
+
+    def test_a_refusal_for_another_reason_writes_no_acceptance(self):
+        User.objects.create_user('taken', 'terms-new@example.org', 'pw12345!')
+        r = self.anon.post(reverse('auth-register'), self._body(accept_terms=True), format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertFalse(TermsAcceptance.objects.exists())
+
+
+class TermsForAGuardiansChildTests(TestCase):
+    databases = set(all_log_shards()) | {'default'}
+
+    def test_creating_a_child_records_acceptance_on_the_childs_account_via_guardian(self):
+        guardian = User.objects.create_user('parent', 'parent@example.org', 'pw12345!')
+        client = APIClient()
+        client.force_authenticate(guardian)
+        r = client.post(
+            reverse('auth-children'),
+            {'username': 'terms-kid', 'password': 'a-strong-passw0rd!', 'display_name': 'Kid'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 201, r.content)
+        child = User.objects.get(username='terms-kid')
+        row = TermsAcceptance.objects.get(user=child)
+        self.assertEqual((row.version, row.via), (CURRENT_TERMS_VERSION, 'guardian'))
+        # Attributed to the child only — the guardian's own history is not touched by it.
+        self.assertFalse(TermsAcceptance.objects.filter(user=guardian).exists())
+
+
+class TermsVersionHistoryTests(TestCase):
+    def test_rows_accumulate_and_me_reports_the_newest(self):
+        from accounts.serializers import ProfileSerializer
+
+        user = User.objects.create_user('history', 'h@example.org', 'pw12345!')
+        self.assertIsNone(ProfileSerializer(user.profile).data['terms_accepted_version'])
+        record_acceptance(user, version='2026-01-01', via='register')
+        record_acceptance(user, via='reaccept')
+        self.assertEqual(TermsAcceptance.objects.filter(user=user).count(), 2)
+        self.assertEqual(ProfileSerializer(user.profile).data['terms_accepted_version'], CURRENT_TERMS_VERSION)
+
+    def test_the_frontend_document_carries_the_same_version(self):
+        # `CURRENT_TERMS_VERSION` and `TERMS_VERSION` in terms.ts must move together; a row saying
+        # "accepted 2026-10-14" is only meaningful if /terms shows the 2026-10-14 text.
+        path = Path(settings.BASE_DIR).parent / 'frontend' / 'src' / 'lib' / 'content' / 'terms.ts'
+        if not path.exists():
+            self.skipTest('frontend checkout not present')
+        found = re.search(r"export const TERMS_VERSION = '([0-9-]+)'", path.read_text(encoding='utf-8'))
+        self.assertIsNotNone(found)
+        self.assertEqual(found.group(1), CURRENT_TERMS_VERSION)

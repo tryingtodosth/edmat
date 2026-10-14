@@ -1307,6 +1307,8 @@ class FeatureFlagTests(ApiTestCase):
                 'goals',
                 # Attachments on anything, migration 0052 (`attachments/`, 2026-10-08).
                 'attachments',
+                # Sign in with Google / Apple / Microsoft, migration 0054 (`sso/`, 2026-10-14).
+                'social_login',
                 'material_uploads_verified_only',
             },
         )
@@ -1339,6 +1341,9 @@ class FeatureFlagTests(ApiTestCase):
                     # And sketches, for exactly that reason again: 0042 seeds the switch on with no
                     # sketch on the platform, so provisioning it takes nothing away.
                     'sketches',
+                    # And social_login, 0054: with no client id in the environment there is no
+                    # button to show, so seeding it on changes nothing until credentials exist.
+                    'social_login',
                     # And the learning cycle's two plain switches, 0047: there is no deck and no
                     # shared learning record on the platform the moment it runs, so seeding them
                     # on removes nothing from anybody.

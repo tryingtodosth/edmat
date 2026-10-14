@@ -29,9 +29,10 @@
 		<p class="policy__lead">{paragraph}</p>
 	{/each}
 
-	{#each policy.sections as section (section.heading)}
-		<section class="policy__section">
-			<h2>{section.heading}</h2>
+	<!-- Keyed by index: a section may have no heading of its own (it continues the one above). -->
+	{#each policy.sections as section, i (i)}
+		<section class="policy__section" class:policy__section--cont={!section.heading}>
+			{#if section.heading}<h2>{section.heading}</h2>{/if}
 
 			{#each section.body ?? [] as paragraph (paragraph)}
 				<p>{paragraph}</p>
@@ -90,6 +91,10 @@
 	.policy__section {
 		margin-top: var(--space-5);
 
+		&--cont {
+			margin-top: var(--space-2);
+		}
+
 		h2 {
 			margin-bottom: var(--space-2);
 		}
@@ -126,8 +131,29 @@
 	thead th {
 		border-bottom: 2px solid var(--border-color);
 	}
+	/* Row headers used to be `nowrap` labels ("Login token"); since 2026-10-14 the first column also
+	   holds a sentence (a purpose, a storage key with its kind), so it wraps, and on a phone each row
+	   becomes a stacked card instead of a table wider than the screen. */
 	tbody th {
 		font-weight: 600;
-		white-space: nowrap;
+		width: 45%;
+	}
+	@media (max-width: 600px) {
+		thead {
+			display: none;
+		}
+		tbody tr,
+		tbody th,
+		tbody td {
+			display: block;
+			width: auto;
+		}
+		tbody th {
+			border-bottom: none;
+			padding-bottom: 0;
+		}
+		tbody td {
+			padding-top: var(--space-1);
+		}
 	}
 </style>

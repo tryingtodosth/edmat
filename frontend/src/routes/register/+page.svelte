@@ -11,6 +11,7 @@
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
+	import SsoButtons from '$lib/components/auth/SsoButtons.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 
 	afterNavigate((nav) => rememberReturnTo(nav.from?.url));
@@ -35,11 +36,20 @@
 	// check is not. Nothing here needs `isLoaded` — an over-eager ASK is safe, unlike an
 	// over-eager request the API would refuse.
 	let asksAge = $derived(featureFlagsStore.isEnabled('age_verification'));
-	let error = $state<'emailTaken' | 'guardianRequired' | 'generic' | null>(null);
+	// The terms of use. Not a native `required` box on purpose: the browser's own bubble says
+	// nothing about WHAT is being accepted, while our line does (house rule 6) — and the backend
+	// refuses the same thing with `terms_required` anyway (accounts/serializers.py), which maps here
+	// to the same line.
+	let acceptTerms = $state(false);
+	let error = $state<'emailTaken' | 'guardianRequired' | 'termsRequired' | 'generic' | null>(null);
 	let errorMessage = $state('');
 	let submitting = $state(false);
 
 	async function handleSubmit() {
+		if (!acceptTerms) {
+			error = 'termsRequired';
+			return;
+		}
 		submitting = true;
 		error = null;
 		const result = await authStore.register(
@@ -47,7 +57,8 @@
 			email.trim(),
 			password,
 			preferredLocale,
-			asksAge && birthYear.trim() ? parseInt(birthYear, 10) : undefined
+			asksAge && birthYear.trim() ? parseInt(birthYear, 10) : undefined,
+			acceptTerms
 		);
 		submitting = false;
 		if (result.ok) {
@@ -79,6 +90,8 @@
 			goto(takeReturnTo(page.url));
 		} else if (result.error === 'guardianRequired') {
 			error = 'guardianRequired';
+		} else if (result.error === 'termsRequired') {
+			error = 'termsRequired';
 		} else if (result.error === 'emailTaken') {
 			error = 'emailTaken';
 		} else {
@@ -134,8 +147,35 @@
 			</select>
 		</label>
 
+		<label class="terms">
+			<input
+				type="checkbox"
+				name="accept_terms"
+				bind:checked={acceptTerms}
+				aria-required="true"
+				aria-invalid={error === 'termsRequired'}
+				onchange={() => {
+					if (acceptTerms && error === 'termsRequired') error = null;
+				}}
+			/>
+			<!-- "I accept the" "terms of use" "and have read the" "privacy policy" -->
+			<span>
+				{m.terms_accept_lead()}
+				<a href={resolve('/terms')} target="_blank" rel="noopener">{m.terms_accept_termsLink()}</a>
+				{m.terms_accept_middle()}
+				<a href={resolve('/privacy')} target="_blank" rel="noopener"
+					>{m.terms_accept_privacyLink()}</a
+				>
+			</span>
+		</label>
+
 		{#if error === 'guardianRequired'}
 			<p class="error guardian" role="alert">{m.auth_register_guardianRequired()}</p>
+		{:else if error === 'termsRequired'}
+			<p class="error terms-error" role="alert">
+				<!-- "To create an account you need to accept the terms of use." -->
+				{m.terms_accept_required()}
+			</p>
 		{:else if error === 'emailTaken'}
 			<p class="error">{m.auth_register_error_emailTaken()}</p>
 		{:else if error === 'generic'}
@@ -148,6 +188,7 @@
 	<!-- Sign-in providers are equally a sign-UP path, so they belong on both pages rather than only
 	     on /login. Same drafts, same modal, same honesty about what they do today. -->
 	<div class="divider"><span>{m.auth_providers_divider()}</span></div>
+	<SsoButtons />
 	<ProviderButtons />
 
 	<p class="switch">
@@ -195,6 +236,23 @@
 		border: 1px solid var(--border-color);
 		border-radius: var(--radius-sm);
 		background: var(--bg-page);
+	}
+	.terms {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+		line-height: 1.5;
+		input {
+			margin-top: 0.2em;
+			flex: none;
+			padding: 0;
+			width: 1rem;
+			height: 1rem;
+		}
+		a {
+			color: var(--accent);
+		}
 	}
 	.error {
 		color: var(--status-danger);

@@ -24,6 +24,13 @@ SENSITIVE_PATH_PREFIXES = ('/api/auth/',)
 # It has no security-logging purpose whatsoever, so it is dropped rather than kept short.
 CONTENT_QUERY_PARAMS = ('q', 'search', 'query')
 
+# Credentials that ride in a query string on purpose, outside `/api/auth/`. The notification stream
+# is the live one: an EventSource cannot set an `Authorization` header, so `lib/services/
+# notifications.ts` sends the API token as `?token=` — which this log wrote down in clear text for
+# 90 days until 2026-10-14 (found while rewriting the privacy policy; migration
+# `telemetry.0003_scrub_logged_credentials` cleans the rows already written). Redacted, never kept.
+CREDENTIAL_QUERY_PARAMS = ('token', 'access_token', 'key', 'password', 'secret', 'signature')
+
 # Never logged in any form. Both carry credentials outright.
 SENSITIVE_HEADERS = ('HTTP_AUTHORIZATION', 'HTTP_COOKIE')
 
@@ -42,11 +49,27 @@ def redact_query_string(path: str, query_string: str) -> str:
     kept = []
     for pair in query_string.split('&'):
         name = pair.split('=', 1)[0]
-        if name in CONTENT_QUERY_PARAMS:
+        if name in CONTENT_QUERY_PARAMS or name.lower() in CREDENTIAL_QUERY_PARAMS:
             kept.append(f'{name}=[redacted]')
         else:
             kept.append(pair)
     return '&'.join(kept)[:MAX_QUERY]
+
+
+def objects_to_analytics(request) -> bool:
+    """`Sec-GPC: 1` (Global Privacy Control) or `DNT: 1` — an objection under GDPR Art. 21.
+
+    Analytics rest on GDPR art. 6(1)(e) public task (UW is a public university), with 6(1)(f) as the
+    fallback analysis — see ANALYTICS-LAW.md §4 — and Art. 21(1) gives a person the right to object
+    under either; Art. 21(5) says the objection may be made "by automated means using technical
+    specifications". GPC is such a specification (and is what California's CCPA regulations already
+    require honouring); DNT is its retired predecessor and means the same thing, so it is read the
+    same way. Both are headers the browser sends by itself, so honouring them needs no cookie and no
+    script — and nothing about the visitor is remembered: the answer is per request, like everything
+    else here. Only the exact value `1` counts; anything else is not an expressed objection.
+    """
+    meta = request.META
+    return meta.get('HTTP_SEC_GPC', '').strip() == '1' or meta.get('HTTP_DNT', '').strip() == '1'
 
 
 def client_ip(request) -> str | None:
@@ -104,6 +127,7 @@ class RequestLogMiddleware(MiddlewareMixin):
                 referer=request.META.get('HTTP_REFERER', '')[:MAX_REFERER],
                 request_id=getattr(request, '_telemetry_request_id', ''),
                 was_throttled=response.status_code == 429,
+                analytics_opt_out=objects_to_analytics(request),
             )
             # Named explicitly rather than left to the router's `instance` hint. Both reach the same
             # shard; saying it here means a reader of this file can see WHERE the row goes without

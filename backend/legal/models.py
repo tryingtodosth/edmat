@@ -89,3 +89,25 @@ class LegalNotice(models.Model):
 
     def __str__(self) -> str:
         return f'legal notice re {self.content_url} [{self.status}]'
+
+
+class TermsAcceptance(models.Model):
+    """One person accepting one version of the terms of use. Written only by `legal/terms.py`.
+
+    Append-only by design — see that module's docstring. CASCADE on the user, because an erased
+    account takes its own consent history with it; nothing else references this row.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='terms_acceptances'
+    )
+    version = models.CharField(max_length=20)
+    via = models.CharField(max_length=30, default='register')
+    accepted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-accepted_at']
+        indexes = [models.Index(fields=['user', 'version'])]
+
+    def __str__(self) -> str:
+        return f'{self.user_id} accepted {self.version} via {self.via}'

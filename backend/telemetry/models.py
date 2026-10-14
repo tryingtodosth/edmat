@@ -4,8 +4,13 @@
 oversight.** The cookie rule (ePrivacy Art. 5(3)) governs storing or reading information on the
 visitor's own device. Nothing in this module touches the visitor's device: the browser sends a
 request, the server writes down what arrived. That is ordinary processing of personal data, governed
-by the GDPR instead, and its lawful basis is legitimate interest (Art. 6(1)(f)) — Recital 49 names
-network and information security explicitly. So the obligations that apply are transparency,
+by the GDPR instead. Its lawful basis is the University's public task (Art. 6(1)(e), anchored in
+art. 11 ust. 1 of the Prawo o szkolnictwie wyższym i nauce), together with the Art. 32 duty to secure
+processing; legitimate interest (Art. 6(1)(f)) is only the fallback analysis, because Art. 6(1)'s
+last sentence bars (f) for a public authority performing its tasks — see ANALYTICS-LAW.md §4, and
+`/privacy`, which states the same. Recital 49, naming network and information security, still
+supports it. The aggregate statistics in `analytics/` reuse this log under Arts 5(1)(b) and 89(1),
+and `analytics_opt_out` (Sec-GPC / DNT) is the Art. 21 objection. So the obligations that apply are transparency,
 minimisation and retention, all of which are met here and stated in the privacy policy, rather than
 consent.
 
@@ -72,6 +77,14 @@ class RequestLog(models.Model):
     # line with its error report; it cannot link two requests by the same person.
     request_id = models.CharField(max_length=36, db_index=True)
     was_throttled = models.BooleanField(default=False)
+    # The browser said `Sec-GPC: 1` (Global Privacy Control) or `DNT: 1`, read as an objection under
+    # GDPR Art. 21 to processing for ANALYTICS — the one purpose here that rests on our interest
+    # rather than on keeping the site secure and working. The row is still written (security and
+    # debugging are what this table is for, and the objection is not to those), but every rollup in
+    # `analytics/` skips it, so nothing derived from this request ever reaches a statistic.
+    # `db_default` as well as `default`, so a process still running the old model can insert rows
+    # while the shard is migrated under it.
+    analytics_opt_out = models.BooleanField(default=False, db_default=False)
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 

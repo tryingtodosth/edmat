@@ -127,6 +127,11 @@ export type FeatureFlagKey =
 	// `/api/contest-presets/` close for a non-staff caller, the hub, the Add… entry, the account-menu
 	// item, the work-dashboard rows and the activity rows all go (house rule 3).
 	| 'contests'
+	// Sign in with Google / Apple / Microsoft (backend sso/, 2026-10-14, migration 0054). Off: the
+	// providers list comes back empty, so SsoButtons draws nothing on /login and /register and the
+	// Link buttons leave Settings → Sign-in methods (house rule 3); already-linked identities stay
+	// listed there so a person can still unlink them.
+	| 'social_login'
 	| 'creation_requires_verification'
 	| 'material_uploads_verified_only';
 

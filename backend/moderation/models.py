@@ -445,6 +445,14 @@ FEATURE_FLAG_CHOICES = [
     # it (house rule 3); a contest node's tasks, plans, goals and attachments stay reachable by
     # their own ids for its staff, because those belong to other features.
     ('contests', 'Contests: staged competitions with a jury, results and the obligations a prize brings'),
+    # Sign in with Google / Apple / Microsoft (sso/, 2026-10-14). A plain kill switch, seeded ON by
+    # migration 0054: with no client id configured there is no button to show anyway, so ON changes
+    # nothing until the owner puts credentials in the environment. Read with plain
+    # `is_feature_enabled()` (the endpoints are anonymous — see sso/views.py). Off, the providers
+    # list is empty, start/exchange/ticket/complete answer 404, a callback in flight lands on
+    # `flag_off`, and every button on /login, /register and in Settings goes (house rule 3). Linked
+    # identities stay listable and unlinkable: a kill switch does not hold a sign-in method hostage.
+    ('social_login', 'Sign in with Google, Apple or Microsoft'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

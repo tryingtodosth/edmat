@@ -31,6 +31,16 @@ reads (`/privacy`, `/legal`), in both locales:
 That identity is stated in exactly one place per locale and reused; `/legal` (the DSA point of
 contact page) deliberately reuses the same strings rather than inventing a second operator identity.
 
+**Corrected 2026-10-14 (`ANALYTICS-LAW.md` §4.2), not yet confirmed.** The Ośrodek is an
+organisational unit without legal personality, so it can be neither a party to the terms of use nor
+the GDPR controller. `/terms` (§ 2), `/privacy` and `/legal` now name **Uniwersytet Warszawski,
+ul. Krakowskie Przedmieście 26/28, 00-927 Warszawa** as service provider and controller, with the
+Ośrodek running the service on its behalf. The address is the research note's, marked unverified
+there. Three data the law requires are still **visible placeholders** on those pages: a contact
+e-mail address (u.ś.u.d.e. art. 5; `no-reply@edmat.net` is send-only), IOD UW's contact details
+(GDPR art. 13(1)(b)), and — implicitly — IOD UW's agreement that the University is the controller at
+all. The Dziekanat Studencki is no longer named as the contact point; it never agreed to be one.
+
 ---
 
 ## 2. Licences
@@ -58,7 +68,9 @@ Other notable third-party terms the app is bound by:
 
 ### The content
 
-**Unresolved.** There is no outbound content licence on the site today, no terms of service, and no
+**Unresolved — but see §9a**: since 2026-10-14 `/terms` § 9 carries a draft licence clause
+(CC BY-SA 4.0 + an operating licence) awaiting the review below. Before that there was no outbound
+content licence on the site, no terms of service, and no
 contributor licence agreement — a person submitting an exercise, a solution or a translation grants
 nothing explicitly, and EdMat publishes it anyway. The research below recommends CC BY-SA 4.0 plus a
 CLA; neither is built.
@@ -154,27 +166,36 @@ hand.
 
 ### Data subject rights
 
-Stated to the user in `privacy.ts`: access, rectification, erasure, objection to
-legitimate-interest processing, and the right to complain to the PUODO. Requests go to Dziekanat
+Stated to the user in `privacy.ts` (rewritten 2026-10-14): access, rectification, erasure,
+restriction, portability, objection (to public-task processing, statistics included), withdrawing
+consent, and the right to complain to the PUODO. **Legal basis per purpose** is now a table; it uses
+art. 6(1)(e) + PSWiN art. 11 ust. 1 where `ANALYTICS-LAW.md` §4 recommends it instead of the old
+art. 6(1)(f) for the request log — IOD UW has to confirm that choice. Requests go to Dziekanat
 Studencki or the Ośrodek Komputerowy. **There is no self-service account deletion**, and no export
 endpoint — a request is handled by a human with database access.
 
 ### Third parties
 
-The privacy page's claim is that no data goes to advertisers, analytics providers or anyone outside
-the Faculty, and that exactly two external services are contacted in ordinary use, neither of which
-is told who the user is: **Nominatim** (the search text only, when creating a tutoring listing) and
-**OpenStreetMap tile servers** (which the browser contacts directly, and therefore learns its IP).
-Anything that changes this — adding analytics, a CDN, an email provider — changes that page.
+"Nobody outside the Faculty" stopped being true on 2026-10-14 and is gone from the page. What it
+says now: no advertisers, no analytics companies, no sale of data; **OVH SAS** processes all mail as
+a processor (art. 28 — whether OVH's standard DPA has been accepted in the OVH account is
+**unconfirmed**); **Nominatim** gets the search text only, from the server; **OpenStreetMap tile
+servers** get the reader's IP from the browser (UK, adequacy decision); **Google, Apple, Microsoft**
+are separate controllers for their own sign-in, US groups under the DPF (the EU entities and the DPF
+status are from memory, **unverified**); organisers see what a registration or a contest entry
+needs; authorities on lawful request. Anything that changes this list changes that page.
 
 ### Cookies
 
-The consent banner discloses something real rather than an invented category: Paraglide's
-`PARAGLIDE_LOCALE`, which predates the banner and had never been disclosed. The
-"analytics & non-essential" category is **honestly empty** — EdMat sets no tracking cookie — and is
-labelled as forward-looking. The consent decision itself is stored in a real cookie, not
-`localStorage`, on the grounds that a consent decision is the one thing here that could plausibly
-matter server-side one day.
+**There is no consent banner** (this paragraph described one until 2026-10-14; it was removed long
+before — see `routes/privacy/+page.svelte`'s header and `Footer.svelte`). The disclosure is the device
+table on `/privacy`, which since 2026-10-14 lists every key: one cookie (`PARAGLIDE_LOCALE`, 400 days),
+the sign-in token, thirteen localStorage preference/cache keys, and the door scanner's IndexedDB
+store. All are needed for a feature the user asked for, so PKE art. 399 ust. 3 pkt 2 exempts them
+from consent; none is an analytics identifier. Usage statistics (`backend/analytics/`) are computed
+on the server from the request log and put nothing on the device; `Sec-GPC: 1` / `DNT: 1` is honoured
+as an art. 21 objection. One storage item worth a decision: the scanner's IndexedDB copy of an event's
+check-in list holds attendees' names and is **not cleared on logout**.
 
 ### Data at rest
 
@@ -416,6 +437,35 @@ In the order `CONTESTS-LAW.md` §14 ranks them, with only the ones that change w
 
 ---
 
+## 9a. Terms of use — written 2026-10-14
+
+`/terms` (`frontend/src/lib/content/terms.ts`, EN + PL, equally binding, the reading more
+favourable to the user wins on a difference) follows the `ANALYTICS-LAW.md` §5 checklist item by
+item: provider and contact (§ 2), services (§ 3), technical requirements (§ 4), account and contract
+conclusion (§ 5), minors and guardians (§ 6), sign-in providers (§ 7), prohibited content (§ 8),
+licence (§ 9), AI-assisted mark (§ 10), DSA moderation tools including the one automated step
+(§ 11), notice and action (§ 12), statements of reasons, internal complaints, art. 21 bodies and
+the Prezes UKE (§ 13), art. 23 misuse (§ 14), the contests clause from §9 above (§ 15), tutoring /
+events / messages (§ 16), liability without abusive exclusions (§ 17), complaints with a 14-day
+answer (§ 18), termination (§ 19), amendments with 14 days' notice by e-mail (§ 20), governing law
+and consumer protection (§ 22), plus a plain-language summary for young users.
+
+**Acceptance is recorded.** `legal.TermsAcceptance` (append-only, `legal/terms.py`) gets a row on
+every door: `via='register'` (the register form's required checkbox; `RegisterSerializer` refuses
+without it, reason `terms_required`), `via='sso:<provider>'`, and `via='guardian'` — a row
+attributed to the child, accepted by the guardian who created the account (`ChildrenView.post`).
+`ProfileSerializer.terms_accepted_version` exposes the newest accepted version. `TERMS_VERSION`
+(terms.ts) must equal `CURRENT_TERMS_VERSION` (terms.py); `legal/tests.py` fails if they drift.
+
+**§ 9 switches on CC BY-SA 4.0** for database content published after acceptance (exercises,
+solutions, hints, materials, translations, concept articles), with the pola eksploatacji, a
+moral-rights non-exercise undertaking and erasure-safe attribution. §2–3 above said that must not
+happen before a lawyer has read §3; the terms were written because the owner asked for the clause.
+**If that review has not happened, cut § 9 back to point 2 (the operating licence) before
+publishing.** Content published before acceptance stays under point 2 only.
+
+---
+
 ## 10. Still open
 
 - **The corpus question itself** (§3) — the report exists, no lawyer has reviewed it, nothing is
@@ -423,14 +473,41 @@ In the order `CONTESTS-LAW.md` §14 ranks them, with only the ones that change w
 - **The conference research behind §8** — same shape, same problem: two deep-research reports
   whose citations were lost, whose role table and retention windows are already implemented as
   defaults. A lawyer has to read §8 before any of it is quoted to anybody.
-- **No terms of service, no CLA, no outbound content licence.** §9's last-but-one block says what
-  the contests clause would have to contain; nothing of it is written anywhere a user can read.
+- **The terms of use exist (§9a) but are unreviewed**, and three of their data are placeholders:
+  the contact e-mail address, IOD UW's contact, and the controller/provider identity itself (§1).
+  The CC BY-SA clause (§9a) waits on the §3 review. No archive page of earlier terms versions yet
+  (§ 20 promises them "on request"), and no "the terms changed — accept the new version" prompt:
+  `terms_accepted_version` is on `/api/auth/me/` so one can be built. A guardian accepts for the
+  child implicitly, by creating the account (the terms say so); there is no separate tick-box on
+  the child form. Accounts created before 2026-10-14 have no acceptance row at all.
+- **Commitments in `/privacy` that depend on the server**: the 30/90-day log retention and the
+  25-month statistics limit run from `deploy/cron/edmat-analytics` (`rollup_analytics`, which also
+  prunes, then `enforce_log_retention`) — true once that file is installed on webek4; `sso_purge`
+  runs on each sign-in start but has no cron line of its own; `OutboundEmail`,
+  `InboundEmail`, messages, `ContentView` and `MaterialView` have no retention rule (the policy says
+  so for mail); `purge_event_data` (§8) is unscheduled. Schedule them before publishing, or change
+  the sentences (house rule 10).
+- **The internal complaint path (DSA art. 20) is a promise, not a mechanism**: `/terms` § 13 routes
+  it to the contact address or the notice's thread. There is no appeal model, no deadline tracking,
+  and no in-app suspension with a reason — only the Django admin's deactivate action.
+- **No per-account "exclude me from statistics" switch**; `/privacy` offers it by request, and
+  GPC/DNT is the automatic route. (Minors' accounts are excluded from the people-counts by
+  `analytics/rollup.py: adult_accounts`.)
+- **The sign-in token reaches the request log** for one endpoint: the SSE stream is opened as
+  `/api/notifications/stream/?token=…`, and `telemetry/middleware.py` redacts only `q`/`search`/
+  `query` outside `/api/auth/`. `/privacy` admits the exception; the fix is one line in
+  `redact_query_string` (redact `token`), outside the terms pass. The same function keeps `lat`,
+  `lon` and `near` from location searches, which the policy now says.
+- **No e-mail notice of a terms change or of closure exists**, though `/terms` § 5, § 19 and § 20
+  promise one; nor does any mail say "your account was suspended" — only the in-app notification
+  for content decisions.
 - **No DPA (umowa powierzenia) between EdMat and a contest organiser**, which §9 says the processor
   relationship requires under GDPR art. 28(3). Until there is one, every contest hosted here rests
   on an undocumented processing relationship — and the joint-controller fallback has to be drafted
   beside it, not after it.
-- **No email backend**, which is why an anonymous DSA filer and a guardian both have gaps above, and
-  why the password-reset endpoint is still an honest always-200 stub.
+- **Email exists since 2026-10-14** (`backend/mail/`), but an anonymous DSA filer still cannot
+  revisit a notice, and a guardian still cannot reset a child's password by mail (a child has no
+  address).
 - **No self-service data export or account deletion.**
 - **Not everything public is reportable.** `REPORT_KIND_MODELS` (`backend/moderation/services.py`)
   is the whole list, and it grew per feature rather than by default — so an avatar, a private

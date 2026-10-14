@@ -81,6 +81,14 @@ class RedactionTests(TestCase):
         """A credential mistakenly sent as a GET parameter must not be written down in clear text."""
         self.assertEqual(redact_query_string('/api/auth/login/', 'password=hunter2'), '')
 
+    def test_a_token_in_the_query_string_is_never_written_down(self):
+        """The notification stream authenticates with `?token=` because EventSource cannot send a
+        header; that token is a full API credential and must not survive into a 90-day log."""
+        redacted = redact_query_string('/api/notifications/stream/', 'token=abc123secret&since=5')
+        self.assertNotIn('abc123secret', redacted)
+        self.assertIn('token=[redacted]', redacted)
+        self.assertIn('since=5', redacted)
+
     def test_ordinary_query_strings_are_kept(self):
         self.assertEqual(
             redact_query_string('/api/exercises/', 'branch=am2&lang=pl'), 'branch=am2&lang=pl'
@@ -286,6 +294,16 @@ class ConsentBoundaryTests(TestCase):
                 f'{banned} would make this a fingerprint and require a consent banner',
             )
 
+        # The aggregates built FROM this table (analytics/, 2026-10-14) must not carry the visitor
+        # back in either: no identifying column, no per-visitor key, in any of them.
+        from django.apps import apps
+
+        for model in apps.get_app_config('analytics').get_models():
+            names = {f.name for f in model._meta.get_fields()}
+            for banned in ('visitor_id', 'fingerprint', 'device_id', 'session_hash', 'ip_address',
+                           'user_agent', 'user_id', 'user', 'request_id'):
+                self.assertNotIn(banned, names, f'analytics.{model.__name__}.{banned}')
+
     def test_ip_is_the_only_directly_identifying_field(self):
         """Anything else identifying would need its own entry in the privacy policy and its own
         retention rule; this fails loudly if a field is added without that conversation."""
@@ -293,12 +311,44 @@ class ConsentBoundaryTests(TestCase):
         expected = {
             'id', 'user_id', 'ip_address', 'ip_truncated', 'method', 'path', 'query_string',
             'status_code', 'duration_ms', 'user_agent', 'referer', 'request_id', 'was_throttled',
-            'created_at',
+            'analytics_opt_out', 'created_at',
         }
         self.assertEqual(
             stored, expected,
             'RequestLog gained or lost a field — update the privacy policy and the retention rules',
         )
+
+
+class AnalyticsObjectionTests(TestCase):
+    """`Sec-GPC: 1` / `DNT: 1` — an Art. 21 objection to analytics, recorded on the row so that
+    every rollup in `analytics/` can skip it (`analytics.rollup`). The row itself is still written:
+    the objection is to analytics, not to the security log the table exists for."""
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def _logged(self, **headers):
+        self.client.get('/api/disciplines/', **headers)
+        return RequestLog.objects.using('logs_anon').order_by('-id').first()
+
+    def test_gpc_marks_the_row(self):
+        self.assertTrue(self._logged(HTTP_SEC_GPC='1').analytics_opt_out)
+
+    def test_dnt_is_read_the_same_way(self):
+        self.assertTrue(self._logged(HTTP_DNT='1').analytics_opt_out)
+
+    def test_no_signal_means_no_objection(self):
+        self.assertFalse(self._logged().analytics_opt_out)
+
+    def test_only_the_exact_value_one_counts(self):
+        """`DNT: 0` is an explicit "I do not object", and garbage is no expressed objection."""
+        self.assertFalse(self._logged(HTTP_DNT='0').analytics_opt_out)
+        self.assertFalse(self._logged(HTTP_SEC_GPC='yes').analytics_opt_out)
+
+    def test_the_objection_is_per_request_not_remembered(self):
+        """Nothing about the visitor is kept: the next request without the header is not marked.
+        Remembering it would need an identifier — the thing this whole module must never have."""
+        self.assertTrue(self._logged(HTTP_SEC_GPC='1').analytics_opt_out)
+        self.assertFalse(self._logged().analytics_opt_out)
 
 
 @override_settings(

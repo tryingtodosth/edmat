@@ -51,6 +51,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import DiscussionLocationsPanel from '$lib/components/moderation/DiscussionLocationsPanel.svelte';
+	import MailPanel from '$lib/components/moderation/MailPanel.svelte';
 	import { featureFlagLabel } from '$lib/utils/labels';
 	import { materialTypesStore } from '$lib/state/materialTypes.svelte';
 	import { resolve } from '$app/paths';
@@ -86,7 +87,10 @@
 		// The standing pages' discussion locations (`community/discussions.py`). Beside 'flags'
 		// rather than inside it: a kill switch is one boolean per feature, and a location carries
 		// three settings and a count of comments waiting for somebody.
-		| 'discussions';
+		| 'discussions'
+		// no-reply@edmat.net's sent and received mail (`backend/mail/`). SUPERUSER-only, not staff:
+		// it shows every address somebody registered with and the text of what strangers mailed us.
+		| 'mail';
 	const TABS: ModerationTab[] = [
 		'reports',
 		'submissions',
@@ -98,7 +102,8 @@
 		'governors',
 		'applications',
 		'flags',
-		'discussions'
+		'discussions',
+		'mail'
 	];
 	// `?tab=` is READ once, at mount, and never written: a notification about a governor application
 	// has to be able to open the queue it is about, and landing on Reports instead is a link that
@@ -719,6 +724,31 @@
 					onclick={() => (tab = 'discussions')}
 				>
 					{m.discussions_tabTitle()}
+				</button>
+				<!-- Not a panel of this page but a page of its own: a link styled as a tab, so middle-click
+				     and "open in new tab" work. It is `role="tab"` (aria-selected false, no aria-controls)
+				     because a bare link inside a tablist breaks the tablist's required children; the
+				     alternative of a sibling outside it would put it after the Mail tab instead. -->
+				<a
+					role="tab"
+					id="mod-tab-analytics"
+					aria-selected="false"
+					href={resolve('/moderation/analytics')}
+				>
+					{m.analytics_tab()}<!-- "Analytics" -->
+				</a>
+			{/if}
+			{#if authStore.user?.isSuperuser}
+				<button
+					type="button"
+					role="tab"
+					id="mod-tab-mail"
+					aria-selected={tab === 'mail'}
+					aria-controls="mod-tabpanel"
+					class:active={tab === 'mail'}
+					onclick={() => (tab = 'mail')}
+				>
+					{m.mail_tabTitle()}
 				</button>
 			{/if}
 		</div>
@@ -1366,6 +1396,13 @@
 				     thousand lines, and the panel's loading, its three switches per row and its "add a
 				     location" form are self-contained. -->
 				<DiscussionLocationsPanel />
+			{:else if tab === 'mail'}
+				<!-- The tab button is superuser-only, but `?tab=mail` can be typed by anybody: the
+				     panel's own requests answer 403 for them, and this guard keeps them from even
+				     seeing the panel's frame. -->
+				{#if authStore.user?.isSuperuser}
+					<MailPanel />
+				{/if}
 			{:else}
 				<!-- tab === 'flags' — same "only ever reachable via a staff-only tab button" reasoning
 				     as the governors branch right above. -->
@@ -1457,10 +1494,16 @@
 	}
 	.tabs {
 		display: flex;
+		/* Wraps: eleven tabs (twelve for a superuser, with Mail) are wider than the page column, and
+		   without this the last ones ran off its right edge — Discussions was already half cut off
+		   at 1280px before Mail joined it (seen in the 2026-10-14 mail screenshots). */
+		flex-wrap: wrap;
 		gap: var(--space-2);
 		border-bottom: 1px solid var(--border-color);
 	}
-	.tabs button {
+	.tabs button,
+	.tabs a {
+		text-decoration: none;
 		background: none;
 		border: none;
 		padding: var(--space-2) var(--space-1);

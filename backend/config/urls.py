@@ -31,6 +31,9 @@ urlpatterns = [
     # static file in the frontend build and never touches a WSGI process.
     path('sitemap.xml', sitemap, {'sitemaps': SITEMAPS}, name='django.contrib.sitemaps.views.sitemap'),
     path('api/', include('accounts.urls')),
+    path('api/', include('mail.urls')),
+    path('api/', include('analytics.urls')),
+    path('api/', include('sso.urls')),
     path('api/', include('taxonomy.urls')),
     path('api/', include('exercises.urls')),
     path('api/', include('community.urls')),

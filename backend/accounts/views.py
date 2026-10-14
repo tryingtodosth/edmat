@@ -33,6 +33,10 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         token, _created = Token.objects.get_or_create(user=user)
+        # Queued, and sent after the commit in a thread — registration never waits on SMTP.
+        from mail.services import send_confirmation
+
+        send_confirmation(user)
         return Response(
             {
                 'token': token.key,
@@ -259,16 +263,22 @@ class DonationLinkViewSet(viewsets.ModelViewSet):
 
 
 class PasswordResetView(APIView):
-    """⚠️ Mock-era stub, not a real reset flow — matches this project's own established honesty
-    convention for anything that needs a real email backend it doesn't have yet (see CLAUDE.md's own
-    "flag it, don't fake it" instinct, e.g. its Section 18 open questions). Always returns 200
-    regardless of whether the email is registered, deliberately — same account-enumeration-avoidance
-    reasoning already applied elsewhere in this project's own sibling repos."""
+    """Asks for a reset link. Always the same 202 whether or not the address has an account
+    (account enumeration). Until 2026-10-14 this was an honest stub because there was no mail;
+    the rule now lives in `mail/services.py: request_password_reset`, and the link it sends is
+    used at `POST /api/auth/password-reset/confirm/` (`mail/views.py`)."""
 
     permission_classes = [permissions.AllowAny]
+    throttle_scope = 'password_reset'
 
     def post(self, request):
-        return Response({'detail': 'If that email is registered, a reset link would be sent.'})
+        from mail.services import request_password_reset
+
+        request_password_reset(request.data.get('email', ''))
+        return Response(
+            {'detail': 'If that email is registered, a reset link has been sent.'},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 
 # ---- guardian accounts (AUDIENCE-BRIEF.md §2) ---------------------------------------------------
@@ -312,6 +322,16 @@ class ChildrenView(APIView):
         profile.preferred_locale = request.user.profile.preferred_locale
         profile.save()
         Guardianship.objects.create(guardian=request.user, child=child)
+        # The terms of use for the child's account. The row is ATTRIBUTED to the child (it is the
+        # child's contract the account runs under) but it was ACCEPTED BY THE GUARDIAN, which is
+        # what `via='guardian'` records — the Guardianship row above says which guardian and when.
+        # The guardian is bound by the terms themselves (they registered with acceptance), and the
+        # terms say that creating a child's account accepts them on the child's behalf, including
+        # the licence over the child's contributions (KC art. 17: a minor's disposal of a right
+        # needs the representative). No separate tick-box here — left open, see LEGAL.md §10.
+        from legal.terms import record_acceptance
+
+        record_acceptance(child, via='guardian')
         return Response(
             {'id': child.pk, 'username': child.username, 'display_name': profile.display_name, 'is_active': True},
             status=status.HTTP_201_CREATED,

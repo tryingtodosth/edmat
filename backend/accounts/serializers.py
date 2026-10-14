@@ -53,6 +53,10 @@ class ProfileSerializer(serializers.ModelSerializer):
     # the governor-management admin panel already needs, not a second, duplicated data path.
     is_node_governor = serializers.SerializerMethodField()
     donation_links = DonationLinkSerializer(many=True, read_only=True)
+    # The newest version of the terms of use this account accepted (`legal.TermsAcceptance`), or
+    # null. Exposed so a future "the terms changed — please accept the new version" prompt can
+    # compare it with the current version; that prompt is NOT built (LEGAL.md §10).
+    terms_accepted_version = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -72,6 +76,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             'is_moderator',
             'is_superuser',
             'is_node_governor',
+            'terms_accepted_version',
             'joined_at',
             'show_profile_publicly',
             'notify_on_comment_reply',
@@ -106,6 +111,15 @@ class ProfileSerializer(serializers.ModelSerializer):
 
         return NodeGovernor.objects.filter(user=obj.user).exists()
 
+    def get_terms_accepted_version(self, obj):
+        from legal.models import TermsAcceptance
+
+        return (
+            TermsAcceptance.objects.filter(user=obj.user)
+            .order_by('-accepted_at', '-pk')
+            .values_list('version', flat=True)
+            .first()
+        )
 
     def get_guardian_of(self, profile):
         from .models import Guardianship
@@ -269,6 +283,17 @@ class RegisterSerializer(serializers.Serializer):
     birth_year = serializers.IntegerField(required=False, min_value=1900, max_value=2100)
     display_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     preferred_locale = serializers.CharField(max_length=8, required=False, default='en')
+    # The terms of use (`/terms`, `frontend/src/lib/content/terms.ts`). Registration with acceptance
+    # is what concludes the contract (u.ś.u.d.e. art. 8), so it must be an affirmative `true`.
+    # `required=False, default=False` rather than `required=True` on purpose: a MISSING field then
+    # runs `validate_accept_terms` too, and both "absent" and "false" come back with the one reason
+    # code the form has a line for (house rule 6) instead of DRF's generic 'required'.
+    accept_terms = serializers.BooleanField(required=False, default=False)
+
+    def validate_accept_terms(self, value):
+        if value is not True:
+            raise serializers.ValidationError('terms_required', code='terms_required')
+        return value
 
     def validate_username(self, value):
         if User.objects.filter(username=value).exists():
@@ -297,15 +322,15 @@ class RegisterSerializer(serializers.Serializer):
         child), and every rule in accounts/minors.py keeps applying to every account that has it.
         Fails OPEN towards asking — a missing flag row means the gate stays up (moderation/
         services.py), which is the safer direction for a GDPR Article 8 question."""
-        from django.utils import timezone
-
+        # The rule itself lives in accounts/minors.py, because the SSO signup (sso/views.py) asks
+        # the same question and must give the same answer.
         from moderation.services import is_feature_enabled
 
-        from .minors import CONSENT_AGE
+        from .minors import self_registration_refusal
 
         if not is_feature_enabled('age_verification'):
             return None
-        if value is not None and timezone.now().year - value < CONSENT_AGE:
+        if self_registration_refusal(value):
             raise serializers.ValidationError('guardian_required', code='guardian_required')
         return value
 
@@ -315,6 +340,7 @@ class RegisterSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         validated_data.pop('birth_year', None)
+        validated_data.pop('accept_terms', None)
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
@@ -325,4 +351,8 @@ class RegisterSerializer(serializers.Serializer):
         user.profile.display_name = display_name
         user.profile.preferred_locale = preferred_locale
         user.profile.save(update_fields=['display_name', 'preferred_locale'])
+        # validate_accept_terms already refused anything but `true`, so reaching here IS acceptance.
+        from legal.terms import record_acceptance
+
+        record_acceptance(user, via='register')
         return user

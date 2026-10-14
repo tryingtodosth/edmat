@@ -23,6 +23,8 @@ export interface LegalContactPage {
 	intro: string[];
 	sections: LegalPageSection[];
 	noticeLinkLabel: string;
+	/** The link to /terms (§§ 11–14 there are the full moderation rules). */
+	termsLinkLabel: string;
 }
 
 const EN: LegalContactPage = {
@@ -34,7 +36,8 @@ const EN: LegalContactPage = {
 		{
 			heading: 'Who runs this service',
 			body: [
-				'EdMat is operated by Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego (the Computer Centre of the Faculty of Physics, University of Warsaw), which administers the systems this site runs on.',
+				'EdMat is a student project provided by Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego (the Computer Centre of the Faculty of Physics, University of Warsaw), which administers the systems this site runs on. The terms of use name the provider in full (§ 2).',
+				'This page is our single point of contact under Articles 11 and 12 of the Digital Services Act, for authorities, the European Commission and users alike. You can write to us in Polish or English.',
 				"If you are a student with a question, Dziekanat Studencki (the Student Dean's Office) is your contact point and will pass your request on. For everything else, including a notice about a specific piece of content, use the form linked below."
 			]
 		},
@@ -49,11 +52,13 @@ const EN: LegalContactPage = {
 			heading: 'How moderation works here',
 			body: [
 				"Most content on this site is reviewed by a moderator before or shortly after it is published — see this project's own moderation queue, which every new exercise, material, translation and edit suggestion passes through. That review is about quality and fit for the site, not a legal judgment on every submission.",
-				'A legal notice is a separate, additional channel specifically for "this is illegal", reviewed on its own by a member of staff, independent of the ordinary moderation queue.'
+				'A legal notice is a separate, additional channel specifically for "this is illegal", reviewed on its own by a member of staff, independent of the ordinary moderation queue.',
+				'One step is automatic: an exercise, or a review, hint, solution, post or comment attached to one, is hidden without a person deciding when at least 3 users have reported it and the reports reach 20% of the signed-in users who opened that exercise, and a moderator then reviews it. Whenever your content or account is restricted you are told why, and you can contest the decision within 6 months. The terms of use (§§ 11–14) set out every tool, the reasons we give, how a complaint is handled and what happens on repeated misuse.'
 			]
 		}
 	],
-	noticeLinkLabel: 'File a notice about a specific piece of content →'
+	noticeLinkLabel: 'File a notice about a specific piece of content →',
+	termsLinkLabel: 'Terms of use — the full rules on moderation and complaints'
 };
 
 const PL: LegalContactPage = {
@@ -65,7 +70,8 @@ const PL: LegalContactPage = {
 		{
 			heading: 'Kto prowadzi ten serwis',
 			body: [
-				'EdMat prowadzi Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego, który administruje systemami, na których działa ta strona.',
+				'EdMat jest projektem studenckim, którego usługodawcą jest Ośrodek Komputerowy Wydziału Fizyki Uniwersytetu Warszawskiego, administrujący systemami, na których działa ta strona. Pełne dane usługodawcy podaje regulamin (§ 2).',
+				'Ta strona jest naszym jedynym punktem kontaktowym w rozumieniu art. 11 i 12 Aktu o usługach cyfrowych — dla organów, Komisji Europejskiej i użytkowników. Możesz pisać do nas po polsku lub po angielsku.',
 				'Jeśli jesteś studentem i masz pytanie, punktem kontaktowym jest Dziekanat Studencki, który przekaże Twoje zgłoszenie dalej. We wszystkich innych sprawach, w tym zgłoszeniu konkretnej treści, skorzystaj z formularza poniżej.'
 			]
 		},
@@ -80,11 +86,13 @@ const PL: LegalContactPage = {
 			heading: 'Jak działa moderacja w tym serwisie',
 			body: [
 				'Większość treści w tym serwisie jest sprawdzana przez moderatora przed publikacją lub wkrótce po niej — każde nowe zadanie, materiał, tłumaczenie czy propozycja edycji przechodzi przez kolejkę moderacji tego projektu. Ta weryfikacja dotyczy jakości i dopasowania do serwisu, a nie prawnej oceny każdego zgłoszenia.',
-				'Zgłoszenie prawne to osobny, dodatkowy kanał przeznaczony właśnie do „to jest nielegalne" — rozpatrywany osobno przez członka zespołu, niezależnie od zwykłej kolejki moderacji.'
+				'Zgłoszenie prawne to osobny, dodatkowy kanał przeznaczony właśnie do „to jest nielegalne" — rozpatrywany osobno przez członka zespołu, niezależnie od zwykłej kolejki moderacji.',
+				'Jeden krok jest automatyczny: zadanie albo powiązana z nim recenzja, wskazówka, rozwiązanie, wpis lub komentarz jest ukrywane bez decyzji człowieka, gdy zgłosiło je co najmniej 3 użytkowników, a liczba zgłoszeń osiągnie 20% liczby zalogowanych użytkowników, którzy otworzyli to zadanie; następnie sprawdza je moderator. Za każdym razem, gdy Twoja treść lub konto zostaną ograniczone, dowiesz się dlaczego i możesz zakwestionować decyzję w ciągu 6 miesięcy. Regulamin (§ 11–14) opisuje wszystkie narzędzia, uzasadnienia, rozpatrywanie skarg i postępowanie przy powtarzających się nadużyciach.'
 			]
 		}
 	],
-	noticeLinkLabel: 'Zgłoś konkretną treść →'
+	noticeLinkLabel: 'Zgłoś konkretną treść →',
+	termsLinkLabel: 'Regulamin — pełne zasady moderacji i skarg'
 };
 
 export function legalContactPage(locale: string): LegalContactPage {

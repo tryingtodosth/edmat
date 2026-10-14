@@ -2,6 +2,8 @@
 	import { a11yPrefsStore } from '$lib/state/a11yPrefs.svelte';
 	import { SUPPORTED_CONTENT_LOCALES, contentLocalesStore } from '$lib/state/contentLocales.svelte';
 	import GuardianPanel from '$lib/components/settings/GuardianPanel.svelte';
+	import EmailSettings from '$lib/components/settings/EmailSettings.svelte';
+	import SignInMethods from '$lib/components/settings/SignInMethods.svelte';
 	import { AUDIENCES, AUDIENCE_LABELS } from '$lib/utils/labels';
 	import type { Audience } from '$lib/types';
 	import { resolve } from '$app/paths';
@@ -259,6 +261,10 @@
 				<h2>{m.settings_avatarHeading()}</h2>
 				<AvatarEditor />
 			</section>
+		{/if}
+		{#if authStore.user && !authStore.user.isMinor && authStore.user.email}
+			<EmailSettings />
+			<SignInMethods />
 		{/if}
 		{#if authStore.user && !authStore.user.isMinor}
 			<GuardianPanel />

@@ -140,6 +140,7 @@ await page.locator('form input[type="text"]').first().fill('E2E Student');
 await page.locator('form input[type="email"]').fill(email);
 await page.locator('form input[type="password"]').fill('Kw9-vortexline-42');
 await page.locator('form input[inputmode="numeric"]').fill('1990'); // birth year (§17AP)
+await page.locator('form input[name="accept_terms"]').check(); // the terms box (2026-10-14)
 await page.locator('form button[type="submit"]').click();
 await settle(2200);
 await goto('/settings');

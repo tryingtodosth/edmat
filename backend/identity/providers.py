@@ -225,7 +225,13 @@ def state_for(provider_id: str) -> dict:
 
 
 def all_states() -> list[dict]:
-    return [state_for(p.id) for p in PROVIDERS]
+    # A provider that `sso/` actually signs people in with (configured AND `social_login` on) is a
+    # real button there; its draft card here would be a second, non-working button for the same
+    # thing on the same page. The draft steps aside the moment the real one exists.
+    from sso.providers import enabled_ids
+
+    live = enabled_ids()
+    return [state_for(p.id) for p in PROVIDERS if p.id not in live]
 
 
 def settings_repository_url() -> str:

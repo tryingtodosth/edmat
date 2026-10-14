@@ -190,7 +190,8 @@ try {
 				password: 'password123',
 				birth_year: new Date().getFullYear() - 25,
 				display_name: 'Work E2E Scratch',
-				preferred_locale: 'en'
+				preferred_locale: 'en',
+				accept_terms: true
 			})
 		});
 		if (reg.status < 300) {

@@ -225,6 +225,7 @@ class ScopedThrottleTests(ThrottleTestCase):
                     'username': f'fresh{i}',
                     'email': f'fresh{i}@example.com',
                     'password': 'a-real-password',
+                    'accept_terms': True,
                 },
                 format='json',
             )
@@ -232,7 +233,7 @@ class ScopedThrottleTests(ThrottleTestCase):
 
         response = self.client.post(
             url,
-            {'username': 'fresh9', 'email': 'fresh9@example.com', 'password': 'a-real-password'},
+            {'username': 'fresh9', 'email': 'fresh9@example.com', 'password': 'a-real-password', 'accept_terms': True},
             format='json',
         )
 

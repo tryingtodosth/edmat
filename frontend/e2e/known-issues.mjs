@@ -75,6 +75,7 @@ async function register(page, label) {
 	await page.locator('form input[type="email"]').fill(email);
 	await page.locator('form input[type="password"]').fill(PASSWORD);
 	await page.locator('form input[inputmode="numeric"]').fill('1990'); // birth year (§17AP)
+	await page.locator('form input[name="accept_terms"]').check(); // the terms box (2026-10-14)
 	await page.locator('form button[type="submit"]').click();
 	await settle(page, 2200);
 	return email;

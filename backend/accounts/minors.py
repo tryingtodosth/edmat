@@ -19,6 +19,25 @@ from django.utils import timezone
 CONSENT_AGE = 16
 
 
+def self_registration_refusal(birth_year) -> str | None:
+    """The age gate on every door a person can create their own account through — the password
+    form (`RegisterSerializer.validate_birth_year`) and "sign in with Google / Apple / Microsoft"
+    (`sso/views.py: CompleteSignupView`). One rule, two endpoints, so it lives here (root
+    `CLAUDE.md` boundary 2). Returns `'guardian_required'` or None.
+
+    The `age_verification` FeatureFlag turns the QUESTION off, read with a plain
+    `is_feature_enabled()` because both doors are anonymous (see `accounts/CLAUDE.md`). Fails OPEN
+    towards asking: a missing flag row keeps the gate up. The year is never stored by either
+    caller — it is asked to branch, and goes no further."""
+    from moderation.services import is_feature_enabled
+
+    if not is_feature_enabled('age_verification'):
+        return None
+    if birth_year is not None and timezone.now().year - birth_year < CONSENT_AGE:
+        return 'guardian_required'
+    return None
+
+
 def is_minor(user) -> bool:
     if not (user and getattr(user, 'is_authenticated', False)):
         return False

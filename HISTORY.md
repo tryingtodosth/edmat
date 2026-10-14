@@ -16143,3 +16143,447 @@ the click), and one unused constant in `attachments.mjs` that was failing `eslin
   one more place.
 - **`SolutionEntrySection`'s own composer is not collapsed.** It is already behind "Dodaj
   wskazówkę" / "Dodaj rozwiązanie", which is the same bargain by a different mechanism.
+
+---
+
+## 17CG — Content management on the board rows: an edit that is actually visible, and attachments where the API already allowed them (2026-10-10, `ux/colour-pass`)
+
+The owner: *"add content management (eg edit, add attachement (ag a comment),) to needs and etc.
+research how to do it properly"*. Scope settled with them before any code: **all four board rows**
+(task, plan, need, goal — and poll, which turned out to be a fifth), with the attachments panel on
+each row's own page **and** its expanded card.
+
+### What the research found, and why it changed the plan
+
+Two things, and the first was a live bug nobody could have seen from a test:
+
+**1. A plain edit of a translated row changed a column no reader ever saw.**
+`translations/resolve.py` reads a `TextVersion` whenever the row has one and falls back to the
+row's own column only when it has none at all (that fallback is what made the whole translations
+app additive in the first place — §17BX). Every management write serializer, meanwhile, wrote
+`title`/`description` straight onto the column. So on any row somebody had translated — which is
+every row on `/about`, because `seed_edmat_project` splits its bilingual text into versions —
+`TaskCard`'s "Edit" and `/plans/[id]`'s details form **returned 200 with the new text in the
+response and changed nothing a reader would ever see.**
+
+It was found by probing the dev database rather than by any assertion, which is the point: the
+symptom is a success. The probe, rolled back in a transaction:
+
+```
+Task 13  column title : 'Skompletować co najmniej 7 założycieli, realnie 10'
+         after writing 'PLAIN-EDIT-PROBE' to the column:
+         resolve(pl) : 'Skompletować co najmniej 7 założycieli, realnie 10'
+         resolve(en) : 'Gather at least 7 founders, realistically 10'
+```
+
+**2. The UI was behind the API.** `attachments/targets.py` had registered `task` `plan` `need`
+`goal` and `comment` since §17CD, and `AttachmentsPanel` says in its own docstring that it is
+"usable anywhere else with two props" — yet it was mounted in exactly one place. And `PATCH
+/api/needs/{id}/` has always accepted a need's kind, skill level, estimated hours, deadline, remote
+flag and wanted count, while nothing in the app ever sent them: changing one meant Django admin.
+
+### The fix for (1): one writer for a row's text
+
+`translations/services.write_original_text(obj, heading=, body=, user=)` routes a single-language
+edit through `write_versions`, and `translations.serializers.PlainTextWriteMixin` is the other half
+of `TranslatedTextMixin` — that one makes the READ answer in the reader's language, this one makes
+the WRITE land where that read looks. It now sits on `TaskWriteSerializer`, `NeedSerializer`,
+`PlanStepUpdateSerializer`, `GoalSerializer`, `GoalCriterionSerializer`, `PollUpdateSerializer`,
+`OrganizationWriteSerializer` and `ContestSerializer`; `PlanViewSet.partial_update` writes its three
+fields by hand and so asks the service by hand.
+
+Four decisions inside it:
+
+- **`False` is not a failure.** A row with no versions keeps the old behaviour exactly — the column
+  IS the truth and no version row is invented out of an ordinary edit. That is what keeps this
+  additive, and it is tested.
+- **`None` means "leave that half alone"**, and the missing half is read from the VERSION, not from
+  the row's column — the column is precisely the thing that may already have drifted.
+- **Only the original language is touched.** The other languages keep their own `updated_at`, so a
+  reader of a translation is told the original is newer. That is true, and saying it is not the lie
+  the app exists to prevent; the lie would be re-stamping every language as current. `TranslateFields`
+  remains how somebody writes both at once in one submission.
+- **The prefetch cache is dropped after a text write.** Found in a browser, not in a test: every
+  management view prefetches `text_versions` so `resolve` answers in memory for a board of fifty
+  rows, and that cache predates the write — so the 200 came back carrying the OLD text while the
+  database was already right, and the page showed the previous title until a reload. DRF's own
+  `UpdateModelMixin` drops this cache for the same reason.
+
+### The fix for (2): the surfaces
+
+- **`NeedForm.svelte`** — the one form that writes a need, in `TaskForm`'s shape, used by the
+  panel's "Post a need" and by a new **"Edit the posting"** on the `⋯`.
+- **`/needs/[id]` gained the whole menu** — it had none at all, on the page a shared link lands on.
+  Edit, "Edit in both languages…", and cancel/reopen, which **moved off** the manager section: two
+  places to cancel the same need is how two surfaces start disagreeing.
+- **The need's description is rendered** (`MathContent`) instead of printed into a bare `<p>`. It
+  was the last management body on the platform drawn as plain text, so a list or a formula somebody
+  typed came out as its own source.
+- **`AttachmentsPanel` on the row surfaces**: `/needs/[id]`, `/tasks/[id]`, `/plans/[id]`,
+  `/goals/[id]`, `/polls/[id]`, and inside `TaskCard`, `GoalCard` and each poll row on a board.
+
+Each of those passes a `canAttach` that includes **the row's own author** and not just the node's
+staff, because `access.can_attach` does — "somebody who filed a need may attach the photo that
+explains it". Passing only the staff would have hidden the form from the person that rule exists
+for, and the API would have gone on answering correctly, so nothing would have complained.
+
+Two props made that possible without a request per row: **`foldKey`** (two panels sharing one key
+share their open state — the default stays the bare word `attachments` because `e2e/attachments.mjs`
+addresses the node pages by it) and **`deferred`** (fetch when the reader OPENS the section, which
+is what `FoldSection`'s `onopen` exists for). The first cut of `deferred` never rendered at all,
+because the panel's condition was `enabled && loaded && …` — a browser run caught it in one click,
+and the condition now reads `loaded ? rows.length > 0 || canAttach : deferred && canAttach`.
+
+### A poll turned out to be the fifth row, and the only one with a rule of its own
+
+`poll` joined `attachments/targets.py`, `/polls/[id]` and the poll rows on a board got panels, and
+`PollSerializer` gained `node` — that page deliberately had no `NodeRef` at all ("manager actions
+live on the panel"), and a surface that cannot ask "may you add something here" cannot draw the
+panel.
+
+The part worth remembering: **every other board row is visible to whoever may see the node, and a
+poll is not.** A draft is managers-only and an open one is for the eligible, because the wording of
+a question put to the room is as much of the decision as the count is (§17BI.H). So
+`attachments/access.can_view_target` asks `decisions.rules.can_view_poll` for that one kind —
+otherwise this app would have become the way to read a question nobody was shown.
+
+### Verified
+
+- `translations` gained `PlainEditTests` (9), `attachments` gained `PollTargetTests` (2);
+  `manage.py check` and `makemigrations --check` clean.
+- **`e2e/needs-content-management.mjs`, 26/26** against both real servers, as `piotrek` (the only
+  owner of the `edmat` organisation — e2e trap 32). It drives the real `⋯`, edits three fields in
+  one submission, **reloads** (the whole point: the broken write also came back correct in its own
+  response), and asserts the English translation was left alone and reported as older.
+- `npm run check` 0/0, `eslint` clean on the touched trees, the two new i18n keys in both
+  catalogues (4589 each, identical key sets). `e2e/attachments.mjs` still 14/14, which is what the
+  `foldKey` default is for.
+- **The full backend suite: 3081 tests, one failure, and it was right.**
+  `work.EdmatHistoryTests` fails the moment `HISTORY.md` grows a section, because the checked-in
+  table is stale until `manage.py export_edmat_history` runs — and then fails AGAIN until the new
+  reference is filed in `SUBPROJECT_BY_REF`, since an unlisted section would otherwise land in
+  `platform` silently. §17CG is `management`, whose apps are the rows it is about. Two steps, not
+  one, and worth knowing before writing the next section.
+
+### Left open
+
+- **A board row gives a plain reader no hint that it has attachments.** A deferred panel can only
+  draw its shut line from `canAttach`, because the row count is exactly what has not been fetched;
+  a reader who may not attach meets the files on the row's own page, where the panel is eager. The
+  honest fix is an `attachments_count` on the four row serializers.
+- **A draft plan's attachments are visible to anybody who may see the node.** A poll now inherits
+  its own visibility; a plan's `draft` status is not consulted, which is pre-existing and was not
+  widened here.
+- **A draft poll's fields still cannot be edited** — mode, eligibility, the dates. Its question and
+  description go through the `⋯` (draft only, as the server insists), but the create form is still
+  the only writer of the rest; extracting a `PollForm` the way `NeedForm` was extracted is its own
+  change.
+- **`/tasks` (my tasks) draws no panels**, by the same reasoning `NeedsPanel`'s own "left open"
+  already gave: a personal list of every task a person has is not a board.
+- **Nothing is mounted on a comment**, although `comment` has been a registered kind since §17CD —
+  comments already have `community.CommentAttachment`'s picture/PDF composer, and two attachment
+  UIs on one surface is the thing §17CD refused to do on a course page. It goes the day
+  `absorb_legacy_attachments --apply` runs.
+
+---
+
+## 17CH — `paczka2`: 214 exercises prepared for the live site, and the importer's three lies (2026-10-13, `ux/colour-pass`)
+
+Owner: *"prepare these packages to upload as exercises on the production"* — three zips dropped into
+`Database-of-Student-Exercise/paczka2/`, then: *"some of it extends analiza and rachunek
+prawdopodobienstwa, but also delivers new topologia"*.
+
+**What the three packages actually were.** Each is a course package in the retired corpus's own
+format (`course.yaml` + `zadania/NNNN.md` + `materialy/`), which is why they looked ready to import
+and were not.
+
+- `analiza2.zip` — 505 zadania. Its first **383 are byte-identical** to what was imported in 2026-07
+  (compared file by file against `content/courses/uw-matematyka-am2/zadania/`, 0 differing). The
+  delivery is files `0384`–`0505`: **122 new exercises**, mostly *serie treningowe*.
+- `topo1.zip` — **92 new exercises**, for a branch that exists nowhere.
+- `prawd1.zip` — 357 zadania, **byte-identical to the corpus already live**, and
+  `rachunek-prawdopodobienstwa` on edmat.net holds exactly those 357 rows (1–357, no gaps, same
+  titles). It adds nothing. Said out loud rather than imported quietly: re-running it would rewrite
+  357 live rows with their own content, and would blank their `submitted_by` unless `--author` were
+  passed, because the file is the source of truth on a re-run.
+
+**The collision nobody would have seen.** `(branch, number)` is the natural key, so a file carrying
+`number: 384` does not create — it **updates**. On edmat.net `analiza-matematyczna` ends at 388, and
+384–388 are five rows that have nothing to do with this package: a donated "Całka Gaussa", a
+"Granica ciągu", one test submission and two Phase-3 e2e leftovers. Importing the package's own
+numbers would have silently overwritten five exercises and created 117 instead of 122, and the run
+would have reported success. The 122 are therefore stamped **389–510**, keeping each file's original
+`id:` for provenance, and `preflight.py` asks the live API whether that range is still free before
+anybody runs anything — because by the time it is run, it may not be.
+
+**Three things the importer got wrong, found by running it rather than reading it.**
+
+1. **`\\[3mm]` is a LaTeX line break, not display maths.** `check_math` counted the `\[` inside it
+   and called **73 of the 954 files** unbalanced — 11 of them in these batches, and one bad file
+   aborts the whole run on purpose. The fix is `count_delimiters`, which walks the string and
+   consumes both characters of a `\\`, so a genuinely missing `\)` is still caught (its own test).
+   `frontend/scripts/check_katex_compatibility.ts` has carried a comment about this exact
+   false-positive class since Phase 4; the importer never got the same treatment, which is the
+   argument for the KaTeX checker's habit of writing its false positives down.
+2. **`source: {original_problem_number: 11a}`** — a sub-problem letter, which the real corpus does
+   carry — reached the database layer and came back as a `ValueError` from inside the SQL compiler,
+   naming no file, half-way through the batch's transaction. It is now a validation error that names
+   the file and says where the letter belongs. In the two files that have it, `build.py` puts the
+   number at `11` and the letter into `source.name`, which is the line a reader sees under ŹRÓDŁO.
+3. **`--create-topics` created topics alphabetically.** `order` is what `/branches/<slug>` sorts the
+   topic filter by, so Topologia I's nine would have read "Ciągłość… / Iloczyny… / Podstawowe…" with
+   "Przestrzenie ilorazowe" — the last thing the course teaches — fourth. They are now created in
+   `batch.yaml`'s `topic_names:` order, which is the syllabus's.
+
+**The branch is a decision, and it was the owner's.** `topologia`, named "Topologia", under
+`matematyka`, `pl` only like every other taxonomy row — a Branch is subject matter and "Topologia I"
+is a course (`taxonomy/models.py`). The owner's addition: **every one of the 92 carries the tag
+`topologia-i`**, because a class looks for its own sheet by that name. `create_topologia_branch.py`
+is that decision written down; the importer still refuses to create a branch.
+
+**Verified by importing it.** Against a throwaway copy of the dev database (the dev database itself
+is untouched): 122 created / 0 updated / 244 hint+solution entries / 0 new topics for Analiza, 92 /
+0 / 184 / 9 for Topologia, and a second run of the Analiza batch printed "0 created, 122 updated" —
+idempotent, as promised. Then the content sweep on that copy: `dump_text_fields` → `check:katex`,
+**2896 translation rows, 0 fields with a real rendering issue**. Then both halves up against the
+copy and a browser at four pages: `/branches/topologia` lists 92 with the nine topics in course
+order, Topologia #1 and Analiza #389/#438 typeset their maths, carry the "Zweryfikowane rozwiązanie"
+chip, and #438's ŹRÓDŁO line reads "…, zadanie 11a · p. 13" — the letter where it was put.
+
+**What is on disk.** `Database-of-Student-Exercise/paczka2/prepared/` (untracked, beside the zips):
+the two batches, `build.py` (the record of every change made to the authors' files, re-runnable),
+`preflight.py`, `create_topologia_branch.py`, the patched command, `README.md` and `PRODUCTION.md`
+— the runbook. `FUW/ZADANIA-20261013.tar.gz` (172 KB) is the same minus `_unzipped/`.
+
+### Left open
+
+- **Nothing has been imported into edmat.net.** The kit is built and the runbook is written; the
+  owner runs it (the import is a production write, and the one code change it needs — the patched
+  `import_exercises.py` — has to be on the server first, by copy or in the next bundle).
+- **The three PDFs that came with the packages are not imported.** `import_exercises` carries no
+  materials and nothing else does; two of them are somebody else's *skrypt*, whose licence is a
+  `LEGAL.md` question rather than an import question.
+- **`source.exercise_set`** — the training-series number, on all 122 Analiza files — has no column
+  in `ExerciseSource` and is dropped. `source.name` names the series, so a reader loses nothing, but
+  a filter by series is not possible.
+- **`prawd1.zip` was not imported**, having nothing in it that is not already live. If the author
+  meant to send a newer Rachunek Prawdopodobieństwa set, this one is not it.
+
+## 17CI — Mail: the no-reply mailbox connected, password reset made real, and a Mail tab for the superuser (2026-10-14, `ux/colour-pass`)
+
+The owner: *"prepare prod to have [the no-reply address] connected: mail confirmation, notifications,
+etc. … would be super cool to have access to list of emails sent and received as superuser todoonet
+on prod accessible through moderation tab. it comes from MXPLAN 001"*, with the SMTP/IMAP hosts and
+the password; mid-way, *"the new prod bundle should also include the previously prepared materials
+bundle … paczka2"*.
+
+**What exists now.** A 41st app, `mail` (`backend/mail/CLAUDE.md` holds the rules):
+
+- **Every outgoing message is a row first.** `OutboundEmail` is the queue AND the log; one `status`
+  (`queued → sending → sent | failed | console`). The row is written in the request's transaction and
+  sent by a daemon thread started from `on_commit`, so no request waits on OVH (eight mod_wsgi slots);
+  `manage.py mail_cron`, every five minutes from `/etc/cron.d/edmat-mail`, retries failures (≤ 5),
+  un-sticks dead sends, queues digests and reads the inbox. A claim is one WHERE-anchored `update()`,
+  so the thread and the cron job can race for a row and exactly one sends it.
+- **`console` is its own status, not "sent".** With no password the site uses Django's console
+  transport and every row says "Not sent (no mail server)" — a dev box that claims it mailed
+  somebody would be house rule 10 broken. The Mail tab's status line says the same in orange.
+- **The log never holds a working link.** A confirmation or reset body is stored with `[[link]]`;
+  the link is built at send time from the user (a signed `{u, e}` for confirmation, Django's
+  `default_token_generator` for reset — both deterministic, so a retry builds a valid one). A
+  superuser reading the log, or anybody holding a copy of the database, cannot take over an account
+  with what is in it. This is why the e2e reads its links from the backend's stdout.
+- **`EMAIL_BACKEND` is `mail.transport.LoggedEmailBackend`**, which logs anything sent around the
+  queue (the admin, django-postman) as `kind='direct'` and passes it on; the queue opens the real
+  transport directly, so nothing is logged twice.
+- **Confirmation is derived** (`ConfirmedEmail.email == user.email`), sent at registration, re-sent
+  from Settings → E-mail (throttled), and a completed password reset counts — that link was opened
+  from the same inbox. Nothing is gated on it except the digest.
+- **Password reset is real.** `/login` → "Nie pamiętasz hasła?" → `/forgot-password` (the same 202
+  for every address) → the link → `/reset-password`, which refuses a used, stale or tampered link
+  with a way to ask again, and deletes every API token on success. The confirm step has its own
+  throttle scope: sharing `password_reset`'s 5/hour would have let two rejected passwords lock a
+  person out of the link they had just been sent.
+- **Notifications by mail are a digest, opt-in, hourly at most**, only to a confirmed address, and
+  switching it on never mails the backlog. `notifications.services.notify()` is untouched: the
+  digest reads `Notification` rows, so its three gates stay the only gates.
+- **The inbox** is copied over IMAP read-only twice over (`select(readonly=True)` + `BODY.PEEK[]`;
+  OVH webmail looks unchanged), incrementally by UID, as text: HTML is reduced with bleach, an
+  attachment is a name and a size and its bytes are never kept (house rule 7).
+- **The Mail tab** in `/moderation` is **superuser-only** — server (`IsSuperuser` on every
+  `/api/mail/…`) and client (`authStore.user.isSuperuser` on the button and the panel) — not staff:
+  it lists every address anybody registered with and what strangers mailed the project. Sent and
+  Received, search, a status filter, a body per row, retry on a failed row, "fetch new mail now" and
+  a test-send box.
+
+**The password never touches the repository.** It is read from `/etc/edmat/mail-password` (0640
+root:www-data) — a file, not envvars, because it contains `'` and `;`, and because Apache and the
+cron job do not share an environment. `apply-on-server.sh` step 3e asks for it with `read -s` the
+first time and installs the cron file; step 6a runs `mail_check`.
+
+**paczka2 rides in the bundle** as `paczka2/` (the kit minus its 30 MB of source zips; `pack.sh`
+refuses if the kit's `import_exercises.py` and the bundle's differ). Step 3d encodes the kit's own
+PRODUCTION.md and imports only on an explicit yes, after preflight, and only if both dry runs said
+exactly `122 created, 0 updated` / `92 created, 0 updated`.
+
+**One thing fixed on the way, found by looking at a screenshot:** the moderation tab row never
+wrapped, and "Dyskusje na stronach stałych" was already half off the page at 1280 px before Mail
+joined it. `flex-wrap: wrap`.
+
+### Verified
+
+- **Against the real mailbox**, with the password in the environment for single commands only:
+  `mail_check` — SMTP login OK (ssl0.ovh.net:465), IMAP login OK; one message sent from the mailbox to
+  itself through the real queue path, then `mail_cron` fetched it back over IMAP with its Polish
+  intact. DNS: SPF `include:mx.ovh.com -all` and both OVH DKIM selectors are in place; no DMARC.
+- `manage.py test mail` 21/21, and **the full backend suite, 3107 tests, OK** (`--parallel 4
+  --keepdb`, 22 min) — after one fix: `work`'s secret-shape check caught the mailbox address in this
+  section's first paragraph, which the history table copies; it is now "[the no-reply address]".
+  `check`, `makemigrations --check` clean; `check_databases_declared.py` 0.
+- `e2e/mail.mjs` **23/23** against both dev servers with the console transport, zero page errors,
+  and the screenshots looked at (which is how the tab row was found).
+- `npm run check` 0/0; eslint clean on every touched file; 74 new keys in both catalogues
+  (4663 each, identical key sets).
+
+### Left open
+
+- **Nothing is deployed.** The bundle is built; the owner applies it on webek4 (this VM cannot reach
+  it) and types the password at step 3e.
+- **No DMARC record** for edmat.net — a DNS change in OVH's panel, suggested in the deploy note.
+- No kill switch: the password file is the switch, and the digest is per-person opt-in. A mail
+  feature that ever goes to everybody by default should get a `FeatureFlag`.
+- No instant per-notification mail, no per-type choice, no HTML mail, no bounce handling (bounces
+  land in the inbox where the superuser can read them), no change-of-address flow, no mailed follow-up
+  for an anonymous DSA filer, and a child (no address) still gets a new password only from a guardian.
+- The sent list's status pill is truncated with an ellipsis on a narrow row; the full status is in
+  the opened row.
+- **Correction, the same day, from the first real run on webek4:** the paczka2 import was step 3d,
+  i.e. before step 4's permission fix, and died as www-data with "attempt to write a readonly
+  database" while creating the `topologia` branch (nothing written). It is now step 7, after the
+  permission fix, the restart and the smoke test. The bundle already on the server still has the old
+  order: answer N there and import by hand per `paczka2/PRODUCTION.md`.
+
+## 17CJ — Consent-free analytics, the terms of use, a rewritten privacy policy, and sign-in with Google / Apple / Microsoft (2026-10-14, `ux/colour-pass`)
+
+The owner: *"research what kind of analytics can we get from users with our functional cookies etc
+without asking for their consent: the goal is to analyze the data we collect in order to improve the
+service, so no google analytics, adds, and selling their data, but prepare new moderation tab button
+thats going to redirect to the dashboard … also, prepare our term and conditions and privacy policy
+to meet todays state, and be ready for authentication using google, apple, etc."* One orchestrating
+session, four sub-agents in this worktree (research → `ANALYTICS-LAW.md`; `analytics`; `sso`; legal
+texts), built on top of §17CI's still-uncommitted mail work.
+
+### The research — `ANALYTICS-LAW.md`
+
+- **The cookie rule is PKE art. 399** (in force 2024-11-10), with only the transmission and
+  "strictly necessary" exemptions — **no analytics exemption in Polish law**. The Digital Omnibus's
+  proposed audience-measurement exemption is not adopted as of October 2026. EDPB 2/2023: any script
+  that makes the browser send something is device access.
+- **So the answer to "what can we get without consent" is: everything the server already sees,
+  aggregated** — route traffic, per-content views, referrer host, coarse browser/OS/device class
+  (never combined with IP), latency and errors, search counts without the term (category A); logged-in
+  activity counts and cohorts only as aggregates with k ≥ 10, minors excluded (B); a Web Vitals beacon,
+  any visitor id in storage, and the hashed-IP+UA "Plausible" daily id need consent or contradict our
+  own published promise (C). A minimal JS error beacon is B and waits for the IOD.
+- **The legal basis is art. 6(1)(e), not (f).** UW is a public university and art. 6(1)'s last
+  sentence probably bars it from legitimate interest; (f) is kept as the fallback analysis. The
+  controller is probably Uniwersytet Warszawski, not the Ośrodek. `telemetry/models.py` and the
+  policy now say so.
+
+### `analytics` — the 42nd app, and the Analytics tab
+
+- **Server-side only, aggregates only.** A nightly `rollup_analytics` reads every log shard and
+  **recounts** a day (house rule 5) into `DailyRouteStat` (route template, audience, 4xx/5xx/429,
+  p50/p95), `DailyContentView` (17 page kinds), `DailyReferrer` (host only), `DailyClient` (an
+  in-house UA classifier, no dependency; bots apart), `DailyActiveUsers` and `WeeklyCohort` (counts
+  only, adults only). No aggregate column holds an IP, a UA string or a user id —
+  `test_no_visitor_fingerprint` now asserts it of these tables too. Aggregates are purged at 25 months.
+- **`Sec-GPC: 1` / `DNT: 1` is an art. 21 objection.** `RequestLog.analytics_opt_out` (telemetry
+  0002) is set from either header and every rollup skips those rows; the security log line is still
+  written, and the dashboard says how many requests were left out.
+- **Live counts from the main DB**, each one line in a registry: registrations and confirmation rate,
+  the contribution funnel, eight moderation queues with median decision time where a timestamp exists,
+  community activity, feature usage across 22 models, coverage per branch and per language.
+- **`/moderation` → Analytics** is a tab button that navigates to **`/moderation/analytics`**:
+  KPI tiles with the previous period, traffic, content, coverage, community, a retention heatmap,
+  clients and referrers, health (7 days of raw 5xx with request ids, slowest routes), and "what this
+  dashboard does not know, on purpose". Charts are inline SVG — no chart library. Staff only (401/403,
+  as the Mail tab). People-counts under 10 read "<10".
+- **`deploy/cron/edmat-analytics`**, nightly: rollup THEN `enforce_log_retention`, `&&`-chained.
+  **Nothing in the repository had ever scheduled `enforce_log_retention`** — the privacy policy's
+  30/90-day promise was not being kept by anything automatic. Run it with `--dry-run` once first.
+
+### `sso` — the 43rd app, sign-in with Google, Apple and Microsoft
+
+- OIDC authorization code + PKCE (S256; not for Apple, which does not document it) + `state` +
+  `nonce`; id_token verified against the provider's JWKS (`PyJWT[crypto]`, a new dependency). The
+  callback lands on the backend and the browser is redirected to the frontend with a two-minute
+  single-use code, **never a token in a URL**. Identities are keyed on (provider, issuer, subject),
+  Microsoft's `tid`/`oid` kept and its issuer checked against the tenant template.
+- **Never linked by email.** An unknown identity whose email already has an account is refused with
+  "sign in with your password and link it in Settings". A new one gets a 30-minute signup ticket and
+  `/auth/sso/complete`: username, the same age question — the gate is now one function,
+  `accounts/minors.py: self_registration_refusal`, called by both doors — and the terms.
+- **Nothing shows without credentials**: a provider is enabled only when configured AND the new
+  `social_login` flag (moderation 0054) is on. Settings → "Sign-in methods" links and unlinks, and
+  refuses an unlink that would leave no way in. A password-reset mail now reaches an SSO-only
+  account, which is how it sets a password. `deploy/SSO-SETUP.md` is the operator runbook (consoles,
+  redirect URIs, Apple's Private Email Relay registration for the no-reply address, env vars, secrets
+  under `/etc/edmat/`). `e2e/sso-stub.mjs` is a local provider that signs real RS256 tokens; settings
+  refuse to start with it on and `DEBUG` off.
+
+### Terms of use, the privacy policy, terms acceptance
+
+- **`/terms` exists for the first time** (`lib/content/terms.ts`, EN + PL, equally authoritative,
+  §§ 1–22 against `ANALYTICS-LAW.md` §5: u.ś.u.d.e. art. 8, DSA arts 14–23, the Polish DSA act
+  Dz.U. 2026 poz. 1296, consumers, minors, the licence with its fields of exploitation, the
+  AI-assisted mark, contests, tutoring and events, complaints, termination, changes). Footer and
+  `/legal` link to it.
+- **`/privacy` rewritten** (`POLICY_LAST_UPDATED = 2026-10-14`): controller and IOD, a
+  purpose → basis → retention table, the full device-storage table, the server log, the statistics,
+  sign-in providers as separate controllers, OVH as mail processor, the locale hint's IP→country
+  lookup, children, every right. "Nobody outside the Faculty" — no longer true since OVH — is gone.
+- **Registration requires `accept_terms`** (refusal code `terms_required`), written through
+  `legal/terms.py: record_acceptance` into the append-only `legal.TermsAcceptance` (legal 0002), from
+  every door: `register`, `sso:<provider>`, `guardian`. `/api/auth/me/` carries
+  `terms_accepted_version`. `CURRENT_TERMS_VERSION` must equal `terms.ts`'s `TERMS_VERSION`.
+
+### A real leak found on the way
+
+**The API token was in the request log.** The notification stream authenticates with `?token=`
+(an EventSource cannot send a header), and `redact_query_string` only knew search terms and
+`/api/auth/` — so every live-notification connection wrote a full credential down for 90 days. The
+dev shards held 4369 such rows. `CREDENTIAL_QUERY_PARAMS` now redacts `token`, `key`, `password` and
+friends, and `telemetry.0003_scrub_logged_credentials` cleans the rows already written — it runs per
+shard, which is how shards are migrated on deploy anyway.
+
+### Verified
+
+- `manage.py test analytics telemetry` 64 OK; `test sso accounts legal identity mail moderation`
+  476 OK; `test legal accounts mail sso` 273 OK; `check`, `makemigrations --check` clean;
+  `check_databases_declared.py` 0. The full suite was run once more over the merged tree — see the
+  board entry for its result.
+- `npm run check` 0/0; eslint clean on touched files; 4965 = 4965 keys.
+- Real browser on separate ports per agent (env-var overrides, `frontend/.env` untouched):
+  `e2e/analytics.mjs` 28/28, `e2e/sso.mjs` 27/27 against the stub, the register refusal and success
+  in both locales, `/terms` `/privacy` `/legal` at 1280 and 390 px — screenshots looked at; that is
+  how the 390 px privacy table, the 5xx table and a mislabelled gridline were found and fixed.
+
+### Left open
+
+- **Placeholders the owner must fill before publishing**: the contact e-mail and the IOD UW contact
+  (`[… do uzupełnienia]` in terms, privacy and `/legal`); the controller identity and address need IOD
+  sign-off; the legal bases need IOD sign-off.
+- **Terms § 9 grants CC BY-SA 4.0**, which `LEGAL.md` §2–3 said needed a lawyer first. Cut it back to
+  the operating licence if that review has not happened.
+- **Promised by the terms, not built**: a mailer for terms-change and closure notices, an in-app
+  art. 20 complaint against a moderation decision, an archive of past terms versions, the "please
+  accept the new terms" prompt. Accounts older than today have no acceptance row.
+- **No retention rule** for `ContentView`/`MaterialView`, the mail records, messages, anonymous-comment
+  IP hashes; the door scanner's IndexedDB copy of attendee names survives logout. `sso_purge` has no
+  cron line of its own.
+- Analytics: zero-result searches (every list view filters `q` itself), real entry referrers (the SPA
+  is static — Apache's log would be needed), an account-level "exclude me" switch, decision timestamps
+  for five queues.
+- SSO: Apple's server-to-server notifications and token revocation, a "set a password" form, GitHub
+  (not OIDC). Audit rows reuse `password_change` rather than adding an action.

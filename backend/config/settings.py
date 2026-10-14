@@ -236,6 +236,15 @@ INSTALLED_APPS = [
     # event: an event has no ranking and a course has no jury. Hangs everything else it needs off
     # the node seam (`config/nodes.py`, kind `contest`).
     'contests',
+    # Mail for no-reply@edmat.net (2026-10-14): the logged outbound queue, the read-only inbox, email
+    # confirmation, the real password reset and the opt-in notification digest. `mail/CLAUDE.md`.
+    'mail',
+    # Consent-free usage analytics (2026-10-14): aggregate rollups of the request log + live counts
+    # from this database, staff-only dashboard at /moderation/analytics. `analytics/CLAUDE.md`.
+    'analytics',
+    # Sign in with Google / Apple / Microsoft (2026-10-14): OIDC code flow + PKCE, verified
+    # id_tokens, no auto-linking by email. Configured from EDMAT_SSO_* below. `sso/CLAUDE.md`.
+    'sso',
     # third-party — user-to-user messaging (see messaging/views.py for the thin DRF wrapper this
     # app builds over django-postman's own Message model/pm_write() API). django.contrib.sites
     # is genuinely required here, not optional despite postman's own doc comments suggesting
@@ -266,7 +275,61 @@ EDMAT_PUBLIC_HOST = os.environ.get('EDMAT_PUBLIC_HOST', 'edmat.net')
 # skip_notification=True to pm_write() specifically to avoid depending on this at all, but the
 # console backend is set here too as a second, harmless safety net for any other codepath
 # (e.g. the Django admin's own moderation actions) that might still call notify_users().
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+#
+# 2026-10-14: there IS one now — `no-reply@edmat.net` on OVH's MX Plan (`mail/`, `mail/CLAUDE.md`).
+# Every message sent through Django's mail API goes through `mail.transport.LoggedEmailBackend`,
+# which writes it into `mail.OutboundEmail` and hands it to the REAL transport below; the
+# superuser's Mail tab in /moderation reads that table. The transport is SMTP only when a password
+# exists, and the console otherwise — so a bare clone still needs no mail account and no daemon,
+# and postman's notify_users() safety net above is still the console there.
+EMAIL_BACKEND = 'mail.transport.LoggedEmailBackend'
+
+
+def _read_secret(env_name: str, file_env_name: str, default_file: str) -> str:
+    """A secret from the environment, else from a file. The file is what production uses
+    (`/etc/edmat/mail-password`, 0640 root:www-data): the password has quote and semicolon
+    characters that /etc/apache2/envvars would have to escape, and a file is read identically by
+    Apache and by the cron job, which do not share an environment. An unreadable file (a shell
+    user who is not www-data) reads as no password — the console transport, never a crash."""
+    value = os.environ.get(env_name, '')
+    if value:
+        return value
+    path = os.environ.get(file_env_name, default_file)
+    try:
+        with open(path, encoding='utf-8') as handle:
+            return handle.read().rstrip('\r\n')
+    except OSError:
+        return ''
+
+
+EMAIL_HOST = os.environ.get('EDMAT_SMTP_HOST', 'ssl0.ovh.net')
+EMAIL_PORT = int(os.environ.get('EDMAT_SMTP_PORT', '465'))
+EMAIL_USE_SSL = EMAIL_PORT == 465
+EMAIL_USE_TLS = EMAIL_PORT == 587
+EMAIL_HOST_USER = os.environ.get('EDMAT_MAIL_USER', 'no-reply@edmat.net')
+EMAIL_HOST_PASSWORD = _read_secret('EDMAT_MAIL_PASSWORD', 'EDMAT_MAIL_PASSWORD_FILE', '/etc/edmat/mail-password')
+EMAIL_TIMEOUT = 20
+DEFAULT_FROM_EMAIL = f'EdMat <{EMAIL_HOST_USER}>'
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# The same mailbox over IMAP, read-only, for the "received" half of the Mail tab (`mail/inbox.py`).
+EDMAT_IMAP_HOST = os.environ.get('EDMAT_IMAP_HOST', 'ssl0.ovh.net')
+EDMAT_IMAP_PORT = int(os.environ.get('EDMAT_IMAP_PORT', '993'))
+# What actually carries a message once it has been logged. `locmem` under the test runner (Django
+# swaps EMAIL_BACKEND itself there, but not this), SMTP with a password, the console without.
+if 'test' in sys.argv:
+    EDMAT_MAIL_TRANSPORT = 'django.core.mail.backends.locmem.EmailBackend'
+elif EMAIL_HOST_PASSWORD:
+    EDMAT_MAIL_TRANSPORT = 'django.core.mail.backends.smtp.EmailBackend'
+else:
+    EDMAT_MAIL_TRANSPORT = 'django.core.mail.backends.console.EmailBackend'
+# Under the test runner a queued message is delivered in the commit hook itself rather than in a
+# thread, so a test can assert on what was sent (`mail/services.py: _kick`).
+EDMAT_MAIL_DELIVER_INLINE = 'test' in sys.argv
+# Where the links inside a message point. The SPA, not the API: /confirm-email and /reset-password
+# are frontend routes. In development that is the Vite server run.sh starts.
+EDMAT_SITE_URL = os.environ.get(
+    'EDMAT_SITE_URL', 'http://localhost:5173' if DEBUG else f'https://{EDMAT_PUBLIC_HOST}'
+).rstrip('/')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -700,6 +763,22 @@ REST_FRAMEWORK = {
         # endpoint that sends mail to an address the caller chooses — i.e. a spam relay — and the
         # limit is far easier to add now than to remember to add then.
         'password_reset': '5/hour',
+        # Re-sending the email-confirmation message (`mail/views.py`). The same spam-relay reasoning
+        # as above, though the address here is the caller's own and cannot be chosen.
+        'mail_resend': '5/hour',
+        # Sign in with Google / Apple / Microsoft (`sso/`). Pressing a button writes a row and
+        # sends the browser away; the callback makes a server-to-server call to the provider. Both
+        # are cheap per call but are levers a loop could pull, so they get room for a person who
+        # retries a few times and nothing like a script's rate. Redeeming a code or reading a
+        # signup ticket is the follow-up to one callback, so it gets the same order of budget. The
+        # signup itself is throttled as 'register' — it is the same act.
+        'sso_start': '30/hour',
+        'sso_callback': '60/hour',
+        'sso_exchange': '60/hour',
+        # Setting the new password from a reset link. Its own scope, not 'password_reset': a person
+        # who types two passwords the validators refuse would otherwise lock themselves out of the
+        # link they just received. The token in the link is what actually guards this endpoint.
+        'password_reset_confirm': '20/hour',
         # Avatar upload is the most expensive authenticated write in the app: it decodes and
         # re-encodes a real image (accounts/avatar.py). 20/hour is far more than anyone genuinely
         # changing their profile picture needs, and low enough that the decode cost can't be used as
@@ -835,6 +914,34 @@ EDMAT_USOS_CREDENTIALS: dict[str, dict[str, str]] = {}
 # The public origin a provider would redirect back to. Until this exists there is no address to
 # register as a callback, which is why it counts as a blocker in its own right.
 EDMAT_OAUTH_REDIRECT_BASE = os.environ.get('EDMAT_OAUTH_REDIRECT_BASE', '')
+
+# --- Sign in with Google / Apple / Microsoft (`sso/`, 2026-10-14) --------------------------------
+# Every `EDMAT_SSO_<PROVIDER>_<FIELD>` variable lands in EDMAT_SSO[provider][field]:
+#   EDMAT_SSO_GOOGLE_CLIENT_ID / _CLIENT_SECRET (or _CLIENT_SECRET_FILE)
+#   EDMAT_SSO_MICROSOFT_CLIENT_ID / _CLIENT_SECRET / _TENANT (default 'common')
+#   EDMAT_SSO_APPLE_CLIENT_ID (the Services ID) / _TEAM_ID / _KEY_ID / _PRIVATE_KEY_PATH
+# Nothing set → no provider is configured → no button anywhere (sso/providers.py). The runbook is
+# deploy/SSO-SETUP.md. Unknown provider names are collected and ignored.
+EDMAT_SSO: dict[str, dict[str, str]] = {}
+for _sso_name, _sso_value in os.environ.items():
+    if _sso_name.startswith('EDMAT_SSO_') and _sso_value:
+        _sso_provider, _, _sso_field = _sso_name[len('EDMAT_SSO_'):].partition('_')
+        if _sso_field:
+            EDMAT_SSO.setdefault(_sso_provider.lower(), {})[_sso_field.lower()] = _sso_value
+# Where the providers send the browser back: `<this>/auth/sso/<provider>/callback/`, which must be
+# registered in each console byte for byte. Production: the API under the site's own origin.
+# Development leaves it empty and the callback URL is built from the request's own host.
+EDMAT_SSO_API_URL = os.environ.get('EDMAT_API_PUBLIC_URL', '' if DEBUG else f'{EDMAT_SITE_URL}/api').rstrip('/')
+# Development only: points every provider at `frontend/e2e/sso-stub.mjs`, a local OIDC stand-in, so
+# the round trip can be driven in a browser with no client id. A stub that signs tokens for anyone
+# is a master key, so DEBUG=False with this set refuses to start — and sso/providers.py checks DEBUG
+# again on every read.
+EDMAT_SSO_DEV_STUB_URL = os.environ.get('EDMAT_SSO_DEV_STUB_URL', '')
+if EDMAT_SSO_DEV_STUB_URL and not DEBUG:
+    raise ImproperlyConfigured(
+        'EDMAT_SSO_DEV_STUB_URL is set with DEBUG off. The SSO development stub signs an id_token '
+        'for anybody who asks; it must never be reachable from a real deployment. Unset it.'
+    )
 
 # Swaps the USOS seam for a stand-in that answers like the real API (respecting granted scopes and
 # per-installation capabilities) so the import, consent and standing paths are genuinely exercised

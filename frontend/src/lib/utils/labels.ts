@@ -436,6 +436,9 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	// Contests (contests/, 2026-10-09) — mirrors moderation/models.py's 0053 key; the third file of
 	// the three-file change.
 	contests: m.featureFlags_label_contests, // "Contests: staged competitions with a jury, results and the obligations a prize brings"
+	// Sign in with Google / Apple / Microsoft (sso/, 2026-10-14) — mirrors moderation/models.py's
+	// 0054 key; the third file of the three-file change.
+	social_login: m.featureFlags_label_socialLogin, // "Sign in with Google, Apple or Microsoft"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 
@@ -1634,4 +1637,32 @@ export function complianceHint(detail: string, key: string): string {
 		}
 	}
 	return out.join('; ');
+}
+
+// ---- sign in with Google / Apple / Microsoft (backend `sso/`, 2026-10-14) ----------------------
+//
+// One sentence per word the backend can send the done page (`sso/services.py: ERROR_CODES`) or
+// answer an exchange / unlink with — a hand-maintained mirror, said in both files (house rule 13).
+// A refusal carries its reason (house rule 6): "you cancelled" and "that Google account belongs to
+// somebody else" are both a failed sign-in and need completely different next steps.
+export const SSO_ERROR_LABELS: Record<string, () => string> = {
+	cancelled: m.sso_error_cancelled, // "You cancelled at the provider, so nothing happened. You can try again, or sign in with your password."
+	state_invalid: m.sso_error_stateInvalid, // "This sign-in link is not one this site started, or it has already been used. Start again from the sign-in page."
+	state_expired: m.sso_error_stateExpired, // "That took longer than ten minutes, so the sign-in expired. Start again."
+	provider_error: m.sso_error_providerError, // "The provider's answer could not be verified, so it was not trusted. Try again in a moment."
+	email_missing: m.sso_error_emailMissing, // "The provider did not share an email address, and an account here needs one. Allow the address when the provider asks, or register with a password."
+	email_in_use: m.sso_error_emailInUse, // "An account here already uses this email address. Sign in with your password, then link this provider in Settings → Sign-in methods. Accounts are never joined by email alone."
+	already_linked: m.sso_error_alreadyLinked, // "That provider account is already linked to a different account here. Sign in to that account to unlink it first."
+	account_inactive: m.sso_error_accountInactive, // "This account is suspended, so it cannot sign in."
+	flag_off: m.sso_error_flagOff, // "Signing in with an outside account is switched off on this site right now. Sign in with your password."
+	not_configured: m.sso_error_notConfigured, // "This sign-in method is not set up on this site."
+	code_invalid: m.sso_error_codeInvalid, // "This sign-in link has expired or was opened in a different tab or browser from the one that started it. Start again from the sign-in page."
+	wrong_account: m.sso_error_wrongAccount, // "Linking has to finish in the account that started it. Sign in to that account and try again."
+	ticket_invalid: m.sso_error_ticketInvalid, // "This sign-up has expired (it lasts half an hour) or was opened in a different tab. Start again from the sign-in page."
+	set_password_first: m.sso_error_setPasswordFirst // "This is the only way into your account. Set a password first (use “Forgotten your password?”), then unlink it."
+};
+
+export function ssoErrorLabel(code: string | null | undefined): string {
+	const label = code ? SSO_ERROR_LABELS[code] : undefined;
+	return label ? label() : m.sso_error_generic(); // "Signing in did not work. Try again, or sign in with your password."
 }

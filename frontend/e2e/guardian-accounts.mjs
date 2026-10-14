@@ -80,6 +80,7 @@ await r.locator('form input[type="text"]').first().fill('Young Person');
 await r.locator('form input[type="email"]').fill(`young-${Date.now()}@example.org`);
 await r.locator('form input[inputmode="numeric"]').fill(String(year - 12));
 await r.locator('form input[type="password"]').fill('a-strong-passw0rd!');
+await r.locator('form input[name="accept_terms"]').check(); // the terms box (2026-10-14)
 await r.locator('form button[type="submit"]').click();
 await r.locator('.error.guardian').waitFor({ timeout: 15000 });
 check(

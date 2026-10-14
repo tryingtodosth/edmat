@@ -136,7 +136,8 @@ export const authStore = {
 		email: string,
 		password: string,
 		preferredLocale: string,
-		birthYear?: number
+		birthYear: number | undefined,
+		acceptTerms: boolean
 	): Promise<{ ok: true } | { ok: false; error: string }> {
 		try {
 			const res = await apiClient.post<{ token: string; profile: RawProfile }>('/auth/register/', {
@@ -146,7 +147,10 @@ export const authStore = {
 				display_name: displayName,
 				preferred_locale: preferredLocale,
 				// Asked to branch on the consent age, never stored (AUDIENCE-BRIEF.md §2).
-				birth_year: birthYear
+				birth_year: birthYear,
+				// The terms of use (/terms). Registration with acceptance concludes the contract, so
+				// the backend refuses anything but `true` with reason `terms_required`.
+				accept_terms: acceptTerms
 			});
 			tokenStore.set(res.token);
 			user = mapUser(res.profile);
@@ -158,6 +162,14 @@ export const authStore = {
 		} catch (e) {
 			if (e instanceof ApiError && e.body && typeof e.body === 'object' && 'birth_year' in e.body) {
 				return { ok: false, error: 'guardianRequired' };
+			}
+			if (
+				e instanceof ApiError &&
+				e.body &&
+				typeof e.body === 'object' &&
+				'accept_terms' in e.body
+			) {
+				return { ok: false, error: 'termsRequired' };
 			}
 			if (e instanceof ApiError && e.body && typeof e.body === 'object' && 'email' in e.body) {
 				return { ok: false, error: 'emailTaken' };
@@ -185,6 +197,19 @@ export const authStore = {
 		// and the local session is already cleared above regardless of whether this call succeeds;
 		// invalidating the token server-side is a courtesy, not something the UI needs to wait on.
 		if (hadToken) apiClient.post('/auth/logout/').catch(() => {});
+	},
+
+	/** Takes over a session the server has already granted by another door than login/register —
+	 * "Sign in with Google / Apple / Microsoft" (`lib/services/sso.ts`), whose done and complete
+	 * pages receive the same `{token, profile}` LoginView returns. The same four syncs as login(). */
+	adoptSession(token: string, raw: RawProfile): void {
+		tokenStore.set(token);
+		user = mapUser(raw);
+		audienceFilterStore.syncFromProfile(user.audienceFilter);
+		contentLocalesStore.syncFromProfile(user.contentLocales);
+		editorPrefsStore.syncFromProfile(user.editorMode);
+		a11yPrefsStore.syncFromProfile(user.textSize, user.highContrast);
+		markResolved();
 	},
 
 	/** PATCH /api/auth/me/ — self-service display name / locale / privacy / notification-preference

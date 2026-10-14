@@ -87,17 +87,17 @@ taxonomy. An untracked `backend/classroom/` directory may still exist on disk �
 frontend/  SvelteKit 2 + Svelte 5 runes + TS, adapter-static (SPA fallback), Paraglide i18n
              routes/ + components  →  lib/services/*.ts  →  lib/api/client.ts  →  HTTP
                    (never fetch)         (the only seam)      (the only fetch())
-backend/   Django 5.2 + DRF, SQLite, 40 local apps + config/ + testing/ + imaging.py
+backend/   Django 5.2 + DRF, SQLite, 43 local apps + config/ + testing/ + imaging.py
              views  →  <app>/services.py or a rule module  →  models
 deploy/    Apache vhosts + the webek4 / edmat.net runbooks
 Database-of-Student-Exercise/   the retired static site, kept only as corpus provenance
 ```
 
-The 40 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
+The 43 apps: `taxonomy` `exercises` `materials` `community` `moderation` `study` `accounts`
 `notifications` `services` `messaging` `issues` `legal` `chem` `galleries` `telemetry` `identity`
 `courses` `booking` `activity` `events` `coauthoring` `materials_coop` `concepts` `sketches` `venues` `documents`
 `shifts` `cloakroom` `organizations` `tasks` `needs` `plans` `decisions` `work` `goals` `flashcards`
-`provenance` `translations` `attachments` `contests`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
+`provenance` `translations` `attachments` `contests` `mail` `analytics` `sso`. Each has its own `CLAUDE.md`. `venues` `documents` `shifts` `cloakroom` are the conference layer
 (`CONFERENCE-BRIEF.md`, 2026-09-23), each hung off `events.Event` by a row of its own so that
 `events` kept its schema while seven branches were built at once. The last six — `organizations` `tasks` `needs` `plans` `decisions` `work` — are the
 management layer (`MANAGEMENT-BRIEF.md`, 2026-09-24), each hanging its rows off a course, an event, a
@@ -126,6 +126,25 @@ results with a complaints window, a versioned regulamin, and ten presets derived
 no draw is representable anywhere). A contest is a **node**, so tasks, plans, goals, needs, polls,
 attachments, decks and a discussion hang off it; `contests/personalize.py` turns a preset into those
 rows through the other apps' own paths. Founding one is the fifth `config/creation.py` kind.
+
+**`mail`** (2026-10-14) is `no-reply@edmat.net` on OVH's MX Plan: every outgoing message is a row
+(`OutboundEmail` — the queue AND the log, sent after the commit in a thread, retried by a five-minute
+cron), the inbox is copied read-only over IMAP (`InboundEmail`, text only), and on top of that sit
+email confirmation, the real password reset and an opt-in hourly notification digest. The superuser —
+not staff — reads both lists in `/moderation` → Mail. **The log never holds a working link**: a
+confirmation or reset body is stored with `[[link]]` and the link is built at send time.
+
+**`analytics`** and **`sso`** (2026-10-14, `HISTORY.md` §17CJ, `ANALYTICS-LAW.md`). `analytics` is the
+consent-free usage statistics behind `/moderation` → Analytics → `/moderation/analytics`: a nightly
+`rollup_analytics` RECOUNTS the request-log shards into aggregate tables that hold no IP, UA string or
+user id, people-counts under 10 read "<10", minors are excluded, `Sec-GPC`/`DNT` requests are skipped
+(an art. 21 objection), aggregates die at 25 months. **Nothing is ever collected in the browser** — a
+beacon or a visitor id would need consent under PKE art. 399; read `ANALYTICS-LAW.md` §3 before adding
+any metric. `sso` is sign-in with Google / Apple / Microsoft (OIDC + PKCE, identity keyed on provider +
+issuer + subject, **never linked by email**, the age gate shared with registration through
+`accounts/minors.py: self_registration_refusal`); a provider shows only when configured in the
+environment AND the `social_login` flag is on. Every door into an account records the terms through
+`legal/terms.py` (`legal.TermsAcceptance`, append-only).
 
 **Two boundaries are load-bearing and everything else follows from them:**
 
@@ -167,8 +186,8 @@ Learn these five and most of the schema reads itself.
   (and a request for it comes back 400 with the reason — house rule 10). A status people can set by
   hand is a status that stops meaning anything.
 - **A feature surface gets a `FeatureFlag` kill switch**, checked through `feature_gate('<key>')`
-  with an `is_staff` bypass. Thirty-seven exist today (counted against `/api/feature-flags/` on the dev
-  database, 2026-10-09 evening — this number had drifted twice before, so count it rather than increment it,
+  with an `is_staff` bypass. Thirty-eight exist today (counted with `FeatureFlag.objects.count()` on the dev
+  database, 2026-10-14, with `social_login` and `contests` both applied — this number had drifted twice before, so count it rather than increment it,
   which is how the "thirty-three" that preceded "thirty-four" turned out to be two short rather than one) — `exercise_submissions` `material_submissions`
   `tutoring` `messaging` `courses` `events` `posts` `issues` `galleries` `chemistry`
   `age_verification` `coauthoring` `concepts` `sketches` and the six conference switches
@@ -188,7 +207,8 @@ Learn these five and most of the schema reads itself.
   and `/about`, the "Serves: …" line leaves every task and plan, and the thread under a goal closes
   with it) and `attachments` (0052, attachments on anything — `attachments/`; off, every
   `/api/<kind>/<id>/attachments/` closes for a non-staff caller, the panel leaves every page it is
-  mounted on, and "Attach something" goes with it) and `contests` (0053, contests — `contests/`;
+  mounted on, and "Attach something" goes with it) and `social_login` (0054, sign-in with an external provider — `sso/`; with no credentials configured
+it shows nothing anyway) and `contests` (0053, contests — `contests/`;
   off, every `/api/contests/…` and `/api/contest-presets/` closes for a non-staff caller, the hub,
   the Add… entry, the account-menu item, the work-dashboard sections and the feed rows go with it,
   while a contest node's tasks, plans and goals stay reachable by id for its staff, because those
@@ -350,13 +370,17 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /api/creation/ /api/users/{id}/learning-record/ /api/courses/{id}/completions/  the creation gate, the learning record, certificates
 /api/ai-assistance/ /api/ai-assistance/{kind}/{id}/{vote,author-mark,lock}/   the "AI-assisted" mark (provenance/)
 /api/text-versions/{kind}/{id}/                                       one management row's text in every language at once
-/api/{kind}/{id}/attachments/ /api/attachments/{id}/{file,acknowledge,replace,withdraw,receipts}/  attachments on any of ten kinds
+/api/{kind}/{id}/attachments/ /api/attachments/{id}/{file,acknowledge,replace,withdraw,receipts}/  attachments on any of eleven kinds (a poll joined 2026-10-10)
 /api/contests/ /api/contest-presets/ /api/contests/{id}/{announce,stages,registrations,results,complaints,rules,compliance}/  contests (CONTESTS-BRIEF.md)
 /api/contest-stages/{id}/{problems,submission,submit,submissions,ranking,open,close,advance}/  a stage, from both sides of the desk
 /api/sketches/ /api/chem-drawings/ /api/inline-images/                 pictures embedded in content
 /api/discussions/ /api/discussions/thread/ /api/discussion-locations/  talk under a standing page — or under a task, a plan, a need or a poll (`tasks/17` as the page; `?keys=` for a whole board)
 /api/locale-hint/                                                     first-visit language (pl unless the IP is abroad)
 /api/auth/{register,login,logout,me,password-reset}/                 DRF TokenAuthentication
+/api/auth/{confirm-email,confirm-email/resend,password-reset/confirm,me/mail}/   mail (backend/mail/)
+/api/mail/{status,outbound,outbound/{id}/retry,test,inbound,inbound/fetch}/  the Mail tab, SUPERUSER only
+/api/analytics/{overview,traffic,content,community,moderation,coverage,cohorts,health,…}/  usage statistics, STAFF only
+/api/auth/sso/{providers,<p>/start,<p>/callback,exchange,ticket,complete,identities}/  sign-in with Google / Apple / Microsoft
 ```
 
 - **Public GET, owner-scoped writes.** Reads are open where the content is public; writes are scoped
@@ -389,8 +413,11 @@ reader's languages and says how many it left out (`X-EdMat-Hidden-Languages`, ex
 /messages … /notifications /activity /posts/[id]              inbox + feed
 /my-set /sets/[id] /submit /submit-material /search           study + contribute
 /settings /settings/profile /users/[id] /login /register      account
+/forgot-password /reset-password /confirm-email                 the links in the mail (query-string tokens)
 /moderation /legal/queue /issues                              staff + reports
-/privacy /legal /levels                                       standing pages
+/privacy /terms /legal /levels                                standing pages
+/moderation/analytics                                         usage statistics (staff)
+/auth/sso/done /auth/sso/complete                              the provider sign-in's return and signup pages
 /about                                                        the project itself: the EdMat organisation's page (goals, needs, open board), the research thread, the showcase index
 /about/<feature> /about/guide /about/guide/[chapter]          the design showcase (sample data) and the manual
 ```
@@ -451,9 +478,9 @@ features that share a word and answer to two different flags (`volunteering` and
 
 Long-standing, still true. Feature-level gaps live in each `HISTORY.md` section's own "Left open".
 
-- **No email backend.** This blocks password reset (an honest stub), any notify-by-email preference,
-  an anonymous DSA filer's follow-up, and a guardian resetting a child's password. One
-  `EMAIL_BACKEND` unblocks all of them.
+- **Email exists since 2026-10-14** (`mail/`), and password reset, confirmation and the notification
+  digest use it. Still not built on it: an anonymous DSA filer's follow-up, a guardian resetting a
+  child's password by mail (a child has no address), bounce handling, a change-of-address flow.
 - **No CI**, and nothing exercises a clean-clone install — which is exactly how the requirements
   files drifted unnoticed.
 - **No frontend unit test suite.** Verification is `npm run check` plus the browser scripts in

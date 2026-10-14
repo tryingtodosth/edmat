@@ -15,6 +15,9 @@ Models: `School` (23 seeded institutions: `email_domains`, grade scale, `usos_ba
 - `blockers_for()` computes draft-vs-live from `settings.EDMAT_OAUTH_CLIENTS` — configuring a
   real client id/secret is what stops the UI calling a provider a draft. **No hardcoded copy to
   edit**; a test pins that the state is computed, not asserted.
+- **The real sign-in lives in `sso/`** (Google, Apple, Microsoft, since 2026-10-14). Once `sso/`
+  has a provider enabled (configured + `social_login` on), `all_states()` drops that provider's
+  draft card, so /login never shows a working button and a draft of the same thing side by side.
 
 ## USOS (`usos.py`)
 

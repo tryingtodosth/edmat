@@ -29,7 +29,7 @@ class RegisterViewTests(APITestCase):
     def test_registering_creates_a_real_user_and_returns_a_token(self):
         response = self.client.post(
             reverse('auth-register'),
-            {'username': 'newperson', 'email': 'newperson@example.com', 'password': 'a-real-password'},
+            {'username': 'newperson', 'email': 'newperson@example.com', 'password': 'a-real-password', 'accept_terms': True},
             format='json',
         )
 
@@ -38,13 +38,26 @@ class RegisterViewTests(APITestCase):
         user = User.objects.get(username='newperson')
         self.assertTrue(Token.objects.filter(user=user, key=response.data['token']).exists())
 
+    def test_registering_without_accepting_the_terms_is_refused_and_creates_nobody(self):
+        # The reason code is the contract with the register form (house rule 6); the detailed
+        # acceptance tests live in legal/tests.py.
+        response = self.client.post(
+            reverse('auth-register'),
+            {'username': 'noterms', 'email': 'noterms@example.com', 'password': 'a-real-password'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data['accept_terms'][0].code, 'terms_required')
+        self.assertFalse(User.objects.filter(username='noterms').exists())
+
     def test_duplicate_email_is_rejected(self):
         make_user('existing')
         User.objects.filter(username='existing').update(email='taken@example.com')
 
         response = self.client.post(
             reverse('auth-register'),
-            {'username': 'someoneelse', 'email': 'taken@example.com', 'password': 'a-real-password'},
+            {'username': 'someoneelse', 'email': 'taken@example.com', 'password': 'a-real-password', 'accept_terms': True},
             format='json',
         )
 

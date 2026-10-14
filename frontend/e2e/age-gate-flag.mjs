@@ -83,6 +83,7 @@ await field(p1, /Display name|Nazwa/).fill(`Gate Kid ${s1}`);
 await field(p1, /E-?mail/i).fill(`gatekid${s1}@example.org`);
 await field(p1, BIRTH).fill(String(YEAR - 12));
 await field(p1, /Password|Hasło/).fill('a-strong-passw0rd!');
+await p1.locator('form input[name="accept_terms"]').check(); // the terms box (2026-10-14)
 await p1.locator('form button.submit').click();
 await p1
 	.locator('p.error.guardian')
@@ -170,6 +171,7 @@ const s2 = Date.now();
 await field(p2, /Display name|Nazwa/).fill(`Gate Kid ${s2}`);
 await field(p2, /E-?mail/i).fill(`gatekid${s2}@example.org`);
 await field(p2, /Password|Hasło/).fill('a-strong-passw0rd!');
+await p2.locator('form input[name="accept_terms"]').check(); // the terms box (2026-10-14)
 await p2.locator('form button.submit').click();
 await p2.waitForURL((u) => !u.pathname.includes('/register'), { timeout: 20000 }).catch(() => null);
 check(

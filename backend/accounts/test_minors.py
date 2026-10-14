@@ -43,7 +43,7 @@ class RegistrationRuleTests(APITestCase):
 
     def test_under_sixteen_cannot_self_register_and_the_year_is_not_stored(self):
         year = timezone.now().year
-        body = {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12}
+        body = {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12, 'accept_terms': True}
         r = self.client.post(reverse('auth-register'), body, format='json')
         self.assertEqual(r.status_code, 400)
         self.assertIn('guardian_required', str(r.json()))
@@ -69,7 +69,7 @@ class RegistrationAgeGateFlagTests(APITestCase):
 
     def test_an_under_sixteen_can_self_register_while_the_gate_is_off(self):
         year = timezone.now().year
-        body = {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12}
+        body = {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12, 'accept_terms': True}
 
         r = self.client.post(reverse('auth-register'), body, format='json')
 
@@ -80,7 +80,7 @@ class RegistrationAgeGateFlagTests(APITestCase):
 
     def test_the_year_may_also_be_omitted_entirely_while_the_gate_is_off(self):
         # What the frontend actually sends once the field has left the form.
-        body = {'username': 'nobirthyear', 'email': 'nb@example.org', 'password': 'a-strong-passw0rd!'}
+        body = {'username': 'nobirthyear', 'email': 'nb@example.org', 'password': 'a-strong-passw0rd!', 'accept_terms': True}
 
         r = self.client.post(reverse('auth-register'), body, format='json')
 
@@ -92,7 +92,7 @@ class RegistrationAgeGateFlagTests(APITestCase):
 
         r = self.client.post(
             reverse('auth-register'),
-            {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12},
+            {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12, 'accept_terms': True},
             format='json',
         )
 
@@ -107,7 +107,7 @@ class RegistrationAgeGateFlagTests(APITestCase):
 
         r = self.client.post(
             reverse('auth-register'),
-            {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12},
+            {'username': 'young', 'email': 'young@example.org', 'password': 'a-strong-passw0rd!', 'birth_year': year - 12, 'accept_terms': True},
             format='json',
         )
 

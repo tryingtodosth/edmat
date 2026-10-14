@@ -2656,6 +2656,38 @@ after the second. It withdraws both attachments at the end and asserts they are 
 
 Screenshots: `e2e/screens/attachments-list.png`, `attachments-warn1.png`, `attachments-warn2.png`.
 
+### `frontend/e2e/needs-content-management.mjs` — 26 checks, zero page errors
+
+```bash
+cd frontend
+E2E_BASE=http://localhost:5173 E2E_API=http://127.0.0.1:8000/api \
+  E2E_NEED=13 E2E_ORG=3 E2E_TASK=13 E2E_PLAN=24 E2E_POLL=8 \
+  E2E_OWNER_TOKEN=<token of somebody who MANAGES the edmat organisation> \
+  node e2e/needs-content-management.mjs
+```
+
+Content management on the board rows (`HISTORY.md` §17CG). `E2E_OWNER_TOKEN` is required for the
+same reason as the script above (`e2e/CLAUDE.md` trap 32), and the assertions read **Polish** copy,
+because `pl` is the base locale (trap 24).
+
+The check that matters most is the **reload**: it edits a need's title, description and wanted count
+in one submission through the real `⋯`, then reloads and asserts the title is still the new one.
+Until 2026-10-10 a plain edit of a translated row wrote a column `translations.resolve` never reads,
+so the save came back correct in its own response and changed nothing a reader would see — a test
+that only re-read the row through the same request would have passed. It also asserts the English
+translation was **left alone** and reported as older, that the description is rendered (KaTeX in it),
+that a `.md` attached to the need becomes rendered text, that a goal card on a board draws a
+**deferred** panel which fetches only on the click that opens it, and that the task, plan and poll
+pages each carry one.
+
+It writes its own goal (the dev database has none, and a check that passes on an empty board is
+trap 8), and everything it touches is restored in a `catch`/cleanup rather than on the happy path —
+two early runs threw at a locator and left the need holding scratch text, and the next run then
+"restored" it to that.
+
+Screenshots: `e2e/screens/needs-edit-form.png`, `needs-attachments.png`, `needs-goal-attachments.png`,
+`needs-poll-attachments.png`.
+
 ### The absorb command
 
 ```bash
@@ -2817,3 +2849,82 @@ its servers are on. `e2e/contests-personalise.mjs` founds its contest through th
 runs after the merge, now against the real `apply_preset`; `seed_contest_demo` on the integrated
 tree is the quickest proof the two halves met — its report lists the plan, goal, tasks, needs and
 poll it created.
+
+## Mail — `no-reply@edmat.net` (`mail/`, 2026-10-14, `HISTORY.md` §17CI)
+
+**Backend, `manage.py test mail` — 21 tests.** Under the test runner the transport is `locmem` and
+delivery happens inside the commit hook (`EDMAT_MAIL_DELIVER_INLINE`), so a test wraps the request in
+`captureOnCommitCallbacks(execute=True)` and reads `django.core.mail.outbox`. They pin: register →
+one confirmation message → its link confirms; a tampered token → 400 `invalid`; confirmation lapses
+when the address changes; resend → 409 once confirmed; an unknown and a known address get the SAME
+reset answer; a reset link works once, refuses a weak password with the validator's reason, deletes
+every API token and confirms the address; **the logged body of a reset/confirm holds `[[link]]` and
+no token**; a failed send is recorded and retried by `drain()`; a row is claimed once; a row stuck in
+`sending` is picked up; mail sent around the queue is logged as `direct`; the digest needs opt-in, a
+confirmed address and an hour, and never mails the backlog; the Mail-tab endpoints answer 401/403/403/
+200 for anonymous/user/staff/superuser; lists leave bodies out; retry only a failed row; fetch without
+a password → 503 `not_configured`; the IMAP fetch (a fake server that asserts `readonly=True` and
+`BODY.PEEK`) stores decoded headers, HTML reduced to text with the `<script>` gone, attachment names
+only, and is incremental.
+
+**Against the real mailbox** (not a test — a command): `manage.py mail_check` logs in to SMTP and IMAP
+and sends nothing; `--send-to ADDRESS` sends one message. With the password in the environment for
+one command (`EDMAT_MAIL_PASSWORD=… manage.py mail_check --send-to no-reply@edmat.net`, then
+`manage.py mail_cron`) the message goes out through OVH and comes back over IMAP.
+
+**Browser, `e2e/mail.mjs` — 23 checks.** Forgotten password from `/login` → neutral answer → the reset
+link → a used link refused → old password dead, new one works; Settings → E-mail: a completed reset
+left the address confirmed, the digest switch survives a reload; an unconfirmed address → "send the
+link again" → `/confirm-email` → confirmed; a tampered link refused; the superuser's Mail tab: the
+orange "not sending" status, rows, a reset body showing `[[link]]` and no token, "fetch" without a
+password says why; a plain account sees neither the tab nor the panel at `?tab=mail`; zero page
+errors. The links are read from the **backend's stdout** (the console transport prints them), so
+`E2E_BACKEND_LOG` must name the file `run.sh`'s output went to. The script's header has the one-line
+reset to run before every run (un-confirm the superuser, clear the throttles) and the two accounts it
+needs on the dev database.
+
+On a machine without Chromium's system libraries (no `libatk`, `libgbm`, …) and no sudo: `apt-get
+download` the packages, `dpkg-deb -x` them into a directory and run with `LD_LIBRARY_PATH` pointing
+at its `usr/lib/x86_64-linux-gnu` — how this script was run on 2026-10-14.
+
+## Sign in with Google / Apple / Microsoft (`sso/`, 2026-10-14)
+
+**`manage.py test sso` — 94 tests**, keys generated per run (RSA for id_tokens, EC P-256 for Apple's
+client secret); only `sso/http.py` is mocked. State forged / expired / reused / for another provider,
+cancel, provider error, the token request's redirect_uri + PKCE verifier; id_token nonce, audience,
+issuer, expiry, issued-too-long-ago, foreign signing key, unknown `kid` (one refetch), `alg: none`,
+HS256-with-the-public-key, multiple audiences without `azp`; signup ticket (browser key, single use,
+expiry, terms, under-16, age question required while asked, username rules, email taken meanwhile),
+`email_in_use` never adopts, login code (single use, wrong tab, expiry, hashed, inactive), link /
+unlink (wrong account, already linked elsewhere, last way in, audit row), the identity key
+(provider, issuer, subject — Google's two issuer spellings, Microsoft tenants, tid/oid), Microsoft
+verified-email rules and tenant modes, Apple form_post + ES256 secret, the flag off, unconfigured
+providers, the dev-stub guard (incl. settings refusing to load with DEBUG off, in a subprocess),
+purge, and the SSO-only password reset.
+
+**Browser, `e2e/sso.mjs` — 27 checks, zero page errors**, against `e2e/sso-stub.mjs` (a local OIDC
+stand-in on :8049 that signs RS256 tokens, echoes the nonce, checks PKCE, and form-POSTs for Apple).
+The buttons on /login and /register (and the identity-app drafts for Google/Apple gone), a first
+Google sign-in → /auth/sso/complete (under-16 and missing-terms refusals, then success, landing on
+`?next=`), Settings → Sign-in methods (last-way-in refusal, link Microsoft, unlink Google), a second
+sign-in as a plain login, Apple → `email_in_use`, cancel, and a forwarded done-link opened in another
+browser → `code_invalid`. Run it against THROWAWAY data — it creates accounts. How it was run:
+
+```bash
+S=<scratch dir>; cp backend/db.sqlite3 $S/db.sqlite3; cp backend/logdata/*.sqlite3 $S/logdata/
+# a settings shim: `from config.settings import *; DATABASES['default']['NAME'] = '$S/db.sqlite3'`
+# migrate the copy and every log shard (--database logs_0 … logs_anon), then:
+EDMAT_LOG_DIR=$S/logdata EDMAT_CACHE_DIR=$S/cache DJANGO_SETTINGS_MODULE=<shim> \
+  DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:5192 EDMAT_SITE_URL=http://localhost:5192 \
+  EDMAT_SSO_DEV_STUB_URL=http://localhost:8049 \
+  EDMAT_SSO_GOOGLE_CLIENT_ID=x EDMAT_SSO_GOOGLE_CLIENT_SECRET=x \
+  EDMAT_SSO_MICROSOFT_CLIENT_ID=x EDMAT_SSO_MICROSOFT_CLIENT_SECRET=x \
+  EDMAT_SSO_APPLE_CLIENT_ID=x EDMAT_SSO_APPLE_TEAM_ID=x EDMAT_SSO_APPLE_KEY_ID=x \
+  EDMAT_SSO_APPLE_PRIVATE_KEY_PATH=<any EC P-256 .p8> ../.venv/bin/python3 manage.py runserver 8042
+node e2e/sso-stub.mjs
+PUBLIC_API_BASE_URL=http://localhost:8042/api npx vite dev --port 5192   # env beats frontend/.env
+CHROME=… E2E_BASE=http://localhost:5192 node e2e/sso.mjs
+```
+
+A private `EDMAT_CACHE_DIR` matters: the signup is throttled as `register` (10/hour) in the shared
+file cache, and a third run in an hour otherwise fails at "Create account" with a 429 (trap 1).

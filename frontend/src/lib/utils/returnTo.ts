@@ -45,3 +45,18 @@ export function takeReturnTo(current: URL): string {
 	if (isSafePath(remembered)) return remembered;
 	return '/';
 }
+
+/** The same answer as `takeReturnTo`, without forgetting it — for "Sign in with Google / Apple /
+ * Microsoft", which carries the destination through the provider round trip (the backend keeps it
+ * on the attempt) and lets the done page take it at the end (`lib/services/sso.ts`). */
+export function peekReturnTo(current: URL): string {
+	const explicit = current.searchParams.get('next');
+	if (isSafePath(explicit) && !isAuthPage(explicit)) return explicit;
+	try {
+		const remembered = sessionStorage.getItem(KEY);
+		if (isSafePath(remembered)) return remembered;
+	} catch {
+		/* see above */
+	}
+	return '/';
+}

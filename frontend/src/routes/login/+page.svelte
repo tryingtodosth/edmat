@@ -8,6 +8,7 @@
 	import { notificationStore } from '$lib/state/notifications.svelte';
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import ProviderButtons from '$lib/components/auth/ProviderButtons.svelte';
+	import SsoButtons from '$lib/components/auth/SsoButtons.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 
 	afterNavigate((nav) => rememberReturnTo(nav.from?.url));
@@ -59,6 +60,8 @@
 		{/if}
 
 		<button type="submit" class="submit" disabled={submitting}>{m.auth_login_submit()}</button>
+		<a class="forgot" href={resolve('/forgot-password')}>{m.mail_forgot_link()}</a>
+		<!-- "Forgotten your password?" -->
 	</form>
 
 	<!-- The note is blank in both locales on this deployment: a live public site should not publish
@@ -75,6 +78,7 @@
 	<!-- Below the real form, not above it: the working way in should be the first thing on the
 	     page, and a row of drafts sitting on top of it would put the unfinished half first. -->
 	<div class="divider"><span>{m.auth_providers_divider()}</span></div>
+	<SsoButtons />
 	<ProviderButtons />
 
 	<p class="switch">
@@ -123,6 +127,11 @@
 	}
 	.submit {
 		@include mix.button-primary;
+	}
+	.forgot {
+		align-self: center;
+		font-size: var(--font-size-sm);
+		color: var(--accent);
 	}
 	.demo-note {
 		font-size: var(--font-size-xs);

@@ -26,6 +26,9 @@
 	<p class="policy__cta">
 		<a href={resolve('/legal/notice')}>{page.noticeLinkLabel}</a>
 	</p>
+	<p class="policy__terms">
+		<a href={resolve('/terms')}>{page.termsLinkLabel}</a>
+	</p>
 
 	{#each page.sections as section (section.heading)}
 		<section class="policy__section">
@@ -54,6 +57,9 @@
 	.policy__cta {
 		margin: var(--space-4) 0 var(--space-5);
 		font-weight: 600;
+	}
+	.policy__terms {
+		margin: calc(-1 * var(--space-3)) 0 var(--space-5);
 	}
 	.policy__section {
 		margin-top: var(--space-5);

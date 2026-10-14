@@ -35,6 +35,11 @@ bleach>=6.1,<7.0
 # the standard library offers an authenticated cipher, and hand-rolling one is the classic way to
 # end up with something that looks encrypted and is not.
 cryptography>=42.0,<52.0
+# sso/tokens.py — verifying the id_token Google, Apple and Microsoft sign (RS256 against each
+# provider's published JWKS), and signing Apple's ES256 client-secret JWT. The reference JWT
+# library; the `[crypto]` extra is the `cryptography` above, so it adds no second crypto stack.
+# Checking a JWT signature by hand is exactly the kind of code that looks right and is not.
+PyJWT[crypto]>=2.8,<3.0
 
 # Optional (activates with EDMAT_REDIS_URL): shared cache/throttle counters, anonymous-read
 # response caching, and pub/sub notification push. Without the env var nothing imports it at
