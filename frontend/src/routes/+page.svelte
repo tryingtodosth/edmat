@@ -54,6 +54,7 @@
 	import ConceptCard from '$lib/components/concept/ConceptCard.svelte';
 	import { getConcepts } from '$lib/services/concepts';
 	import type { ConceptListRow } from '$lib/types/concept';
+	import StartHere from '$lib/components/home/StartHere.svelte';
 
 	type TabId =
 		'exercises' | 'materials' | 'branches' | 'concepts' | 'tutoring' | 'events' | 'activity';
@@ -262,6 +263,11 @@
 		<div class="hero__audience"><AudienceChips /></div>
 		<HiddenLanguagesNotice path="/exercises/" />
 	</section>
+
+	<!-- Three doors for somebody who does not know yet what this site is: the five-minute chapter,
+	     the showcase, or straight in. Static, prerendered with the hero, and dismissible (it can only
+	     collapse after paint, never appear). See the component. -->
+	<StartHere />
 
 	<!-- `tabindex="-1"` on the list itself, with the roving tabindex living on the tabs: the container
 	     must be focusable for the keydown handler to be a legitimate place to put one, but focus should

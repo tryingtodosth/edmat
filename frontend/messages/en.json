@@ -5245,5 +5245,15 @@
 	"accountMenu_groupLearning": "Learning",
 	"accountMenu_groupTakingPart": "Taking part",
 	"accountMenu_groupTogether": "Working together",
-	"accountMenu_help": "Help & manual"
+	"accountMenu_help": "Help & manual",
+	"startHere_label": "Where to start",
+	"startHere_guideKicker": "New here?",
+	"startHere_guideLink": "Read the 5-minute guide",
+	"startHere_showcaseKicker": "Curious first?",
+	"startHere_showcaseLink": "See what EdMat can do",
+	"startHere_tryKicker": "Rather dive in?",
+	"startHere_tryLink": "Just try it: pick a discipline",
+	"startHere_hide": "Hide these suggestions",
+	"startHere_footerManual": "Manual",
+	"startHere_mySetLoading": "Loading the exercises in your set…"
 }

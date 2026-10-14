@@ -56,7 +56,13 @@
 		return (TAB_IDS as readonly string[]).includes(wanted ?? '') ? (wanted as TabId) : 'all';
 	});
 
-	const canCreate = $derived(creationStore.allows('contest'));
+	// `allows()` is TRUE for a signed-out reader by design (creation.svelte.ts: the `…/new` page
+	// answers them with a sign-in prompt), so the header button must ask about the session itself,
+	// as /events and /organizations do. Without this a signed-out reader saw "New contest" in the
+	// header while the empty state below it, which asks the session, offered a sign-in link —
+	// found by the empty-states pass. Signed out, the header shows nothing; the empty state (or
+	// the header's own Log in) is the door to an account.
+	const canCreate = $derived(authStore.isAuthenticated && creationStore.allows('contest'));
 
 	// Keyed on the filters AND on who is asking: a session resolving later changes what `mine`
 	// can answer at all (frontend/CLAUDE.md trap 3 — `onMount` reads the flag exactly once).

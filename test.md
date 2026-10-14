@@ -3076,3 +3076,36 @@ before reading it; without that, two runs each lost a different `/contests` chec
 E2E_BASE=http://localhost:5198 E2E_API=http://127.0.0.1:8048 E2E_ALLOWED_TOKEN=<kasia's token> \
   CHROME=<chrome-headless-shell> node e2e/empty-states.mjs
 ```
+
+## Where to start, the manual in the footer, three small fixes (`ux/wp2-start-here`, 2026-10-14)
+
+### `frontend/e2e/home-start.mjs` — 57 checks, zero page errors
+
+`lib/components/home/StartHere.svelte` under the homepage hero, the footer's "Manual" link, and three
+fixes the empty-states pass found — in **both** interface languages (English through `english.mjs`,
+Polish as the default). It writes nothing to the backend.
+
+- **The band is in the HTML:** `GET /` (the dev server's SSR, which is what the prerender produces)
+  carries `data-start-here` and all three doors. Its distance to the tab strip is measured at first
+  paint (`waitUntil: 'commit'`) and after hydration and must not change, and the first row of
+  exercises must still start above the fold at 1280×800.
+- **The doors land:** "guide" on `/about/guide/start` (not the "no chapter under that address"
+  line), "showcase" on `/about`, "try" on `/disciplines`, each by a real click in a fresh tab — one
+  tab for the whole chain crashed Chromium on `/about`'s weight (trap 3).
+- **Dismissal:** "×" removes it and writes `edmat.startHere.hidden=1`, a reload keeps it gone,
+  removing the key brings it back.
+- **The footer** says "Manual" / "Podręcznik" and opens `/about/guide`.
+- **Fix (a):** signed out, `/contests` has no "New contest" in its header. With `E2E_TOKEN` (kasia's,
+  read as trap 30 describes) it is drawn exactly when `GET /api/creation/` allows a contest.
+- **Fix (b):** `/concepts` at 390 px — the Tag select, whose longest option in the dev database is
+  44 characters, ends inside the window, and the page has no horizontal scroll.
+- **Fix (c):** `/my-set` with three ids in the guest set and `/api/exercises/bulk/` held back
+  1.5 s by `page.route`: a `MutationObserver` installed before the first byte records whether the
+  empty state was EVER drawn (it must not be), the skeleton is, and then exactly three items. A fresh
+  context with no set still draws the empty state and no skeleton.
+- Screenshots at 1280 and 390, light and dark, in `e2e/screenshots/home-start-*.png`. Look at them.
+
+```bash
+E2E_BASE=http://localhost:5201 E2E_API=http://127.0.0.1:8051 E2E_TOKEN=<kasia's token> \
+  CHROME=<chrome-headless-shell> node e2e/home-start.mjs
+```

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import { resolve } from '$app/paths';
 	import type { ExerciseSet, ExerciseSetItemOptions, ResolvedExercise } from '$lib/types';
 	import { m } from '$lib/paraglide/messages.js';
@@ -11,6 +12,7 @@
 	import { createDeckFromExercises } from '$lib/services/flashcards';
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
 	import EmptyState from '$lib/components/shared/EmptyState.svelte';
+	import Loading from '$lib/components/shared/Loading.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -117,8 +119,24 @@
 		return payload;
 	}
 
+	// Whether the first fetch of the set's exercises has answered. The ids are in localStorage and
+	// known at once, but the exercises behind them arrive after the page draws — and until this was
+	// tracked, `exercises.length === 0` was true for that moment, so a set WITH items flashed "your
+	// set is empty" before its list appeared (found by the empty-states pass). Only the FIRST load:
+	// removing one item reloads too, and a skeleton flashing over a list that is about to lose one
+	// row would be its own flicker. `finally`, so a failed fetch still ends the wait rather than
+	// leaving a skeleton up for ever.
+	// Off the browser (the dev server's SSR pass) the guest set cannot be read at all, so "empty"
+	// is not known there either — the skeleton, not the empty state, is the honest first frame.
+	let exercisesKnown = $state(false);
+	const awaitingExercises = $derived(!exercisesKnown && (!browser || guestSetStore.ids.length > 0));
+
 	async function reload() {
-		exercises = await getExercisesByIds(guestSetStore.ids, getLocale());
+		try {
+			exercises = await getExercisesByIds(guestSetStore.ids, getLocale());
+		} finally {
+			exercisesKnown = true;
+		}
 	}
 
 	async function loadSavedSets() {
@@ -295,7 +313,16 @@
 
 	<div class="print-area">
 		<h2 class="print-only">{m.myset_printTitle()}</h2>
-		{#if exercises.length === 0}
+		{#if awaitingExercises}
+			<div class="no-print">
+				<Loading
+					variant="list"
+					count={Math.min(guestSetStore.ids.length, 5)}
+					label={m.startHere_mySetLoading()}
+				/>
+				<!-- "Loading the exercises in your set…" -->
+			</div>
+		{:else if exercises.length === 0}
 			<div class="no-print">
 				<EmptyState
 					name="my-set"

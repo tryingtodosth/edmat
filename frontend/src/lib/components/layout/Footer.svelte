@@ -36,6 +36,10 @@
 			<!-- The landing page. First in the row: "what is this?" comes before "what does it store?". -->
 			<a href={resolve('/about')}>{m.footer_about()}</a>
 			<!-- "About EdMat" -->
+			<!-- The manual, right after "what is this?": "how do I use it?". Never gated — a chapter about a
+			     switched-off feature says so itself, and the manual is a standing page like /about. -->
+			<a href={resolve('/about/guide')} data-footer-manual>{m.startHere_footerManual()}</a>
+			<!-- "Manual" -->
 			<a href={resolve('/privacy')}>{m.footer_privacy()}</a>
 			<!-- The terms of use, next to the privacy policy: the pair every account agrees to / is told. -->
 			<a href={resolve('/terms')}>{m.footer_terms()}</a>

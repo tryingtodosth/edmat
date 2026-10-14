@@ -265,15 +265,23 @@
 		flex-wrap: wrap;
 		align-items: flex-end;
 	}
+	// `max-width` on the field AND the control: a <select> is as wide as its longest option, and
+	// a long tag made the Tag select run off the right edge of a 390px screen. Capping the field
+	// at its row and the control at its field lets the select shrink and the browser truncate the
+	// visible option instead; the dropdown itself still shows each tag in full.
 	.field {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
 		font-size: var(--font-size-sm);
+		min-width: 0;
+		max-width: 100%;
 
 		input,
 		select {
 			@include mix.focus-ring;
+			max-width: 100%;
+			min-width: 0;
 			font: inherit;
 			padding: var(--space-2);
 			border: 1px solid var(--border-color);

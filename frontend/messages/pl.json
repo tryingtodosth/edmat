@@ -5245,5 +5245,15 @@
 	"accountMenu_groupLearning": "Uczę się",
 	"accountMenu_groupTakingPart": "Biorę udział",
 	"accountMenu_groupTogether": "Współpracuję",
-	"accountMenu_help": "Pomoc i instrukcja"
+	"accountMenu_help": "Pomoc i instrukcja",
+	"startHere_label": "Od czego zacząć",
+	"startHere_guideKicker": "Pierwszy raz tutaj?",
+	"startHere_guideLink": "Przewodnik na 5 minut",
+	"startHere_showcaseKicker": "Najpierw się rozejrzeć?",
+	"startHere_showcaseLink": "Zobacz, co potrafi EdMat",
+	"startHere_tryKicker": "Wolisz od razu spróbować?",
+	"startHere_tryLink": "Po prostu wybierz dziedzinę",
+	"startHere_hide": "Ukryj te podpowiedzi",
+	"startHere_footerManual": "Podręcznik",
+	"startHere_mySetLoading": "Wczytujemy zadania z Twojego zestawu…"
 }
