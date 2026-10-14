@@ -48,7 +48,7 @@ POST /api/auth/sso/<p>/start/ {intent: login|link, next}  → {authorization_url
 GET  /api/auth/sso/<p>/callback/   (POST for Apple: response_mode=form_post)   → 302 to the SPA:
    known (provider, issuer, sub)          → /auth/sso/done?code=…        (2 min, single use)
    intent=link                            → /auth/sso/done?code=…        (attached on redemption)
-   unknown, an account has that email     → /auth/sso/done?error=email_in_use
+   unknown, an account has that email     → /auth/sso/link?ticket=…      (prove it — see below)
    unknown, new email                     → /auth/sso/complete?ticket=…  (30 min, single use)
    anything wrong                         → /auth/sso/done?error=<word>&provider=<p>
 POST /api/auth/sso/exchange/ {code, browser_key}           → {kind:'login', token, profile, next}
@@ -74,10 +74,10 @@ GET  /api/auth/sso/identities/ · DELETE …/identities/<id>/ → Settings → S
    For Microsoft multi-tenant, `iss` names the person's tenant and `sub` is pairwise per app, so
    the pair is the documented stable key; `tid` and `oid` are stored too. Google's two issuer
    spellings are normalised to one (`GoogleProvider.identity_key`).
-4. **Never auto-link by email** — not even a verified one. An unknown identity whose email an
-   account already uses is refused with `email_in_use`: sign in with the password, then link from
-   Settings, which proves holding both. A `link` is attached only on redemption by the SAME
-   signed-in account that pressed Link (`wrong_account` otherwise).
+4. **Never silently link by email** — not even a verified one. An unknown identity whose email an
+   account already uses gets **confirm-and-link** (below): the match only PROPOSES; the person proves
+   the account. A Settings `link` is attached only on redemption by the SAME signed-in account that
+   pressed Link (`wrong_account` otherwise).
 5. **Single use is one WHERE-anchored `update()`** — status + expiry (+ browser key) in the WHERE —
    for attempts, codes and tickets (`backend/CLAUDE.md`, SQLite rule 1). A wrong-method callback
    (GET for Apple) is refused WITHOUT consuming the attempt.
@@ -92,6 +92,38 @@ GET  /api/auth/sso/identities/ · DELETE …/identities/<id>/ → Settings → S
    (`is_minor`) cannot start a link (403 `minor`), and has no email to sign up with.
 10. **Terms**: `accept_terms` must be `true` (`terms_required`, the word /register uses), and
     `legal.terms.record_acceptance(user, via='sso:<provider>')` writes the row.
+
+## Confirm-and-link (owner's "A", 2026-10-14; `LINKING-AND-ERRORS.md` §2.4)
+
+The callback finds exactly one account with the provider's address → an `SsoLinkTicket` (target
+account fixed, provider identity, 30 min, single use, browser-key bound, stored hashed) →
+`/auth/sso/link?ticket=…`. Two proofs, each offered only when it can work:
+
+- **(a) the account's password** — `POST /api/auth/sso/link/password/`, throttled like /login
+  (`LoginRateThrottle`, per IP) and five wrong passwords kill the ticket (`too_many_attempts`).
+  Not offered to an account with no usable password.
+- **(b) a link to the account's address** — `POST /api/auth/sso/link/email/` (throttle
+  `mail_resend`), **only when that address is confirmed** (`mail.ConfirmedEmail`): an unconfirmed
+  address was never proven by anybody (pre-hijack attack 1). The mail (`OutboundEmail.KIND_SSO_LINK`)
+  is logged with `[[link]]`; `mail.build_link` asks `mail_link_token(user)` at send time for a token
+  SIGNED with the server key over `{ticket pk, nonce}` — a fresh nonce per press, so only the newest
+  link works. Redeemed at `POST …/link/email/confirm/ {token, browser_key}` and **only in the browser
+  that started** (`link_other_browser`): otherwise somebody signing in with a provider identity that
+  carries YOUR address could get you to click the confirmation and own a way into your account. The
+  SPA copies the round trip's key to localStorage when the mail is requested, because a mail client
+  opens a new tab (new sessionStorage); it is removed once used.
+
+Neither proof → the old `email_in_use` (the done page points at "Forgotten your password?"). Two
+accounts sharing the address (legacy) → `email_in_use`, no proposal. A child's or any
+guardian-managed account (`guardian_managed`: `is_minor` or an unrevoked `Guardianship` as child) →
+`minor`, checked at the callback AND again at the proof. Inactive → `account_inactive`. **A provider
+that did not verify the address may still link with a proof** — the proof is about the EdMat
+account; the provider's say-so adds nothing to it. Success: `SsoIdentity` created (keyed as always on
+provider + issuer + subject), audit row, the same `{token, profile, next}` as login in the POST body,
+and **rule 5: every link — here or from Settings — mails the account** (`KIND_SSO_LINKED`, only to a
+confirmed address) naming the provider and how to disconnect. What the page reveals: which proofs
+exist (whether the account has a password, whether its address is confirmed) — the price of offering
+them; never the username or display name.
 
 ## Email: verified or not
 
@@ -123,7 +155,7 @@ GET  /api/auth/sso/identities/ · DELETE …/identities/<id>/ → Settings → S
 - **The `identity/` draft cards step aside** for any provider enabled here
   (`identity/providers.py: all_states`), so /login never shows a working Google button and a draft
   one side by side.
-- **Retention**: attempts 10 min, codes 2 min, tickets 30 min; `purge()` deletes rows an hour past
+- **Retention**: attempts 10 min, codes 2 min, signup and link tickets 30 min; `purge()` deletes rows an hour past
   expiry, run on every `start` and by `manage.py sso_purge` (put it in cron beside `mail_cron`).
   A ticket holds an email and a name for somebody who may never finish — that is why it is short.
 - **Throttles**: `sso_start` 30/h, `sso_callback` 60/h, `sso_exchange` 60/h (exchange + ticket),

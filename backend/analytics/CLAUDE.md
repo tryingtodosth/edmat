@@ -27,8 +27,8 @@ the security log statistically.
 - **No visitor identifier, ever.** Distinct ANONYMOUS visitors are not counted, because counting
   them needs a fingerprint (`telemetry.tests.test_no_visitor_fingerprint`; ANALYTICS-LAW.md §3 row
   11 is class C). Do not add a hashed-IP "unique visitors" figure.
-- **No client-side beacon.** Nothing in the browser exists for analytics — no cookie, no storage, no
-  script. Web Vitals would need consent (class C); speed is measured server-side only.
+- **No client-side beacon for analytics.** Nothing in the browser exists for analytics — no cookie, no
+  storage, no script (the error reporter below is not analytics and sends only on a crash). Web Vitals would need consent (class C); speed is measured server-side only.
 - **`Sec-GPC: 1` / `DNT: 1` is an Art. 21 objection**: `RequestLog.analytics_opt_out`, set by
   `telemetry/middleware.py`, and every rollup skips those rows (they are only counted as "excluded").
   `views.HealthView` is the one reader of raw rows that includes them — it is the security/operations
@@ -43,7 +43,19 @@ the security log statistically.
   request log is what spam and scam handling runs on. The GPC/DNT objection is honoured for
   STATISTICS only; it never touches the security log, which anti-abuse reads. Keep the two apart in
   any wording: "left out of the statistics", never "not logged".
-- **No client-side error beacon** (ANALYTICS-LAW.md §3 row 8 is class B): undecided by the owner, not built.
+- **The browser error beacon is the ONE thing that starts in the browser** (built 2026-10-14, owner-
+  approved on the condition: no cookie, nothing stored on the device, no banner; ANALYTICS-LAW.md §3
+  row 8, LINKING-AND-ERRORS.md §3.3). `client_errors.py` is the contract: `POST /api/client-errors/`
+  (`ingest.py`, no authentication class at all, `client_error` throttle 30/h per IP, 8 KB, always 204),
+  the field allowlist re-applied server-side, URLs in stacks cut to their path, route TEMPLATES only,
+  browser family derived and the UA dropped, `Sec-GPC`/`DNT` dropped, kill switch `client_errors`.
+  Tables `ClientErrorGroup` / `DailyClientError` / `ClientErrorReport`: no IP, UA, account or page
+  address (`test_client_errors.NoPersonalColumnTests`). The column is `signature`, never
+  `fingerprint` — a hash of the ERROR, the same for everybody, and the banned word stays banned.
+  `DailyClientError.count` is the one INCREMENTED counter here: there is nothing to recount it from.
+  Retention 30 days (reports, capped at 20 per group per day) / 90 days (counts, groups), purged by
+  `rollup_analytics`. Errors are not people, so nothing in `/api/analytics/client-errors/` is
+  k-suppressed. Still no Web Vitals, no breadcrumbs, no user id — each would move it to class C.
 - **k = 10** (`privacy.K_ANONYMITY`): counts of PEOPLE (active accounts, registrations, guardian
   accounts, funnel, cohort cells and sizes, client families) leave the API as `null` when 1–9, drawn
   "<10"; a rate only when both its counts would be shown; a referrer host seen fewer than 10 times is
@@ -80,7 +92,7 @@ the security log statistically.
 
 ## API
 
-`/api/analytics/{overview,traffic,content,community,moderation,coverage,cohorts,clients,health}/?days=7|30|90|365`
+`/api/analytics/{overview,traffic,content,community,moderation,coverage,cohorts,clients,health,client-errors}/?days=7|30|90|365`
 (default 30, anything else 400 `days_not_allowed`), `POST /api/analytics/recompute/` (yesterday +
 today). **Staff only** (`is_staff`): 401 anonymous, 403 otherwise — the Mail tab's shape. A node
 governor is not staff.

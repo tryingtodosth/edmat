@@ -1309,6 +1309,8 @@ class FeatureFlagTests(ApiTestCase):
                 'attachments',
                 # Sign in with Google / Apple / Microsoft, migration 0054 (`sso/`, 2026-10-14).
                 'social_login',
+                # Browser error reports, migration 0055 (`analytics/client_errors.py`, 2026-10-14).
+                'client_errors',
                 'material_uploads_verified_only',
             },
         )
@@ -1344,6 +1346,8 @@ class FeatureFlagTests(ApiTestCase):
                     # And social_login, 0054: with no client id in the environment there is no
                     # button to show, so seeding it on changes nothing until credentials exist.
                     'social_login',
+                    # And client_errors, 0055: the beacon was owner-approved on the day it landed.
+                    'client_errors',
                     # And the learning cycle's two plain switches, 0047: there is no deck and no
                     # shared learning record on the platform the moment it runs, so seeding them
                     # on removes nothing from anybody.

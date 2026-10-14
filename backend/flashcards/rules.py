@@ -145,13 +145,19 @@ def my_study_decks(user):
     NOT `visible_decks`: that includes every world-readable deck on the site, and a due list is a
     list of work waiting for *me*. A public deck somebody has never opened owes them nothing; one
     they have started has a `ReviewState` and appears here because of it.
+
+    "Where they study" is **membership** (`is_node_member`), not `can_view_node`: a deck placed on a
+    public course is studyable by anybody who can see the course, but it is only work waiting for
+    the people taking it. With `can_view_node` here a brand-new account was told "3 cards waiting
+    across 1 deck" on `/flashcards` while owning no deck at all (found 2026-10-14 by the
+    empty-states pass) — the deck of a public course it had never joined.
     """
     if not _authenticated(user):
         return Deck.objects.none()
     placed_ids = [
         placement.deck_id
         for placement in _resolved_placements(DeckPlacement.objects.all())
-        if node_seam.can_view_node(user, placement.node)
+        if node_seam.is_node_member(user, placement.node)
     ]
     started_ids = list(
         ReviewState.objects.filter(user=user).values_list('card__deck_id', flat=True).distinct()

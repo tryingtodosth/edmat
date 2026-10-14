@@ -37,7 +37,8 @@
 		project = null,
 		busy = false,
 		onsubmit = undefined,
-		headingLevel = 3
+		headingLevel = 3,
+		onsourcechange = undefined
 	}: {
 		/** `create` asks for the branch and the language too; `edit` cannot move a project. */
 		mode: 'create' | 'edit';
@@ -48,6 +49,8 @@
 		/** `h2` when this sits straight under the page's `h1`; `h3` inside a section (axe
 		 * `heading-order`: a level may not be skipped). */
 		headingLevel?: 2 | 3;
+		/** Told whether a source URL is filled in — the new-project page's licence suggestion. */
+		onsourcechange?: (hasSource: boolean) => void;
 	} = $props();
 
 	let disciplines = $state<Discipline[]>([]);
@@ -76,6 +79,7 @@
 	let author = $state(project?.author ?? '');
 	// svelte-ignore state_referenced_locally
 	let sourceUrl = $state(project?.sourceUrl ?? '');
+	$effect(() => onsourcechange?.(Boolean(sourceUrl.trim())));
 	// Text, never `type="number"` — Svelte 5 binds a real number there and every `.trim()` below
 	// would throw on first submit (frontend/CLAUDE.md trap 1, hit four times on this project).
 	// svelte-ignore state_referenced_locally

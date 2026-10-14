@@ -29,7 +29,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from accounts import erasure
 from accounts.models import AccountErasure, Guardianship, Profile
 from telemetry.routers import all_log_shards, shard_for_user
-from testing.factories import make_branch, make_exercise, make_user, make_viewer
+from testing.factories import make_branch, make_exercise, make_material, make_user, make_viewer
 
 User = get_user_model()
 PASSWORD = 'testpass123'
@@ -590,3 +590,82 @@ class RetentionTests(_Base):
         self.assertFalse(OutboundEmail.objects.filter(pk=sent.pk).exists())
         self.assertTrue(OutboundEmail.objects.filter(pk=waiting.pk).exists())
         self.assertEqual(enforce()['content_views'], 0)
+
+
+# ---- 8. the choice about content that is not openly licensed (owner, 2026-10-14) -------------------
+
+class WithdrawableContentTests(_Base):
+    """`edmat-only` / `unknown` content: the person chooses keep or remove. Openly licensed content
+    always stays (a CC grant cannot be revoked); a co-authored item stays whatever the choice."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = make_user('ola')
+        branch = make_branch()
+        self.mine = make_exercise(branch, 1)  # edmat-only, the default
+        self.open = make_exercise(branch, 2)
+        self.corpus = make_exercise(branch, 3)
+        apps.get_model('exercises', 'Exercise').objects.filter(pk__in=[self.mine.pk, self.open.pk, self.corpus.pk]).update(submitted_by=self.user)
+        apps.get_model('exercises', 'Exercise').objects.filter(pk=self.open.pk).update(licence='cc-by-sa-4.0')
+        apps.get_model('exercises', 'Exercise').objects.filter(pk=self.corpus.pk).update(licence='unknown')
+        # A co-authored material: somebody else's published version is in it.
+        from coauthoring.models import MaterialProject, MaterialVersion
+
+        self.material = make_material(branch)
+        apps.get_model('materials', 'Material').objects.filter(pk=self.material.pk).update(submitted_by=self.user)
+        project = MaterialProject.objects.create(material=self.material, branch=branch, created_by=self.user)
+        MaterialVersion.objects.create(project=project, number=1, title='v1', file='m/v1.pdf',
+                                       created_by=make_viewer('coauthor'), status='published')
+
+    def _published(self, obj):
+        return type(obj).objects.get(pk=obj.pk).published
+
+    def test_the_plan_counts_what_each_answer_would_touch(self):
+        self.sign_in(self.user)
+        r = self.client.get('/api/auth/me/erasure/')
+        self.assertEqual(r.data['withdrawable'], {'removable': 2, 'shared': 1})
+
+    def test_the_question_has_no_default_answer(self):
+        r = self.ask(self.user)
+        self.assertEqual((r.status_code, r.data['reason']), (400, 'choice_required'))
+        self.sign_in(self.user)
+        r = self.client.post('/api/auth/me/erasure/', {'password': PASSWORD, 'username': 'ola', 'withdrawable_content': 'maybe'}, format='json')
+        self.assertEqual((r.status_code, r.data['reason']), (400, 'choice_invalid'))
+
+    def _erase_with(self, choice):
+        self.sign_in(self.user)
+        r = self.client.post('/api/auth/me/erasure/', {'password': PASSWORD, 'username': 'ola', 'withdrawable_content': choice}, format='json')
+        self.assertEqual(r.status_code, 202)
+        self.assertEqual(AccountErasure.objects.get(user=self.user).withdrawable_content, choice)
+        erasure.run_due(ignore_grace=True, only_user_id=self.user.pk)
+
+    def test_keep_leaves_everything_published_without_the_name(self):
+        self._erase_with('keep')
+        self.assertTrue(self._published(self.mine))
+        self.assertTrue(self._published(self.corpus))
+        self.assertEqual(type(self.mine).objects.get(pk=self.mine.pk).submitted_by_id, self.user.pk)
+
+    def test_remove_hides_only_what_can_be_taken_back(self):
+        self._erase_with('remove')
+        self.assertFalse(self._published(self.mine))     # edmat-only: hidden, row kept
+        self.assertFalse(self._published(self.corpus))   # unknown: follows the choice
+        self.assertTrue(self._published(self.open))      # CC: cannot be revoked
+        self.assertTrue(self._published(self.material))  # co-authored: somebody else's work is in it
+
+    def test_a_guardians_delete_removes(self):
+        guardian = make_user('mama')
+        Guardianship.objects.create(guardian=guardian, child=self.user)
+        self.user.profile.is_minor = True
+        self.user.profile.save()
+        self.sign_in(guardian)
+        self.assertEqual(self.client.delete(f'/api/auth/children/{self.user.pk}/').status_code, 202)
+        self.assertEqual(AccountErasure.objects.get(user=self.user).withdrawable_content, 'remove')
+
+    def test_a_minor_is_refused_server_side_with_the_reason(self):
+        self.user.profile.is_minor = True
+        self.user.profile.save()
+        self.sign_in(self.user)
+        self.assertEqual(self.client.get('/api/auth/me/erasure/').data['refusal'], 'guardian_managed')
+        r = self.client.post('/api/auth/me/erasure/', {'password': PASSWORD, 'username': 'ola', 'withdrawable_content': 'keep'}, format='json')
+        self.assertEqual((r.status_code, r.data['reason']), (400, 'guardian_managed'))
+        self.assertFalse(AccountErasure.objects.filter(user=self.user).exists())

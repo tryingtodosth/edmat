@@ -11,7 +11,9 @@
 //     EDMAT_SSO_GOOGLE_CLIENT_ID/_CLIENT_SECRET, EDMAT_SSO_MICROSOFT_CLIENT_ID/_CLIENT_SECRET,
 //     EDMAT_SSO_APPLE_CLIENT_ID/_TEAM_ID/_KEY_ID/_PRIVATE_KEY_PATH (any EC P-256 key file)
 //
-// Run: CHROME=… E2E_BASE=http://localhost:5192 E2E_SHOTS=/tmp/shots node e2e/sso.mjs
+// Run: CHROME=… E2E_BASE=http://localhost:5192 E2E_SHOTS=/tmp/shots \
+//        E2E_BACKEND_LOG=<the file the backend prints to; PYTHONUNBUFFERED=1> node e2e/sso.mjs
+import { readFileSync } from 'node:fs';
 import { englishContext } from './english.mjs';
 
 let chromium;
@@ -22,6 +24,9 @@ try {
 }
 const BASE = process.env.E2E_BASE ?? 'http://localhost:5192';
 const SHOTS = process.env.E2E_SHOTS ?? '/tmp';
+// The backend's stdout: with no mail password the console transport prints every message there,
+// which is where the mailed confirm-and-link link is read from (as e2e/mail.mjs does).
+const LOG = process.env.E2E_BACKEND_LOG;
 const RUN = Date.now().toString(36);
 const PERSON = { email: `sso-${RUN}@example.com`, sub: `sub-${RUN}`, username: `sso_${RUN}` };
 
@@ -203,26 +208,77 @@ await page.waitForURL((u) => !u.pathname.startsWith('/auth/sso') && !u.hostname.
 });
 check('signed in again with the same token', (await token()) === firstToken);
 
-// ---- 6. Apple (form_post) with an email an account already has → email_in_use ------------------------
-console.log('Apple form_post → email_in_use');
+// ---- 6. confirm-and-link: an address an account already has (LINKING-AND-ERRORS.md §2.4) ------------
+console.log('Apple (form_post) onto an existing address → prove it with the password');
 await page.evaluate(() => localStorage.removeItem('edmat-auth-token'));
 await bootAt('/login');
 await viaStub('Sign in with Apple', { email: PERSON.email, sub: `apple-${RUN}` });
-await page.getByTestId('sso-error').waitFor();
+await page.waitForURL(/\/auth\/sso\/link\?ticket=/);
+await page.getByTestId('sso-link-intro').waitFor();
 check(
-	'refused as email_in_use',
-	(await page.getByTestId('sso-error').getAttribute('data-code')) === 'email_in_use'
+	'the link page names the provider',
+	(await page.getByTestId('sso-link-intro').innerText()).includes('Apple')
 );
 check(
-	'says how to link instead',
-	(await page.getByTestId('sso-error').innerText()).includes('Settings')
+	'both proofs are offered (password set, address confirmed)',
+	(await page.getByTestId('sso-link-password').count()) === 1 &&
+		(await page.getByTestId('sso-link-email').count()) === 1
 );
+check('nothing signed in yet', !(await token()));
+await page.screenshot({ path: `${SHOTS}/sso-link.png`, fullPage: true });
+await page.fill('[data-testid=sso-link-password] input[name=password]', 'not-the-password');
+await page.getByRole('button', { name: 'Connect and sign in' }).click();
+await page.getByText("That is not this account's password.").waitFor();
+check('a wrong password is refused with its reason', !(await token()));
+await page.fill('[data-testid=sso-link-password] input[name=password]', 'Sso-first-Passw0rd!');
+await page.getByRole('button', { name: 'Connect and sign in' }).click();
+await page.waitForURL((u) => !u.pathname.startsWith('/auth/sso'), { timeout: 20000 });
 check(
-	'offers the password reset',
-	(await page.getByRole('link', { name: 'Forgotten your password?' }).count()) === 1
+	'the right password connects Apple and signs in to the same account',
+	(await token()) === firstToken
 );
-check('not signed in', !(await token()));
-await page.screenshot({ path: `${SHOTS}/sso-email-in-use.png`, fullPage: true });
+
+console.log('Facebook onto an existing address → prove it with a mailed link');
+await page.evaluate(() => localStorage.removeItem('edmat-auth-token'));
+await bootAt('/login');
+await viaStub('Continue with Facebook', { email: PERSON.email, sub: `fbl-${RUN}` });
+await page.getByTestId('sso-link-email').waitFor();
+const logBefore = LOG ? readFileSync(LOG, 'utf8').length : 0;
+await page.getByRole('button', { name: 'Email me a link' }).click();
+await page.getByTestId('sso-link-mail-sent').waitFor();
+check(
+	'the page says the link was sent',
+	(await page.getByTestId('sso-link-mail-sent').innerText()).includes(PERSON.email)
+);
+await page.screenshot({ path: `${SHOTS}/sso-link-mail-sent.png`, fullPage: true });
+let mailed = '';
+for (let i = 0; i < 40 && !mailed; i++) {
+	await page.waitForTimeout(250);
+	const fresh = LOG ? readFileSync(LOG, 'utf8').slice(logBefore) : '';
+	mailed = (fresh.match(/https?:\/\/\S+\/auth\/sso\/link\?mail=\S+/) ?? [''])[0];
+}
+check('the mail carries the link (console transport)', !!mailed, 'set E2E_BACKEND_LOG');
+// Opened in ANOTHER browser — the mailbox owner tricked into clicking it: nothing is connected.
+const stranger = await englishContext(browser, BASE, { viewport: { width: 1100, height: 900 } });
+const strangerPage = await stranger.newPage();
+await strangerPage.goto(mailed, { waitUntil: 'load' });
+await strangerPage.getByTestId('sso-error').waitFor();
+check(
+	'another browser gets link_other_browser',
+	(await strangerPage.getByTestId('sso-error').getAttribute('data-code')) === 'link_other_browser'
+);
+await strangerPage.screenshot({ path: `${SHOTS}/sso-link-other-browser.png`, fullPage: true });
+await stranger.close();
+// Opened in a new tab of THIS browser (how a mail client opens it): connected and signed in.
+const tab = await ctx.newPage();
+await tab.goto(mailed, { waitUntil: 'load' });
+await tab.waitForURL((u) => !u.pathname.startsWith('/auth/sso'), { timeout: 20000 });
+check(
+	'the mailed link connects Facebook and signs in',
+	(await tab.evaluate(() => localStorage.getItem('edmat-auth-token'))) === firstToken
+);
+await tab.close();
+await page.evaluate(() => localStorage.removeItem('edmat-auth-token'));
 
 // ---- 7. cancel at the provider ------------------------------------------------------------------------
 console.log('cancel');

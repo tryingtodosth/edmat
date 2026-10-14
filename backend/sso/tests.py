@@ -31,7 +31,7 @@ from moderation.models import FeatureFlag
 from telemetry.routers import all_log_shards
 
 from . import providers, services
-from .models import SsoAttempt, SsoIdentity, SsoLoginCode, SsoSignupTicket
+from .models import SsoAttempt, SsoIdentity, SsoLinkTicket, SsoLoginCode, SsoSignupTicket
 
 FRONT = 'http://front.test'
 API = 'http://api.test/api'
@@ -522,9 +522,9 @@ class SignupTests(SsoTestCase):
     def test_an_email_already_on_an_account_is_never_adopted(self):
         existing = User.objects.create_user('ala-old', 'ALA@example.com', 'a-long-Passw0rd!')
         where, query, key = self.full()
-        self.assertEqual(where, f'{FRONT}/auth/sso/done')
-        self.assertEqual(query['error'], 'email_in_use')
-        self.assertEqual(query['provider'], 'google')
+        # Not adopted: PROPOSED — the person must prove the account (LinkConfirmTests).
+        self.assertEqual(where, f'{FRONT}/auth/sso/link')
+        self.assertIn('ticket', query)
         self.assertFalse(SsoIdentity.objects.exists())
         self.assertFalse(SsoSignupTicket.objects.exists())
         self.assertFalse(SsoLoginCode.objects.filter(user=existing).exists())
@@ -983,7 +983,7 @@ class GitHubTests(OAuth2TestCase):
     def test_an_email_already_on_an_account_is_never_adopted(self):
         User.objects.create_user('old', 'ala@example.com', 'a-long-Passw0rd!')
         where, query, key = self.oauth_full('github')
-        self.assertEqual(query['error'], 'email_in_use')
+        self.assertEqual(where, f'{FRONT}/auth/sso/link')
         self.assertFalse(SsoIdentity.objects.exists())
 
     def test_a_refused_code_answered_with_http_200_is_a_provider_error(self):
@@ -1075,7 +1075,10 @@ class FacebookTests(OAuth2TestCase):
     def test_an_email_already_on_an_account_is_never_adopted(self):
         User.objects.create_user('old', 'ALA@example.com', 'a-long-Passw0rd!')
         where, query, key = self.oauth_full('facebook')
-        self.assertEqual(query['error'], 'email_in_use')
+        # Facebook never vouches for the address; the proof is about the EdMat account, so the
+        # link is still offered — with the same proof as any other provider.
+        self.assertEqual(where, f'{FRONT}/auth/sso/link')
+        self.assertFalse(SsoIdentity.objects.exists())
 
     def test_graph_version_override_and_its_guard(self):
         conf = {**SSO_CONFIG, 'facebook': {**SSO_CONFIG['facebook'], 'graph_version': 'v26.0'}}
@@ -1084,3 +1087,246 @@ class FacebookTests(OAuth2TestCase):
         conf['facebook']['graph_version'] = '../evil'
         with override_settings(EDMAT_SSO=conf):
             self.assertIn('/v25.0/', providers.FACEBOOK.endpoint('token'))
+
+
+
+# ---- confirm-and-link (LINKING-AND-ERRORS.md §2.4) -----------------------------------------------------
+
+class LinkConfirmTests(SsoTestCase):
+    PASSWORD = 'a-long-Passw0rd!'
+
+    def setUp(self):
+        super().setUp()
+        from mail.models import ConfirmedEmail
+
+        self.user = User.objects.create_user('ala-old', 'ALA@example.com', self.PASSWORD)
+        ConfirmedEmail.objects.create(user=self.user, email=self.user.email)
+
+    def link_ticket(self, **overrides):
+        where, query, key = self.full(**overrides)
+        self.assertEqual(where, f'{FRONT}/auth/sso/link', query)
+        return query['ticket'], key
+
+    def post(self, path, body):
+        return self.client.post(f'/api/auth/sso/link/{path}/', body, format='json')
+
+    def mail_token(self):
+        """The link as it is actually SENT (built at send time), read from the outbox."""
+        import re
+
+        body = django_mail.outbox[-1].body
+        return parse_qs(urlparse(re.search(r'https?://\S+', body).group(0)).query)['mail'][0]
+
+    # -- the page ------------------------------------------------------------------------------------
+
+    def test_the_ticket_names_the_proofs_and_needs_the_tab_key(self):
+        ticket, key = self.link_ticket()
+        res = self.post('ticket', {'ticket': ticket, 'browser_key': key})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['methods'], ['password', 'email'])
+        self.assertEqual(res.data['provider'], 'google')
+        # Nothing about the account beyond what the person already typed into the provider.
+        self.assertNotIn('username', res.data)
+        self.assertNotIn('display_name', res.data)
+        self.assertEqual(self.post('ticket', {'ticket': ticket, 'browser_key': 'other'}).status_code, 400)
+
+    # -- proof (a): the password -----------------------------------------------------------------------
+
+    def test_the_right_password_links_signs_in_audits_and_mails(self):
+        from mail.models import OutboundEmail
+        from telemetry.models import AuditEvent
+        from telemetry.routers import all_log_shards
+
+        ticket, key = self.link_ticket()
+        with self.captureOnCommitCallbacks(execute=True):
+            res = self.post('password', {'ticket': ticket, 'browser_key': key, 'password': self.PASSWORD})
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['profile']['id'], self.user.pk)
+        self.assertIn('token', res.data)
+        self.assertEqual(res.data['next'], '/exercises/1')
+        identity = SsoIdentity.objects.get()
+        self.assertEqual((identity.user, identity.provider, identity.issuer, identity.subject),
+                         (self.user, 'google', 'https://accounts.google.com', 'google-subject-1'))
+        # Rule 5: the account is told.
+        notice = OutboundEmail.objects.get(kind=OutboundEmail.KIND_SSO_LINKED)
+        self.assertEqual(notice.to, self.user.email)
+        self.assertIn('Google', notice.subject)
+        self.assertEqual(len(django_mail.outbox), 1)
+        audited = sum(AuditEvent.objects.using(db).filter(target_type='sso_identity').count() for db in all_log_shards())
+        self.assertEqual(audited, 1)
+        # And from now on Google simply signs this account in.
+        where, query, key2 = self.full()
+        self.assertEqual(self.exchange(query['code'], key2).data['profile']['id'], self.user.pk)
+
+    def test_a_wrong_password_links_nothing_and_five_kill_the_ticket(self):
+        ticket, key = self.link_ticket()
+        for _ in range(5):
+            res = self.post('password', {'ticket': ticket, 'browser_key': key, 'password': 'nope'})
+            self.assertEqual(res.data['detail'], 'password_wrong')
+        res = self.post('password', {'ticket': ticket, 'browser_key': key, 'password': self.PASSWORD})
+        self.assertEqual(res.data['detail'], 'too_many_attempts')
+        self.assertFalse(SsoIdentity.objects.exists())
+
+    def test_the_ticket_is_single_use_and_expires(self):
+        ticket, key = self.link_ticket()
+        self.assertEqual(self.post('password', {'ticket': ticket, 'browser_key': key, 'password': self.PASSWORD}).status_code, 200)
+        again = self.post('password', {'ticket': ticket, 'browser_key': key, 'password': self.PASSWORD})
+        self.assertEqual(again.data['detail'], 'ticket_invalid')
+        SsoIdentity.objects.all().delete()
+        ticket, key = self.link_ticket()
+        SsoLinkTicket.objects.filter(status='pending').update(expires_at=timezone.now() - timedelta(seconds=1))
+        res = self.post('password', {'ticket': ticket, 'browser_key': key, 'password': self.PASSWORD})
+        self.assertEqual(res.data['detail'], 'ticket_invalid')
+
+    def test_another_tab_cannot_use_the_ticket(self):
+        ticket, key = self.link_ticket()
+        res = self.post('password', {'ticket': ticket, 'browser_key': 'forwarded', 'password': self.PASSWORD})
+        self.assertEqual(res.data['detail'], 'ticket_invalid')
+        self.assertFalse(SsoIdentity.objects.exists())
+
+    def test_an_account_without_a_password_offers_only_the_mail(self):
+        self.user.set_unusable_password()
+        self.user.save()
+        SsoIdentity.objects.create(user=self.user, provider='microsoft', issuer='x', subject='m')
+        ticket, key = self.link_ticket()
+        self.assertEqual(self.post('ticket', {'ticket': ticket, 'browser_key': key}).data['methods'], ['email'])
+        res = self.post('password', {'ticket': ticket, 'browser_key': key, 'password': ''})
+        self.assertEqual(res.data['detail'], 'method_unavailable')
+
+    # -- proof (b): a link to the confirmed address ------------------------------------------------------
+
+    def test_the_mailed_link_links_in_the_starting_browser_only(self):
+        from mail.models import OutboundEmail
+
+        ticket, key = self.link_ticket()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.post('email', {'ticket': ticket, 'browser_key': key}).status_code, 202)
+        self.assertEqual(django_mail.outbox[0].to, ['ALA@example.com'])
+        self.assertIn('Google', django_mail.outbox[0].subject)
+        token = self.mail_token()
+        # The log never holds a working link: the stored body carries the marker, not the token.
+        row = OutboundEmail.objects.get(kind=OutboundEmail.KIND_SSO_LINK)
+        self.assertIn(OutboundEmail.LINK_MARKER, row.body)
+        self.assertNotIn(token, row.body)
+        # Clicked in some other browser (the mailbox owner tricked into it): nothing is linked.
+        res = self.post('email/confirm', {'token': token, 'browser_key': 'a-different-browser'})
+        self.assertEqual(res.data['detail'], 'link_other_browser')
+        self.assertFalse(SsoIdentity.objects.exists())
+        # In the browser that started: linked and signed in, once.
+        with self.captureOnCommitCallbacks(execute=True):
+            res = self.post('email/confirm', {'token': token, 'browser_key': key})
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertEqual(res.data['profile']['id'], self.user.pk)
+        self.assertEqual(SsoIdentity.objects.get().user, self.user)
+        self.assertEqual(OutboundEmail.objects.filter(kind=OutboundEmail.KIND_SSO_LINKED).count(), 1)
+        again = self.post('email/confirm', {'token': token, 'browser_key': key})
+        self.assertEqual(again.data['detail'], 'link_invalid')
+
+    def test_only_the_newest_mailed_link_works(self):
+        ticket, key = self.link_ticket()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.post('email', {'ticket': ticket, 'browser_key': key})
+        first = self.mail_token()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.post('email', {'ticket': ticket, 'browser_key': key})
+        second = self.mail_token()
+        self.assertNotEqual(first, second)
+        self.assertEqual(self.post('email/confirm', {'token': first, 'browser_key': key}).data['detail'], 'link_invalid')
+        self.assertEqual(self.post('email/confirm', {'token': second, 'browser_key': key}).status_code, 200)
+
+    def test_a_forged_or_expired_mail_token_is_refused(self):
+        ticket, key = self.link_ticket()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.post('email', {'ticket': ticket, 'browser_key': key})
+        token = self.mail_token()
+        self.assertEqual(self.post('email/confirm', {'token': token + 'x', 'browser_key': key}).data['detail'], 'link_invalid')
+        SsoLinkTicket.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
+        self.assertEqual(self.post('email/confirm', {'token': token, 'browser_key': key}).data['detail'], 'link_invalid')
+
+    def test_an_unconfirmed_address_gets_no_mail_option(self):
+        from mail.models import ConfirmedEmail
+
+        ConfirmedEmail.objects.all().delete()
+        ticket, key = self.link_ticket()
+        self.assertEqual(self.post('ticket', {'ticket': ticket, 'browser_key': key}).data['methods'], ['password'])
+        with self.captureOnCommitCallbacks(execute=True):
+            res = self.post('email', {'ticket': ticket, 'browser_key': key})
+        self.assertEqual(res.data['detail'], 'method_unavailable')
+        self.assertEqual(len(django_mail.outbox), 0)
+
+    def test_no_password_and_no_confirmed_address_is_still_the_old_refusal(self):
+        from mail.models import ConfirmedEmail
+
+        ConfirmedEmail.objects.all().delete()
+        self.user.set_unusable_password()
+        self.user.save()
+        where, query, key = self.full()
+        self.assertEqual(query['error'], 'email_in_use')
+        self.assertFalse(SsoLinkTicket.objects.exists())
+
+    # -- who is never linked ----------------------------------------------------------------------------------
+
+    def test_a_childs_account_is_refused_with_its_own_reason(self):
+        self.user.profile.is_minor = True
+        self.user.profile.save()
+        where, query, key = self.full()
+        self.assertEqual(query['error'], 'minor')
+        self.assertFalse(SsoLinkTicket.objects.exists())
+
+    def test_a_guardian_managed_account_is_refused(self):
+        from accounts.models import Guardianship
+
+        guardian = User.objects.create_user('mum', 'mum@example.com', 'x')
+        Guardianship.objects.create(guardian=guardian, child=self.user)
+        where, query, key = self.full()
+        self.assertEqual(query['error'], 'minor')
+
+    def test_an_account_that_became_a_minors_meanwhile_is_refused_at_the_proof(self):
+        ticket, key = self.link_ticket()
+        self.user.profile.is_minor = True
+        self.user.profile.save()
+        res = self.post('password', {'ticket': ticket, 'browser_key': key, 'password': self.PASSWORD})
+        self.assertEqual(res.data['detail'], 'minor')
+        self.assertFalse(SsoIdentity.objects.exists())
+
+    def test_an_inactive_account_is_refused(self):
+        self.user.is_active = False
+        self.user.save()
+        where, query, key = self.full()
+        self.assertEqual(query['error'], 'account_inactive')
+
+    def test_a_provider_unverified_address_may_still_link_with_proof(self):
+        # The proof is about the EdMat account; the provider's say-so is irrelevant to it.
+        ticket, key = self.link_ticket(email_verified=False)
+        res = self.post('password', {'ticket': ticket, 'browser_key': key, 'password': self.PASSWORD})
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(SsoIdentity.objects.get().email_verified)
+
+    def test_two_accounts_sharing_the_address_get_no_proposal(self):
+        User.objects.create_user('twin', 'ala@example.com', 'x')
+        where, query, key = self.full()
+        self.assertEqual(query['error'], 'email_in_use')
+
+    def test_the_flag_off_closes_the_link_endpoints(self):
+        ticket, key = self.link_ticket()
+        self.set_flag('social_login', False)
+        for path in ('ticket', 'password', 'email', 'email/confirm'):
+            self.assertEqual(self.post(path, {'ticket': ticket, 'browser_key': key}).status_code, 404, path)
+
+    def test_purge_takes_expired_link_tickets(self):
+        self.link_ticket()
+        SsoLinkTicket.objects.update(expires_at=timezone.now() - timedelta(hours=2))
+        self.assertEqual(services.purge()['link_tickets'], 1)
+
+
+class SettingsLinkNotifiesTests(SsoTestCase):
+    def test_a_link_from_settings_mails_the_account_too(self):
+        from mail.models import ConfirmedEmail, OutboundEmail
+
+        user = User.objects.create_user('ola', 'ola@example.com', 'a-long-Passw0rd!')
+        ConfirmedEmail.objects.create(user=user, email=user.email)
+        state, nonce, key, _q = self.start('google', intent='link', user=user)
+        _w, query = self.callback('google', state, make_id_token('google', nonce))
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.exchange(query['code'], key, user=user).status_code, 200)
+        self.assertEqual(OutboundEmail.objects.filter(kind=OutboundEmail.KIND_SSO_LINKED, to=user.email).count(), 1)

@@ -453,6 +453,12 @@ FEATURE_FLAG_CHOICES = [
     # `flag_off`, and every button on /login, /register and in Settings goes (house rule 3). Linked
     # identities stay listable and unlinkable: a kill switch does not hold a sign-in method hostage.
     ('social_login', 'Sign in with Google, Apple or Microsoft'),
+    # The browser error beacon (analytics/client_errors.py, 2026-10-14; LINKING-AND-ERRORS.md §3.3).
+    # A plain kill switch, seeded ON by migration 0055. Read with plain `is_feature_enabled()`: the
+    # ingest endpoint is anonymous and answers 204 either way, dropping every report while this is
+    # off; the browser half reads it too and does not send. The staff dashboard section stays (it
+    # shows what was collected before; staff bypass every gate anyway). There is no link to remove.
+    ('client_errors', 'Browser error reports (no cookie, no identifier)'),
     # Deliberately INVERTED semantics from the 4 rows above — those are plain kill switches
     # (is_enabled=True means "the feature is up"); this one instead means "the RESTRICTION is on."
     # `is_enabled=False` (this row's own seeded default, see the data migration) matches today's

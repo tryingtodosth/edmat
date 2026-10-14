@@ -155,6 +155,7 @@ class ExchangeView(APIView):
 
         record_audit(request, action='password_change', target_type='sso_identity', target_id=obj.pk,
                      summary=f'Linked {obj.provider} sign-in', detail={'provider': obj.provider})
+        services.notify_linked(request.user, obj.provider)
         return Response({'kind': 'link', 'next': row.next_path, 'identity': _identity_payload(obj)})
 
 
@@ -249,3 +250,109 @@ class IdentityDetailView(APIView):
         record_audit(request, action='password_change', target_type='sso_identity', target_id=identity_pk,
                      summary=f'Unlinked {provider_id} sign-in', detail={'provider': provider_id})
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ---- confirm-and-link (LINKING-AND-ERRORS.md §2.4) -----------------------------------------------------
+
+def _linked_session(request, user, identity, row) -> Response:
+    """The proof passed and the identity is attached: audit it, mail the account (rule 5), and hand
+    back the same {token, profile} LoginView does — in a POST body, never a URL."""
+    from telemetry.audit import record_audit
+
+    record_audit(request, action='password_change', target_type='sso_identity', target_id=identity.pk,
+                 summary=f'Linked {identity.provider} sign-in (confirmed at sign-in)',
+                 detail={'provider': identity.provider, 'via': 'confirm_and_link'})
+    services.notify_linked(user, identity.provider)
+    return Response({'kind': 'login', 'next': row.next_path, **_session_payload(user, request)})
+
+
+def _refusal(refusal) -> Response:
+    conflict = refusal.code in ('already_linked',)
+    return Response({'detail': refusal.code}, status=status.HTTP_409_CONFLICT if conflict else status.HTTP_400_BAD_REQUEST)
+
+
+class LinkTicketView(APIView):
+    """POST /api/auth/sso/link/ticket/ {ticket, browser_key} → {provider, email, methods, expires_at}.
+    Says no more than the done page's old `email_in_use` did, plus which proofs this account
+    supports — which is the whole point of the page."""
+
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [JSONParser]
+    throttle_scope = 'sso_exchange'
+
+    def post(self, request):
+        if not providers.flag_on():
+            return NOT_FOUND
+        row = services.pending_link_ticket(str(request.data.get('ticket') or ''), str(request.data.get('browser_key') or ''))
+        if row is None:
+            return Response({'detail': 'ticket_invalid'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'provider': row.provider,
+            'email': row.email,
+            'methods': services.link_methods(row.user),
+            'mail_requested': bool(row.mail_nonce),
+            'expires_at': row.expires_at,
+        })
+
+
+class LinkPasswordView(APIView):
+    """POST /api/auth/sso/link/password/ {ticket, browser_key, password}. Throttled exactly like
+    /login (per IP), plus five wrong passwords kill the ticket."""
+
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [JSONParser]
+
+    def get_throttles(self):
+        from accounts.throttles import LoginRateThrottle
+
+        return [LoginRateThrottle()]
+
+    def post(self, request):
+        if not providers.flag_on():
+            return NOT_FOUND
+        try:
+            user, identity, row = services.confirm_link_by_password(
+                str(request.data.get('ticket') or ''), str(request.data.get('browser_key') or ''),
+                str(request.data.get('password') or ''),
+            )
+        except services.Refusal as refusal:
+            return _refusal(refusal)
+        return _linked_session(request, user, identity, row)
+
+
+class LinkEmailView(APIView):
+    """POST /api/auth/sso/link/email/ {ticket, browser_key} → 202. Mails the confirmation link to
+    the account's own confirmed address. Throttled like the confirmation-mail resend."""
+
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [JSONParser]
+    throttle_scope = 'mail_resend'
+
+    def post(self, request):
+        if not providers.flag_on():
+            return NOT_FOUND
+        try:
+            services.request_link_mail(str(request.data.get('ticket') or ''), str(request.data.get('browser_key') or ''))
+        except services.Refusal as refusal:
+            return _refusal(refusal)
+        return Response({'sent': True}, status=status.HTTP_202_ACCEPTED)
+
+
+class LinkEmailConfirmView(APIView):
+    """POST /api/auth/sso/link/email/confirm/ {token, browser_key} — the mailed link's landing page
+    posts here. Works only in the browser that started the sign-in (`link_other_browser`)."""
+
+    permission_classes = [permissions.AllowAny]
+    parser_classes = [JSONParser]
+    throttle_scope = 'sso_exchange'
+
+    def post(self, request):
+        if not providers.flag_on():
+            return NOT_FOUND
+        try:
+            user, identity, row = services.confirm_link_by_mail(
+                str(request.data.get('token') or ''), str(request.data.get('browser_key') or '')
+            )
+        except services.Refusal as refusal:
+            return _refusal(refusal)
+        return _linked_session(request, user, identity, row)

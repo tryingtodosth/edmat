@@ -439,6 +439,9 @@ export const FEATURE_FLAG_LABELS: Record<FeatureFlagKey, () => string> = {
 	// Sign in with Google / Apple / Microsoft (sso/, 2026-10-14) — mirrors moderation/models.py's
 	// 0054 key; the third file of the three-file change.
 	social_login: m.featureFlags_label_socialLogin, // "Sign in with Google, Apple or Microsoft"
+	// Browser error reports (analytics/client_errors.py, 2026-10-14) — mirrors moderation/models.py's
+	// 0055 key; the third file of the three-file change.
+	client_errors: m.featureFlags_label_clientErrors, // "Browser error reports (no cookie, no identifier)"
 	material_uploads_verified_only: m.featureFlags_label_materialUploadsVerifiedOnly
 };
 
@@ -1651,7 +1654,13 @@ export const SSO_ERROR_LABELS: Record<string, () => string> = {
 	state_expired: m.sso_error_stateExpired, // "That took longer than ten minutes, so the sign-in expired. Start again."
 	provider_error: m.sso_error_providerError, // "The provider's answer could not be verified, so it was not trusted. Try again in a moment."
 	email_missing: m.sso_error_emailMissing, // "The provider did not share an email address, and an account here needs one. Allow the address when the provider asks, or register with a password."
-	email_in_use: m.sso_error_emailInUse, // "An account here already uses this email address. Sign in with your password, then link this provider in Settings → Sign-in methods. Accounts are never joined by email alone."
+	email_in_use: m.sso_error_emailInUse, // "An account here already uses this email address, and it cannot be proven from here. …"
+	minor: m.sso_error_minor, // "This account is run by a parent or guardian, so an outside account cannot be connected to it. Ask your guardian."
+	password_wrong: m.sso_error_passwordWrong, // "That is not this account's password."
+	too_many_attempts: m.sso_error_tooManyAttempts, // "Too many wrong passwords for this request. Start again from the sign-in page."
+	method_unavailable: m.sso_error_methodUnavailable, // "That way of proving the account is not available for it."
+	link_invalid: m.sso_error_linkInvalid, // "This link has expired, has already been used, or a newer one was sent. Start again from the sign-in page."
+	link_other_browser: m.sso_error_linkOtherBrowser, // "Open this link in the same browser where you started signing in. Nothing was connected."
 	already_linked: m.sso_error_alreadyLinked, // "That provider account is already linked to a different account here. Sign in to that account to unlink it first."
 	account_inactive: m.sso_error_accountInactive, // "This account is suspended, so it cannot sign in."
 	flag_off: m.sso_error_flagOff, // "Signing in with an outside account is switched off on this site right now. Sign in with your password."

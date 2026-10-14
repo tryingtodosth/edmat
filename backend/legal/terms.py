@@ -14,7 +14,7 @@ date the substance last changed, not the date of a typo fix. Say so in both file
 
 from __future__ import annotations
 
-CURRENT_TERMS_VERSION = '2026-10-14'
+CURRENT_TERMS_VERSION = '2026-10-15'
 
 
 def record_acceptance(user, *, version: str = CURRENT_TERMS_VERSION, via: str = 'register'):

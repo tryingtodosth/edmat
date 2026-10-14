@@ -182,3 +182,86 @@ class RollupRun(models.Model):
 
     def __str__(self) -> str:
         return f'{self.date} rolled up at {self.finished_at:%Y-%m-%d %H:%M}'
+
+
+# ---- browser error reports (2026-10-14, LINKING-AND-ERRORS.md §3.3) ------------------------------
+#
+# The one thing in this app that starts in the browser. It is NOT analytics: it exists to find and
+# fix faults, it is sent only when something actually broke, and it is built so that nothing in it
+# identifies a person — no IP, no account, no User-Agent string, no page address, no cookie and
+# nothing stored on the device (`client_errors.py` has the whole contract). It lives here because
+# the staff dashboard does, and in the default database because it is not a request log.
+#
+# "signature", not "fingerprint": it is a hash of the ERROR (normalised message + top frames), the
+# same for every visitor who hits the same bug — never a function of the visitor. The word
+# `fingerprint` is banned as a column name in this app (`tests.NoPersonalColumnsTests`) and stays so.
+
+# MIRRORED BY HAND in frontend/src/lib/components/analytics/labels.ts (`ERROR_KIND`, house rule 13).
+CLIENT_ERROR_KIND_CHOICES = [
+    ('error', 'Uncaught error'),
+    ('rejection', 'Unhandled promise rejection'),
+    ('sveltekit', 'Error during load or render'),
+]
+
+
+class ClientErrorGroup(models.Model):
+    """One distinct bug: every report whose normalised message and top frames hash to `signature`.
+    `message` is the NORMALISED message (numbers replaced by `N`), so a group's label carries no
+    number that came from one visitor's data. Deleted 90 days after it was last seen."""
+
+    signature = models.CharField(max_length=32, unique=True)
+    kind = models.CharField(max_length=10, choices=CLIENT_ERROR_KIND_CHOICES)
+    message = models.CharField(max_length=500)
+    top_frame = models.CharField(max_length=300, blank=True)
+    first_seen = models.DateTimeField()
+    last_seen = models.DateTimeField(db_index=True)
+
+    def __str__(self) -> str:
+        return f'{self.kind}: {self.message[:80]}'
+
+
+class DailyClientError(models.Model):
+    """How many reports of one group arrived on one UTC day, from one route template, build and
+    browser family. Kept 90 days. This count IS the record (the reports themselves are capped and
+    expire after 30 days), so it is incremented on arrival with one WHERE-anchored `update()` —
+    the one counter in this app that is not a recount, because there is nothing to recount it from."""
+
+    date = models.DateField(db_index=True)
+    group = models.ForeignKey(ClientErrorGroup, on_delete=models.CASCADE, related_name='days')
+    route = models.CharField(max_length=200)
+    build = models.CharField(max_length=64)
+    browser = models.CharField(max_length=20)
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['date', 'group', 'route', 'build', 'browser'],
+                name='analytics_client_error_day_unique',
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.date} {self.group_id} {self.route} ×{self.count}'
+
+
+class ClientErrorReport(models.Model):
+    """One report as it arrived, after the server re-applied the field allowlist. A sample, not a
+    log: at most `client_errors.SAMPLES_PER_GROUP_PER_DAY` are kept per group per day, and every one
+    is deleted 30 days after it arrived. Browser/OS/device are the classifier's families; the
+    User-Agent they were read from is not stored."""
+
+    group = models.ForeignKey(ClientErrorGroup, on_delete=models.CASCADE, related_name='reports')
+    received_at = models.DateTimeField(db_index=True)
+    kind = models.CharField(max_length=10, choices=CLIENT_ERROR_KIND_CHOICES)
+    message = models.CharField(max_length=500)
+    stack = models.TextField(blank=True)
+    route = models.CharField(max_length=200)
+    build = models.CharField(max_length=64)
+    locale = models.CharField(max_length=2, blank=True)
+    browser = models.CharField(max_length=20)
+    os = models.CharField(max_length=20)
+    device = models.CharField(max_length=8, choices=DEVICE_CHOICES)
+
+    def __str__(self) -> str:
+        return f'{self.received_at:%Y-%m-%d %H:%M} {self.message[:60]}'

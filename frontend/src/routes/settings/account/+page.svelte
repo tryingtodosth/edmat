@@ -18,7 +18,8 @@
 		requestErasure,
 		type ErasureAction,
 		type ErasureBlocker,
-		type ErasurePlan
+		type ErasurePlan,
+		type WithdrawableChoice
 	} from '$lib/services/account';
 	import { formatDate } from '$lib/utils/datetime';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
@@ -29,6 +30,7 @@
 
 	let exportState = $state<'idle' | 'busy' | 'done' | 'throttled' | 'error'>('idle');
 
+	let contentChoice = $state<WithdrawableChoice | null>(null);
 	let typedUsername = $state('');
 	let password = $state('');
 	let submitting = $state(false);
@@ -157,7 +159,7 @@
 		deleteError = '';
 		submitting = true;
 		try {
-			const res = await requestErasure(password, typedUsername);
+			const res = await requestErasure(password, typedUsername, contentChoice ?? undefined);
 			scheduledFor = res.dueAt;
 			password = '';
 			// The server has already revoked every token; forget the local session too.
@@ -169,6 +171,8 @@
 			// "That password is not right."
 			else if (reason === 'username_mismatch') deleteError = m.account_error_usernameMismatch();
 			// "That is not your username."
+			else if (reason === 'choice_required') deleteError = m.account_choice_required();
+			// "Choose what happens to your EdMat-only content first."
 			else if (reason === 'already_pending') deleteError = m.account_error_alreadyPending();
 			// "A deletion is already waiting for this account."
 			else if (reason === 'blocked') {
@@ -241,12 +245,14 @@
 			{:else if !plan}
 				<p class="hint">{m.common_loading()}</p>
 			{:else}
-				<p>{m.account_deleteIntro({ days: plan.graceDays })}</p>
+				{#if plan.refusal !== 'guardian_managed'}
+					<p>{m.account_deleteIntro({ days: plan.graceDays })}</p>
+				{/if}
 				<!-- "Deleting switches the account off at once and erases it after {days} days…" -->
 
 				{#if plan.refusal === 'guardian_managed'}
-					<p class="notice">{m.account_refusal_guardianManaged()}</p>
-					<!-- "Your account is looked after by your guardian…" -->
+					<p class="notice" data-testid="guardian-managed">{m.account_refusal_guardianManaged()}</p>
+					<!-- "Ask your parent or guardian…" -->
 				{:else if plan.refusal === 'password_required'}
 					<p class="notice">
 						{m.account_refusal_passwordRequired()}
@@ -281,22 +287,61 @@
 					</div>
 				{/if}
 
-				<div class="plan" data-testid="erasure-plan">
-					{#each byAction as group (group.action)}
-						<div class="plan-group plan-{group.action}">
-							<h3>{ACTION_LABEL[group.action]()}</h3>
-							<p class="why">{ACTION_WHY[group.action]()}</p>
-							<ul>
-								{#each group.items as item (item.group)}
-									<li>
-										<span>{GROUP_LABEL[item.group]?.() ?? item.group}</span>
-										<span class="count">{item.count}</span>
-									</li>
-								{/each}
-							</ul>
-						</div>
-					{/each}
-				</div>
+				{#if plan.refusal !== 'guardian_managed'}
+					<div class="plan" data-testid="erasure-plan">
+						{#each byAction as group (group.action)}
+							<div class="plan-group plan-{group.action}">
+								<h3>{ACTION_LABEL[group.action]()}</h3>
+								<p class="why">{ACTION_WHY[group.action]()}</p>
+								<ul>
+									{#each group.items as item (item.group)}
+										<li>
+											<span>{GROUP_LABEL[item.group]?.() ?? item.group}</span>
+											<span class="count">{item.count}</span>
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{/each}
+					</div>
+
+					{#if plan.withdrawable.removable > 0 || plan.withdrawable.shared > 0}
+						<fieldset class="choice" data-testid="content-choice">
+							<legend>{m.account_choice_heading()}</legend>
+							<!-- "Your published content that is not openly licensed" -->
+							<p>{m.account_choice_intro({ count: plan.withdrawable.removable })}</p>
+							<!-- "{count} of your published items are under "EdMat only"…" -->
+							{#if plan.withdrawable.removable > 0}
+								<label class="radio">
+									<input
+										type="radio"
+										name="content-choice"
+										value="keep"
+										bind:group={contentChoice}
+									/>
+									<span>{m.account_choice_keep({ count: plan.withdrawable.removable })}</span>
+									<!-- "Keep them published under "Deleted account" ({count})" -->
+								</label>
+								<label class="radio">
+									<input
+										type="radio"
+										name="content-choice"
+										value="remove"
+										bind:group={contentChoice}
+									/>
+									<span>{m.account_choice_remove({ count: plan.withdrawable.removable })}</span>
+									<!-- "Remove them ({count}) — hidden, …" -->
+								</label>
+							{/if}
+							{#if plan.withdrawable.shared > 0}
+								<p class="hint">{m.account_choice_shared({ count: plan.withdrawable.shared })}</p>
+								<!-- "{count} more have other people's work in them and stay either way." -->
+							{/if}
+							<p class="hint">{m.account_choice_open()}</p>
+							<!-- "Content under a Creative Commons licence always stays…" -->
+						</fieldset>
+					{/if}
+				{/if}
 
 				{#if canDelete}
 					<form class="confirm" onsubmit={submitDelete} data-testid="erasure-form">
@@ -329,6 +374,7 @@
 							type="submit"
 							class="danger"
 							disabled={submitting ||
+								(plan.withdrawable.removable > 0 && !contentChoice) ||
 								typedUsername.trim().toLowerCase() !== plan.username.toLowerCase() ||
 								!password}
 						>
@@ -473,6 +519,32 @@
 	}
 	.plan-end {
 		border-left: 3px solid var(--status-warning);
+	}
+	.choice {
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-sm);
+		padding: var(--space-3);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		margin: 0;
+		legend {
+			font-weight: 600;
+			padding: 0 var(--space-1);
+		}
+		p {
+			margin: 0;
+		}
+	}
+	.radio {
+		display: flex;
+		gap: var(--space-2);
+		align-items: flex-start;
+		font-size: var(--font-size-sm);
+		input {
+			margin-top: 3px;
+			max-width: none;
+		}
 	}
 	.confirm {
 		display: flex;

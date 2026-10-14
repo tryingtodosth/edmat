@@ -5,7 +5,9 @@ project creates an `SsoIdentity`, mints a code or a ticket, or decides what a ca
     finish_callback()  provider redirects back → verified identity → a frontend URL to redirect to:
                          known identity          → /auth/sso/done?code=…    (sign in)
                          intent=link             → /auth/sso/done?code=…    (attach on redemption)
-                         unknown, email in use   → /auth/sso/done?error=email_in_use
+                         unknown, email in use   → /auth/sso/link?ticket=…  (prove the account:
+                                                   its password, or a link to its confirmed
+                                                   address; a child's account → error=minor)
                          unknown, new email      → /auth/sso/complete?ticket=…
                          anything wrong          → /auth/sso/done?error=<code>
     redeem_code()      the done page's POST → {token, profile} or the linked identity
@@ -38,6 +40,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import F
 from django.utils import timezone
 
 from . import http
@@ -48,6 +51,7 @@ from .models import (
     STATUS_USED,
     SsoAttempt,
     SsoIdentity,
+    SsoLinkTicket,
     SsoLoginCode,
     SsoSignupTicket,
 )
@@ -72,6 +76,7 @@ ERROR_CODES = (
     'email_in_use',
     'already_linked',
     'account_inactive',
+    'minor',
     'flag_off',
     'not_configured',
 )
@@ -276,10 +281,11 @@ def _route_identity(provider: Provider, attempt: SsoAttempt, claims: dict, param
     if not email:
         raise Refusal('email_missing')
     # Never adopt an existing account by its address, verified or not: that is the account-takeover
-    # route this whole flow is shaped to avoid. The person signs in with their password and links
-    # the provider from Settings, which proves they hold both.
-    if User.objects.filter(email__iexact=email).exists():
-        raise Refusal('email_in_use')
+    # route this whole flow is shaped to avoid. The match only PROPOSES a link; the person must
+    # prove the account is theirs (LINKING-AND-ERRORS.md §2.4) — see offer_link below.
+    matches = list(User.objects.filter(email__iexact=email).select_related('profile')[:2])
+    if matches:
+        return _offer_link(provider, attempt, key, email, verified, matches)
     ticket = secrets.token_urlsafe(32)
     SsoSignupTicket.objects.create(
         ticket_hash=_digest(ticket),
@@ -293,6 +299,219 @@ def _route_identity(provider: Provider, attempt: SsoAttempt, claims: dict, param
         expires_at=timezone.now() + TICKET_TTL,
     )
     return frontend_url('/auth/sso/complete', ticket=ticket)
+
+
+# ---- confirm-and-link: an address an account already uses (LINKING-AND-ERRORS.md §2.4) ---------------
+
+LINK_TTL = timedelta(minutes=30)
+LINK_MAX_PASSWORD_FAILURES = 5
+LINK_MAIL_SALT = 'sso.link-by-mail'
+
+
+def guardian_managed(user) -> bool:
+    """A child's account, or any account a guardian runs (accounts/minors.py). Never linked through
+    this flow: it is the guardian's to run, and it has no self-chosen password or address."""
+    from accounts.minors import is_minor
+    from accounts.models import Guardianship
+
+    if getattr(getattr(user, 'profile', None), 'is_minor', False) or is_minor(user):
+        return True
+    return Guardianship.objects.filter(child=user, revoked_at__isnull=True).exists()
+
+
+def link_methods(user) -> list[str]:
+    """How this account can prove it is the person's: its password, and/or a link to its address —
+    the latter ONLY when that address is confirmed, because an unconfirmed address was never proven
+    by anybody (pre-account-takeover, attack 1 of the USENIX paper)."""
+    from mail.services import is_confirmed
+
+    methods = []
+    if user.has_usable_password():
+        methods.append('password')
+    if user.email and is_confirmed(user):
+        methods.append('email')
+    return methods
+
+
+def _offer_link(provider: Provider, attempt: SsoAttempt, key: dict, email: str, verified: bool, matches) -> str:
+    if len(matches) > 1:
+        # Two accounts share the address (legacy data): there is no single account to propose.
+        raise Refusal('email_in_use')
+    user = matches[0]
+    if guardian_managed(user):
+        raise Refusal('minor')
+    if not user.is_active:
+        raise Refusal('account_inactive')
+    if not link_methods(user):
+        # No password and no confirmed address: nothing the person could prove. The done page points
+        # at "Forgotten your password?", which proves the mailbox and sets a password.
+        raise Refusal('email_in_use')
+    ticket = secrets.token_urlsafe(32)
+    SsoLinkTicket.objects.create(
+        ticket_hash=_digest(ticket),
+        browser_key_hash=attempt.browser_key_hash,
+        user=user,
+        provider=provider.id,
+        **key,
+        email=email,
+        email_verified=verified,
+        next_path=attempt.next_path,
+        expires_at=timezone.now() + LINK_TTL,
+    )
+    return frontend_url('/auth/sso/link', ticket=ticket)
+
+
+def pending_link_ticket(ticket: str, browser_key: str) -> SsoLinkTicket | None:
+    if not ticket or not browser_key:
+        return None
+    row = SsoLinkTicket.objects.filter(
+        ticket_hash=_digest(ticket), status=STATUS_PENDING, expires_at__gt=timezone.now()
+    ).select_related('user__profile').first()
+    if row is None or not hmac.compare_digest(row.browser_key_hash, _digest(browser_key)):
+        return None
+    return row
+
+
+def _finish_link(row: SsoLinkTicket):
+    """The proof passed: claim the ticket, attach the identity. Returns (user, identity)."""
+    claimed = SsoLinkTicket.objects.filter(
+        pk=row.pk, status=STATUS_PENDING, expires_at__gt=timezone.now()
+    ).update(status=STATUS_USED)
+    if not claimed:
+        raise Refusal('ticket_invalid')
+    user = User.objects.select_related('profile').get(pk=row.user_id)
+    if guardian_managed(user):
+        raise Refusal('minor')
+    if not user.is_active:
+        raise Refusal('account_inactive')
+    try:
+        with transaction.atomic():
+            identity, _created = SsoIdentity.objects.get_or_create(
+                provider=row.provider, issuer=row.issuer, subject=row.subject,
+                defaults={'user': user, 'email': row.email, 'email_verified': row.email_verified,
+                          'tenant_id': row.tenant_id, 'object_id': row.object_id},
+            )
+    except IntegrityError as exc:
+        raise Refusal('already_linked') from exc
+    if identity.user_id != user.pk:
+        raise Refusal('already_linked')
+    SsoIdentity.objects.filter(pk=identity.pk).update(last_login_at=timezone.now())
+    return user, identity
+
+
+def confirm_link_by_password(ticket: str, browser_key: str, password: str):
+    row = pending_link_ticket(ticket, browser_key)
+    if row is None:
+        raise Refusal('ticket_invalid')
+    if 'password' not in link_methods(row.user):
+        raise Refusal('method_unavailable')
+    if row.password_failures >= LINK_MAX_PASSWORD_FAILURES:
+        raise Refusal('too_many_attempts')
+    if not password or not row.user.check_password(password):
+        SsoLinkTicket.objects.filter(pk=row.pk).update(password_failures=F('password_failures') + 1)
+        raise Refusal('password_wrong')
+    return (*_finish_link(row), row)
+
+
+def request_link_mail(ticket: str, browser_key: str) -> SsoLinkTicket:
+    """Queues the confirmation link to the account's own (confirmed) address. A new nonce per press,
+    so only the newest link works. The logged body carries `[[link]]`; mail.build_link asks
+    `mail_link_token` for the link at the moment of sending."""
+    from mail.models import OutboundEmail
+    from mail.services import _locale, _name, queue
+    from mail.texts import text
+
+    row = pending_link_ticket(ticket, browser_key)
+    if row is None:
+        raise Refusal('ticket_invalid')
+    user = row.user
+    if 'email' not in link_methods(user):
+        raise Refusal('method_unavailable')
+    SsoLinkTicket.objects.filter(pk=row.pk, status=STATUS_PENDING).update(
+        mail_nonce=secrets.token_hex(16), mail_requested_at=timezone.now()
+    )
+    locale = _locale(user)
+    label = _provider_label(row.provider)
+    queue(
+        OutboundEmail.KIND_SSO_LINK,
+        user.email,
+        text(locale, 'sso_link_subject', provider=label),
+        text(locale, 'sso_link_body', name=_name(user), username=user.username, provider=label),
+        user=user,
+        locale=locale,
+    )
+    return row
+
+
+def mail_link_token(user) -> str | None:
+    """The signed token for the newest pending link ticket of this account that asked for a mail —
+    deterministic, so a retried send builds the same link. Signed with the server's key: the database
+    alone (which holds the nonce) is not enough to forge it."""
+    from django.core.signing import Signer
+
+    row = (
+        SsoLinkTicket.objects.filter(user=user, status=STATUS_PENDING, expires_at__gt=timezone.now())
+        .exclude(mail_nonce='')
+        .order_by('-mail_requested_at', '-pk')
+        .first()
+    )
+    if row is None:
+        return None
+    return Signer(salt=LINK_MAIL_SALT).sign_object({'t': row.pk, 'n': row.mail_nonce})
+
+
+def confirm_link_by_mail(token: str, browser_key: str):
+    from django.core.signing import BadSignature, Signer
+
+    try:
+        data = Signer(salt=LINK_MAIL_SALT).unsign_object(token or '')
+    except (BadSignature, ValueError, TypeError):
+        raise Refusal('link_invalid') from None
+    if not isinstance(data, dict):
+        raise Refusal('link_invalid')
+    row = SsoLinkTicket.objects.filter(
+        pk=data.get('t'), status=STATUS_PENDING, expires_at__gt=timezone.now()
+    ).exclude(mail_nonce='').first()
+    if row is None or not hmac.compare_digest(row.mail_nonce, str(data.get('n') or '')):
+        raise Refusal('link_invalid')
+    # The click must happen in the browser that started the sign-in (sso/CLAUDE.md, rule 2).
+    if not browser_key or not hmac.compare_digest(row.browser_key_hash, _digest(browser_key)):
+        raise Refusal('link_other_browser')
+    if 'email' not in link_methods(row.user):
+        raise Refusal('method_unavailable')
+    return (*_finish_link(row), row)
+
+
+def _provider_label(provider_id: str) -> str:
+    from .providers import get
+
+    provider = get(provider_id)
+    return provider.label if provider else provider_id
+
+
+def notify_linked(user, provider_id: str) -> None:
+    """Rule 5: after ANY link — confirm-and-link or Settings — mail the account. Only to a
+    confirmed address: an unconfirmed one may be somebody else's, typed by mistake."""
+    from django.utils import formats
+
+    from mail.models import OutboundEmail
+    from mail.services import _locale, _name, is_confirmed, queue
+    from mail.texts import text
+
+    if not user.email or not is_confirmed(user):
+        return
+    locale = _locale(user)
+    label = _provider_label(provider_id)
+    date = formats.date_format(timezone.localtime(), 'Y-m-d H:i')
+    queue(
+        OutboundEmail.KIND_SSO_LINKED,
+        user.email,
+        text(locale, 'sso_linked_subject', provider=label),
+        text(locale, 'sso_linked_body', name=_name(user), username=user.username, provider=label,
+             date=date, site=settings.EDMAT_SITE_URL),
+        user=user,
+        locale=locale,
+    )
 
 
 # ---- the done page: redeeming a code ------------------------------------------------------------------
@@ -495,4 +714,5 @@ def purge(now=None, *, grace: timedelta = timedelta(hours=1)) -> dict:
         'attempts': SsoAttempt.objects.filter(expires_at__lt=cutoff).delete()[0],
         'codes': SsoLoginCode.objects.filter(expires_at__lt=cutoff).delete()[0],
         'tickets': SsoSignupTicket.objects.filter(expires_at__lt=cutoff).delete()[0],
+        'link_tickets': SsoLinkTicket.objects.filter(expires_at__lt=cutoff).delete()[0],
     }

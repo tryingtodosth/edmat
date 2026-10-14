@@ -455,3 +455,11 @@ class MaterialSubmitLicenceTests(SubmitPathBase):
     def test_unknown_is_refused(self):
         self.client.force_authenticate(self.student)
         self.assertEqual(self.submit(licence='unknown').status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_no_choice_is_edmat_only_even_for_a_text_written_here(self):
+        """The CC BY suggestion (owner, 2026-10-14) is the FORM's pre-selection only: an API client
+        that sends no licence opens nothing, whatever the material is."""
+        self.client.force_authenticate(self.student)
+        response = self.submit(file=None, kind='body', body='Written here from scratch.')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.json()['licence'], 'edmat-only')

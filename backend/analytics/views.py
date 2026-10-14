@@ -23,9 +23,12 @@ from rest_framework.views import APIView
 from telemetry.models import RequestLog
 from telemetry.routers import all_log_shards
 
-from . import classify, live
+from . import classify, client_errors, live
 from .models import (
+    ClientErrorGroup,
+    ClientErrorReport,
     DailyActiveUsers,
+    DailyClientError,
     DailyClient,
     DailyContentView,
     DailyReferrer,
@@ -609,3 +612,79 @@ class RecomputeView(APIView):
         today = timezone.now().astimezone(dt.timezone.utc).date()
         summaries = rollup_range(today, 2)
         return Response({'days': summaries})
+
+
+class ClientErrorsView(AnalyticsView):
+    """Browser error reports (`client_errors.py`): the top error groups for the period, each with
+    its count, a day-by-day series, the route templates, builds and browser families it came from,
+    and up to three sample reports. Counts of ERRORS, not of people, so nothing is k-suppressed —
+    a report carries no person to count. Counts are kept 90 days and samples 30, so a 365-day
+    period simply finds nothing older; the payload says so (`counts_kept_days`)."""
+
+    LIMIT = 50
+    SAMPLES = 3
+
+    def build(self, request):
+        p = self.period
+        days = _in(DailyClientError.objects, p.first, p.last)
+        totals = list(
+            days.values('group').annotate(n=Sum('count')).order_by('-n', 'group')[: self.LIMIT]
+        )
+        ids = [row['group'] for row in totals]
+        groups = ClientErrorGroup.objects.in_bulk(ids)
+        series: dict[int, Counter] = defaultdict(Counter)
+        facets: dict[int, dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
+        for row in days.filter(group__in=ids).values('group', 'date', 'route', 'build', 'browser', 'count'):
+            series[row['group']][row['date']] += row['count']
+            for facet in ('route', 'build', 'browser'):
+                facets[row['group']][facet][row[facet]] += row['count']
+        samples: dict[int, list] = defaultdict(list)
+        for report in ClientErrorReport.objects.filter(
+            group__in=ids, received_at__gte=p.start
+        ).order_by('-received_at'):
+            if len(samples[report.group_id]) < self.SAMPLES:
+                samples[report.group_id].append(
+                    {
+                        'received_at': report.received_at.isoformat(),
+                        'kind': report.kind,
+                        'message': report.message,
+                        'stack': report.stack,
+                        'route': report.route,
+                        'build': report.build,
+                        'locale': report.locale,
+                        'browser': report.browser,
+                        'os': report.os,
+                        'device': report.device,
+                    }
+                )
+
+        def ranked(counter: Counter) -> list[dict]:
+            return [{'name': name, 'count': n} for name, n in counter.most_common(10)]
+
+        rows = []
+        for row in totals:
+            group = groups.get(row['group'])
+            if group is None:
+                continue
+            rows.append(
+                {
+                    'id': str(group.pk),
+                    'kind': group.kind,
+                    'message': group.message,
+                    'top_frame': group.top_frame,
+                    'count': row['n'],
+                    'first_seen': group.first_seen.isoformat(),
+                    'last_seen': group.last_seen.isoformat(),
+                    'daily': [series[group.pk].get(d, 0) for d in p.dates()],
+                    'routes': ranked(facets[group.pk]['route']),
+                    'builds': ranked(facets[group.pk]['build']),
+                    'browsers': ranked(facets[group.pk]['browser']),
+                    'samples': samples[group.pk],
+                }
+            )
+        return {
+            'total': _sum(days, 'count'),
+            'groups': rows,
+            'reports_kept_days': client_errors.REPORT_RETENTION_DAYS,
+            'counts_kept_days': client_errors.COUNT_RETENTION_DAYS,
+        }

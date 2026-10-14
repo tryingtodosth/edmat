@@ -34,7 +34,8 @@
 		busy = false,
 		onsaved = undefined,
 		oncancel = undefined,
-		headingLevel = 3
+		headingLevel = 3,
+		onkindchange = undefined
 	}: {
 		mode: 'create' | 'draft' | 'propose';
 		/** Required in `draft`/`propose`; ignored in `create`, where no project exists yet. */
@@ -51,6 +52,10 @@
 		/** `h2` when this sits straight under the page's `h1`; `h3` inside a section (axe
 		 * `heading-order`: a level may not be skipped). */
 		headingLevel?: 2 | 3;
+		/** Told which shape the version is (file / link / written here) whenever it changes — the
+		 *  new-project page's licence suggestion reads it (a text written here is the author's own
+		 *  work; a file or a link may not be). */
+		onkindchange?: (kind: MaterialVersionKind) => void;
 	} = $props();
 
 	const KINDS: MaterialVersionKind[] = ['file', 'link', 'body'];
@@ -63,6 +68,7 @@
 	// overwrite whatever has been typed (the CommentForm precedent).
 	// svelte-ignore state_referenced_locally
 	let kind = $state<MaterialVersionKind>(initial?.kind ?? 'file');
+	$effect(() => onkindchange?.(kind));
 	// svelte-ignore state_referenced_locally
 	let title = $state(initial?.title ?? '');
 	// svelte-ignore state_referenced_locally

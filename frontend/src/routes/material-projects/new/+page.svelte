@@ -18,6 +18,9 @@
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import CatalogueForm from '$lib/components/coauthoring/CatalogueForm.svelte';
 	import VersionEditor from '$lib/components/coauthoring/VersionEditor.svelte';
+	import LicencePicker from '$lib/components/shared/LicencePicker.svelte';
+	import type { Licence } from '$lib/types/licence';
+	import type { MaterialVersionKind } from '$lib/types/materialProject';
 	import { messageForError } from '$lib/components/coauthoring/labels';
 
 	let catalogueRef = $state<CatalogueForm | null>(null);
@@ -25,6 +28,14 @@
 	let busy = $state(false);
 	let error = $state('');
 	let created = $state<MaterialProject | null>(null);
+	// The material's licence (backend licensing/). Suggested, not defaulted (owner, 2026-10-14):
+	// a material WRITTEN here, from scratch, with no source URL is the author's own work → CC BY
+	// 4.0; a file, a link, or anything that names where it came from may be somebody else's →
+	// "EdMat only". The picker follows the suggestion until the author clicks it.
+	let licence = $state<Licence>('edmat-only');
+	let versionKind = $state<MaterialVersionKind>('file');
+	let catalogueHasSource = $state(false);
+	let fromScratch = $derived(versionKind === 'body' && !catalogueHasSource);
 
 	async function submit() {
 		if (busy) return;
@@ -50,6 +61,7 @@
 					locale: catalogue.locale,
 					type: catalogue.type,
 					audience: catalogue.audience,
+					licence,
 					author: catalogue.author,
 					sourceUrl: catalogue.sourceUrl,
 					priceAmount: catalogue.priceAmount,
@@ -99,8 +111,25 @@
 				<!-- "Open the project" -->
 			</a>
 		{:else}
-			<CatalogueForm bind:this={catalogueRef} mode="create" {busy} headingLevel={2} />
-			<VersionEditor bind:this={editorRef} mode="create" {busy} headingLevel={2} />
+			<CatalogueForm
+				bind:this={catalogueRef}
+				mode="create"
+				{busy}
+				headingLevel={2}
+				onsourcechange={(has) => (catalogueHasSource = has)}
+			/>
+			<VersionEditor
+				bind:this={editorRef}
+				mode="create"
+				{busy}
+				headingLevel={2}
+				onkindchange={(k) => (versionKind = k)}
+			/>
+			<LicencePicker
+				bind:value={licence}
+				suggested={fromScratch ? 'cc-by-4.0' : 'edmat-only'}
+				reason={fromScratch ? 'own' : catalogueHasSource ? 'source' : 'notFromScratch'}
+			/>
 
 			{#if error}<p class="error">{error}</p>{/if}
 

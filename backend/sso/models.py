@@ -139,3 +139,40 @@ class SsoSignupTicket(models.Model):
 
     def __str__(self) -> str:
         return f'{self.provider} signup ticket [{self.status}]'
+
+
+class SsoLinkTicket(models.Model):
+    """An unknown provider identity whose address an EdMat account already uses, waiting for the
+    person to PROVE that account is theirs (its password, or a link mailed to its confirmed
+    address) before the identity is attached. `LINKING-AND-ERRORS.md` §2.4: never a silent link —
+    the email match only PROPOSES; the proof decides. Thirty minutes, single use.
+
+    The target account is fixed by the callback (whoever finishes cannot choose another), and the
+    ticket is bound to the starting tab's browser key like every other SSO secret — so a mailed link
+    clicked by the mailbox owner in some OTHER browser links nothing (the attack: somebody signs in
+    with a provider identity carrying your address and hopes you click the confirmation)."""
+
+    ticket_hash = models.CharField(max_length=64, unique=True)
+    browser_key_hash = models.CharField(max_length=64)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='+')
+    provider = models.CharField(max_length=20)
+    issuer = models.CharField(max_length=255)
+    subject = models.CharField(max_length=255)
+    tenant_id = models.CharField(max_length=64, blank=True)
+    object_id = models.CharField(max_length=64, blank=True)
+    # What the provider said — kept for the identity row, never used to find the account again.
+    email = models.CharField(max_length=320, blank=True)
+    email_verified = models.BooleanField(default=False)
+    next_path = models.CharField(max_length=500, blank=True)
+    # Wrong passwords against THIS ticket; at MAX the ticket is dead (on top of the login throttle).
+    password_failures = models.PositiveSmallIntegerField(default=0)
+    # Set when "email me a link" is pressed; a fresh one per press, so only the newest link works.
+    # Not a secret on its own: the mailed token is it, SIGNED with the server's key (sso/services.py).
+    mail_nonce = models.CharField(max_length=32, blank=True)
+    mail_requested_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+    def __str__(self) -> str:
+        return f'{self.provider} link ticket for user {self.user_id} [{self.status}]'

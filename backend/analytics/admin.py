@@ -6,6 +6,9 @@ off, and deletion is `rollup_analytics` recounting the day — never a button (b
 from django.contrib import admin
 
 from .models import (
+    ClientErrorGroup,
+    ClientErrorReport,
+    DailyClientError,
     DailyActiveUsers,
     DailyClient,
     DailyContentView,
@@ -67,3 +70,27 @@ class WeeklyCohortAdmin(ReadOnlyAdmin):
 @admin.register(RollupRun)
 class RollupRunAdmin(ReadOnlyAdmin):
     list_display = ('date', 'rows_read', 'rows_skipped_opt_out', 'finished_at')
+
+
+# Browser error reports (client_errors.py). Read-only like the rollups: a report is evidence, and
+# deletion is the 30/90-day purge in `rollup_analytics`, never a button.
+@admin.register(ClientErrorGroup)
+class ClientErrorGroupAdmin(ReadOnlyAdmin):
+    list_display = ('kind', 'message', 'first_seen', 'last_seen')
+    list_filter = ('kind',)
+    search_fields = ('message',)
+
+
+@admin.register(DailyClientError)
+class DailyClientErrorAdmin(ReadOnlyAdmin):
+    list_display = ('date', 'group', 'route', 'build', 'browser', 'count')
+    list_filter = ('browser',)
+    raw_id_fields = ('group',)
+    date_hierarchy = 'date'
+
+
+@admin.register(ClientErrorReport)
+class ClientErrorReportAdmin(ReadOnlyAdmin):
+    list_display = ('received_at', 'kind', 'message', 'route', 'build', 'browser', 'os', 'device')
+    list_filter = ('kind', 'browser', 'device')
+    raw_id_fields = ('group',)

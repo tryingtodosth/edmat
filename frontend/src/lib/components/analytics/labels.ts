@@ -136,3 +136,12 @@ const STATUS: Labels = {
 };
 
 export const statusLabel = (key: string): string => pick(STATUS, key);
+
+// Mirrors backend/analytics/models.py's CLIENT_ERROR_KIND_CHOICES (house rule 13 — said there too).
+const ERROR_KIND: Labels = {
+	error: m.analytics_errors_kind_error, // "Uncaught error"
+	rejection: m.analytics_errors_kind_rejection, // "Unhandled promise rejection"
+	sveltekit: m.analytics_errors_kind_sveltekit // "Error while loading or drawing a page"
+};
+
+export const errorKindLabel = (key: string): string => pick(ERROR_KIND, key);

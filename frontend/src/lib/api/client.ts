@@ -190,6 +190,26 @@ async function requestBlob(path: string): Promise<Blob> {
 }
 
 export const apiClient = {
+	/** Fire-and-forget: the browser error report (`lib/errors/reporter.ts` → `services/clientErrors.ts`).
+	 *
+	 * The one request in the app that is not a `fetch()`, deliberately, and it lives here so that this
+	 * file stays the only place the app talks to the network. `navigator.sendBeacon` because the
+	 * report has to leave when the app is half-broken or the page is being closed, and a beacon
+	 * survives both; because it never carries `Authorization` (nothing here attaches the token, so
+	 * the server cannot tie a report to an account — `LINKING-AND-ERRORS.md` §3.3); and because it
+	 * cannot be retried or queued — nothing is ever written to the device. The body is a plain string,
+	 * which the browser sends as `text/plain`: the one type a cross-origin beacon may carry without a
+	 * CORS preflight it could not answer (`backend/analytics/ingest.py` parses it itself). Never
+	 * throws; `false` means the browser declined to queue it, and nothing more is done about that. */
+	beacon(path: string, data: unknown): boolean {
+		try {
+			if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function')
+				return false;
+			return navigator.sendBeacon(`${PUBLIC_API_BASE_URL}${path}`, JSON.stringify(data));
+		} catch {
+			return false;
+		}
+	},
 	get<T>(path: string, options?: RequestOptions): Promise<T> {
 		return request<T>(withAudience(path), {}, options);
 	},

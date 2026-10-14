@@ -105,6 +105,14 @@ def build_link(row: OutboundEmail) -> str:
         if token is None:
             raise ValueError('no deletion is pending for this account')
         return f'{settings.EDMAT_SITE_URL}/cancel-deletion?token={token}'
+    if row.kind == OutboundEmail.KIND_SSO_LINK:
+        # The newest pending link ticket that asked for a mail; signed, never stored as a link.
+        from sso.services import mail_link_token
+
+        token = mail_link_token(user)
+        if token is None:
+            raise ValueError('no connection request is waiting for this account')
+        return f'{settings.EDMAT_SITE_URL}/auth/sso/link?mail={token}'
     raise ValueError(f'no link for kind {row.kind}')
 
 

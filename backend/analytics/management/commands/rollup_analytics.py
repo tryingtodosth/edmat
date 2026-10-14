@@ -5,7 +5,9 @@ and gives today a first figure. The production cron (`deploy/cron/edmat-analytic
 and runs BEFORE `enforce_log_retention`: a day can only be recomputed while its raw rows exist, and
 retention deletes them after 90 days (see `analytics/rollup.py`). Re-running any day is safe — it
 is a delete-and-recount, never an increment. After the rollup, aggregate rows older than 25 months
-are deleted (`--keep-months`), the retention the privacy policy states for them.
+are deleted (`--keep-months`), the retention the privacy policy states for them. Then the browser
+error reports' own retention runs (`analytics.client_errors.purge_client_errors`): reports older than
+30 days, daily error counts and groups older than 90 — fixed, as the privacy policy states them.
 """
 
 import datetime as dt
@@ -13,6 +15,7 @@ import datetime as dt
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from analytics.client_errors import purge_client_errors
 from analytics.rollup import AGGREGATE_RETENTION_MONTHS, purge_aggregates, rollup_range
 
 
@@ -54,6 +57,7 @@ class Command(BaseCommand):
         summaries = rollup_range(last, days)
         today = timezone.now().astimezone(dt.timezone.utc).date()
         purged = purge_aggregates(today, options['keep_months'])
+        purged_errors = purge_client_errors()
         for s in summaries:
             self.stdout.write(
                 f'  {s["date"]}: {s["rows"]} rows read, {s["skipped_opt_out"]} skipped (GPC/DNT), '
@@ -63,6 +67,7 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f'Rolled up {len(summaries)} day(s) ending {last.isoformat()}; '
-                f'{purged} aggregate row(s) older than {options["keep_months"]} months deleted.'
+                f'{purged} aggregate row(s) older than {options["keep_months"]} months deleted; '
+                f'{purged_errors} browser error row(s) past their 30/90-day retention deleted.'
             )
         )

@@ -220,3 +220,43 @@ export type RecomputeResult = {
 		activeUsers: number;
 	}[];
 };
+
+/** `GET /api/analytics/client-errors/` — browser error reports (backend `analytics/client_errors.py`).
+ *  Counts of errors, not of people, so nothing here is suppressed. */
+export type ClientErrorFacet = { name: string; count: number };
+
+export type ClientErrorSample = {
+	receivedAt: string;
+	kind: string;
+	message: string;
+	stack: string;
+	route: string;
+	build: string;
+	locale: string;
+	browser: string;
+	os: string;
+	device: string;
+};
+
+export type ClientErrorGroupRow = {
+	id: string;
+	kind: string;
+	message: string;
+	topFrame: string;
+	count: number;
+	firstSeen: string;
+	lastSeen: string;
+	daily: number[];
+	routes: ClientErrorFacet[];
+	builds: ClientErrorFacet[];
+	browsers: ClientErrorFacet[];
+	samples: ClientErrorSample[];
+};
+
+export type AnalyticsClientErrors = {
+	period: AnalyticsPeriod;
+	total: number;
+	groups: ClientErrorGroupRow[];
+	reportsKeptDays: number;
+	countsKeptDays: number;
+};

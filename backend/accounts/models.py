@@ -536,6 +536,13 @@ class AccountErasure(models.Model):
         settings.AUTH_USER_MODEL, related_name='+', null=True, blank=True, on_delete=models.SET_NULL
     )
     by_guardian = models.BooleanField(default=False)
+    # The person's answer to "what happens to your published content that is NOT openly licensed"
+    # (`edmat-only`, or `unknown`) — `keep` it published under the tombstone, or `remove` it (hidden,
+    # a tombstone of its own, house rule 12). Openly licensed content is not asked about: a CC grant
+    # cannot be revoked. Asked at the request, applied at the erasure (`accounts/erasure.py`).
+    withdrawable_content = models.CharField(
+        max_length=6, choices=[('keep', 'Keep it published'), ('remove', 'Remove it')], default='keep'
+    )
     status = models.CharField(max_length=10, choices=ERASURE_STATUS_CHOICES, default='pending', db_index=True)
     requested_at = models.DateTimeField(auto_now_add=True)
     due_at = models.DateTimeField(db_index=True)

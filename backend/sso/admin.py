@@ -4,7 +4,7 @@ read-only evidence while they exist and are emptied by `manage.py sso_purge`, ne
 
 from django.contrib import admin
 
-from .models import SsoAttempt, SsoIdentity, SsoLoginCode, SsoSignupTicket
+from .models import SsoAttempt, SsoIdentity, SsoLinkTicket, SsoLoginCode, SsoSignupTicket
 
 
 @admin.register(SsoIdentity)
@@ -48,3 +48,11 @@ class SsoSignupTicketAdmin(_ReadOnly):
     list_display = ('provider', 'email', 'email_verified', 'status', 'created_at', 'expires_at')
     list_filter = ('provider', 'status')
     exclude = ('ticket_hash', 'browser_key_hash')
+
+
+@admin.register(SsoLinkTicket)
+class SsoLinkTicketAdmin(_ReadOnly):
+    list_display = ('provider', 'user', 'status', 'password_failures', 'created_at', 'expires_at')
+    list_filter = ('provider', 'status')
+    exclude = ('ticket_hash', 'browser_key_hash', 'mail_nonce')
+    raw_id_fields = ('user',)

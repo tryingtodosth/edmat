@@ -84,6 +84,8 @@ class Context:
     user: object
     is_minor: bool
     now: object
+    #: The person chose `remove` for their withdrawable (not openly licensed) published content.
+    withdraw: bool = False
 
 
 Split = Callable[[Context, object], dict]
@@ -145,6 +147,77 @@ def _minor_content(ctx, qs):
     if ctx.is_minor:
         return {DELETE: qs.filter(is_removed=False)}
     return {ANONYMISE: qs}
+
+
+# ---- the one choice the person is asked: content that is not openly licensed ----------------------
+#
+# A Creative Commons licence cannot be revoked — whoever has a copy keeps the right to it — so openly
+# licensed content always stays, under the tombstone. `edmat-only` granted only the operating licence
+# of terms § 9 point 2, and `unknown` (an import, or staff's "rights in question") granted nothing the
+# person declared; for those the person decides: keep them published, or remove them. "Remove" is a
+# hide on the row (`published=False` / `is_removed=True`), never a row delete, so the comments, links
+# and history hanging off it keep their target (house rule 12).
+#
+# Only what the person wrote ALONE is removable. A material another member revised, or a concept
+# article with somebody else's revision in it, holds other people's work — it stays either way, and
+# the person can still ask for it to be taken down by the ordinary route (terms § 9 point 6).
+# Translations are not offered: a translation carries its exercise's licence and is part of somebody
+# else's exercise; removing it would take a language away from another person's work.
+
+WITHDRAWABLE_LICENCES = ('edmat-only', 'unknown')
+
+#: model label → (licensing kind, author field, what "remove" writes, what "currently published" means)
+WITHDRAW_TARGETS = {
+    'exercises.Exercise': ('exercise', 'submitted_by', {'published': False}, {'published': True}),
+    'exercises.SolutionEntry': ('solution_entry', 'author', {'is_removed': True}, {'is_removed': False}),
+    'materials.Material': ('material', 'submitted_by', {'published': False}, {'published': True}),
+    'concepts.ConceptArticle': ('concept_article', 'created_by', {'is_removed': True}, {'is_removed': False}),
+}
+
+
+def withdrawable(user) -> dict:
+    """`{'removable': {label: [pk]}, 'shared': {label: [pk]}}` — the person's published content under
+    a withdrawable licence, split by whether anybody else's work is in it."""
+    from licensing.targets import kind_for
+
+    out = {'removable': {}, 'shared': {}}
+    for label, (kind_name, author_field, _hide, live) in WITHDRAW_TARGETS.items():
+        model = apps.get_model(label)
+        kind = kind_for(kind_name)
+        qs = model._base_manager.filter(**{author_field: user, 'licence__in': WITHDRAWABLE_LICENCES, **live})
+        for obj in qs:
+            others = set(kind.contributors(obj)) - {user.pk} if kind else set()
+            out['shared' if others else 'removable'].setdefault(label, []).append(obj.pk)
+    return out
+
+
+def withdrawable_counts(user) -> dict:
+    w = withdrawable(user)
+    return {k: sum(len(v) for v in w[k].values()) for k in ('removable', 'shared')}
+
+
+def _licensed_split(label):
+    def split(ctx, qs):
+        if not ctx.withdraw:
+            return {ANONYMISE: qs}
+        ids = withdrawable(ctx.user)['removable'].get(label, [])
+        return {DELETE: qs.filter(pk__in=ids), ANONYMISE: qs.exclude(pk__in=ids)}
+
+    return split
+
+
+def _licensed_hide(label):
+    hide = WITHDRAW_TARGETS[label][2]
+
+    def handler(ctx, qs):
+        qs.update(**hide)
+
+    return handler
+
+
+def _licensed(label, field):
+    return Rule(label, field, ANONYMISE, 'contributions', split=_licensed_split(label),
+                handlers={DELETE: _licensed_hide(label)})
 
 
 def _tombstone_content(ctx, qs):
@@ -251,11 +324,11 @@ REGISTRY: list[Rule] = [
     R('taxonomy.Topic', 'proposed_by', ANONYMISE, 'contributions'),
     # exercises
     R('exercises.TagFollow', 'user', DELETE, 'follows'),
-    R('exercises.Exercise', 'submitted_by', ANONYMISE, 'contributions'),
+    _licensed('exercises.Exercise', 'submitted_by'),
     R('exercises.ExerciseMaterialLink', 'added_by', ANONYMISE, 'contributions'),
     R('exercises.ExerciseTranslation', 'translated_by', ANONYMISE, 'contributions'),
     R('exercises.ExerciseTranslation', 'reviewed_by', KEEP, 'records'),
-    R('exercises.SolutionEntry', 'author', ANONYMISE, 'contributions'),
+    _licensed('exercises.SolutionEntry', 'author'),
     R('exercises.SolutionEntry', 'reviewed_by', KEEP, 'records'),
     R('exercises.SolutionEntryVote', 'voter', KEEP, 'votes'),
     R('exercises.ExerciseRequirementVote', 'voter', KEEP, 'votes'),
@@ -264,7 +337,7 @@ REGISTRY: list[Rule] = [
     R('exercises.ExerciseClaimImportanceVote', 'voter', KEEP, 'votes'),
     # materials
     R('materials.MaterialType', 'proposed_by', ANONYMISE, 'contributions'),
-    R('materials.Material', 'submitted_by', ANONYMISE, 'contributions'),
+    _licensed('materials.Material', 'submitted_by'),
     R('materials.MaterialReview', 'author', ANONYMISE, 'discussion'),
     R('materials.MaterialRequirementVote', 'voter', KEEP, 'votes'),
     R('materials.MaterialView', 'user', DELETE, 'history'),
@@ -393,7 +466,7 @@ REGISTRY: list[Rule] = [
     R('materials_coop.CoopSettings', 'updated_by', KEEP, 'records'),
     # concepts
     R('concepts.Concept', 'created_by', ANONYMISE, 'contributions'),
-    R('concepts.ConceptArticle', 'created_by', ANONYMISE, 'contributions'),
+    _licensed('concepts.ConceptArticle', 'created_by'),
     R('concepts.ConceptRevision', 'created_by', ANONYMISE, 'contributions'),
     R('concepts.ConceptRevision', 'reviewed_by', KEEP, 'records'),
     R('concepts.ConceptAsset', 'uploaded_by', ANONYMISE, 'contributions'),
@@ -477,6 +550,8 @@ REGISTRY: list[Rule] = [
     R('sso.SsoIdentity', 'user', DELETE, 'sign_in'),
     R('sso.SsoAttempt', 'user', DELETE, 'sign_in', export=False),
     R('sso.SsoLoginCode', 'user', DELETE, 'sign_in', export=False),
+    # A pending "prove this account is yours to connect <Provider>" (sso/, confirm-and-link).
+    R('sso.SsoLinkTicket', 'user', DELETE, 'sign_in', export=False),
     # private messages: the other party keeps the conversation — it is their record too. The
     # erased side's name goes with the tombstone; nobody can sign in as it to read them.
     R('postman.Message', 'sender', KEEP, 'messages'),
@@ -580,16 +655,16 @@ def self_refusal(user) -> str | None:
 
 # ---- the preview ---------------------------------------------------------------------------------
 
-def _context(user) -> Context:
+def _context(user, withdraw: bool = False) -> Context:
     from .minors import is_minor
 
-    return Context(user=user, is_minor=is_minor(user), now=timezone.now())
+    return Context(user=user, is_minor=is_minor(user), now=timezone.now(), withdraw=withdraw)
 
 
-def preview(user) -> list[dict]:
+def preview(user, *, withdraw: bool = False) -> list[dict]:
     """`[{group, action, count}]` — every non-empty (group, action) pair, from the registry. What
     the person reads before they confirm, and the same computation `erase` runs."""
-    ctx = _context(user)
+    ctx = _context(user, withdraw)
     totals: dict[tuple[str, str], int] = {}
     for rule in REGISTRY:
         if rule.model in ('accounts.AccountErasure', 'accounts.Profile'):
@@ -637,7 +712,10 @@ class Refusal(Exception):
         self.detail = detail or {}
 
 
-def request_erasure(user, *, requested_by=None):
+CONTENT_CHOICES = ('keep', 'remove')
+
+
+def request_erasure(user, *, requested_by=None, withdrawable_content: str = 'keep'):
     """Switch the account off now and schedule its erasure for `GRACE_PERIOD` from now.
 
     Refusals (`Refusal.reason`): `already_pending` (409) and `blocked` (409, with the list). The
@@ -658,6 +736,7 @@ def request_erasure(user, *, requested_by=None):
             user=user,
             requested_by=requested_by or user,
             by_guardian=by_guardian,
+            withdrawable_content=withdrawable_content if withdrawable_content in CONTENT_CHOICES else 'keep',
             due_at=timezone.now() + GRACE_PERIOD,
         )
     except IntegrityError:
@@ -781,18 +860,20 @@ def erase(user) -> dict:
 
     Deliberately NOT one `atomic()`: it touches forty apps, and a whole-run write lock is exactly
     what `backend/CLAUDE.md`'s SQLite rule 2 forbids. Idempotence is what makes a partial run safe."""
-    ctx = _context(user)
+    from .models import AccountErasure
+
+    live = AccountErasure.objects.filter(user=user, status__in=['pending', 'erasing']).first()
+    ctx = _context(user, withdraw=bool(live and live.withdrawable_content == 'remove'))
     summary: dict[str, int] = {}
 
     # Children first, while the guardianship rows still say whose they are.
-    from .models import AccountErasure
-
     for child in sole_guardian_children(user):
         if AccountErasure.objects.filter(user=child, status='done').exists():
             continue
         if not AccountErasure.objects.filter(user=child, status__in=['pending', 'erasing']).update(status='erasing'):
             AccountErasure.objects.create(
-                user=child, requested_by=user, by_guardian=True, status='erasing', due_at=ctx.now
+                user=child, requested_by=user, by_guardian=True, status='erasing', due_at=ctx.now,
+                withdrawable_content='remove',
             )
         child_summary = erase(child)
         AccountErasure.objects.filter(user=child, status='erasing').update(

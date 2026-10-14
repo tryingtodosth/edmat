@@ -38,3 +38,13 @@ export interface SsoTicket {
 	asksAge: boolean;
 	expiresAt: string;
 }
+
+/** What /auth/sso/link shows: an address an EdMat account already uses, and the ways the person
+ *  can prove that account is theirs (its password; a link to its confirmed address). */
+export interface SsoLinkTicket {
+	provider: SsoProviderId;
+	email: string;
+	methods: ('password' | 'email')[];
+	mailRequested: boolean;
+	expiresAt: string;
+}

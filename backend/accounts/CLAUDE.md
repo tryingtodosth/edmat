@@ -82,6 +82,11 @@ the port, NOT `pkill -f`, which kills its own shell match).
   (same module, same grace; PATCH `is_active: true` cancels). `blockers()` refuses (409, listed)
   while the person runs a live course / upcoming event / running contest / organisation or material
   project with others and no other owner. Erasing a guardian erases sole-guardian children.
+- **The one question asked** (owner, 2026-10-14): published content under `edmat-only` or `unknown`
+  is kept under the tombstone or removed (hidden: `published=False` / `is_removed`), per
+  `AccountErasure.withdrawable_content`; no default when there is any (`choice_required`). CC content
+  always stays (irrevocable); co-authored items (`licensing.targets` contributors) and translations
+  stay either way. A guardian's delete answers `remove`. `WITHDRAW_TARGETS` in `erasure.py`.
 - **During the grace period** login answers 403 `erasure_pending` (right password only) and
   `/api/auth/erasure/cancel/` takes it back (password, or the mailed signed token); the public
   profile is WITHHELD, not 404 — every byline resolves it.
@@ -90,7 +95,7 @@ the port, NOT `pkill -f`, which kills its own shell match).
 
 ## Verify
 
-`manage.py test accounts` (incl. `test_erasure.py`, 45 tests) + `test_avatar.py`, `test_throttling.py`, `test_profile_extras.py`.
+`manage.py test accounts` (incl. `test_erasure.py`, 51 tests) + `test_avatar.py`, `test_throttling.py`, `test_profile_extras.py`.
 Password reset is real since 2026-10-14: `PasswordResetView` hands the address to
 `mail/services.py: request_password_reset` (always 202, enumeration-safe) and `RegisterView` queues the
 confirmation message. The rules and the link handling live in `mail/`, not here.

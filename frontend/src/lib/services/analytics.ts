@@ -4,6 +4,7 @@
 
 import { apiClient } from '$lib/api/client';
 import type {
+	AnalyticsClientErrors,
 	AnalyticsClients,
 	AnalyticsCohorts,
 	AnalyticsCommunity,
@@ -55,6 +56,9 @@ export const getCoverage = (days: AnalyticsDays, lang: string) =>
 	read<AnalyticsCoverage>('coverage', days, `&lang=${encodeURIComponent(lang)}`);
 export const getCohorts = (days: AnalyticsDays) => read<AnalyticsCohorts>('cohorts', days);
 export const getClients = (days: AnalyticsDays) => read<AnalyticsClients>('clients', days);
+/** Browser error reports: the top error groups for the period (`backend/analytics/client_errors.py`). */
+export const getClientErrors = (days: AnalyticsDays) =>
+	read<AnalyticsClientErrors>('client-errors', days);
 export const getHealth = () => read<AnalyticsHealth>('health', 30);
 
 /** Recount yesterday and today now — the same delete-and-recount the nightly command does. */

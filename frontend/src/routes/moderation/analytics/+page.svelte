@@ -10,6 +10,7 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+	import ClientErrorsSection from '$lib/components/analytics/ClientErrorsSection.svelte';
 	import ClientsSection from '$lib/components/analytics/ClientsSection.svelte';
 	import CohortsSection from '$lib/components/analytics/CohortsSection.svelte';
 	import CommunitySection from '$lib/components/analytics/CommunitySection.svelte';
@@ -61,6 +62,7 @@
 		<CohortsSection {days} {reloadKey} />
 		<ClientsSection {days} {reloadKey} />
 		<HealthSection {reloadKey} />
+		<ClientErrorsSection {days} {reloadKey} />
 		<PrivacyPanel />
 	{/if}
 </div>

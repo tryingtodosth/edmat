@@ -2939,7 +2939,7 @@ file cache, and a third run in an hour otherwise fails at "Create account" with 
 
 ## Account deletion and data export (`accounts/erasure.py`, 2026-10-14)
 
-**`manage.py test accounts.test_erasure` — 45 tests**: registry completeness (every FK to a person or
+**`manage.py test accounts.test_erasure` — 51 tests**: registry completeness (every FK to a person or
 to `Profile` has a rule; every rule names a real field; no duplicates; the log-shard id columns are
 listed), asking (plan readable first, wrong password / username / password-less / minor refused with
 their reasons, switch-off revokes the token and withholds the profile, the cancel mail goes to a
@@ -2953,16 +2953,22 @@ pseudonymised, mail to the address forgotten, idempotence, a half-finished run c
 comments tombstoned), the guardian path (grace, the child cannot undo it, reactivating cancels,
 sole-guardian children erased with the guardian, a second guardian keeps the child), the export
 (messages decrypted, the other party by display name only, no secrets, own request-log rows, a minor
-may download, 3/day → 429) and retention (old rows go, recent stay, queued mail kept).
+may download, 3/day → 429), retention (old rows go, recent stay, queued mail kept) and the
+"EdMat only" choice (owner, 2026-10-14: counts per answer in the plan, no default answer —
+`choice_required` / `choice_invalid`, `keep` leaves everything published, `remove` hides `edmat-only`
+and `unknown` items while CC and co-authored ones stay, a guardian's delete removes, a minor is refused
+server-side with `guardian_managed`).
 
-**`frontend/e2e/account-erasure.mjs` — 21 checks, zero page errors. DESTRUCTIVE: run it against a
+**`frontend/e2e/account-erasure.mjs` — 28 checks, zero page errors** (both answers to the "EdMat
+only" question — a third throwaway account takes "remove" — and a child's view of the page). DESTRUCTIVE: run it against a
 copy of the database.** Copy `backend/db.sqlite3` and `backend/logdata/*.sqlite3` into a scratch
 directory (sqlite `.backup`), write a settings module there containing
 `from config.settings import *` and `DATABASES['default']['NAME'] = '<copy>'`, migrate it, and start
 the backend with `PYTHONPATH=<dir> DJANGO_SETTINGS_MODULE=<module> EDMAT_LOG_DIR=<copy>/logdata
-EDMAT_CACHE_DIR=<copy>/cache`. Pass the same prefix + `manage.py erase_due_accounts` as
-`E2E_ERASE_CMD`; the script appends `--now --user <id>`. It registers two throwaway accounts per run;
-screenshots `account-erasure-{desktop,390,scheduled,login-390,comment}.png`.
+EDMAT_CACHE_DIR=<copy>/cache`. Pass the same prefix up to and including `manage.py` as `E2E_MANAGE`
+(required): it attributes two published exercises to each erased account and runs
+`erase_due_accounts --now --user <id>`. Three throwaway accounts and one child per run; screenshots
+`account-erasure-{desktop,390,choice,scheduled,login-390,comment,minor-390}.png`.
 `e2e/guardian-accounts.mjs` was updated the same day: the child's username is unique per run (a
 deleted child keeps its username for 14 days) and step 5 asserts the pending state.
 

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import ingest, views
 
 urlpatterns = [
     path('analytics/overview/', views.OverviewView.as_view(), name='analytics-overview'),
@@ -12,5 +12,10 @@ urlpatterns = [
     path('analytics/cohorts/', views.CohortsView.as_view(), name='analytics-cohorts'),
     path('analytics/clients/', views.ClientsView.as_view(), name='analytics-clients'),
     path('analytics/health/', views.HealthView.as_view(), name='analytics-health'),
+    path(
+        'analytics/client-errors/', views.ClientErrorsView.as_view(), name='analytics-client-errors'
+    ),
+    # The browser's error beacon (client_errors.py) — anonymous, unlike everything above.
+    path('client-errors/', ingest.ClientErrorIngestView.as_view(), name='client-error-ingest'),
     path('analytics/recompute/', views.RecomputeView.as_view(), name='analytics-recompute'),
 ]

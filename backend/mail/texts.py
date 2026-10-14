@@ -51,6 +51,26 @@ TEXTS = {
             'Możesz też po prostu zalogować się przed tą datą — zapytamy, czy anulować usunięcie.\n\n'
             '— EdMat (wiadomość automatyczna, nie odpowiadaj na nią)'
         ),
+        'sso_link_subject': 'EdMat: połączyć {provider} z Twoim kontem?',
+        'sso_link_body': (
+            'Cześć {name},\n\n'
+            'ktoś poprosił o połączenie konta {provider} z kontem EdMat „{username}”, żeby można było '
+            'logować się przez {provider}. Jeśli to Ty, otwórz ten link w tej samej przeglądarce, '
+            'w której zaczęto logowanie:\n\n'
+            f'{L}\n\n'
+            'Link działa raz i przez 30 minut. Jeśli to nie Ty, zignoruj tę wiadomość — nic nie '
+            'zostanie połączone, a Twoje konto pozostaje bez zmian.\n\n'
+            '— EdMat (wiadomość automatyczna, nie odpowiadaj na nią)'
+        ),
+        'sso_linked_subject': 'EdMat: {provider} połączono z Twoim kontem',
+        'sso_linked_body': (
+            'Cześć {name},\n\n'
+            '{date} z kontem EdMat „{username}” połączono konto {provider}. Od teraz można się '
+            'przez nie logować.\n\n'
+            'Jeśli to nie Ty: odłącz je w Ustawieniach → Metody logowania ({site}/settings) '
+            'i zmień hasło ({site}/forgot-password).\n\n'
+            '— EdMat (wiadomość automatyczna, nie odpowiadaj na nią)'
+        ),
         'test_subject': 'EdMat: wiadomość testowa',
         'test_body': 'To jest wiadomość testowa z EdMat, wysłana z zakładki Poczta w panelu moderacji.\n\n— EdMat',
     },
@@ -90,6 +110,26 @@ TEXTS = {
             'If this was a mistake, or not you, open this link to cancel the deletion:\n\n'
             f'{L}\n\n'
             'You can also simply sign in before that date — we will ask whether to cancel it.\n\n'
+            '— EdMat (automated message, please do not reply)'
+        ),
+        'sso_link_subject': 'EdMat: connect {provider} to your account?',
+        'sso_link_body': (
+            'Hello {name},\n\n'
+            'somebody asked to connect a {provider} account to the EdMat account "{username}", so that '
+            'it can sign in with {provider}. If it was you, open this link in the same browser where '
+            'the sign-in started:\n\n'
+            f'{L}\n\n'
+            'The link works once and for 30 minutes. If it was not you, ignore this message — nothing '
+            'will be connected and your account stays as it is.\n\n'
+            '— EdMat (automated message, please do not reply)'
+        ),
+        'sso_linked_subject': 'EdMat: {provider} was connected to your account',
+        'sso_linked_body': (
+            'Hello {name},\n\n'
+            'on {date} a {provider} account was connected to the EdMat account "{username}". It can '
+            'now be used to sign in.\n\n'
+            'If this was not you: disconnect it in Settings → Sign-in methods ({site}/settings) and '
+            'reset your password ({site}/forgot-password).\n\n'
             '— EdMat (automated message, please do not reply)'
         ),
         'test_subject': 'EdMat: test message',

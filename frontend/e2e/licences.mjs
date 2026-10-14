@@ -2,13 +2,16 @@
 //
 //   1. A corpus exercise and a corpus material say "rights not yet clarified — study only", in
 //      English and in Polish (the default locale).
-//   2. `/submit`: the licence picker is there, defaults to "EdMat only", and a submission made by
+//   2. `/submit`: the licence picker SUGGESTS CC BY 4.0 for an exercise with no source and moves
+//      back to "EdMat only" (with its reason) the moment a source is named; a submission made by
 //      choosing CC BY-SA 4.0 carries it — the moderation queue shows it, and once approved the
 //      exercise page shows "© author · Licensed under CC BY-SA 4.0 since …".
 //   3. The author widens it from the page (CC BY-SA → CC BY); the API refuses a narrowing with
 //      its reason; a stranger sees no "Change licence".
 //   4. The composer for a solution carries the compact picker.
 //   5. The exercise page at 390 px: no horizontal scroll.
+//   6. `/material-projects/new`: a file suggests "EdMat only" and says why; a version WRITTEN here
+//      suggests CC BY 4.0; naming a source URL moves it back.
 //
 // Needs the demo users (`seed_demo_users`, password123): `u-ola` (plain) writes, `u-kasia` (staff)
 // approves. Scratch exercises are titled `e2e-licence-…`; earlier ones are left as they are (an
@@ -139,9 +142,45 @@ check(
 	(await picker.locator('input[type="radio"]').count()) === 6 &&
 		(await picker.locator('input[value="unknown"]').count()) === 0
 );
+// The owner's suggestion (2026-10-14): no source → the author's own work → CC BY 4.0, pre-selected
+// and labelled as a suggestion, with the reason under the hint.
+await page.waitForTimeout(500);
 check(
-	'and defaults to "EdMat only"',
+	'with no source it suggests CC BY 4.0',
+	(await picker.locator('input[value="cc-by-4.0"]').isChecked()) &&
+		(await picker.locator('[data-testid="licence-suggested"]').count()) === 1
+);
+check(
+	'and says why',
+	((await picker.locator('[data-testid="licence-why"]').textContent()) ?? '').includes(
+		'your own work'
+	)
+);
+await picker.scrollIntoViewIfNeeded();
+await page.screenshot({ path: `${SHOTS}licence-submit-suggest-own.png` });
+const sourceNameInput = form
+	.locator('label.field')
+	.filter({ hasText: 'Source name' })
+	.locator('input');
+await sourceNameInput.fill('Kolokwium 2024, zadanie 3');
+await page.waitForTimeout(300);
+check(
+	'naming a source moves it back to "EdMat only"',
 	await picker.locator('input[value="edmat-only"]').isChecked()
+);
+check(
+	'and the reason says it may be somebody else’s work',
+	((await picker.locator('[data-testid="licence-why"]').textContent()) ?? '').includes(
+		'somebody else'
+	)
+);
+await picker.scrollIntoViewIfNeeded();
+await page.screenshot({ path: `${SHOTS}licence-submit-suggest-source.png` });
+await sourceNameInput.fill('');
+await page.waitForTimeout(300);
+check(
+	'clearing it suggests CC BY 4.0 again',
+	await picker.locator('input[value="cc-by-4.0"]').isChecked()
 );
 await form.locator('#submit-discipline').selectOption('matematyka');
 await page.waitForFunction(
@@ -357,6 +396,56 @@ console.log('390 px');
 	check('nor does /submit with the picker', overflow2 <= 0, `overflow=${overflow2}`);
 	await pp.screenshot({ path: `${SHOTS}licence-submit-390.png` });
 	await phone.close();
+}
+
+// ---- 6. the material editor ---------------------------------------------------------------------
+console.log('/material-projects/new');
+{
+	const mp = await ctx.newPage();
+	mp.on('pageerror', (e) => pageErrors.push(String(e)));
+	await mp.goto(`${BASE}/material-projects/new`, { waitUntil: 'load' });
+	const mPicker = mp.locator('[data-testid="licence-picker"]');
+	await mPicker.waitFor({ timeout: 60_000 });
+	await mp.waitForTimeout(500);
+	check(
+		'a file version keeps "EdMat only"',
+		await mPicker.locator('input[value="edmat-only"]').isChecked()
+	);
+	check(
+		'and says a file or a link may be somebody else’s',
+		((await mPicker.locator('[data-testid="licence-why"]').textContent()) ?? '').includes(
+			'A file or a link'
+		)
+	);
+	await mPicker.scrollIntoViewIfNeeded();
+	await mp.screenshot({ path: `${SHOTS}licence-material-file.png` });
+	await mp.locator('input[name="version-kind"][value="body"]').check();
+	await mp.waitForTimeout(300);
+	check(
+		'a version written here suggests CC BY 4.0',
+		(await mPicker.locator('input[value="cc-by-4.0"]').isChecked()) &&
+			(await mPicker.locator('[data-testid="licence-suggested"]').count()) === 1
+	);
+	await mPicker.scrollIntoViewIfNeeded();
+	await mp.screenshot({ path: `${SHOTS}licence-material-scratch.png` });
+	await mp.locator('input[inputmode="url"]').first().fill('example.edu/lecture-notes');
+	await mp.waitForTimeout(300);
+	check(
+		'naming where it came from moves it back to "EdMat only"',
+		await mPicker.locator('input[value="edmat-only"]').isChecked()
+	);
+	// Once the author clicks, the suggestion no longer moves it.
+	await mPicker
+		.locator('label.licence-option')
+		.filter({ has: mp.locator('input[value="cc0-1.0"]') })
+		.click();
+	await mp.locator('input[inputmode="url"]').first().fill('');
+	await mp.waitForTimeout(300);
+	check(
+		'after a click the choice is the author’s and stays',
+		await mPicker.locator('input[value="cc0-1.0"]').isChecked()
+	);
+	await mp.close();
 }
 
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));

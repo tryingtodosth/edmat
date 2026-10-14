@@ -34,7 +34,13 @@ export interface ErasurePlan {
 	blockers: ErasureBlocker[];
 	children: { id: string; displayName: string }[];
 	plan: ErasurePlanItem[];
+	/** Published content that is not openly licensed (`edmat-only`, `unknown`): `removable` is what
+	 * "remove" would hide; `shared` has other people's work in it and stays either way. */
+	withdrawable: { removable: number; shared: number };
 }
+
+/** The one question asked at deletion — mirrors `accounts.erasure.CONTENT_CHOICES`. */
+export type WithdrawableChoice = 'keep' | 'remove';
 
 interface RawPlan {
 	status: ErasurePlan['status'];
@@ -51,6 +57,7 @@ interface RawPlan {
 	}[];
 	children: { id: number; display_name: string }[];
 	plan: ErasurePlanItem[];
+	withdrawable: { removable: number; shared: number };
 }
 
 export async function getErasurePlan(): Promise<ErasurePlan> {
@@ -63,7 +70,8 @@ export async function getErasurePlan(): Promise<ErasurePlan> {
 		refusal: raw.refusal,
 		blockers: raw.blockers.map((b) => ({ ...b, id: String(b.id) })),
 		children: raw.children.map((c) => ({ id: String(c.id), displayName: c.display_name })),
-		plan: raw.plan
+		plan: raw.plan,
+		withdrawable: raw.withdrawable ?? { removable: 0, shared: 0 }
 	};
 }
 
@@ -71,11 +79,13 @@ export async function getErasurePlan(): Promise<ErasurePlan> {
  * `ApiError` whose body carries `reason` (and `blockers` for `blocked`). */
 export async function requestErasure(
 	password: string,
-	username: string
+	username: string,
+	withdrawableContent?: WithdrawableChoice
 ): Promise<{ dueAt: string; graceDays: number }> {
 	const raw = await apiClient.post<{ due_at: string; grace_days: number }>('/auth/me/erasure/', {
 		password,
-		username
+		username,
+		...(withdrawableContent ? { withdrawable_content: withdrawableContent } : {})
 	});
 	return { dueAt: raw.due_at, graceDays: raw.grace_days };
 }

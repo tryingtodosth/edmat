@@ -24,12 +24,18 @@ class OutboundEmail(models.Model):
     KIND_DIRECT = 'direct'
     # "Your account will be deleted on …" with a link that cancels it (`accounts/erasure.py`).
     KIND_ERASURE = 'account_erasure'
+    # "Somebody asked to connect <Provider> to your account" with the confirming link, and "<Provider>
+    # was connected" afterwards (`sso/`, LINKING-AND-ERRORS.md §2.4 rules 2b and 5).
+    KIND_SSO_LINK = 'sso_link_confirm'
+    KIND_SSO_LINKED = 'sso_linked'
     KINDS = [
         (KIND_CONFIRM, 'Email confirmation'),
         (KIND_RESET, 'Password reset'),
         (KIND_DIGEST, 'Notification digest'),
         (KIND_TEST, 'Test message'),
         (KIND_ERASURE, 'Account deletion notice'),
+        (KIND_SSO_LINK, 'Connect a sign-in provider (confirmation link)'),
+        (KIND_SSO_LINKED, 'A sign-in provider was connected'),
         # Anything sent through Django's mail API by a path that is not this app's queue — the
         # admin, django-postman. Logged by `transport.LoggedEmailBackend` after the fact.
         (KIND_DIRECT, 'Other (sent directly)'),

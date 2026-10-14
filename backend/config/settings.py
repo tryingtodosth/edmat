@@ -716,6 +716,10 @@ REST_FRAMEWORK = {
         # Filing a site issue is open to guests, so it needs its own bound: enough for a person who
         # hits three things in a row, far too few for a script filling the queue.
         'issue_report': '10/hour',
+        # The browser error beacon (`POST /api/client-errors/`, analytics/ingest.py), anonymous.
+        # The page itself sends at most 5 per load; 30/hour per IP is a few broken sessions' worth
+        # and stops a script from filling the samples table. The IP lives only in this counter.
+        'client_error': '30/hour',
         # Filing a DSA legal notice (legal/) is open to guests too, for the same reason and with the
         # same rough headroom — enough for a real complainant, far too few for a script.
         'legal_notice': '10/hour',

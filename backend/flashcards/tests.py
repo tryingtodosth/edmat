@@ -739,6 +739,24 @@ class ReviewTests(FlashcardsTestCase):
             [('Algebra', 1), ('Week 3', 2)],
         )
 
+    def test_a_deck_on_a_public_course_is_not_due_for_somebody_who_never_joined(self):
+        # The course is public, so the outsider MAY study the deck — but it is not work waiting
+        # for them until they join or start it (`rules.my_study_decks`).
+        self.place_on_course()
+        self.client.force_authenticate(self.outsider)
+        response = self.client.get(reverse('flashcards-due'))
+        self.assertEqual(response.data, {'decks': [], 'total': 0})
+        self.client.force_authenticate(self.participant)
+        response = self.client.get(reverse('flashcards-due'))
+        self.assertEqual(response.data['total'], 2)
+        # Once the outsider grades a card, the deck is theirs to finish.
+        self.client.force_authenticate(self.outsider)
+        self.client.post(
+            reverse('card-grade', args=[self.card_one.pk]), {'grade': 3}, format='json'
+        )
+        response = self.client.get(reverse('flashcards-due'))
+        self.assertEqual([row['name'] for row in response.data['decks']], ['Week 3'])
+
 
 class CopyTests(FlashcardsTestCase):
     def test_a_copy_is_private_mine_and_carries_no_placements(self):

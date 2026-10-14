@@ -132,6 +132,9 @@ export type FeatureFlagKey =
 	// Link buttons leave Settings → Sign-in methods (house rule 3); already-linked identities stay
 	// listed there so a person can still unlink them.
 	| 'social_login'
+	// The browser error reporter (lib/errors/reporter.ts; backend analytics/client_errors.py), 0055.
+	// Off: the reporter sends nothing and the server drops whatever arrives. No link to remove.
+	| 'client_errors'
 	| 'creation_requires_verification'
 	| 'material_uploads_verified_only';
 

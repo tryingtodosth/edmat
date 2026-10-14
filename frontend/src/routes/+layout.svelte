@@ -41,6 +41,12 @@
 	// The material-type vocabulary, for the same reason and at the same cost: it is small, it is
 	// wanted by every material card's badge, and a proposed type has no message key to fall back on.
 	onMount(() => materialTypesStore.preload());
+	// The browser error reporter (lib/errors/reporter.ts): window `error` + `unhandledrejection`, sent
+	// only when something breaks, with no cookie, no storage and no identifier, and never under
+	// GPC/DNT. Imported here, lazily, so it is not part of the entry bundle.
+	onMount(() => {
+		import('$lib/errors/reporter').then((reporter) => reporter.install()).catch(() => {});
+	});
 	// Restores the session from a persisted token (token.svelte.ts) — Phase 3's real login now
 	// survives a reload, unlike Phase 1's deliberately session-only mock auth. Notifications are
 	// only worth fetching once a real session actually resolves — a fresh, momentarily-unauthenticated

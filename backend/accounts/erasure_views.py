@@ -68,6 +68,9 @@ class AccountErasureView(APIView):
                 for c in erasure.sole_guardian_children(user)
             ],
             'plan': erasure.preview(user),
+            # The one question asked: published content that is not openly licensed. `removable` is
+            # what "remove" would hide; `shared` has other people's work in it and stays either way.
+            'withdrawable': erasure.withdrawable_counts(user),
         })
 
     def post(self, request):
@@ -80,8 +83,14 @@ class AccountErasureView(APIView):
             return Response({'reason': 'username_mismatch'}, status=status.HTTP_400_BAD_REQUEST)
         if not user.check_password(request.data.get('password') or ''):
             return Response({'reason': 'wrong_password'}, status=status.HTTP_400_BAD_REQUEST)
+        choice = request.data.get('withdrawable_content')
+        if choice is not None and choice not in erasure.CONTENT_CHOICES:
+            return Response({'reason': 'choice_invalid'}, status=status.HTTP_400_BAD_REQUEST)
+        # Asked, never assumed: with removable content there is no default answer.
+        if choice is None and erasure.withdrawable_counts(user)['removable']:
+            return Response({'reason': 'choice_required'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            row = erasure.request_erasure(user, requested_by=user)
+            row = erasure.request_erasure(user, requested_by=user, withdrawable_content=choice or 'keep')
         except erasure.Refusal as refused:
             return Response({'reason': refused.reason, **refused.detail}, status=refused.status)
         return Response(

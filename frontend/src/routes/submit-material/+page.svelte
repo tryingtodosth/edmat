@@ -908,7 +908,9 @@
 				<!-- One licence for every material this submit makes (backend licensing/). A file
 				     somebody else wrote is not yours to license: name its author above, and keep
 				     "EdMat only" unless they granted more. -->
-				<LicencePicker bind:value={licence} />
+				<!-- This form only ever makes a FILE or a LINK — never a material written here — so it
+				     suggests nothing beyond "EdMat only" and says why (owner, 2026-10-14). -->
+				<LicencePicker bind:value={licence} reason="notFromScratch" />
 				{@render fieldNote(['licence'])}
 
 				<button type="submit" class="submit" disabled={!canSubmit || submitting}>

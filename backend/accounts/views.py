@@ -398,7 +398,9 @@ class ChildDetailView(APIView):
         if child is None or not guardian_of(request.user, child):
             return Response(status=status.HTTP_404_NOT_FOUND)
         try:
-            row = erasure.request_erasure(child, requested_by=request.user)
+            # A guardian's delete has always taken what the child wrote with it; content the child
+            # published under an open licence is the one exception (a CC grant cannot be revoked).
+            row = erasure.request_erasure(child, requested_by=request.user, withdrawable_content='remove')
         except erasure.Refusal as refused:
             return Response({'reason': refused.reason, **refused.detail}, status=refused.status)
         return Response(

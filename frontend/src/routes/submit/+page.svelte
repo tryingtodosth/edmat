@@ -61,7 +61,10 @@
 	let title = $state('');
 	let difficulty = $state<Difficulty>('medium');
 	let audience = $state<Audience | ''>('');
-	// Who else may reuse it (backend licensing/). `edmat-only` until the author opens it.
+	// Who else may reuse it (backend licensing/). The picker pre-selects a SUGGESTION until the
+	// author touches it (owner, 2026-10-14): CC BY 4.0 for an exercise with no source — their own,
+	// written here — and "EdMat only" the moment a source is named, by type, by name, or by
+	// attaching it to a material as the place it came FROM, because then it may be somebody else's.
 	let licence = $state<Licence>('edmat-only');
 	let selectedTopicIds = $state<string[]>([]);
 	let sourceType = $state<SourceType>('other');
@@ -115,6 +118,12 @@
 	let forMaterial = $state<Material | undefined>(undefined);
 	let materialMissing = $state(false);
 	let materialRole = $state<ExerciseLinkRole>('source');
+	// Read by the licence picker's suggestion (see `licence` above).
+	let hasSource = $derived(
+		sourceType !== 'other' ||
+			Boolean(sourceName.trim()) ||
+			(Boolean(forMaterial) && materialRole === 'source')
+	);
 	let materialLocator = $state('');
 
 	async function init() {
@@ -577,7 +586,11 @@
 
 				<!-- The licence covers the statement, answer, hint and solution in this form — one
 				     author, one form, one choice (backend licensing/). -->
-				<LicencePicker bind:value={licence} />
+				<LicencePicker
+					bind:value={licence}
+					suggested={hasSource ? 'edmat-only' : 'cc-by-4.0'}
+					reason={hasSource ? 'source' : 'own'}
+				/>
 
 				<button type="button" class="preview-toggle" onclick={() => (showPreview = !showPreview)}>
 					{m.submit_preview()}

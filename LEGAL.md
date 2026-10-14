@@ -90,6 +90,15 @@ item with the attribution line and the date it took effect:
 | `edmat-only` | nothing beyond the operating licence of `/terms` § 9 point 2 — **the default** | the author (or nothing chosen) |
 | `unknown` | rights not yet clarified; shown "for study only" | never a user — the corpus, an import without a declared licence, or staff marking a rights question |
 
+**Suggested, not defaulted (owner, 2026-10-14):** *"for exercises without a source and materials
+created from scratch on edmat CC-BY should be suggested"*. The picker pre-selects CC BY 4.0 for an
+exercise with no source (type "other", no name, not attached to a material as where it came from)
+and for a material project whose first version is written on EdMat with no source URL; anything
+naming a source, and any file or link, keeps "EdMat only" with a one-line reason. The suggestion
+lives only in the form — an API client that sends no licence still gets `edmat-only`. Hints and
+solutions are NOT suggested CC BY: the composer has no source field, and a solution is often
+transcribed from a textbook or a lecture.
+
 No `-nd` licence is offered: a translation is a derivative, and an ND licence would forbid the
 site's own translations. The rules (`licensing/rules.py`): only the author or staff changes a
 licence; **only towards more open** (CC grants are irrevocable, so a narrower label would
@@ -231,8 +240,11 @@ Studencki or the Ośrodek Komputerowy.
 - **The `User` row is not deleted — it becomes a scrubbed tombstone** (`deleted-<id>`, no email, no
   names, unusable password, every profile field reset, display name `[deleted account]`, which the
   frontend translates). A hard delete would cascade through other people's conversations, threads and
-  tasks, and `Contest.organiser` is `PROTECT`. Public contributions licensed to the community stay
-  under the tombstone; records others rely on (moderation decisions — `pseudonymise_actor` runs as
+  tasks, and `Contest.organiser` is `PROTECT`. Openly licensed (CC) contributions stay under the
+  tombstone — a CC grant cannot be revoked; for `edmat-only` and `unknown` items the person CHOOSES at
+  the request (owner, 2026-10-14; `AccountErasure.withdrawable_content`): keep them under the
+  tombstone, or remove them (hidden via `published=False` / `is_removed`, row kept). Items with
+  another person's work in them, and translations, stay either way; a guardian's delete removes; records others rely on (moderation decisions — `pseudonymise_actor` runs as
   part of every erasure —, jury scores, counted votes, past bookings, the other party's copy of a
   conversation, terms acceptances as evidence of the licence) stay too. **The honest limit:** the
   tombstone keeps its numeric id, so anybody can still see that several anonymised contributions came
@@ -264,7 +276,21 @@ the sign-in token, thirteen localStorage preference/cache keys, and the door sca
 store. All are needed for a feature the user asked for, so PKE art. 399 ust. 3 pkt 2 exempts them
 from consent; none is an analytics identifier. Usage statistics (`backend/analytics/`) are computed
 on the server from the request log and put nothing on the device; `Sec-GPC: 1` / `DNT: 1` is honoured
-as an art. 21 objection. One storage item worth a decision: the scanner's IndexedDB copy of an event's
+as an art. 21 objection.
+
+**Browser error reports (built 2026-10-14, owner-approved that day on the condition that they need no
+consent banner).** When a page breaks, the browser sends one short report — message, stack with every
+URL cut to its path, route template, build, interface locale — to `POST /api/client-errors/`
+(`backend/analytics/client_errors.py`, `frontend/src/lib/errors/reporter.ts`), exactly as
+`LINKING-AND-ERRORS.md` §3.3 specified. No cookie, nothing stored on the device, no account, no IP or
+User-Agent kept with the report (the browser family is derived and the string dropped), nothing at all
+under GPC/DNT (browser and server both), at most 5 per page. Reading PKE art. 399 ust. 3 pkt 2 as
+covering it is the mainstream but **not authority-confirmed** position (`LINKING-AND-ERRORS.md` §3.2,
+`ANALYTICS-LAW.md` §3 row 8, class B); the GDPR basis is art. 6(1)(f). Reports kept 30 days, counts 90,
+purged by `rollup_analytics`; disclosed under "Error reports" and in the device table on `/privacy`;
+kill switch `client_errors`.
+
+One storage item worth a decision: the scanner's IndexedDB copy of an event's
 check-in list holds attendees' names and is **not cleared on logout**.
 
 ### Data at rest

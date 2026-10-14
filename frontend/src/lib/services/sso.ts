@@ -13,6 +13,7 @@ import type {
 	SsoIdentities,
 	SsoIdentity,
 	SsoIntent,
+	SsoLinkTicket,
 	SsoProvider,
 	SsoProviderId,
 	SsoTicket
@@ -167,4 +168,88 @@ export async function getSsoIdentities(): Promise<SsoIdentities> {
 /** Throws `ApiError` 409 `detail: 'set_password_first'` when this is the account's last way in. */
 export async function unlinkSsoIdentity(id: string): Promise<void> {
 	await apiClient.delete(`/auth/sso/identities/${id}/`);
+}
+
+// ---- confirm-and-link (backend `sso/services.py`, LINKING-AND-ERRORS.md §2.4) -----------------------
+//
+// An address an EdMat account already uses is never joined silently: /auth/sso/link asks the person
+// to prove the account — its password, or a link mailed to its confirmed address. The mailed link
+// opens in a NEW tab, which has its own sessionStorage, so pressing "Email me a link" also copies
+// this round trip's key to localStorage (same browser only — which is exactly the binding wanted:
+// the click must happen where the sign-in started). It is removed once used.
+
+const MAIL_LINK_KEY = 'edmat.sso.linkKey';
+
+function readAnyKey(): string {
+	const own = readKey();
+	if (own) return own;
+	try {
+		return localStorage.getItem(MAIL_LINK_KEY) ?? '';
+	} catch {
+		return '';
+	}
+}
+
+function forgetMailLinkKey(): void {
+	try {
+		localStorage.removeItem(MAIL_LINK_KEY);
+	} catch {
+		/* nothing to forget */
+	}
+}
+
+/** Throws `ApiError` `detail: 'ticket_invalid'`. */
+export async function getSsoLinkTicket(ticket: string): Promise<SsoLinkTicket> {
+	const raw = await apiClient.post<{
+		provider: SsoLinkTicket['provider'];
+		email: string;
+		methods: SsoLinkTicket['methods'];
+		mail_requested: boolean;
+		expires_at: string;
+	}>('/auth/sso/link/ticket/', { ticket, browser_key: readKey() });
+	return {
+		provider: raw.provider,
+		email: raw.email,
+		methods: raw.methods,
+		mailRequested: raw.mail_requested,
+		expiresAt: raw.expires_at
+	};
+}
+
+type LinkedSession = { token: string; rawProfile: RawProfile; next: string };
+
+/** Throws `ApiError` `detail`: 'password_wrong' | 'too_many_attempts' | 'ticket_invalid' |
+ *  'method_unavailable' | 'minor' | 'account_inactive' | 'already_linked'. */
+export async function confirmSsoLinkByPassword(
+	ticket: string,
+	password: string
+): Promise<LinkedSession> {
+	const raw = await apiClient.post<{ token: string; profile: RawProfile; next: string }>(
+		'/auth/sso/link/password/',
+		{ ticket, browser_key: readKey(), password }
+	);
+	forgetSsoKey();
+	forgetMailLinkKey();
+	return { token: raw.token, rawProfile: raw.profile, next: raw.next };
+}
+
+/** Throws `ApiError` `detail`: 'ticket_invalid' | 'method_unavailable', or 429. */
+export async function requestSsoLinkMail(ticket: string): Promise<void> {
+	await apiClient.post('/auth/sso/link/email/', { ticket, browser_key: readKey() });
+	try {
+		localStorage.setItem(MAIL_LINK_KEY, readKey());
+	} catch {
+		/* storage refused: the link can then only be used… nowhere; the page says to retry */
+	}
+}
+
+/** Throws `ApiError` `detail`: 'link_invalid' | 'link_other_browser' | 'minor' | … */
+export async function confirmSsoLinkByMail(token: string): Promise<LinkedSession> {
+	const raw = await apiClient.post<{ token: string; profile: RawProfile; next: string }>(
+		'/auth/sso/link/email/confirm/',
+		{ token, browser_key: readAnyKey() }
+	);
+	forgetSsoKey();
+	forgetMailLinkKey();
+	return { token: raw.token, rawProfile: raw.profile, next: raw.next };
 }

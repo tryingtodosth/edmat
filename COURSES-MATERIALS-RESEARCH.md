@@ -6,6 +6,21 @@ creating communities around both general topics, and specific courses on univers
 materials to be in one place"*, and then to *"research how to improve courses and materials
 modules"*.
 
+> **Owner's decisions, 2026-10-14 evening (they override the recommendations below where they differ):**
+>
+> - **Structure: "a default/general course, and subcourses for specific universities and
+>   faculties."** One general course per subject (a community, no university), with subcourses per
+>   university + faculty underneath that carry the university fields (university, faculty, code,
+>   term). This answers §7's "one canonical course per (university, code)?" question by making the
+>   GENERAL course the canonical hub; being built in the courses branch.
+> - **Past exams (recommendation 3): parked.** *"it's really difficult call to make about exams, as
+>   lecturers oppose the idea of sharing exams."* Nothing exam-specific is built. If it is ever
+>   revisited, the only shape consistent with that is lecturer-published or lecturer-approved
+>   material, never student uploads of exam sheets.
+> - **The corpus's existing midterm/exam-sourced exercises (~175) stay as they are**, labels
+>   included (owner, same evening: "leave them as they are"). Parking new exam features does not
+>   reach back into the corpus.
+
 **Baseline assumed.** Another branch is putting Materials and Courses back in the navbar and the
 Add… menu right now. It is also adding a course `kind` (a general-topic community, or a specific
 university course with university, course code, semester and an optional `taxonomy.Branch`) and a
