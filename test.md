@@ -441,6 +441,7 @@ node e2e/login-return.mjs
 E2E_USER=<id> E2E_PUBLISHED=55 E2E_PRIVATE=2 node e2e/profile-exercise-counts.mjs   # needs an account with >50 exercises; see its header
 node e2e/issue-reports.mjs            # E2E_API=http://localhost:8000/api; signs in as ola + kasia, toggles the `issues` flag and restores it
 node e2e/phone-navbar.mjs             # 390px: ☰ in the bar and tucking with it, the drawer's own ✕, the focus trap
+E2E_TOKEN=<kasia> E2E_USER_TOKEN=<michal> node e2e/account-menu.mjs   # the grouped account menu + Help (WP8): both locales, keyboard, drawer at 390, dark; flips `flashcards` + `contests` off and back on
 node e2e/language-default.mjs         # the Polish default, the GeoIP hint, the picker at the top of the drawer, the Messenger-bar clearance; signs nobody in
 node e2e/learning-record.mjs          # the learning record on a public profile (§17BR.B); kasia (API, grades + sets) + ola (a real guardian-created minor and their public set, both deleted afterwards); toggles `share_activity` and the `learning_record` flag and restores both
 node e2e/make-a-deck.mjs             # the three "make a deck" buttons (lesson / session / concept) against the real POST /api/decks/ (§17BU.D); michał runs the course + event, ola is the participant/visitor, kasia only flips the flag; builds and removes its own course, event and every deck
@@ -1177,10 +1178,24 @@ toolbar; typing, bolding a word, inserting a fraction from the palette; the post
 body is HTML with `<strong>` and `\(\frac{a}{b}\)` intact; `editor_mode` on the profile; Editor
 after a reload; Source one click back and remembered; the palette inserting into the source box.
 
-**`e2e/phone-navbar.mjs` (12 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
+**`e2e/account-menu.mjs` (82 checks, 2026-10-14, WP8)** — the account menu grouped under four
+headings (Learning / Taking part / Working together / Your account) and "Help & manual" → `/about/guide`.
+In both locales at 1280: the groups in order, each `role="group"` labelled by its heading, the heading
+an `aria-hidden` span (never a `menuitem`, never focusable), the exact entries per group; then the
+keyboard — Esc back to the trigger, ArrowDown on the trigger opening on the first entry, the arrows
+walking only menuitems and wrapping, Home/End, Tab still moving entry to entry, Tab past the last
+closing the menu; Help resolving. At 390 the drawer draws the same groups with no `menuitem` roles,
+and a SIGNED-OUT visitor (who has no menu on the bar) gets Help in the drawer. Dark mode screenshots.
+Then, as staff through the API, `flashcards` + `contests` off: the Learning group and its heading
+leave the menu AND the drawer for michał (non-staff — trap 10), and one switch back brings the group
+back with one entry; both switches restored in a `finally` and re-queried. Takes `E2E_TOKEN` (staff)
+and `E2E_USER_TOKEN` (non-staff) so it does not spend the login throttle (trap 30); `E2E_SHOTS`.
+
+**`e2e/phone-navbar.mjs` (14 checks)** — the 2026-08-26 phone bar: ☰ inside the bar (30×30,
 borderless), tucking with it on scroll and returning on scroll up; the drawer's own bordered ✕;
 the Report-issue link inside the bar; focus trapped in the drawer over 60 Tabs; Escape returning
-focus to the ☰. Signs nobody in. (`events-and-nav.mjs` 92/92 and `known-issues.mjs` 23/23 are green
+focus to the ☰; since WP8 also a visitor's drawer offering Help & manual and no account groups.
+Signs nobody in. (`events-and-nav.mjs` 92/92 and `known-issues.mjs` 23/23 are green
 again as of 2026-08-26 — both had drifted from the event form: the exact-date scheduling mode and
 public visibility now have to be chosen explicitly, `goto` had to stop waiting for `networkidle`,
 and a drawer link is found by role because the icon span leaves its textContent as " Events".)

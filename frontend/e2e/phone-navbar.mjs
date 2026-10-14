@@ -72,6 +72,13 @@ check(
 await page.locator('.drawer-toggle').click();
 await page.waitForTimeout(500);
 check('☰ opens the drawer', (await page.locator('.drawer--open').count()) === 1);
+// WP8 (2026-10-14): a visitor has no menu on the bar, so the drawer is where their Help lives; the
+// account groups are a signed-in thing (e2e/account-menu.mjs drives those, in both locales).
+check(
+	"a visitor's drawer offers Help & manual, to /about/guide",
+	(await page.locator('#site-drawer a.help-link').getAttribute('href')) === '/about/guide'
+);
+check('and no account groups', (await page.locator('#site-drawer [data-group]').count()) === 0);
 const close = page.locator('.drawer__close');
 check(
 	'the drawer has a bordered 40×40 ✕',

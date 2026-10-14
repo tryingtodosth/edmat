@@ -92,7 +92,10 @@ async function shot(page, name) {
 }
 
 // ---- seats ---------------------------------------------------------------------------------------
-const { token } = await api('POST', '/auth/login/', null, { username: HOST, password: PASSWORD });
+// E2E_TOKEN (kasia's, trap 30) skips the sign-in, which is throttled per IP.
+const { token } = process.env.E2E_TOKEN
+	? { token: process.env.E2E_TOKEN }
+	: await api('POST', '/auth/login/', null, { username: HOST, password: PASSWORD });
 
 const signedCtx = await englishContext(browser, BASE, { viewport: { width: 1280, height: 900 } });
 const signed = wire(await signedCtx.newPage(), 'signed');
@@ -167,6 +170,38 @@ check(
 const heightAt = async (page) => (await page.locator('.site-header').boundingBox()).height;
 const hWide = await heightAt(signed);
 await shot(signed, 'stage0-1280');
+
+// ---- the account menu (WP8, 2026-10-14) ----------------------------------------------------------
+// Grouped under four headings, with Help in the last group. kasia is staff, so every switch is
+// bypassed and every group is drawn; `e2e/account-menu.mjs` is where a killed group is asserted,
+// as a non-staff account (trap 10), along with the keyboard and the drawer.
+console.log('[1b] The account menu is grouped, and Help is in it');
+await signed.locator('.account-trigger').click();
+const accountMenu = signed.locator('.popover__panel[role="menu"]:has(.menu-group)');
+await accountMenu.waitFor({ timeout: 5000 });
+const groupKeys = await accountMenu
+	.locator('[role="group"][data-group]')
+	.evaluateAll((els) => els.map((e) => e.dataset.group));
+check(
+	'four groups, in order',
+	JSON.stringify(groupKeys) === JSON.stringify(['learning', 'taking-part', 'together', 'account']),
+	JSON.stringify(groupKeys)
+);
+check(
+	'the headings are labels, not menu items',
+	(await accountMenu.locator('.menu-group__heading[role="menuitem"]').count()) === 0 &&
+		(await accountMenu.locator('.menu-group__heading').count()) === 4
+);
+const helpHref = await accountMenu
+	.locator('[data-group="account"] a.help-link')
+	.getAttribute('href');
+check(
+	'Help & manual is in the account group, to /about/guide',
+	helpHref === '/about/guide',
+	helpHref
+);
+await signed.keyboard.press('Escape');
+await settle(signed, 200);
 
 // ---- the stages, in order ------------------------------------------------------------------------
 console.log('[2] About is an icon at every width now');

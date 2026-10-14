@@ -5235,5 +5235,9 @@
 	"empty_messagesInbox": "Private messages people send you land here. You can write to anyone from their profile, or start a new message.",
 	"empty_messagesSent": "Messages you send are kept here, so you can find the conversation again.",
 	"empty_notifications": "Replies to your comments, reviews of what you have added, and news from the courses and tags you follow will show up here.",
-	"empty_notificationsSettings": "Choose what you are told about"
+	"empty_notificationsSettings": "Choose what you are told about",
+	"accountMenu_groupLearning": "Learning",
+	"accountMenu_groupTakingPart": "Taking part",
+	"accountMenu_groupTogether": "Working together",
+	"accountMenu_help": "Help & manual"
 }

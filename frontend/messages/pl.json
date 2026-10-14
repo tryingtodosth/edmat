@@ -5235,5 +5235,9 @@
 	"empty_messagesInbox": "Tu trafiają prywatne wiadomości od innych. Do każdego możesz napisać z jego profilu albo zacząć nową wiadomość.",
 	"empty_messagesSent": "Tu zostają wysłane przez Ciebie wiadomości, żeby łatwo było wrócić do rozmowy.",
 	"empty_notifications": "Tu pojawią się odpowiedzi na Twoje komentarze, opinie o dodanych przez Ciebie treściach i nowości z kursów oraz tagów, które obserwujesz.",
-	"empty_notificationsSettings": "Wybierz, o czym chcesz wiedzieć"
+	"empty_notificationsSettings": "Wybierz, o czym chcesz wiedzieć",
+	"accountMenu_groupLearning": "Uczę się",
+	"accountMenu_groupTakingPart": "Biorę udział",
+	"accountMenu_groupTogether": "Współpracuję",
+	"accountMenu_help": "Pomoc i instrukcja"
 }

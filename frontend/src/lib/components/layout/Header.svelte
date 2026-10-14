@@ -34,7 +34,7 @@
 	// surfaces — the item lists are snippets rendered in both the popovers and the drawer, so a flag
 	// can never hide an entry in one place and leave it in the other. A kill switch that leaves its
 	// buttons on the page does not hide a feature, it only moves where the error appears.
-	import { onMount, tick, untrack } from 'svelte';
+	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { localizedPath } from '$lib/utils/localizedPath';
 	import { page } from '$app/state';
@@ -136,6 +136,15 @@
 	// minors rule and the creation gate, and any one of the three takes the entry away
 	// (CONTESTS-BRIEF.md §2, the markers table).
 	let canCreateContest = $derived(canContests && !isMinor && creationStore.allows('contest'));
+
+	// The account menu's groups (WP8, 2026-10-14). A heading whose entries are all switched off
+	// must go with them (house rule 3), so each group asks exactly the switches its own entries
+	// read — keep these in step with `accountItems` below, one line per group. ("My agenda" needs
+	// `canTutoring` as well as `events`, so it adds nothing to the Taking part line.)
+	let canShifts = $derived(can('shifts'));
+	let hasLearningItems = $derived(canFlashcards || canContests);
+	let hasTakingPartItems = $derived(canTutoring || canShifts || canOffers);
+	let hasTogetherItems = $derived(canCoauthoring || canTasks || canOrganizations || canWork);
 
 	// An empty menu is worse than no menu: it invites a click and then explains nothing. So the
 	// trigger itself disappears when a moderator has switched off everything under it.
@@ -635,152 +644,218 @@
 	{/if}
 {/snippet}
 
-{#snippet accountItems(itemClass: string, onclick: () => void)}
-	{#if authStore.user?.id}
-		<a
-			role="menuitem"
-			class={itemClass}
-			href={resolve('/users/[id]', { id: authStore.user.id })}
-			{onclick}
-		>
-			{m.nav_profile()}
-		</a>
-	{/if}
-	{#if canTutoring}
-		<a role="menuitem" class={itemClass} href={resolve('/bookings')} {onclick}>
-			{m.nav_bookings()}
-		</a>
-		{#if can('events')}
-			<a role="menuitem" class={itemClass} href={resolve('/events/agenda')} {onclick}>
-				{m.events_myAgenda()}
+<!-- **The account menu, grouped (WP8, 2026-10-14).** It had grown to fourteen flat entries, one per
+     feature, in the order the features were built — which is no order a reader can use. They are
+     now sorted under four small headings by what each entry is FOR: what you are learning, what
+     you are taking part in, what you work on with other people, and the account itself. The
+     groups were chosen from what is actually here, not from a wish list: the learning record has
+     no page of its own (it is a panel on the profile), so it is not an entry.
+
+     **A heading never outlives its entries** (house rule 3): each group is drawn only when at
+     least one entry under it survives its own switch (`hasLearningItems` & co. in the script, one
+     line per group, listing exactly the `can…` its entries read). Every entry keeps the gating it
+     had before.
+
+     **One snippet, both surfaces**, like the rest of this header: `surface` picks a `role="group"`
+     with an `aria-label` inside the desktop `role="menu"`, and a `.drawer__section` per group in
+     the phone drawer, so the two can never sort the same entries differently. The visible heading
+     is `aria-hidden` — the group's label already says it, once — and it is a plain span, never a
+     `menuitem`, so neither Tab nor the arrow keys ever stop on it. In the drawer the entries carry
+     no `menuitem` role: the drawer is not a menu, and a `menuitem` outside one is an orphan. -->
+{#snippet accountItems(surface: 'menu' | 'drawer', onclick: () => void)}
+	{@const itemClass = surface === 'menu' ? 'menu-item' : 'drawer__item'}
+	{@const itemRole = surface === 'menu' ? 'menuitem' : undefined}
+
+	{#snippet learningItems()}
+		<!-- Learning account-menu marker (prompts/README.md §5 rule 4): step A appended "My decks"
+		     (→ /flashcards, behind `flashcards`). Contests account-menu marker (CONTESTS-BRIEF.md
+		     §4 rule 4): step A appended "My contests" (→ /contests?mine=1, behind `contests`). Both
+		     live in this group since WP8. -->
+		{#if canFlashcards}
+			<!-- A thing of theirs to come back to, like "My tasks", rather than something to make —
+			     which is why it is here and not in the Add… menu. A deck is created from a set, a
+			     lesson or this page, never from a global "new…" entry. -->
+			<a role={itemRole} class={itemClass} href={resolve('/flashcards')} {onclick}>
+				{m.decks_navMine()}
+				<!-- "My decks" -->
 			</a>
 		{/if}
-	{/if}
-	{#if canCoauthoring}
-		<!-- With the bookings and the agenda rather than in Add…: this is the list of materials this
-		     person is a co-author of, which is a thing of theirs to come back to, not something to
-		     make. `?tab=mine` is the page's own default tab spelled out, so the link lands on the
-		     half that belongs to them rather than on the public "looking for co-authors" board. -->
-		<!-- A block pair rather than `eslint-disable-next-line`: the rule reports at the `href`
-		     ATTRIBUTE's own line, and Prettier reflows this tag across several lines, so the
-		     single-line form stops pointing at the reported line (frontend/CLAUDE.md records the
-		     same trap for MaterialCard's download link). -->
-		<!-- eslint-disable svelte/no-navigation-without-resolve -- built on resolve('/material-projects'), query parameter only -->
-		<a
-			role="menuitem"
-			class={itemClass}
-			href={`${resolve('/material-projects')}?tab=mine`}
-			{onclick}
-		>
-			{m.nav_coauthoring()}
-			<!-- "Co-authoring" -->
+		{#if canContests}
+			<!-- `?mine=1` is the hub's own tab, not a second page. With learning rather than taking
+			     part: a contest here is an olympiad-style problem set, which a student enters to learn. -->
+			<a role={itemRole} class={itemClass} href="{resolve('/contests')}?mine=1" {onclick}>
+				{m.contests_navMine()}
+				<!-- "My contests" -->
+			</a>
+		{/if}
+	{/snippet}
+
+	{#snippet takingPartItems()}
+		{#if canTutoring}
+			<a role={itemRole} class={itemClass} href={resolve('/bookings')} {onclick}>
+				{m.nav_bookings()}
+				<!-- "My schedule" -->
+			</a>
+			{#if canEvents}
+				<a role={itemRole} class={itemClass} href={resolve('/events/agenda')} {onclick}>
+					{m.events_myAgenda()}
+					<!-- "My agenda" -->
+				</a>
+			{/if}
+		{/if}
+		{#if canShifts}
+			<!-- The rota, from the volunteer's side (CONFERENCE-BRIEF.md §3.E): every event they have
+			     helped run, the hours, and the certificate for each. It moved to `/volunteering/hours`
+			     on 2026-10-01, when the public offers board took the `/volunteering` address (owner's
+			     call: the public noun gets the public address). Still `shifts`, not `volunteering` —
+			     these are two features that happen to share a word. -->
+			<a role={itemRole} class={itemClass} href={resolve('/volunteering/hours')} {onclick}>
+				{m.shifts_volunteeringTitle()}
+				<!-- "Volunteering" -->
+			</a>
+		{/if}
+		{#if canOffers}
+			<!-- The offers this person has posted (needs.VolunteeringOffer). Its own flag, because the
+			     rota above answers to `shifts` and this to `volunteering`; a reader may well have one
+			     switched on and the other off. -->
+			<a role={itemRole} class={itemClass} href={resolve('/volunteering/mine')} {onclick}>
+				{m.offers_mineHeading()}
+				<!-- "My volunteering offers" -->
+			</a>
+		{/if}
+	{/snippet}
+
+	{#snippet togetherItems()}
+		{#if canCoauthoring}
+			<!-- The list of materials this person is a co-author of — a thing of theirs to come back
+			     to, not something to make. `?tab=mine` is the page's own default tab spelled out, so
+			     the link lands on the half that belongs to them rather than on the public "looking for
+			     co-authors" board. A block disable pair rather than `-next-line`: Prettier reflows this
+			     tag across several lines, and the rule reports at the `href` attribute's own line. -->
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- built on resolve('/material-projects'), query parameter only -->
+			<a
+				role={itemRole}
+				class={itemClass}
+				href={`${resolve('/material-projects')}?tab=mine`}
+				{onclick}
+			>
+				{m.nav_coauthoring()}
+				<!-- "Co-authoring" -->
+			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+		{/if}
+		<!-- Management account-menu marker (MANAGEMENT-BRIEF.md §4 rule 4): A "My organisations",
+		     B "My tasks", F "My work", each behind its own flag — in this group since WP8. -->
+		{#if canTasks}
+			<!-- Everything waiting on this person across every course, event and material they help
+			     run (MANAGEMENT-BRIEF.md §3.B). -->
+			<a role={itemRole} class={itemClass} href={resolve('/tasks')} {onclick}>
+				{m.tasks_myTitle()}
+				<!-- "My tasks" -->
+			</a>
+		{/if}
+		{#if canOrganizations}
+			<!-- Not gated on being an adult: a minor may be ON a roster somebody else put them on, and
+			     this is the list of the bodies they are in. -->
+			<a role={itemRole} class={itemClass} href={resolve('/organizations')} {onclick}>
+				{m.orgs_navMine()}
+				<!-- "My organisations" -->
+			</a>
+		{/if}
+		{#if canWork}
+			<a role={itemRole} class={itemClass} href={resolve('/work')} {onclick}>
+				{m.work_title()}
+				<!-- "My work" -->
+			</a>
+		{/if}
+		<!-- The school-management demo (HISTORY.md §17BO) was linked from this menu until 2026-10-01,
+		     when the owner took it out. The demo is untouched and still served at /dziennik/ by the
+		     vhost — a separate static bundle, not a SvelteKit route — and the `school_demo` flag is
+		     now read nowhere in this file. -->
+	{/snippet}
+
+	{#snippet accountBlock()}
+		{#if authStore.user?.id}
+			<a
+				role={itemRole}
+				class={itemClass}
+				href={resolve('/users/[id]', { id: authStore.user.id })}
+				{onclick}
+			>
+				{m.nav_profile()}
+				<!-- "Profile" -->
+			</a>
+		{/if}
+		<a role={itemRole} class={itemClass} href={resolve('/settings')} {onclick}>
+			{m.nav_settings()}
+			<!-- "Settings" -->
 		</a>
-	{/if}
-	{#if can('shifts')}
-		<!-- The rota, from the volunteer's side (CONFERENCE-BRIEF.md §3.E): every event they have
-		     helped run, the hours, and the certificate for each. With the bookings and the agenda
-		     rather than in Add…, for the same reason co-authoring is: it is a thing of theirs to come
-		     back to, not something to make.
-		     It moved to `/volunteering/hours` on 2026-10-01, when the public offers board took the
-		     `/volunteering` address (owner's call: the public noun gets the public address, and the
-		     personal record of what you have already done sits under it). Still `shifts`, not
-		     `volunteering` — these are two features that happen to share a word. -->
-		<a role="menuitem" class={itemClass} href={resolve('/volunteering/hours')} {onclick}>
-			{m.shifts_volunteeringTitle()}
-			<!-- "Volunteering" -->
+		<!-- Help, one click from anywhere (WP8). The manual had exactly one way in — a button on
+		     /about — so somebody stuck on a page had to know the manual existed to find it. No
+		     switch: the manual is a standing page, and its chapters say for themselves when the
+		     feature they describe is switched off here. -->
+		<a role={itemRole} class="{itemClass} help-link" href={resolve('/about/guide')} {onclick}>
+			{m.accountMenu_help()}
+			<!-- "Help & manual" -->
 		</a>
-	{/if}
-	{#if canOffers}
-		<!-- The offers this person has posted (needs.VolunteeringOffer). Its own flag, because the
-		     board above answers to `shifts` and this to `volunteering`; a reader may well have one
-		     switched on and the other off. -->
-		<a role="menuitem" class={itemClass} href={resolve('/volunteering/mine')} {onclick}>
-			{m.offers_mineHeading()}
-			<!-- "My volunteering offers" -->
-		</a>
-	{/if}
-	<!-- Management account-menu marker (MANAGEMENT-BRIEF.md §4 rule 4): steps append directly below
-	     this comment, in step order — A "My organisations", B "My tasks", F "My work" — each behind
-	     its own flag. -->
-	<!-- Learning account-menu marker (prompts/README.md §5 rule 4): step A appends "My decks"
-	     (→ /flashcards, behind `flashcards`) directly below this comment. No other learning step
-	     touches the account menu. -->
-	<!-- Contests account-menu marker (CONTESTS-BRIEF.md §4 rule 4): step A appends "My contests"
-	     (→ /contests?mine=1, behind `contests`) directly below this comment. Step B does not touch
-	     the account menu. -->
-	{#if canContests}
-		<!-- A thing of theirs to come back to, like "My decks" and "My tasks" below: `?mine=1` is
-		     the hub's own tab, not a second page. -->
-		<a role="menuitem" class={itemClass} href="{resolve('/contests')}?mine=1" {onclick}>
-			{m.contests_navMine()}
-			<!-- "My contests" -->
-		</a>
-	{/if}
-	{#if canFlashcards}
-		<!-- A thing of theirs to come back to, like "My tasks" below, rather than something to make —
-		     which is why it is here and not in the Add… menu. A deck is created from a set, a lesson
-		     or this page, never from a global "new…" entry. -->
-		<a role="menuitem" class={itemClass} href={resolve('/flashcards')} {onclick}>
-			{m.decks_navMine()}
-			<!-- "My decks" -->
-		</a>
-	{/if}
-	{#if canTasks}
-		<!-- Everything waiting on this person across every course, event and material they help run
-		     (MANAGEMENT-BRIEF.md §3.B). Here rather than in Add… for the same reason Volunteering is:
-		     it is a thing of theirs to come back to, not something to make. -->
-		<a role="menuitem" class={itemClass} href={resolve('/tasks')} {onclick}>
-			{m.tasks_myTitle()}
-			<!-- "My tasks" -->
-		</a>
-	{/if}
-	{#if canOrganizations}
-		<!-- Not gated on being an adult, unlike the Add… entry above: a minor may be ON a roster
-		     somebody else put them on, and this is the list of the bodies they are in. -->
-		<a role="menuitem" class={itemClass} href={resolve('/organizations')} {onclick}>
-			{m.orgs_navMine()}
-			<!-- "My organisations" -->
-		</a>
-	{/if}
-	{#if canWork}
-		<a role="menuitem" class={itemClass} href={resolve('/work')} {onclick}>
-			{m.work_title()}
-			<!-- "My work" -->
-		</a>
-	{/if}
-	<!-- The school-management demo (HISTORY.md §17BO) was linked here until 2026-10-01, when the
-	     owner took it out of the menu. The demo itself is untouched and still served at /dziennik/
-	     by the vhost — it is a separate static bundle, not a SvelteKit route, which is why the link
-	     was a plain `href` with `rel="external"` rather than a `resolve()` (a client-side
-	     navigation would 404 inside this app). What changed is only that the site stops offering a
-	     different product from its own account menu; the address still works for anybody holding
-	     it, and the `school_demo` flag still governs nothing else, so it is now read nowhere in
-	     this file. -->
-	<a role="menuitem" class={itemClass} href={resolve('/settings')} {onclick}>{m.nav_settings()}</a>
-	{#if canIssues}
+		{#if canIssues}
+			<button
+				type="button"
+				role={itemRole}
+				class="{itemClass} menu-item--button"
+				onclick={() => {
+					onclick();
+					issueReportStore.open();
+				}}
+			>
+				{m.nav_reportIssue()}
+				<!-- "Report issue" -->
+			</button>
+		{/if}
 		<button
 			type="button"
-			role="menuitem"
+			role={itemRole}
 			class="{itemClass} menu-item--button"
 			onclick={() => {
 				onclick();
-				issueReportStore.open();
+				logout();
 			}}
 		>
-			{m.nav_reportIssue()}
+			{m.nav_logout()}
+			<!-- "Log out" -->
 		</button>
+	{/snippet}
+
+	{#if hasLearningItems}
+		{@render menuGroup(surface, 'learning', m.accountMenu_groupLearning(), learningItems)}
+		<!-- "Learning" -->
 	{/if}
-	<button
-		type="button"
-		role="menuitem"
-		class="{itemClass} menu-item--button"
-		onclick={() => {
-			onclick();
-			logout();
-		}}
-	>
-		{m.nav_logout()}
-	</button>
+	{#if hasTakingPartItems}
+		{@render menuGroup(surface, 'taking-part', m.accountMenu_groupTakingPart(), takingPartItems)}
+		<!-- "Taking part" -->
+	{/if}
+	{#if hasTogetherItems}
+		{@render menuGroup(surface, 'together', m.accountMenu_groupTogether(), togetherItems)}
+		<!-- "Working together" -->
+	{/if}
+	{@render menuGroup(surface, 'account', m.nav_account(), accountBlock)}
+	<!-- "Your account" -->
+{/snippet}
+
+<!-- One group of the account menu, on either surface. `key` is a stable handle for the e2e scripts
+     (`data-group`), which must not depend on the heading's words — they change with the language. -->
+{#snippet menuGroup(surface: 'menu' | 'drawer', key: string, label: string, items: Snippet)}
+	{#if surface === 'menu'}
+		<div class="menu-group" role="group" aria-label={label} data-group={key}>
+			<span class="menu-group__heading" aria-hidden="true">{label}</span>
+			{@render items()}
+		</div>
+	{:else}
+		<div class="drawer__section" role="group" aria-label={label} data-group={key}>
+			<p class="drawer__heading" aria-hidden="true">{label}</p>
+			{@render items()}
+		</div>
+	{/if}
 {/snippet}
 
 {#snippet mySetIcon()}
@@ -1068,7 +1143,7 @@
 				     longer wraps — the reason it was over there was that it used to wrap down with the
 				     icons, stranding the one create affordance on a second line. -->
 				{#if authStore.isAuthenticated && hasAnythingToAdd}
-					<Popover label={m.nav_add()}>
+					<Popover label={m.nav_add()} closeOnFocusOut>
 						{#snippet trigger(open: boolean)}
 							<span class="add-trigger" class:add-trigger--open={open}>
 								<span aria-hidden="true">+</span>
@@ -1082,7 +1157,7 @@
 				{/if}
 
 				{#if authStore.isAuthenticated}
-					<Popover label={m.nav_account()}>
+					<Popover label={m.nav_account()} closeOnFocusOut>
 						{#snippet trigger(open: boolean)}
 							<!-- A chevron, because looking at a screenshot of this is what showed the problem: a
 						     person's own name sitting in a row of icons reads as a label, not as something
@@ -1134,7 +1209,7 @@
 							<a role="menuitem" class="menu-item menu-home" href={resolve('/')} onclick={close}>
 								{m.nav_home()}
 							</a>
-							{@render accountItems('menu-item', close)}
+							{@render accountItems('menu', close)}
 						{/snippet}
 					</Popover>
 				{:else}
@@ -1285,14 +1360,19 @@
 			</div>
 		{/if}
 
-		<div class="drawer__section">
-			<p class="drawer__heading">{m.nav_account()}</p>
-			{@render accountItems('drawer__item', closeOnNavigate)}
-		</div>
+		<!-- One `.drawer__section` per group, headed exactly as the desktop menu is (WP8). -->
+		{@render accountItems('drawer', closeOnNavigate)}
 	{:else}
 		<div class="drawer__section">
 			<a class="drawer__item" href={resolve('/login')} onclick={closeOnNavigate}>
 				{m.nav_login()}
+			</a>
+			<!-- Help for a visitor too (WP8). A signed-out reader has no menu on a desktop — the bar
+			     offers them only Log in and Sign up, and /about's own link — so the drawer is the one
+			     menu they have, and this is where it goes. -->
+			<a class="drawer__item help-link" href={resolve('/about/guide')} onclick={closeOnNavigate}>
+				{m.accountMenu_help()}
+				<!-- "Help & manual" -->
 			</a>
 			{#if canIssues}
 				<button
@@ -1583,6 +1663,27 @@
 			background: var(--bg-surface-alt);
 		}
 	}
+	// The account menu's groups (WP8). A heading is a label, not a stop: small, quiet, uppercase like
+	// the drawer's own headings, with a rule between groups so the eye finds the next one without
+	// reading. The first group gets no rule — the panel's own edge is already there.
+	.menu-group {
+		display: flex;
+		flex-direction: column;
+	}
+	.menu-group ~ .menu-group {
+		border-top: 1px solid var(--border-color);
+		margin-top: var(--space-1);
+		padding-top: var(--space-1);
+	}
+	.menu-group__heading {
+		padding: var(--space-1) var(--space-3) 2px;
+		font-size: var(--font-size-xs);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-secondary);
+		white-space: nowrap;
+	}
 	.menu-item--button {
 		background: none;
 		border: none;
@@ -1744,6 +1845,12 @@
 		.menu-home {
 			display: block;
 		}
+		// Home is not one of the account groups, so a rule sets it apart from the first of them.
+		.menu-home + .menu-group {
+			border-top: 1px solid var(--border-color);
+			margin-top: var(--space-1);
+			padding-top: var(--space-1);
+		}
 	}
 
 	// Stage 8 — once somebody has an account, the language picker moves into the account menu.
@@ -1885,6 +1992,19 @@
 			margin: calc(var(--space-2) * -1) calc(var(--space-4) * -1) 0;
 			padding: var(--space-2) var(--space-4);
 			background: var(--bg-surface);
+			// The sticky edge is measured inside the drawer's own top padding, so the bar sticks 8px
+			// below the top and a sliver of every link scrolled through the gap above it — seen in a
+			// screenshot of the grouped drawer (WP8), which is longer and so scrolls more. This
+			// covers the gap without moving the bar.
+			&::before {
+				content: '';
+				position: absolute;
+				left: 0;
+				right: 0;
+				bottom: 100%;
+				height: var(--space-2);
+				background: var(--bg-surface);
+			}
 		}
 		// The ✕ keeps the look the floating toggle had in production — a bordered 40px box on the
 		// surface colour with the modal shadow — at the owner's request; only the ☰ in the bar went
