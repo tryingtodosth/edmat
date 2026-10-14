@@ -31,6 +31,7 @@ from . import rules
 from .history import record_content_change
 from .reports import pending_reports_in_course
 from .models import (
+    COURSE_KIND_CHOICES,
     CourseCompletion,
     ACTIVE_ENROLLMENT_STATUSES,
     LESSON_PROGRESS_STATUS_CHOICES,
@@ -147,7 +148,7 @@ class CourseViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         qs = (
-            Course.objects.select_related('instructor', 'instructor__profile', 'field')
+            Course.objects.select_related('instructor', 'instructor__profile', 'field', 'parent')
             .prefetch_related(
                 'subjects',
                 # `role_of` walks this, and `can_curate`/`can_administer`/`is_staff_member` all walk
@@ -212,21 +213,17 @@ class CourseViewSet(viewsets.ModelViewSet):
         # of whoever holds its link: this queryset also backs retrieve-by-id, so widening it would
         # make every private course walkable by counting integers, which is exactly the enumeration
         # its 256-bit invite token exists to prevent. The link route in is `/course-invites/<token>/`.
-        # People already inside a course reach it by the two clauses below, not by its visibility.
-        visible = qs.filter(visibility__in=LISTED_VISIBILITIES)
-        if user.is_authenticated:
-            visible = (
-                visible
-                | qs.filter(staff__user=user)
-                | qs.filter(
-                    enrollments__participant=user,
-                    enrollments__status__in=ACTIVE_ENROLLMENT_STATUSES,
-                )
-            )
-        qs = visible.distinct()
+        # People already inside a course reach it by being in it, not by its visibility.
+        # The rule itself lives in `rules.visible_courses` since 2026-10-14, because a university
+        # version under a general course is also hidden when its PARENT is — and the claim viewset
+        # below needs the same answer, which two copies would eventually stop giving.
+        qs = rules.visible_courses(qs, user)
 
         qs = apply_audience_filter(qs, self.request.query_params)
-        if self.action == 'list':
+        # `?parent=` is the one list NOT narrowed by language: it is a general course's own versions,
+        # drawn on that course's page, and a detail page never narrows (root CLAUDE.md) — an English
+        # reader of "Linear algebra" must still find the Polish group of their own faculty.
+        if self.action == 'list' and not self.request.query_params.get('parent'):
             qs, self._hidden_by_language = apply_content_locale_filter(qs, self.request.query_params, 'language')
         subject = self.request.query_params.get('subject')
         if subject:
@@ -236,6 +233,28 @@ class CourseViewSet(viewsets.ModelViewSet):
             qs = qs.filter(field__slug=field)
         if self.request.query_params.get('open') == 'true':
             qs = qs.filter(status='open')
+        # `?kind=topic|university` and `?university=` — the hub's two filters (owner, 2026-10-14:
+        # communities around a topic AND companions to one university course). An unknown kind is
+        # ignored rather than answered with nothing, the same leniency `?audience=` has. The
+        # university matches case-insensitively and whole, because it is free text and a filter
+        # offered from the values already in use should find every spelling that differs only in
+        # case — and nothing that merely contains it ("UW" must not match "UWr").
+        kind = self.request.query_params.get('kind')
+        if kind in {value for value, _label in COURSE_KIND_CHOICES}:
+            qs = qs.filter(kind=kind)
+        university = (self.request.query_params.get('university') or '').strip()
+        if university:
+            qs = qs.filter(university__iexact=university)
+        faculty = (self.request.query_params.get('faculty') or '').strip()
+        if faculty:
+            qs = qs.filter(faculty__iexact=faculty)
+        # `?parent=<id>` — one general course's university/faculty versions (its page lists them);
+        # `?top=true` — general courses and stand-alone ones only, the hub's default view.
+        parent = self.request.query_params.get('parent')
+        if parent and parent.isdigit():
+            qs = qs.filter(parent_id=int(parent))
+        if self.request.query_params.get('top') == 'true':
+            qs = qs.filter(parent__isnull=True)
         # `?q=` — free-text course search, feeding the site-wide search page (the navbar's staged
         # collapse removes the Courses link at narrow widths on the grounds that search still
         # reaches it, so this filter is what makes that claim true). Plain icontains on the two
@@ -246,8 +265,14 @@ class CourseViewSet(viewsets.ModelViewSet):
         # into a 404 (the whole CourseSearchTests suite failed that way from §17AA until now).
         q = self.request.query_params.get('q')
         if q and self.action == 'list':
+            # The university and the course code too: somebody types "UW" or "1000-111bAM1"
+            # into search far more often than the title a course's founder chose.
             qs = qs.filter(
-                Q(title__icontains=q) | Q(description__icontains=q)
+                Q(title__icontains=q)
+                | Q(description__icontains=q)
+                | Q(university__icontains=q)
+                | Q(faculty__icontains=q)
+                | Q(course_code__icontains=q)
             )
         return qs.distinct()
 
@@ -317,6 +342,61 @@ class CourseViewSet(viewsets.ModelViewSet):
             CourseSerializer(write.instance, context=self.get_serializer_context()).data,
             status=status.HTTP_201_CREATED,
         )
+
+    # --- all the materials in one place (owner, 2026-10-14) -------------------------------------
+
+    @action(detail=True, methods=['get'])
+    def materials(self, request, pk=None):
+        """Every material this course links to — AND, on a general course, every material its
+        university/faculty versions link to — in one flat list, each row saying which course it
+        came from.
+
+        Honest about what it leaves out: only APPROVED items (a pending offer is the reviewing
+        staff's business), only versions THIS viewer can see (`rules.visible_courses` again, via
+        `get_queryset`), nothing filed in a chapter that has not opened yet (for anybody — the
+        course page itself shows curators their locked weeks; this list does not try to), and no
+        material that has been unpublished since (`target_is_available_to`). No new table: the link
+        between a course and a material is the `CourseItem` it always was.
+        """
+        course = self.get_object()
+        courses = [course]
+        if course.parent_id is None:
+            courses += list(
+                rules.visible_courses(Course.objects.filter(parent=course), request.user)
+            )
+        now = timezone.now()
+        items = (
+            CourseItem.objects.filter(
+                course__in=courses, status='approved', material__isnull=False
+            )
+            .exclude(chapter__unlocks_at__gt=now)
+            .exclude(lesson__chapter__unlocks_at__gt=now)
+            .select_related('course', 'material')
+            .order_by('course__parent_id', 'course_id', 'order', 'pk')
+        )
+        context = self.get_serializer_context()
+        rows = []
+        seen = set()
+        for item in items:
+            if item.material_id in seen or not item.target_is_available_to(request.user):
+                continue
+            seen.add(item.material_id)
+            data = CourseItemSerializer(item, context=context).data
+            rows.append(
+                {
+                    'id': item.pk,
+                    'material': item.material_id,
+                    'label': data.get('label', ''),
+                    'course': {
+                        'id': item.course_id,
+                        'title': item.course.title,
+                        'university': item.course.university,
+                        'faculty': item.course.faculty,
+                        'is_this_course': item.course_id == course.pk,
+                    },
+                }
+            )
+        return Response(rows)
 
     # --- enrolment ------------------------------------------------------------------------------
 
@@ -2009,18 +2089,8 @@ from .serializers import CourseClaimCreateSerializer, CourseClaimSerializer  # n
 
 def _visible_courses(user):
     """The same visibility rule `CourseViewSet.get_queryset` applies, for a claim reached by its own
-    id: listed courses, plus anything the caller runs or is enrolled in."""
-    qs = Course.objects.all()
-    visible = qs.filter(visibility__in=LISTED_VISIBILITIES)
-    if user.is_authenticated:
-        visible = (
-            visible
-            | qs.filter(staff__user=user)
-            | qs.filter(
-                enrollments__participant=user, enrollments__status__in=ACTIVE_ENROLLMENT_STATUSES
-            )
-        )
-    return visible.distinct()
+    id — literally the same one, `rules.visible_courses`."""
+    return rules.visible_courses(Course.objects.all(), user)
 
 
 class CourseClaimViewSet(viewsets.GenericViewSet):

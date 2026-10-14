@@ -15,6 +15,9 @@ import type { CommentTargetType } from './comment';
 export type CourseVisibility = 'only_you' | 'private' | 'public';
 /** How far along the course is. Lifecycle only — `draft` moved to `CourseVisibility`. */
 export type CourseStatus = 'open' | 'running' | 'finished';
+/** A community around a general topic, or the companion to one specific university course.
+ *  Mirrors `backend/courses/models.py: COURSE_KIND_CHOICES` (labels in `utils/labels.ts`). */
+export type CourseKind = 'topic' | 'university';
 export type EnrollmentPolicy = 'open' | 'approval';
 /** Who may READ the thread. Posting is always restricted to the people in the course — "anyone may
  * read" is a reasonable thing for an instructor to want, "anyone may post" is not. */
@@ -365,6 +368,18 @@ export interface Course {
 	description: string;
 	subjectSlugs: string[];
 	fieldSlug: string | null;
+	kind: CourseKind;
+	/** The general course this is a university/faculty version of — one level only. */
+	parent: string | null;
+	/** `{id, title}` of the parent, or null when there is none OR this viewer cannot see it. */
+	parentSummary: { id: string; title: string } | null;
+	/** Blank on a `topic` course — the server clears all four there. */
+	university: string;
+	faculty: string;
+	courseCode: string;
+	/** The term this group is running in now — NOT part of the course's identity, which is
+	 *  (university, courseCode). */
+	currentTerm: string;
 	visibility: CourseVisibility;
 	status: CourseStatus;
 	enrollmentPolicy: EnrollmentPolicy;
@@ -442,6 +457,13 @@ export interface TaughtCourseDraft {
 	description: string;
 	subjects: string[];
 	field: string | null;
+	kind: CourseKind;
+	/** Set only when creating a university/faculty version; fixed afterwards (server: `parent_fixed`). */
+	parent: string | null;
+	university: string;
+	faculty: string;
+	courseCode: string;
+	currentTerm: string;
 	visibility: CourseVisibility;
 	status: CourseStatus;
 	enrollmentPolicy: EnrollmentPolicy;

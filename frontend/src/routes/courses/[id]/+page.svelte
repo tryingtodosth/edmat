@@ -5,6 +5,9 @@
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
+	import { COURSE_KIND_LABELS } from '$lib/utils/labels';
+	import CourseMaterialsIndex from '$lib/components/course/CourseMaterialsIndex.svelte';
+	import CourseVersions from '$lib/components/course/CourseVersions.svelte';
 	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import {
 		addLesson,
@@ -478,6 +481,32 @@
 		<!-- `id` so a search hit on the course's own summary or description has somewhere to land: this
 		     block sits above the tabs, so there is no tab to switch to, only a place to scroll to. -->
 		<header class="head" id="course-overview">
+			<!-- The kind, and for a university course which one: answered above the title's byline
+			     because it is the first thing a newcomer needs to know about what they have opened. -->
+			{#if course.parentSummary}
+				<!-- A university/faculty version links back to its general course, where the other
+				     universities' versions and everything they gathered are. -->
+				<p class="parent-link">
+					<a href={resolve('/courses/[id]', { id: course.parentSummary.id })}>
+						← {m.course_version_partOf({ title: course.parentSummary.title })}
+					</a>
+					<!-- "Part of the general course “{title}”" -->
+				</p>
+			{/if}
+			<p class="kind-line">
+				<span class="kind-pill">
+					{course.parent ? m.course_version_badge() : COURSE_KIND_LABELS[course.kind]()}
+					<!-- "University/faculty version" -->
+				</span>
+				{#if course.kind === 'university'}
+					<span>
+						{[course.university, course.faculty]
+							.filter(Boolean)
+							.join(' · ')}{#if course.courseCode}&nbsp;·
+							<code>{course.courseCode}</code>{/if}{#if course.currentTerm}&nbsp;· {course.currentTerm}{/if}
+					</span>
+				{/if}
+			</p>
 			<h1>{course.title}</h1>
 			<p class="meta">
 				<!-- The author's name links to their profile: who is running a course is the main thing
@@ -649,6 +678,13 @@
 			{/if}
 		</div>
 
+		<!-- A general course's university/faculty versions, above the tabs: they are the first thing
+		     somebody studying this subject at one university is looking for (owner, 2026-10-14). A
+		     version has none — one level only. -->
+		{#if !course.parent && course.kind === 'topic'}
+			<CourseVersions {course} />
+		{/if}
+
 		<!-- Above the tabs, deliberately: it finds things that live on four different ones, and
 		     somebody who cannot remember which tab a thing was on will not think to pick it first. -->
 		<CourseSearch {course} />
@@ -682,6 +718,10 @@
 				{#if staffError}
 					<p class="error staff-error">{staffError}</p>
 				{/if}
+
+				<!-- Every material in the course, flat, above the week-by-week structure — the "all
+				     the materials in one place" view (owner, 2026-10-14). -->
+				<CourseMaterialsIndex {course} />
 
 				<CourseContent
 					{course}
@@ -1090,6 +1130,23 @@
 	}
 	h1 {
 		font-size: var(--font-size-xl);
+	}
+	.kind-line {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+	}
+	.parent-link {
+		font-size: var(--font-size-sm);
+	}
+	.kind-line code {
+		font-family: var(--font-mono);
+	}
+	.kind-pill {
+		@include mix.neutral-pill;
+		font-weight: 600;
 	}
 	h2 {
 		font-size: var(--font-size-base);

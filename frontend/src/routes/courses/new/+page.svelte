@@ -2,7 +2,10 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
-	import { createCourse } from '$lib/services/course';
+	import { page } from '$app/state';
+	import { createCourse, getCourse } from '$lib/services/course';
+	import type { Course } from '$lib/types/course';
+	import { courseWriteErrorMessage } from '$lib/utils/labels';
 	import { authStore } from '$lib/state/auth.svelte';
 	// The creation gate (learning step F): somebody can still reach this address by typing it or
 	// following an old link, so the page says WHY rather than showing a form the server would
@@ -16,6 +19,32 @@
 	let submitting = $state(false);
 	let error = $state('');
 
+	// `?parent=<id>` — adding a university/faculty version of that general course (its page's
+	// "Add a university/faculty version" link). Loaded in an effect, never at the top level (an
+	// SSR-time service call is trap 5 in frontend/CLAUDE.md), with the id guard trap 2 asks for.
+	// Who may: anybody the creation gate lets found a course and who can see the general course —
+	// `backend/courses/rules.py` decides, and its refusal words come back as sentences.
+	let parentId = $derived(page.url.searchParams.get('parent'));
+	let parent = $state<Course | null>(null);
+	let parentMissing = $state(false);
+	let parentLoadedFor = $state<string | null>(null);
+	$effect(() => {
+		const id = parentId;
+		if (id === parentLoadedFor) return;
+		parentLoadedFor = id;
+		parent = null;
+		parentMissing = false;
+		if (!id) return;
+		getCourse(id)
+			.then((found) => {
+				if (parentLoadedFor !== id) return;
+				parent = found ?? null;
+				parentMissing = !found || Boolean(found.parent);
+			})
+			.catch(() => (parentMissing = true));
+	});
+	let heading = $derived(parentId ? m.course_version_add() : m.course_runACourse());
+
 	async function submit(draft: TaughtCourseDraft) {
 		submitting = true;
 		error = '';
@@ -24,7 +53,7 @@
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- internal route with a dynamic id segment
 			await goto(`${resolve('/courses')}/${created.id}`);
 		} catch (e) {
-			error = e instanceof Error ? e.message : m.common_error_generic();
+			error = courseWriteErrorMessage(e, m.common_error_generic());
 		} finally {
 			submitting = false;
 		}
@@ -32,11 +61,12 @@
 </script>
 
 <svelte:head>
-	<title>{pageTitle(m.course_runACourse())}</title>
+	<title>{pageTitle(heading)}</title>
 </svelte:head>
 
 <div class="page">
-	<h1>{m.course_runACourse()}</h1>
+	<h1>{heading}</h1>
+	<!-- "Add a university/faculty version" / "Start a course or community" -->
 	{#if authStore.restoring}
 		<p class="session-restoring">{m.common_loading()}</p>
 	{:else if !authStore.isAuthenticated}
@@ -46,9 +76,17 @@
 		<CreationGateNote kind="course" />
 	{:else if !creationStore.allows('course')}
 		<p class="status">{m.common_loading()}</p>
+	{:else if parentId && parentMissing}
+		<p class="status">{m.course_version_refusal_parentNotFound()}</p>
+		<!-- "That general course is not visible to you." -->
+	{:else if parentId && !parent}
+		<p class="status">{m.common_loading()}</p>
 	{:else}
-		<p class="lead">{m.course_newLead()}</p>
-		<CourseForm submitLabel={m.course_create()} {submitting} {error} onsubmit={submit} />
+		<p class="lead">{parent ? m.course_version_lead() : m.course_newLead()}</p>
+		<!-- "One university's (and faculty's) version of this course: …" -->
+		{#key parent?.id}
+			<CourseForm {parent} submitLabel={m.course_create()} {submitting} {error} onsubmit={submit} />
+		{/key}
 	{/if}
 </div>
 

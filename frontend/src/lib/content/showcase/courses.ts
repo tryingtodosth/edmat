@@ -64,6 +64,15 @@ function courseBase(): Omit<Course, 'title' | 'summary' | 'instructor' | 'langua
 		// `school` arrived with learning step C (a course a school runs is a class); the sample is a
 		// society's course, so none. Added at integration, 2026-10-05.
 		school: null,
+		// The course kind and the general/version shape (2026-10-14). The sample is a top-level
+		// general course, so none of the university fields.
+		kind: 'topic',
+		parent: null,
+		parentSummary: null,
+		university: '',
+		faculty: '',
+		courseCode: '',
+		currentTerm: '',
 		description: '',
 		subjectSlugs: ['uw-mat-analiza-i'],
 		fieldSlug: 'uw-matematyka',

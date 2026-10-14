@@ -118,9 +118,13 @@ const navIcon = (page, key) => page.locator(`.site-nav .nav-link--${key} .nav-li
 // icon at EVERY width rather than at a stage of its own, and sits last. `needs` is deliberately
 // not in this list — it is behind a flag this script does not turn on, and a list that assumed it
 // would fail on a database where the switch is off.
-const NAV_ORDER = ['disciplines', 'services', 'about', 'events'];
-// Everything in the bar except Events, which never shows its text there any more.
-const TEXT_LINKS = ['disciplines', 'services', 'about'];
+//
+// **Re-staged 2026-10-14**: Materials and Courses came back after Exercises (owner's decision),
+// and to fit, About and Contests are icons at every width like Events, the account name is capped,
+// and the stages below were re-measured (Header.svelte's stage block names each width).
+const NAV_ORDER = ['disciplines', 'materials', 'classroom', 'services', 'about', 'events'];
+// The links that show their WORDS at 1280.
+const TEXT_LINKS = ['disciplines', 'materials', 'classroom', 'services'];
 async function inNavOrder(page) {
 	let last = -Infinity;
 	for (const key of NAV_ORDER) {
@@ -146,11 +150,10 @@ check(
 );
 check('Events is last in the bar', await inNavOrder(signed));
 check(
-	'Materials, Courses and Concepts are not in the bar at all',
-	(await signed.locator('.site-nav .nav-link--materials').count()) === 0 &&
-		(await signed.locator('.site-nav .nav-link--classroom').count()) === 0 &&
-		(await signed.locator('.site-nav .nav-link--concepts').count()) === 0
+	'Concepts is not in the bar (Materials and Courses are, since 2026-10-14)',
+	(await signed.locator('.site-nav .nav-link--concepts').count()) === 0
 );
+check('About is an icon at 1280', await navIcon(signed, 'about').isVisible());
 check('no row divider exists', (await signed.locator('.row-divider').count()) === 0);
 check(
 	'the account trigger is the name',
@@ -166,10 +169,10 @@ const hWide = await heightAt(signed);
 await shot(signed, 'stage0-1280');
 
 // ---- the stages, in order ------------------------------------------------------------------------
-console.log('[2] Stage 0 — About loses its label first');
+console.log('[2] About is an icon at every width now');
 await width(signed, 1200);
-check('the About text is gone', !(await navText(signed, 'about').isVisible()));
-check('the info icon appears', await navIcon(signed, 'about').isVisible());
+check('the About text is hidden', !(await navText(signed, 'about').isVisible()));
+check('the info icon shows', await navIcon(signed, 'about').isVisible());
 check(
 	'the link keeps an accessible name',
 	(await nav(signed, 'about').getAttribute('aria-label')) === 'About'
@@ -179,20 +182,20 @@ const avx = (await nav(signed, 'about').boundingBox()).x;
 const evx = (await nav(signed, 'events').boundingBox()).x;
 check('About stays left of Events, which is last', avx < evx, `about ${avx} events ${evx}`);
 
-console.log('[3] Stage 2 — the account trigger becomes an icon');
+console.log('[3] Stage 2 — the account trigger becomes an icon (below 1280 since 2026-10-14)');
 await width(signed, 1100);
 check('the name is gone', !(await signed.locator('.account-trigger__name').isVisible()));
 check('an avatar/person icon shows', await signed.locator('.account-trigger__avatar').isVisible());
 
-console.log('[5] Stage 4½ — Tutoring becomes a money icon');
-await width(signed, 980);
+console.log('[5] Stage 4½ — Tutoring becomes a money icon (at 1060 since 2026-10-14)');
+await width(signed, 1040);
 check('the Tutoring text is gone', !(await navText(signed, 'services').isVisible()));
 check('the money icon appears', await navIcon(signed, 'services').isVisible());
 check('the nav still keeps its order', await inNavOrder(signed));
 await shot(signed, 'stage4b-980');
 
-console.log('[6] Stage 5 — the Add trigger keeps only its plus');
-await width(signed, 930);
+console.log('[6] Stage 5 — the Add trigger keeps only its plus (at 1000 since 2026-10-14)');
+await width(signed, 980);
 check('the Add label is gone', !(await signed.locator('.add-trigger__text').isVisible()));
 check('the plus itself remains', await signed.locator('.add-trigger').isVisible());
 

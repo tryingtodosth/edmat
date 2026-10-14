@@ -5,8 +5,11 @@
 	// drift the moment one gained a field.
 	import { untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
+	import { getAllBranches } from '$lib/services/taxonomy';
+	import type { Branch } from '$lib/types/taxonomy';
 	import type {
 		ContributionPolicy,
+		CourseKind,
 		DiscussionMode,
 		ProgressVisibility,
 		Course,
@@ -15,17 +18,46 @@
 
 	let {
 		initial = null,
+		parent = null,
 		submitting = false,
 		error = '',
 		submitLabel,
 		onsubmit
 	}: {
 		initial?: Course | null;
+		/** Creating a university/faculty VERSION of this general course (`?parent=` on /courses/new).
+		 *  The kind is then fixed — a version is one university's — and the kind question is not
+		 *  asked. Editing an existing version needs no prop: `initial.parent` says it. */
+		parent?: Course | null;
 		submitting?: boolean;
 		error?: string;
 		submitLabel: string;
 		onsubmit: (draft: TaughtCourseDraft) => void;
 	} = $props();
+
+	// What kind of gathering this is (backend `COURSE_KIND_CHOICES`): a community around a topic,
+	// or the companion to one university course. Asked FIRST, because it changes what the rest of
+	// the form is about — a university course is found by its university and code.
+	let kind = $state<CourseKind>(
+		untrack(() => (parent || initial?.parent ? 'university' : (initial?.kind ?? 'topic')))
+	);
+	// A version (new or existing) is always one university's; only a top-level course chooses.
+	const isVersion = untrack(() => Boolean(parent || initial?.parent));
+	let university = $state(untrack(() => initial?.university ?? ''));
+	let faculty = $state(untrack(() => initial?.faculty ?? ''));
+	let courseCode = $state(untrack(() => initial?.courseCode ?? ''));
+	let currentTerm = $state(untrack(() => initial?.currentTerm ?? ''));
+	// The one subject (taxonomy Branch) the course is about — what puts it on that subject's map
+	// and makes its claims resolvable. One picker for one value; a course tagged with several
+	// subjects elsewhere keeps them unless this select is changed (see `submit`).
+	const initialSubject = untrack(() => initial?.subjectSlugs[0] ?? '');
+	let subject = $state(initialSubject);
+	let branches = $state<Branch[]>([]);
+	$effect(() => {
+		getAllBranches()
+			.then((rows) => (branches = rows))
+			.catch(() => (branches = []));
+	});
 
 	let title = $state(untrack(() => initial?.title ?? ''));
 	let summary = $state(untrack(() => initial?.summary ?? ''));
@@ -63,8 +95,18 @@
 			description: description.trim(),
 			// Subject/field tagging is a separate picker this first version does not have; sending
 			// what already exists keeps an edit from silently clearing tags set elsewhere.
-			subjects: initial?.subjectSlugs ?? [],
+			// Untouched select → the tags exactly as they were (possibly several); changed → that one.
+			subjects:
+				subject === initialSubject ? (initial?.subjectSlugs ?? []) : subject ? [subject] : [],
 			field: initial?.fieldSlug ?? null,
+			kind,
+			parent: parent?.id ?? initial?.parent ?? null,
+			// The server clears these four on a topic course anyway; sending blanks keeps the
+			// request saying what the form shows.
+			university: kind === 'university' ? university.trim() : '',
+			faculty: kind === 'university' ? faculty.trim() : '',
+			courseCode: kind === 'university' ? courseCode.trim() : '',
+			currentTerm: kind === 'university' ? currentTerm.trim() : '',
 			visibility,
 			status,
 			enrollmentPolicy,
@@ -84,6 +126,82 @@
 </script>
 
 <form onsubmit={submit}>
+	{#if parent}
+		<p class="version-of">
+			{m.course_version_of({ title: parent.title })}
+			<!-- "A university/faculty version of “{title}”" -->
+		</p>
+	{/if}
+	{#if !isVersion}
+		<fieldset class="field choice-set">
+			<legend>{m.course_form_kind()}<!-- "What are you starting?" --></legend>
+			<label class="choice">
+				<input type="radio" bind:group={kind} value="topic" name="course-kind" />
+				<span class="choice__body">
+					<span class="choice__label"
+						>{m.course_kind_topic()}<!-- "A community around a topic" --></span
+					>
+					<span class="choice__hint"
+						>{m.course_kind_topicHint()}<!-- "For everyone learning a subject…" --></span
+					>
+				</span>
+			</label>
+			<label class="choice">
+				<input type="radio" bind:group={kind} value="university" name="course-kind" />
+				<span class="choice__body">
+					<span class="choice__label"
+						>{m.course_kind_university()}<!-- "A specific university course" --></span
+					>
+					<span class="choice__hint"
+						>{m.course_kind_universityHint()}<!-- "One course at one university…" --></span
+					>
+				</span>
+			</label>
+		</fieldset>
+	{/if}
+
+	{#if kind === 'university'}
+		<label class="field">
+			<span>{m.course_form_university()}<!-- "University" --></span>
+			<input type="text" bind:value={university} maxlength="200" required name="university" />
+			<span class="hint">{m.course_form_universityHint()}<!-- "Write the full name…" --></span>
+		</label>
+		<label class="field">
+			<span>{m.course_form_faculty()}<!-- "Faculty (optional)" --></span>
+			<input type="text" bind:value={faculty} maxlength="200" name="faculty" />
+		</label>
+		<div class="field-row">
+			<label class="field">
+				<span>{m.course_form_courseCode()}<!-- "Course code (optional)" --></span>
+				<input type="text" bind:value={courseCode} maxlength="40" name="course_code" />
+			</label>
+			<label class="field">
+				<span>{m.course_form_currentTerm()}<!-- "Current term (optional)" --></span>
+				<input
+					type="text"
+					bind:value={currentTerm}
+					maxlength="60"
+					name="current_term"
+					placeholder={m.course_form_currentTermPlaceholder()}
+				/>
+				<!-- "e.g. 2026/27, winter" -->
+			</label>
+		</div>
+	{/if}
+
+	<label class="field">
+		<span>{m.course_form_subject()}<!-- "Subject in the exercise database (optional)" --></span>
+		<select bind:value={subject} name="subject">
+			<option value="">{m.course_form_subjectNone()}<!-- "— none —" --></option>
+			{#each branches as branch (branch.id)}
+				<option value={branch.id}>{branch.name}</option>
+			{/each}
+		</select>
+		<span class="hint"
+			>{m.course_form_subjectHint()}<!-- "Puts the course on that subject's page…" --></span
+		>
+	</label>
+
 	<label class="field">
 		<span>{m.course_form_title()}</span>
 		<input type="text" bind:value={title} maxlength="200" required />
@@ -281,6 +399,15 @@
 	/* A fieldset carries the group's accessible name on its legend, which a div of radios cannot do:
 	   without it a screen reader announces three unlabelled options and never says what they choose
 	   between. Its default border/padding are reset because every other control here is borderless. */
+	.version-of {
+		font-size: var(--font-size-sm);
+		color: var(--text-secondary);
+	}
+	.field-row {
+		display: grid;
+		gap: var(--space-3);
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	}
 	.choice-set {
 		border: none;
 		margin: 0;

@@ -235,3 +235,105 @@ def can_read_completion(user, completion) -> bool:
     if completion.participant_id == user.pk or completion.issued_by_id == user.pk:
         return True
     return completion.course.is_staff_member(user)
+
+
+# ---- general courses and their university/faculty versions (owner, 2026-10-14) ---------------------
+#
+# "A default/general course, and subcourses for specific universities and faculties." A course may
+# have a `parent` — ONE level only: a general course ("Analiza matematyczna 2", a community around
+# the subject, no university) and under it the versions for one university and faculty ("UW · MIM ·
+# 1000-112bAM2"). Every rule about that shape is here, asked by the serializer and the viewsets
+# (root CLAUDE.md boundary 2); the frontend mirrors the refusal words in
+# `frontend/src/lib/utils/labels.ts` (`SUBCOURSE_REFUSAL_LABELS`) — house rule 13.
+#
+# **Who may add a version: anyone the creation gate lets found a course** (`config/creation.py`,
+# asked by `CourseViewSet.create` before this module is) **and who can see the general course.**
+# Deliberately NOT the general course's managers only: the students of one faculty should not need
+# a stranger's permission to gather their course's materials, and a version is its own course with
+# its own staff, roster and moderation — it adds nothing to the parent's content and takes nothing
+# from it. What the parent's managers keep is everything that is theirs: the parent itself.
+
+#: Visibility, narrowest first — a version may never be MORE visible than its general course.
+VISIBILITY_RANK = {'only_you': 0, 'private': 1, 'public': 2}
+
+#: The refusal words `subcourse_block_reason` answers with. Mirrored in labels.ts.
+SUBCOURSE_REFUSALS = (
+    'parent_not_found',
+    'parent_is_subcourse',
+    'parent_not_general',
+    'has_subcourses',
+    'parent_is_self',
+    'parent_fixed',
+    'more_visible_than_parent',
+)
+
+
+def visible_courses(qs, user):
+    """THE visibility filter for courses, applied by `CourseViewSet.get_queryset` and by the claim
+    viewset's lookup alike (house rule 4 — visibility is a queryset filter).
+
+    A course is visible when it is listed (`public`), or the caller runs it or is an active
+    participant — and, for a version under a general course, ALSO only when its parent is visible
+    to the caller by the same tests. That second half is what keeps "never more visible than its
+    parent" true after the parent's owner narrows the parent: the write-time check
+    (`subcourse_block_reason`) cannot see the future, the read-time filter does not need to. People
+    inside the version itself still reach it — they are in it, and a parent going private must not
+    lock a faculty's group out of its own course.
+    """
+    from django.db.models import Q
+
+    from .models import LISTED_VISIBILITIES
+
+    own = Q(visibility__in=LISTED_VISIBILITIES)
+    parent = Q(parent__isnull=True) | Q(parent__visibility__in=LISTED_VISIBILITIES)
+    if user is not None and user.is_authenticated:
+        inside = Q(staff__user=user) | Q(
+            enrollments__participant=user, enrollments__status__in=ACTIVE_ENROLLMENT_STATUSES
+        )
+        own |= inside
+        parent |= (
+            inside
+            | Q(parent__staff__user=user)
+            | Q(
+                parent__enrollments__participant=user,
+                parent__enrollments__status__in=ACTIVE_ENROLLMENT_STATUSES,
+            )
+        )
+    return qs.filter(own & parent).distinct()
+
+
+def course_visible_to(user, course) -> bool:
+    """`visible_courses` for one row already in hand."""
+    from .models import Course
+
+    return visible_courses(Course.objects.filter(pk=course.pk), user).exists()
+
+
+def subcourse_block_reason(user, parent, *, visibility, instance=None) -> str | None:
+    """Why `user` may not have a course under `parent` with this `visibility` — or None.
+
+    One word each (house rule 6):
+      - `parent_is_self`;
+      - `parent_not_found` — the caller cannot see the general course (as good as absent);
+      - `parent_is_subcourse` — one level only: a version cannot have versions;
+      - `parent_not_general` — versions hang under a GENERAL (`topic`) course; a stand-alone
+        university course is already one university's, so "a version of it" means nothing;
+      - `has_subcourses` — a course that already has versions cannot itself become one;
+      - `more_visible_than_parent` — e.g. a public version of an unlisted general course, which
+        would publish the existence of something its owner chose not to list.
+    (`parent_fixed` is answered by the serializer: the parent is chosen at creation and not moved
+    afterwards — moving a version between general courses is left open.)
+    """
+    if instance is not None and parent.pk == instance.pk:
+        return 'parent_is_self'
+    if not course_visible_to(user, parent):
+        return 'parent_not_found'
+    if parent.parent_id is not None:
+        return 'parent_is_subcourse'
+    if parent.kind != 'topic':
+        return 'parent_not_general'
+    if instance is not None and instance.subcourses.exists():
+        return 'has_subcourses'
+    if VISIBILITY_RANK.get(visibility, 0) > VISIBILITY_RANK.get(parent.visibility, 0):
+        return 'more_visible_than_parent'
+    return None

@@ -3,8 +3,11 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import type { Course } from '$lib/types/course';
+	import { COURSE_KIND_BADGES } from '$lib/utils/labels';
 
-	let { course }: { course: Course } = $props();
+	// `versionCount`: how many university/faculty versions of this general course the hub has in
+	// hand (it counts them from the rows it loaded; 0 elsewhere, where nobody counted).
+	let { course, versionCount = 0 }: { course: Course; versionCount?: number } = $props();
 
 	const STATUS_LABEL = {
 		open: () => m.course_status_open(),
@@ -45,6 +48,27 @@
 		{/if}
 		<span class="status status--{course.status}">{STATUS_LABEL[course.status]()}</span>
 	</div>
+	<!-- What kind of gathering, and for a university course WHERE: the line a newcomer reads to tell
+	     "a community about linear algebra" from "the group for 1000-112bAM2 at UW". -->
+	<p class="kind">
+		<span class="kind-pill">{COURSE_KIND_BADGES[course.kind]()}</span>
+		{#if course.kind === 'university'}
+			<span class="where">
+				{[course.university, course.faculty]
+					.filter(Boolean)
+					.join(' · ')}{#if course.courseCode}&nbsp;·
+					<code>{course.courseCode}</code>{/if}{#if course.currentTerm}&nbsp;·
+					{course.currentTerm}{/if}
+			</span>
+		{:else if versionCount > 0}
+			<span class="where">{m.course_versions_count({ count: versionCount })}</span>
+			<!-- "{count} university versions" -->
+		{/if}
+	</p>
+	{#if course.parentSummary}
+		<p class="version-of">{m.course_version_partOf({ title: course.parentSummary.title })}</p>
+		<!-- "Part of the general course “{title}”" -->
+	{/if}
 	{#if course.summary}
 		<p class="summary">{course.summary}</p>
 	{/if}
@@ -128,6 +152,31 @@
 		@include mix.pending-pill;
 		text-transform: none;
 		letter-spacing: normal;
+	}
+	.kind {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2);
+		font-size: var(--font-size-sm);
+	}
+	// A fact about the course, not a state: the neutral pill for both kinds, so neither reads as
+	// the "better" one.
+	.kind-pill {
+		@include mix.neutral-pill;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+	.where {
+		color: var(--text-primary);
+	}
+	.version-of {
+		font-size: var(--font-size-xs);
+		color: var(--text-secondary);
+	}
+	.where code {
+		font-family: var(--font-mono);
+		font-size: var(--font-size-xs);
 	}
 	.summary,
 	.meta {

@@ -26,6 +26,9 @@
 	let canAddMaterial = $derived(
 		featureFlagsStore.isEnabled('material_submissions') || authStore.isModerator
 	);
+	// The way onward to the places that GATHER materials (owner, 2026-10-14: courses are where
+	// "all the materials are in one place"). Behind the `courses` switch like every link to them.
+	let canCourses = $derived(featureFlagsStore.isEnabled('courses') || authStore.isModerator);
 
 	let fields = $state<Discipline[]>([]);
 	let materials = $state<TrackedRow<Material>[]>([]);
@@ -135,12 +138,16 @@
 		{#if authStore.isAuthenticated && canAddMaterial}
 			<div class="add-bar">
 				<a class="btn-primary" href={resolve('/submit-material')}>{m.nav_submitMaterial()}</a>
-				<!-- "Submit material" -->
+				<!-- "Add a material" -->
 				<a class="btn-secondary" href={resolve('/material-projects/new')}>
 					{m.nav_startMaterialProject()}
 					<!-- "Start a material with others" -->
 				</a>
 			</div>
+		{/if}
+		{#if canCourses}
+			<a class="courses-link" href={resolve('/courses')}>{m.materials_hub_coursesLink()}</a>
+			<!-- "Courses & communities collect materials for one topic or one university course in one place →" -->
 		{/if}
 	</header>
 
@@ -177,6 +184,11 @@
 
 <style lang="scss">
 	@use '../../lib/styles/mixins' as mix;
+	.courses-link {
+		display: inline-block;
+		margin-top: var(--space-2);
+		font-size: var(--font-size-sm);
+	}
 	.add-bar {
 		display: flex;
 		flex-wrap: wrap;

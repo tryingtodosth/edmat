@@ -218,7 +218,9 @@ const addItems = (await addMenu.innerText()).replace(/\n+/g, ' | ');
 check('it opens', (await addTrigger.getAttribute('aria-expanded')) === 'true');
 for (const [label, needle] of [
 	['submit exercise', /Submit exercise/i],
-	['submit material', /Submit material/i],
+	['add a material', /Add a material/i],
+	// Back on 2026-10-14, by owner decision (it had left on 2026-10-01).
+	['start a course or community', /Start a course or community/i],
 	['host an event', /Host an event/i],
 	['offer tutoring', /Offer tutoring/i]
 ]) {
@@ -226,9 +228,9 @@ for (const [label, needle] of [
 }
 // Four entries left this menu on 2026-10-01, by owner decision — none of them killed, all of
 // them still reachable from the surface they belong to. Asserted as absences, because "we took
-// it out" is exactly the kind of change that half-lands (house rule 3 read in reverse).
+// it out" is exactly the kind of change that half-lands (house rule 3 read in reverse). The
+// course entry came back on 2026-10-14 (asserted above); the other three stay out.
 for (const [label, needle] of [
-	['create a course', /Create a course/i],
 	['new concept', /New concept/i],
 	['new organisation', /New organisation/i],
 	['start a material with others', /with others/i]
@@ -248,7 +250,7 @@ check(
 // None of the five create links are loose in the nav any more.
 const navText = await hostPage.locator('header nav').innerText();
 check('the nav no longer carries "Submit exercise"', !/Submit exercise/i.test(navText), navText);
-check('nor "Submit material"', !/Submit material/i.test(navText), navText);
+check('nor "Add a material"', !/Add a material/i.test(navText), navText);
 
 console.log('\n[2] The account button is a menu, not a link to Settings');
 const accountTrigger = hostPage.locator('header button[aria-haspopup="menu"]').last();

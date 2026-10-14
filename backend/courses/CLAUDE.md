@@ -77,6 +77,46 @@ Also `attachmentfile.py` (upload validation), `search.py` (in-course search with
   maps it to `courseClaim`. Frontend: `components/course/CourseClaims.svelte` reuses the
   material badge/popover/form unchanged — a claim's `ownerKind` picks the endpoint.
 
+## General courses and their university/faculty versions (migration 0021, 2026-10-14)
+
+Owner: "a default/general course, and subcourses for specific universities and faculties", so
+that "all the materials are in one place". `rules.py` (bottom section) is the whole rule.
+
+- `Course.kind`: `topic` = a GENERAL course (default; every older row) | `university` = one
+  university's course. **Mirrored** in `frontend/src/lib/utils/labels.ts` (`COURSE_KIND_LABELS`).
+  University fields `university` (required for that kind), `faculty`, `course_code`,
+  `current_term` — all four cleared by `CourseWriteSerializer.validate` on a `topic` row. The
+  identity of a university course is (university, course_code), indexed for the duplicate guard
+  that is the NEXT step and not built; `current_term` is deliberately not identity (terms are meant
+  to live inside one standing course later). The taxonomy Branch is the existing `subjects` M2M —
+  no new column; the form picks one.
+- `Course.parent` → a general course, **one level only**, SET_NULL (deleting a general course
+  leaves its versions standing alone, which is why a top-level `university` course stays valid).
+  A version is always `kind='university'`. Refusal words (`SUBCOURSE_REFUSALS`, mirrored as
+  `SUBCOURSE_REFUSAL_LABELS`): `parent_not_found`, `parent_is_subcourse`, `parent_not_general`,
+  `has_subcourses`, `parent_is_self`, `parent_fixed` (the parent is chosen at creation, never
+  moved — moving is left open), `more_visible_than_parent`. Answered as 400 `{parent: [word]}`.
+- **Who may add a version: anybody the creation gate lets found a course and who can see the
+  general course** — not the general course's managers only (a faculty's students need nobody's
+  permission; a version is its own course with its own staff).
+- **Visibility is `rules.visible_courses`**, used by `CourseViewSet.get_queryset` AND
+  `_visible_courses` (claims): own rule AND (no parent, or the parent visible to the caller, or the
+  caller is inside the version). The write-time rank check stops a version being MORE visible than
+  its parent; the read-time filter keeps that true after the parent is narrowed later.
+- Filters: `?kind=`, `?university=`, `?faculty=` (iexact), `?parent=<id>`, `?top=true`; `?q=` also
+  searches university/faculty/code. **`?parent=` is not narrowed by content language** — it is a
+  course page's own list, and a detail page never narrows.
+- `GET /courses/{id}/materials/` — "all the materials in one place": approved material items of
+  this course and (on a general course) of its versions the caller can see, minus unopened weeks
+  and unpublished materials, each row naming its course. No new table — `CourseItem` is the link.
+  Honest limit: `Material.branch` is a single required subject, so a material pinned to a general
+  course still belongs to exactly one Branch; nothing here changes that.
+- Frontend: `CourseVersions.svelte` (grouped university → faculty, "Add a university/faculty
+  version" → `/courses/new?parent=`), `CourseMaterialsIndex.svelte`, the hub's
+  General/Versions/All chips + university/faculty selects (client-side over the loaded list).
+  Browser check: `e2e/courses-communities.mjs` (45 checks, tokens not logins).
+- Tests: `test_kind.py`.
+
 ## School mode — a class is a course a school runs (learning step C, 2026-10-05)
 
 `rules.py` is the whole of it. **There is no `SchoolClass` model and no `Course.is_class` column**:

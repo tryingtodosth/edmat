@@ -224,6 +224,31 @@ ACTIVE_ENROLLMENT_STATUSES = frozenset({'active'})
 BLOCKING_ENROLLMENT_STATUSES = frozenset({'pending', 'active'})
 
 
+# What KIND of gathering this is. Owner, 2026-10-14, in two steps: "people creating communities
+# around both general topics, and specific courses on universities, for all the materials to be in
+# one place" — and then the shape: "a default/general course, and subcourses for specific
+# universities and faculties".
+#
+# - `topic` — a GENERAL course, the default: a community around a subject ("Analiza matematyczna
+#   2", "Linear algebra for everyone"), tied to no institution. Every row that predates the field is
+#   this.
+# - `university` — ONE university's (and faculty's) version of a course: `university` required,
+#   `faculty`, `course_code`, `current_term` optional. Usually a SUBCOURSE (`parent` → the general
+#   course), which is the path the interface leads with; a top-level university course is still
+#   allowed, because a course whose general parent was deleted keeps existing (`parent` is
+#   SET_NULL) and must stay valid, and because forcing somebody to invent a general course before
+#   they may gather their own faculty's materials would be a rule for its own sake.
+# Which taxonomy `Branch` a course corresponds to is NOT a new column: it is the existing
+# `subjects` M2M, which already answers that for both kinds.
+#
+# MIRRORED in `frontend/src/lib/utils/labels.ts` (`COURSE_KIND_LABELS`) — house rule 13; change both.
+COURSE_KIND_CHOICES = [
+    ('topic', 'A community around a topic'),
+    ('university', 'A specific university course'),
+]
+DEFAULT_COURSE_KIND = 'topic'
+
+
 class Course(models.Model):
     instructor = models.ForeignKey(
         settings.AUTH_USER_MODEL, related_name='courses', on_delete=models.CASCADE
@@ -302,11 +327,45 @@ class Course(models.Model):
         max_length=12, choices=CONTRIBUTION_POLICY_CHOICES, default='approval'
     )
 
+    # --- what kind of gathering, and where (COURSE_KIND_CHOICES) ---------------------------------
+    # The general course this one is a university/faculty version of. ONE level only — a version
+    # cannot have versions (`rules.subcourse_block_reason`, which also keeps a version from being
+    # more visible than its parent). SET_NULL, not CASCADE: deleting a general course must not take
+    # a faculty's whole group, roster and materials with it; the version simply stands alone.
+    parent = models.ForeignKey(
+        'self', related_name='subcourses', null=True, blank=True, on_delete=models.SET_NULL
+    )
+    kind = models.CharField(
+        max_length=12, choices=COURSE_KIND_CHOICES, default=DEFAULT_COURSE_KIND, db_index=True
+    )
+    # Free text, not a foreign key to a table of universities: there is no such table, and inventing
+    # one for a filter would put this app in the business of curating Polish higher education. The
+    # filter matches case-insensitively, and the hub offers the values already in use, so spelling
+    # converges on whatever the first course at a university wrote.
+    # All four are blank on a `topic` row — `CourseWriteSerializer.validate` clears them when the
+    # kind is `topic`, so a community never carries a stale course code from an earlier edit.
+    university = models.CharField(max_length=200, blank=True)
+    # "Wydział Matematyki, Informatyki i Mechaniki" — free text for the same reason as `university`.
+    # The general course page groups its versions by university, then by faculty.
+    faculty = models.CharField(max_length=200, blank=True)
+    course_code = models.CharField(max_length=40, blank=True)
+    # The term this group is running in NOW ("2026/27, winter") — free text, because Polish
+    # universities spell a semester five ways. Deliberately NOT part of the course's identity: the
+    # identity is (university, course_code), and the direction this is meant to grow in is ONE
+    # standing course per university course with terms filed INSIDE it (a later `CourseItem.term`,
+    # COURSES-MATERIALS-RESEARCH.md §1.1). Hence `current_term`, not `term`/`semester`.
+    current_term = models.CharField(max_length=60, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at']
+        # The university course's identity, indexed for the hub's filter and for the duplicate
+        # guard that is the next step ("this course already exists — join it"), not built yet.
+        indexes = [
+            models.Index(fields=['university', 'course_code'], name='course_university_code'),
+        ]
 
     def __str__(self) -> str:
         return self.title

@@ -53,8 +53,8 @@ class CourseAdmin(admin.ModelAdmin):
         'uploaded_mb',
     ]
     list_editable = ['capacity', 'upload_quota_bytes']
-    list_filter = ['visibility', 'status', 'enrollment_policy', 'language']
-    search_fields = ['title', 'instructor__username']
+    list_filter = ['kind', 'visibility', 'status', 'enrollment_policy', 'language']
+    search_fields = ['title', 'instructor__username', 'university', 'course_code']
     inlines = [ChapterInline]
 
     @admin.display(description='Used (MB)')

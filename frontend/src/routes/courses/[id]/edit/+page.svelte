@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
+	import { courseWriteErrorMessage } from '$lib/utils/labels';
 	import { getCourse, updateCourse } from '$lib/services/course';
 	import type { Course, TaughtCourseDraft } from '$lib/types/course';
 	import CourseForm from '$lib/components/course/CourseForm.svelte';
@@ -33,7 +34,7 @@
 		} catch (e) {
 			// The API refuses a cap below the number of people already admitted, and that message is
 			// worth showing verbatim rather than replacing with a generic failure.
-			error = e instanceof Error ? e.message : m.common_error_generic();
+			error = courseWriteErrorMessage(e, m.common_error_generic());
 		} finally {
 			submitting = false;
 		}

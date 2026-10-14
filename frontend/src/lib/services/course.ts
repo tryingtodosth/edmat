@@ -33,6 +33,7 @@ import type {
 	RatingSummary,
 	StaffRole,
 	Course,
+	CourseKind,
 	TaughtCourseDraft
 } from '$lib/types/course';
 import { apiClient, ApiError } from '$lib/api/client';
@@ -260,6 +261,15 @@ export function mapCourse(raw: any): Course {
 		description: raw.description,
 		subjectSlugs: raw.subject_slugs ?? [],
 		fieldSlug: raw.field_slug ?? null,
+		kind: raw.kind === 'university' ? 'university' : 'topic',
+		parent: raw.parent == null ? null : String(raw.parent),
+		parentSummary: raw.parent_summary
+			? { id: String(raw.parent_summary.id), title: raw.parent_summary.title ?? '' }
+			: null,
+		university: raw.university ?? '',
+		faculty: raw.faculty ?? '',
+		courseCode: raw.course_code ?? '',
+		currentTerm: raw.current_term ?? '',
 		visibility: raw.visibility,
 		status: raw.status,
 		enrollmentPolicy: raw.enrollment_policy,
@@ -328,6 +338,12 @@ function draftToBody(draft: TaughtCourseDraft): Record<string, unknown> {
 		description: draft.description,
 		subjects: draft.subjects,
 		field: draft.field,
+		kind: draft.kind,
+		parent: draft.parent ? Number(draft.parent) : null,
+		university: draft.university,
+		faculty: draft.faculty,
+		course_code: draft.courseCode,
+		current_term: draft.currentTerm,
 		visibility: draft.visibility,
 		status: draft.status,
 		enrollment_policy: draft.enrollmentPolicy,
@@ -356,6 +372,14 @@ export interface CourseFilters {
 	openOnly?: boolean;
 	/** Free-text search on title/description — the site-wide search page's own filter. */
 	q?: string;
+	kind?: CourseKind;
+	/** Exact (case-insensitive) university name. */
+	university?: string;
+	faculty?: string;
+	/** One general course's university/faculty versions. */
+	parent?: string;
+	/** General and stand-alone courses only — no versions. */
+	topOnly?: boolean;
 }
 
 export async function getCourses(filters: CourseFilters = {}): Promise<Course[]> {
@@ -364,6 +388,11 @@ export async function getCourses(filters: CourseFilters = {}): Promise<Course[]>
 	if (filters.field) search.set('field', filters.field);
 	if (filters.openOnly) search.set('open', 'true');
 	if (filters.q) search.set('q', filters.q);
+	if (filters.kind) search.set('kind', filters.kind);
+	if (filters.university) search.set('university', filters.university);
+	if (filters.faculty) search.set('faculty', filters.faculty);
+	if (filters.parent) search.set('parent', filters.parent);
+	if (filters.topOnly) search.set('top', 'true');
 	const query = search.toString();
 	const raw = await apiClient.get<unknown[]>(`/courses/${query ? `?${query}` : ''}`);
 	return raw.map(mapCourse);
@@ -389,6 +418,39 @@ export async function getCourse(id: string): Promise<Course | undefined> {
 		if (e instanceof ApiError && e.status === 404) return undefined;
 		throw e;
 	}
+}
+
+/** One row of "all the materials in one place" — `GET /api/courses/{id}/materials/`. */
+export interface CourseMaterialRow {
+	itemId: string;
+	materialId: string;
+	label: string;
+	course: {
+		id: string;
+		title: string;
+		university: string;
+		faculty: string;
+		/** False for a row gathered from one of this general course's university versions. */
+		isThisCourse: boolean;
+	};
+}
+
+/** Every approved material in this course and — on a general course — in its university/faculty
+ *  versions the viewer can see, one flat list (`backend/courses/views.py: materials`). */
+export async function getCourseMaterials(id: string): Promise<CourseMaterialRow[]> {
+	const raw = await apiClient.get<any[]>(`/courses/${encodeURIComponent(id)}/materials/`); // eslint-disable-line @typescript-eslint/no-explicit-any
+	return raw.map((row) => ({
+		itemId: String(row.id),
+		materialId: String(row.material),
+		label: row.label ?? '',
+		course: {
+			id: String(row.course?.id ?? ''),
+			title: row.course?.title ?? '',
+			university: row.course?.university ?? '',
+			faculty: row.course?.faculty ?? '',
+			isThisCourse: Boolean(row.course?.is_this_course)
+		}
+	}));
 }
 
 export async function createCourse(draft: TaughtCourseDraft): Promise<Course> {

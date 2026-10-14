@@ -6,8 +6,11 @@ from config.i18n_utils import request_locale, resolve_translation
 from taxonomy.models import Branch, Discipline
 
 from .attachmentfile import process_attachment_file
+from .rules import course_visible_to, subcourse_block_reason
 from .models import (
     ACTIVE_ENROLLMENT_STATUSES,
+    DEFAULT_COURSE_KIND,
+    LISTED_VISIBILITIES,
     MIN_PEERS_FOR_ANONYMOUS_COUNTS,
     PROGRESS_NOT_STARTED,
     Attachment,
@@ -426,6 +429,11 @@ class CourseSerializer(serializers.ModelSerializer):
     # different and wider question (ANY `runs` link, any kind of body) and is read from
     # `/api/nodes/course/{id}/organizations/`, which `organizations` already owns.
     school = serializers.SerializerMethodField()
+    # The general course this is a university/faculty version of (`rules.py`), as `{id, title}` —
+    # or null when there is none OR the viewer cannot see it. A participant of a version can be in
+    # a course whose general parent has since gone private; they keep their course and are not
+    # told the title of one they may no longer read.
+    parent_summary = serializers.SerializerMethodField()
     chapters = serializers.SerializerMethodField()
     unfiled_items = serializers.SerializerMethodField()
     pending_contribution_count = serializers.SerializerMethodField()
@@ -440,6 +448,13 @@ class CourseSerializer(serializers.ModelSerializer):
             'description',
             'subject_slugs',
             'field_slug',
+            'kind',
+            'parent',
+            'parent_summary',
+            'university',
+            'faculty',
+            'course_code',
+            'current_term',
             'visibility',
             'status',
             # Read-only here on purpose: the quota is an administrator's cost control, set in Django
@@ -545,6 +560,16 @@ class CourseSerializer(serializers.ModelSerializer):
         return LessonSerializer(
             lessons, many=True, context=self._lesson_context(course)
         ).data
+
+    def get_parent_summary(self, course):
+        parent = course.parent
+        if parent is None:
+            return None
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if parent.visibility not in LISTED_VISIBILITIES and not course_visible_to(user, parent):
+            return None
+        return {'id': parent.pk, 'title': parent.title}
 
     def get_my_enrollment_status(self, course) -> str | None:
         enrollment = self._my_enrollment(course)
@@ -680,6 +705,9 @@ class CourseWriteSerializer(serializers.ModelSerializer):
     subjects = serializers.SlugRelatedField(
         slug_field='slug', many=True, required=False, queryset=Branch.objects.all()
     )
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Course.objects.all(), required=False, allow_null=True
+    )
     field = serializers.SlugRelatedField(
         slug_field='slug', required=False, allow_null=True, queryset=Discipline.objects.all()
     )
@@ -692,6 +720,12 @@ class CourseWriteSerializer(serializers.ModelSerializer):
             'description',
             'subjects',
             'field',
+            'kind',
+            'parent',
+            'university',
+            'faculty',
+            'course_code',
+            'current_term',
             'visibility',
             'status',
             'enrollment_policy',
@@ -709,6 +743,43 @@ class CourseWriteSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
+        # The kind and its university fields (models.COURSE_KIND_CHOICES). A university course
+        # names its university — that is the whole of what makes it one, and the hub's filter finds
+        # it by that name. A topic community carries none of the three: they are cleared rather
+        # than refused, so switching an existing course from `university` to `topic` is one PATCH
+        # of `kind` and never leaves a stale course code behind on a community.
+        # The general course above this one (`rules.py`). Chosen at creation and never moved: a
+        # version re-parented under another general course would carry its materials somewhere
+        # its members did not put them (moving is left open, not built).
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if self.instance is not None and 'parent' in attrs and attrs['parent'] != self.instance.parent:
+            raise serializers.ValidationError({'parent': 'parent_fixed'})
+        parent = attrs.get('parent', getattr(self.instance, 'parent', None))
+        if parent is not None:
+            reason = subcourse_block_reason(
+                user,
+                parent,
+                visibility=attrs.get('visibility', getattr(self.instance, 'visibility', 'only_you')),
+                instance=self.instance,
+            )
+            if reason:
+                raise serializers.ValidationError({'parent': reason})
+            # A version under a general course is, by definition, one university's version.
+            attrs['kind'] = 'university'
+        kind = attrs.get('kind', getattr(self.instance, 'kind', DEFAULT_COURSE_KIND))
+        for name in ('university', 'faculty', 'course_code', 'current_term'):
+            if name in attrs:
+                attrs[name] = (attrs[name] or '').strip()
+        if kind == 'topic':
+            attrs['university'] = ''
+            attrs['faculty'] = ''
+            attrs['course_code'] = ''
+            attrs['current_term'] = ''
+        elif not attrs.get('university', getattr(self.instance, 'university', '')):
+            raise serializers.ValidationError(
+                {'university': 'A university course names its university.'}
+            )
         starts_on = attrs.get('starts_on', getattr(self.instance, 'starts_on', None))
         ends_on = attrs.get('ends_on', getattr(self.instance, 'ends_on', None))
         if starts_on and ends_on and ends_on < starts_on:

@@ -73,9 +73,13 @@
 	// happens inside a project afterwards. So the Add… entry below hangs off the first and the
 	// account entry off this one, and turning either off leaves the other's link exactly where it was.
 	let canCoauthoring = $derived(can('coauthoring'));
-	// The `courses` flag is no longer read here: the browse link and the "Add a course" item
-	// both left the header on 2026-10-01, so this file has nothing for it to govern. `/courses`
-	// and `/courses/new` are gated by `FeatureGate` on the routes themselves, as they always were.
+	// The `courses` flag is read here again (2026-10-14): the browse link and the "Start a course
+	// or community" item came back by owner decision, so the switch takes both away (house rule 3).
+	// Founding one is also one of `config/creation.py`'s kinds, so the Add… entry additionally asks
+	// the creation gate — exactly the wrapping "New event" has. (No minors clause here: the gate's
+	// own `minor` answer already covers a course, `config/creation.py` §3.)
+	let canCourses = $derived(can('courses'));
+	let canCreateCourse = $derived(canCourses && creationStore.allows('course'));
 	// The `concepts` flag is deliberately NOT read here any more (2026-10-01). Both entries this
 	// header used to carry — the browse link and the "New concept" item — were removed by owner
 	// decision, so the header has nothing left for the flag to govern. `/concepts` and its hub's
@@ -165,8 +169,18 @@
 	// ones, so an account the server would refuse at both does not open a popover holding nothing
 	// it may use. `canSubmitExercise`/`canSubmitMaterial` are untouched — submitting an exercise or
 	// a material is not founding anything and the gate says nothing about them.
+	// 2026-10-14: `canCreateCourse` joined with its entry, and `canPosts` / `canCreateContest` —
+	// whose entries were already in the menu but missing here, so somebody with only those left
+	// lost the trigger while still being allowed both.
 	let hasAnythingToAdd = $derived(
-		canSubmitExercise || canSubmitMaterial || canCreateService || canCreateEvent || runsAVenue
+		canSubmitExercise ||
+			canSubmitMaterial ||
+			canCreateCourse ||
+			canCreateService ||
+			canCreateEvent ||
+			canPosts ||
+			canCreateContest ||
+			runsAVenue
 	);
 
 	function logout() {
@@ -232,18 +246,20 @@
 	// pages (/flashcards, /my-set, /sets) are deliberately absent: a reader on "Moje talie" is not
 	// in "Zadania", and no current section is the honest answer there.
 	const SECTION_PREFIXES: Record<
-		'disciplines' | 'needs' | 'services' | 'events' | 'about' | 'contests',
+		| 'disciplines'
+		| 'materials'
+		| 'courses'
+		| 'needs'
+		| 'services'
+		| 'events'
+		| 'about'
+		| 'contests',
 		string[]
 	> = {
-		disciplines: [
-			'/disciplines',
-			'/branches',
-			'/exercises',
-			'/materialy',
-			'/materials',
-			'/concepts',
-			'/articles'
-		],
+		disciplines: ['/disciplines', '/branches', '/exercises', '/concepts', '/articles'],
+		// Materials and Courses have their own links again (2026-10-14), so they mark themselves.
+		materials: ['/materialy', '/materials', '/submit-material', '/material-projects'],
+		courses: ['/courses'],
 		needs: ['/needs', '/volunteering'],
 		// Contests (step A, CONTESTS-BRIEF.md §3.A item 10). The ONE line this step adds outside
 		// its own three markers, and it is here because `aria-current` on the nav link it appends
@@ -373,12 +389,10 @@
 	     stage rules are all scoped under `.site-nav`, so in the drawer these render as plain text
 	     links (the icon spans are hidden by their base rule).
 
-	     **Materials, Courses and Concepts left this bar on 2026-10-01**, by owner decision. Nothing
-	     about them was killed and no flag changed: each is still a tab on the home page, still a
-	     card on `/about`, and Courses is still in the "Add…" menu. What the bar carries now is the
-	     mission in four links — the exercises, the help wanted, the tutoring, and what this place
-	     is — with Events last and drawn as an icon. Taking them out of THIS snippet takes them out
-	     of the phone drawer as well, which is the point: the drawer is the phone's navbar, not a
+	     **Materials, Courses and Concepts left this bar on 2026-10-01**, by owner decision; Materials
+	     and Courses came back on 2026-10-14, by the owner's later decision (see below), and
+	     Concepts stays out. Events is last and drawn as an icon. Whatever is in THIS snippet is in
+	     the phone drawer as well, which is the point: the drawer is the phone's navbar, not a
 	     second surface that may disagree with it. -->
 	<a
 		class="nav-link nav-link--disciplines"
@@ -391,6 +405,41 @@
 		<span class="nav-link__icon" aria-hidden="true">{@render exerciseIcon()}</span>
 		<span class="nav-link__text">{m.nav_browse()}</span>
 	</a>
+	<!-- **Materials and Courses came back on 2026-10-14**, by owner decision, reversing the
+	     2026-10-01 trim for these two: "bring back materials to navbar and adding, as it's a crucial
+	     module. also, let's bring back courses" — courses being where people build communities
+	     around a general topic or a specific university course, with all the materials in one
+	     place. They sit right after Exercises because they are the same family: the things to
+	     learn from, and the places that gather them. Materials has no kill switch of its own (the
+	     browse surface was never gated); Courses answers to `courses`, exactly as its routes do. -->
+	<!-- eslint-disable svelte/no-navigation-without-resolve -- `localizedPath()` wraps the `resolve()` call so a localized route renders its Polish address (/materialy); the rule only sees a bare `resolve()` without type-aware linting, which this project does not run. See lib/utils/localizedPath.ts. The href is inside a multi-line tag, where a next-line comment cannot be placed. -->
+	<a
+		class="nav-link nav-link--materials"
+		aria-current={currentSection === 'materials' ? 'page' : undefined}
+		href={localizedPath(resolve('/materials'))}
+		aria-label={m.nav_materials()}
+		title={m.nav_materials()}
+		{onclick}
+	>
+		<span class="nav-link__icon" aria-hidden="true">{@render bookIcon()}</span>
+		<span class="nav-link__text">{m.nav_materials()}</span>
+		<!-- "Materials" -->
+	</a>
+	<!-- eslint-enable svelte/no-navigation-without-resolve -->
+	{#if canCourses}
+		<a
+			class="nav-link nav-link--classroom"
+			aria-current={currentSection === 'courses' ? 'page' : undefined}
+			href={resolve('/courses')}
+			aria-label={m.nav_classroom()}
+			title={m.nav_classroom()}
+			{onclick}
+		>
+			<span class="nav-link__icon" aria-hidden="true">{@render capIcon()}</span>
+			<span class="nav-link__text">{m.nav_classroom()}</span>
+			<!-- "Courses" -->
+		</a>
+	{/if}
 	<!-- Management nav marker (MANAGEMENT-BRIEF.md §4 rule 4): step C appends its "Help wanted"
 	     link directly below this comment, behind its flag. No other step touches the nav. -->
 	<!-- Learning nav marker (prompts/README.md §5 rule 4): NO learning step appends a main-bar link —
@@ -411,7 +460,16 @@
 			<span class="nav-link__icon" aria-hidden="true">
 				<!-- A rosette: the one shape that reads as "judged and placed" rather than
 				     "scheduled" (a calendar) or "taught" (a book). -->
-				<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+				<svg
+					viewBox="0 0 24 24"
+					width="20"
+					height="20"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.8"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
 					<circle cx="12" cy="8" r="5" />
 					<path d="M9 13l-2 8 5-3 5 3-2-8" />
 				</svg>
@@ -499,10 +557,16 @@
 		     gates collaborating on a material, and a project with a team of one is still somebody
 		     uploading a material. -->
 	{/if}
-	<!-- "Add a course" also left this menu on 2026-10-01, by owner decision. `/courses/new` still
-	     works, the `courses` flag is untouched, and the courses hub still carries its own create
-	     control. Running a course is something you set out to do, not something you reach for from
-	     whatever page you happen to be on. -->
+	<!-- "Add a course" left this menu on 2026-10-01 and came BACK on 2026-10-14, by owner decision
+	     both times — the second time as "Start a course or community", because a course is now
+	     also where people gather around a topic or a university course. Wrapped like "New event":
+	     the `courses` switch AND the creation gate's `course` answer, either one alone removes it. -->
+	{#if canCreateCourse}
+		<a role="menuitem" class={itemClass} href={resolve('/courses/new')} {onclick}>
+			{m.nav_add_course()}
+			<!-- "Start a course or community" -->
+		</a>
+	{/if}
 	{#if canCreateEvent}
 		<a role="menuitem" class={itemClass} href={resolve('/events/new')} {onclick}>
 			{m.nav_add_event()}
@@ -813,6 +877,40 @@
 		<path d="M14 3v5h5" />
 		<path d="M9.5 15.5l2 2 3.5-4" />
 		<path d="M10 11h2" />
+	</svg>
+{/snippet}
+
+{#snippet bookIcon()}
+	<!-- Materials: a book — a thing to read. Restored with the link on 2026-10-14. -->
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17.5H6.5A2.5 2.5 0 0 0 4 22z" />
+		<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+	</svg>
+{/snippet}
+
+{#snippet capIcon()}
+	<!-- Courses: a mortarboard — the thing people run and others join. Restored 2026-10-14. -->
+	<svg
+		class="icon"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="m12 4 10 4.5-10 4.5L2 8.5z" />
+		<path d="M6.5 11v4.5c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V11" />
 	</svg>
 {/snippet}
 
@@ -1250,7 +1348,11 @@
 		border-bottom-width: var(--hdr-border);
 	}
 	.site-header__row {
-		max-width: 1100px;
+		// 1280, up from 1100 (2026-10-14): Materials and Courses came back into the bar, and at the
+		// old cap the nav had ~385px beside a signed-in account's controls — less than the eight
+		// links need even in English. The bar is chrome, not a reading column, so it may run wider
+		// than the page content under it; the footer keeps 1100.
+		max-width: 1280px;
 		margin: 0 auto;
 		position: relative; // the anchor for .brand__report
 		display: flex;
@@ -1533,19 +1635,33 @@
 		display: inline-flex;
 	}
 
-	// Stage 0 — About loses its label first. It is the one link in the bar that a reader goes to
-	// once and then never again, so it is the cheapest label to spend; the icon keeps its place.
-	@media (max-width: 1240px) {
-		.site-nav .nav-link--about .nav-link__text {
-			display: none;
-		}
-		.site-nav .nav-link--about .nav-link__icon {
-			display: inline-flex;
-		}
+	// **Re-staged 2026-10-14**, when Materials and Courses came back: eight destinations beside a
+	// signed-in account's ~560px of controls do not fit as words even at the 1280px cap (measured:
+	// 81px short in Polish for a moderator, whose shield adds a control). So three things now spend
+	// their label at EVERY width, like Events already did — About (the page a reader visits once),
+	// Contests (occasional, and its rosette reads), and Events — and the account name is capped
+	// with an ellipsis rather than allowed to be as long as a person's name. The links the owner
+	// called crucial (Exercises, Materials, Courses) keep their words longest, down to 960px.
+	// `e2e/navbar-stages.mjs` drives this order; `e2e/courses-communities.mjs` checks the bar does
+	// not overflow at 1280 and 1024.
+	.site-nav .nav-link--about .nav-link__text,
+	.site-nav .nav-link--contests .nav-link__text {
+		display: none;
+	}
+	.site-nav .nav-link--about .nav-link__icon,
+	.site-nav .nav-link--contests .nav-link__icon {
+		display: inline-flex;
+	}
+	.account-trigger__name {
+		max-width: 8em;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
-	// Stage 2 — the account trigger becomes an icon: their avatar if they have one.
-	@media (max-width: 1120px) {
+	// Stage 2 — the account trigger becomes an icon: their avatar if they have one. Below the cap
+	// (1279px, was 1120 before 2026-10-14) — measured, the name and eight links share 1280 exactly.
+	@media (max-width: 1279px) {
 		.account-trigger__name {
 			display: none;
 		}
@@ -1558,8 +1674,18 @@
 	// the navbar — it lives on the Tutoring page — and the owner confirmed the spec line was written
 	// from an older memory of the bar, not as a request to re-add it.)
 
+	// Stage 3½ — Help wanted becomes its hand icon, in place (it is the longest label in Polish).
+	@media (max-width: 1160px) {
+		.site-nav .nav-link--needs .nav-link__text {
+			display: none;
+		}
+		.site-nav .nav-link--needs .nav-link__icon {
+			display: inline-flex;
+		}
+	}
+
 	// Stage 4½ — Tutoring becomes a money icon, in place.
-	@media (max-width: 1000px) {
+	@media (max-width: 1060px) {
 		.site-nav .nav-link--services .nav-link__text {
 			display: none;
 		}
@@ -1569,14 +1695,33 @@
 	}
 
 	// Stage 5 — the Add trigger keeps only its plus.
-	@media (max-width: 950px) {
+	@media (max-width: 1000px) {
 		.add-trigger__text {
 			display: none;
 		}
 	}
 
-	// Stage 6 — Exercises (formerly Disciplines) becomes a worksheet icon, in place (previously it merged into a search
-	// icon over by the Add trigger — dropped with the rest of the rearranging scheme).
+	// Stage 5½ — Courses becomes a mortarboard, in place.
+	@media (max-width: 960px) {
+		.site-nav .nav-link--classroom .nav-link__text {
+			display: none;
+		}
+		.site-nav .nav-link--classroom .nav-link__icon {
+			display: inline-flex;
+		}
+	}
+
+	// Stage 5¾ — Materials becomes a book, in place.
+	@media (max-width: 930px) {
+		.site-nav .nav-link--materials .nav-link__text {
+			display: none;
+		}
+		.site-nav .nav-link--materials .nav-link__icon {
+			display: inline-flex;
+		}
+	}
+
+	// Stage 6 — Exercises (formerly Disciplines) becomes a worksheet icon, in place.
 	@media (max-width: 900px) {
 		.site-nav .nav-link--disciplines .nav-link__text {
 			display: none;

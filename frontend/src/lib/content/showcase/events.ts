@@ -156,6 +156,15 @@ const EN: EventsShowcase = {
 	relatedCourse: {
 		id: '9100',
 		school: null, // learning step C's field; added at integration, 2026-10-05
+		// The course kind and the general/version shape (2026-10-14). The sample is a top-level
+		// general course, so none of the university fields.
+		kind: 'topic',
+		parent: null,
+		parentSummary: null,
+		university: '',
+		faculty: '',
+		courseCode: '',
+		currentTerm: '',
 		instructor: { id: '501', displayName: 'Dr Anna Lewandowska' },
 		title: 'Analysis I, spring group',
 		summary:
@@ -321,6 +330,15 @@ const PL: EventsShowcase = {
 	relatedCourse: {
 		id: '9100',
 		school: null, // learning step C's field; added at integration, 2026-10-05
+		// The course kind and the general/version shape (2026-10-14). The sample is a top-level
+		// general course, so none of the university fields.
+		kind: 'topic',
+		parent: null,
+		parentSummary: null,
+		university: '',
+		faculty: '',
+		courseCode: '',
+		currentTerm: '',
 		instructor: { id: '501', displayName: 'dr Anna Lewandowska' },
 		title: 'Analiza I, grupa wiosenna',
 		summary:

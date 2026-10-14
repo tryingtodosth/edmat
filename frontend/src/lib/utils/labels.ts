@@ -1202,6 +1202,48 @@ export function completionRefusalMessage(err: unknown, fallback: string): string
 	return err instanceof Error ? err.message : fallback;
 }
 
+import type { CourseKind } from '$lib/types/course';
+
+// Course kinds — a hand-maintained mirror of `backend/courses/models.py: COURSE_KIND_CHOICES`,
+// which names this file back (house rule 13). A community around a topic, or the companion to one
+// specific university course (owner, 2026-10-14).
+export const COURSE_KIND_LABELS: Record<CourseKind, () => string> = {
+	topic: m.course_kind_topic, // "A general course"
+	university: m.course_kind_university // "One university’s course"
+};
+/** Why a university/faculty version was refused — mirrors `backend/courses/rules.py:
+ *  SUBCOURSE_REFUSALS`, which names this file back (house rule 13). */
+export const SUBCOURSE_REFUSAL_LABELS: Record<string, () => string> = {
+	parent_not_found: m.course_version_refusal_parentNotFound, // "That general course is not visible to you."
+	parent_is_subcourse: m.course_version_refusal_parentIsSubcourse, // "A version cannot have versions of its own — add it under the general course."
+	parent_not_general: m.course_version_refusal_parentNotGeneral, // "Versions are added under a general course, not under one university's course."
+	has_subcourses: m.course_version_refusal_hasSubcourses, // "This course already has versions, so it cannot become one."
+	parent_is_self: m.course_version_refusal_parentIsSelf, // "A course cannot be a version of itself."
+	parent_fixed: m.course_version_refusal_parentFixed, // "A version stays under the general course it was created in."
+	more_visible_than_parent: m.course_version_refusal_moreVisible // "A version cannot be more visible than its general course."
+};
+
+/** The sentence for a refused course create/edit: a version refusal by its word, otherwise the
+ *  error's own message. */
+export function courseWriteErrorMessage(err: unknown, fallback: string): string {
+	if (err instanceof ApiError && err.body && typeof err.body === 'object') {
+		const parent = (err.body as Record<string, unknown>).parent;
+		const word = Array.isArray(parent)
+			? String(parent[0])
+			: typeof parent === 'string'
+				? parent
+				: '';
+		if (word in SUBCOURSE_REFUSAL_LABELS) return SUBCOURSE_REFUSAL_LABELS[word]();
+	}
+	return err instanceof Error ? err.message : fallback;
+}
+
+/** The short form, for a card's badge and the hub's filter chips. */
+export const COURSE_KIND_BADGES: Record<CourseKind, () => string> = {
+	topic: m.course_kind_topicBadge, // "General course"
+	university: m.course_kind_universityBadge // "University course"
+};
+
 // Flashcards enums — a hand-maintained mirror of `backend/flashcards/models.py`
 // (`SOURCE_KIND_CHOICES`, `GRADE_CHOICES`) and of the refusal words `flashcards/rules.py` answers
 // with. That file says so from its side (house rule 13: say it in both places, because this is

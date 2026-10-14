@@ -61,6 +61,64 @@
 		}
 	}
 
+	// General courses by default; university/faculty versions one chip away (owner, 2026-10-14: "a
+	// default/general course, and subcourses for specific universities and faculties"). Filtered
+	// HERE, over the rows already loaded, rather than as new query parameters: the list is bounded
+	// by construction (no pagination anywhere in this API), so a request per chip would buy nothing,
+	// and the offline/saved-copy machinery above keeps working under a filter for free. The API
+	// takes the same filters (`?top=`, `?kind=`, `?university=`, `?faculty=`) for anybody else.
+	type View = 'general' | 'versions' | 'all';
+	let view = $state<View>('general');
+	let universityFilter = $state('');
+	let facultyFilter = $state('');
+	const fold = (text: string) => text.trim().toLowerCase();
+	// The universities (and, under one, the faculties) on offer are the ones actually in the list —
+	// a select of every university in Poland would mostly lead to "no results". Case-folded so "UW"
+	// and "uw" are one entry, matching the backend's `__iexact`.
+	function distinct(values: string[]): string[] {
+		const byKey: Record<string, string> = {};
+		for (const value of values)
+			if (value.trim() && !byKey[fold(value)]) byKey[fold(value)] = value.trim();
+		return Object.values(byKey).sort((x, y) => x.localeCompare(y));
+	}
+	let universityCourses = $derived(courses.filter((row) => row.item.kind === 'university'));
+	let universities = $derived(distinct(universityCourses.map((row) => row.item.university)));
+	let faculties = $derived(
+		universityFilter
+			? distinct(
+					universityCourses
+						.filter((row) => fold(row.item.university) === fold(universityFilter))
+						.map((row) => row.item.faculty)
+				)
+			: []
+	);
+	// How many visible versions each general course has, for its card.
+	let versionCounts = $derived.by(() => {
+		const counts: Record<string, number> = {};
+		for (const row of courses)
+			if (row.item.parent) counts[row.item.parent] = (counts[row.item.parent] ?? 0) + 1;
+		return counts;
+	});
+	let visible = $derived(
+		courses.filter((row) => {
+			const c = row.item;
+			if (view === 'general') return !c.parent;
+			if (view === 'versions') {
+				if (c.kind !== 'university') return false;
+				if (universityFilter && fold(c.university) !== fold(universityFilter)) return false;
+				if (facultyFilter && fold(c.faculty) !== fold(facultyFilter)) return false;
+			}
+			return true;
+		})
+	);
+	function choose(next: View) {
+		view = next;
+		if (next !== 'versions') {
+			universityFilter = '';
+			facultyFilter = '';
+		}
+	}
+
 	let loadedFor = $state<string | null>(null);
 	$effect(() => {
 		const key = String(openOnly);
@@ -93,10 +151,75 @@
 
 	<CreationGateNote kind="course" />
 
-	<label class="filter">
-		<input type="checkbox" bind:checked={openOnly} />
-		<span>{m.course_filterOpenOnly()}</span>
-	</label>
+	<div class="filters">
+		<div class="kind-chips" role="group" aria-label={m.course_filter_kindLabel()}>
+			<!-- "Show" -->
+			<button
+				type="button"
+				class="chip"
+				aria-pressed={view === 'general'}
+				onclick={() => choose('general')}
+			>
+				{m.course_filter_general()}
+				<!-- "General courses" -->
+			</button>
+			<button
+				type="button"
+				class="chip"
+				aria-pressed={view === 'versions'}
+				onclick={() => choose('versions')}
+			>
+				{m.course_filter_versions()}
+				<!-- "University versions" -->
+			</button>
+			<button
+				type="button"
+				class="chip"
+				aria-pressed={view === 'all'}
+				onclick={() => choose('all')}
+			>
+				{m.course_filter_kindAll()}
+				<!-- "All" -->
+			</button>
+		</div>
+		{#if universities.length > 0}
+			<select
+				class="university-select"
+				bind:value={universityFilter}
+				onchange={() => {
+					// A university reaches the versions, so it switches the view to them.
+					facultyFilter = '';
+					if (universityFilter) view = 'versions';
+				}}
+				aria-label={m.course_form_university()}
+			>
+				<!-- "University" -->
+				<option value="">{m.course_filter_universityAll()}</option>
+				<!-- "Any university" -->
+				{#each universities as name (name)}
+					<option value={name}>{name}</option>
+				{/each}
+			</select>
+		{/if}
+		{#if faculties.length > 0}
+			<select
+				class="university-select"
+				bind:value={facultyFilter}
+				aria-label={m.course_filter_faculty()}
+			>
+				<!-- "Faculty" -->
+				<option value="">{m.course_filter_facultyAll()}</option>
+				<!-- "Any faculty" -->
+				{#each faculties as name (name)}
+					<option value={name}>{name}</option>
+				{/each}
+			</select>
+		{/if}
+		<label class="filter">
+			<input type="checkbox" bind:checked={openOnly} />
+			<span>{m.course_filterOpenOnly()}</span>
+		</label>
+	</div>
 
 	{#if loading}
 		<p class="status">{m.common_loading()}</p>
@@ -118,10 +241,14 @@
 			<SavedCopyNotice {savedAt} {stale} />
 		{/if}
 		<NewSinceNotice count={newCount} />
+		{#if visible.length === 0}
+			<p class="status">{m.course_filter_noMatch()}</p>
+			<!-- "No course matches these filters." -->
+		{/if}
 		<div class="grid">
-			{#each courses as row (row.item.id)}
+			{#each visible as row (row.item.id)}
 				<StaleRow confirmedAt={row.confirmedAt}>
-					<CourseCard course={row.item} />
+					<CourseCard course={row.item} versionCount={versionCounts[row.item.id] ?? 0} />
 				</StaleRow>
 			{/each}
 		</div>
@@ -174,6 +301,37 @@
 		border-radius: var(--radius-sm);
 		font-size: var(--font-size-sm);
 		color: inherit;
+	}
+	.filters {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-3);
+	}
+	.kind-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-1);
+	}
+	.chip {
+		@include mix.focus-ring;
+		padding: var(--space-1) var(--space-3);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-full, 999px);
+		background: var(--bg-surface);
+		color: var(--text-primary);
+		font: inherit;
+		font-size: var(--font-size-sm);
+		cursor: pointer;
+		&[aria-pressed='true'] {
+			@include mix.selected-soft;
+		}
+	}
+	.university-select {
+		font: inherit;
+		font-size: var(--font-size-sm);
+		padding: var(--space-1) var(--space-2);
+		max-width: 100%;
 	}
 	.filter {
 		display: flex;
