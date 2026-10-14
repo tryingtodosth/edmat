@@ -20,6 +20,7 @@
 	// `config/creation.py` governs.
 	import { creationStore } from '$lib/state/creation.svelte';
 	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import { getOrganizations } from '$lib/services/organizations';
 	import type { OrganizationKind, OrganizationSummary } from '$lib/types/organization';
 	import { ORGANIZATION_KIND_LABELS } from '$lib/utils/labels';
@@ -63,6 +64,14 @@
 		void load();
 	}
 
+	// The filters as they stand, not as last sent: an empty list under a search offers to clear it.
+	const filtered = $derived(Boolean(search.trim() || kind));
+	function clearFilters() {
+		search = '';
+		kind = '';
+		void load();
+	}
+
 	function submitSearch(event: SubmitEvent) {
 		event.preventDefault();
 		void load();
@@ -84,8 +93,12 @@
 				</a>
 			{/if}
 		</header>
-		<p class="intro">{m.orgs_browseIntro()}</p>
-		<!-- "Bodies that stand behind what happens here — faculties, schools, student circles and the rest." -->
+		<div class="lead">
+			<p class="intro">{m.orgs_browseIntro()}</p>
+			<!-- "Bodies that stand behind what happens here — faculties, schools, student circles and the rest." -->
+			<p class="intro">{m.empty_orgsLead()}</p>
+			<!-- "Each one has its own page with its people and the courses, events and materials it runs." -->
+		</div>
 		<!-- Below the page's own introduction, not above it: looking at the screenshot, the refusal
 		     was arriving before the reader had been told what organisations are. -->
 		<CreationGateNote kind="organization" />
@@ -141,8 +154,21 @@
 			<p class="status">{m.orgs_signInForMine()}</p>
 			<!-- "Sign in to see the organisations you are in." -->
 		{:else if organizations.length === 0}
-			<p class="status">{tab === 'mine' ? m.orgs_emptyMine() : m.orgs_empty()}</p>
-			<!-- "You are not listed in any organisation yet." / "No organisation matches this." -->
+			<!-- There is no manual chapter on organisations yet (the manual's own "Not written yet"
+			     list says so), so the link is to the one page that shows an organisation at work. -->
+			<EmptyState
+				name={tab === 'mine' ? 'organizations-mine' : 'organizations'}
+				{filtered}
+				onclear={clearFilters}
+				message={tab === 'mine' ? m.empty_orgsMine() : m.empty_orgsAll()}
+				action={{
+					label: m.empty_orgsFound(),
+					href: resolve('/organizations/new'),
+					creation: 'organization'
+				}}
+				showcase="schools"
+			/>
+			<!-- "Organisations you belong to will be listed here. Someone who runs one can add you, or you can found your own." / "This is where faculties, schools and student circles show who they are and what they run. None is listed yet." / "Found an organisation" -->
 		{:else}
 			<ul class="orgs">
 				{#each organizations as org (org.id)}
@@ -193,6 +219,17 @@
 	.intro,
 	.status {
 		color: var(--text-secondary);
+	}
+	// The two lead sentences, then air before the creation-gate note: without the bottom margin the
+	// note's box sat flush against the last line of text.
+	.lead {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		margin: var(--space-1) 0 var(--space-3);
+	}
+	.lead .intro {
+		margin: 0;
 	}
 	.tabs {
 		display: flex;

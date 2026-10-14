@@ -18,6 +18,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import { NEED_KINDS, NEED_KIND_LABELS, SKILL_LEVEL_LABELS } from '$lib/utils/labels';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -58,6 +59,17 @@
 	function onSearchInput() {
 		clearTimeout(searchTimer);
 		searchTimer = setTimeout(load, 300);
+	}
+
+	// The controls as they stand: a list emptied by a filter offers to clear it, not to post.
+	const filtered = $derived(Boolean(kind || remote || speaks.trim() || query.trim()));
+	function clearFilters() {
+		clearTimeout(searchTimer);
+		kind = '';
+		remote = false;
+		speaks = '';
+		query = '';
+		void load();
 	}
 </script>
 
@@ -131,8 +143,15 @@
 		{:else if failed}
 			<p class="status">{m.common_error_generic()}</p>
 		{:else if offers.length === 0}
-			<p class="status">{m.offers_browseEmpty()}</p>
-			<!-- "Nobody has posted an offer yet." -->
+			<EmptyState
+				name="volunteering"
+				{filtered}
+				onclear={clearFilters}
+				message={m.empty_volunteering()}
+				action={{ label: m.offers_addCta(), href: resolve('/volunteering/new'), signedIn: true }}
+				guide="help"
+			/>
+			<!-- "People say here what they can help with: checking solutions, translating, running a session. Nobody has offered yet." / "Offer to help" -->
 		{:else}
 			<div class="grid">
 				{#each offers as offer (offer.id)}

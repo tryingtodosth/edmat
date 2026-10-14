@@ -11,6 +11,7 @@
 	// `config/creation.py` governs.
 	import { creationStore } from '$lib/state/creation.svelte';
 	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import type { EdmatEvent } from '$lib/types/event';
 	import EventCard from '$lib/components/event/EventCard.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
@@ -65,6 +66,35 @@
 			loading = false;
 		}
 	}
+
+	// What an empty scope says and offers. The four buttons are views, not filters — none narrows
+	// another — so each gets its own sentence rather than "nothing matches". Hosting offers to host;
+	// the two that are about OTHER people's events point back at what is coming up.
+	//
+	// Inside the `$derived`, not module constants: a label built once at mount would stay in the
+	// language the page opened in after the picker switched it (`locale.svelte.ts` makes `m.*()`
+	// reactive only where it is read reactively).
+	const emptyCopy = $derived.by(() => {
+		const hostAction = {
+			label: m.events_hostAnEvent(), // "Host an event"
+			href: resolve('/events/new'),
+			creation: 'event' as const
+		};
+		const upcomingAction = {
+			label: m.empty_eventsSeeUpcoming(), // "See what is coming up"
+			onclick: () => (scope = 'upcoming')
+		};
+		switch (scope) {
+			case 'past':
+				return { message: m.empty_eventsPast(), action: upcomingAction }; // "Events that have already happened stay here, with their programme and what they left behind."
+			case 'hosting':
+				return { message: m.empty_eventsHosting(), action: hostAction }; // "Events you organise will be listed here."
+			case 'attending':
+				return { message: m.empty_eventsAttending(), action: upcomingAction }; // "When you say you are going to an event, it shows up here."
+			default:
+				return { message: m.empty_eventsUpcoming(), action: hostAction }; // "Talks, workshops, study sessions and conferences, each with a programme and sign-up. Nothing is planned yet."
+		}
+	});
 
 	// Keyed on the scope rather than run on every state change, the same guard `/classroom`'s own
 	// browse page uses — an unguarded `$effect` reading `events` would re-enter itself once the fetch
@@ -133,9 +163,12 @@
 		{:else if failed}
 			<p class="status">{m.common_error_generic()}</p>
 		{:else if events.length === 0}
-			<p class="status">
-				{scope === 'upcoming' ? m.events_browseEmpty() : m.events_pastEmpty()}
-			</p>
+			<EmptyState
+				name="events-{scope}"
+				message={emptyCopy.message}
+				action={emptyCopy.action}
+				guide="events"
+			/>
 		{:else}
 			{#if offline}
 				<SavedCopyNotice {savedAt} {stale} />

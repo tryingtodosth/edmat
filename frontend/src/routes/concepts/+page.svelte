@@ -13,6 +13,7 @@
 	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import HiddenLanguagesNotice from '$lib/components/shared/HiddenLanguagesNotice.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import ConceptCard from '$lib/components/concept/ConceptCard.svelte';
@@ -105,6 +106,13 @@
 		// eslint-disable-next-line svelte/no-navigation-without-resolve
 		if (search) void goto(`${resolve('/concepts')}?${search}`, options);
 		else void goto(resolve('/concepts'), options);
+	}
+
+	// The order is not a filter: sorting an empty list is still an empty list.
+	const filtered = $derived(Boolean(query || letter || branchId || tag));
+	function clearFilters() {
+		clearTimeout(searchTimer);
+		apply({ q: '', letter: '', branch: '', tag: '' });
 	}
 
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -201,8 +209,15 @@
 			<p class="hint">{m.common_error_generic()}</p>
 			<!-- "Something went wrong." -->
 		{:else if concepts.length === 0}
-			<p class="hint">{m.concept_hub_empty()}</p>
-			<!-- "Nothing here yet." -->
+			<EmptyState
+				name="concepts"
+				{filtered}
+				onclear={clearFilters}
+				message={m.empty_concepts()}
+				action={{ label: m.concept_hub_new(), href: resolve('/concepts/new'), signedIn: true }}
+				guide="concepts"
+			/>
+			<!-- "A concept page explains one idea, like a limit or a group, with a separate article for each kind of reader. Nobody has written one yet." / "Start a concept" -->
 		{:else}
 			<div class="grid">
 				{#each concepts as concept (concept.id)}

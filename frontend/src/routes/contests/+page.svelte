@@ -24,6 +24,7 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import Tabs from '$lib/components/shared/Tabs.svelte';
 	import ContestCard from '$lib/components/contest/ContestCard.svelte';
 	import { getContests } from '$lib/services/contests';
@@ -120,6 +121,17 @@
 		}, 300);
 	}
 
+	// "Nothing matches" rather than "nothing exists" while any filter narrows the list — the empty
+	// state then offers to clear them instead of to announce a contest.
+	const filtered = $derived(Boolean(status || preset || appliedQuery));
+	function clearFilters() {
+		clearTimeout(searchTimer);
+		status = '';
+		preset = '';
+		query = '';
+		appliedQuery = '';
+	}
+
 	const PRESET_KEYS = [
 		'challenge',
 		'school',
@@ -196,21 +208,56 @@
 			{:else if failed}
 				<p class="error" role="alert">{m.common_error()}</p>
 			{:else if shown.length === 0}
-				<p class="muted">
-					{#if activeTab === 'all'}
-						{m.contests_emptyAll()}
-						<!-- "No contests yet. The first one on this site will be somebody's maths problem set with three people marking it." -->
-					{:else if activeTab === 'mine'}
-						{m.contests_emptyMine()}
-						<!-- "You do not run a contest yet." -->
-					{:else if activeTab === 'judging'}
-						{m.contests_emptyJudging()}
-						<!-- "Nobody has put you on a jury." -->
-					{:else}
-						{m.contests_emptyEntering()}
-						<!-- "You are not taking part in a contest." -->
-					{/if}
-				</p>
+				{#if activeTab === 'all'}
+					<EmptyState
+						name="contests"
+						{filtered}
+						onclear={clearFilters}
+						message={m.empty_contestsAll()}
+						action={{
+							label: m.empty_contestsAnnounce(),
+							href: resolve('/contests/new'),
+							creation: 'contest',
+							flag: 'contests'
+						}}
+						guide="contests"
+					/>
+					<!-- "Contests people run here have stages, a jury and published results. None has been announced yet." / "Announce a contest" -->
+				{:else if activeTab === 'mine'}
+					<EmptyState
+						name="contests-mine"
+						{filtered}
+						onclear={clearFilters}
+						message={m.empty_contestsMine()}
+						action={{
+							label: m.empty_contestsAnnounce(),
+							href: resolve('/contests/new'),
+							creation: 'contest',
+							flag: 'contests'
+						}}
+						guide="contests"
+					/>
+					<!-- "Contests you organise or help run will be listed here." -->
+				{:else if activeTab === 'judging'}
+					<EmptyState
+						name="contests-judging"
+						{filtered}
+						onclear={clearFilters}
+						message={m.empty_contestsJudging()}
+						guide="contests"
+					/>
+					<!-- "When an organiser puts you on a jury, the entries waiting for your marks will be here." -->
+				{:else}
+					<EmptyState
+						name="contests-entering"
+						{filtered}
+						onclear={clearFilters}
+						message={m.empty_contestsEntering()}
+						action={{ label: m.empty_contestsBrowse(), href: resolve('/contests') }}
+						guide="contests"
+					/>
+					<!-- "Contests you have signed up for will be listed here." / "Browse all contests" -->
+				{/if}
 			{:else}
 				<ul class="cards">
 					{#each shown as contest (contest.id)}

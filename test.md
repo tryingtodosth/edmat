@@ -3009,3 +3009,41 @@ E2E_BASE=http://localhost:5195 E2E_API=http://127.0.0.1:8045/api \
   CHROME=~/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell \
   LD_LIBRARY_PATH=<extracted libs>/usr/lib/x86_64-linux-gnu node e2e/licences.mjs
 ```
+
+## Empty states that offer a next step (`ux/empty-states`, 2026-10-14)
+
+### `frontend/e2e/empty-states.mjs` — 273 checks, zero page errors
+
+`lib/components/shared/EmptyState.svelte` on thirteen hubs, in **both** interface languages (English
+through `english.mjs`, Polish as the default). It registers ONE throwaway account and erases it at
+the end through `POST /api/auth/me/erasure/`. Set `E2E_KEEP=1` to keep it, then re-run with the
+`E2E_EMPTY_USER` / `E2E_EMPTY_TOKEN` it prints, so that a re-run does not spend the register throttle.
+
+- **Honestly empty, as the fresh account:** my set, my tasks, notifications, the inbox and Sent,
+  decks, the events "hosting" and "attending" views, the three personal contest tabs, "my"
+  organisations, "my" tutoring listings, and the followed activity view. Each one draws its OWN
+  sentence, which is compared with the catalogue for that language, so a key missing from one file
+  fails here.
+- **The creation gate, both ways:** where the next step is founding something, the button appears
+  exactly when `GET /api/creation/` allows it. A fresh account is unverified, and
+  `creation_requires_verification` is on, so the button is absent. With `E2E_ALLOWED_TOKEN` (kasia's,
+  read as trap 30 describes), the contests hub shows "Announce a contest" leading to `/contests/new`.
+  Signed out, the action becomes a sign-in link.
+- **A filter that matches nothing** on concepts, needs, volunteering, contests, organisations and
+  activity says "Nothing matches these filters" and offers "Clear filters", never a create button.
+  Clearing really clears the URL or the inputs.
+- **The in-page actions work:** events → "See what is coming up", and activity → "Show everything".
+- **Every link resolves:** every link the empty states drew, plus every slug the component's
+  `EmptyStateGuide` type allows, is opened, and must reach a real heading. A guide link must not land
+  on the chapter page's "no chapter under that address" line.
+- At 390 px there must be no horizontal scroll, and screenshots are written to
+  `e2e/screenshots/empty-*.png` (light, dark and 390). Look at them.
+
+`/contests` loads twice (once as a visitor, then again when the session resolves), so for a moment
+the empty state is swapped for "Loading…". `expectState` waits for the state to hold across ~1 s
+before reading it; without that, two runs each lost a different `/contests` check.
+
+```bash
+E2E_BASE=http://localhost:5198 E2E_API=http://127.0.0.1:8048 E2E_ALLOWED_TOKEN=<kasia's token> \
+  CHROME=<chrome-headless-shell> node e2e/empty-states.mjs
+```

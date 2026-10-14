@@ -10,6 +10,7 @@
 	import { guestSetStore } from '$lib/state/guestSet.svelte';
 	import { createDeckFromExercises } from '$lib/services/flashcards';
 	import DifficultyBadge from '$lib/components/shared/DifficultyBadge.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
 	import MathTitle from '$lib/components/shared/MathTitle.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -295,7 +296,15 @@
 	<div class="print-area">
 		<h2 class="print-only">{m.myset_printTitle()}</h2>
 		{#if exercises.length === 0}
-			<p class="empty">{m.myset_empty()}</p>
+			<div class="no-print">
+				<EmptyState
+					name="my-set"
+					message={m.empty_mySet()}
+					action={{ label: m.empty_mySetFindExercises(), href: resolve('/disciplines') }}
+					guide="exercises"
+				/>
+				<!-- "Your set is a study sheet you put together yourself: add exercises while browsing, then print them with or without hints and solutions." / "Find exercises" -->
+			</div>
 		{:else}
 			<div class="bulk-options no-print">
 				<span class="bulk-options__label">{m.myset_includeForAll()}</span>
@@ -594,9 +603,6 @@
 		&:focus-visible {
 			background: var(--status-danger-bg);
 		}
-	}
-	.empty {
-		color: var(--text-secondary);
 	}
 	.print-only {
 		display: none;

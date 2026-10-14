@@ -11,6 +11,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { getMessages } from '$lib/services/messaging';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
 	let folder = $state<MessageFolder>('inbox');
@@ -104,7 +105,14 @@
 			{#if loading}
 				<p class="empty">{m.common_loading()}</p>
 			{:else if messages.length === 0}
-				<p class="empty">{m.messages_empty()}</p>
+				<!-- No action of its own: "New message" is the page header's button, right above, and a
+				     second one with the same words a few lines lower read as two different things. -->
+				<EmptyState
+					name="messages-{folder}"
+					message={folder === 'sent' ? m.empty_messagesSent() : m.empty_messagesInbox()}
+					guide="messages"
+				/>
+				<!-- "Messages you send are kept here, so you can find the conversation again." / "Private messages people send you land here. You can write to anyone from their profile, or start a new message." -->
 			{:else}
 				<ul class="list">
 					{#each messages as message (message.id)}

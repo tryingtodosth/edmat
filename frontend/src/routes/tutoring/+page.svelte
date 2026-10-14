@@ -28,6 +28,7 @@
 	// only after somebody had filled the whole form in.
 	import { creationStore } from '$lib/state/creation.svelte';
 	import CreationGateNote from '$lib/components/shared/CreationGateNote.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import { getAllBranches } from '$lib/services/taxonomy';
 	import {
 		createService,
@@ -165,6 +166,20 @@
 	async function handleCourseFilterChange() {
 		await loadBrowse();
 	}
+
+	// An empty browse list under a branch or a mode offers to widen it, not to post a listing.
+	const filtered = $derived(Boolean(courseFilter || modeFilter));
+	function clearFilters() {
+		courseFilter = '';
+		modeFilter = '';
+		void loadBrowse();
+	}
+	// The same control as the header's "New listing": a dialog, so the gate is asked here too.
+	const newListingAction = $derived({
+		label: m.services_newListing(), // "New listing"
+		onclick: () => (creating = true),
+		creation: 'service' as const
+	});
 
 	async function handleTogglePause(service: Service) {
 		const updated = await updateService(service.id, {
@@ -321,7 +336,15 @@
 			{#if loading}
 				<p class="empty">{m.common_loading()}</p>
 			{:else if listings.length === 0}
-				<p class="empty">{m.services_empty()}</p>
+				<EmptyState
+					name="tutoring"
+					{filtered}
+					onclear={clearFilters}
+					message={m.empty_tutoring()}
+					action={newListingAction}
+					guide="tutoring"
+				/>
+				<!-- "Tutors post here what they teach, what an hour costs and when they are free, and you can book a time with them. There are no listings yet." -->
 			{:else}
 				<NewSinceNotice count={newSinceLastVisit} />
 				<div class="grid">
@@ -346,7 +369,13 @@
 		{:else if loading}
 			<p class="empty">{m.common_loading()}</p>
 		{:else if myListings.length === 0}
-			<p class="empty">{m.services_mineEmpty()}</p>
+			<EmptyState
+				name="tutoring-mine"
+				message={m.empty_tutoringMine()}
+				action={newListingAction}
+				guide="tutoring"
+			/>
+			<!-- "Your listings will appear here, where you can edit them, pause them for a while or take them down." -->
 		{:else}
 			<ul class="mine-list">
 				{#each myListings as service (service.id)}

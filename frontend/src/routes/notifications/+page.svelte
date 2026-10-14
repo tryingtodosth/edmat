@@ -12,6 +12,7 @@
 	import { messagesStore } from '$lib/state/messages.svelte';
 	import { displayPrefs } from '$lib/state/displayPrefs.svelte';
 	import NotificationCard from '$lib/components/notification/NotificationCard.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import { pageTitle } from '$lib/utils/pageTitle';
 
 	onMount(() => {
@@ -61,7 +62,13 @@
 	{:else if !notificationStore.loaded}
 		<p class="empty">{m.common_loading()}</p>
 	{:else if notificationStore.items.length === 0}
-		<p class="empty">{m.notification_empty()}</p>
+		<EmptyState
+			name="notifications"
+			message={m.empty_notifications()}
+			action={{ label: m.empty_notificationsSettings(), href: resolve('/settings') }}
+			guide="messages"
+		/>
+		<!-- "Replies to your comments, reviews of what you have added, and news from the courses and tags you follow will show up here." / "Choose what you are told about" -->
 	{:else}
 		<ul class="list">
 			{#each notificationStore.items as notification (notification.id)}

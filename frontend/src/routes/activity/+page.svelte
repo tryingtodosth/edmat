@@ -18,6 +18,7 @@
 	import ActivityRow from '$lib/components/activity/ActivityRow.svelte';
 	import PostComposer from '$lib/components/activity/PostComposer.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 
 	const PAGE_SIZE = 20;
 
@@ -71,6 +72,20 @@
 		if (value) url.searchParams.set(key, value);
 		else url.searchParams.delete(key);
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- same page, one query parameter changed
+		goto(url, { keepFocus: true, noScroll: true });
+	}
+
+	// Any URL-borne narrowing except the All/Followed view, which is a view with its own sentence.
+	let filtered = $derived(
+		Boolean(kindFilter || disciplineFilter || branchFilter || tagFilter || topicFilter)
+	);
+	/** One navigation, not five `setParam`s: each of those would be its own history step. */
+	function clearFilters() {
+		const url = new URL(page.url);
+		for (const key of ['kind', 'discipline', 'branch', 'tag', 'topic', 'label']) {
+			url.searchParams.delete(key);
+		}
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- same page, query parameters removed
 		goto(url, { keepFocus: true, noScroll: true });
 	}
 
@@ -271,9 +286,29 @@
 	{:else if failed}
 		<p class="status">{m.common_error_generic()}</p>
 	{:else if items.length === 0}
-		<p class="status">
-			{view === 'followed' ? m.activity_emptyFollowed() : m.home_noResults()}
-		</p>
+		{#if view === 'followed'}
+			<EmptyState
+				name="activity-followed"
+				{filtered}
+				onclear={clearFilters}
+				message={m.empty_activityFollowed()}
+				action={{ label: m.empty_activityShowAll(), onclick: () => setParam('view', '') }}
+			/>
+			<!-- "This view shows only what you follow: tags you watch and courses you have joined. Nothing has come from them yet." / "Show everything" -->
+		{:else}
+			<EmptyState
+				name="activity"
+				{filtered}
+				onclear={clearFilters}
+				message={m.empty_activityAll()}
+				action={featureFlagsStore.isEnabled('posts')
+					? { label: m.post_start(), onclick: () => (composingPost = true), signedIn: true }
+					: undefined}
+			/>
+			<!-- "Everything public that happens here, from new exercises and solutions to courses and posts, shows up in this feed. It is quiet so far." / "Write a post" -->
+			<!-- The switch is read WITHOUT the moderator bypass, because the composer above is drawn
+			     the same way: a bypassed button would open a composer this page never renders. -->
+		{/if}
 	{:else}
 		<div class="feed">
 			{#each blocks as block, index (index)}

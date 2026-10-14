@@ -8,10 +8,12 @@
 	// the backend (`tasks/views.py: _mine_order`) and is NOT re-sorted here — one ordering, in one
 	// place, is the whole reason it is computed there.
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { m } from '$lib/paraglide/messages.js';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import TaskCard from '$lib/components/task/TaskCard.svelte';
 	import { getMyTasks } from '$lib/services/tasks';
 	import { pageTitle } from '$lib/utils/pageTitle';
@@ -86,6 +88,16 @@
 		{:else if !loaded}
 			<p class="status-line">{m.tasks_loading()}</p>
 			<!-- "Loading…" -->
+		{:else if mine.assigned.length === 0 && mine.created.length === 0}
+			<!-- Both halves empty is somebody who has never been near a board: two headings over two
+			     "nothing" lines would say the same thing twice and still not say where tasks come from.
+			     There is no manual chapter on tasks yet, so no "How this works" link. -->
+			<EmptyState
+				name="tasks"
+				message={m.empty_tasks()}
+				action={{ label: m.empty_tasksFindHelp(), href: resolve('/needs'), flag: 'needs' }}
+			/>
+			<!-- "Tasks are jobs on a course's, an event's or a material's board. When somebody gives you one, or you add one for somebody else, it shows up here." / "See where help is needed" -->
 		{:else}
 			<section>
 				<h2>{m.tasks_myAssigned()}</h2>

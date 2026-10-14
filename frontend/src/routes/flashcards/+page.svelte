@@ -16,6 +16,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import { createDeck, getDueSummary, getMyDecks } from '$lib/services/flashcards';
 	import type { Deck, DueSummary } from '$lib/types/flashcards';
 	import { deckSourceLabel } from '$lib/utils/labels';
@@ -135,8 +136,13 @@
 			{#if loading}
 				<p class="status">{m.common_loading()}</p>
 			{:else if decks.length === 0}
-				<p class="status">{m.decks_empty()}</p>
-				<!-- "No decks yet. Make one from a saved set, or start an empty one below." -->
+				<EmptyState
+					name="flashcards"
+					message={m.empty_flashcards()}
+					action={{ label: m.empty_flashcardsToMySet(), href: resolve('/my-set') }}
+					guide="flashcards"
+				/>
+				<!-- "A deck is a stack of flashcards you review on a schedule, and the cards you find hard come back sooner. Make one from a saved set, or name an empty one above." / "Go to my set" -->
 			{:else}
 				<ul class="decks">
 					{#each decks as deck (deck.id)}

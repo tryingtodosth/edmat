@@ -8,6 +8,7 @@
 	import type { Need, NeedBoardFilters, NeedKind } from '$lib/types/need';
 	import { getNeeds } from '$lib/services/needs';
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
+	import EmptyState from '$lib/components/shared/EmptyState.svelte';
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { NEED_KINDS, NEED_KIND_LABELS, NEED_STATUS_LABELS } from '$lib/utils/labels';
@@ -48,6 +49,18 @@
 	function onSearchInput() {
 		clearTimeout(searchTimer);
 		searchTimer = setTimeout(load, 300);
+	}
+
+	// Read from the controls rather than the last request: a list emptied by a filter offers to
+	// clear it, never to post something.
+	const filtered = $derived(Boolean(kind || remote || query.trim() || nodeKind));
+	function clearFilters() {
+		clearTimeout(searchTimer);
+		kind = '';
+		remote = false;
+		query = '';
+		nodeKind = '';
+		void load();
 	}
 </script>
 
@@ -107,7 +120,22 @@
 		{:else if failed}
 			<p class="status">{m.common_error_generic()}</p>
 		{:else if needs.length === 0}
-			<p class="status">{m.needs_browseEmpty()}</p>
+			<!-- Nothing here creates a need — a need is posted from the course, event or material that
+			     has it — so the next step offered is the other half of the question: offering help. -->
+			<EmptyState
+				name="needs"
+				{filtered}
+				onclear={clearFilters}
+				message={m.empty_needs()}
+				action={{
+					label: m.offers_addCta(),
+					href: resolve('/volunteering/new'),
+					flag: 'volunteering',
+					signedIn: true
+				}}
+				guide="help"
+			/>
+			<!-- "Courses, events and materials post here when they need a hand: someone to check solutions, translate, or run a session. Nothing is open right now." / "Offer to help" -->
 		{:else}
 			<div class="grid">
 				{#each needs as need (need.id)}
