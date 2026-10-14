@@ -34,6 +34,8 @@ from rest_framework.views import APIView
 from config import nodes
 from moderation.permissions import feature_gate
 
+from translations.services import write_original_text
+
 from . import rules
 from .models import Plan, PlanStep, PlanSuggestion
 from .serializers import (
@@ -170,6 +172,21 @@ class PlanViewSet(viewsets.GenericViewSet):
                     raise DRFValidationError({'goal': [str(exc) or goal_rules.NOT_ALLOWED]}) from exc
             fields.append('goal')
         plan.save(update_fields=fields)
+        # The column write above is not what a reader sees once this plan has been translated:
+        # `translations.resolve` reads a `TextVersion` whenever one exists and consults the row's
+        # own column only when none does. So the edit is routed through the versions table too —
+        # the original language only, which is the language this form just wrote (2026-10-10; the
+        # same fix as `translations.serializers.PlainTextWriteMixin`, which every other management
+        # write serializer now carries. This view writes its three fields by hand, so it asks the
+        # service by hand).
+        if write_original_text(plan, heading=plan.title, body=plan.description, user=request.user):
+            # `get_object()` came through a queryset that prefetched `text_versions`, so that cache
+            # predates the write and the response below would carry the OLD text back from a save
+            # that worked (`translations.serializers.PlainTextWriteMixin` drops it for the same
+            # reason, and says what it looked like in a browser).
+            cache = getattr(plan, '_prefetched_objects_cache', None)
+            if cache:
+                cache.pop('text_versions', None)
         return Response(PlanSerializer(plan, context={'request': request}).data)
 
     def destroy(self, request, pk=None):

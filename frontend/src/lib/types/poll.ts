@@ -37,6 +37,17 @@ export interface Poll {
 	options: PollOption[];
 	content_type_id: number;
 	object_id: number;
+	/** Where this poll hangs and where this reader stands on it (backend `config/nodes.py:
+	 *  node_ref`, added 2026-10-10). RAW snake_case like the rest of this type — this service has
+	 *  no mapper — so it is deliberately NOT the camelCase `NodeRef` every other row carries. */
+	node?: {
+		kind: string;
+		id: number;
+		title: string;
+		is_staff: boolean;
+		is_member: boolean;
+		can_manage: boolean;
+	} | null;
 	/** Whether the requesting user has already cast a ballot — false for an anonymous reader. */
 	has_voted: boolean;
 	/** The vote form is drawn only when the server says so: open now, eligible, not yet voted. */

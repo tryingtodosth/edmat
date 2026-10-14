@@ -112,6 +112,18 @@ a model added this session is a table that exists in the branch but not yet in a
 dev `db.sqlite3`, which 500s the one endpoint that touches it while everything else keeps working
 (e2e/CLAUDE.md trap 23; this is exactly how the first `polls.mjs` run failed).
 
+## A poll is a node-aware row now (2026-10-10)
+
+Two additions, both because a poll became an attachment target:
+
+- **`PollSerializer.node`** — the same `config.nodes.node_ref` every other board row answers with.
+  `/polls/[id]` deliberately had no `NodeRef` ("manager actions live on the panel"), and a surface
+  that cannot ask *may you add something here* cannot draw an attachments panel.
+- **`rules.can_view_poll` is now asked by `attachments/access.py`.** A poll is the one board row
+  whose visibility is narrower than its node's — a draft is managers-only, an open one is for the
+  eligible — so its attachments inherit the poll's rule and not just the node's. Anything else
+  hanging off a poll in future wants the same call.
+
 ## Left open
 
 - No notification when a poll opens

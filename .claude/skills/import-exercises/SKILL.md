@@ -52,13 +52,27 @@ It is **idempotent by `(branch, number)`**: a file carrying `number:` only ever 
    `courses.Course`. If the right branch does not exist, stop and ask; proposing taxonomy is a
    separate, reviewed act.
 2. **Map the topics.** Every `topics:` slug must be a `Topic` of that branch. Prefer existing slugs;
-   only reach for `--create-topics` when the topic genuinely is missing, and give it a Polish name.
+   only reach for `--create-topics` when the topic genuinely is missing, and give it a Polish name
+   — in `batch.yaml`'s `topic_names:`, **in teaching order**, which is the order they are created in
+   and therefore the order the branch page's filter lists them.
 3. **Write one `.md` file per exercise** in the format in `reference/format.md`. Polish or English
    section headings both work. Keep the maths exactly as `\( … \)` / `\[ … \]`.
 4. **`--dry-run` until it is silent.** One bad file aborts the whole batch on purpose; the report
    names every problem in every file, so fix them in one pass.
 5. **Run it for real**, then look at what it printed: created vs updated, and whether it wrote any
-   `number:` back.
+   `number:` back. To rehearse the whole thing — including the pages — against a database you are
+   not allowed to change, copy it and point one run at the copy; nothing in `backend/` needs
+   editing:
+
+   ```bash
+   cp backend/db.sqlite3 /tmp/copy.sqlite3
+   printf 'from config.settings import *\nDATABASES["default"] = dict(DATABASES["default"], NAME="/tmp/copy.sqlite3")\n' > /tmp/copy_settings.py
+   cd backend && PYTHONPATH=/tmp DJANGO_SETTINGS_MODULE=copy_settings ../.venv/bin/python3 manage.py import_exercises <dir> --branch <slug>
+   ```
+
+   The same two env vars run `runserver` against the copy, so `npm run dev` with
+   `PUBLIC_API_BASE_URL` pointed at it shows the imported pages without the dev database ever
+   seeing them (§17CH).
 6. **Sweep the content pipeline** — this is the check that catches broken maths. It renders every
    row in the database through the real `renderContent.ts` logic and reports anything KaTeX chokes on
    or any delimiter left unprocessed:
@@ -81,6 +95,11 @@ It is **idempotent by `(branch, number)`**: a file carrying `number:` only ever 
 - **`verified` is derived, never imported.** It means "a published solution that is pinned, reviewed,
   or by a verified contributor" (`exercises/signals.py:recount_verified`). A `verified:` key in front
   matter is a hard error. Want a verified row? Give it a `## Rozwiązanie`.
+- **A number that is taken is an UPDATE, not a refusal.** `(branch, number)` is the natural key in
+  both directions: a file numbered into an occupied slot silently rewrites whatever is there and
+  reports success. Before importing a batch that carries its own numbers, check what the branch
+  already holds (`/api/exercises/?branch=<slug>`) — a sheet numbered from 1, or one continuing a
+  corpus whose tail has since been used by submissions, is the case that bites (§17CH).
 - **A number is forever.** A file with no `number:` gets one allocated *and written back into the
   file*. If you throw that file away, or pass `--no-write-back`, the next run creates a second
   exercise with the same content — the one failure mode this format cannot detect for you.

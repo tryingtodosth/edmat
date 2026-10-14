@@ -29,7 +29,7 @@ from testing.factories import make_user
 
 from . import resolve
 from .models import TextVersion
-from .services import TranslationWriteError, write_versions
+from .services import TranslationWriteError, write_original_text, write_versions
 
 
 #: The row's own two columns, for the rule table below. `resolve.pick` takes them as plain values,
@@ -701,3 +701,172 @@ class SeedLookupTests(APITestCase):
         Task.objects.filter(**node).update(title='Polski tytul')
         self.assertIsNotNone(_find_by_title(Task, node, glued))
         self.assertEqual(Task.objects.filter(**node).count(), 1)
+
+
+class PlainEditTests(APITestCase):
+    """The plain edit form's write, and the bug it had until 2026-10-10.
+
+    `resolve` consults a row's own column ONLY when the row has no versions at all, so every
+    management write serializer — each of which wrote `title` straight onto the column — was
+    changing something no reader ever saw. It was found by probing the dev database rather than by
+    any assertion, which is why these exist: the symptom is a 200 with the old text in it, and
+    nothing anywhere went red.
+    """
+
+    databases = set(all_log_shards()) | {'default'}
+
+    def setUp(self):
+        # Its own fixtures rather than `TranslationsTestCase`'s: subclassing that one re-runs its
+        # twenty-one tests under this name, which is twenty-one copies of the same work for three
+        # rows and a membership.
+        self.manager = make_user('plain-manager')
+        self.org = Organization.objects.create(
+            name='Plain circle', slug='plain-circle', kind='circle', created_by=self.manager
+        )
+        OrganizationMember.objects.create(organization=self.org, user=self.manager, role='owner')
+        node_ct = ContentType.objects.get_for_model(Organization)
+        self.task = Task.objects.create(
+            content_type=node_ct, object_id=self.org.pk,
+            title='A task', description='A body', created_by=self.manager,
+        )
+        self.need = Need.objects.create(
+            content_type=node_ct, object_id=self.org.pk,
+            title='A need', kind='expertise', created_by=self.manager,
+        )
+        self.plan = Plan.objects.create(
+            content_type=node_ct, object_id=self.org.pk,
+            title='A plan', created_by=self.manager,
+        )
+
+    def _written(self, obj, kind, pl, en):
+        write_versions(
+            obj,
+            original_locale='pl',
+            versions={'pl': {'heading': pl, 'body': 'Polski opis'},
+                      'en': {'heading': en, 'body': 'English body'}},
+            user=self.manager,
+        )
+
+    def test_a_plain_patch_reaches_the_reader_of_the_original_language(self):
+        self._written(self.task, 'task', 'Stary tytul', 'Old title')
+        self.client.force_authenticate(self.manager)
+        response = self.client.patch(
+            f'/api/tasks/{self.task.pk}/', {'title': 'Nowy tytul'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # The row's own column AND the Polish version, which is the one a reader is served.
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.title, 'Nowy tytul')
+        read = self.client.get(f'/api/tasks/{self.task.pk}/?lang=pl')
+        self.assertEqual(read.data['title'], 'Nowy tytul')
+
+    def test_the_response_to_the_write_carries_the_NEW_text(self):
+        """Found in a browser, not here: the page went on showing the previous title until a
+        reload. Every management view prefetches `text_versions` so that `resolve` answers in
+        memory, and that cache predates the write — so the 200 came back with the old text in it
+        while the database was already right. A test that only re-reads the row would have passed."""
+        self._written(self.task, 'task', 'Stary tytul', 'Old title')
+        self.client.force_authenticate(self.manager)
+        response = self.client.patch(
+            f'/api/tasks/{self.task.pk}/?lang=pl', {'title': 'Nowy tytul'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Nowy tytul')
+
+    def test_the_plans_response_carries_the_new_text_too(self):
+        """`PlanViewSet.partial_update` renders its own serializer after asking the service by
+        hand, so it drops the same cache by hand."""
+        self._written(self.plan, 'plan', 'Stary plan', 'Old plan')
+        self.client.force_authenticate(self.manager)
+        response = self.client.patch(
+            f'/api/plans/{self.plan.pk}/?lang=pl', {'title': 'Nowy plan'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Nowy plan')
+
+    def test_the_translation_is_left_alone_and_said_to_be_older(self):
+        """A one-language edit does not touch the other language, and the reader of the other
+        language is told the original is newer — which is true. Silently re-stamping every language
+        as current is the lie this whole app exists to avoid; the side-by-side editor is how
+        somebody writes both at once."""
+        self._written(self.task, 'task', 'Stary tytul', 'Old title')
+        TextVersion.objects.filter(
+            content_type=ContentType.objects.get_for_model(Task), object_id=self.task.pk
+        ).update(updated_at=timezone.now() - timedelta(days=1))
+        self.client.force_authenticate(self.manager)
+        self.client.patch(f'/api/tasks/{self.task.pk}/', {'title': 'Nowy tytul'}, format='json')
+        read = self.client.get(f'/api/tasks/{self.task.pk}/?lang=en')
+        self.assertEqual(read.data['title'], 'Old title')
+        self.assertEqual(read.data['language']['newer_elsewhere']['locale'], 'pl')
+
+    def test_a_title_only_patch_keeps_the_body_the_version_holds(self):
+        """`None` means "leave that half alone". Reading the missing half from the row's column
+        instead of from the version is what would quietly overwrite a translated body with whatever
+        the column had drifted to."""
+        self._written(self.task, 'task', 'Stary tytul', 'Old title')
+        self.client.force_authenticate(self.manager)
+        self.client.patch(f'/api/tasks/{self.task.pk}/', {'title': 'Nowy tytul'}, format='json')
+        read = self.client.get(f'/api/tasks/{self.task.pk}/?lang=pl')
+        self.assertEqual(read.data['description'], 'Polski opis')
+
+    def test_a_row_nobody_has_translated_behaves_exactly_as_before(self):
+        """The whole fix has to stay additive: no versions means the column IS the truth, and no
+        version row is invented out of an ordinary edit."""
+        self.client.force_authenticate(self.manager)
+        response = self.client.patch(
+            f'/api/tasks/{self.task.pk}/', {'title': 'Just the column'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Just the column')
+        self.assertEqual(
+            TextVersion.objects.filter(
+                content_type=ContentType.objects.get_for_model(Task), object_id=self.task.pk
+            ).count(),
+            0,
+        )
+
+    def test_a_needs_patch_reaches_the_versions_table(self):
+        """The need's own edit form (2026-10-10) writes every field through this one endpoint, so
+        the text half has to land where `resolve` looks as surely as the task's does."""
+        self._written(self.need, 'need', 'Stara potrzeba', 'Old need')
+        self.client.force_authenticate(self.manager)
+        response = self.client.patch(
+            f'/api/needs/{self.need.pk}/',
+            {'title': 'Nowa potrzeba', 'skill_level': 'advanced', 'wanted_count': 3},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        read = self.client.get(f'/api/needs/{self.need.pk}/?lang=pl')
+        self.assertEqual(read.data['title'], 'Nowa potrzeba')
+        self.assertEqual(read.data['skillLevel'] if 'skillLevel' in read.data else read.data['skill_level'], 'advanced')
+        read_en = self.client.get(f'/api/needs/{self.need.pk}/?lang=en')
+        self.assertEqual(read_en.data['title'], 'Old need')
+
+    def test_a_plans_patch_reaches_the_versions_table(self):
+        """`PlanViewSet.partial_update` writes its three fields by hand rather than through a
+        serializer, so it asks the service by hand — and this is what would notice if it stopped."""
+        self._written(self.plan, 'plan', 'Stary plan', 'Old plan')
+        self.client.force_authenticate(self.manager)
+        response = self.client.patch(
+            f'/api/plans/{self.plan.pk}/', {'title': 'Nowy plan'}, format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        read = self.client.get(f'/api/plans/{self.plan.pk}/?lang=pl')
+        self.assertEqual(read.data['title'], 'Nowy plan')
+        self.assertEqual(self.client.get(f'/api/plans/{self.plan.pk}/?lang=en').data['title'],
+                         'Old plan')
+
+    def test_the_service_says_whether_it_handled_the_text(self):
+        """False is not a failure: it is "this row has no versions, your column write is the whole
+        truth", which is what keeps the mixin from inventing a version row."""
+        self.assertFalse(write_original_text(self.need, heading='No versions here'))
+        self._written(self.need, 'need', 'Stara potrzeba', 'Old need')
+        self.assertTrue(write_original_text(self.need, heading='Nowa potrzeba'))
+        self.assertEqual(
+            TextVersion.objects.get(
+                content_type=ContentType.objects.get_for_model(Need),
+                object_id=self.need.pk,
+                locale='pl',
+            ).heading,
+            'Nowa potrzeba',
+        )

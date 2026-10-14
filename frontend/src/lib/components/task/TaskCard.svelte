@@ -31,6 +31,8 @@
 	} from '$lib/services/tasks';
 	import { formatDateTime } from '$lib/utils/datetime';
 	import GoalServes from '$lib/components/goal/GoalServes.svelte';
+	import AttachmentsPanel from '$lib/components/attachments/AttachmentsPanel.svelte';
+	import { authStore } from '$lib/state/auth.svelte';
 	import type { Goal } from '$lib/types/goal';
 	import {
 		TASK_BLOCK_REASON_LABELS,
@@ -46,10 +48,23 @@
 		showNode = false,
 		discussion = undefined,
 		goals = [],
+		attachments = 'none',
 		onchanged
 	}: {
 		task: Task;
 		allowSubtasks?: boolean;
+		/** Whether this card draws the attachments panel, and when it fetches (`attachments/`,
+		 *  2026-10-10):
+		 *
+		 *  - `'none'` (the default) — `/tasks` lists every task a person has, and a request per row
+		 *    for files almost none of them have is the cost `NeedsPanel`'s own "left open" already
+		 *    refused to pay. A subtask gets none either: it IS an attachment target by id, but a
+		 *    panel inside a step inside a card is noise — the same call `RowDiscussion` made.
+		 *  - `'open'` — where the card is THE card: its own page, and the modal a board row opens.
+		 *    One panel on the surface, so it fetches on mount and the fold line carries a count.
+		 *  - `'deferred'` — a list of cards: nothing is fetched until the reader opens that card's
+		 *    own section. */
+		attachments?: 'none' | 'open' | 'deferred';
 		/** The node's goals, so "Serves: …" can be a picker rather than a label (`goals/`,
 		 *  2026-10-08). Empty on `/tasks` and on a subtask, which then draw the read-only line. */
 		goals?: Goal[];
@@ -293,6 +308,23 @@
 				<!-- "Add task" -->
 			{/if}
 		</section>
+	{/if}
+
+	{#if attachments !== 'none'}
+		<!-- The spec, the photo, the link the task refers to. `level={3}` because this heading sits
+		     under the card's own, and a fold key with the task in it because two panels sharing one
+		     key share their open state. -->
+		<AttachmentsPanel
+			targetKind="task"
+			targetId={task.id}
+			canAttach={task.node?.isStaff ||
+				task.node?.canManage ||
+				authStore.user?.id === task.createdBy?.id}
+			canManage={task.node?.canManage}
+			level={3}
+			foldKey={`attachments:task:${task.id}`}
+			deferred={attachments === 'deferred'}
+		/>
 	{/if}
 
 	<RowDiscussion policy={discussion} title={task.title} />

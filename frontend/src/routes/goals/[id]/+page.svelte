@@ -73,7 +73,12 @@
 					<a href={nodeHref(goal.node)}>{goal.node.title}</a>
 				</p>
 			{/if}
-			<GoalCard {goal} linkTitle={false} onChanged={(updated) => (goal = updated)} />
+			<GoalCard
+				{goal}
+				linkTitle={false}
+				attachments="open"
+				onChanged={(updated) => (goal = updated)}
+			/>
 			<PageDiscussion page={discussionKeyFor('goals', goal.id)} title={goal.title} />
 		{/if}
 	</div>

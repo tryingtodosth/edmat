@@ -397,6 +397,57 @@ class RowAndCommentTests(AttachmentCase):
         self.assertEqual(res.status_code, 403)
 
 
+class PollTargetTests(AttachmentCase):
+    """A poll (2026-10-10), the fourth board row and the only one whose own visibility is narrower
+    than its node's.
+
+    The others are visible to whoever may see the node, so inheriting the node is the whole rule.
+    A poll is not: a draft is managers-only and an open one is for the eligible, because the
+    WORDING of a question put to the room is part of the decision (`decisions/rules.py`). So the
+    attachments app has to ask that rule, or it becomes the way to read a question nobody was
+    shown — which is what these two tests are for.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from django.contrib.contenttypes.models import ContentType
+
+        from decisions.models import Poll
+
+        self.draft = Poll.objects.create(
+            content_type=ContentType.objects.get_for_model(Event),
+            object_id=self.event.pk,
+            question='Shall we move the rota?',
+            eligibility='staff',
+            status='draft',
+            created_by=self.host,
+        )
+        self.draft_url = reverse('target-attachments', args=['poll', self.draft.pk])
+
+    def test_the_host_may_attach_the_thing_being_voted_on(self):
+        res = as_(self.host).post(
+            self.draft_url, {'title': 'The draft rota', 'kind': 'link',
+                             'url': 'https://example.org/rota'}
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['target_kind'], 'poll')
+
+    def test_a_draft_poll_hides_its_attachments_from_everybody_else(self):
+        """404, not an empty list: for them the poll does not exist (house rule 4), and an empty
+        list would still have confirmed that a poll with that id is there."""
+        from django.contrib.contenttypes.models import ContentType
+
+        self.make_attachment(
+            content_type=ContentType.objects.get_for_model(self.draft),
+            object_id=self.draft.pk,
+            visibility='public',
+        )
+        self.assertEqual(as_(self.host).get(self.draft_url).status_code, 200)
+        self.assertEqual(len(as_(self.host).get(self.draft_url).data), 1)
+        self.assertEqual(as_(self.attendee).get(self.draft_url).status_code, 404)
+        self.assertEqual(self.client.get(self.draft_url).status_code, 404)
+
+
 class KillSwitchTests(AttachmentCase):
     def test_with_the_flag_off_the_surface_closes_for_everybody_but_staff(self):
         self.make_attachment(visibility='public')

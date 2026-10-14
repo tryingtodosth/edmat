@@ -39,7 +39,9 @@ class NodePollsView(APIView):
         polls = rules.visible_polls(request.user, node).prefetch_related(
             'text_versions', 'options__text_versions'
         )
-        serializer = PollSerializer(polls, many=True, context={'request': request})
+        # `node` in the context: every poll on this list hangs off the node just resolved, and
+        # `PollSerializer.node` would otherwise follow the generic FK once per row (2026-10-10).
+        serializer = PollSerializer(polls, many=True, context={'request': request, 'node': node})
         return Response(serializer.data)
 
     def post(self, request, kind, pk):

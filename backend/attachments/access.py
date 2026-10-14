@@ -115,7 +115,19 @@ def can_view_target(user, target) -> bool:
 
         return visible_comments(user, Comment.objects.filter(pk=target.pk)).exists()
     node = targets.node_behind(target)
-    return bool(node) and nodes.can_view_node(user, node)
+    if not (node and nodes.can_view_node(user, node)):
+        return False
+    # Most board rows are visible to whoever may see the node, and that is the whole rule. A POLL
+    # is not: a draft is managers-only and an open one is for the eligible, because "shall we drop
+    # Tomek from the rota?" is as much of the decision as the count is (`decisions/rules.py`). Its
+    # attachments — the figures, the draft being voted on — have to inherit THAT, or this app
+    # becomes the way to read a question nobody was shown. Asked of the app that owns the rule
+    # rather than re-derived here (2026-10-10, when `poll` joined the registry).
+    if targets.kind_of(target) == 'poll':
+        from decisions import rules as poll_rules
+
+        return poll_rules.can_view_poll(user, target, node)
+    return True
 
 
 def can_attach(user, target) -> bool:

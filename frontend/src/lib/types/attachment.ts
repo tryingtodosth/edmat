@@ -30,6 +30,7 @@ export type AttachmentTargetKind =
 	| 'plan'
 	| 'need'
 	| 'goal'
+	| 'poll'
 	| 'comment';
 
 export type AttachmentTier = 'public' | 'members' | 'staff' | 'managers' | 'venue';

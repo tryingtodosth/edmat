@@ -20,6 +20,8 @@
 	import { m } from '$lib/paraglide/messages.js';
 	import { resolve } from '$app/paths';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
+	import AttachmentsPanel from '$lib/components/attachments/AttachmentsPanel.svelte';
+	import { authStore } from '$lib/state/auth.svelte';
 	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
 	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
 	import RowDiscussion from '$lib/components/discussion/RowDiscussion.svelte';
@@ -41,12 +43,18 @@
 		/** `true` in a list, where the title is how a reader reaches the goal's own page; `false` on
 		 *  that page, where it is the heading. */
 		linkTitle = true,
+		attachments = 'none',
 		onChanged,
 		onRemoved
 	}: {
 		goal: Goal;
 		policy?: DiscussionPolicy;
 		linkTitle?: boolean;
+		/** Whether this card draws the attachments panel, and when it fetches — `TaskCard`'s own
+		 *  prop, with the same three values and the same reasoning (`attachments/`, 2026-10-10).
+		 *  `'deferred'` on the node's board, where a card is drawn per goal; `'open'` on the goal's
+		 *  own page, where there is one. */
+		attachments?: 'none' | 'open' | 'deferred';
 		onChanged: (goal: Goal) => void;
 		/** Called after a delete the server allowed. Absent on a surface with nowhere to go
 		 *  afterwards, which then does not offer the item at all. */
@@ -261,6 +269,23 @@
 	</section>
 
 	{#if error}<p class="goal__error">{error}</p>{/if}
+
+	{#if attachments !== 'none'}
+		<!-- What the goal is evidenced by: the minutes that recorded it, the statute article it comes
+		     from, the spreadsheet behind a criterion. A board row inherits its node's tiers — it has
+		     no standing of its own (`attachments/targets.py`). -->
+		<AttachmentsPanel
+			targetKind="goal"
+			targetId={goal.id}
+			canAttach={goal.node?.isStaff ||
+				goal.node?.canManage ||
+				authStore.user?.id === goal.createdBy?.id}
+			canManage={goal.node?.canManage}
+			level={3}
+			foldKey={`attachments:goal:${goal.id}`}
+			deferred={attachments === 'deferred'}
+		/>
+	{/if}
 
 	<RowDiscussion {policy} title={goal.title} />
 </article>

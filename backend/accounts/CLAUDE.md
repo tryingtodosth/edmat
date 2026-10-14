@@ -62,4 +62,6 @@ the port, NOT `pkill -f`, which kills its own shell match).
 ## Verify
 
 `manage.py test accounts` + `test_avatar.py`, `test_throttling.py`, `test_profile_extras.py`.
-Password reset is an honest always-200 stub (console EMAIL_BACKEND, no real mail anywhere).
+Password reset is real since 2026-10-14: `PasswordResetView` hands the address to
+`mail/services.py: request_password_reset` (always 202, enumeration-safe) and `RegisterView` queues the
+confirmation message. The rules and the link handling live in `mail/`, not here.

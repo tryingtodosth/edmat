@@ -49,7 +49,18 @@
 		canManage = false,
 		/** `public` on a comment, where the tiers do not apply — the API refuses the rest. */
 		tiers = ['public', 'members', 'staff', 'managers'] as AttachmentTier[],
-		level = 2
+		level = 2,
+		/** The fold's identity. One per PAGE by default, which is right while this panel is mounted
+		 *  once — but two panels sharing a key share their open/shut state, so a board that draws a
+		 *  panel per row (2026-10-10) passes a key with the target in it. The default stays the bare
+		 *  word because `e2e/attachments.mjs` addresses the node pages by `[data-fold="attachments"]`. */
+		foldKey = 'attachments',
+		/** Fetch when the reader OPENS the section rather than when the panel mounts. For a panel
+		 *  per row on a board: a node with thirty tasks would otherwise pay thirty requests the
+		 *  moment somebody unfolded the board, for attachments almost none of those rows have.
+		 *  `FoldSection`'s own `onopen` exists for exactly this, and the shut line then carries no
+		 *  count — which is honest, because nothing has been counted yet. */
+		deferred = false
 	}: {
 		targetKind: AttachmentTargetKind;
 		targetId: string;
@@ -57,7 +68,13 @@
 		canManage?: boolean;
 		tiers?: AttachmentTier[];
 		level?: 2 | 3;
+		foldKey?: string;
+		deferred?: boolean;
 	} = $props();
+
+	/** Flipped once by `FoldSection`'s `onopen`; the load effect reads it, so opening the section is
+	 *  what starts the fetch when `deferred`. */
+	let opened = $state(false);
 
 	const enabled = $derived(featureFlagsStore.isEnabled('attachments') || authStore.isModerator);
 
@@ -73,6 +90,9 @@
 	$effect(() => {
 		const key = `${targetKind}:${targetId}:${authStore.user?.id ?? 'anon'}:${enabled}`;
 		if (!targetId || key === loadedFor) return;
+		// Deliberately before `loadedFor` is claimed: a deferred panel has not loaded this key yet,
+		// and must still load it the moment the reader opens the section.
+		if (deferred && !opened) return;
 		loadedFor = key;
 		if (!enabled) {
 			rows = [];
@@ -176,6 +196,20 @@
 		}
 	}
 
+	/** Whether to draw anything at all.
+	 *
+	 * Loaded, the rule is the original one: a reader with nothing to see and nothing to add gets no
+	 * empty section. **Not** loaded, the only honest answer available is `canAttach` — the row count
+	 * is exactly what has not been fetched yet — so a deferred panel draws its shut line for
+	 * whoever may add something and nothing for anybody else. The first cut of `deferred` kept the
+	 * `loaded &&` and so never rendered at all, which a browser run caught in one click.
+	 *
+	 * The cost of that is named rather than hidden: on a board, a reader who may NOT attach is not
+	 * told that a row has attachments; they meet them on the row's own page, where the panel is
+	 * eager. The real fix is an `attachments_count` on the four row serializers, which is a change
+	 * to four apps and is written down as left open. */
+	const show = $derived(enabled && (loaded ? rows.length > 0 || canAttach : deferred && canAttach));
+
 	// ---- the two warnings -----------------------------------------------------------------------
 	let warning = $state<{ row: Attachment; step: 1 | 2 } | null>(null);
 
@@ -199,8 +233,14 @@
 	}
 </script>
 
-{#if enabled && loaded && (rows.length > 0 || canAttach)}
-	<FoldSection key="attachments" title={m.attachments_heading()} count={rows.length} {level}>
+{#if show}
+	<FoldSection
+		key={foldKey}
+		title={m.attachments_heading()}
+		count={loaded ? rows.length : null}
+		{level}
+		onopen={() => (opened = true)}
+	>
 		<!-- "Attachments" -->
 		{#snippet actions()}
 			{#if canAttach}

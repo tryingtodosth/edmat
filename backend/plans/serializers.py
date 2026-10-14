@@ -16,7 +16,7 @@ from .models import PLAN_STATUS_CHOICES, Plan, PlanStep, PlanSuggestion
 from .rules import can_edit as plan_can_edit
 from .rules import progress as plan_progress
 from .rules import suggest_block_reason
-from translations.serializers import TranslatedTextMixin
+from translations.serializers import PlainTextWriteMixin, TranslatedTextMixin
 
 
 def _display_name(user) -> str:
@@ -159,7 +159,7 @@ class PlanStepCreateSerializer(serializers.Serializer):
         return value
 
 
-class PlanStepUpdateSerializer(serializers.ModelSerializer):
+class PlanStepUpdateSerializer(PlainTextWriteMixin, serializers.ModelSerializer):
     class Meta:
         model = PlanStep
         fields = ['title', 'description', 'status', 'due_at']

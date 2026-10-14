@@ -85,6 +85,7 @@
 			<TaskCard
 				{task}
 				discussion={rowDiscussions.byKey[discussionKeyFor('tasks', task.id)]}
+				attachments="open"
 				onchanged={(updated) => (task = updated)}
 			/>
 			{#if task.node}

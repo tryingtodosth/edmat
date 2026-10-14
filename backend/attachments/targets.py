@@ -45,6 +45,10 @@ TARGET_KINDS: dict[str, tuple[str, str]] = {
     'plan': ('plans', 'plan'),
     'need': ('needs', 'need'),
     'goal': ('goals', 'goal'),
+    # A poll (2026-10-10): the fourth board row, added when the row surfaces got their attachment
+    # panels and this was the one of the four that could not carry the regulation, the draft or the
+    # figures the question is about.
+    'poll': ('decisions', 'poll'),
     'comment': ('community', 'comment'),
 }
 TARGET_KIND_OF_MODEL = {v: k for k, v in TARGET_KINDS.items()}
@@ -52,7 +56,7 @@ TARGET_KIND_OF_MODEL = {v: k for k, v in TARGET_KINDS.items()}
 #: The kinds whose standing is their own (`config/nodes.py` knows them).
 NODE_TARGET_KINDS = frozenset(nodes.NODE_KINDS)
 #: The kinds that inherit a node's standing — a board row is not a thing you can be staff *of*.
-ROW_TARGET_KINDS = frozenset({'task', 'plan', 'need', 'goal'})
+ROW_TARGET_KINDS = frozenset({'task', 'plan', 'need', 'goal', 'poll'})
 #: The one kind with no node behind it at all.
 COMMENT_TARGET_KINDS = frozenset({'comment'})
 

@@ -19,7 +19,7 @@ from config.sanitize import sanitize_content
 from . import rules
 from .models import STATUS_CHOICES, Task, TaskAssignee
 from goals.serializers import ServesGoalMixin
-from translations.serializers import TranslatedTextMixin
+from translations.serializers import PlainTextWriteMixin, TranslatedTextMixin
 
 
 def display_name(user) -> str:
@@ -138,7 +138,7 @@ class TaskSerializer(TranslatedTextMixin, serializers.ModelSerializer):
         return nodes.node_ref(node, self._user)
 
 
-class TaskWriteSerializer(ServesGoalMixin, serializers.ModelSerializer):
+class TaskWriteSerializer(PlainTextWriteMixin, ServesGoalMixin, serializers.ModelSerializer):
     """The six fields a person may type. `description` is sanitized here rather than in the view,
     so every write path — create, subtask create, patch — passes through the same bleach pass
     (house rule 8: on write as well as on read).

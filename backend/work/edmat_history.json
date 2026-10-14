@@ -1439,5 +1439,38 @@
   "summary": "Owner: \"i want inputs of comments to be disappearing unless clicking comment or reply buttons (add them if dont have them everywhere where a comment or sth discussable)\".",
   "subproject": "community",
   "listed": true
+ },
+ {
+  "ref": "17CG",
+  "title": "Content management on the board rows: an edit that is actually visible, and attachments where the API already allowed them",
+  "heading": "17CG — Content management on the board rows: an edit that is actually visible, and attachments where the API already allowed them (2026-10-10, `ux/colour-pass`)",
+  "line": 16149,
+  "date": "2026-10-10",
+  "date_source": "heading",
+  "summary": "The owner: \"add content management (eg edit, add attachement (ag a comment),) to needs and etc. research how to do it properly\". Scope settled with them before any code: all four board rows (task, plan, need, goal — and poll, which turned out to be a fifth), with the attachments panel on each row's own page and its expanded card.",
+  "subproject": "management",
+  "listed": true
+ },
+ {
+  "ref": "17CH",
+  "title": "paczka2: 214 exercises prepared for the live site, and the importer's three lies",
+  "heading": "17CH — `paczka2`: 214 exercises prepared for the live site, and the importer's three lies (2026-10-13, `ux/colour-pass`)",
+  "line": 16290,
+  "date": "2026-10-13",
+  "date_source": "heading",
+  "summary": "Owner: \"prepare these packages to upload as exercises on the production\" — three zips dropped into Database-of-Student-Exercise/paczka2/, then: \"some of it extends analiza and rachunek prawdopodobienstwa, but also delivers new topologia\".",
+  "subproject": "corpus",
+  "listed": true
+ },
+ {
+  "ref": "17CI",
+  "title": "Mail: the no-reply mailbox connected, password reset made real, and a Mail tab for the superuser",
+  "heading": "17CI — Mail: the no-reply mailbox connected, password reset made real, and a Mail tab for the superuser (2026-10-14, `ux/colour-pass`)",
+  "line": 16372,
+  "date": "2026-10-14",
+  "date_source": "heading",
+  "summary": "The owner: \"prepare prod to have [the no-reply address] connected: mail confirmation, notifications, etc. … would be super cool to have access to list of emails sent and received as superuser todoonet on prod accessible through moderation tab. it comes from MXPLAN 001\", with the SMTP/IMAP hosts and the password; mid-way, \"the new prod bundle should also include the previously prepared materials…",
+  "subproject": "accounts",
+  "listed": true
  }
 ]

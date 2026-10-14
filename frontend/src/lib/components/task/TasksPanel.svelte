@@ -247,6 +247,7 @@
 				task={openTask}
 				discussion={rowDiscussions.byKey[discussionKeyFor('tasks', openTask.id)]}
 				{goals}
+				attachments="open"
 				onchanged={(updated) => {
 					replace(updated, openTask);
 					// The row is gone (deleted): there is nothing left to show, so the dialog goes

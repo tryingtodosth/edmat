@@ -22,7 +22,7 @@ from rest_framework import serializers
 
 from config import nodes as node_seam
 from config.i18n_utils import request_locale, resolve_translation
-from translations.serializers import TranslatedTextMixin
+from translations.serializers import PlainTextWriteMixin, TranslatedTextMixin
 
 from . import access, presets, rules
 from .models import (
@@ -502,7 +502,7 @@ DERIVED = [
 ]
 
 
-class ContestSerializer(TranslatedTextMixin, serializers.ModelSerializer):
+class ContestSerializer(PlainTextWriteMixin, TranslatedTextMixin, serializers.ModelSerializer):
     language = serializers.SerializerMethodField()
     text_versions = serializers.SerializerMethodField()
     organiser = serializers.SerializerMethodField()

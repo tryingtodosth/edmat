@@ -150,16 +150,44 @@ def split_file(path: Path) -> tuple[dict[str, Any], dict[str, str], list[str]]:
     return meta, {k: '\n'.join(v).strip() for k, v in buckets.items()}, errors
 
 
+def count_delimiters(body: str) -> dict[str, int]:
+    """Count the four maths delimiters, stepping over `\\\\` — which is a LaTeX line break, not an
+    escaped delimiter.
+
+    `body.count('\\[')` cannot be used for this, and that is not a nicety: `\\\\[3mm]` (a line break
+    asking for 3mm of extra leading) is ordinary punctuation inside a `cases` or `aligned` block,
+    and a plain count reads the `\\[` inside it as display maths that never closes — the `]` is a
+    bare bracket. Of the 954 files in the 2026-10-13 batch, 73 use it, including 11 that had to be
+    imported; every one of them "failed" a check that nothing was wrong with. Walking the string
+    and consuming both characters of a `\\\\` keeps the scan aligned on real escape boundaries, so a
+    genuine `\\(` with no `\\)` is still counted exactly once.
+    """
+    counts = {'\\(': 0, '\\)': 0, '\\[': 0, '\\]': 0}
+    index = 0
+    while index < len(body) - 1:
+        if body[index] != '\\':
+            index += 1
+            continue
+        pair = body[index:index + 2]
+        if pair in counts:
+            counts[pair] += 1
+        # Two characters either way: for `\\\\` that is the whole line break, leaving `[3mm]` as the
+        # plain text it is; for any other escape it is the escape and the character it escapes.
+        index += 2
+    return counts
+
+
 def check_math(label: str, body: str) -> list[str]:
     """Unbalanced LaTeX delimiters are the one content defect that survives every other check and
     then renders as literal backslashes on the page (root CLAUDE.md "Content pipeline"). Counting is
     enough to catch the real failure — a `\\(` whose `\\)` was lost to a copy/paste."""
     problems = []
+    counts = count_delimiters(body)
     for open_delim, close_delim in (('\\(', '\\)'), ('\\[', '\\]')):
-        if body.count(open_delim) != body.count(close_delim):
+        if counts[open_delim] != counts[close_delim]:
             problems.append(
-                f'{label}: {body.count(open_delim)}× "{open_delim}" but '
-                f'{body.count(close_delim)}× "{close_delim}" — unbalanced maths'
+                f'{label}: {counts[open_delim]}× "{open_delim}" but '
+                f'{counts[close_delim]}× "{close_delim}" — unbalanced maths'
             )
     return problems
 
@@ -280,6 +308,25 @@ class Command(BaseCommand):
                 )
             item.source = dict(source)
             item.source['type'] = resolved or 'other'
+            # `ExerciseSource` keeps these two as integers, and `update_or_create` hands a bad one
+            # straight to the database layer: before this check, a `source: {original_problem_number:
+            # 11a}` (a sub-problem letter, which the real corpus does carry) came back as a
+            # `ValueError` traceback from deep inside the SQL compiler, naming no file — in the
+            # middle of the transaction, after the valid rows had already been written and rolled
+            # back. A refusal has to carry its reason and its filename (house rule 6).
+            for numeric_key in ('original_problem_number', 'chapter'):
+                raw_value = source.get(numeric_key)
+                if raw_value is None or raw_value == '':
+                    item.source.pop(numeric_key, None)
+                    continue
+                try:
+                    item.source[numeric_key] = int(raw_value)
+                except (TypeError, ValueError):
+                    errors.append(
+                        f'`source.{numeric_key}: {raw_value!r}` is not an integer — that column is '
+                        'a number. A sub-problem letter belongs in `source.name` '
+                        '("..., zadanie 11a"), which is free text.'
+                    )
 
         item.statement = sections.get('statement', '')
         item.hint = sections.get('hint', '')
@@ -320,7 +367,15 @@ class Command(BaseCommand):
 
     def resolve_topics(self, branch: Branch, slugs: set[str], names: dict[str, str], create: bool, stats: dict) -> dict[str, Topic]:
         existing = {t.slug: t for t in branch.topics.all()}
-        missing = sorted(slugs - set(existing))
+        # In `topic_names:` order, not alphabetical: `order` is what the browse page sorts a
+        # branch's topics by, and a syllabus read alphabetically is a syllabus in the wrong order —
+        # "Przestrzenie ilorazowe" is the last thing Topologia I teaches and the fourth word of the
+        # alphabet's answer. A slug the batch file never named still falls back to alphabetical.
+        ordering = list(names)
+        missing = sorted(
+            slugs - set(existing),
+            key=lambda slug: (ordering.index(slug) if slug in ordering else len(ordering), slug),
+        )
         if missing and not create:
             raise CommandError(
                 f'Topics not in branch {branch.slug}: {", ".join(missing)}. Either fix the slugs or '

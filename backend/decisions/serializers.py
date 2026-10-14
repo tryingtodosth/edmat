@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from config.sanitize import sanitize_content
 from .models import Ballot, Poll, PollOption
-from translations.serializers import TranslatedTextMixin
+from translations.serializers import PlainTextWriteMixin, TranslatedTextMixin
 
 
 class PollOptionSerializer(TranslatedTextMixin, serializers.ModelSerializer):
@@ -39,6 +39,11 @@ class PollSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     text_versions = serializers.SerializerMethodField()
 
     options = PollOptionSerializer(many=True, read_only=True)
+    #: Where this poll hangs and where the reader stands on it (`config.nodes.node_ref`), the way
+    #: every other board row's serializer answers it. Added 2026-10-10 because `/polls/[id]` had no
+    #: `NodeRef` at all — the page says so in its own docstring — and a surface that cannot ask
+    #: "may you add something here" cannot draw an attachments panel.
+    node = serializers.SerializerMethodField()
     has_voted = serializers.SerializerMethodField()
     can_vote = serializers.SerializerMethodField()
     can_see_results = serializers.SerializerMethodField()
@@ -63,10 +68,11 @@ class PollSerializer(TranslatedTextMixin, serializers.ModelSerializer):
             'options',
             'content_type_id',
             'object_id',
+            'node',
             'has_voted',
             'can_vote',
             'can_see_results',
-        
+
             'language',
             'text_versions',
         ]
@@ -79,6 +85,7 @@ class PollSerializer(TranslatedTextMixin, serializers.ModelSerializer):
             'created_at',
             'content_type_id',
             'object_id',
+            'node',
             'has_voted',
             'can_vote',
             'can_see_results',
@@ -87,6 +94,23 @@ class PollSerializer(TranslatedTextMixin, serializers.ModelSerializer):
     def validate_description(self, value):
         """Sanitize description on write."""
         return sanitize_content(value) if value else value
+
+    def get_node(self, poll) -> dict | None:
+        """The same `{kind, id, title, isStaff, canManage, …}` every other board row answers with
+        (`config.nodes.node_ref`), so a page holding only a poll can still ask where this reader
+        stands — which is what `/polls/[id]` needs to draw its attachments panel."""
+        from config import nodes
+
+        from . import rules
+
+        # A list endpoint already knows the node — it resolved it to scope the query — so it puts it
+        # in the context and this costs nothing per row. Without that, `poll_node` follows the
+        # generic FK once per poll, which on a board of five polls is ten queries for one answer.
+        node = self.context.get('node') or rules.poll_node(poll)
+        if node is None:
+            return None
+        request = self.context.get('request')
+        return nodes.node_ref(node, getattr(request, 'user', None) if request else None)
 
     def get_has_voted(self, obj):
         """Whether the requesting user has already cast a ballot — so a reload does not offer the
@@ -132,7 +156,7 @@ class PollCreateSerializer(serializers.ModelSerializer):
         return sanitize_content(value) if value else value
 
 
-class PollUpdateSerializer(serializers.ModelSerializer):
+class PollUpdateSerializer(PlainTextWriteMixin, serializers.ModelSerializer):
     """Update a poll (draft only)."""
 
     class Meta:

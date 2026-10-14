@@ -29,9 +29,17 @@ bytes — so while both rows exist, deleting either takes the shared file with i
    absorption a rename rather than a reinterpretation. On a **comment** only `public` is legal, and
    `access.tier_block_reason` refuses the rest rather than silently treating them as public.
 
-2. **A board row has no standing of its own.** A task, a plan, a need and a goal all resolve to the
-   node they hang off (`targets.node_behind`) and ask `config/nodes.py` about THAT — the same thing
-   their own discussion threads do. Four more apps did not have to learn a permission model.
+2. **A board row has no standing of its own — except a poll.** A task, a plan, a need and a goal
+   all resolve to the node they hang off (`targets.node_behind`) and ask `config/nodes.py` about
+   THAT — the same thing their own discussion threads do. Four more apps did not have to learn a
+   permission model.
+
+   **`poll` (2026-10-10) is the one exception and the reason `can_view_target` has a branch.** A
+   poll is narrower than its node: a draft is managers-only and an open one is for the eligible,
+   because the wording of a question put to the room is as much of the decision as the count is
+   (`decisions/rules.py`). Its attachments have to inherit THAT, or this app becomes the way to read
+   a question nobody was shown — so `can_view_target` asks `decisions.rules.can_view_poll` rather
+   than re-deriving it. A new kind with a visibility rule of its own goes in the same place.
 
 3. **Four file paths, and which one a file takes is decided by what it IS.** An image is re-encoded
    from pixels (nothing of the upload survives). `.md`/`.txt` become **characters in a TEXT column**
@@ -57,8 +65,30 @@ bytes — so while both rows exist, deleting either takes the shared file with i
   `frontend/src/lib/types/featureFlag.ts` and `frontend/src/lib/utils/labels.ts`. The root
   `CLAUDE.md` says the third has been forgotten twice.
 
+## Where the panel is mounted (2026-10-10)
+
+`ManagementPanels` (the node pages) plus every board row: `/needs/[id]`, `/tasks/[id]`,
+`/plans/[id]`, `/goals/[id]`, `/polls/[id]`, and inside `TaskCard`, `GoalCard` and each poll row on
+a board. Two props on `AttachmentsPanel` make the per-row case affordable:
+
+- **`foldKey`** — two panels sharing one key share their open state, so a per-row mount passes
+  `attachments:<kind>:<id>`. The default stays the bare word, because `e2e/attachments.mjs`
+  addresses the node pages by `[data-fold="attachments"]`.
+- **`canAttach` must include the row's own author**, because `access.can_attach` does — "somebody
+  who filed a need may attach the photo that explains it". A surface that passes only the node's
+  staff hides the form from exactly the person that rule was written for; the server still refuses
+  correctly, so the bug is invisible from the API side.
+- **`deferred`** — fetch when the reader OPENS the section (`FoldSection`'s own `onopen`), so a
+  board with thirty rows pays nothing until somebody asks. The catch, which cost a browser run: the
+  panel's render condition used to be `enabled && loaded && …`, so a deferred panel never rendered
+  at all. It now reads `loaded ? rows.length > 0 || canAttach : deferred && canAttach` — which
+  means a deferred panel's shut line is drawn only for somebody who may attach, because the row
+  count is exactly what has not been fetched. See "Left open".
+
 ## Left open
 
+- **A board row gives a plain reader no hint that it has attachments** (the deferred mode above).
+  The honest fix is an `attachments_count` on the four row serializers.
 - **Nothing is mounted on a course or an event page yet.** Both still have their older surfaces, and
   two attachment UIs on one page is worse than one in the wrong place — `ManagementPanels` carries
   the condition and loses it on the day `absorb_legacy_attachments --apply` runs.

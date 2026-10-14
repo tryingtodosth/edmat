@@ -5,7 +5,7 @@ from rest_framework import serializers
 from config import nodes as node_seam
 
 from .models import MAX_SPOKEN_LANGUAGES, Need, NeedApplication, VolunteeringOffer
-from translations.serializers import TranslatedTextMixin
+from translations.serializers import PlainTextWriteMixin, TranslatedTextMixin
 
 
 def _display_name(user) -> str:
@@ -22,7 +22,7 @@ def _person(user) -> dict | None:
     return {'id': user.pk, 'display_name': _display_name(user)}
 
 
-class NeedSerializer(TranslatedTextMixin, serializers.ModelSerializer):
+class NeedSerializer(PlainTextWriteMixin, TranslatedTextMixin, serializers.ModelSerializer):
     """`node` is read-only and computed (`config.nodes.node_ref`) — the need's node is set once, at
     creation, from the URL it was posted under (`NodeNeedsView.post`), never from the request body:
     a client-chosen `content_type`/`object_id` would let anybody pin a need on a node they do not

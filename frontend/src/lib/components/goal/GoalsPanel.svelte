@@ -162,6 +162,7 @@
 							<GoalCard
 								{goal}
 								policy={rowDiscussions.byKey[discussionKeyFor('goals', goal.id)]}
+								attachments="deferred"
 								onChanged={replace}
 								onRemoved={() => (goals = goals.filter((row) => row.id !== goal.id))}
 							/>

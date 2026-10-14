@@ -145,3 +145,53 @@ def write_versions(obj, *, original_locale: str, versions: dict, user=None,
             obj.save(update_fields=changed)
 
     return written
+
+
+def write_original_text(obj, *, heading=None, body=None, user=None) -> bool:
+    """One language's edit of a row's own text, routed through the versions table.
+
+    **This is what a plain edit form has to call**, and the reason is a bug that was live until
+    2026-10-10: `resolve` reads a `TextVersion` whenever the row has one and falls back to the row's
+    own column only when it has none at all — so writing `Task.title` straight onto the column, the
+    way every management write serializer did, changes a column no reader ever sees. Verified on the
+    dev database before this function existed: the column became `PLAIN-EDIT-PROBE` and both
+    languages went on answering the old text. `write_versions` is the only writer `resolve` can see.
+
+    Returns **False** when the row has no versions at all, and that is not a failure: a target with
+    no rows here behaves exactly as it did before this app existed (`models.py`, "Why the model's
+    own column survives"), so the caller's own column write IS the whole truth and there is nothing
+    to mirror. True when the original language's version was rewritten.
+
+    `None` means **leave that half alone** — a PATCH of the title only must not blank a description
+    that lives in a version row. The missing half is read from the VERSION and not from the row's
+    column, because the column is exactly the thing that may already have drifted.
+
+    **Only the original language is touched.** Every other language keeps its own `updated_at`, so
+    a reader of a translation is told the original is newer — which is true. Writing one language
+    and silently re-stamping the others as current is the lie the whole app exists to avoid; saying
+    "the Polish is 4 minutes newer" about an edit that really was Polish-only is not that lie, and
+    `TranslateFields` is still there for whoever wants to write both at once.
+    """
+    kind = kind_of(obj)
+    if not kind:
+        return False
+    content_type = content_type_for(kind)
+    if content_type is None:
+        return False
+    original = TextVersion.objects.filter(
+        content_type=content_type, object_id=obj.pk, is_original=True
+    ).first()
+    if original is None:
+        return False
+    write_versions(
+        obj,
+        original_locale=original.locale,
+        versions={
+            original.locale: {
+                'heading': original.heading if heading is None else heading,
+                'body': original.body if body is None else body,
+            }
+        },
+        user=user,
+    )
+    return True

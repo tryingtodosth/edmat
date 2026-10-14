@@ -22,7 +22,7 @@ from .models import (
     OrganizationLink,
     OrganizationMember,
 )
-from translations.serializers import TranslatedTextMixin
+from translations.serializers import PlainTextWriteMixin, TranslatedTextMixin
 
 
 class PersonSerializer(serializers.Serializer):
@@ -176,7 +176,7 @@ class OrganizationSerializer(TranslatedTextMixin, OrganizationSummarySerializer)
         return can_manage(self._user(), obj)
 
 
-class OrganizationWriteSerializer(serializers.ModelSerializer):
+class OrganizationWriteSerializer(PlainTextWriteMixin, serializers.ModelSerializer):
     """`name` and `kind` and four optional fields. The slug is NOT here (see the module docstring),
     `is_active` is not here either — a body is closed through DELETE, which is the one path that
     also has the tombstone's reasoning attached to it.

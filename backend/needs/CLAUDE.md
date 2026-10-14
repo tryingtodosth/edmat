@@ -108,6 +108,22 @@ than one row per applicant).
 `lib/services/needs.ts`, `/needs` (the board) and `/needs/[id]`, `NeedsPanel` at mount point C.
 Browser: `frontend/e2e/needs.mjs`.
 
+## Editing a posting (2026-10-10)
+
+`PATCH /api/needs/{id}/` has always accepted all eight fields; until this date nothing in the app
+sent any of them, so a need's kind, skill level, hours, deadline, remote flag and wanted count were
+**create-only** and changing one meant Django admin. Now:
+
+- **`NeedForm.svelte`** is the one form that writes a need — the panel's "Post a need" and "Edit the
+  posting" behind the `⋯`, on the row AND on `/needs/[id]`, which had no menu at all before.
+- **The text goes through the same PATCH**, and the backend routes it into the versions table for
+  the original language (`translations.serializers.PlainTextWriteMixin`). Without that the edit
+  would change a column no reader sees — see `translations/CLAUDE.md`, which has the whole story.
+- **Cancel/reopen moved into that menu** and off the manager section: two places to cancel the same
+  need is how two surfaces start disagreeing.
+- **Attachments are on `/needs/[id]`** (`attachments/`, `need` has been a registered kind since
+  2026-10-09). `can_attach` lets the need's own author attach as well as the node's staff.
+
 ## Left open
 
 - **Matching by profile skills** (`accounts.SkillEntry` exists) is not built — a need's

@@ -18,6 +18,38 @@ Polish and the English together with a `/` and a `---` rule, and every reader of
 languages at once whichever one they had chosen. That is the **content** axis of the root
 CLAUDE.md's i18n rule ("two separate axes, deliberately") being done by hand in a single column.
 
+## The plain edit form, and the bug it had until 2026-10-10
+
+`resolve` reads a `TextVersion` whenever the row has one and consults the row's own column **only
+when it has none at all**. That fallback is what made this app additive — and it is also why every
+management write serializer was quietly broken: each wrote `title`/`description` straight onto the
+column, so on any row somebody had translated (which is every row on `/about`, because the seed
+splits its bilingual text into versions) an edit **returned 200 with the new text in it and changed
+nothing a reader would ever see**.
+
+Two pieces fix it, and a new write path needs the second:
+
+- **`services.write_original_text(obj, heading=, body=, user=)`** — one language's edit, routed
+  through `write_versions`. `False` means "this row has no versions, your column write is the whole
+  truth" and is not a failure; `None` for a half means "leave it alone", read back from the VERSION
+  and not from the column, which is the thing that may have drifted.
+- **`serializers.PlainTextWriteMixin`** — the other half of `TranslatedTextMixin`. That one makes
+  the READ answer in the reader's language; this one makes the WRITE land where that read looks.
+  Add it to any write serializer of a registered kind. It is on `TaskWriteSerializer`,
+  `NeedSerializer`, `PlanStepUpdateSerializer`, `GoalSerializer`, `GoalCriterionSerializer`,
+  `PollUpdateSerializer`, `OrganizationWriteSerializer` and `ContestSerializer`;
+  `PlanViewSet.partial_update` writes its three fields by hand and so asks the service by hand.
+
+**Only the original language is touched**, and the others keep their own `updated_at` — so a reader
+of a translation is told the original is newer, which is true. `PUT /api/text-versions/<kind>/<pk>/`
+is still how somebody writes every language at once, and that is still the better moment.
+
+**The trap: drop `_prefetched_objects_cache['text_versions']` after the write.** Every management
+view prefetches that relation so `resolve` answers in memory for a board of fifty rows, and the
+cache predates the write — so the response renders the OLD text from a save that worked. Found in a
+browser (the page showed the previous title until a reload), not by any test; DRF's own
+`UpdateModelMixin` drops the same cache for the same reason. `PlainEditTests` pins both halves.
+
 ## Why this is NOT `ExerciseTranslation`'s shape
 
 `ExerciseTranslation` is a per-model table with a `status`, because a stranger's translation of a

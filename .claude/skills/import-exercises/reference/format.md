@@ -66,7 +66,7 @@ Podnieś całkę do kwadratu i użyj współrzędnych biegunowych.
 | `locale` | no | the language the body is written in. Default `pl` |
 | `published` | no | `false` imports it hidden — a staging state, not a draft workflow. `true` never *re*-publishes an existing row that is unpublished or auto-hidden: that was somebody's decision, and the run warns instead |
 | `tags` | no | free slugs; created on demand, never removed by a later run |
-| `source` | no | mapping. `type`: `Ćwiczenia/exercises`, `Kolokwium/midterm`, `Egzamin/exam`, anything else → `other` with a warning. Plus `name`, `collection`, `original_problem_number`, `pages` (string), `chapter` (int) |
+| `source` | no | mapping. `type`: `Ćwiczenia/exercises`, `Kolokwium/midterm`, `Egzamin/exam`, anything else → `other` with a warning. Plus `name`, `collection`, `original_problem_number` (int), `pages` (string), `chapter` (int). A sub-problem letter (`11a`) is not an integer: put the number in `original_problem_number` and the letter in `name` ("…, zadanie 11a"), which is free text and is what a reader sees. Any other sub-key is carried in the file and ignored — there is no column for it |
 | `id` | no | accepted and ignored — the corpus files carry one |
 
 Any other key is an error, including `verified:` (derived — see SKILL.md §4) and a mistyped `tag:`.
@@ -94,8 +94,10 @@ branch: analiza-matematyczna     # --branch overrides this
 locale: pl
 audience: university
 difficulty: średnie              # fallback for files that omit it
-topic_names:                     # used only by --create-topics
-  teoria-miary: Elementy teorii miary
+topic_names:                     # used only by --create-topics — and this ORDER is the order the
+  teoria-miary: Elementy teorii miary   # created topics get, which is how /branches/<slug> sorts
+                                        # its topic filter. List them the way the course teaches
+                                        # them; anything not listed falls in after, alphabetically.
 ```
 
 ## What validation refuses (nothing is imported if anything is)
@@ -105,7 +107,10 @@ topic_names:                     # used only by --create-topics
 - unknown/missing `difficulty`; unknown `audience`
 - unknown front-matter key; `verified:`
 - a `## heading` that is not one of the four
-- unbalanced `\(`/`\)` or `\[`/`\]` in title, statement, hint, answer or solution
+- unbalanced `\(`/`\)` or `\[`/`\]` in title, statement, hint, answer or solution — counted with
+  `\\` stepped over, because `\\[3mm]` (a line break inside `cases`/`aligned`) is punctuation, not
+  display maths, and 73 files of the real corpus use it
+- `source.original_problem_number` or `source.chapter` that is not an integer
 - two files in the batch claiming the same `number:`
 - a `topics:` slug the branch does not have, without `--create-topics`
 - a `--branch` slug that does not exist, or a `--author` username that does not exist

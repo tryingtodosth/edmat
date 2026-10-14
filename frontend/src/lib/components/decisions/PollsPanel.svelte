@@ -22,6 +22,7 @@
 	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
 	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
 	import RowDiscussion from '$lib/components/discussion/RowDiscussion.svelte';
+	import AttachmentsPanel from '$lib/components/attachments/AttachmentsPanel.svelte';
 	import { RowDiscussions } from '$lib/components/discussion/rowDiscussions.svelte';
 	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 	import {
@@ -429,6 +430,20 @@
 						{#if actionError[poll.id]}
 							<p class="poll-action-error">{actionError[poll.id]}</p>
 						{/if}
+
+						<!-- The draft being voted on, the figures, the regulation (2026-10-10). Deferred and
+						     keyed on the poll, like the goal cards on a board: one panel per row that
+						     fetched on mount would be a request per poll the moment this section opened,
+						     and two panels sharing a fold key share their open state. -->
+						<AttachmentsPanel
+							targetKind="poll"
+							targetId={String(poll.id)}
+							canAttach={node.isStaff || node.canManage}
+							canManage={node.canManage}
+							level={3}
+							foldKey={`attachments:poll:${poll.id}`}
+							deferred
+						/>
 
 						<RowDiscussion
 							policy={rowDiscussions.byKey[discussionKeyFor('polls', poll.id)]}

@@ -116,6 +116,19 @@ SUBPROJECT_BY_REF = {
     # The composer-behind-a-button pass (ux/colour-pass, 2026-10-09) was written as a second §17CE
     # while the contests cycle took the same reference; renumbered 17CF at the fast-forward (2026-10-10).
     '17CF': 'community',
+    # 17CG is content management on the board rows — a need's own edit form, the `⋯` on its page,
+    # attachments on every row, and the one writer for a row's text. Filed under `management`,
+    # whose apps (tasks, needs, plans, decisions) are the rows it is about; the attachments half
+    # reaches further, and a section gets one key (the 17CD note above says the same).
+    '17CG': 'management',
+    # 17CH is the paczka2 batches — 214 exercises prepared for the live corpus, and the three
+    # defects in `import_exercises` that preparing them found. `corpus`, like §17BQ which built the
+    # command in the first place.
+    '17CH': 'corpus',
+    # 17CI is mail — no-reply@edmat.net, the queue, confirmation, reset, the digest and the Mail tab.
+    # `accounts`, where registration and the password already lived; the inbox half is operator
+    # tooling and a section gets one key.
+    '17CI': 'accounts',
 }
 
 #: Heading prefix → goal key, checked before the reference (the four headings without a reference,

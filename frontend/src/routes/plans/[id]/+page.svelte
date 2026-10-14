@@ -15,6 +15,7 @@
 	import FeatureGate from '$lib/components/shared/FeatureGate.svelte';
 	import PageHead from '$lib/components/shared/PageHead.svelte';
 	import MathContent from '$lib/components/shared/MathContent.svelte';
+	import AttachmentsPanel from '$lib/components/attachments/AttachmentsPanel.svelte';
 	import {
 		addPlanStep,
 		decidePlanSuggestion,
@@ -574,6 +575,19 @@
 					{/if}
 				</section>
 			{/if}
+
+			<!-- Everything the roadmap refers to: a budget, a draft, the slide somebody presented
+			     (`attachments/`, mounted on the four board-row kinds 2026-10-10). On the plan, not on
+			     a step — a step has no attachment target of its own, for the same reason it has no
+			     thread of its own. -->
+			<AttachmentsPanel
+				targetKind="plan"
+				targetId={plan.id}
+				canAttach={plan.node?.isStaff ||
+					plan.node?.canManage ||
+					authStore.user?.id === plan.createdById}
+				canManage={plan.node?.canManage}
+			/>
 
 			<!-- The plan's own thread (`plans/<id>` to `community/discussions.py`): where talk about
 			     the roadmap and its steps goes — a step has no thread of its own. -->

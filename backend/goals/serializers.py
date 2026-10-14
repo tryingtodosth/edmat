@@ -4,7 +4,7 @@ done, and commentable)."""
 from rest_framework import serializers
 
 from config import nodes as node_seam
-from translations.serializers import TranslatedTextMixin
+from translations.serializers import PlainTextWriteMixin, TranslatedTextMixin
 
 from .models import CRITERION_MAX_LENGTH, Goal, GoalCriterion
 
@@ -23,7 +23,7 @@ def _person(user) -> dict | None:
     return {'id': user.pk, 'display_name': _display_name(user)}
 
 
-class GoalCriterionSerializer(TranslatedTextMixin, serializers.ModelSerializer):
+class GoalCriterionSerializer(PlainTextWriteMixin, TranslatedTextMixin, serializers.ModelSerializer):
     """One line of a definition of done.
 
     The `poll_option` shape in `translations/targets.py`: one text field and no second one, so
@@ -57,7 +57,7 @@ class GoalCriterionSerializer(TranslatedTextMixin, serializers.ModelSerializer):
         return _person(criterion.met_by)
 
 
-class GoalSerializer(TranslatedTextMixin, serializers.ModelSerializer):
+class GoalSerializer(PlainTextWriteMixin, TranslatedTextMixin, serializers.ModelSerializer):
     """`node` is read-only and computed (`config.nodes.node_ref`) — a goal's node is set once, at
     creation, from the URL it was posted under (`NodeGoalsView.post`), never from the request body:
     a client-chosen `content_type`/`object_id` would let anybody pin a goal on a body they do not

@@ -8,8 +8,16 @@
 	import FoldSection from '$lib/components/shared/FoldSection.svelte';
 	import { resolve } from '$app/paths';
 	import type { NodeRef } from '$lib/types/node';
-	import type { Need, NeedDraft, NeedKind, SkillLevel } from '$lib/types/need';
-	import { cancelNeed, createNeed, getNodeNeeds, reopenNeed } from '$lib/services/needs';
+	import type { Need, NeedDraft } from '$lib/types/need';
+	import {
+		cancelNeed,
+		createNeed,
+		getNodeNeeds,
+		reopenNeed,
+		updateNeed
+	} from '$lib/services/needs';
+	import NeedForm from './NeedForm.svelte';
+	import ModalShell from '$lib/components/shared/ModalShell.svelte';
 	import ManagementTextMenu from '$lib/components/translations/ManagementTextMenu.svelte';
 	import LanguageNote from '$lib/components/translations/LanguageNote.svelte';
 	import RowDiscussion from '$lib/components/discussion/RowDiscussion.svelte';
@@ -19,13 +27,7 @@
 	import { authStore } from '$lib/state/auth.svelte';
 	import { featureFlagsStore } from '$lib/state/featureFlags.svelte';
 	import { ApiError } from '$lib/api/client';
-	import {
-		NEED_KINDS,
-		NEED_KIND_LABELS,
-		NEED_STATUS_LABELS,
-		SKILL_LEVELS,
-		SKILL_LEVEL_LABELS
-	} from '$lib/utils/labels';
+	import { NEED_KIND_LABELS, NEED_STATUS_LABELS } from '$lib/utils/labels';
 
 	let { node }: { node: NodeRef } = $props();
 
@@ -45,15 +47,10 @@
 	let showForm = $state(false);
 	let busy = $state(false);
 	let error = $state('');
-
-	let title = $state('');
-	let description = $state('');
-	let kind = $state<NeedKind>('help');
-	let skillLevel = $state<SkillLevel>('none');
-	let estimatedHours = $state('');
-	let deadline = $state('');
-	let isRemote = $state(false);
-	let wantedCount = $state('1');
+	/** The need whose fields are being edited, in a dialog — `null` when nobody is editing. The row
+	 *  itself stays a line (the board's rows are deliberately one line each), so the form that
+	 *  writes eight fields opens over it rather than inside it. */
+	let editing = $state<Need | null>(null);
 
 	/** The text came back resolved for this reader, so the row is patched in place rather than
 	 *  refetching the whole panel — the write endpoint answers with the new reading for exactly
@@ -105,46 +102,43 @@
 		void load();
 	});
 
-	function resetForm() {
-		title = '';
-		description = '';
-		kind = 'help';
-		skillLevel = 'none';
-		estimatedHours = '';
-		deadline = '';
-		isRemote = false;
-		wantedCount = '1';
-		error = '';
+	function refusal(err: unknown): string {
+		return err instanceof ApiError
+			? (((err.body as Record<string, unknown> | undefined)?.detail as string | undefined) ??
+					m.common_error())
+			: m.common_error();
 	}
 
-	async function submit(e: SubmitEvent) {
-		e.preventDefault();
-		if (!title.trim()) return;
+	async function create(draft: NeedDraft) {
 		busy = true;
 		error = '';
 		try {
-			const draft: NeedDraft = {
-				title: title.trim(),
-				description: description.trim(),
-				kind,
-				skillLevel,
-				estimatedHours: estimatedHours.trim()
-					? Math.max(0, parseInt(estimatedHours, 10) || 0)
-					: null,
-				deadline: deadline ? new Date(deadline).toISOString() : null,
-				isRemote,
-				wantedCount: Math.max(1, parseInt(wantedCount, 10) || 1)
-			};
 			const created = await createNeed(node.kind, node.id, draft);
 			needs = [created, ...needs];
 			showForm = false;
-			resetForm();
 		} catch (err) {
-			error =
-				err instanceof ApiError
-					? (((err.body as Record<string, unknown> | undefined)?.detail as string | undefined) ??
-						m.common_error())
-					: m.common_error();
+			error = refusal(err);
+		} finally {
+			busy = false;
+		}
+	}
+
+	/** The other half of the `⋯` (2026-10-10). The TEXT also goes through `updateNeed`, and the
+	 *  backend routes it into the versions table for the original language only
+	 *  (`translations.serializers.PlainTextWriteMixin`) — so an edit here is visible, and a reader
+	 *  of the other language is honestly told the original is newer. Whoever wants to write both
+	 *  languages at once still has "Edit in both languages…" in the same menu. */
+	async function saveEdit(draft: NeedDraft) {
+		const target = editing;
+		if (!target) return;
+		busy = true;
+		error = '';
+		try {
+			const updated = await updateNeed(target.id, draft);
+			needs = needs.map((row) => (row.id === updated.id ? updated : row));
+			editing = null;
+		} catch (err) {
+			error = refusal(err);
 		} finally {
 			busy = false;
 		}
@@ -155,66 +149,39 @@
 	<FoldSection key="needs" title={m.needs_panelHeading()} count={needs.length}>
 		{#snippet actions()}
 			{#if node.canManage && !showForm}
-				<button type="button" class="primary" onclick={() => (showForm = true)}>
+				<button
+					type="button"
+					class="primary"
+					onclick={() => {
+						// A refusal from a cancel/reopen must not greet the next person who opens the
+						// form: the form is handed `error` and would draw somebody else's failure.
+						error = '';
+						showForm = true;
+					}}
+				>
 					{m.needs_addNeed()}
 				</button>
 			{/if}
 		{/snippet}
 		<div class="needs-panel" data-needs-panel>
 			{#if showForm}
-				<form class="add-form" onsubmit={submit}>
-					<label class="field grow">
-						<span>{m.needs_formTitleLabel()}</span>
-						<input type="text" bind:value={title} required maxlength="200" />
-					</label>
-					<label class="field">
-						<span>{m.needs_formKindLabel()}</span>
-						<select bind:value={kind}>
-							{#each NEED_KINDS as k (k)}
-								<option value={k}>{NEED_KIND_LABELS[k]()}</option>
-							{/each}
-						</select>
-					</label>
-					<label class="field">
-						<span>{m.needs_formSkillLevelLabel()}</span>
-						<select bind:value={skillLevel}>
-							{#each SKILL_LEVELS as level (level)}
-								<option value={level}>{SKILL_LEVEL_LABELS[level]()}</option>
-							{/each}
-						</select>
-					</label>
-					<label class="field grow">
-						<span>{m.needs_formDescriptionLabel()}</span>
-						<textarea rows="3" bind:value={description}></textarea>
-					</label>
-					<label class="field">
-						<span>{m.needs_formEstimatedHoursLabel()}</span>
-						<input type="text" inputmode="numeric" bind:value={estimatedHours} />
-					</label>
-					<label class="field">
-						<span>{m.needs_formDeadlineLabel()}</span>
-						<input type="datetime-local" bind:value={deadline} />
-					</label>
-					<label class="field">
-						<span>{m.needs_formWantedCountLabel()}</span>
-						<input type="text" inputmode="numeric" bind:value={wantedCount} />
-					</label>
-					<label class="checkbox">
-						<input type="checkbox" bind:checked={isRemote} />
-						<span>{m.needs_formRemoteLabel()}</span>
-					</label>
-					{#if error}<p class="error" role="alert">{error}</p>{/if}
-					<div class="actions">
-						<button type="submit" class="primary" disabled={busy}>{m.common_save()}</button>
-						<button
-							type="button"
-							onclick={() => {
-								showForm = false;
-								resetForm();
-							}}>{m.common_cancel()}</button
-						>
-					</div>
-				</form>
+				<NeedForm
+					{busy}
+					{error}
+					submitLabel={m.common_save()}
+					onsubmit={create}
+					oncancel={() => {
+						showForm = false;
+						error = '';
+					}}
+				/>
+			{/if}
+
+			<!-- A refusal from cancel/reopen, which has no form of its own to carry it (house rule 6:
+			     a refusal carries its reason — and the reason has to be somewhere a person can read
+			     it). While a form is open it is that form's, so the two never both draw it. -->
+			{#if error && !showForm && !editing}
+				<p class="error" role="alert">{error}</p>
 			{/if}
 
 			{#if loading}
@@ -252,6 +219,14 @@
 									label={m.needs_rowActionsLabel()}
 									items={[
 										{
+											label: m.needs_editNeed(),
+											// "Edit the posting"
+											onselect: () => {
+												error = '';
+												editing = need;
+											}
+										},
+										{
 											label:
 												need.status === 'cancelled' ? m.needs_reopenNeed() : m.needs_cancelNeed(),
 											danger: need.status !== 'cancelled',
@@ -272,6 +247,27 @@
 			{/if}
 		</div>
 	</FoldSection>
+
+	{#if editing}
+		<ModalShell title={m.needs_editModalTitle()} onClose={() => (editing = null)} size="wide">
+			<!-- "Edit this posting" — `wide` because eight fields in a 560px column is a scroll. -->
+			<NeedForm
+				initialTitle={editing.title}
+				initialDescription={editing.description}
+				initialKind={editing.kind}
+				initialSkillLevel={editing.skillLevel}
+				initialEstimatedHours={editing.estimatedHours}
+				initialDeadline={editing.deadline}
+				initialIsRemote={editing.isRemote}
+				initialWantedCount={editing.wantedCount}
+				{busy}
+				{error}
+				submitLabel={m.common_save()}
+				onsubmit={saveEdit}
+				oncancel={() => (editing = null)}
+			/>
+		</ModalShell>
+	{/if}
 {/if}
 
 <style lang="scss">
@@ -299,46 +295,6 @@
 	.status {
 		color: var(--text-secondary);
 		font-size: 0.9rem;
-	}
-	.add-form {
-		display: grid;
-		gap: 0.6rem;
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 1rem;
-		background: var(--bg-surface);
-	}
-	.field {
-		display: grid;
-		gap: 0.2rem;
-		font-size: 0.9rem;
-	}
-	.grow {
-		grid-column: 1 / -1;
-	}
-	input,
-	select,
-	textarea {
-		font: inherit;
-		padding: 0.4rem 0.5rem;
-		border: 1px solid var(--border-color);
-		border-radius: 6px;
-		background: var(--bg-surface);
-		color: var(--text-primary);
-		min-height: 40px;
-	}
-	.checkbox {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.9rem;
-	}
-	.checkbox input {
-		min-height: auto;
-	}
-	.actions {
-		display: flex;
-		gap: 0.4rem;
 	}
 	.error {
 		color: var(--status-danger);

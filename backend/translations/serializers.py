@@ -88,3 +88,61 @@ class TranslatedTextMixin:
             if self.translated_body_field and self.translated_body_field in data:
                 data[self.translated_body_field] = reading['body']
         return data
+
+
+class PlainTextWriteMixin:
+    """Makes a plain edit form's write of `title`/`description` actually visible.
+
+    Add it to a write serializer of any kind in `targets.TRANSLATABLE_KIND_MODELS` — it is the
+    other half of `TranslatedTextMixin`: that one makes the READ answer in the reader's language,
+    this one makes the WRITE land where that read looks. Without it a PATCH changes the row's own
+    column, which `resolve` stops consulting the moment anybody has translated the row, so the edit
+    vanishes (see `services.write_original_text` for the probe that proved it).
+
+    It does not replace `PUT /api/text-versions/<kind>/<pk>/`. That endpoint writes every language
+    in one submission and is how a translation is made; this is the single-language edit somebody
+    makes in the row's own form, and it touches the original language only.
+
+    The column write stays exactly where it was — `super().update()` does it, and
+    `write_original_text` then mirrors the version back over it with the identical text — so a row
+    nobody has translated behaves precisely as it did before, which is what keeps this additive.
+    """
+
+    def update(self, instance, validated_data):
+        from . import targets
+        from .services import TranslationWriteError, write_original_text
+
+        heading_field, body_field = targets.fields_of(instance)
+        # Read BEFORE `super().update()`, because what we want to know is what the request asked
+        # for: a field absent from a PATCH must stay `None` ("leave that half alone") rather than
+        # become the value the save has just written.
+        heading = validated_data.get(heading_field) if heading_field else None
+        body = validated_data.get(body_field) if body_field else None
+        instance = super().update(instance, validated_data)
+        if heading is None and body is None:
+            return instance
+        try:
+            if write_original_text(
+                instance, heading=heading, body=body, user=self._writing_user()
+            ):
+                # The view fetched this row through a queryset that prefetched `text_versions`
+                # (every management view does, so that `resolve` answers in memory for a board of
+                # fifty rows). That cache was filled BEFORE the write, so the response this
+                # serializer is about to render would resolve the text from the versions as they
+                # were a moment ago — a 200 carrying the OLD title back from a save that worked.
+                # Found in the browser (house rule 2): the page showed the previous title until a
+                # reload. DRF's own `UpdateModelMixin` drops this cache for exactly this reason.
+                cache = getattr(instance, '_prefetched_objects_cache', None)
+                if cache:
+                    cache.pop('text_versions', None)
+        except TranslationWriteError as exc:
+            # A blank original heading is the only way in, and every serializer here already
+            # refuses one — but a 400 with the reason is the house answer (house rule 6) and a
+            # 500 is not.
+            raise serializers.ValidationError({'detail': str(exc)}) from exc
+        return instance
+
+    def _writing_user(self):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request is not None else None
+        return user if (user is not None and getattr(user, 'is_authenticated', False)) else None

@@ -17,6 +17,7 @@
 	import { getPoll, getPollResults, vote } from '$lib/services/polls';
 	import type { Poll, PollResults } from '$lib/types/poll';
 	import PageDiscussion from '$lib/components/discussion/PageDiscussion.svelte';
+	import AttachmentsPanel from '$lib/components/attachments/AttachmentsPanel.svelte';
 	import { discussionKeyFor } from '$lib/utils/discussionKeys';
 
 	let poll = $state<Poll | null>(null);
@@ -175,6 +176,18 @@
 
 			<!-- The poll's own thread (`polls/<id>` to `community/discussions.py`): the argument
 			     about the question, kept apart from the ballot. -->
+			<!-- What the question is ABOUT: the draft being voted on, the figures, the regulation
+			     (`attachments/`, where `poll` joined the registry 2026-10-10). A poll's attachments
+			     inherit the POLL's own visibility and not just the node's — a draft is managers-only
+			     and an open one is for the eligible (`attachments/access.py`). Since 2026-10-10 this
+			     page is told where the reader stands (`poll.node`); before that it knew only the
+			     poll, which is why manager actions were all on the panel. -->
+			<AttachmentsPanel
+				targetKind="poll"
+				targetId={String(poll.id)}
+				canAttach={poll.node?.is_staff || poll.node?.can_manage}
+				canManage={poll.node?.can_manage}
+			/>
 			<PageDiscussion page={discussionKeyFor('polls', poll.id)} title={poll.question} />
 		</div>
 	</div>
